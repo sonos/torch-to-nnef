@@ -2,6 +2,7 @@
 
 Any Pytorch Model to NNEF file format
 
+> warning ! This project is still in alpha and might break/change api quickly
 
 ## Features
 
