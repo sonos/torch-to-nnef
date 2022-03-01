@@ -448,6 +448,7 @@ class GraphExtractor:
                         outputs=tensor,
                         attribs={
                             "shape": list(tensor.shape),
+                            "dtype": tensor.dtype,
                         },
                     )
                 if isinstance(node, NodeConstant):
@@ -467,7 +468,6 @@ class GraphExtractor:
         for in_tensor, requested_name in zip(self.g.inputs, input_names):
             in_tensor.name = requested_name
 
-        # TODO once output properly incorporated in graph
         self.g.outputs = [
             name_to_tensor[real_onode]
             for onode in self._torch_graph_helper.outputs_nodes
