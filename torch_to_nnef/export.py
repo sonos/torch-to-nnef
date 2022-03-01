@@ -1,5 +1,7 @@
+import warnings
 from pathlib import Path
 
+import numpy as np
 import torch
 from nnef_tools.io.nnef.writer import Writer as NNEFWriter
 from torch.onnx import TrainingMode
@@ -28,5 +30,10 @@ def export_model_to_nnef(
         _validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
         if isinstance(args, (torch.Tensor, int, float, bool)):
             args = (args,)
-        nnef_graph = GraphExtractor(model, args).parse()
-        NNEFWriter(compression=1)(nnef_graph, str(base_path))
+        nnef_graph = GraphExtractor(model, args).parse(
+            input_names,
+            output_names,
+        )
+        with np.testing.suppress_warnings() as sup:
+            sup.filter(DeprecationWarning)
+            NNEFWriter(compression=1)(nnef_graph, str(base_path))

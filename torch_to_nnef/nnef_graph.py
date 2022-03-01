@@ -416,7 +416,11 @@ class GraphExtractor:
             attribs=attributes,
         )
 
-    def build_nnef_graph(self):
+    def build_nnef_graph(
+        self,
+        input_names: T.List[str],
+        output_names: T.List[str],
+    ):
         self._torch_graph_helper.printall()
         null = NTensor(
             self.g,
@@ -461,6 +465,9 @@ class GraphExtractor:
             name_to_tensor[_.export_name]
             for _ in self._torch_graph_helper.inputs_nodes
         ]
+        assert len(input_names) == len(self.g.inputs)
+        for in_tensor, requested_name in zip(self.g.inputs, input_names):
+            in_tensor.name = requested_name
 
         # TODO once output properly incorporated in graph
         self.g.outputs = [
@@ -468,7 +475,17 @@ class GraphExtractor:
             for onode in self._torch_graph_helper.outputs_nodes
             for real_onode in onode.export_inputs
         ]
+        assert len(output_names) == len(self.g.outputs)
+        for out_tensor, requested_name in zip(self.g.outputs, output_names):
+            out_tensor.name = requested_name
 
-    def parse(self):
-        self.build_nnef_graph()
+    def parse(
+        self,
+        input_names: T.List[str],
+        output_names: T.List[str],
+    ):
+        self.build_nnef_graph(
+            input_names,
+            output_names,
+        )
         return self.g
