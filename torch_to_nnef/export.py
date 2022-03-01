@@ -30,10 +30,14 @@ def export_model_to_nnef(
         _validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
         if isinstance(args, (torch.Tensor, int, float, bool)):
             args = (args,)
-        nnef_graph = GraphExtractor(model, args).parse(
+
+        graph_extractor = GraphExtractor(model, args)
+        if verbose:
+            graph_extractor._torch_graph_helper.printall()
+
+        nnef_graph = graph_extractor.parse(
             input_names,
             output_names,
         )
-        with np.testing.suppress_warnings() as sup:
-            sup.filter(DeprecationWarning)
-            NNEFWriter(compression=1)(nnef_graph, str(base_path))
+
+        NNEFWriter(compression=1)(nnef_graph, str(base_path))

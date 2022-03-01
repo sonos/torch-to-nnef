@@ -23,10 +23,7 @@ INPUT_AND_MODELS = [
 def tract_assert_io(nnef_path: Path, io_npz_path: Path):
     cmd = f"tract {nnef_path} --input-bundle {io_npz_path} -O run --assert-output-bundle {io_npz_path}"
     try:
-        subprocess.check_call(
-            cmd,
-            shell=True,
-        )
+        subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -46,6 +43,7 @@ def test_should_fail_since_false_output():
             base_path=export_path,
             input_names=["input"],
             output_names=["output"],
+            verbose=False,
         )
 
         np.savez(
@@ -73,6 +71,7 @@ def test_model_export(test_input, model):
             base_path=export_path,
             input_names=["input"],
             output_names=["output"],
+            verbose=False,
         )
 
         np.savez(
