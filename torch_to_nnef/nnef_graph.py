@@ -382,7 +382,6 @@ class GraphExtractor:
             call_method_extractor.extract_operations(name_to_tensor)
             return
 
-        print(node)
         op_type = None
         attributes = {}
         outputs = []
@@ -421,7 +420,6 @@ class GraphExtractor:
         input_names: T.List[str],
         output_names: T.List[str],
     ):
-        self._torch_graph_helper.printall()
         null = NTensor(
             self.g,
             name="",
