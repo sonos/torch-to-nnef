@@ -9,6 +9,7 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.op import ModuleInfoExtractor
+from torch_to_nnef.op.base import _torch_to_nnef_typestr
 
 from torch_to_nnef.torch_graph import (
     InternalPytorchGraphHelper,
