@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import jit, nn
+import torch.jit._trace
 
 from .console import Console
 
@@ -144,7 +145,7 @@ class NodeIO(NodeBase):
         return final_size
 
     @classmethod
-    def parse(cls, node_cpp):
+    def parse_args(cls, node_cpp):
         node_args = super().parse_args(node_cpp, methods_IO)
         try:
             tensor_size = cls._cpp_tensor_size_from_type(node_cpp.type())
@@ -166,7 +167,11 @@ class NodeIO(NodeBase):
         node_args["subtype"] = subtype
         if "scope" not in node_args:
             node_args["scope"] = ""
-        return cls(**node_args)
+        return node_args
+
+    @classmethod
+    def parse(cls, node_cpp):
+        return cls(**cls.parse_args(node_cpp))
 
     @property
     def slug(self):
@@ -179,6 +184,17 @@ class NodeIO(NodeBase):
     @property
     def input_or_output(self):
         return "input" if isinstance(self, NodeInput) else "output"
+
+
+@dataclass
+class NodeState(NodeIO):
+    data: torch.Tensor
+
+    @classmethod
+    def parse(cls, state, node):
+        node_args = super().parse_args(node)
+        node_args['data'] = state
+        return cls(**node_args)
 
 
 @dataclass
@@ -308,6 +324,7 @@ class InternalPytorchGraphHelper:
         self.unique_name_to_scoped_name = {}
         self.shallowest_scope_name = "default"
         self.scope_name_appeared = []
+        self.state_nodes = []
 
     def append(self, x):
         if isinstance(x, NodeIO):
@@ -352,6 +369,9 @@ class InternalPytorchGraphHelper:
             )
         ]
 
+    def get_node_by_name(self, name: str):
+        return next(_ for _ in self.nodes_io.values() if _.debugName == name)
+
     def printall(self):
         console = Console(
             theme={
@@ -378,6 +398,13 @@ class InternalPytorchGraphHelper:
             print(
                 f"\t\t[type]{_.dtype}{_.subtype}[/type] "
                 f"[var]{var_name}[/var] := {_.value}"
+            )
+
+        print(f"\t[subsection]Static States:[/subsection]")
+        for _ in self.state_nodes:
+            print(
+                f"\t\t[type]{_.dtype}{_.subtype}[/type] "
+                f"[var]{_.debugName}[/var] := shape{tuple(_.tensor_size)}"
             )
 
         print("")
@@ -470,16 +497,39 @@ class InternalPytorchGraphHelper:
         return next(dn for dn in self.nodes_io.values() if dn.debugName == name)
 
     def _infer_undefined_tensor_size_when_possible(self, model):
-        realised_node = {}
-        for node in chain(self.inputs_nodes, self.constant_nodes):
-            realised_node[node.debugName] = node
+        realised_node = {
+            node.debugName: node
+            for node in chain(self.inputs_nodes, self.constant_nodes)
+        }
+        realised_node.update(
+            {self.SEP + node.debugName: node for node in self.state_nodes}
+        )
 
-        original_len = len(realised_node)
+        # need ListConstruct to become realised_node with value {
+        for node in self.dag_nodes:
+            if node.kind == "prim::ListConstruct":
+                values = []
+                for inp_name in node.inputs:
+                    in_node = self.get_node_by_name(inp_name)
+                    if isinstance(in_node, NodeConstantTensorSized):
+                        values.append(in_node.value)
+                    else:
+                        break
+                if len(values) == len(node.inputs):
+                    # is realised
+                    node.attributes['values'] = values
+                    node.tensor_size = len(values)
+                    realised_node[node.debugName] = node
+                else:
+                    raise NotImplementedError(
+                        "Not sure what to do in such condition"
+                    )
+        # }
+
         remaining_nodes = [
             node
             for node in self.dag_nodes
-            if node.kind != "prim::GetAttr"
-            # TODO check tensor_size is not already realised
+            if node not in realised_node.values()
         ]
 
         while remaining_nodes:
@@ -488,85 +538,70 @@ class InternalPytorchGraphHelper:
                 # TODO handle special case when realised node is only partially
                 # concrete with some dimenssion unknown
                 inputs = node.inputs
-                if node.kind == "prim::CallMethod":
-                    inputs = inputs[1:]
-                if all(input_name in realised_node for input_name in inputs):
-                    if node.kind == "prim::CallMethod":
-                        mod = _access_module(
-                            self.find_io_by_debug_name(
-                                node.inputs[0]
-                            ).module_path,
-                            model,
-                        )
-                        ins = []
-                        for input_name in inputs:
-                            in_item = torch.rand(
-                                tuple(realised_node[input_name].tensor_size),
-                                # TODO need proper dtype
-                                # dtype=realised_node[input_name].dtype,
-                            )
-                            if not isinstance(
-                                mod, torch.nn.quantized.Quantize
-                            ) and any(
-                                _ in str(mod.__class__)
-                                for _ in [
-                                    "torch.nn.quantized",
-                                    "torch.nn.intrinsic.quantized",
-                                ]
-                            ):
-                                in_item = torch.quantize_per_tensor(
-                                    in_item,
-                                    torch.tensor(0.1),
-                                    torch.tensor(0),
-                                    dtype=torch.quint8,
-                                )
-                            ins.append(in_item)
-                        results = mod(*ins)
-                        node.tensor_size = tuple(results.shape)
-                        realised_node[node.debugName] = node
-                        nodes_to_del += [node]
-                    elif node.kind.startswith("aten::"):
-                        print(node)
-                        import ipdb
+                if not all(
+                    input_name in realised_node for input_name in inputs
+                ):
+                    continue
 
-                        ipdb.set_trace()
-                        results = getattr(
-                            torch, node.kind.replace("aten::", "")
-                        )(
-                            *[
-                                torch.rand(
-                                    tuple(
-                                        realised_node[input_name].tensor_size
-                                    ),
-                                    # TODO need proper dtype
-                                    # dtype=realised_node[input_name].dtype,
-                                )
-                                for input_name in inputs
-                            ]
-                        )
-                        node.tensor_size = tuple(results.shape)
-                        realised_node[node.debugName] = node
-                        nodes_to_del += [node]
+                if not node.kind.startswith("aten::"):
+                    raise NotImplementedError(node)
 
-                remaining_nodes = [
-                    _ for _ in remaining_nodes if _ not in nodes_to_del
-                ]
-                if len(nodes_to_del) == 0:
-                    if len(remaining_nodes) > 0:
-                        print("following nodes doesn't have shape concretized:")
-                        for _ in remaining_nodes:
-                            print("\t", _)
-                    break
+                input_args = []
+                for input_name in inputs:
+                    rnode = realised_node[input_name]
+                    if isinstance(rnode, NodeConstantTensorSized):
+                        val = rnode.value
+                    elif rnode.kind == "prim::ListConstruct":
+                        val = rnode.attributes['values']
+                    else:
+                        val = torch.rand(
+                            tuple(rnode.tensor_size),
+                            # TODO need proper dtype
+                            # dtype=realised_node[input_name].dtype,
+                        )
+                    input_args.append(val)
+                results = getattr(torch, node.kind.replace("aten::", ""))(
+                    *input_args
+                )
+                node.tensor_size = tuple(results.shape)
+                realised_node[node.debugName] = node
+                nodes_to_del += [node]
+
+            remaining_nodes = [
+                _ for _ in remaining_nodes if _ not in nodes_to_del
+            ]
+            if len(nodes_to_del) == 0:
+                if len(remaining_nodes) > 0:
+                    print("following nodes doesn't have shape concretized:")
+                    for _ in remaining_nodes:
+                        print("\t", _)
+                break
+
+    def check_is_valid(self):
+        for node in self.dag_nodes:
+            if node.kind == "prim::CallMethod":
+                raise ValueError(f"unwanted parsed node {node}")
 
     @classmethod
     def parse_model(cls, original_model, args, omit_useless_nodes=True):
         """This method parses an optimized PyTorch model graph and produces
         a list of nodes and node stats for eventual conversion to NNEF format.
         """
-        trace = torch.jit.trace(original_model, args)
-        graph = trace.graph
+        # while it is recommended to not use this func it expand correctly
+        # the graph which is essential in or usecase
+        qte_args = 1
+        if isinstance(args, tuple):
+            qte_args = len(args)
+        graph, _ = jit._get_trace_graph(original_model, args)
+        states = list(
+            jit._trace._unique_state_dict(
+                original_model, keep_vars=True
+            ).values()
+        )
+
         graph_helper = InternalPytorchGraphHelper()
-        for node in graph.inputs():
+        state_idx = 0
+        for idx, node in enumerate(graph.inputs()):
             if omit_useless_nodes:
                 if (
                     len(node.uses()) == 0
@@ -574,7 +609,14 @@ class InternalPytorchGraphHelper:
                     continue
 
             if node.type().kind() != CLASSTYPE_KIND:
-                graph_helper.append(NodeInput.parse(node))
+                if idx < qte_args:
+                    graph_helper.append(NodeInput.parse(node))
+                else:
+                    state = states[state_idx]
+                    graph_helper.state_nodes.append(
+                        NodeState.parse(state=state, node=node)
+                    )
+                    state_idx += 1
 
         attr_to_scope: T.Dict[T.Any, str] = dict()
         for node in graph.nodes():
@@ -611,35 +653,9 @@ class InternalPytorchGraphHelper:
             node_pyio.inputs = [node.debugName()]
             graph_helper.append(node_pyio)
 
-        def parse_traced_name(module):
-            if isinstance(module, jit.TracedModule):
-                module_name = module._name
-            else:
-                module_name = getattr(module, "original_name", "Module")
-            return module_name
-
-        alias_to_name = dict()
-        base_name = parse_traced_name(trace)
-        for name, module in trace.named_modules(prefix="__module"):
-            mod_name = parse_traced_name(module)
-            attr_name = name.split(".")[-1]
-            alias_to_name[name] = f"{mod_name}[{attr_name}]"
-
-        for node in graph_helper.nodes_op:
-            module_aliases = node.scope.split(cls.SEP)
-            replacements = [
-                alias_to_name[alias]
-                if alias in alias_to_name
-                else alias.split(".")[-1]
-                for alias in module_aliases
-            ]
-            node.scope = base_name
-            if any(replacements):
-                node.module_path = _replacement_to_relative_module_path(
-                    replacements
-                )
-                node.scope += cls.SEP + cls.SEP.join(replacements)
-
         graph_helper._populate_namespace_from_OP_to_IO()
         graph_helper._infer_undefined_tensor_size_when_possible(original_model)
+
+        graph_helper.check_is_valid()
+
         return graph_helper

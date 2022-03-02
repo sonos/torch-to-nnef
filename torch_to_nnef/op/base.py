@@ -22,6 +22,8 @@ def _torch_to_nnef_typestr(torch_type_str: str):
         return np.float32
     if torch_type_str == "int":
         return np.int32
+    if torch_type_str == "bool":
+        return np.bool_
 
     raise NotImplementedError(torch_type_str)
 
