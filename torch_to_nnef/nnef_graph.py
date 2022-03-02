@@ -85,7 +85,6 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             shape=tuple(tensor.shape),
             dtype=np_int_tensor.dtype.type,
             data=np_int_tensor,
-            # https://docs.rs/onnx-pb/0.1.1/onnx_pb/struct.TensorAnnotation.html
             quant={
                 "scale": tensor.q_scale(),
                 "zero_point": tensor.q_zero_point(),
@@ -155,13 +154,17 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 class ReLUExtractor(ModuleInfoExtractor):
     JIT_CLASS_NAME = "__torch__.torch.nn.modules.activation.ReLU"
 
-    def extract_operations(self, name_to_tensor: T.Dict[str, NTensor]):
+    def extract_operations(
+        self, name_to_tensor: T.Dict[str, NTensor], input_name: T.Optional[str]
+    ):
+        if input_name is None:
+            input_name = self.node.export_inputs[1]
         output_tensor = self._add_idem_type_shape_output_tensor(name_to_tensor)
         NOperation(
             graph=self.g,
             type="relu",
             name=f"{self.node.export_name}_relu",
-            inputs=name_to_tensor[self.node.export_inputs[1]],
+            inputs=name_to_tensor[input_name],
             outputs=output_tensor,
         )
 
@@ -291,7 +294,7 @@ class QConvReLU1dExtractor(ModuleInfoExtractor):
         return name_to_tensors
 
     def extract_operations(self, name_to_tensor):
-        out_tensor_name = self.node.export_name
+        out_tensor_name = f"{self.node.export_name}_conv"
         output_tensor = NTensor(
             graph=self.g,
             name=out_tensor_name,
@@ -326,7 +329,6 @@ class QConvReLU1dExtractor(ModuleInfoExtractor):
                 "dtype": self.nnef_weight_ref.dtype,
             },
         )
-
         NOperation(
             graph=self.g,
             type="conv",
@@ -345,7 +347,9 @@ class QConvReLU1dExtractor(ModuleInfoExtractor):
                 "border": "constant",
             },
         )
-        ReLUExtractor.extract_operations(self, name_to_tensor)
+        ReLUExtractor.extract_operations(
+            self, name_to_tensor, input_name=output_tensor.name
+        )
 
 
 class GraphExtractor:
