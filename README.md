@@ -29,3 +29,15 @@ export_model_to_nnef(
 
 Torch Model need to be serializable to torch.jit (fancy python dict routing
 or others might prevent proper tracing of it).
+
+## Design choice
+
+We build on top of `torch.jit.trace` Graph representation (API exposed since `1.0`).
+
+Compared to the 2 other possible Graph API for pytorch we chose it because:
+- `torch.fx`: is limited in the shape and type inference it provides. It seems more
+  aimed at AST graph manipulation than export. Moreover this API was introduced very
+  recently as stable (torch==1.10.0).
+- `torch.jit.script`: offer a more flexible graph repr than trace and do not freeze
+  Logical structure into the path taken during sample execution (contrary to trace),
+  but it seems some tensor_size are not extracted as well.
