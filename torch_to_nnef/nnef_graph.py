@@ -8,12 +8,12 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.op import ModuleInfoExtractor, ReLUExtractor
+from torch_to_nnef.op import ModuleInfoExtractor
 from torch_to_nnef.op.base import _torch_to_nnef_typestr
+from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 
 from torch_to_nnef.torch_graph import (
     InternalPytorchGraphHelper,
-    NodeConstant,
     NodeInput,
 )
 
@@ -32,45 +32,19 @@ class GraphExtractor:
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
         self._torch_graph_helper.printall()
 
-        op_type = None
-        attributes = {}
-        outputs = []
-
-        # map aten name to basic nnef fragment
-        op_map = {"unbind": "squeeze"}
-
         if node.kind.startswith("aten::"):
-            out = NTensor(
+            return aten_to_nnef_tensor_and_ops(
                 self.g,
-                node.export_name,
-                dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
-                shape=node.tensor_size,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
             )
-            name_to_tensor[node.export_name] = out
-            outputs = [out]
-            aten_op_name = node.kind.split("::")[1]
-            op_type = op_map[aten_op_name]  # , aten_op_name)
-        elif node.kind.startswith("prim"):
-            print(node)
-            import ipdb
+        if node.kind.startswith("prim"):
+            if node.kind == "prim::ListConstruct":
+                return
 
-            ipdb.set_trace()
-        else:
-            raise NotImplementedError(
-                f"NNEF Operation for {node} NOT implmented"
-            )
-
-        NOperation(
-            graph=self.g,
-            type=op_type,
-            name=f"{node.export_name}_op",
-            inputs=tuple(
-                name_to_tensor[inp] if inp else null_ref
-                for inp in node.export_inputs
-            ),
-            outputs=tuple(outputs),
-            attribs=attributes,
-        )
+        raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
 
     def build_nnef_graph(
         self,

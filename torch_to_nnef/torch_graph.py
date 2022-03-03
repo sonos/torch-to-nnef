@@ -429,7 +429,18 @@ class InternalPytorchGraphHelper:
             )
         ]
 
-    def get_node_by_name(self, name: str):
+    def get_node_by_export_name(self, name: str):
+        try:
+            return next(_ for _ in self.state_nodes if _.export_name == name)
+        except StopIteration:
+            pass
+        try:
+            return next(_ for _ in self.dag_nodes if _.export_name == name)
+        except StopIteration:
+            pass
+        return next(_ for _ in self.constant_nodes if _.export_name == name)
+
+    def get_node_by_debug_name(self, name: str):
         return next(_ for _ in self.nodes_io.values() if _.debugName == name)
 
     def printall(self):
@@ -561,7 +572,7 @@ class InternalPytorchGraphHelper:
             if node.kind == "prim::ListConstruct":
                 values = []
                 for inp_name in node.inputs:
-                    in_node = self.get_node_by_name(inp_name)
+                    in_node = self.get_node_by_debug_name(inp_name)
                     if isinstance(in_node, NodeConstantTensorSized):
                         values.append(in_node.value)
                     else:
@@ -689,33 +700,35 @@ class InternalPytorchGraphHelper:
             if v
             not in [
                 callmethod_node,
-                self.get_node_by_name(callmethod_node.inputs[0]),
+                self.get_node_by_debug_name(callmethod_node.inputs[0]),
             ]
         }
 
     def recursive_call_method(self, module, args, omit_useless_nodes):
-        """In case prim::CallMethod is encountered it tries to expand it
+        """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
 
         Some part of the submodule may not be serializable to JIT
-        this is for this very API limitation we do not use directly the method
-        torch.jit._get_trace_graph that is used in ONNX builtin pytorch
-        serialization and instead build our own jit parser.
+        this is for this very API limitation that we do not use directly
+        the method torch.jit._get_trace_graph that is used in
+        ONNX builtin pytorch serialization and instead build on recursive jit.parse.
 
-        In case the serialization to jit is not possible you will need to put a
-        full hook on the requested module with declarative enonciation of what
+        If the serialization to jit FAIL you will be able to put a full hook
+        on the concerned sub-module with declarative enonciation of what
         is needed.
 
         """
         for dag_node in self.dag_nodes:
             if dag_node.is_callmethod:
-                ref_getter_node = self.get_node_by_name(dag_node.inputs[0])
+                ref_getter_node = self.get_node_by_debug_name(
+                    dag_node.inputs[0]
+                )
                 # prep recursion
                 submodule = getattr(module, ref_getter_node.module_path)
                 submodule_args = tuple(
                     [
-                        self.get_node_by_name(
+                        self.get_node_by_debug_name(
                             submodule_in_nodename
                         ).tracing_data
                         for submodule_in_nodename in dag_node.inputs[1:]
