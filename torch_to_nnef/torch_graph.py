@@ -1,3 +1,4 @@
+import logging
 import typing as T
 from collections import OrderedDict
 from itertools import chain
@@ -8,6 +9,8 @@ from torch import jit, nn
 import torch.jit._trace
 
 from .console import Console
+
+LOGGER = logging.getLogger(__name__)
 
 methods_OP = [
     "attributeNames",
@@ -44,7 +47,9 @@ def clean_dtype_name(dtype_str: str) -> str:
 
 
 def _replacement_to_relative_module_path(replacements: T.List[str]):
-    return ".".join([rep.split("[")[1][:-1] for rep in replacements])
+    return ".".join(
+        [rep.split("[")[1][:-1] if "[" in rep else rep for rep in replacements]
+    )
 
 
 def _access_module(module_path: str, model: nn.Module):
@@ -66,6 +71,37 @@ class NodeBase:
     inputs: T.List[str]
     scope: T.Optional[str]
     kind: T.Optional[str]
+
+    def apply_prefix(
+        self, prefix: str, skip_names: T.Optional[T.List[str]] = None
+    ):
+        skip_names = skip_names or []
+        if self.debugName not in skip_names:
+            self.debugName = f"{prefix}.{self.debugName}"
+
+            res = self.scope.split("/", maxsplit=1)
+            if len(res) >= 2 and isinstance(res, list):
+                self.scope = f"{res[0]}[{prefix}]/{res[1]}"
+            else:
+                self.scope = f"{res}[{prefix}]"
+        for idx, _ in enumerate(self.inputs):
+            if _ not in skip_names:
+                self.inputs[idx] = f"{prefix}.{_}"
+
+        if hasattr(self, "outputs"):
+            for idx, _ in enumerate(self.outputs):
+                if _ not in skip_names:
+                    self.outputs[idx] = f"{prefix}.{_}"
+        if hasattr(self, "module_path"):
+            self.module_path = f"{prefix}.{self.module_path}"
+
+    @property
+    def is_callmethod(self) -> bool:
+        return self.kind == "prim::CallMethod"
+
+    @property
+    def is_getattr(self) -> bool:
+        return self.kind == "prim::GetAttr"
 
     def _refid_clean(self, name: str) -> str:
         for sep in ["/", "[", "]", ".", "-"]:
@@ -127,6 +163,12 @@ class NodeIO(NodeBase):
     dtype: str
     subtype: str
 
+    @property
+    def tracing_data(self):
+        return torch.rand(
+            tuple([321 if x is None else x for x in self.tensor_size])
+        )
+
     @classmethod
     def _cpp_tensor_size_from_type(cls, node_type):
         final_size = None
@@ -174,27 +216,16 @@ class NodeIO(NodeBase):
         return cls(**cls.parse_args(node_cpp))
 
     @property
-    def slug(self):
+    def print_slug(self):
         if self.tensor_size:
             shape_str = f"({','.join(str(_) for _ in self.tensor_size)})"
         else:
             shape_str = UNKNOWN_SHAPE
-        return f"[var]{self.debugName}[/var]={shape_str}"
+        return f"[var]{self.export_name}[/var]={shape_str}"
 
     @property
     def input_or_output(self):
         return "input" if isinstance(self, NodeInput) else "output"
-
-
-@dataclass
-class NodeState(NodeIO):
-    data: torch.Tensor
-
-    @classmethod
-    def parse(cls, state, node):
-        node_args = super().parse_args(node)
-        node_args['data'] = state
-        return cls(**node_args)
 
 
 @dataclass
@@ -224,6 +255,16 @@ class NodeOp(NodeBase):
     hasMultipleOutputs: bool
     hasUses: bool
     module_path: str
+
+    @property
+    def tracing_data(self):
+        if "values" in self.attributes:
+            return self.attributes["values"]
+        if self.outputs_tensor_size is None:
+            raise ValueError(self)
+        shape = [321 if x is None else x for x in self.outputs_tensor_size]
+
+        return torch.rand(tuple(shape))
 
     @classmethod
     def parse_args(cls, node_cpp, valid_methods):
@@ -256,6 +297,10 @@ class NodeOp(NodeBase):
 class NodeConstant(NodeOp):
     value: T.Any
 
+    @property
+    def tracing_data(self):
+        return self.value
+
 
 @dataclass
 class NodeClassType(NodeOp):
@@ -276,6 +321,14 @@ class NodeTensorSized(NodeBase):
     dtype: str
     subtype: str
     module_path: str
+
+    @property
+    def tracing_data(self):
+        return torch.rand(
+            tuple(self.tensor_size),
+            # TODO apply stric mapping between dtype/subtype and torch proper dtype
+            # dtype=realised_node[input_name].dtype,
+        )
 
     @classmethod
     def from_nodeOP(
@@ -311,8 +364,24 @@ class NodeTensorSized(NodeBase):
 
 
 @dataclass
+class NodeState(NodeTensorSized):
+    data: torch.Tensor
+
+    @classmethod
+    def parse(cls, state, getattr_node: NodeTensorSized):
+        node_args = getattr_node.__dict__
+        node_args['data'] = state
+        node_args['tensor_size'] = tuple(state.shape)
+        return cls(**node_args)
+
+
+@dataclass
 class NodeConstantTensorSized(NodeTensorSized):
     value: T.Any
+
+    @property
+    def tracing_data(self):
+        return self.value
 
 
 class InternalPytorchGraphHelper:
@@ -389,17 +458,18 @@ class InternalPytorchGraphHelper:
             + "_" * 35
             + "[/type]"
         )
-        inputs_str = ", ".join(_.slug for _ in self.inputs_nodes)
+        inputs_str = ", ".join(_.print_slug for _ in self.inputs_nodes)
         print(f"inputs: ({inputs_str})")
         print("")
         print(f"\t[subsection]Static Constants:[/subsection]")
         for _ in self.constant_nodes:
-            var_name = _.debugName.split(self.SEP, maxsplit=1)[1]
+
             print(
                 f"\t\t[type]{_.dtype}{_.subtype}[/type] "
-                f"[var]{var_name}[/var] := {_.value}"
+                f"[var]{_.export_name}[/var] := {_.value}"
             )
 
+        print()
         print(f"\t[subsection]Static States:[/subsection]")
         for _ in self.state_nodes:
             print(
@@ -413,32 +483,22 @@ class InternalPytorchGraphHelper:
             inputs_str = ""
             if _.inputs:
                 inputs_str = ", ".join(
-                    f"[var]{i.split(self.SEP, maxsplit=1)[1]}[/var]"
-                    for i in _.inputs
+                    f"[var]{i}[/var]" for i in _.export_inputs
                 )
                 inputs_str = f"( {inputs_str} )"
             cls_name = ""
             if isinstance(_, NodeClassType):
                 cls_name = " cls='{_.className}'"
-            varname = _.debugName.split(self.SEP, maxsplit=1)[1]
             print(
                 f"\t\t[type]{_.dtype}{_.subtype}[/type] "
-                f"[var]{varname}[/var] := "
+                f"[var]{_.export_name}[/var] := "
                 f"[kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
-        outputs_str = ", ".join(_.slug for _ in self.outputs_nodes)
+        outputs_str = ", ".join(_.print_slug for _ in self.outputs_nodes)
         print("")
         print(f"outputs: ({outputs_str})")
         print("[type]" + "_" * 100 + "[/type]")
-
-    def get_outputs_of_node(self, node):
-        nodes = []
-        for output_name in node.outputs:
-            nodes.append(
-                self.nodes_io[output_name.split(self.SEP, maxsplit=1)[1]]
-            )
-        return nodes
 
     def find_common_root(self):
         for fullscope in self.scope_name_appeared:
@@ -546,20 +606,11 @@ class InternalPytorchGraphHelper:
                 if not node.kind.startswith("aten::"):
                     raise NotImplementedError(node)
 
-                input_args = []
-                for input_name in inputs:
-                    rnode = realised_node[input_name]
-                    if isinstance(rnode, NodeConstantTensorSized):
-                        val = rnode.value
-                    elif rnode.kind == "prim::ListConstruct":
-                        val = rnode.attributes['values']
-                    else:
-                        val = torch.rand(
-                            tuple(rnode.tensor_size),
-                            # TODO need proper dtype
-                            # dtype=realised_node[input_name].dtype,
-                        )
-                    input_args.append(val)
+                input_args = [
+                    realised_node[input_name].tracing_data
+                    for input_name in inputs
+                ]
+
                 results = getattr(torch, node.kind.replace("aten::", ""))(
                     *input_args
                 )
@@ -572,9 +623,11 @@ class InternalPytorchGraphHelper:
             ]
             if len(nodes_to_del) == 0:
                 if len(remaining_nodes) > 0:
-                    print("following nodes doesn't have shape concretized:")
+                    LOGGER.debug(
+                        "following nodes doesn't have shape concretized:"
+                    )
                     for _ in remaining_nodes:
-                        print("\t", _)
+                        LOGGER.debug("\t", _)
                 break
 
     def check_is_valid(self):
@@ -582,17 +635,123 @@ class InternalPytorchGraphHelper:
             if node.kind == "prim::CallMethod":
                 raise ValueError(f"unwanted parsed node {node}")
 
-    @classmethod
-    def parse_module(
-        cls, graph_helper, original_model, args, omit_useless_nodes
-    ):
+    def _transform_prim_get_attr_in_state_nodes(self, module):
+        keys_to_del = []
+        for io_key, node in self.nodes_io.items():
+            if (
+                isinstance(node, NodeTensorSized)
+                and node.kind != "prim::Constant"
+                and node.is_getattr
+                and node.dtype == "Tensor"
+            ):
+                keys_to_del.append(io_key)
+                data_state = getattr(module, node.module_path).data
+                self.state_nodes.append(NodeState.parse(data_state, node))
+        for key in keys_to_del:
+            del self.nodes_io[key]
+
+    def merge_subraph(self, submodule_graph, prefix: str, callmethod_node):
+        # Re-Wire input and output naming => {
+        wire_inputs = callmethod_node.inputs[1:]
+        wire_output = callmethod_node.debugName
+
+        to_del_names = []
+        for node, new_name in zip(submodule_graph.inputs_nodes, wire_inputs):
+            to_del_names.append(node.debugName.split(self.SEP)[1])
+            for vnode_op in submodule_graph.dag_nodes:
+                vnode_op.inputs = [
+                    new_name if _ == node.debugName else _
+                    for _ in vnode_op.inputs
+                ]
+
+        for to_del_name in to_del_names:
+            del submodule_graph.nodes_io[to_del_name]
+
+        submodule_graph.find_io_by_debug_name(
+            submodule_graph.outputs_nodes[0].inputs[0]
+        ).debugName = wire_output
+        del submodule_graph.nodes_io["output.1"]
+
+        assert len(submodule_graph.inputs_nodes) == 0
+        assert len(submodule_graph.outputs_nodes) == 0
+
+        # }
+
+        # self.nodes_op = []
+        #
+        for _ in submodule_graph.nodes_op:
+            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+            # .inputs .outputs
+        # self.nodes_io = OrderedDict()
+        for _ in submodule_graph.nodes_io.values():
+            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+
+        self.nodes_op += submodule_graph.nodes_op
+        self.nodes_io.update(submodule_graph.nodes_io)
+
+        self.state_nodes += submodule_graph.state_nodes
+
+        self.nodes_io = {
+            k: v
+            for k, v in self.nodes_io.items()
+            if v
+            not in [
+                callmethod_node,
+                self.get_node_by_name(callmethod_node.inputs[0]),
+            ]
+        }
+
+    def recursive_call_method(self, module, args, omit_useless_nodes):
+        """In case prim::CallMethod is encountered it tries to expand it
+
+        It does this by recursive call to parse_module on linked submodule.
+
+        Some part of the submodule may not be serializable to JIT
+        this is for this very API limitation we do not use directly the method
+        torch.jit._get_trace_graph that is used in ONNX builtin pytorch
+        serialization and instead build our own jit parser.
+
+        In case the serialization to jit is not possible you will need to put a
+        full hook on the requested module with declarative enonciation of what
+        is needed.
+
+        """
+        for dag_node in self.dag_nodes:
+            if dag_node.is_callmethod:
+                ref_getter_node = self.get_node_by_name(dag_node.inputs[0])
+                # prep recursion
+                submodule = getattr(module, ref_getter_node.module_path)
+                submodule_args = tuple(
+                    [
+                        self.get_node_by_name(
+                            submodule_in_nodename
+                        ).tracing_data
+                        for submodule_in_nodename in dag_node.inputs[1:]
+                    ]
+                )
+                try:
+                    submodule_graph = InternalPytorchGraphHelper().parse_module(
+                        submodule, submodule_args, omit_useless_nodes
+                    )
+                    self.merge_subraph(
+                        submodule_graph,
+                        prefix=ref_getter_node.module_path,
+                        callmethod_node=dag_node,
+                    )
+                except RuntimeError as exp:
+                    print(exp)
+                    import ipdb
+
+                    ipdb.set_trace()
+
+                    pass
+
+    def parse_module(self, module, args, omit_useless_nodes):
         # while it is recommended to not use this func it expand correctly
         # the graph which is essential in or usecase
-        qte_args = 1
-        if isinstance(args, tuple):
-            qte_args = len(args)
-        traced = jit.trace(original_model, args)
-        graph = traced.graph
+        origin_module = module
+        trace = jit.trace(module, args)
+        graph = trace.graph
         for idx, node in enumerate(graph.inputs()):
             if omit_useless_nodes:
                 if (
@@ -601,11 +760,7 @@ class InternalPytorchGraphHelper:
                     continue
 
             if node.type().kind() != CLASSTYPE_KIND:
-                if idx < qte_args:
-                    graph_helper.append(NodeInput.parse(node))
-                else:
-                    # TODO address states
-                    pass
+                self.append(NodeInput.parse(node))
 
         attr_to_scope: T.Dict[T.Any, str] = dict()
         for node in graph.nodes():
@@ -630,9 +785,9 @@ class InternalPytorchGraphHelper:
                     node_py = NodeOp.parse(node)
 
                 node_py.scope = attr_to_scope[attr_name]  # type: ignore[attr-defined]
-                graph_helper.append(node_py)
+                self.append(node_py)
             else:
-                graph_helper.append(NodeOp.parse(node))
+                self.append(NodeOp.parse(node))
 
         for i, node in enumerate(
             graph.outputs()
@@ -640,37 +795,57 @@ class InternalPytorchGraphHelper:
             node_pyio = NodeOutput.parse(node)
             node_pyio.debugName = f"output.{i + 1}"
             node_pyio.inputs = [node.debugName()]
-            graph_helper.append(node_pyio)
+            self.append(node_pyio)
 
-        graph_helper._populate_namespace_from_OP_to_IO()
-        graph_helper._infer_undefined_tensor_size_when_possible(original_model)
+        def parse_traced_name(module):
+            if isinstance(module, jit.TracedModule):
+                module_name = module._name
+            else:
+                module_name = getattr(module, "original_name", "Module")
+            return module_name
 
-        # graph_helper.check_is_valid()
-        import ipdb
+        alias_to_name = dict()
+        base_name = parse_traced_name(trace)
+        for name, module in trace.named_modules(prefix="__module"):
+            mod_name = parse_traced_name(module)
+            attr_name = name.split(".")[-1]
+            alias_to_name[name] = f"{mod_name}[{attr_name}]"
 
-        ipdb.set_trace()
+        for node in self.nodes_op:
+            module_aliases = node.scope.split(self.SEP)
+            replacements = [
+                alias_to_name[alias]
+                if alias in alias_to_name
+                else alias.split(".")[-1]
+                for alias in module_aliases
+            ]
+            node.scope = base_name
+            if any(replacements):
+                node.module_path = _replacement_to_relative_module_path(
+                    replacements
+                )
+                node.scope += self.SEP + self.SEP.join(replacements)
 
-        return graph_helper
+        self._populate_namespace_from_OP_to_IO()
+        self._transform_prim_get_attr_in_state_nodes(module)
+
+        self._infer_undefined_tensor_size_when_possible(module)
+
+        # self.check_is_valid()
+        self.recursive_call_method(origin_module, args, omit_useless_nodes)
+
+        return self
 
     @classmethod
-    def parse_model(cls, original_model, args, omit_useless_nodes=True):
+    def parse_model(cls, module, args, omit_useless_nodes=True):
         """This method parses an optimized PyTorch model graph and produces
         a list of nodes and node stats for eventual conversion to NNEF format.
         """
 
-        graph_helper = InternalPytorchGraphHelper()
-        states = list(
-            jit._trace._unique_state_dict(
-                original_model, keep_vars=True
-            ).values()
-        )
-        cls.parse_module(
-            graph_helper,
-            original_model,
+        graph_helper = cls()
+        graph_helper.parse_module(
+            module,
             args,
             omit_useless_nodes=omit_useless_nodes,
         )
-        import ipdb
-
-        ipdb.set_trace()
-        pass
+        return graph_helper
