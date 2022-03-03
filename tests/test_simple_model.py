@@ -26,6 +26,10 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path):
         subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
+        print(cmd)
+        import ipdb
+
+        ipdb.set_trace()
         return False
 
 
