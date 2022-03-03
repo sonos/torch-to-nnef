@@ -37,15 +37,6 @@ UNKNOWN_SHAPE = "unknown_shape"
 UNKNOWN_DTYPE = "unknown_type"
 
 
-def clean_dtype_name(dtype_str: str) -> str:
-    old_slug_parts = dtype_str.split(".")
-    new_slug_parts = []
-    for old_slug_part in old_slug_parts:
-        if not old_slug_part.startswith("___torch_mangle_"):
-            new_slug_parts.append(old_slug_part)
-    return ".".join(new_slug_parts)
-
-
 def _replacement_to_relative_module_path(replacements: T.List[str]):
     return ".".join(
         [rep.split("[")[1][:-1] if "[" in rep else rep for rep in replacements]
@@ -474,7 +465,7 @@ class InternalPytorchGraphHelper:
         for _ in self.state_nodes:
             print(
                 f"\t\t[type]{_.dtype}{_.subtype}[/type] "
-                f"[var]{_.debugName}[/var] := shape{tuple(_.tensor_size)}"
+                f"[var]{_.export_name}[/var] := shape{tuple(_.tensor_size)}"
             )
 
         print("")
@@ -677,13 +668,14 @@ class InternalPytorchGraphHelper:
 
         # }
 
-        # self.nodes_op = []
-        #
         for _ in submodule_graph.nodes_op:
             _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
             # .inputs .outputs
         # self.nodes_io = OrderedDict()
         for _ in submodule_graph.nodes_io.values():
+            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+
+        for _ in submodule_graph.state_nodes:
             _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
 
         self.nodes_op += submodule_graph.nodes_op
