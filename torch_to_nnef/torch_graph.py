@@ -583,24 +583,16 @@ class InternalPytorchGraphHelper:
                 raise ValueError(f"unwanted parsed node {node}")
 
     @classmethod
-    def parse_model(cls, original_model, args, omit_useless_nodes=True):
-        """This method parses an optimized PyTorch model graph and produces
-        a list of nodes and node stats for eventual conversion to NNEF format.
-        """
+    def parse_module(
+        cls, graph_helper, original_model, args, omit_useless_nodes
+    ):
         # while it is recommended to not use this func it expand correctly
         # the graph which is essential in or usecase
         qte_args = 1
         if isinstance(args, tuple):
             qte_args = len(args)
-        graph, _ = jit._get_trace_graph(original_model, args)
-        states = list(
-            jit._trace._unique_state_dict(
-                original_model, keep_vars=True
-            ).values()
-        )
-
-        graph_helper = InternalPytorchGraphHelper()
-        state_idx = 0
+        traced = jit.trace(original_model, args)
+        graph = traced.graph
         for idx, node in enumerate(graph.inputs()):
             if omit_useless_nodes:
                 if (
@@ -612,11 +604,8 @@ class InternalPytorchGraphHelper:
                 if idx < qte_args:
                     graph_helper.append(NodeInput.parse(node))
                 else:
-                    state = states[state_idx]
-                    graph_helper.state_nodes.append(
-                        NodeState.parse(state=state, node=node)
-                    )
-                    state_idx += 1
+                    # TODO address states
+                    pass
 
         attr_to_scope: T.Dict[T.Any, str] = dict()
         for node in graph.nodes():
@@ -656,6 +645,32 @@ class InternalPytorchGraphHelper:
         graph_helper._populate_namespace_from_OP_to_IO()
         graph_helper._infer_undefined_tensor_size_when_possible(original_model)
 
-        graph_helper.check_is_valid()
+        # graph_helper.check_is_valid()
+        import ipdb
+
+        ipdb.set_trace()
 
         return graph_helper
+
+    @classmethod
+    def parse_model(cls, original_model, args, omit_useless_nodes=True):
+        """This method parses an optimized PyTorch model graph and produces
+        a list of nodes and node stats for eventual conversion to NNEF format.
+        """
+
+        graph_helper = InternalPytorchGraphHelper()
+        states = list(
+            jit._trace._unique_state_dict(
+                original_model, keep_vars=True
+            ).values()
+        )
+        cls.parse_module(
+            graph_helper,
+            original_model,
+            args,
+            omit_useless_nodes=omit_useless_nodes,
+        )
+        import ipdb
+
+        ipdb.set_trace()
+        pass
