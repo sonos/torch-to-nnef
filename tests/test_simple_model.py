@@ -4,6 +4,9 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+from datetime import datetime
+
+
 import pytest
 
 import numpy as np
@@ -169,7 +172,11 @@ def test_model_export(test_input, model):
         except AssertionError as exp:
             if not os.environ.get("DEBUG", False):
                 raise exp
-            exp_path = Path.cwd() / "exp"
+            exp_path = (
+                Path.cwd()
+                / "failed_tests"
+                / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
+            )
             exp_path.mkdir(parents=True, exist_ok=True)
             subprocess.check_output(
                 f"cd {exp_path} && rm -rf ./* && cp {real_export_path} {exp_path}/model.nnef.tgz "
@@ -186,14 +193,13 @@ def test_model_export(test_input, model):
                 input_names=["input"],
                 output_names=["output"],
             )
-            nnef_path = tract_exp_path / "tract_model.nnef"
+            nnef_path = tract_exp_path / "tract_onnx_converted_model.nnef"
             tract_convert_onnx_to_nnef(
                 onnx_path,
                 io_npz_path,
                 nnef_path=nnef_path,
             )
-            subprocess.check_output(f"tar -xvf {nnef_path}", shell=True)
-            import ipdb
-
-            ipdb.set_trace()
+            subprocess.check_output(
+                f"cd {tract_exp_path} && tar -xvf {nnef_path}", shell=True
+            )
             raise exp
