@@ -1,5 +1,6 @@
 """Tests simple models."""
 
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -22,6 +23,7 @@ INPUT_AND_MODELS += [
         nn.Linear(10, 32),
     ]
 ]
+
 INPUT_AND_MODELS += [
     (torch.rand(1, 3, 256, 256), layer)
     for layer in [
@@ -41,7 +43,7 @@ INPUT_AND_MODELS += [
         nn.Conv1d(10, 20, 3, groups=10),
         nn.Conv1d(10, 20, 3, bias=False),
         # nn.Conv1d(10, 20, 3, padding=3, padding_mode="zeros"),
-        # nn.BatchNorm1d(10),
+        nn.BatchNorm1d(10, eps=0, momentum=0.1),
         # nn.MaxPool1d(10),
         # nn.AvgPool1d(10),
         # nn.ConvTranspose1d(10, 20, 3),
@@ -91,16 +93,19 @@ INPUT_AND_MODELS += [
 # Test with quantization
 
 
+def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
+    subprocess.check_call(
+        f'tract {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
+        shell=True,
+    )
+
+
 def tract_assert_io(nnef_path: Path, io_npz_path: Path):
     cmd = f"tract {nnef_path} --input-bundle {io_npz_path} -O run --assert-output-bundle {io_npz_path}"
     try:
         subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
-        print(cmd)
-        import ipdb
-
-        ipdb.set_trace()
         return False
 
 
@@ -154,6 +159,41 @@ def test_model_export(test_input, model):
             input=test_input.detach().numpy(),
             output=test_output.detach().numpy(),
         )
-        assert tract_assert_io(
-            export_path.with_suffix(".nnef.tgz"), io_npz_path
-        ), f"failed tract io check with {model}"
+        real_export_path = export_path.with_suffix(".nnef.tgz")
+        assert real_export_path.exists()
+        try:
+
+            assert tract_assert_io(
+                real_export_path, io_npz_path
+            ), f"failed tract io check with {model}"
+        except AssertionError as exp:
+            if not os.environ.get("DEBUG", False):
+                raise exp
+            exp_path = Path.cwd() / "exp"
+            exp_path.mkdir(parents=True, exist_ok=True)
+            subprocess.check_output(
+                f"cd {exp_path} && rm -rf ./* && cp {real_export_path} {exp_path}/model.nnef.tgz "
+                f"&& tar -xvzf {real_export_path} && cp {io_npz_path} {exp_path}/io.npz",
+                shell=True,
+            )
+            tract_exp_path = exp_path / "tract"
+            tract_exp_path.mkdir()
+            onnx_path = tract_exp_path / "model.onnx"
+            torch.onnx.export(
+                model,
+                test_input,
+                str(onnx_path),
+                input_names=["input"],
+                output_names=["output"],
+            )
+            nnef_path = tract_exp_path / "tract_model.nnef"
+            tract_convert_onnx_to_nnef(
+                onnx_path,
+                io_npz_path,
+                nnef_path=nnef_path,
+            )
+            subprocess.check_output(f"tar -xvf {nnef_path}", shell=True)
+            import ipdb
+
+            ipdb.set_trace()
+            raise exp
