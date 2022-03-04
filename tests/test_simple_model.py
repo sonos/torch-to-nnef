@@ -8,12 +8,50 @@ import pytest
 import numpy as np
 import torch
 from torch import nn
+
+# from torchvision import models as vision_mdl
 from torch_to_nnef.export import export_model_to_nnef
 
+INPUT_AND_MODELS = []
 
-INPUT_AND_MODELS = [
-    (torch.rand(1, 10, 100), nn.Sequential(nn.Conv1d(10, 20, 3))),
-    (torch.rand(1, 10, 100), nn.Sequential(nn.ReLU())),
+# Base Layers
+"""
+INPUT_AND_MODELS += [
+    (torch.rand(1, 10, 100), layer)
+    for layer in [
+        nn.Linear(10, 20),
+        nn.Conv1d(10, 20, 3),
+        # TODO Conv test all variant with groups, padding, dilation
+        # Test with Conv2d
+        nn.BatchNorm1d(10),
+        nn.MaxPool1d(10),
+        nn.AvgPool1d(10),
+        nn.ConvTranspose1d(10, 20, 3),
+        # Should we handle LSTM and GRU ???
+    ]
+]
+"""
+
+# Activations
+INPUT_AND_MODELS += [
+    (torch.rand(1, 10, 100), activation)
+    for activation in [
+        nn.ELU(),
+        nn.LeakyReLU(),
+        nn.PReLU(),
+        nn.ReLU(),
+        nn.Sigmoid(),
+        nn.Tanh(),
+        nn.Softmax(1),
+        nn.Softplus(),
+        # nn.GELU(),  # No definition for operator `gelu' in tract
+        # nn.SELU(), # No definition for operator `selu' in tract
+        # nn.SiLU(),  # No definition for operator `silu' in tract
+    ]
+]
+
+# Test composition is expanded correctly
+INPUT_AND_MODELS += [
     (
         torch.rand(1, 10, 100),
         nn.Sequential(
@@ -24,8 +62,15 @@ INPUT_AND_MODELS = [
     ),
 ]
 
-# profile
-# f"tract {nnef_path} -i '{shape_str},{dtype}' -f nnef -O dump --profile",
+# Test classical vision models
+# INPUT_AND_MODELS += [
+# vision_mdl.alexnet(pretrained=True),
+# vision_mdl.resnet50(pretrained=True),
+# vision_mdl.efficientnet_b0(pretrained=True),
+# vision_mdl.regnet_y_8gf(pretrained=True),
+# ]
+
+# Test with quantization
 
 
 def tract_assert_io(nnef_path: Path, io_npz_path: Path):
@@ -58,7 +103,7 @@ def test_should_fail_since_false_output():
             io_npz_path,
             input=test_input.detach().numpy(),
             output=test_output.detach().numpy()
-            + 1,  # <-- here we artificially add 1
+            + 1,  # <-- here we artificially add 1 to make it FAIL
         )
         assert not tract_assert_io(
             export_path.with_suffix(".nnef.tgz"), io_npz_path

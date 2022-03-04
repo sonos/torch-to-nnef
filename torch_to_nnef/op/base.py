@@ -18,7 +18,7 @@ def _torch_to_nnef_typestr(torch_type_str: str):
         return np.int8
     if torch_type_str == "Long":
         return np.int64
-    if torch_type_str == "Float":
+    if torch_type_str in ["Float", "float"]:
         return np.float32
     if torch_type_str == "int":
         return np.int32

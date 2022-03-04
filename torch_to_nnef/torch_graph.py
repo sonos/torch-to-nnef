@@ -37,6 +37,14 @@ UNKNOWN_SHAPE = "unknown_shape"
 UNKNOWN_DTYPE = "unknown_type"
 
 
+def aten_name_to_torch_fn(aten_name):
+    name = aten_name.replace("aten::", "")
+    try:
+        return getattr(torch, name)
+    except AttributeError:
+        return getattr(torch.nn.functional, name)
+
+
 def _replacement_to_relative_module_path(replacements: T.List[str]):
     return ".".join(
         [rep.split("[")[1][:-1] if "[" in rep else rep for rep in replacements]
@@ -608,14 +616,15 @@ class InternalPytorchGraphHelper:
                 if not node.kind.startswith("aten::"):
                     raise NotImplementedError(node)
 
+                if node.kind == "aten::elu":
+                    # difference between aten and python API
+                    inputs = inputs[:2]
+
                 input_args = [
                     realised_node[input_name].tracing_data
                     for input_name in inputs
                 ]
-
-                results = getattr(torch, node.kind.replace("aten::", ""))(
-                    *input_args
-                )
+                results = aten_name_to_torch_fn(node.kind)(*input_args)
                 node.tensor_size = tuple(results.shape)
                 realised_node[node.debugName] = node
                 nodes_to_del += [node]
