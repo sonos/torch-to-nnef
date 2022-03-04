@@ -218,6 +218,10 @@ def _register_state_node_as_variable(
 ):
     torch_tensor = torch_graph.get_node_by_export_name(node_export_name).data
 
+    # peculiarity of Tract implementation
+    if len(torch_tensor.shape) == 1:
+        torch_tensor = torch_tensor.unsqueeze(0)
+
     nnef_tensor_ref = add_tensor_to_ngraph(
         g, node, torch_tensor, slug_name, name_to_tensor
     )
@@ -247,7 +251,8 @@ def _weight_bias_and_output_tensor(
     name_to_tensor,
     null_ref,
 ):
-    weight = torch_graph.get_node_by_export_name(weight_name).data
+    weight_node = torch_graph.get_node_by_export_name(weight_name)
+    weight = weight_node.data
 
     weight_ref = _register_state_node_as_variable(
         node_export_name=weight_name,
@@ -261,10 +266,6 @@ def _weight_bias_and_output_tensor(
     bias_ref = null_ref
     bias_node = torch_graph.get_node_by_export_name(bias_name)
     if hasattr(bias_node, 'data'):
-        # peculiarity of Tract implementation
-        if len(bias_node.data.shape) == 1:
-            bias_node.data = bias_node.data.unsqueeze(0)
-
         bias_ref = _register_state_node_as_variable(
             node_export_name=bias_name,
             slug_name="bias",
@@ -339,7 +340,13 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
     ) = node.export_inputs
 
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
-        torch_graph, g, node, weight_name, bias_name, name_to_tensor, null_ref
+        torch_graph,
+        g,
+        node,
+        weight_name,
+        bias_name,
+        name_to_tensor,
+        null_ref,
     )
     running_mean_ref = _register_state_node_as_variable(
         running_mean_name,
