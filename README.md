@@ -4,6 +4,14 @@ Any Pytorch Model to NNEF file format
 
 > warning ! This project is still in alpha and might break/change api quickly
 
+## Goals & Scope
+
+We intend to export any model formulated with vanilla Torch whatever tensor type
+(handling quantized model).
+
+Minimum dependencies in production python package generated (to allow easy
+integration in other project).
+
 ## Features
 
 Allow to export any pytorch model by providing input and model.
