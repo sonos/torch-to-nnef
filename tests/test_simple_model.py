@@ -23,11 +23,24 @@ INPUT_AND_MODELS += [
     ]
 ]
 INPUT_AND_MODELS += [
+    (torch.rand(1, 3, 256, 256), layer)
+    for layer in [
+        nn.Conv2d(
+            3,
+            64,
+            (3, 7),
+        ),
+    ]
+]
+
+INPUT_AND_MODELS += [
     (torch.rand(1, 10, 100), layer)
     for layer in [
         nn.Conv1d(10, 20, 3),
-        # TODO Conv test all variant with groups, padding, dilation
-        # Test with Conv2d
+        nn.Conv1d(10, 20, 3, stride=2),
+        nn.Conv1d(10, 20, 3, groups=10),
+        nn.Conv1d(10, 20, 3, bias=False),
+        # nn.Conv1d(10, 20, 3, padding=3, padding_mode="zeros"),
         # nn.BatchNorm1d(10),
         # nn.MaxPool1d(10),
         # nn.AvgPool1d(10),
