@@ -173,24 +173,17 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     weight = torch_graph.get_node_by_export_name(weight_name).data
     bias = torch_graph.get_node_by_export_name(bias_name).data
 
-    stride = [
-        torch_graph.get_node_by_export_name(in_export_name).value
-        for in_export_name in torch_graph.get_node_by_export_name(
-            stride_name
-        ).export_inputs
-    ]
-    dilation = [
-        torch_graph.get_node_by_export_name(in_export_name).value
-        for in_export_name in torch_graph.get_node_by_export_name(
-            dilation_name
-        ).export_inputs
-    ]
-    padding = [
-        torch_graph.get_node_by_export_name(in_export_name).value
-        for in_export_name in torch_graph.get_node_by_export_name(
-            padding_name
-        ).export_inputs
-    ]
+    def get_array_values_from_inputs(node_export_name: str):
+        return [
+            torch_graph.get_node_by_export_name(in_export_name).value
+            for in_export_name in torch_graph.get_node_by_export_name(
+                node_export_name
+            ).export_inputs
+        ]
+
+    stride = get_array_values_from_inputs(stride_name)
+    dilation = get_array_values_from_inputs(dilation_name)
+    padding = get_array_values_from_inputs(padding_name)
     groups = torch_graph.get_node_by_export_name(groups_name).value
 
     nnef_weight_ref = add_tensor_to_ngraph(
@@ -255,6 +248,168 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
             "groups": groups,
             "border": "constant",
         },
+    )
+
+
+def _register_state_node_as_variable(
+    node_export_name: str, slug_name: str, torch_graph, node, g, name_to_tensor
+):
+    torch_tensor = torch_graph.get_node_by_export_name(node_export_name).data
+
+    nnef_tensor_ref = add_tensor_to_ngraph(
+        g, node, torch_tensor, slug_name, name_to_tensor
+    )
+
+    var = NOperation(
+        graph=g,
+        type="variable",
+        name=f"{node.export_name}_{slug_name}_var",
+        inputs=None,
+        outputs=nnef_tensor_ref,
+        attribs={
+            "label": nnef_tensor_ref.name,
+            "shape": list(nnef_tensor_ref.shape),
+            "dtype": nnef_tensor_ref.dtype,
+        },
+    )
+
+    return var.output
+
+
+def _weight_bias_and_output_tensor(
+    torch_graph,
+    g,
+    node,
+    weight_name,
+    bias_name,
+    name_to_tensor,
+    null_ref,
+):
+    weight = torch_graph.get_node_by_export_name(weight_name).data
+
+    weight_ref = _register_state_node_as_variable(
+        node_export_name=weight_name,
+        slug_name="weight",
+        torch_graph=torch_graph,
+        node=node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+
+    bias_ref = null_ref
+    bias_node = torch_graph.get_node_by_export_name(bias_name)
+    if hasattr(bias_node, 'data'):
+        # peculiarity of Tract implementation
+        if len(bias_node.data.shape) == 1:
+            bias_node.data = bias_node.data.unsqueeze(0)
+
+        bias_ref = _register_state_node_as_variable(
+            node_export_name=bias_name,
+            slug_name="bias",
+            torch_graph=torch_graph,
+            node=node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+        )
+
+    out_tensor_name = node.export_name
+    output_tensor = NTensor(
+        graph=g,
+        name=out_tensor_name,
+        dtype=weight.numpy().dtype.type,
+        shape=tuple(node.tensor_size) if node.tensor_size else None,
+    )
+    name_to_tensor[out_tensor_name] = output_tensor
+    return weight_ref, bias_ref, output_tensor
+
+
+def linear(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_name,
+        weight_name,
+        bias_name,
+    ) = node.export_inputs
+
+    weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
+        torch_graph,
+        g,
+        node,
+        weight_name,
+        bias_name,
+        name_to_tensor,
+        null_ref,
+    )
+
+    NOperation(
+        graph=g,
+        type="linear",
+        name=f"{node.export_name}_op",
+        inputs=(name_to_tensor[input_name], weight_ref, bias_ref),
+        outputs=output_tensor,
+        attribs={},
+    )
+
+
+def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+
+    nnef inputs:
+        input: tensor<scalar>
+        mean: tensor<scalar>
+        variance: tensor<scalar>
+        offset: tensor<scalar>
+        scale: tensor<scalar>
+        epsilon: scalar
+
+    nnef op:
+        output = offset + scale * (input - mean) / sqrt(variance + epsilon);
+    """
+    (
+        input_name,
+        weight_name,
+        bias_name,
+        running_mean_name,
+        running_var_name,
+        _,  # training
+        _,  # momentum
+        eps_name,
+        _,  # cudnn_enabled
+    ) = node.export_inputs
+
+    weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
+        torch_graph, g, node, weight_name, bias_name, name_to_tensor, null_ref
+    )
+    running_mean_ref = _register_state_node_as_variable(
+        running_mean_name,
+        slug_name="running_mean",
+        torch_graph=torch_graph,
+        node=node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+    running_var_ref = _register_state_node_as_variable(
+        running_var_name,
+        slug_name="running_var",
+        torch_graph=torch_graph,
+        node=node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+    eps_val = torch_graph.get_node_by_export_name(eps_name).value
+
+    NOperation(
+        graph=g,
+        type="batch_normalization",
+        name=f"{node.export_name}_op",
+        inputs=(
+            name_to_tensor[input_name],
+            running_mean_ref,
+            running_var_ref,
+            bias_ref,
+            weight_ref,
+        ),
+        outputs=output_tensor,
+        attribs={"epsilon": eps_val},
     )
 
 

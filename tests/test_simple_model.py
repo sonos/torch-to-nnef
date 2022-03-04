@@ -15,22 +15,26 @@ from torch_to_nnef.export import export_model_to_nnef
 INPUT_AND_MODELS = []
 
 # Base Layers
-"""
+INPUT_AND_MODELS += [
+    (torch.rand(13, 10), layer)
+    for layer in [
+        nn.Linear(10, 20, bias=False),
+        nn.Linear(10, 32),
+    ]
+]
 INPUT_AND_MODELS += [
     (torch.rand(1, 10, 100), layer)
     for layer in [
-        nn.Linear(10, 20),
         nn.Conv1d(10, 20, 3),
         # TODO Conv test all variant with groups, padding, dilation
         # Test with Conv2d
-        nn.BatchNorm1d(10),
-        nn.MaxPool1d(10),
-        nn.AvgPool1d(10),
-        nn.ConvTranspose1d(10, 20, 3),
+        # nn.BatchNorm1d(10),
+        # nn.MaxPool1d(10),
+        # nn.AvgPool1d(10),
+        # nn.ConvTranspose1d(10, 20, 3),
         # Should we handle LSTM and GRU ???
     ]
 ]
-"""
 
 # Activations
 INPUT_AND_MODELS += [
@@ -44,6 +48,7 @@ INPUT_AND_MODELS += [
         nn.Tanh(),
         nn.Softmax(1),
         nn.Softplus(),
+        # We could add this with appropriate fragments
         # nn.GELU(),  # No definition for operator `gelu' in tract
         # nn.SELU(), # No definition for operator `selu' in tract
         # nn.SiLU(),  # No definition for operator `silu' in tract
@@ -79,6 +84,10 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path):
         subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
+        print(cmd)
+        import ipdb
+
+        ipdb.set_trace()
         return False
 
 
