@@ -30,7 +30,6 @@ class GraphExtractor:
         self.g = NGraph(f"net_{datestr}")
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
-        self._torch_graph_helper.printall()
 
         if node.kind.startswith("aten::"):
             return aten_to_nnef_tensor_and_ops(

@@ -690,7 +690,9 @@ class InternalPytorchGraphHelper:
             _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
 
         self.nodes_op += submodule_graph.nodes_op
-        self.nodes_io.update(submodule_graph.nodes_io)
+        self.nodes_io.update(
+            {f"{prefix}{k}": v for k, v in submodule_graph.nodes_io.items()}
+        )
 
         self.state_nodes += submodule_graph.state_nodes
 

@@ -14,6 +14,14 @@ from torch_to_nnef.export import export_model_to_nnef
 INPUT_AND_MODELS = [
     (torch.rand(1, 10, 100), nn.Sequential(nn.Conv1d(10, 20, 3))),
     (torch.rand(1, 10, 100), nn.Sequential(nn.ReLU())),
+    (
+        torch.rand(1, 10, 100),
+        nn.Sequential(
+            nn.Sequential(nn.Conv1d(10, 20, 3)),
+            nn.Conv1d(20, 30, 5),
+            nn.Conv1d(30, 50, 1),
+        ),
+    ),
 ]
 
 # profile
@@ -26,10 +34,6 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path):
         subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:
-        print(cmd)
-        import ipdb
-
-        ipdb.set_trace()
         return False
 
 
