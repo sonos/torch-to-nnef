@@ -288,10 +288,16 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+def _pooling_op(
+    nnef_op_name: str,
+    inputs_name_tuple,
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+):
     """
-
-    NNEF max_pool params (not dimension specific):
+    NNEF (avg|max)_pool params (not dimension specific):
         input: tensor<scalar>,
         size: integer[],
         border: string = 'constant',
@@ -307,7 +313,7 @@ def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
         padding_name,
         dilation_name,
         ceil_mode_name,
-    ) = node.export_inputs
+    ) = inputs_name_tuple
 
     def get_array_values_from_inputs(node_export_name: str):
         return [
@@ -335,7 +341,10 @@ def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
     padding = get_array_values_from_inputs(padding_name)
     kernel_size = get_array_values_from_inputs(kernel_size_name)
     stride = get_array_values_from_inputs(stride_name)
-    dilation = get_array_values_from_inputs(dilation_name)
+    if dilation_name:
+        dilation = get_array_values_from_inputs(dilation_name)
+    else:
+        dilation = [0 for _ in stride]
 
     # peculiarity of tract implementation
     # not sure what to do need discussion with @kali
@@ -348,7 +357,7 @@ def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
 
     NOperation(
         graph=g,
-        type="max_pool",
+        type=nnef_op_name,
         name=f"{node.export_name}_op",
         inputs=name_to_tensor[input_name],
         outputs=output_tensor,
@@ -361,6 +370,37 @@ def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
             "dilation": list(dilation),
             "border": "constant",
         },
+    )
+
+
+def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+    _pooling_op(
+        "max_pool",
+        node.export_inputs,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
+    )
+
+
+def avg_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+    count_include_pad = torch_graph.get_node_by_export_name(
+        node.export_inputs[-1]
+    ).value
+
+    if not count_include_pad:
+        raise NotImplementedError("not implemented count_include_pad=False")
+    inputs_name_tuple = node.export_inputs[:-1]  # count_include_pad excluded
+    inputs_name_tuple.insert(4, None)  # set missing dilation
+    # Dilation is available
+    _pooling_op(
+        "avg_pool",
+        inputs_name_tuple,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
     )
 
 
