@@ -36,6 +36,7 @@ INPUT_AND_MODELS += [
             (3, 7),
         ),
         nn.Flatten(start_dim=1, end_dim=2),
+        nn.Dropout(),
     ]
 ]
 
