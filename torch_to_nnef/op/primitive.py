@@ -158,6 +158,10 @@ def relu(torch_graph, **kwargs):
     return _unary_op("relu", **kwargs)
 
 
+def _relu(torch_graph, **kwargs):
+    return _unary_op("relu", **kwargs)
+
+
 def sigmoid(torch_graph, **kwargs):
     return _unary_op("sigmoid", **kwargs)
 
@@ -373,37 +377,6 @@ def _pooling_op(
     )
 
 
-def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
-    _pooling_op(
-        "max_pool",
-        node.export_inputs,
-        g,
-        node,
-        name_to_tensor,
-        torch_graph,
-    )
-
-
-def avg_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
-    count_include_pad = torch_graph.get_node_by_export_name(
-        node.export_inputs[-1]
-    ).value
-
-    if not count_include_pad:
-        raise NotImplementedError("not implemented count_include_pad=False")
-    inputs_name_tuple = node.export_inputs[:-1]  # count_include_pad excluded
-    inputs_name_tuple.insert(4, None)  # set missing dilation
-    # Dilation is available
-    _pooling_op(
-        "avg_pool",
-        inputs_name_tuple,
-        g,
-        node,
-        name_to_tensor,
-        torch_graph,
-    )
-
-
 def linear(g, node, name_to_tensor, null_ref, torch_graph):
     (
         input_name,
@@ -497,6 +470,86 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
         ),
         outputs=output_tensor,
         attribs={"epsilon": eps_val},
+    )
+
+
+def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+    _pooling_op(
+        "max_pool",
+        node.export_inputs,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
+    )
+
+
+def avg_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+    count_include_pad = torch_graph.get_node_by_export_name(
+        node.export_inputs[-1]
+    ).value
+
+    if not count_include_pad:
+        raise NotImplementedError("not implemented count_include_pad=False")
+    inputs_name_tuple = node.export_inputs[:-1]  # count_include_pad excluded
+    inputs_name_tuple.insert(4, None)  # set missing dilation
+    # Dilation is available
+    _pooling_op(
+        "avg_pool",
+        inputs_name_tuple,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
+    )
+
+
+def max_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError("max_pool2d")
+
+
+def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError("adaptive_avg_pool2d")
+
+
+def dropout(g, node, name_to_tensor, null_ref, torch_graph):
+    # should wire directly input_node to output without intermediate
+    raise NotImplementedError("dropout")
+
+
+def flatten(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    Using NNEF:
+        fragment reshape<?>(
+            input: tensor<?>,
+            shape: integer[],
+            axis_start: integer = 0,
+            axis_count: integer = -1
+        ) -> ( output: tensor<?> );
+    """
+    (input_name, _, _) = node.export_inputs  # start_dim_name  # end_dim_name
+
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+
+    outputs = [out]
+    NOperation(
+        graph=g,
+        type="reshape",
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple(outputs),
+        attribs={
+            "dtype": out.dtype,
+            "shape": list(node.tensor_size),
+            "axis_start": 0,
+            "axis_count": -1,
+        },
     )
 
 

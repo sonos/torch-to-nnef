@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch import nn
 
-# from torchvision import models as vision_mdl
+from torchvision import models as vision_mdl
 from torch_to_nnef.export import export_model_to_nnef
 
 INPUT_AND_MODELS = []
@@ -35,6 +35,7 @@ INPUT_AND_MODELS += [
             64,
             (3, 7),
         ),
+        nn.Flatten(start_dim=1, end_dim=2),
     ]
 ]
 
@@ -47,7 +48,7 @@ INPUT_AND_MODELS += [
         nn.Conv1d(10, 20, 3, bias=False),
         nn.Conv1d(10, 20, 3, padding=3),
         # nn.BatchNorm1d(10, eps=0, momentum=0.1),
-        nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
+        # nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
         # nn.AvgPool1d(10),
         # nn.ConvTranspose1d(10, 20, 3),
         # Should we handle LSTM and GRU ???
@@ -87,7 +88,11 @@ INPUT_AND_MODELS += [
 
 # Test classical vision models
 # INPUT_AND_MODELS += [
+# (
+# torch.rand(1, 3, 256, 256),
 # vision_mdl.alexnet(pretrained=True),
+# )
+# ]
 # vision_mdl.resnet50(pretrained=True),
 # vision_mdl.efficientnet_b0(pretrained=True),
 # vision_mdl.regnet_y_8gf(pretrained=True),
