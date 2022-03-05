@@ -513,8 +513,32 @@ def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def dropout(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_name,
+        _,  # probability
+        is_active_name,
+    ) = node.export_inputs
+    is_active = torch_graph.get_node_by_export_name(is_active_name).value
     # should wire directly input_node to output without intermediate
-    raise NotImplementedError("dropout")
+    if is_active:
+        raise NotImplementedError("dropout active at inference")
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+
+    outputs = [out]
+    NOperation(
+        graph=g,
+        type="",
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple(outputs),
+        attribs={},
+    )
 
 
 def flatten(g, node, name_to_tensor, null_ref, torch_graph):
