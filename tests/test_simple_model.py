@@ -18,6 +18,54 @@ from torch_to_nnef.export import export_model_to_nnef
 
 INPUT_AND_MODELS = []
 
+
+class UnaryPrimitive(nn.Module):
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+
+    def forward(self, x):
+        return self.op(x)
+
+
+# Base unary operations
+INPUT_AND_MODELS = [
+    (torch.rand(13, 10), UnaryPrimitive(op))
+    for op in [
+        torch.sin,
+        torch.cos,
+        torch.exp,
+        torch.log,
+        torch.abs,
+        torch.sign,
+        torch.neg,
+        torch.floor,
+        torch.ceil,
+        torch.round,
+        torch.sqrt,
+        torch.rsqrt,
+        torch.log2,
+        # unimplemented tract {
+        # torch.tan,
+        # torch.asin,
+        # torch.acos,
+        # torch.atan,
+        # torch.sinh,
+        # torch.cosh,
+        # torch.tanh,
+        # torch.asinh,
+        # torch.acosh,
+        # torch.atanh,
+        # }
+        # bug ? {
+        # torch.reciprocal,
+        # torch.clone,
+        # }
+        # lambda x: ~x,
+        # lambda x: torch.pow(x, 2.0),
+        # lambda x: torch.pow(x, -2.0),
+    ]
+]
 # Base Layers
 INPUT_AND_MODELS += [
     (torch.rand(13, 10), layer)
@@ -38,6 +86,7 @@ INPUT_AND_MODELS += [
         nn.Flatten(start_dim=1, end_dim=2),
         nn.Dropout(),
         nn.MaxPool2d(kernel_size=2),  # stride=1, padding=1, dilation=1),
+        # nn.AdaptiveAvgPool2d(35),
     ]
 ]
 

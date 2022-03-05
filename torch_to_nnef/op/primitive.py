@@ -154,22 +154,6 @@ def _weight_bias_and_output_tensor(
     return weight_ref, bias_ref, output_tensor
 
 
-def relu(torch_graph, **kwargs):
-    return _unary_op("relu", **kwargs)
-
-
-def _relu(torch_graph, **kwargs):
-    return _unary_op("relu", **kwargs)
-
-
-def sigmoid(torch_graph, **kwargs):
-    return _unary_op("sigmoid", **kwargs)
-
-
-def tanh(torch_graph, **kwargs):
-    return _unary_op("tanh", **kwargs)
-
-
 def softmax(**kwargs):
     node = kwargs['node']
     if node.inputs[2]:
@@ -215,10 +199,6 @@ def prelu(**kwargs):
     node = kwargs['node']
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_op_with_constants("prelu", **kwargs)
-
-
-def gelu(torch_graph, **kwargs):
-    return _unary_op("gelu", **kwargs)
 
 
 def selu(**kwargs):
@@ -522,6 +502,21 @@ def max_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    RoI pooling generates a fixed size output by pooling regions of variable size.
+
+    fragment avg_roi_pool(
+        input: tensor<scalar>,              # the feature maps to pool from
+        rois: tensor<scalar>,               # the regions of interest
+        batch_index: tensor<integer>,       # batch indices for each RoI
+        output_size: integer[] )            # the desired output size
+    -> ( output: tensor<scalar> )
+
+    """
+    # TODO
+    import ipdb
+
+    ipdb.set_trace()
     raise NotImplementedError("adaptive_avg_pool2d")
 
 
@@ -593,10 +588,55 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
-    globals()[aten_op_name](
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-        torch_graph=torch_graph,
-    )
+    # remap
+    aten_op_name = {
+        "_relu": "relu",
+        "reciprocal": "rcp",
+        "clone": "copy",
+    }.get(aten_op_name, aten_op_name)
+
+    if aten_op_name in [
+        "relu",
+        "sigmoid",
+        "gelu",
+        "log",
+        "exp",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "abs",
+        "sign",
+        "neg",
+        "floor",
+        "ceil",
+        "round",
+        "sqrt",
+        "rsqrt",
+        "log2",
+        "copy",
+        "rcp",
+    ]:
+        _unary_op(
+            nnef_op_type=aten_op_name,
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+    else:
+        globals()[aten_op_name](
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+            torch_graph=torch_graph,
+        )
