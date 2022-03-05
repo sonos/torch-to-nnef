@@ -205,7 +205,9 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
         outputs=output_tensor,
         attribs={
             "dilation": list(dilation),
-            "padding": [(pad_left, 0) for pad_left in padding],
+            "padding": [
+                (pad, pad) if isinstance(pad, int) else pad for pad in padding
+            ],
             "stride": list(stride),
             "groups": groups,
             "border": "constant",
