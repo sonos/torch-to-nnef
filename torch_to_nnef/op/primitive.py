@@ -356,6 +356,12 @@ def _pooling_op(
     # input.shape)
 
     # To handle this on our side we should
+    if len(node.tensor_size) > len(kernel_size):
+        missing_n_dims = len(node.tensor_size) - len(kernel_size)
+        kernel_size = ([1] * missing_n_dims) + kernel_size
+        stride = ([1] * missing_n_dims) + stride
+        dilation = ([1] * missing_n_dims) + dilation
+        padding = ([0] * missing_n_dims) + padding
     # kernel_size = [1, 1] + kernel_size + [1]
     # but also 'unsqueeze' input by 1 and 'squeeze' it back
 
@@ -505,7 +511,14 @@ def avg_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def max_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError("max_pool2d")
+    _pooling_op(
+        "max_pool",
+        node.export_inputs,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
+    )
 
 
 def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
