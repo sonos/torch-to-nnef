@@ -323,6 +323,8 @@ class NodeTensorSized(NodeBase):
 
     @property
     def tracing_data(self):
+        if "values" in self.attributes:
+            return self.attributes["values"]
         return torch.rand(
             tuple(self.tensor_size),
             # TODO apply stric mapping between dtype/subtype and torch proper dtype

@@ -81,6 +81,79 @@ def _unary_op_with_constants(nnef_op_type, torch_graph, **kwargs):
     return _unary_op(nnef_op_type, **kwargs)
 
 
+def _register_state_node_as_variable(
+    node_export_name: str, slug_name: str, torch_graph, node, g, name_to_tensor
+):
+    torch_tensor = torch_graph.get_node_by_export_name(node_export_name).data
+
+    # peculiarity of tract implementation
+    if len(torch_tensor.shape) == 1:
+        torch_tensor = torch_tensor.unsqueeze(0)
+
+    nnef_tensor_ref = add_tensor_to_ngraph(
+        g, node, torch_tensor, slug_name, name_to_tensor
+    )
+
+    var = NOperation(
+        graph=g,
+        type="variable",
+        name=f"{node.export_name}_{slug_name}_var",
+        inputs=None,
+        outputs=nnef_tensor_ref,
+        attribs={
+            "label": nnef_tensor_ref.name,
+            "shape": list(nnef_tensor_ref.shape),
+            "dtype": nnef_tensor_ref.dtype,
+        },
+    )
+
+    return var.output
+
+
+def _weight_bias_and_output_tensor(
+    torch_graph,
+    g,
+    node,
+    weight_name,
+    bias_name,
+    name_to_tensor,
+    null_ref,
+):
+    weight_node = torch_graph.get_node_by_export_name(weight_name)
+    weight = weight_node.data
+
+    weight_ref = _register_state_node_as_variable(
+        node_export_name=weight_name,
+        slug_name="weight",
+        torch_graph=torch_graph,
+        node=node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+
+    bias_ref = null_ref
+    bias_node = torch_graph.get_node_by_export_name(bias_name)
+    if hasattr(bias_node, 'data'):
+        bias_ref = _register_state_node_as_variable(
+            node_export_name=bias_name,
+            slug_name="bias",
+            torch_graph=torch_graph,
+            node=node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+        )
+
+    out_tensor_name = node.export_name
+    output_tensor = NTensor(
+        graph=g,
+        name=out_tensor_name,
+        dtype=weight.numpy().dtype.type,
+        shape=tuple(node.tensor_size) if node.tensor_size else None,
+    )
+    name_to_tensor[out_tensor_name] = output_tensor
+    return weight_ref, bias_ref, output_tensor
+
+
 def relu(torch_graph, **kwargs):
     return _unary_op("relu", **kwargs)
 
@@ -215,77 +288,80 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def _register_state_node_as_variable(
-    node_export_name: str, slug_name: str, torch_graph, node, g, name_to_tensor
-):
-    torch_tensor = torch_graph.get_node_by_export_name(node_export_name).data
+def max_pool1d(g, node, name_to_tensor, null_ref, torch_graph):
+    """
 
-    # peculiarity of Tract implementation
-    if len(torch_tensor.shape) == 1:
-        torch_tensor = torch_tensor.unsqueeze(0)
+    NNEF max_pool params (not dimension specific):
+        input: tensor<scalar>,
+        size: integer[],
+        border: string = 'constant',
+        padding: (integer,integer)[] = [],
+        stride: integer[] = [],
+        dilation: integer[] = [] )
 
-    nnef_tensor_ref = add_tensor_to_ngraph(
-        g, node, torch_tensor, slug_name, name_to_tensor
-    )
+    """
+    (
+        input_name,
+        kernel_size_name,
+        stride_name,
+        padding_name,
+        dilation_name,
+        ceil_mode_name,
+    ) = node.export_inputs
 
-    var = NOperation(
-        graph=g,
-        type="variable",
-        name=f"{node.export_name}_{slug_name}_var",
-        inputs=None,
-        outputs=nnef_tensor_ref,
-        attribs={
-            "label": nnef_tensor_ref.name,
-            "shape": list(nnef_tensor_ref.shape),
-            "dtype": nnef_tensor_ref.dtype,
-        },
-    )
+    def get_array_values_from_inputs(node_export_name: str):
+        return [
+            torch_graph.get_node_by_export_name(in_export_name).value
+            for in_export_name in torch_graph.get_node_by_export_name(
+                node_export_name
+            ).export_inputs
+        ]
 
-    return var.output
-
-
-def _weight_bias_and_output_tensor(
-    torch_graph,
-    g,
-    node,
-    weight_name,
-    bias_name,
-    name_to_tensor,
-    null_ref,
-):
-    weight_node = torch_graph.get_node_by_export_name(weight_name)
-    weight = weight_node.data
-
-    weight_ref = _register_state_node_as_variable(
-        node_export_name=weight_name,
-        slug_name="weight",
-        torch_graph=torch_graph,
-        node=node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
-
-    bias_ref = null_ref
-    bias_node = torch_graph.get_node_by_export_name(bias_name)
-    if hasattr(bias_node, 'data'):
-        bias_ref = _register_state_node_as_variable(
-            node_export_name=bias_name,
-            slug_name="bias",
-            torch_graph=torch_graph,
-            node=node,
-            g=g,
-            name_to_tensor=name_to_tensor,
+    ceil_mode = torch_graph.get_node_by_export_name(ceil_mode_name).value
+    if ceil_mode:
+        raise NotImplementedError(
+            "Use of ceil to compute output shape is not implem"
         )
 
     out_tensor_name = node.export_name
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        dtype=weight.numpy().dtype.type,
+        # dtype=?.numpy().dtype.type,
         shape=tuple(node.tensor_size) if node.tensor_size else None,
     )
     name_to_tensor[out_tensor_name] = output_tensor
-    return weight_ref, bias_ref, output_tensor
+
+    padding = get_array_values_from_inputs(padding_name)
+    kernel_size = get_array_values_from_inputs(kernel_size_name)
+    stride = get_array_values_from_inputs(stride_name)
+    dilation = get_array_values_from_inputs(dilation_name)
+
+    # peculiarity of tract implementation
+    # not sure what to do need discussion with @kali
+    # apparently tract does expect max_pool to be always 2d only (including
+    # input.shape)
+
+    # To handle this on our side we should
+    # kernel_size = [1, 1] + kernel_size + [1]
+    # but also 'unsqueeze' input by 1 and 'squeeze' it back
+
+    NOperation(
+        graph=g,
+        type="max_pool",
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=output_tensor,
+        attribs={
+            "size": list(kernel_size),
+            "padding": [
+                (pad, pad) if isinstance(pad, int) else pad for pad in padding
+            ],
+            "stride": list(stride),
+            "dilation": list(dilation),
+            "border": "constant",
+        },
+    )
 
 
 def linear(g, node, name_to_tensor, null_ref, torch_graph):

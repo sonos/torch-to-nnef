@@ -47,7 +47,7 @@ INPUT_AND_MODELS += [
         nn.Conv1d(10, 20, 3, bias=False),
         nn.Conv1d(10, 20, 3, padding=3),
         # nn.BatchNorm1d(10, eps=0, momentum=0.1),
-        # nn.MaxPool1d(10),
+        nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
         # nn.AvgPool1d(10),
         # nn.ConvTranspose1d(10, 20, 3),
         # Should we handle LSTM and GRU ???
