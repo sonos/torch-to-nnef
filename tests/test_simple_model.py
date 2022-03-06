@@ -103,7 +103,7 @@ INPUT_AND_MODELS += [
         nn.Flatten(start_dim=1, end_dim=2),
         nn.Dropout(),
         nn.MaxPool2d(kernel_size=2),  # stride=1, padding=1, dilation=1),
-        # nn.AdaptiveAvgPool2d(35),
+        nn.AdaptiveAvgPool2d(32),
     ]
 ]
 
