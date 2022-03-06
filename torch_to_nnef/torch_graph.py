@@ -35,6 +35,16 @@ CLASSTYPE_KIND = "ClassType"
 
 UNKNOWN_SHAPE = "unknown_shape"
 UNKNOWN_DTYPE = "unknown_type"
+INT_TO_TORCH_DTYPE = {
+    1: torch.int8,
+    2: torch.int16,
+    3: torch.int32,
+    4: torch.int64,
+    5: torch.float16,
+    6: torch.float32,
+    7: torch.float64,
+    11: torch.bool,
+}
 
 
 def aten_name_to_torch_fn(aten_name):
@@ -622,11 +632,22 @@ class InternalPytorchGraphHelper:
                     # difference between aten and python API
                     inputs = inputs[:2]
 
+                if node.kind == "aten::clone":
+                    # remove useless ref to memory_format (for us)
+                    inputs = inputs[:1]
+                    node.inputs = node.inputs[:1]
+
                 input_args = [
                     realised_node[input_name].tracing_data
                     for input_name in inputs
                 ]
-                results = aten_name_to_torch_fn(node.kind)(*input_args)
+                if node.kind == "aten::to":
+                    # note wrong type
+                    results = input_args[0].to(
+                        INT_TO_TORCH_DTYPE[input_args[1]]
+                    )
+                else:
+                    results = aten_name_to_torch_fn(node.kind)(*input_args)
                 node.tensor_size = tuple(results.shape)
                 realised_node[node.debugName] = node
                 nodes_to_del += [node]
