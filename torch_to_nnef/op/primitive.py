@@ -13,7 +13,7 @@ def add_tensor_to_ngraph(
     node,
     tensor: torch.Tensor,
     tensor_name: str,
-    name_to_tensors: T.Dict[str, NTensor],
+    name_to_tensor: T.Dict[str, NTensor],
 ):
     name = f"{node.export_name}_{tensor_name}"
     tensor_np = tensor.numpy()
@@ -24,7 +24,7 @@ def add_tensor_to_ngraph(
         dtype=tensor_np.dtype.type,
         data=tensor_np,
     )
-    name_to_tensors[name] = ntensor
+    name_to_tensor[name] = ntensor
     return ntensor
 
 
@@ -502,6 +502,84 @@ def max_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
+    _pooling_op(
+        "avg_pool",
+        node.export_inputs,
+        g,
+        node,
+        name_to_tensor,
+        torch_graph,
+    )
+
+
+def _adaptive_pool(
+    nnef_op_name: str, g, node, name_to_tensor, null_ref, torch_graph
+):
+    (
+        input_name,
+        pool_values_name,
+    ) = node.export_inputs
+    input_node = torch_graph.get_node_by_export_name(input_name)
+
+    def get_array_values_from_inputs(node_export_name: str):
+        return [
+            torch_graph.get_node_by_export_name(in_export_name).value
+            for in_export_name in torch_graph.get_node_by_export_name(
+                node_export_name
+            ).export_inputs
+        ]
+
+    out_tensor_name = node.export_name
+    output_tensor = NTensor(
+        graph=g,
+        name=out_tensor_name,
+        # dtype=?.numpy().dtype.type,
+        shape=tuple(node.tensor_size) if node.tensor_size else None,
+    )
+    name_to_tensor[out_tensor_name] = output_tensor
+
+    pool_values = get_array_values_from_inputs(pool_values_name)
+    if not all(
+        dim and dim > 0 for dim in input_node.tensor_size[-len(pool_values) :]
+    ):
+        raise NotImplementedError(
+            "dynamic dim used in adaptive pool is not Implemented yet"
+        )
+    # fixed at export auto adaptation
+    assert all(
+        [
+            in_tensor_dim % pool_val == 0
+            for pool_val, in_tensor_dim in zip(
+                pool_values, input_node.tensor_size[-len(pool_values) :]
+            )
+        ]
+    ), "Only support exact even pooling"
+    stride = [
+        int(in_tensor_dim // pool_val)
+        for pool_val, in_tensor_dim in zip(
+            pool_values, input_node.tensor_size[-len(pool_values) :]
+        )
+    ]
+    if len(node.tensor_size) > len(stride):
+        missing_n_dims = len(node.tensor_size) - len(stride)
+        stride = ([1] * missing_n_dims) + stride
+    NOperation(
+        graph=g,
+        type=nnef_op_name,
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=output_tensor,
+        attribs={
+            "size": list(stride),
+            "padding": [(0, 0) for _ in stride],
+            "stride": list(stride),
+            "dilation": [1 for _ in stride],
+            "border": "constant",
+        },
+    )
+
+
 def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
     """
     RoI pooling generates a fixed size output by pooling regions of variable size.
@@ -513,12 +591,49 @@ def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
         output_size: integer[] )            # the desired output size
     -> ( output: tensor<scalar> )
 
-    """
-    # TODO
-    import ipdb
+    # pool_values = get_array_values_from_inputs(pool_values_name)
+    torch_graph.printall()
+    input_node = torch_graph.get_node_by_export_name(input_name)
 
-    ipdb.set_trace()
-    raise NotImplementedError("adaptive_avg_pool2d")
+    rois_ref = add_tensor_to_ngraph(
+        g,
+        node,
+        tensor=torch.from_numpy(
+            np.array([[0, dim] for dim in input_node.tensor_size]).flatten()
+        ),
+        tensor_name="rois",
+        name_to_tensor=name_to_tensor,
+    )
+    batch_index_ref = add_tensor_to_ngraph(
+        g,
+        node,
+        tensor=torch.from_numpy(np.arange(input_node.tensor_size[0])),
+        tensor_name="batch_index",
+        name_to_tensor=name_to_tensor,
+    )
+
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+
+    outputs = [out]
+    NOperation(
+        graph=g,
+        type="avg_roi_pool",
+        name=f"{node.export_name}_op",
+        inputs=[name_to_tensor[input_name], rois_ref, batch_index_ref],
+        outputs=tuple(outputs),
+        attribs={"output_size": node.tensor_size},
+    )
+
+    """
+
+    # WARNING will liklely only wor with full defined shapes in tensor_size
+    _adaptive_pool("avg_pool", g, node, name_to_tensor, null_ref, torch_graph)
 
 
 def dropout(g, node, name_to_tensor, null_ref, torch_graph):
@@ -528,6 +643,7 @@ def dropout(g, node, name_to_tensor, null_ref, torch_graph):
         is_active_name,
     ) = node.export_inputs
     is_active = torch_graph.get_node_by_export_name(is_active_name).value
+
     # should wire directly input_node to output without intermediate
     if is_active:
         raise NotImplementedError("dropout active at inference")

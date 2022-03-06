@@ -458,7 +458,11 @@ class InternalPytorchGraphHelper:
             return next(_ for _ in self.dag_nodes if _.export_name == name)
         except StopIteration:
             pass
-        return next(_ for _ in self.constant_nodes if _.export_name == name)
+        try:
+            return next(_ for _ in self.constant_nodes if _.export_name == name)
+        except StopIteration:
+            pass
+        return next(_ for _ in self.inputs_nodes if _.export_name == name)
 
     def get_node_by_debug_name(self, name: str):
         return next(_ for _ in self.nodes_io.values() if _.debugName == name)
