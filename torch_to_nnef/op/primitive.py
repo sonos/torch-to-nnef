@@ -1,4 +1,5 @@
 import typing as T
+
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 import torch
@@ -585,6 +586,69 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def to(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_name,
+        _,  # dtype_name
+        _,  # non_blocking_name
+        _,  # copy_name
+        _,  # memory_format_name
+    ) = node.export_inputs
+
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+
+    outputs = [out]
+    NOperation(
+        graph=g,
+        type="to",
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple(outputs),
+        attribs={
+            "dtype": out.dtype,
+            "shape": list(node.tensor_size),
+        },
+    )
+
+
+def pow(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, exponent_name) = node.export_inputs
+    exponent = torch_graph.get_node_by_export_name(exponent_name).value
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+
+    outputs = [out]
+    if exponent == 2:
+        op_type = "sqr"
+    elif exponent == -2:
+        op_type = "rsqr"
+    else:
+        raise NotImplementedError("take a look at pow in nnef spec")
+
+    NOperation(
+        graph=g,
+        type=op_type,
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple(outputs),
+        attribs={
+            "dtype": out.dtype,
+            "shape": list(node.tensor_size),
+        },
+    )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
@@ -593,6 +657,8 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "_relu": "relu",
         "reciprocal": "rcp",
         "clone": "copy",
+        "bitwise_not": "not",
+        "bitwise_not_cpu": "not",
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [
@@ -624,6 +690,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "log2",
         "copy",
         "rcp",
+        "not",
     ]:
         _unary_op(
             nnef_op_type=aten_op_name,

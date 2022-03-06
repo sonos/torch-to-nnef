@@ -22,8 +22,10 @@ def _torch_to_nnef_typestr(torch_type_str: str):
         return np.float32
     if torch_type_str == "int":
         return np.int32
-    if torch_type_str == "bool":
+    if torch_type_str in ["Bool", "bool"]:
         return np.bool_
+    if torch_type_str in ["Half"]:
+        return np.float16
 
     raise NotImplementedError(torch_type_str)
 

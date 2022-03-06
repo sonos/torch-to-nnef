@@ -1,5 +1,6 @@
 """Tests simple models."""
 
+from functools import partial
 import os
 from pathlib import Path
 import subprocess
@@ -26,6 +27,15 @@ class UnaryPrimitive(nn.Module):
 
     def forward(self, x):
         return self.op(x)
+
+
+class ToPrimitive(nn.Module):
+    def __init__(self, to_dtype):
+        super().__init__()
+        self.to_dtype = to_dtype
+
+    def forward(self, x):
+        return x.to(self.to_dtype)
 
 
 # Base unary operations
@@ -56,16 +66,23 @@ INPUT_AND_MODELS = [
         # torch.asinh,
         # torch.acosh,
         # torch.atanh,
-        # }
-        # bug ? {
         # torch.reciprocal,
         # torch.clone,
         # }
-        # lambda x: ~x,
-        # lambda x: torch.pow(x, 2.0),
-        # lambda x: torch.pow(x, -2.0),
+        partial(torch.pow, exponent=2.0),
+        partial(torch.pow, exponent=-2.0),
     ]
 ]
+
+# INPUT_AND_MODELS = [
+# (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
+# ]
+
+# tract do not handle cast op
+# INPUT_AND_MODELS += [
+# (torch.tensor([True, False, True]), ToPrimitive(torch.bool))
+# ]
+
 # Base Layers
 INPUT_AND_MODELS += [
     (torch.rand(13, 10), layer)
