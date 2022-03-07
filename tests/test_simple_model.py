@@ -146,6 +146,8 @@ INPUT_AND_MODELS += [
         nn.MaxPool2d(
             kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False
         ),
+        nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+        nn.MaxPool2d(kernel_size=3, stride=4, padding=0, dilation=2),
         nn.AdaptiveAvgPool2d(32),
     ]
 ]
@@ -204,15 +206,11 @@ INPUT_AND_MODELS += [
         vision_mdl.alexnet(pretrained=True),
     ),
 ]
-INPUT_AND_MODELS += [
-    # (  # fail
-    # torch.rand(1, 3, 256, 256),
-    # vision_mdl.resnet18(pretrained=True).layer1,
-    # ),
-    # (
-    # torch.rand(64, 64, 1, 1),
-    # vision_mdl.resnet18(pretrained=True).layer1[0],
-    # ),
+INPUT_AND_MODELS = [
+    (  # fail
+        torch.rand(1, 3, 256, 256),
+        vision_mdl.resnet50(pretrained=True),
+    ),
 ]
 #
 # vision_mdl.efficientnet_b0(pretrained=True),

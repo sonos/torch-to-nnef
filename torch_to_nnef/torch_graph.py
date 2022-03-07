@@ -839,7 +839,8 @@ class InternalPytorchGraphHelper:
                     )
                     self.merge_subraph(
                         submodule_graph,
-                        prefix=ref_getter_node.module_path
+                        prefix="s"  # ensure we do not start with integer varname
+                        + ref_getter_node.module_path
                         + f"_c{ref_count[ref_getter_node_name]}",
                         callmethod_node=dag_node,
                     )
