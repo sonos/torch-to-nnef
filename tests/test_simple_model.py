@@ -206,14 +206,19 @@ INPUT_AND_MODELS += [
         vision_mdl.alexnet(pretrained=True),
     ),
 ]
-INPUT_AND_MODELS = [
-    (  # fail
+INPUT_AND_MODELS += [
+    (
         torch.rand(1, 3, 256, 256),
+        model,
+    )
+    for model in [
         vision_mdl.resnet50(pretrained=True),
-    ),
+        # vision_mdl.regnet_y_8gf(pretrained=True), # works - similar to resnet
+        # vision_mdl.efficientnet_b0(pretrained=True),  # missing silu
+    ]
 ]
 #
-# vision_mdl.efficientnet_b0(pretrained=True),
+#
 # vision_mdl.regnet_y_8gf(pretrained=True),
 # ]
 
