@@ -877,12 +877,6 @@ class InternalPytorchGraphHelper:
         # self.check_is_valid()
         self.recursive_call_method(origin_module, args, omit_useless_nodes)
 
-        if len(self.constant_nodes) > 30:
-            print(graph)
-            import ipdb
-
-            ipdb.set_trace()
-
         return self
 
     @classmethod

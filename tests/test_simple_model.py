@@ -196,12 +196,12 @@ INPUT_AND_MODELS += [
 ]
 
 # Test classical vision models
-# INPUT_AND_MODELS += [
-# (
-# torch.rand(1, 3, 256, 256),
-# vision_mdl.alexnet(pretrained=True),
-# )
-# ]
+INPUT_AND_MODELS += [
+    (
+        torch.rand(1, 3, 224, 224),
+        vision_mdl.alexnet(pretrained=True),
+    )
+]
 # vision_mdl.resnet50(pretrained=True),
 # vision_mdl.efficientnet_b0(pretrained=True),
 # vision_mdl.regnet_y_8gf(pretrained=True),

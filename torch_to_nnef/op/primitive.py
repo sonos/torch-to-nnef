@@ -548,14 +548,6 @@ def _adaptive_pool(
             "dynamic dim used in adaptive pool is not Implemented yet"
         )
     # fixed at export auto adaptation
-    assert all(
-        [
-            in_tensor_dim % pool_val == 0
-            for pool_val, in_tensor_dim in zip(
-                pool_values, input_node.tensor_size[-len(pool_values) :]
-            )
-        ]
-    ), "Only support exact even pooling"
     stride = [
         int(in_tensor_dim // pool_val)
         for pool_val, in_tensor_dim in zip(
@@ -576,7 +568,7 @@ def _adaptive_pool(
             "padding": [(0, 0) for _ in stride],
             "stride": list(stride),
             "dilation": [1 for _ in stride],
-            "border": "constant",
+            "border": "ignore",
         },
     )
 
@@ -783,6 +775,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     # remap
     aten_op_name = {
         "_relu": "relu",
+        "relu_": "relu",
         "reciprocal": "rcp",
         "clone": "copy",
         "bitwise_not": "not",
