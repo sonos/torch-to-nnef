@@ -5,7 +5,7 @@ from nnef_tools.model import Tensor as NTensor
 import torch
 import numpy as np
 
-from .base import _torch_to_nnef_typestr
+from torch_to_nnef.dtypes import torch_typestr_to_nptype
 
 
 def add_tensor_to_ngraph(
@@ -28,11 +28,13 @@ def add_tensor_to_ngraph(
     return ntensor
 
 
-def _unary_op(nnef_op_type: str, g, node, name_to_tensor, null_ref):
+def _unary_output_op_without_params(
+    nnef_op_type: str, g, node, name_to_tensor, null_ref
+):
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -51,7 +53,7 @@ def _unary_op(nnef_op_type: str, g, node, name_to_tensor, null_ref):
     )
 
 
-def _unary_op_with_constants(nnef_op_type, torch_graph, **kwargs):
+def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
 
     g = kwargs["g"]
     node = kwargs["node"]
@@ -70,7 +72,7 @@ def _unary_op_with_constants(nnef_op_type, torch_graph, **kwargs):
             data = const.data.numpy()
             nptype = data.dtype.type
         else:
-            nptype = _torch_to_nnef_typestr(const.subtype or const.dtype)
+            nptype = torch_typestr_to_nptype(const.subtype or const.dtype)
             data = np.array(const.value, dtype=nptype)
         name_to_tensor[const_node_name] = NTensor(
             g,
@@ -79,7 +81,7 @@ def _unary_op_with_constants(nnef_op_type, torch_graph, **kwargs):
             dtype=nptype,
             shape=const.tensor_size,
         )
-    return _unary_op(nnef_op_type, **kwargs)
+    return _unary_output_op_without_params(nnef_op_type, **kwargs)
 
 
 def _register_state_node_as_variable(
@@ -159,7 +161,7 @@ def softmax(**kwargs):
     node = kwargs['node']
     if node.inputs[2]:
         del node.inputs[2]
-    return _unary_op_with_constants("softmax", **kwargs)
+    return _unary_input_output_op_with_constant("softmax", **kwargs)
 
 
 def softplus(torch_graph, **kwargs):
@@ -181,33 +183,33 @@ def softplus(torch_graph, **kwargs):
             " would need use of a specific fragment"
         )
     node.inputs = node.inputs[:1]
-    return _unary_op("softplus", **kwargs)
+    return _unary_output_op_without_params("softplus", **kwargs)
 
 
 def elu(**kwargs):
     node = kwargs['node']
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_op_with_constants("elu", **kwargs)
+    return _unary_input_output_op_with_constant("elu", **kwargs)
 
 
 def leaky_relu(**kwargs):
     node = kwargs['node']
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_op_with_constants("leaky_relu", **kwargs)
+    return _unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
 def prelu(**kwargs):
     node = kwargs['node']
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_op_with_constants("prelu", **kwargs)
+    return _unary_input_output_op_with_constant("prelu", **kwargs)
 
 
 def selu(**kwargs):
-    return _unary_op_with_constants("selu", **kwargs)
+    return _unary_input_output_op_with_constant("selu", **kwargs)
 
 
 def silu(**kwargs):
-    return _unary_op_with_constants("silu", **kwargs)
+    return _unary_input_output_op_with_constant("silu", **kwargs)
 
 
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
@@ -534,7 +536,6 @@ def _adaptive_pool(
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        # dtype=?.numpy().dtype.type,
         shape=tuple(node.tensor_size) if node.tensor_size else None,
     )
     name_to_tensor[out_tensor_name] = output_tensor
@@ -615,7 +616,7 @@ def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -650,7 +651,7 @@ def dropout(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -681,12 +682,17 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
 
     outputs = [out]
+    if input_name not in name_to_tensor:
+        import ipdb
+
+        ipdb.set_trace()
+        assert False
     NOperation(
         graph=g,
         type="reshape",
@@ -714,7 +720,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -735,28 +741,34 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
 
 def pow(g, node, name_to_tensor, null_ref, torch_graph):
     (input_name, exponent_name) = node.export_inputs
-    exponent = torch_graph.get_node_by_export_name(exponent_name).value
+    exponent_node = torch_graph.get_node_by_export_name(exponent_name)
     out = NTensor(
         g,
         node.export_name,
-        dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
 
     outputs = [out]
-    if exponent == 2:
-        op_type = "sqr"
-    elif exponent == -2:
-        op_type = "rsqr"
+    inputs = [name_to_tensor[input_name]]
+    if hasattr(exponent_node, "value"):
+        exponent = exponent_node.value
+        if exponent == 2:
+            op_type = "sqr"
+        elif exponent == -2:
+            op_type = "rsqr"
+        else:
+            raise NotImplementedError("take a look at pow in nnef spec")
     else:
-        raise NotImplementedError("take a look at pow in nnef spec")
+        op_type = "pow"
+        inputs += [name_to_tensor[exponent_name]]
 
     NOperation(
         graph=g,
         type=op_type,
         name=f"{node.export_name}_op",
-        inputs=name_to_tensor[input_name],
+        inputs=tuple(inputs),
         outputs=tuple(outputs),
         attribs={
             "dtype": out.dtype,
@@ -775,6 +787,13 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "clone": "copy",
         "bitwise_not": "not",
         "bitwise_not_cpu": "not",
+        "bitwise_cpu": "and",
+        "__and__": "and",
+        "__or__": "or",
+        "less": 'lt',
+        "greater": 'gt',
+        "less_equal": 'le',
+        "greater_equal": 'ge',
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [
@@ -807,8 +826,21 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "copy",
         "rcp",
         "not",
+        "eq",
+        "ne",
+        "min",
+        "max",
+        "sub",
+        "mul",
+        "div",
+        'lt',
+        'gt',
+        'le',
+        'ge',
+        'and',
+        'or',
     ]:
-        _unary_op(
+        _unary_output_op_without_params(
             nnef_op_type=aten_op_name,
             g=g,
             node=node,

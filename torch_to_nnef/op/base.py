@@ -12,24 +12,6 @@ from torch_to_nnef.torch_graph import NodeTensorSized
 __all__ = ["ModuleInfoExtractor"]
 
 
-def _torch_to_nnef_typestr(torch_type_str: str):
-
-    if torch_type_str == "QUInt8":
-        return np.int8
-    if torch_type_str == "Long":
-        return np.int64
-    if torch_type_str in ["Float", "float"]:
-        return np.float32
-    if torch_type_str == "int":
-        return np.int32
-    if torch_type_str in ["Bool", "bool"]:
-        return np.bool_
-    if torch_type_str in ["Half"]:
-        return np.float16
-
-    raise NotImplementedError(torch_type_str)
-
-
 class _ModuleInfoRegistery(type):
 
     """Allow extract in NNEF behavior from specific nn.Module"""
