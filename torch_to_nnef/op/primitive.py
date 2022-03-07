@@ -763,6 +763,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
 
     # remap
     aten_op_name = {
+        "add_": "add",
         "_relu": "relu",
         "relu_": "relu",
         "reciprocal": "rcp",
@@ -812,6 +813,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "ne",
         "min",
         "max",
+        "add",
         "sub",
         "mul",
         "div",

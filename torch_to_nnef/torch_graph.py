@@ -1,8 +1,9 @@
 import logging
 import typing as T
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from itertools import chain
 from dataclasses import dataclass
+import uuid
 
 import torch
 from torch import jit, nn
@@ -12,6 +13,11 @@ from torch_to_nnef.dtypes import torch_typestr_to_type, INT_TO_TORCH_DTYPE
 from .console import Console
 
 LOGGER = logging.getLogger(__name__)
+
+
+class NodeNotFound(ValueError):
+    pass
+
 
 methods_OP = [
     "attributeNames",
@@ -23,6 +29,8 @@ methods_OP = [
     "outputsSize",
     "scopeName",
 ]
+
+
 # Some additional methods to explure for methods_IO are
 #
 #   'unique' (type int)
@@ -52,19 +60,6 @@ def _replacement_to_relative_module_path(replacements: T.List[str]):
     return ".".join(
         [rep.split("[")[1][:-1] if "[" in rep else rep for rep in replacements]
     )
-
-
-def _access_module(module_path: str, model: nn.Module):
-    current_context = model
-    for next_context_str in module_path.split("."):
-        try:
-            intcasted = int(next_context_str)
-            current_context = current_context[intcasted]
-            continue
-        except ValueError:
-            pass
-        current_context = getattr(current_context, next_context_str)
-    return current_context
 
 
 @dataclass
@@ -455,10 +450,20 @@ class InternalPytorchGraphHelper:
             return next(_ for _ in self.constant_nodes if _.export_name == name)
         except StopIteration:
             pass
-        return next(_ for _ in self.inputs_nodes if _.export_name == name)
+        try:
+            return next(_ for _ in self.inputs_nodes if _.export_name == name)
+        except StopIteration:
+            self.printall()
+            raise NodeNotFound(f"with export_name {name}")
 
     def get_node_by_debug_name(self, name: str):
-        return next(_ for _ in self.nodes_io.values() if _.debugName == name)
+        try:
+            return next(
+                _ for _ in self.nodes_io.values() if _.debugName == name
+            )
+        except StopIteration:
+            self.printall()
+            raise NodeNotFound(f"with debugName {name}")
 
     def printall(self):
         console = Console(
@@ -609,6 +614,8 @@ class InternalPytorchGraphHelper:
             node
             for node in self.dag_nodes
             if node not in realised_node.values()
+            and node.kind != "prim::GetAttr"
+            # and not isinstance(node.tensor_size, (list, tuple))
         ]
 
         while remaining_nodes:
@@ -617,13 +624,17 @@ class InternalPytorchGraphHelper:
                 # TODO handle special case when realised node is only partially
                 # concrete with some dimenssion unknown
                 inputs = node.inputs
-                if not all(
-                    input_name in realised_node for input_name in inputs
+                if not (
+                    all(input_name in realised_node for input_name in inputs)
+                    or (
+                        node.kind == "prim::CallMethod"
+                        and all(
+                            input_name in realised_node
+                            for input_name in inputs[1:]
+                        )
+                    )
                 ):
                     continue
-
-                if not node.kind.startswith("aten::"):
-                    raise NotImplementedError(node)
 
                 if node.kind == "aten::elu":
                     # difference between aten and python API
@@ -633,21 +644,45 @@ class InternalPytorchGraphHelper:
                     # remove useless ref to memory_format (for us)
                     inputs = inputs[:1]
                     node.inputs = node.inputs[:1]
-                if node.kind == "aten::sub":
+                if node.kind in [
+                    "aten::sub",
+                    "aten::sub_",
+                    "aten::add_",
+                    "aten::add",
+                ]:
                     # remove useless ref to scaling (probably never used)
                     inputs = inputs[:2]
                     node.inputs = node.inputs[:2]
+                    if node.kind.endswith("_"):
+                        # allow to find correct pytorch API fn
+                        node.kind = node.kind[:-1]
+
+                start_idx = 0
+                if node.kind == "prim::CallMethod":
+                    start_idx = 1
 
                 input_args = [
                     realised_node[input_name].tracing_data
-                    for input_name in inputs
+                    for input_name in inputs[start_idx:]
                 ]
                 if node.kind == "aten::to":
                     # note wrong type
                     results = input_args[0].to(
                         INT_TO_TORCH_DTYPE[input_args[1]]
                     )
+                elif node.kind == "prim::CallMethod":
+                    module = getattr(
+                        model,
+                        self.get_node_by_debug_name(inputs[0]).module_path,
+                    )
+                    results = module(*input_args)
+                    if not node.subtype:
+                        node.dtype = "Tensor"
+                        # TODO apply proper subtype based on type
+                        node.subtype = "Float"
                 else:
+                    if not node.kind.startswith("aten::"):
+                        raise NotImplementedError(node)
                     results = aten_name_to_torch_fn(node.kind)(*input_args)
                 node.tensor_size = tuple(results.shape)
                 realised_node[node.debugName] = node
@@ -703,6 +738,7 @@ class InternalPytorchGraphHelper:
         wire_output = callmethod_node.debugName
 
         to_del_names = []
+        # remove "input" {
         for node, new_name in zip(submodule_graph.inputs_nodes, wire_inputs):
             to_del_names.append(node.debugName.split(self.SEP)[1])
             for vnode_op in submodule_graph.dag_nodes:
@@ -713,10 +749,12 @@ class InternalPytorchGraphHelper:
 
         for to_del_name in to_del_names:
             del submodule_graph.nodes_io[to_del_name]
+        # }
 
         submodule_graph.find_io_by_debug_name(
             submodule_graph.outputs_nodes[0].inputs[0]
         ).debugName = wire_output
+        assert isinstance(submodule_graph.nodes_io["output.1"], NodeOutput)
         del submodule_graph.nodes_io["output.1"]
 
         assert len(submodule_graph.inputs_nodes) == 0
@@ -724,9 +762,6 @@ class InternalPytorchGraphHelper:
 
         # }
 
-        # TODO should be inserted at right index in list and OrderedDict
-        # that is each subgraph access need index of CallMethod to perform
-        # insertion
         for _ in submodule_graph.nodes_op:
             _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
             # .inputs .outputs
@@ -739,19 +774,30 @@ class InternalPytorchGraphHelper:
 
         self.nodes_op += submodule_graph.nodes_op
         self.nodes_io.update(
-            {f"{prefix}{k}": v for k, v in submodule_graph.nodes_io.items()}
+            {f"{prefix}.{k}": v for k, v in submodule_graph.nodes_io.items()}
         )
 
         self.state_nodes += submodule_graph.state_nodes
 
+        # check there is no other reference of it (it may happen in case of
+        # basic activations reuse)
+        call_related_nodes_to_del = [callmethod_node]
+        still_in_use_by = [
+            dag_node
+            for dag_node in self.dag_nodes
+            for input_name in dag_node.export_inputs
+            if input_name in callmethod_node.export_inputs[0]
+        ]
+        if len(still_in_use_by) == 1:
+            # we can now remove the getattr since it is orphan node
+            call_related_nodes_to_del += [
+                self.get_node_by_debug_name(callmethod_node.inputs[0])
+            ]
+
         self.nodes_io = {
             k: v
             for k, v in self.nodes_io.items()
-            if v
-            not in [
-                callmethod_node,
-                self.get_node_by_debug_name(callmethod_node.inputs[0]),
-            ]
+            if v not in call_related_nodes_to_del
         }
 
     def recursive_call_method(self, module, args, omit_useless_nodes):
@@ -769,11 +815,14 @@ class InternalPytorchGraphHelper:
         is needed.
 
         """
+        ref_count = defaultdict(int)
         for dag_node in self.dag_nodes:
             if dag_node.is_callmethod:
+                ref_getter_node_name = dag_node.inputs[0]
                 ref_getter_node = self.get_node_by_debug_name(
-                    dag_node.inputs[0]
+                    ref_getter_node_name
                 )
+                ref_count[ref_getter_node_name] += 1
                 # prep recursion
                 submodule = getattr(module, ref_getter_node.module_path)
                 submodule_args = tuple(
@@ -790,7 +839,8 @@ class InternalPytorchGraphHelper:
                     )
                     self.merge_subraph(
                         submodule_graph,
-                        prefix=ref_getter_node.module_path,
+                        prefix=ref_getter_node.module_path
+                        + f"_c{ref_count[ref_getter_node_name]}",
                         callmethod_node=dag_node,
                     )
                 except RuntimeError as exp:
@@ -884,7 +934,7 @@ class InternalPytorchGraphHelper:
         self._populate_namespace_from_OP_to_IO()
         self._transform_prim_get_attr_in_state_nodes(module)
 
-        self._infer_undefined_tensor_size_when_possible(module)
+        self._infer_undefined_tensor_size_when_possible(origin_module)
 
         # self.check_is_valid()
         self.recursive_call_method(origin_module, args, omit_useless_nodes)
