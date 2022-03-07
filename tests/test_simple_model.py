@@ -29,6 +29,15 @@ class UnaryPrimitive(nn.Module):
         return self.op(x)
 
 
+class BinaryPrimitive(nn.Module):
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+
+    def forward(self, x1, x2):
+        return self.op(x1, x2)
+
+
 class ToPrimitive(nn.Module):
     def __init__(self, to_dtype):
         super().__init__()
@@ -74,8 +83,40 @@ INPUT_AND_MODELS = [
     ]
 ]
 
+# _binary
+INPUT_AND_MODELS += [
+    ((torch.rand(13, 10), torch.rand(13, 10)), BinaryPrimitive(op))
+    for op in [
+        torch.min,
+        torch.max,
+        torch.sub,
+        torch.mul,
+        torch.div,
+        torch.pow,
+        # unsupported in tract ? {
+        # torch.less,
+        # torch.eq,
+        # torch.ne,
+        # torch.greater,
+        # torch.less_equal,
+        # torch.greater_equal,
+        # }
+    ]
+]
+
 # INPUT_AND_MODELS = [
 # (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
+# ]
+# INPUT_AND_MODELS += [
+# (
+# (torch.tensor([True, False, True]), torch.tensor([True, False, False])),
+# BinaryPrimitive(op),
+# )
+# for op in [
+# # tract does not handle io being bool
+# (lambda x, y: x & y),  # and
+# (lambda x, y: x | y),  # or
+# ]
 # ]
 
 # tract do not handle cast op
@@ -220,21 +261,25 @@ def test_model_export(test_input, model):
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
 
-        test_output = model(test_input)
+        tup_inputs = (
+            test_input if isinstance(test_input, tuple) else (test_input,)
+        )
+        test_output = model(*tup_inputs)
         export_model_to_nnef(
             model=model,
             args=test_input,
             base_path=export_path,
-            input_names=["input"],
+            input_names=[f"input_{idx}" for idx, _ in enumerate(tup_inputs)],
             output_names=["output"],
             verbose=False,
         )
 
-        np.savez(
-            io_npz_path,
-            input=test_input.detach().numpy(),
-            output=test_output.detach().numpy(),
-        )
+        kwargs = {
+            f"input_{idx}": input_arg.detach().numpy()
+            for idx, input_arg in enumerate(tup_inputs)
+        }
+        kwargs["output"] = test_output.detach().numpy()
+        np.savez(io_npz_path, **kwargs)
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
         try:

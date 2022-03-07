@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch import jit, nn
 import torch.jit._trace
+from torch_to_nnef.dtypes import torch_typestr_to_type, INT_TO_TORCH_DTYPE
 
 from .console import Console
 
@@ -35,20 +36,12 @@ CLASSTYPE_KIND = "ClassType"
 
 UNKNOWN_SHAPE = "unknown_shape"
 UNKNOWN_DTYPE = "unknown_type"
-INT_TO_TORCH_DTYPE = {
-    1: torch.int8,
-    2: torch.int16,
-    3: torch.int32,
-    4: torch.int64,
-    5: torch.float16,
-    6: torch.float32,
-    7: torch.float64,
-    11: torch.bool,
-}
+SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
 
 def aten_name_to_torch_fn(aten_name):
     name = aten_name.replace("aten::", "")
+    name = SPECIAL_ATEN_REMAP_PYTORCH.get(name, name)
     try:
         return getattr(torch, name)
     except AttributeError:
@@ -176,7 +169,7 @@ class NodeIO(NodeBase):
     def tracing_data(self):
         return torch.rand(
             tuple([321 if x is None else x for x in self.tensor_size])
-        )
+        ).to(torch_typestr_to_type(self.subtype or self.dtype))
 
     @classmethod
     def _cpp_tensor_size_from_type(cls, node_type):
@@ -273,7 +266,9 @@ class NodeOp(NodeBase):
             raise ValueError(self)
         shape = [321 if x is None else x for x in self.outputs_tensor_size]
 
-        return torch.rand(tuple(shape))
+        return torch.rand(tuple(shape)).to(
+            torch_typestr_to_type(self.subtype or self.dtype)
+        )
 
     @classmethod
     def parse_args(cls, node_cpp, valid_methods):
@@ -335,10 +330,8 @@ class NodeTensorSized(NodeBase):
     def tracing_data(self):
         if "values" in self.attributes:
             return self.attributes["values"]
-        return torch.rand(
-            tuple(self.tensor_size),
-            # TODO apply stric mapping between dtype/subtype and torch proper dtype
-            # dtype=realised_node[input_name].dtype,
+        return torch.rand(tuple(self.tensor_size)).to(
+            torch_typestr_to_type(self.subtype or self.dtype)
         )
 
     @classmethod
@@ -640,6 +633,10 @@ class InternalPytorchGraphHelper:
                     # remove useless ref to memory_format (for us)
                     inputs = inputs[:1]
                     node.inputs = node.inputs[:1]
+                if node.kind == "aten::sub":
+                    # remove useless ref to scaling (probably never used)
+                    inputs = inputs[:2]
+                    node.inputs = node.inputs[:2]
 
                 input_args = [
                     realised_node[input_name].tracing_data
@@ -715,6 +712,9 @@ class InternalPytorchGraphHelper:
 
         # }
 
+        # TODO should be inserted at right index in list and OrderedDict
+        # that is each subgraph access need index of CallMethod to perform
+        # insertion
         for _ in submodule_graph.nodes_op:
             _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
             # .inputs .outputs
@@ -876,6 +876,12 @@ class InternalPytorchGraphHelper:
 
         # self.check_is_valid()
         self.recursive_call_method(origin_module, args, omit_useless_nodes)
+
+        if len(self.constant_nodes) > 30:
+            print(graph)
+            import ipdb
+
+            ipdb.set_trace()
 
         return self
 
