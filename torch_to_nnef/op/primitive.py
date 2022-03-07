@@ -344,7 +344,7 @@ def _pooling_op(
         kernel_size = ([1] * missing_n_dims) + kernel_size
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
-        padding = ([0] * missing_n_dims) + padding
+        padding = padding + ([0] * missing_n_dims)
     # kernel_size = [1, 1] + kernel_size + [1]
     # but also 'unsqueeze' input by 1 and 'squeeze' it back
 
