@@ -14,7 +14,10 @@ from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 
 from torch_to_nnef.torch_graph import (
     InternalPytorchGraphHelper,
+    NodeConstantTensorSized,
     NodeInput,
+    NodeState,
+    NodeTensorSized,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -44,6 +47,37 @@ class GraphExtractor:
                 return
 
         raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
+
+    def _add_operators(self, name_to_tensor, null_ref):
+        def is_missing(node_name: str):
+            if node_name in name_to_tensor:
+                return False
+            node = self._torch_graph_helper.get_node_by_export_name(node_name)
+            if isinstance(node, (NodeState, NodeConstantTensorSized)):
+                return False
+            if (
+                isinstance(node, NodeTensorSized)
+                and "values" in node.attributes
+            ):
+                return False
+            return True
+
+        operators_nodes = self._torch_graph_helper.operators_nodes[:]
+        while operators_nodes:
+            done_nodes = []
+            for node in operators_nodes:
+                # node inputs are already realised
+                if any(is_missing(in_name) for in_name in node.export_inputs):
+                    continue
+                self._op_nodes_to_nnef_operation(
+                    node, name_to_tensor, null_ref=null_ref
+                )
+                done_nodes.append(node)
+            if len(done_nodes) == 0 and operators_nodes:
+                raise RuntimeError("DAG seems impossible to unfold")
+            operators_nodes = [
+                _ for _ in operators_nodes if _ not in done_nodes
+            ]
 
     def build_nnef_graph(
         self,
@@ -81,12 +115,9 @@ class GraphExtractor:
                         },
                     )
 
-        for node in self._torch_graph_helper.operators_nodes:
-            # provide to tensor proper shape, dtype
-            # tensor.shape, tensor.dtype, tensor.data = shape, dtype, data
-            self._op_nodes_to_nnef_operation(
-                node, name_to_tensor, null_ref=null
-            )
+        # TODO should handle node inputs comming from other ops not yet in
+        # name_to_tensor to skip those for later use
+        self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = [
             name_to_tensor[_.export_name]
