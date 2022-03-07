@@ -640,22 +640,11 @@ def dropout(g, node, name_to_tensor, null_ref, torch_graph):
     # should wire directly input_node to output without intermediate
     if is_active:
         raise NotImplementedError("dropout active at inference")
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
-        shape=node.tensor_size,
-    )
-    name_to_tensor[node.export_name] = out
 
-    outputs = [out]
-    NOperation(
-        graph=g,
-        type="",
-        name=f"{node.export_name}_op",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple(outputs),
-        attribs={},
+    # this replace order is important for graph of single nodes or starting with
+    # dropout
+    torch_graph.rename_node_and_graph_ref(
+        original_debug_name=node.debugName, new_debug_name=node.inputs[0]
     )
 
 

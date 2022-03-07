@@ -665,6 +665,18 @@ class InternalPytorchGraphHelper:
                         LOGGER.debug("\t", _)
                 break
 
+    def rename_node_and_graph_ref(
+        self, original_debug_name: str, new_debug_name: str
+    ):
+
+        original_node = self.get_node_by_debug_name(original_debug_name)
+        original_node.debug_name = new_debug_name
+        for node in chain(self.nodes_io.values(), self.nodes_op):
+            node.inputs = [
+                new_debug_name if _ == original_debug_name else _
+                for _ in node.inputs
+            ]
+
     def check_is_valid(self):
         for node in self.dag_nodes:
             if node.kind == "prim::CallMethod":

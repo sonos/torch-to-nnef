@@ -143,7 +143,9 @@ INPUT_AND_MODELS += [
         ),
         nn.Flatten(start_dim=1, end_dim=2),
         nn.Dropout(),
-        nn.MaxPool2d(kernel_size=2),  # stride=1, padding=1, dilation=1),
+        nn.MaxPool2d(
+            kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False
+        ),
         nn.AdaptiveAvgPool2d(32),
     ]
 ]
@@ -197,10 +199,10 @@ INPUT_AND_MODELS += [
 
 # Test classical vision models
 INPUT_AND_MODELS += [
-    (
+    (  # works
         torch.rand(1, 3, 224, 224),
         vision_mdl.alexnet(pretrained=True),
-    )
+    ),
 ]
 # vision_mdl.resnet50(pretrained=True),
 # vision_mdl.efficientnet_b0(pretrained=True),
@@ -264,6 +266,7 @@ def test_model_export(test_input, model):
         tup_inputs = (
             test_input if isinstance(test_input, tuple) else (test_input,)
         )
+        model = model.eval()
         test_output = model(*tup_inputs)
         export_model_to_nnef(
             model=model,
