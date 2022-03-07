@@ -90,6 +90,7 @@ INPUT_AND_MODELS += [
         torch.min,
         torch.max,
         torch.sub,
+        torch.add,
         torch.mul,
         torch.div,
         torch.pow,
@@ -103,7 +104,6 @@ INPUT_AND_MODELS += [
         # }
     ]
 ]
-
 # INPUT_AND_MODELS = [
 # (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
 # ]
@@ -199,12 +199,22 @@ INPUT_AND_MODELS += [
 
 # Test classical vision models
 INPUT_AND_MODELS += [
-    (  # works
+    (
         torch.rand(1, 3, 224, 224),
         vision_mdl.alexnet(pretrained=True),
     ),
 ]
-# vision_mdl.resnet50(pretrained=True),
+INPUT_AND_MODELS += [
+    # (  # fail
+    # torch.rand(1, 3, 256, 256),
+    # vision_mdl.resnet18(pretrained=True).layer1,
+    # ),
+    # (
+    # torch.rand(64, 64, 1, 1),
+    # vision_mdl.resnet18(pretrained=True).layer1[0],
+    # ),
+]
+#
 # vision_mdl.efficientnet_b0(pretrained=True),
 # vision_mdl.regnet_y_8gf(pretrained=True),
 # ]

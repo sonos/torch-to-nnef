@@ -37,7 +37,6 @@ def torch_typestr_to_type(torch_type_str: str):
 
 
 def torch_typestr_to_nptype(torch_type_str: str):
-
     if torch_type_str == "QUInt8":
         return np.int8
     if torch_type_str == "Long":
