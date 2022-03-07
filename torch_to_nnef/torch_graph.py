@@ -653,9 +653,10 @@ class InternalPytorchGraphHelper:
                     # remove useless ref to scaling (probably never used)
                     inputs = inputs[:2]
                     node.inputs = node.inputs[:2]
-                    if node.kind.endswith("_"):
-                        # allow to find correct pytorch API fn
-                        node.kind = node.kind[:-1]
+
+                if node.kind.endswith("_"):
+                    # allow to find correct pytorch API fn
+                    node.kind = node.kind[:-1]
 
                 start_idx = 0
                 if node.kind == "prim::CallMethod":
