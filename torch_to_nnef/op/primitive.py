@@ -709,7 +709,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     outputs = [out]
     NOperation(
         graph=g,
-        type="to",
+        type="cast",
         name=f"{node.export_name}_op",
         inputs=name_to_tensor[input_name],
         outputs=tuple(outputs),
@@ -755,6 +755,131 @@ def pow(g, node, name_to_tensor, null_ref, torch_graph):
             "dtype": out.dtype,
             "shape": list(node.tensor_size),
         },
+    )
+
+
+def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_name,
+        scale_name,
+        zero_point_name,
+        _,  # dtype_name
+    ) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    scale = torch_graph.get_node_by_export_name(scale_name).value
+    zero_point = torch_graph.get_node_by_export_name(zero_point_name).value
+    # dtype = torch_graph.get_node_by_export_name(dtype_name).value
+    NOperation(
+        graph=g,
+        type="zero_point_linear_quantize",
+        name=f"{node.export_name}_op",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={
+            # "dtype": out.dtype,
+            "shape": list(node.tensor_size),
+            "zero_point": zero_point,
+            "scale": scale,
+            "bits": 8,
+            "signed": True,  # dtype != torch.quint8,
+            "symmetric": False,
+        },
+    )
+
+
+def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    We will only handle the case of zero_point affine quantization for now.
+    which in reverse of quantization is:
+
+       (x - zero_point) / scale
+    """
+    input_name = node.export_inputs[0]
+    input_node = torch_graph.get_node_by_export_name(input_name)
+    scale = np.array(1.0)  # ??
+    zero_point = np.array(0.0)  # ??
+    import ipdb
+
+    ipdb.set_trace()
+
+    cast_name = f"{node.export_name}_cast"
+    out_cast = NTensor(
+        g,
+        cast_name,
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[cast_name] = out_cast
+
+    NOperation(
+        graph=g,
+        type="cast",
+        name=f"{node.export_name}_dequantize",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out_cast]),
+        attribs={"dtype": np.float32, "shape": list(node.tensor_size)},
+    )
+
+    sub_name = f"{node.export_name}_sub"
+    out_sub = NTensor(
+        g,
+        sub_name,
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[sub_name] = out_sub
+
+    NOperation(
+        graph=g,
+        type="sub",
+        name=f"{node.export_name}_dequantize",
+        inputs=tuple(
+            [
+                name_to_tensor[input_name],
+                NTensor(
+                    g,
+                    sub_name + "_zero_point",
+                    dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+                    data=zero_point,
+                ),
+            ]
+        ),
+        outputs=tuple([out_sub]),
+        attribs={"shape": list(node.tensor_size)},
+    )
+
+    div_name = f"{node.export_name}_div"
+    out_div = NTensor(
+        g,
+        node.export_name,
+        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out_div
+
+    NOperation(
+        graph=g,
+        type="div",
+        name=f"{node.export_name}",
+        inputs=tuple(
+            [
+                out_sub,
+                NTensor(
+                    g,
+                    div_name + "_scale",
+                    dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+                    data=scale,
+                ),
+            ]
+        ),
+        outputs=tuple([out_div]),
+        attribs={"shape": list(node.tensor_size)},
     )
 
 

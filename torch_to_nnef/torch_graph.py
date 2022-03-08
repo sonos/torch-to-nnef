@@ -86,7 +86,10 @@ class NodeBase:
     kind: T.Optional[str]
 
     def apply_prefix(
-        self, prefix: str, skip_names: T.Optional[T.List[str]] = None
+        self,
+        prefix: str,
+        module_prefix: str,
+        skip_names: T.Optional[T.List[str]] = None,
     ):
         skip_names = skip_names or []
         if self.debugName not in skip_names:
@@ -106,7 +109,7 @@ class NodeBase:
                 if _ not in skip_names:
                     self.outputs[idx] = f"{prefix}.{_}"
         if hasattr(self, "module_path"):
-            self.module_path = f"{prefix}.{self.module_path}"
+            self.module_path = f"{module_prefix}.{self.module_path}"
 
     @property
     def is_callmethod(self) -> bool:
@@ -451,6 +454,7 @@ class InternalPytorchGraphHelper:
                 and not _.kind.startswith("prim::Constant")
                 and not _.kind.startswith("prim::GetAttr")
             )
+            or (_.kind.startswith("quantized::"))
         ]
 
     def get_node_by_export_name(self, name: str):
@@ -703,13 +707,13 @@ class InternalPytorchGraphHelper:
                     if _is_io_qantized_module(module):
                         input_args = [
                             torch.quantize_per_tensor(
-                                in_item,
+                                in_item.float(),
                                 torch.tensor(0.1),
                                 torch.tensor(0),
                                 dtype=torch.quint8,
                             )
-                            if in_item.dtype == torch.float32
-                            else in_item
+                            # if in_item.dtype == torch.float32
+                            # else in_item
                             for in_item in input_args
                         ]
                     results = module(*input_args)
@@ -769,7 +773,9 @@ class InternalPytorchGraphHelper:
         for key in keys_to_del:
             del self.nodes_io[key]
 
-    def merge_subraph(self, submodule_graph, prefix: str, callmethod_node):
+    def merge_subraph(
+        self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
+    ):
         # Re-Wire input and output naming => {
         wire_inputs = callmethod_node.inputs[1:]
         wire_output = callmethod_node.debugName
@@ -800,14 +806,26 @@ class InternalPytorchGraphHelper:
         # }
 
         for _ in submodule_graph.nodes_op:
-            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+            _.apply_prefix(
+                prefix,
+                skip_names=wire_inputs + [wire_output],
+                module_prefix=module_prefix,
+            )
             # .inputs .outputs
         # self.nodes_io = OrderedDict()
         for _ in submodule_graph.nodes_io.values():
-            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+            _.apply_prefix(
+                prefix,
+                skip_names=wire_inputs + [wire_output],
+                module_prefix=module_prefix,
+            )
 
         for _ in submodule_graph.state_nodes:
-            _.apply_prefix(prefix, skip_names=wire_inputs + [wire_output])
+            _.apply_prefix(
+                prefix,
+                skip_names=wire_inputs + [wire_output],
+                module_prefix=module_prefix,
+            )
 
         self.nodes_op += submodule_graph.nodes_op
         self.nodes_io.update(
@@ -878,6 +896,7 @@ class InternalPytorchGraphHelper:
                     prefix="s"  # ensure we do not start with integer varname
                     + ref_getter_node.module_path
                     + f"_c{ref_count[ref_getter_node_name]}",
+                    module_prefix=ref_getter_node.module_path,
                     callmethod_node=dag_node,
                 )
 
@@ -886,17 +905,30 @@ class InternalPytorchGraphHelper:
         # the graph which is essential in or usecase
         origin_module = module
         try:
+            if _is_io_qantized_module(module):
+                args = [
+                    torch.quantize_per_tensor(
+                        in_item.float(),
+                        torch.tensor(0.1),
+                        torch.tensor(0),
+                        dtype=torch.quint8,
+                    )
+                    # TODO handle it properly and jointly with infer shape func
+                    # if in_item.dtype == torch.float32
+                    # else in_item
+                    for in_item in args
+                ]
             trace = jit.trace(module, args)
         except RuntimeError as exp:
             raise JitTraceFailed(
-                "Unable to trace with jit one of following module:"
-                f"{module.named_childrens()}"
-                f"with original error: '{exp}'\n"
+                "Unable to trace with jit one of following submodule:"
+                f"{[(k, v.__class__) for k,v in module.named_children()]} "
+                f"with original error:\n\n'{exp}'\n\n"
                 "You can aleviate this issue by applying a special hook"
                 "this module (explaination available in README)"
             ) from exp
         graph = trace.graph
-        for idx, node in enumerate(graph.inputs()):
+        for node in graph.inputs():
             if omit_useless_nodes:
                 if (
                     len(node.uses()) == 0
@@ -964,6 +996,11 @@ class InternalPytorchGraphHelper:
                 for alias in module_aliases
             ]
             node.scope = base_name
+            if node.kind == "prim::GetAttr":
+                ref_module = getattr(
+                    origin_module, module_aliases[-1].split(".")[1]
+                )
+                node.attributes['ref_module'] = ref_module
             if any(replacements):
                 node.module_path = _replacement_to_relative_module_path(
                     replacements

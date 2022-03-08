@@ -10,6 +10,7 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import torch_typestr_to_nptype
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
+from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 
 from torch_to_nnef.torch_graph import (
     InternalPytorchGraphHelper,
@@ -41,9 +42,18 @@ class GraphExtractor:
                 null_ref,
                 torch_graph=self._torch_graph_helper,
             )
-        if node.kind.startswith("prim"):
+        if node.kind.startswith("prim::"):
             if node.kind == "prim::ListConstruct":
                 return
+
+        if node.kind.startswith("quantized::"):
+            return quantized_node_to_nnef_tensor_and_ops(
+                self.g,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
+            )
 
         raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
 
@@ -59,6 +69,8 @@ class GraphExtractor:
                 and "values" in node.attributes
             ):
                 return False
+            if node.kind == 'prim::GetAttr':
+                return False
             return True
 
         operators_nodes = self._torch_graph_helper.operators_nodes[:]
@@ -73,6 +85,8 @@ class GraphExtractor:
                 )
                 done_nodes.append(node)
             if len(done_nodes) == 0 and operators_nodes:
+                self._torch_graph_helper.printall()
+                print(operators_nodes)
                 raise RuntimeError("DAG seems impossible to unfold")
             operators_nodes = [
                 _ for _ in operators_nodes if _ not in done_nodes
