@@ -47,13 +47,7 @@ class ToPrimitive(nn.Module):
         return x.to(self.to_dtype)
 
 
-class WithQuantDeQuant(nn.Module):
-    def __init__(self, mod):
-        super().__init__()
-        self.quant = torch.quantization.QuantStub()
-        self.dequant = torch.quantization.DeQuantStub()
-        self.mod = mod
-
+class WithQuantDeQuant(torch.quantization.QuantWrapper):
     @classmethod
     def quantize_model_and_stub(cls, model):
         model = cls(model)
@@ -61,11 +55,6 @@ class WithQuantDeQuant(nn.Module):
         model_qat = torch.quantization.prepare_qat(model)
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
-
-    def forward(self, x):
-        x = self.quant(x)
-        x = self.mod(x)
-        return self.dequant(x)
 
 
 # Base unary operations
@@ -241,7 +230,7 @@ INPUT_AND_MODELS += [
 
 
 # Test with quantization
-INPUT_AND_MODELS += [
+INPUT_AND_MODELS = [
     (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
     for mod in [
         nn.Sequential(
