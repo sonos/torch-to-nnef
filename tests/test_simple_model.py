@@ -47,6 +47,27 @@ class ToPrimitive(nn.Module):
         return x.to(self.to_dtype)
 
 
+class WithQuantDeQuant(nn.Module):
+    def __init__(self, mod):
+        super().__init__()
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
+        self.mod = mod
+
+    @classmethod
+    def quantize_model_and_stub(cls, model):
+        model = cls(model)
+        model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
+        model_qat = torch.quantization.prepare_qat(model)
+        model_q8 = torch.quantization.convert(model_qat.eval())
+        return model_q8
+
+    def forward(self, x):
+        x = self.quant(x)
+        x = self.mod(x)
+        return self.dequant(x)
+
+
 # Base unary operations
 INPUT_AND_MODELS = [
     (torch.rand(13, 10), UnaryPrimitive(op))
@@ -217,12 +238,27 @@ INPUT_AND_MODELS += [
         # vision_mdl.efficientnet_b0(pretrained=True),  # missing silu
     ]
 ]
-#
-#
-# vision_mdl.regnet_y_8gf(pretrained=True),
-# ]
+
 
 # Test with quantization
+INPUT_AND_MODELS += [
+    (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
+    for mod in [
+        nn.Sequential(
+            nn.intrinsic.ConvBnReLU1d(
+                nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
+            ),
+            # nn.intrinsic.ConvBnReLU1d(
+            # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
+            # ),
+            # nn.intrinsic.ConvBnReLU1d(
+            # nn.Conv1d(15, 50, 7, stride=3, padding=3),
+            # nn.BatchNorm1d(50),
+            # nn.ReLU(),
+            # ),
+        ),
+    ]
+]
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
@@ -276,17 +312,20 @@ def test_model_export(test_input, model):
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
 
+        model = model.eval()
+
         tup_inputs = (
             test_input if isinstance(test_input, tuple) else (test_input,)
         )
-        model = model.eval()
+        input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
+        output_names = ["output"]
         test_output = model(*tup_inputs)
         export_model_to_nnef(
             model=model,
             args=test_input,
             base_path=export_path,
-            input_names=[f"input_{idx}" for idx, _ in enumerate(tup_inputs)],
-            output_names=["output"],
+            input_names=input_names,
+            output_names=output_names,
             verbose=False,
         )
 
@@ -295,6 +334,7 @@ def test_model_export(test_input, model):
             for idx, input_arg in enumerate(tup_inputs)
         }
         kwargs["output"] = test_output.detach().numpy()
+
         np.savez(io_npz_path, **kwargs)
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
@@ -324,8 +364,8 @@ def test_model_export(test_input, model):
                 model,
                 test_input,
                 str(onnx_path),
-                input_names=["input"],
-                output_names=["output"],
+                input_names=input_names,
+                output_names=output_names,
             )
             nnef_path = tract_exp_path / "tract_onnx_converted_model.nnef"
             tract_convert_onnx_to_nnef(
