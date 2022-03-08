@@ -19,6 +19,10 @@ class NodeNotFound(ValueError):
     pass
 
 
+class JitTraceFailed(RuntimeError):
+    pass
+
+
 methods_OP = [
     "attributeNames",
     "hasMultipleOutputs",
@@ -59,6 +63,18 @@ def aten_name_to_torch_fn(aten_name):
 def _replacement_to_relative_module_path(replacements: T.List[str]):
     return ".".join(
         [rep.split("[")[1][:-1] if "[" in rep else rep for rep in replacements]
+    )
+
+
+def _is_io_qantized_module(module):
+    if isinstance(module, nn.Sequential):
+        module = module[0]
+    return not isinstance(module, torch.nn.quantized.Quantize) and any(
+        _ in str(module.__class__)
+        for _ in [
+            "torch.nn.quantized",
+            "torch.nn.intrinsic.quantized",
+        ]
     )
 
 
@@ -577,8 +593,10 @@ class InternalPytorchGraphHelper:
                     node.debugName
                 ]
 
-    def find_io_by_debug_name(self, name: str):
-        return next(dn for dn in self.nodes_io.values() if dn.debugName == name)
+    def _replace_int_by_dtype_value_in_node_with_name(self, name: str):
+        node = self.get_node_by_debug_name(name)
+        node.value = INT_TO_TORCH_DTYPE[node.value]
+        return node.value
 
     def _infer_undefined_tensor_size_when_possible(self, model):
         realised_node = {
@@ -653,6 +671,12 @@ class InternalPytorchGraphHelper:
                     # remove useless ref to scaling (probably never used)
                     inputs = inputs[:2]
                     node.inputs = node.inputs[:2]
+                if node.kind in [
+                    "aten::quantize_per_tensor",
+                ]:
+                    self._replace_int_by_dtype_value_in_node_with_name(
+                        node.inputs[-1]
+                    )
 
                 if node.kind.endswith("_"):
                     # allow to find correct pytorch API fn
@@ -676,6 +700,18 @@ class InternalPytorchGraphHelper:
                         model,
                         self.get_node_by_debug_name(inputs[0]).module_path,
                     )
+                    if _is_io_qantized_module(module):
+                        input_args = [
+                            torch.quantize_per_tensor(
+                                in_item,
+                                torch.tensor(0.1),
+                                torch.tensor(0),
+                                dtype=torch.quint8,
+                            )
+                            if in_item.dtype == torch.float32
+                            else in_item
+                            for in_item in input_args
+                        ]
                     results = module(*input_args)
                     if not node.subtype:
                         node.dtype = "Tensor"
@@ -752,7 +788,7 @@ class InternalPytorchGraphHelper:
             del submodule_graph.nodes_io[to_del_name]
         # }
 
-        submodule_graph.find_io_by_debug_name(
+        submodule_graph.get_node_by_debug_name(
             submodule_graph.outputs_nodes[0].inputs[0]
         ).debugName = wire_output
         assert isinstance(submodule_graph.nodes_io["output.1"], NodeOutput)
@@ -834,30 +870,31 @@ class InternalPytorchGraphHelper:
                         for submodule_in_nodename in dag_node.inputs[1:]
                     ]
                 )
-                try:
-                    submodule_graph = InternalPytorchGraphHelper().parse_module(
-                        submodule, submodule_args, omit_useless_nodes
-                    )
-                    self.merge_subraph(
-                        submodule_graph,
-                        prefix="s"  # ensure we do not start with integer varname
-                        + ref_getter_node.module_path
-                        + f"_c{ref_count[ref_getter_node_name]}",
-                        callmethod_node=dag_node,
-                    )
-                except RuntimeError as exp:
-                    print(exp)
-                    import ipdb
-
-                    ipdb.set_trace()
-
-                    pass
+                submodule_graph = InternalPytorchGraphHelper().parse_module(
+                    submodule, submodule_args, omit_useless_nodes
+                )
+                self.merge_subraph(
+                    submodule_graph,
+                    prefix="s"  # ensure we do not start with integer varname
+                    + ref_getter_node.module_path
+                    + f"_c{ref_count[ref_getter_node_name]}",
+                    callmethod_node=dag_node,
+                )
 
     def parse_module(self, module, args, omit_useless_nodes):
         # while it is recommended to not use this func it expand correctly
         # the graph which is essential in or usecase
         origin_module = module
-        trace = jit.trace(module, args)
+        try:
+            trace = jit.trace(module, args)
+        except RuntimeError as exp:
+            raise JitTraceFailed(
+                "Unable to trace with jit one of following module:"
+                f"{module.named_childrens()}"
+                f"with original error: '{exp}'\n"
+                "You can aleviate this issue by applying a special hook"
+                "this module (explaination available in README)"
+            ) from exp
         graph = trace.graph
         for idx, node in enumerate(graph.inputs()):
             if omit_useless_nodes:

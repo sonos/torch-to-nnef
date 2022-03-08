@@ -8,7 +8,6 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.op import ModuleInfoExtractor
 from torch_to_nnef.dtypes import torch_typestr_to_nptype
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 

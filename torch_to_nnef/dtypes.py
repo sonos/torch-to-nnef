@@ -11,6 +11,8 @@ INT_TO_TORCH_DTYPE = {
     6: torch.float32,
     7: torch.float64,
     11: torch.bool,
+    # TODO add qint8
+    13: torch.quint8,
 }
 NUMPY_DTYPE_TO_TORCH = {
     np.int8: torch.int8,
