@@ -24,6 +24,7 @@ def export_model_to_nnef(
     output_names,
     dynamic_axes=None,
     verbose=True,
+    compression_level=0,
 ):
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         args = _decide_input_format(model, args)
@@ -48,7 +49,7 @@ def export_model_to_nnef(
         }
 
         NNEFWriter(
-            compression=1,
+            compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
             version_custom_fragments=__version__,
