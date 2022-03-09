@@ -6,6 +6,7 @@ import torch
 import numpy as np
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
+from torch_to_nnef.torch_graph import NodeConstant
 
 
 def add_tensor_to_ngraph(
@@ -931,6 +932,122 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def cat(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError("cat not implemented")
+
+
+def split(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError("split not implemented")
+
+
+def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dim_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    dim = torch_graph.get_node_by_export_name(dim_name).value
+    NOperation(
+        graph=g,
+        type="unsqueeze",
+        name=f"{node.export_name}_unsqueeze",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"axes": [dim]},
+    )
+
+
+def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dim_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    dim = torch_graph.get_node_by_export_name(dim_name).value
+    NOperation(
+        graph=g,
+        type="squeeze",
+        name=f"{node.export_name}_squeeze",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"axes": [dim]},
+    )
+
+
+def _reducer(aten_op_name: str, g, node, name_to_tensor, torch_graph):
+    def get_array_values_from_inputs(node_export_name: str):
+        ref_node = torch_graph.get_node_by_export_name(node_export_name)
+        if ref_node.kind != "prim::ListConstruct":
+            return [ref_node.value]
+        return [
+            torch_graph.get_node_by_export_name(in_export_name).value
+            for in_export_name in ref_node.export_inputs
+        ]
+
+    (input_name, dim_name, keep_dim_name) = node.export_inputs
+
+    keep_dim = torch_graph.get_node_by_export_name(keep_dim_name).value
+
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    op_reduce_out = None
+    if not keep_dim:
+        # apply squeeze
+        op_reduce_out_name = f"{node.export_name}_{aten_op_name}"
+        op_reduce_out = NTensor(
+            g,
+            op_reduce_out_name,
+            dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+            shape=node.tensor_size,
+        )
+        name_to_tensor[op_reduce_out_name] = op_reduce_out
+    dims = get_array_values_from_inputs(dim_name)
+    NOperation(
+        graph=g,
+        type=aten_op_name,
+        name=f"{node.export_name}_{aten_op_name}",
+        inputs=name_to_tensor[input_name],
+        outputs=out if keep_dim else op_reduce_out,
+        attribs={"axes": dims},
+    )
+    if not keep_dim:
+        NOperation(
+            graph=g,
+            type="squeeze",
+            name=f"{node.export_name}_squeeze",
+            inputs=op_reduce_out,
+            outputs=out,
+            attribs={"axes": dims},
+        )
+
+
+def mean(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("mean_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def sum(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("sum_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def argmax(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("argmax_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def argmin(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("argmin_reduce", g, node, name_to_tensor, torch_graph)
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
@@ -995,6 +1112,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         'ge',
         'and',
         'or',
+        'matmul',
     ]:
         _unary_output_op_without_params(
             nnef_op_type=aten_op_name,

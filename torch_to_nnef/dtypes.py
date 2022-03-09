@@ -36,6 +36,7 @@ INT_TO_TORCH_DTYPE = {
 STR_TO_NUMPY_DTYPE = {
     "QUInt8": np.int8,
     "Long": np.int64,
+    "Long": int,  # numpy int64 == int
     "Float": np.float32,
     "float": np.float32,
     "int": np.int32,
