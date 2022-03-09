@@ -39,13 +39,14 @@ class BinaryPrimitive(nn.Module):
 
 
 class TensorFnPrimitive(nn.Module):
-    def __init__(self, op, kwargs):
+    def __init__(self, op, kwargs, args=None):
         super().__init__()
         self.op = op
+        self.args = args or tuple()
         self.kwargs = kwargs
 
     def forward(self, x):
-        return getattr(x, self.op)(**self.kwargs)
+        return getattr(x, self.op)(*self.args, **self.kwargs)
 
 
 class WithQuantDeQuant(torch.quantization.QuantWrapper):
@@ -111,6 +112,9 @@ INPUT_AND_MODELS += [
         # TensorFnPrimitive("min", {"dim": 1}), # 2x outputs
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
+        # TensorFnPrimitive(
+        # "repeat", kwargs={}, args=([1, 2, 1],)
+        # ),  # missing an s in repeat export to nnef since tract is false
     ]
 ]
 INPUT_AND_MODELS += [
@@ -253,6 +257,7 @@ INPUT_AND_MODELS += [
 ]
 
 # Test classical vision models
+"""
 INPUT_AND_MODELS += [
     (
         torch.rand(1, 3, 224, 224),
@@ -273,7 +278,6 @@ INPUT_AND_MODELS += [
 
 
 # Test with quantization
-"""
 INPUT_AND_MODELS = [
     (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
     for mod in [

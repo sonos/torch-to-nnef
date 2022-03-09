@@ -1056,6 +1056,28 @@ def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
 
 
+def repeat(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dim_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    repeat_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
+        'values'
+    ]
+    NOperation(
+        graph=g,
+        type="tile",
+        name=f"{node.export_name}_tile",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"repeats": repeat_dims},
+    )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
