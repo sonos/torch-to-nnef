@@ -100,6 +100,8 @@ INPUT_AND_MODELS = [
         #    partial(torch.split, split_size_or_sections=5, dim=1),
         #    partial(torch.unbind, dim=1)
         # }
+        # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
+        partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
     ]
 ]
 INPUT_AND_MODELS += [
@@ -116,6 +118,18 @@ INPUT_AND_MODELS += [
         # TensorFnPrimitive(
         # "repeat", kwargs={}, args=([1, 2, 1],)
         # ),  # missing an s in repeat export to nnef since tract is false
+        partial(
+            nn.functional.pad,
+            pad=[0, 0, 0, 0, 0, 1],
+            mode="constant",
+            value=0.0,
+        ),
+        partial(
+            nn.functional.pad,
+            pad=[2, 0, 0, 1],
+            mode="constant",
+            value=2.0,
+        ),
     ]
 ]
 INPUT_AND_MODELS += [
