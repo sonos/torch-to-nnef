@@ -717,6 +717,8 @@ class InternalPytorchGraphHelper:
                     results = input_args[0].to(
                         INT_TO_TORCH_DTYPE[input_args[1]]
                     )
+                elif node.kind == "aten::repeat":
+                    results = input_args[0].repeat(input_args[1])
                 elif node.kind == "prim::CallMethod":
                     module = getattr(
                         model,
