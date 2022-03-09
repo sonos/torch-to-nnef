@@ -248,6 +248,7 @@ INPUT_AND_MODELS = [
         ),
     ]
 ]
+""" . """
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):

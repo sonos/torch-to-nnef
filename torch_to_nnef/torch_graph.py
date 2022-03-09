@@ -8,7 +8,11 @@ import uuid
 import torch
 from torch import jit, nn
 import torch.jit._trace
-from torch_to_nnef.dtypes import torch_typestr_to_type, INT_TO_TORCH_DTYPE
+from torch_to_nnef.dtypes import (
+    str_to_torch_dtype,
+    INT_TO_TORCH_DTYPE,
+    torch_dtype_to_str,
+)
 
 from .console import Console
 
@@ -122,7 +126,7 @@ class NodeBase:
     def _refid_clean(self, name: str) -> str:
         for sep in ["/", "[", "]", ".", "-"]:
             name = name.replace(sep, "_")
-        return name
+        return name.lower()
 
     @property
     def export_name(self) -> str:
@@ -183,7 +187,7 @@ class NodeIO(NodeBase):
     def tracing_data(self):
         return torch.rand(
             tuple([321 if x is None else x for x in self.tensor_size])
-        ).to(torch_typestr_to_type(self.subtype or self.dtype))
+        ).to(str_to_torch_dtype(self.subtype or self.dtype))
 
     @classmethod
     def _cpp_tensor_size_from_type(cls, node_type):
@@ -281,7 +285,7 @@ class NodeOp(NodeBase):
         shape = [321 if x is None else x for x in self.outputs_tensor_size]
 
         return torch.rand(tuple(shape)).to(
-            torch_typestr_to_type(self.subtype or self.dtype)
+            str_to_torch_dtype(self.subtype or self.dtype)
         )
 
     @classmethod
@@ -345,7 +349,7 @@ class NodeTensorSized(NodeBase):
         if "values" in self.attributes:
             return self.attributes["values"]
         return torch.rand(tuple(self.tensor_size)).to(
-            torch_typestr_to_type(self.subtype or self.dtype)
+            str_to_torch_dtype(self.subtype or self.dtype)
         )
 
     @classmethod
@@ -720,13 +724,25 @@ class InternalPytorchGraphHelper:
                     if not node.subtype:
                         node.dtype = "Tensor"
                         # TODO apply proper subtype based on type
-                        node.subtype = "Float"
+                        node.subtype = torch_dtype_to_str(results.dtype)
                 else:
                     if not node.kind.startswith("aten::"):
                         raise NotImplementedError(node)
                     results = aten_name_to_torch_fn(node.kind)(*input_args)
                 node.tensor_size = tuple(results.shape)
                 realised_node[node.debugName] = node
+                if results.dtype in [
+                    torch.quint8,
+                    torch.qint8,
+                    torch.qint32,
+                ]:
+                    raise NotImplementedError(
+                        "scale and zero_point are not poperly propagated"
+                    )
+                    node.attributes["linear_quant"] = {
+                        "scale": results.q_scale(),
+                        "zero_point": results.q_zero_point(),
+                    }
                 nodes_to_del += [node]
 
             remaining_nodes = [
