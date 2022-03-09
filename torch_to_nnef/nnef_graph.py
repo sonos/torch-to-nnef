@@ -31,6 +31,7 @@ class GraphExtractor:
         )
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
+        self.activated_custom_fragment_keys: T.Set[str] = set()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
 
@@ -80,9 +81,11 @@ class GraphExtractor:
                 # node inputs are already realised
                 if any(is_missing(in_name) for in_name in node.export_inputs):
                     continue
-                self._op_nodes_to_nnef_operation(
+                custom_fragments = self._op_nodes_to_nnef_operation(
                     node, name_to_tensor, null_ref=null_ref
                 )
+                if custom_fragments:
+                    self.activated_custom_fragment_keys.update(custom_fragments)
                 done_nodes.append(node)
             if len(done_nodes) == 0 and operators_nodes:
                 self._torch_graph_helper.printall()

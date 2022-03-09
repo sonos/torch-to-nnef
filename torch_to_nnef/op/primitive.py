@@ -206,11 +206,24 @@ def prelu(**kwargs):
 
 
 def selu(**kwargs):
-    return _unary_input_output_op_with_constant("selu", **kwargs)
+    _unary_input_output_op_with_constant("selu", **kwargs)
+    return ["selu"]
 
 
 def silu(**kwargs):
-    return _unary_input_output_op_with_constant("silu", **kwargs)
+    _unary_input_output_op_with_constant("silu", **kwargs)
+    return ["silu"]
+
+
+def gelu(g, node, name_to_tensor, null_ref, **kwargs):
+    _unary_output_op_without_params(
+        "gelu",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+    return ["gelu"]
 
 
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1202,7 +1215,6 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     if aten_op_name in [
         "relu",
         "sigmoid",
-        "gelu",
         "log",
         "exp",
         "sin",
@@ -1245,7 +1257,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         'or',
         'matmul',
     ]:
-        _unary_output_op_without_params(
+        return _unary_output_op_without_params(
             nnef_op_type=aten_op_name,
             g=g,
             node=node,
@@ -1253,7 +1265,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
             null_ref=null_ref,
         )
     else:
-        globals()[aten_op_name](
+        return globals()[aten_op_name](
             g=g,
             node=node,
             name_to_tensor=name_to_tensor,
