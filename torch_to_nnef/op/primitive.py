@@ -1048,6 +1048,14 @@ def argmin(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("argmin_reduce", g, node, name_to_tensor, torch_graph)
 
 
+def any(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("any_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def all(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
