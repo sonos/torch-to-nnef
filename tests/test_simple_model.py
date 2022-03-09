@@ -94,6 +94,7 @@ INPUT_AND_MODELS = [
         partial(torch.pow, exponent=-2.0),
         # partial(torch.transpose, dim0=1, dim1=0), # tract does not find same results ??
         # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
+        partial(torch.reshape, shape=(13, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         # need torch_graph to handle ops with multi outputs {
         #    partial(torch.split, split_size_or_sections=5, dim=1),
@@ -180,6 +181,7 @@ INPUT_AND_MODELS += [
 # INPUT_AND_MODELS += [
 # (torch.tensor([True, False, True]), TensorFnPrimitive("to", {"dtype":torch.bool}))
 # ]
+
 
 # Base Layers
 INPUT_AND_MODELS += [

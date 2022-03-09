@@ -1078,6 +1078,28 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def reshape(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dim_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    reshape_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
+        'values'
+    ]
+    NOperation(
+        graph=g,
+        type="reshape",
+        name=f"{node.export_name}_reshape",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"shape": reshape_dims},
+    )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
