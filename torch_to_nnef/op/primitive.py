@@ -1100,6 +1100,76 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, pads_name) = node.export_inputs
+    pads = torch_graph.get_node_by_export_name(pads_name).attributes['values']
+    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
+    if len(pads) < len(node.tensor_size):
+        pads = [[0, 0]] * (len(node.tensor_size) - len(pads)) + pads
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    NOperation(
+        graph=g,
+        type="pad",
+        name=f"{node.export_name}_pad",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"padding": pads, "border": "reflect"},
+    )
+
+
+def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, pads_name) = node.export_inputs
+    pads = torch_graph.get_node_by_export_name(pads_name).attributes['values']
+    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
+    if len(pads) < len(node.tensor_size):
+        pads = [[0, 0]] * (len(node.tensor_size) - len(pads)) + pads
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    NOperation(
+        graph=g,
+        type="pad",
+        name=f"{node.export_name}_pad",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"padding": pads, "border": "replicate"},
+    )
+
+
+def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, pads_name, value_name) = node.export_inputs
+    value = torch_graph.get_node_by_export_name(value_name).value
+    pads = torch_graph.get_node_by_export_name(pads_name).attributes['values']
+    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
+    if len(pads) < len(node.tensor_size):
+        pads = [[0, 0]] * (len(node.tensor_size) - len(pads)) + pads
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    NOperation(
+        graph=g,
+        type="pad",
+        name=f"{node.export_name}_pad",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"padding": pads, "value": value},
+    )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
@@ -1120,6 +1190,9 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "greater_equal": 'ge',
         "any": "reduce_any",  # avoid python builtin collision
         "all": "reduce_all",  # avoid python builtin collision
+        "reflection_pad1d": "reflection_padnd",
+        "replication_pad1d": "replication_padnd",
+        "constant_pad1d": "constant_padnd",
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [

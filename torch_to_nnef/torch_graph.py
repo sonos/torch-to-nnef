@@ -719,6 +719,20 @@ class InternalPytorchGraphHelper:
                     )
                 elif node.kind == "aten::repeat":
                     results = input_args[0].repeat(input_args[1])
+                elif node.kind in [
+                    "aten::reflection_pad1d",
+                    "aten::reflection_padnd",
+                ]:
+                    results = torch.nn.functional.pad(
+                        input_args[0], pad=input_args[1], mode="reflect"
+                    )
+                elif node.kind in [
+                    "aten::replication_pad1d",
+                    "aten::replication_padnd",
+                ]:
+                    results = torch.nn.functional.pad(
+                        input_args[0], pad=input_args[1], mode="replicate"
+                    )
                 elif node.kind == "prim::CallMethod":
                     module = getattr(
                         model,
