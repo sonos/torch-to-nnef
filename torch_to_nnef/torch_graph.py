@@ -296,7 +296,16 @@ class NodeOp(NodeBase):
         }
         kind = node_cpp.kind()
         node_args["kind"] = kind
-        dtype = node_cpp.output().type().annotation_str
+        try:
+            dtype = node_cpp.output().type().annotation_str
+        except RuntimeError as exp:
+            if "outputs_.size" in exp.args[0]:
+                raise NotImplementedError(
+                    "case with operation giving multiple outputs:"
+                    f" x{node_cpp.outputsSize()}"
+                )
+            raise exp
+
         node_args["dtype"] = dtype
 
         node_args["subtype"] = (
@@ -679,6 +688,11 @@ class InternalPytorchGraphHelper:
                     # remove useless ref to scaling (probably never used)
                     inputs = inputs[:2]
                     node.inputs = node.inputs[:2]
+
+                if node.kind in ["aten::mean", "aten::sum"]:
+                    inputs = inputs[:3]
+                    node.inputs = node.inputs[:3]
+
                 if node.kind in [
                     "aten::quantize_per_tensor",
                 ]:

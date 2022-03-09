@@ -38,13 +38,14 @@ class BinaryPrimitive(nn.Module):
         return self.op(x1, x2)
 
 
-class ToPrimitive(nn.Module):
-    def __init__(self, to_dtype):
+class TensorFnPrimitive(nn.Module):
+    def __init__(self, op, kwargs):
         super().__init__()
-        self.to_dtype = to_dtype
+        self.op = op
+        self.kwargs = kwargs
 
     def forward(self, x):
-        return x.to(self.to_dtype)
+        return getattr(x, self.op)(**self.kwargs)
 
 
 class WithQuantDeQuant(torch.quantization.QuantWrapper):
@@ -92,8 +93,28 @@ INPUT_AND_MODELS = [
         partial(torch.pow, exponent=-2.0),
         # partial(torch.transpose, dim0=1, dim1=0), # tract does not find same results ??
         # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
+        partial(torch.unsqueeze, dim=1),
+        # need torch_graph to handle ops with multi outputs {
+        #    partial(torch.split, split_size_or_sections=5, dim=1),
+        #    partial(torch.unbind, dim=1)
+        # }
     ]
 ]
+INPUT_AND_MODELS += [
+    (torch.rand(13, 10, 1), UnaryPrimitive(op))
+    for op in [
+        partial(torch.squeeze, dim=2),
+        TensorFnPrimitive("mean", {"dim": 1}),
+        TensorFnPrimitive("mean", {"dim": 1, "keepdim": True}),
+        TensorFnPrimitive("sum", {"dim": 1}),
+        # TensorFnPrimitive("max", {"dim": 1}),
+        # TensorFnPrimitive("min", {"dim": 1}),
+        TensorFnPrimitive("argmax", {"dim": 1}),
+        TensorFnPrimitive("argmin", {"dim": 1}),
+    ]
+]
+
+# partial(torch.cat, axis=1),  # ?
 
 # _binary
 INPUT_AND_MODELS += [
@@ -116,6 +137,14 @@ INPUT_AND_MODELS += [
         # }
     ]
 ]
+
+INPUT_AND_MODELS += [
+    ((torch.rand(13, 10), torch.rand(13, 10).T), BinaryPrimitive(op))
+    for op in [
+        # torch.matmul, # tract not same results ??
+    ]
+]
+
 # INPUT_AND_MODELS = [
 # (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
 # ]
@@ -133,7 +162,7 @@ INPUT_AND_MODELS += [
 
 # tract do not handle cast op
 # INPUT_AND_MODELS += [
-# (torch.tensor([True, False, True]), ToPrimitive(torch.bool))
+# (torch.tensor([True, False, True]), TensorFnPrimitive("to", {"dtype":torch.bool}))
 # ]
 
 # Base Layers
