@@ -107,8 +107,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("mean", {"dim": 1}),
         TensorFnPrimitive("mean", {"dim": 1, "keepdim": True}),
         TensorFnPrimitive("sum", {"dim": 1}),
-        # TensorFnPrimitive("max", {"dim": 1}), # collide with max primitive
-        # TensorFnPrimitive("min", {"dim": 1}), # collide with min primitive
+        # TensorFnPrimitive("max", {"dim": 1}),  # 2x outputs
+        # TensorFnPrimitive("min", {"dim": 1}), # 2x outputs
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
     ]
@@ -253,7 +253,6 @@ INPUT_AND_MODELS += [
 ]
 
 # Test classical vision models
-"""
 INPUT_AND_MODELS += [
     (
         torch.rand(1, 3, 224, 224),
@@ -274,6 +273,7 @@ INPUT_AND_MODELS += [
 
 
 # Test with quantization
+"""
 INPUT_AND_MODELS = [
     (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
     for mod in [
