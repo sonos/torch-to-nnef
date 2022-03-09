@@ -222,7 +222,7 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
         stride_name,
         padding_name,
         dilation_name,
-        _,  # transposed_name
+        transposed_name,
         _,  # output_padding_name
         groups_name,
         _,  # benchmark_name
@@ -243,7 +243,11 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     dilation = get_array_values_from_inputs(dilation_name)
     padding = get_array_values_from_inputs(padding_name)
     groups = torch_graph.get_node_by_export_name(groups_name).value
+    transposed = torch_graph.get_node_by_export_name(transposed_name).value
 
+    wnode = torch_graph.get_node_by_export_name(weight_name)
+    if transposed:
+        wnode.data = wnode.data.transpose(1, 0)
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
         torch_graph,
         g,
@@ -256,7 +260,7 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
 
     NOperation(
         graph=g,
-        type="conv",
+        type="deconv" if transposed else "conv",
         name=f"{node.export_name}_op",
         inputs=(
             name_to_tensor[input_name],
