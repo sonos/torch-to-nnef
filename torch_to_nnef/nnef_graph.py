@@ -8,7 +8,7 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import torch_typestr_to_nptype
+from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 
@@ -112,7 +112,7 @@ class GraphExtractor:
                 tensor = NTensor(
                     graph=self.g,
                     name=node.export_name,
-                    dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
                     shape=node.tensor_size,
                 )
                 name_to_tensor[node.export_name] = tensor

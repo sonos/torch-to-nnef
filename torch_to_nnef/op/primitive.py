@@ -5,7 +5,7 @@ from nnef_tools.model import Tensor as NTensor
 import torch
 import numpy as np
 
-from torch_to_nnef.dtypes import torch_typestr_to_nptype
+from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
 
 
 def add_tensor_to_ngraph(
@@ -34,7 +34,7 @@ def _unary_output_op_without_params(
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -72,7 +72,7 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
             data = const.data.numpy()
             nptype = data.dtype.type
         else:
-            nptype = torch_typestr_to_nptype(const.subtype or const.dtype)
+            nptype = STR_TO_NUMPY_DTYPE(const.subtype or const.dtype)
             data = np.array(const.value, dtype=nptype)
         name_to_tensor[const_node_name] = NTensor(
             g,
@@ -608,7 +608,7 @@ def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -663,7 +663,7 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -701,7 +701,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -726,7 +726,7 @@ def pow(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -768,7 +768,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -783,7 +783,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         outputs=tuple([out]),
         attribs={
             # "dtype": out.dtype,
-            "shape": list(node.tensor_size),
+            # "shape": list(node.tensor_size),
             "zero_point": zero_point,
             "scale": scale,
             "bits": 8,
@@ -802,17 +802,16 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     """
     input_name = node.export_inputs[0]
     input_node = torch_graph.get_node_by_export_name(input_name)
-    scale = np.array(1.0)  # ??
-    zero_point = np.array(0.0)  # ??
-    import ipdb
-
-    ipdb.set_trace()
+    if "linear_quant" not in input_node.attributes:
+        raise NotImplementedError("need to propagate linear_quant in attr.")
+    scale = np.array(input_node.attributes['linear_quant']['scale'])
+    zero_point = np.array(input_node.attributes['linear_quant']['zero_point'])
 
     cast_name = f"{node.export_name}_cast"
     out_cast = NTensor(
         g,
         cast_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[cast_name] = out_cast
@@ -823,14 +822,14 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
         name=f"{node.export_name}_dequantize",
         inputs=name_to_tensor[input_name],
         outputs=tuple([out_cast]),
-        attribs={"dtype": np.float32, "shape": list(node.tensor_size)},
+        attribs={"dtype": np.float32},
     )
 
     sub_name = f"{node.export_name}_sub"
     out_sub = NTensor(
         g,
         sub_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[sub_name] = out_sub
@@ -845,20 +844,19 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
                 NTensor(
                     g,
                     sub_name + "_zero_point",
-                    dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
                     data=zero_point,
                 ),
             ]
         ),
         outputs=tuple([out_sub]),
-        attribs={"shape": list(node.tensor_size)},
     )
 
     div_name = f"{node.export_name}_div"
     out_div = NTensor(
         g,
         node.export_name,
-        dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out_div
@@ -873,13 +871,12 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
                 NTensor(
                     g,
                     div_name + "_scale",
-                    dtype=torch_typestr_to_nptype(node.subtype or node.dtype),
+                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
                     data=scale,
                 ),
             ]
         ),
         outputs=tuple([out_div]),
-        attribs={"shape": list(node.tensor_size)},
     )
 
 
