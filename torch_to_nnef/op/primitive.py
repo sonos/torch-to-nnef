@@ -6,7 +6,6 @@ import torch
 import numpy as np
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
-from torch_to_nnef.torch_graph import NodeConstant
 
 
 def add_tensor_to_ngraph(
@@ -1184,6 +1183,59 @@ def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
         inputs=name_to_tensor[input_name],
         outputs=tuple([out]),
         attribs={"padding": pads, "value": value},
+    )
+
+
+def where(g, node, name_to_tensor, null_ref, torch_graph):
+    (condition_name, true_value_name, false_value_name) = node.export_inputs
+    condition_node = torch_graph.get_node_by_export_name(condition_name)
+    true_value_node = torch_graph.get_node_by_export_name(true_value_name)
+    false_value_node = torch_graph.get_node_by_export_name(false_value_name)
+
+    for snode, name in zip(
+        [condition_node, true_value_node, false_value_node],
+        [condition_name, true_value_name, false_value_name],
+    ):
+        if hasattr(snode, "value"):
+            data = snode.value.numpy()
+            nnef_tensor = NTensor(
+                g,
+                snode.export_name,
+                dtype=data.dtype.type,
+                shape=snode.tensor_size,
+                data=data,
+            )
+            var = NOperation(
+                graph=g,
+                type="variable",
+                name=f"{node.export_name}_{condition_name}_var",
+                inputs=None,
+                outputs=nnef_tensor,
+                attribs={
+                    "label": nnef_tensor.name,
+                    "shape": list(nnef_tensor.shape),
+                    "dtype": nnef_tensor.dtype,
+                },
+            )
+            name_to_tensor[name] = var.output
+
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    NOperation(
+        graph=g,
+        type="select",
+        name=f"{node.export_name}_select",
+        inputs=(
+            name_to_tensor[condition_name],
+            name_to_tensor[true_value_name],
+            name_to_tensor[false_value_name],
+        ),
+        outputs=tuple([out]),
     )
 
 

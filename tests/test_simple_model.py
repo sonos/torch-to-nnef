@@ -60,6 +60,8 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
 
 
 # Base unary operations
+_condition_1 = condition = torch.eye(13, 10).to(torch.bool)
+_input0 = torch.zeros(13, 10)
 INPUT_AND_MODELS = [
     (torch.rand(13, 10), UnaryPrimitive(op))
     for op in [
@@ -92,8 +94,23 @@ INPUT_AND_MODELS = [
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
-        # partial(torch.transpose, dim0=1, dim1=0), # tract does not find same results ??
+        # In [59]: torch.arange(10).reshape(5, 2)
+        # Out[59]:
+        # tensor([[0, 1],
+        #         [2, 3],
+        #         [4, 5],
+        #         [6, 7],
+        #         [8, 9]])
+        # In [60]: torch.transpose(torch.arange(10).reshape(5, 2), dim0=1, dim1=0)
+        # Out[60]:
+        # tensor([[0, 2, 4, 6, 8],
+        #         [1, 3, 5, 7, 9]])
+        # partial(
+        # torch.transpose, dim0=1, dim1=0
+        # ),  # tract does not find same results ??
+        #
         # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
+        #
         partial(torch.reshape, shape=(13, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         # need torch_graph to handle ops with multi outputs {
@@ -102,6 +119,13 @@ INPUT_AND_MODELS = [
         # }
         # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
+        #
+        # tract does not know how to serialize Bool
+        # lambda x: torch.where(
+        # _condition_1,
+        # input=_input0,
+        # other=x,
+        # ),
     ]
 ]
 INPUT_AND_MODELS += [
