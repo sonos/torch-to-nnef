@@ -107,10 +107,22 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("mean", {"dim": 1}),
         TensorFnPrimitive("mean", {"dim": 1, "keepdim": True}),
         TensorFnPrimitive("sum", {"dim": 1}),
-        # TensorFnPrimitive("max", {"dim": 1}),
-        # TensorFnPrimitive("min", {"dim": 1}),
+        # TensorFnPrimitive("max", {"dim": 1}), # collide with max primitive
+        # TensorFnPrimitive("min", {"dim": 1}), # collide with min primitive
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
+    ]
+]
+INPUT_AND_MODELS += [
+    (
+        torch.tensor(
+            [[True, False, True], [True, True, True], [False, False, False]]
+        ),
+        UnaryPrimitive(op),
+    )
+    for op in [
+        # TensorFnPrimitive("any", {"dim": 1}), # not implemented in tract
+        # TensorFnPrimitive("all", {"dim": 1}), # not implemented in tract
     ]
 ]
 
