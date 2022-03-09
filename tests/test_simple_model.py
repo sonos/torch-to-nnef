@@ -256,10 +256,9 @@ INPUT_AND_MODELS += [
         nn.Tanh(),
         nn.Softmax(1),
         nn.Softplus(),
-        # We could add this with appropriate fragments
-        # nn.GELU(),  # No definition for operator `gelu' in tract
-        # nn.SELU(), # No definition for operator `selu' in tract
-        # nn.SiLU(),  # No definition for operator `silu' in tract
+        nn.GELU(),
+        nn.SELU(),
+        nn.SiLU(),
     ]
 ]
 
