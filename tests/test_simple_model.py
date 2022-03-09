@@ -90,6 +90,8 @@ INPUT_AND_MODELS = [
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
+        # partial(torch.transpose, dim0=1, dim1=0), # tract does not find same results ??
+        # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
     ]
 ]
 
@@ -210,6 +212,7 @@ INPUT_AND_MODELS += [
 ]
 
 # Test classical vision models
+"""
 INPUT_AND_MODELS += [
     (
         torch.rand(1, 3, 224, 224),
@@ -248,7 +251,7 @@ INPUT_AND_MODELS = [
         ),
     ]
 ]
-""" . """
+"""
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):

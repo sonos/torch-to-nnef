@@ -72,7 +72,7 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
             data = const.data.numpy()
             nptype = data.dtype.type
         else:
-            nptype = STR_TO_NUMPY_DTYPE(const.subtype or const.dtype)
+            nptype = STR_TO_NUMPY_DTYPE[const.subtype or const.dtype]
             data = np.array(const.value, dtype=nptype)
         name_to_tensor[const_node_name] = NTensor(
             g,
@@ -663,7 +663,7 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -701,7 +701,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -726,7 +726,7 @@ def pow(g, node, name_to_tensor, null_ref, torch_graph):
     out = NTensor(
         g,
         node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
         shape=node.tensor_size,
     )
     name_to_tensor[node.export_name] = out
@@ -877,6 +877,57 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
             ]
         ),
         outputs=tuple([out_div]),
+    )
+
+
+def transpose(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dim0_name, dim1_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    dim0 = torch_graph.get_node_by_export_name(dim0_name).value
+    dim1 = torch_graph.get_node_by_export_name(dim1_name).value
+
+    new_dims_ranks = []
+    for _ in range(len(node.tensor_size)):
+        if _ == dim0:
+            new_dims_ranks.append(dim1)
+        elif _ == dim1:
+            new_dims_ranks.append(dim0)
+        else:
+            new_dims_ranks.append(_)
+
+    NOperation(
+        graph=g,
+        type="transpose",
+        name=f"{node.export_name}",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"axes": new_dims_ranks},
+    )
+
+
+def permute(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_name, dims_name) = node.export_inputs
+    out = NTensor(
+        g,
+        node.export_name,
+        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        shape=node.tensor_size,
+    )
+    name_to_tensor[node.export_name] = out
+    dims = torch_graph.get_node_by_export_name(dims_name).attributes['values']
+    NOperation(
+        graph=g,
+        type="transpose",
+        name=f"{node.export_name}",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out]),
+        attribs={"axes": dims},
     )
 
 
