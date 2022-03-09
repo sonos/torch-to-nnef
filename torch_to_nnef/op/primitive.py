@@ -1048,11 +1048,11 @@ def argmin(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("argmin_reduce", g, node, name_to_tensor, torch_graph)
 
 
-def any(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_any(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("any_reduce", g, node, name_to_tensor, torch_graph)
 
 
-def all(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
 
 
@@ -1074,6 +1074,8 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "greater": 'gt',
         "less_equal": 'le',
         "greater_equal": 'ge',
+        "any": "reduce_any",  # avoid python builtin collision
+        "all": "reduce_all",  # avoid python builtin collision
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [
@@ -1105,11 +1107,11 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "log2",
         "copy",
         "rcp",
+        "min",
+        "max",
         "not",
         "eq",
         "ne",
-        "min",
-        "max",
         "add",
         "sub",
         "mul",

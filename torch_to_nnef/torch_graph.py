@@ -301,7 +301,7 @@ class NodeOp(NodeBase):
         except RuntimeError as exp:
             if "outputs_.size" in exp.args[0]:
                 raise NotImplementedError(
-                    "case with operation giving multiple outputs:"
+                    f"case with torch operation {kind} giving multiple outputs:"
                     f" x{node_cpp.outputsSize()}"
                 )
             raise exp
