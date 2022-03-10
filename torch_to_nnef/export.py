@@ -1,4 +1,3 @@
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +10,10 @@ from torch.onnx.utils import (
     select_model_mode_for_export,
 )
 
+
+from . import __version__
 from .nnef_graph import GraphExtractor
+from .op.fragments import FRAGMENTS
 
 
 def export_model_to_nnef(
@@ -22,6 +24,7 @@ def export_model_to_nnef(
     output_names,
     dynamic_axes=None,
     verbose=True,
+    compression_level=0,
 ):
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         args = _decide_input_format(model, args)
@@ -40,4 +43,14 @@ def export_model_to_nnef(
             output_names,
         )
 
-        NNEFWriter(compression=1)(nnef_graph, str(base_path))
+        active_custom_fragments = {
+            _: FRAGMENTS[_]
+            for _ in graph_extractor.activated_custom_fragment_keys
+        }
+
+        NNEFWriter(
+            compression=compression_level,
+            fragments=active_custom_fragments,
+            generate_custom_fragments=len(active_custom_fragments) > 0,
+            version_custom_fragments=__version__,
+        )(nnef_graph, str(base_path))

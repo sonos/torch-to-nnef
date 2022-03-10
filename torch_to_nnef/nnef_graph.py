@@ -8,15 +8,16 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.op import ModuleInfoExtractor
-from torch_to_nnef.op.base import _torch_to_nnef_typestr
+from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
+from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
+from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 
 from torch_to_nnef.torch_graph import (
     InternalPytorchGraphHelper,
-    NodeConstant,
+    NodeConstantTensorSized,
     NodeInput,
-    _access_module,
-    clean_dtype_name,
+    NodeState,
+    NodeTensorSized,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -30,64 +31,69 @@ class GraphExtractor:
         )
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
-
-    def callmethod_extractor(self, node):
-        assert node.kind == "prim::CallMethod"
-        dtype_to_extractor = ModuleInfoExtractor.get_registry()
-
-        op_called = self._torch_graph_helper.find_io_by_debug_name(
-            node.inputs[0]
-        )
-        jit_class_name = clean_dtype_name(op_called.dtype)
-        if jit_class_name in dtype_to_extractor:
-            module = _access_module(op_called.module_path, self.model)
-            return dtype_to_extractor[jit_class_name](node, module, self.g)
-        else:
-            raise NotImplementedError(
-                f"hook not yet implemented for {jit_class_name}"
-            )
+        self.activated_custom_fragment_keys: T.Set[str] = set()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
-        if node.kind == "prim::CallMethod":
-            call_method_extractor = self.callmethod_extractor(node)
-            call_method_extractor.extract_extra_tensor_from_module(
-                name_to_tensor
-            )
-            call_method_extractor.extract_operations(name_to_tensor)
-            return
 
-        op_type = None
-        attributes = {}
-        outputs = []
-        if node.kind == "aten::unbind":
-            out = NTensor(
+        if node.kind.startswith("aten::"):
+            return aten_to_nnef_tensor_and_ops(
                 self.g,
-                node.export_name,
-                dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
-                shape=node.tensor_size,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
             )
-            import ipdb
+        if node.kind.startswith("prim::"):
+            if node.kind == "prim::ListConstruct":
+                return
 
-            ipdb.set_trace()
-            name_to_tensor[node.export_name] = out
-            outputs = [out]
-            op_type = "squeeze"
-        else:
-            raise NotImplementedError(
-                f"NNEF Operation for {node} NOT implmented"
+        if node.kind.startswith("quantized::"):
+            return quantized_node_to_nnef_tensor_and_ops(
+                self.g,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
             )
 
-        NOperation(
-            graph=self.g,
-            type=op_type,
-            name=f"{node.export_name}_op",
-            inputs=tuple(
-                name_to_tensor[inp.export_name] if inp else null_ref
-                for inp in self._torch_graph_helper.get_inputs_of_node(node)
-            ),
-            outputs=tuple(outputs),
-            attribs=attributes,
-        )
+        raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
+
+    def _add_operators(self, name_to_tensor, null_ref):
+        def is_missing(node_name: str):
+            if node_name in name_to_tensor:
+                return False
+            node = self._torch_graph_helper.get_node_by_export_name(node_name)
+            if isinstance(node, (NodeState, NodeConstantTensorSized)):
+                return False
+            if (
+                isinstance(node, NodeTensorSized)
+                and "values" in node.attributes
+            ):
+                return False
+            if node.kind == 'prim::GetAttr':
+                return False
+            return True
+
+        operators_nodes = self._torch_graph_helper.operators_nodes[:]
+        while operators_nodes:
+            done_nodes = []
+            for node in operators_nodes:
+                # node inputs are already realised
+                if any(is_missing(in_name) for in_name in node.export_inputs):
+                    continue
+                custom_fragments = self._op_nodes_to_nnef_operation(
+                    node, name_to_tensor, null_ref=null_ref
+                )
+                if custom_fragments:
+                    self.activated_custom_fragment_keys.update(custom_fragments)
+                done_nodes.append(node)
+            if len(done_nodes) == 0 and operators_nodes:
+                self._torch_graph_helper.printall()
+                print(operators_nodes)
+                raise RuntimeError("DAG seems impossible to unfold")
+            operators_nodes = [
+                _ for _ in operators_nodes if _ not in done_nodes
+            ]
 
     def build_nnef_graph(
         self,
@@ -103,14 +109,13 @@ class GraphExtractor:
         )
         name_to_tensor = {}
         for node in chain(
-            self._torch_graph_helper.constant_nodes,
             self._torch_graph_helper.inputs_nodes,
         ):
             if node.export_name not in name_to_tensor:
                 tensor = NTensor(
                     graph=self.g,
                     name=node.export_name,
-                    dtype=_torch_to_nnef_typestr(node.subtype or node.dtype),
+                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
                     shape=node.tensor_size,
                 )
                 name_to_tensor[node.export_name] = tensor
@@ -125,14 +130,10 @@ class GraphExtractor:
                             "dtype": tensor.dtype,
                         },
                     )
-                if isinstance(node, NodeConstant):
-                    tensor.data = node.value
-        for node in self._torch_graph_helper.operators_nodes:
-            # provide to tensor proper shape, dtype
-            # tensor.shape, tensor.dtype, tensor.data = shape, dtype, data
-            self._op_nodes_to_nnef_operation(
-                node, name_to_tensor, null_ref=null
-            )
+
+        # TODO should handle node inputs comming from other ops not yet in
+        # name_to_tensor to skip those for later use
+        self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = [
             name_to_tensor[_.export_name]
