@@ -35,9 +35,6 @@ def export_model_to_nnef(
             args = (args,)
 
         graph_extractor = GraphExtractor(model, args)
-        if verbose:
-            graph_extractor._torch_graph_helper.printall()
-
         nnef_graph = graph_extractor.parse(
             input_names,
             output_names,
