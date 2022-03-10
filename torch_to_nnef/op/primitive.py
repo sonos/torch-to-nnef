@@ -15,7 +15,8 @@ def add_tensor_to_ngraph(
     tensor_name: str,
     name_to_tensor: T.Dict[str, NTensor],
 ):
-    name = f"{node.export_name}_{tensor_name}"
+    onode = node.outputs[0]
+    name = f"{onode.export_name}_{tensor_name}"
     tensor_np = tensor.numpy()
     ntensor = NTensor(
         g,
@@ -85,9 +86,12 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
 
 
 def _register_state_node_as_variable(
-    node_export_name: str, slug_name: str, torch_graph, node, g, name_to_tensor
+    torch_tensor: torch.Tensor,
+    slug_name: str,
+    node,
+    g,
+    name_to_tensor,
 ):
-    torch_tensor = torch_graph.get_node_by_export_name(node_export_name).data
 
     # peculiarity of tract implementation
     if len(torch_tensor.shape) == 1:
@@ -100,7 +104,7 @@ def _register_state_node_as_variable(
     var = NOperation(
         graph=g,
         type="variable",
-        name=f"{node.export_name}_{slug_name}_var",
+        name=f"{node.outputs[0].export_name}_{slug_name}_var",
         inputs=None,
         outputs=nnef_tensor_ref,
         attribs={
@@ -114,44 +118,39 @@ def _register_state_node_as_variable(
 
 
 def _weight_bias_and_output_tensor(
-    torch_graph,
     g,
     node,
-    weight_name,
-    bias_name,
+    weight_node,
+    bias_node,
     name_to_tensor,
     null_ref,
 ):
-    weight_node = torch_graph.get_node_by_export_name(weight_name)
     weight = weight_node.data
-
     weight_ref = _register_state_node_as_variable(
-        node_export_name=weight_name,
+        torch_tensor=weight,
         slug_name="weight",
-        torch_graph=torch_graph,
         node=node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
 
     bias_ref = null_ref
-    bias_node = torch_graph.get_node_by_export_name(bias_name)
-    if hasattr(bias_node, 'data'):
+    if bias_node.data is not None:
         bias_ref = _register_state_node_as_variable(
-            node_export_name=bias_name,
+            torch_tensor=bias_node.data,
             slug_name="bias",
-            torch_graph=torch_graph,
             node=node,
             g=g,
             name_to_tensor=name_to_tensor,
         )
 
-    out_tensor_name = node.export_name
+    out_node = node.outputs[0]
+    out_tensor_name = out_node.export_name
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
         dtype=weight.numpy().dtype.type,
-        shape=tuple(node.tensor_size) if node.tensor_size else None,
+        shape=tuple(out_node.shape) if out_node.shape else None,
     )
     name_to_tensor[out_tensor_name] = output_tensor
     return weight_ref, bias_ref, output_tensor
@@ -228,44 +227,35 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     # tuple of ints dilation, bool transposed, tuple of ints output_padding, int groups, bool benchmark, bool deterministic, bool cudnn_enabled
     (
-        input_name,
-        weight_name,
-        bias_name,
-        stride_name,
-        padding_name,
-        dilation_name,
-        transposed_name,
+        input_node,
+        weight_node,
+        bias_node,
+        stride_node,
+        padding_node,
+        dilation_node,
+        transposed_node,
         _,  # output_padding_name
-        groups_name,
+        groups_node,
         _,  # benchmark_name
         _,  # deterministic_name
         _,  # cuda_enabled
         _,  # allow_tf32
-    ) = node.export_inputs
+    ) = node.inputs
 
-    def get_array_values_from_inputs(node_export_name: str):
-        return [
-            torch_graph.get_node_by_export_name(in_export_name).value
-            for in_export_name in torch_graph.get_node_by_export_name(
-                node_export_name
-            ).export_inputs
-        ]
+    stride = stride_node.data
+    dilation = dilation_node.data
+    padding = padding_node.data
+    groups = groups_node.data
+    transposed = transposed_node.data
 
-    stride = get_array_values_from_inputs(stride_name)
-    dilation = get_array_values_from_inputs(dilation_name)
-    padding = get_array_values_from_inputs(padding_name)
-    groups = torch_graph.get_node_by_export_name(groups_name).value
-    transposed = torch_graph.get_node_by_export_name(transposed_name).value
-
-    wnode = torch_graph.get_node_by_export_name(weight_name)
     if transposed:
-        wnode.data = wnode.data.transpose(1, 0)
+        weight_node.data = weight_node.data.transpose(1, 0)
+
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
-        torch_graph,
         g,
         node,
-        weight_name,
-        bias_name,
+        weight_node,
+        bias_node,
         name_to_tensor,
         null_ref,
     )
@@ -273,9 +263,9 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     NOperation(
         graph=g,
         type="deconv" if transposed else "conv",
-        name=f"{node.export_name}_op",
+        name=f"{node.outputs[0].export_name}_op",
         inputs=(
-            name_to_tensor[input_name],
+            name_to_tensor[input_node.export_name],
             weight_ref,
             bias_ref,
         ),
