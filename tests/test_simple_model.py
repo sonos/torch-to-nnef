@@ -264,7 +264,7 @@ INPUT_AND_MODELS += [
         # nn.AvgPool1d(10), # Not same results between tract and Pytorch
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
-        # Should we handle LSTM and GRU ???
+        # Should we handle LSTM and GRU ??? => ONNX ->tract NNEF (check gen)
     ]
 ]
 
@@ -299,7 +299,7 @@ INPUT_AND_MODELS += [
 ]
 
 # Test classical vision models
-if os.environ.get("WITH_MODELS"):
+if os.environ.get("MODELS"):
     INPUT_AND_MODELS += [
         (
             torch.rand(1, 3, 224, 224),
@@ -319,26 +319,34 @@ if os.environ.get("WITH_MODELS"):
     ]
 
 
-"""
-
 # Test with quantization
-INPUT_AND_MODELS = [
-    (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
-    for mod in [
-        nn.Sequential(
-            nn.intrinsic.ConvBnReLU1d(
-                nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
+if os.environ.get("Q8"):
+    INPUT_AND_MODELS = [
+        (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
+        for mod in [
+            nn.Sequential(
+                nn.intrinsic.ConvBnReLU1d(
+                    nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
+                ),
+                # nn.intrinsic.ConvBnReLU1d(
+                # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
+                # ),
+                # nn.intrinsic.ConvBnReLU1d(
+                # nn.Conv1d(15, 50, 7, stride=3, padding=3),
+                # nn.BatchNorm1d(50),
+                # nn.ReLU(),
+                # ),
             ),
-            # nn.intrinsic.ConvBnReLU1d(
-            # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
-            # ),
-            # nn.intrinsic.ConvBnReLU1d(
-            # nn.Conv1d(15, 50, 7, stride=3, padding=3),
-            # nn.BatchNorm1d(50),
-            # nn.ReLU(),
-            # ),
-        ),
+        ]
     ]
+
+
+"""
+INPUT_AND_MODELS += [
+    (
+        ([torch.rand(13, 10, 1), torch.rand(13, 10, 1)],),
+        UnaryPrimitive(partial(torch.cat, dim=1)),
+    )
 ]
 """
 
