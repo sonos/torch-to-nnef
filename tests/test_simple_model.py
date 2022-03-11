@@ -119,7 +119,6 @@ INPUT_AND_MODELS = [
         # }
         # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
-        #
         # tract does not know how to serialize Bool
         # lambda x: torch.where(
         # _condition_1,
@@ -128,7 +127,7 @@ INPUT_AND_MODELS = [
         # ),
     ]
 ]
-INPUT_AND_MODELS += [
+INPUT_AND_MODELS = [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [
         partial(torch.squeeze, dim=2),
@@ -158,6 +157,7 @@ INPUT_AND_MODELS += [
 ]
 
 
+"""
 INPUT_AND_MODELS += [
     (
         torch.tensor(
@@ -166,12 +166,11 @@ INPUT_AND_MODELS += [
         UnaryPrimitive(op),
     )
     for op in [
-        # TensorFnPrimitive("any", {"dim": 1}), # not implemented in tract
-        # TensorFnPrimitive("all", {"dim": 1}), # not implemented in tract
+        TensorFnPrimitive("any", {"dim": 1}),
+        TensorFnPrimitive("all", {"dim": 1}),
     ]
 ]
-
-# partial(torch.cat, axis=1),  # ?
+"""
 
 # _binary
 INPUT_AND_MODELS += [
@@ -184,42 +183,43 @@ INPUT_AND_MODELS += [
         torch.mul,
         torch.div,
         torch.pow,
-        # unsupported in tract ? {
-        # torch.less,
-        # torch.eq,
-        # torch.ne,
-        # torch.greater,
-        # torch.less_equal,
-        # torch.greater_equal,
-        # }
+        torch.less,
+        torch.eq,
+        torch.ne,
+        torch.greater,
+        torch.less_equal,
+        torch.greater_equal,
     ]
 ]
 
 INPUT_AND_MODELS += [
     ((torch.rand(13, 10), torch.rand(13, 10).T), BinaryPrimitive(op))
     for op in [
-        # torch.matmul, # tract not same results ??
+        # torch.matmul,  # tract not same results ??
     ]
 ]
 
-# INPUT_AND_MODELS = [
-# (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
-# ]
-# INPUT_AND_MODELS += [
-# (
-# (torch.tensor([True, False, True]), torch.tensor([True, False, False])),
-# BinaryPrimitive(op),
-# )
-# for op in [
-# # tract does not handle io being bool
-# (lambda x, y: x & y),  # and
-# (lambda x, y: x | y),  # or
-# ]
-# ]
+INPUT_AND_MODELS += [
+    (torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not))
+]
+INPUT_AND_MODELS += [
+    (
+        (torch.tensor([True, False, True]), torch.tensor([True, False, False])),
+        BinaryPrimitive(op),
+    )
+    for op in [
+        # tract does not handle io being bool
+        (lambda x, y: x & y),  # and
+        (lambda x, y: x | y),  # or
+    ]
+]
 
 # tract do not handle cast op
 # INPUT_AND_MODELS += [
-# (torch.tensor([True, False, True]), TensorFnPrimitive("to", {"dtype":torch.bool}))
+# (
+# torch.tensor([True, False, True]),
+# TensorFnPrimitive("to", {"dtype": torch.bool}),
+# )
 # ]
 
 

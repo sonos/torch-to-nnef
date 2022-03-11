@@ -240,12 +240,13 @@ class TorchOp:
 
         inputs = list(node.inputs())
         call_name = None
-        if node.kind() == CALL_KIND:
+        kind = node.kind()
+        if kind == CALL_KIND:
             module_getter_ref = inputs[0].node()['name']
             op_ref = getattr(module, module_getter_ref)
             inputs = inputs[1:]
             call_name = inputs[0].debugName()
-        elif node.kind() == GETATTR_KIND:
+        elif kind == GETATTR_KIND:
             tensor_name = node['name']
             data_state = getattr(module, tensor_name).data
             data_nodes.append(
@@ -257,14 +258,16 @@ class TorchOp:
                 )
             )
             return
-        elif node.kind() == CONSTANT_KIND:
+        elif kind == CONSTANT_KIND:
+            try:
+                data = node['value']
+            except RuntimeError:
+                data = None
             data_nodes.append(
-                PythonConstant(
-                    name=node.output().debugName(), data=node['value']
-                )
+                PythonConstant(name=node.output().debugName(), data=data)
             )
             return
-        elif node.kind() == LISTCONSTRUCT_KIND:
+        elif kind == LISTCONSTRUCT_KIND:
             # should build a Data
             values = []
             for cvalue in node.inputs():
@@ -277,6 +280,28 @@ class TorchOp:
         else:
             module_getter_ref = MODULE_PATH_ATEN
             op_ref = aten_name_to_torch_fn(node.kind())
+            # HERE we remove unecessary OPS
+            if kind.endswith("_"):
+                # allow to find correct pytorch API fn
+                kind = kind[:-1]
+            if kind in [
+                "aten::sub",
+                "aten::add",
+            ]:
+                # remove useless ref to scaling (probably never used)
+                inputs = inputs[:2]
+
+            if kind in ["aten::mean", "aten::sum"]:
+                inputs = inputs[:3]
+
+            if kind == "aten::elu":
+                # difference between aten and python API
+                inputs = inputs[:2]
+
+            if kind == "aten::clone":
+                # remove useless ref to memory_format (for us)
+                inputs = inputs[:1]
+
         outputs = []
         for out_node in node.outputs():  #: torch._C.Value
             out = TensorVariable.parse(out_node)
@@ -284,7 +309,7 @@ class TorchOp:
             outputs.append(out)
 
         return cls(
-            kind=node.kind(),
+            kind=kind,
             inputs=[
                 next(d for d in data_nodes if d.name == inp.debugName())
                 for inp in inputs
@@ -352,6 +377,15 @@ class TorchModuleTraceHelper:
     @lru_cache(1)
     def _torch_graph(self):
         return self._torch_trace.graph
+
+    def remap_node(self, from_node, to_node):
+        assert isinstance(from_node, Data)
+        assert isinstance(to_node, Data)
+        from_node.name = to_node.name
+        for op in self.op_nodes:
+            op.inputs = [to_node if _ == from_node else _ for _ in op.inputs]
+            op.outputs = [to_node if _ == from_node else _ for _ in op.outputs]
+        self.data_nodes = [_ for _ in self.data_nodes if _ != from_node]
 
     def _parse_inputs(self):
         """Parse traced graph inputs"""
