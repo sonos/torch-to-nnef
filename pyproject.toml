@@ -63,7 +63,7 @@ dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "bump2version"
 
 
 [tool.black]
-line-length = 120
+line-length = 80
 skip-string-normalization = true
 target-version = ['py36', 'py37', 'py38']
 include = '\.pyi?$'
@@ -88,11 +88,57 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
-line_length = 120
 skip_gitignore = true
+profile = "black"
+line_length = 80
+skip = [".gitignore", ".dockerignore"]
 # you can skip files as below
 #skip_glob = docs/conf.py
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest]
+addopts = "-p no:warnings -s"
+
+
+[tool.pylint.master]
+extension-pkg-whitelist = ["numpy", "orjson", "ray"]
+
+[tool.pylint.typecheck]
+ignored-modules = ["numpy", "orjson", "ray"]
+ignored-classes = ["numpy", "ray", "tune"]
+generated-members = [
+    "pandas.*",
+    "torch.*",
+    "ray.*"
+]
+
+[tool.pylint.format]
+max-module-lines = 2000
+
+[tool.pylint."MESSAGE CONTROL"]
+disable=[
+    "bad-continuation",
+    "deprecated-module",
+    "invalid-name",
+    "len-as-condition",
+    "line-too-long",
+    "locally-disabled",
+    "logging-fstring-interpolation",
+    "no-init",
+    "no-self-use",
+    "not-callable",
+    "protected-access",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-locals",
+    "unused-argument",
+    "unused-wildcard-import",
+    "wrong-import-position",
+]
+
+[tool.pylint.DESIGN]
+max-attributes = 15
+

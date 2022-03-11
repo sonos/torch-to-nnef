@@ -1,23 +1,20 @@
 import logging
 import typing as T
 from datetime import datetime
-from itertools import chain
 
 import numpy as np
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
+from torch_to_nnef.dtypes import TORCH_TO_NUMPY_DTYPE
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 
 from torch_to_nnef.torch_graph import (
-    InternalPytorchGraphHelper,
-    NodeConstantTensorSized,
-    NodeInput,
-    NodeState,
-    NodeTensorSized,
+    TorchModuleTraceHelper,
+    TensorVariable,
+    Data,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -26,15 +23,12 @@ LOGGER = logging.getLogger(__name__)
 class GraphExtractor:
     def __init__(self, model, args):
         self.model = model
-        self._torch_graph_helper = InternalPytorchGraphHelper.parse_model(
-            model, args
-        )
+        self._torch_graph_helper = TorchModuleTraceHelper(model, args)
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
-
         if node.kind.startswith("aten::"):
             return aten_to_nnef_tensor_and_ops(
                 self.g,
@@ -59,27 +53,19 @@ class GraphExtractor:
         raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
 
     def _add_operators(self, name_to_tensor, null_ref):
-        def is_missing(node_name: str):
-            if node_name in name_to_tensor:
+        def is_missing(node: Data):
+            if node.export_name in name_to_tensor:
                 return False
-            node = self._torch_graph_helper.get_node_by_export_name(node_name)
-            if isinstance(node, (NodeState, NodeConstantTensorSized)):
-                return False
-            if (
-                isinstance(node, NodeTensorSized)
-                and "values" in node.attributes
-            ):
-                return False
-            if node.kind == 'prim::GetAttr':
+            if not isinstance(node, TensorVariable) or node.data is not None:
                 return False
             return True
 
-        operators_nodes = self._torch_graph_helper.operators_nodes[:]
+        operators_nodes = self._torch_graph_helper.op_nodes[:]
         while operators_nodes:
             done_nodes = []
             for node in operators_nodes:
                 # node inputs are already realised
-                if any(is_missing(in_name) for in_name in node.export_inputs):
+                if any(is_missing(in_node) for in_node in node.inputs):
                     continue
                 custom_fragments = self._op_nodes_to_nnef_operation(
                     node, name_to_tensor, null_ref=null_ref
@@ -108,45 +94,37 @@ class GraphExtractor:
             data=np.zeros(shape=(), dtype=np.float32),
         )
         name_to_tensor = {}
-        for node in chain(
-            self._torch_graph_helper.inputs_nodes,
-        ):
-            if node.export_name not in name_to_tensor:
-                tensor = NTensor(
-                    graph=self.g,
-                    name=node.export_name,
-                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-                    shape=node.tensor_size,
-                )
-                name_to_tensor[node.export_name] = tensor
-                if isinstance(node, NodeInput):
-                    NOperation(
-                        graph=self.g,
-                        type="external",
-                        inputs=None,
-                        outputs=tensor,
-                        attribs={
-                            "shape": list(tensor.shape),
-                            "dtype": tensor.dtype,
-                        },
-                    )
+        ginputs = []
+        for node in self._torch_graph_helper.inputs:
+            tensor = NTensor(
+                graph=self.g,
+                name=node.export_name,
+                dtype=node.np_dtype,
+                shape=node.shape,
+            )
+            name_to_tensor[node.export_name] = tensor
+            ginputs.append(tensor)
+            NOperation(
+                graph=self.g,
+                type="external",
+                inputs=None,
+                outputs=tensor,
+                attribs={
+                    "shape": list(tensor.shape),
+                    "dtype": tensor.dtype,
+                },
+            )
 
-        # TODO should handle node inputs comming from other ops not yet in
-        # name_to_tensor to skip those for later use
         self._add_operators(name_to_tensor, null_ref=null)
 
-        self.g.inputs = [
-            name_to_tensor[_.export_name]
-            for _ in self._torch_graph_helper.inputs_nodes
-        ]
+        self.g.inputs = ginputs
         assert len(input_names) == len(self.g.inputs)
         for in_tensor, requested_name in zip(self.g.inputs, input_names):
             in_tensor.name = requested_name
 
         self.g.outputs = [
-            name_to_tensor[real_onode]
-            for onode in self._torch_graph_helper.outputs_nodes
-            for real_onode in onode.export_inputs
+            name_to_tensor[_.export_name]
+            for _ in self._torch_graph_helper.outputs
         ]
         assert len(output_names) == len(self.g.outputs)
         for out_tensor, requested_name in zip(self.g.outputs, output_names):
