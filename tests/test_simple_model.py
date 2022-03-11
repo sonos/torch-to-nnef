@@ -127,7 +127,7 @@ INPUT_AND_MODELS = [
         # ),
     ]
 ]
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [
         partial(torch.squeeze, dim=2),

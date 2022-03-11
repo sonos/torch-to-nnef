@@ -279,7 +279,10 @@ class TorchOp:
             return
         else:
             module_getter_ref = MODULE_PATH_ATEN
-            op_ref = aten_name_to_torch_fn(node.kind())
+            try:
+                op_ref = aten_name_to_torch_fn(node.kind())
+            except AttributeError:
+                pass
             # HERE we remove unecessary OPS
             if kind.endswith("_"):
                 # allow to find correct pytorch API fn
@@ -321,6 +324,33 @@ class TorchOp:
             call_name=call_name,
         )
 
+    def call_op(self, input_args):
+        if self.kind == "aten::to":
+            # note wrong type
+            results = input_args[0].to(INT_TO_TORCH_DTYPE[input_args[1]])
+        elif self.kind == "aten::repeat":
+            results = input_args[0].repeat(input_args[1])
+        elif self.kind in [
+            "aten::reflection_pad1d",
+            "aten::reflection_padnd",
+        ]:
+            results = nn.functional.pad(
+                input_args[0], pad=input_args[1], mode="reflect"
+            )
+        elif self.kind in [
+            "aten::replication_pad1d",
+            "aten::replication_padnd",
+        ]:
+            results = nn.functional.pad(
+                input_args[0], pad=input_args[1], mode="replicate"
+            )
+        else:
+            if self.op_ref is not None:
+                results = self.op_ref(*self._args)
+            else:
+                raise NotImplementedError(self)
+        return results
+
     @property
     def _args(self) -> T.Tuple[T.Any]:
         return tuple(_.tracing_data for _ in self.inputs)
@@ -330,7 +360,7 @@ class TorchOp:
             return False
         # generate all data
         # and call ops to infer missing infos
-        results = self.op_ref(*self._args)
+        results = self.call_op(*self._args)
         if isinstance(results, torch.Tensor):
             results = (results,)
         for data_node, result in zip(self.outputs, results):
