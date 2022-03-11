@@ -59,6 +59,16 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         return model_q8
 
 
+class CatPrim(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.y = torch.rand(13, 10, 1)
+        self.op = torch.cat
+
+    def forward(self, x):
+        return self.op([x, self.y], dim=1)
+
+
 # Base unary operations
 _condition_1 = condition = torch.eye(13, 10).to(torch.bool)
 _input0 = torch.zeros(13, 10)
@@ -349,6 +359,7 @@ INPUT_AND_MODELS += [
     )
 ]
 """
+INPUT_AND_MODELS += [(torch.rand(13, 10, 1), CatPrim())]
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
@@ -378,7 +389,7 @@ def test_should_fail_since_false_output():
         export_model_to_nnef(
             model=model,
             args=test_input,
-            base_path=export_path,
+            file_path_export=export_path,
             input_names=["input"],
             output_names=["output"],
             verbose=False,
@@ -413,7 +424,7 @@ def test_model_export(test_input, model):
         export_model_to_nnef(
             model=model,
             args=test_input,
-            base_path=export_path,
+            file_path_export=export_path,
             input_names=input_names,
             output_names=output_names,
             verbose=False,

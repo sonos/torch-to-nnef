@@ -19,7 +19,7 @@ from .op.fragments import FRAGMENTS
 def export_model_to_nnef(
     model,
     args,
-    base_path: Path,
+    file_path_export: Path,
     input_names,
     output_names,
     dynamic_axes=None,
@@ -50,4 +50,5 @@ def export_model_to_nnef(
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
             version_custom_fragments=__version__,
-        )(nnef_graph, str(base_path))
+        )(nnef_graph, str(file_path_export))
+

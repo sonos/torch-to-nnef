@@ -27,7 +27,7 @@ model = nn.Sequential(nn.Conv1d(10, 20, 3))
 export_model_to_nnef(
     model=model,
     args=test_input,
-    base_path=export_path,
+    file_path_export=export_path,
     input_names=["input"],
     output_names=["output"],
 )
