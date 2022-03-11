@@ -279,10 +279,6 @@ class TorchOp:
             return
         else:
             module_getter_ref = MODULE_PATH_ATEN
-            try:
-                op_ref = aten_name_to_torch_fn(node.kind())
-            except AttributeError:
-                pass
             # HERE we remove unecessary OPS
             if kind.endswith("_"):
                 # allow to find correct pytorch API fn
@@ -304,6 +300,10 @@ class TorchOp:
             if kind == "aten::clone":
                 # remove useless ref to memory_format (for us)
                 inputs = inputs[:1]
+            try:
+                op_ref = aten_name_to_torch_fn(kind)
+            except AttributeError:
+                pass
 
         outputs = []
         for out_node in node.outputs():  #: torch._C.Value
@@ -360,7 +360,7 @@ class TorchOp:
             return False
         # generate all data
         # and call ops to infer missing infos
-        results = self.call_op(*self._args)
+        results = self.call_op(self._args)
         if isinstance(results, torch.Tensor):
             results = (results,)
         for data_node, result in zip(self.outputs, results):
@@ -533,7 +533,8 @@ class TorchModuleTraceHelper:
                 if worked:
                     ops_to_rm.append(op_node)
                     for _ in op_node.outputs:
-                        del unshaped_data[_.name]
+                        if _.name in unshaped_data:
+                            del unshaped_data[_.name]
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
             end_len = len(unshaped_data)
             if start_len == end_len:
