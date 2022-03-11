@@ -12,16 +12,11 @@ from torch_to_nnef.dtypes import (
     TORCH_TO_NUMPY_DTYPE,
     str_to_torch_dtype,
     INT_TO_TORCH_DTYPE,
-    torch_dtype_to_str,
 )
 
 from .console import Console
 
 LOGGER = logging.getLogger(__name__)
-
-
-class NodeNotFound(ValueError):
-    pass
 
 
 class JitTraceFailed(RuntimeError):
