@@ -991,47 +991,32 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dim_name) = node.export_inputs
-    out = NTensor(
+    (input_node, dim_node) = node.inputs
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    reshape_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
-        'values'
-    ]
-    NOperation(
-        graph=g,
-        type="reshape",
-        name=f"{node.export_name}_reshape",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"shape": reshape_dims},
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"shape": dim_node.data},
     )
 
 
 def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, pads_name) = node.export_inputs
-    pads = torch_graph.get_node_by_export_name(pads_name).attributes['values']
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    if len(pads) < len(node.shape):
-        pads = [[0, 0]] * (len(node.shape) - len(pads)) + pads
-    out = NTensor(
+    (input_node, pads_node) = node.inputs
+    pads = (
+        np.array(pads_node.data).reshape(-1, 2).tolist()[::-1]
+    )  # strangeness of torch
+    onode = node.outputs[0]
+    if len(pads) < len(onode.shape):
+        pads = [[0, 0]] * (len(onode.shape) - len(pads)) + pads
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    NOperation(
-        graph=g,
-        type="pad",
-        name=f"{node.export_name}_pad",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"padding": pads, "border": "reflect"},
+        node,
+        name_to_tensor,
+        nnef_op_type="pad",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"padding": pads, "border": "reflect"},
     )
 
 
