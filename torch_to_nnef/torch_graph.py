@@ -1,20 +1,22 @@
-from collections import defaultdict
-from functools import lru_cache
 import logging
 import typing as T
+from collections import defaultdict
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 import torch
-from torch import jit, nn
 import torch.jit._trace
+from torch import jit, nn
+
 from torch_to_nnef.dtypes import (
+    INT_TO_TORCH_DTYPE,
     TORCH_TO_NUMPY_DTYPE,
     str_to_torch_dtype,
-    INT_TO_TORCH_DTYPE,
 )
 
-from .console import Console
+# from .console import Console
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +26,10 @@ class JitTraceFailed(RuntimeError):
 
 
 class UnableToTraceData(ValueError):
+    pass
+
+
+class TorchOpTranslatedDifferently(ValueError):
     pass
 
 
@@ -65,7 +71,11 @@ def _find_common_root(
     elements: T.Iterable[str], sep: str, shortest: bool = False, base: str = ""
 ) -> str:
     common_root = base
-    scope_name_appeared = {}
+
+    # `scope_name_appeared` is recursive tree
+    # so not handled by mypy type anotation yet
+    # see https://github.com/python/mypy/issues/731
+    scope_name_appeared: T.Dict[str, T.Any] = {}
     for path in elements:
         tree_scope = scope_name_appeared
         for subscope in path.split(sep):
@@ -130,6 +140,10 @@ class Data:
     name: str
 
     @property
+    def data(self):
+        raise NotImplementedError()
+
+    @property
     def export_name(self) -> str:
         return _refid_clean(self.name)
 
@@ -151,7 +165,9 @@ class TensorVariable(Data):
 
     shape: T.Optional[T.List[int]]
     dtype: T.Optional[torch.dtype]
-    data: T.Optional[torch.Tensor] = None  # serve as reference
+
+    # used as reference in case of Op outputs
+    data: T.Optional[torch.Tensor] = None
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -173,7 +189,7 @@ class TensorVariable(Data):
         if self.data is not None:
             return self.data
         return torch.rand(
-            ([321 if x is None else x for x in (self.shape or [])])
+            [321 if x is None else x for x in (self.shape or [])]
         ).to(self.dtype)
 
     @classmethod
@@ -184,6 +200,7 @@ class TensorVariable(Data):
             name=node_c_value.debugName(),
             shape=node_type.sizes(),
             dtype=str_to_torch_dtype(stype) if stype else None,
+            data=None,
         )
 
 
@@ -213,14 +230,83 @@ class TorchConstant(Data):
         return self.data
 
 
+def _parse_geattr(node, module, data_nodes):
+    tensor_name = node['name']
+    data_state = getattr(module, tensor_name).data
+    data_nodes.append(
+        TensorVariable(
+            name=tensor_name,
+            shape=list(data_state.shape),
+            dtype=data_state.dtype,
+            data=data_state,
+        )
+    )
+    raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
+
+
+def _parse_contant(node, data_nodes):
+    try:
+        data = node['value']
+    except RuntimeError:
+        data = None
+    data_nodes.append(PythonConstant(name=node.output().debugName(), data=data))
+    raise TorchOpTranslatedDifferently("constant handled as PythonConstant")
+
+
+def _parse_list_construct(node, data_nodes):
+    # should build a Data
+    values = []
+    for cvalue in node.inputs():
+        values.append(cvalue.toIValue())
+    data_nodes.append(
+        PythonConstant(name=node.output().debugName(), data=values)
+    )
+    # }
+    raise TorchOpTranslatedDifferently(
+        "List Construct handled as PythonConstant"
+    )
+
+
+def _aten_inputs_and_op_ref(kind, inputs):
+    # HERE we remove unecessary OPS
+    if kind.endswith("_"):
+        # allow to find correct pytorch API fn
+        kind = kind[:-1]
+    if kind in [
+        "aten::sub",
+        "aten::add",
+    ]:
+        # remove useless ref to scaling (probably never used)
+        inputs = inputs[:2]
+
+    if kind in ["aten::mean", "aten::sum"]:
+        inputs = inputs[:3]
+
+    if kind == "aten::elu":
+        # difference between aten and python API
+        inputs = inputs[:2]
+
+    if kind == "aten::clone":
+        # remove useless ref to memory_format (for us)
+        inputs = inputs[:1]
+    op_ref = None
+    try:
+        op_ref = aten_name_to_torch_fn(kind)
+    except AttributeError:
+        pass
+    return inputs, op_ref
+
+
 @dataclass
 class TorchOp:
     kind: str
     module_path: str
     inputs: T.List[Data]
-    outputs: T.List[Data]
+    outputs: T.List[TensorVariable]
     scope: str
-    op_ref: T.Callable[[T.Any], T.Any]  # multiple ins and outs possible
+    op_ref: T.Optional[
+        T.Callable[[T.Any], T.Any]
+    ]  # multiple ins and outs possible
     call_name: T.Optional[str]
 
     @property
@@ -236,71 +322,25 @@ class TorchOp:
         inputs = list(node.inputs())
         call_name = None
         kind = node.kind()
+
+        # rerouted
+        if kind == GETATTR_KIND:
+            _parse_geattr(node, module, data_nodes)
+        elif kind == CONSTANT_KIND:
+            _parse_contant(node, data_nodes)
+        elif kind == LISTCONSTRUCT_KIND:
+            _parse_list_construct(node, data_nodes)
+
         if kind == CALL_KIND:
             module_getter_ref = inputs[0].node()['name']
             op_ref = getattr(module, module_getter_ref)
             inputs = inputs[1:]
             call_name = inputs[0].debugName()
-        elif kind == GETATTR_KIND:
-            tensor_name = node['name']
-            data_state = getattr(module, tensor_name).data
-            data_nodes.append(
-                TensorVariable(
-                    name=tensor_name,
-                    shape=list(data_state.shape),
-                    dtype=data_state.dtype,
-                    data=data_state,
-                )
-            )
-            return
-        elif kind == CONSTANT_KIND:
-            try:
-                data = node['value']
-            except RuntimeError:
-                data = None
-            data_nodes.append(
-                PythonConstant(name=node.output().debugName(), data=data)
-            )
-            return
-        elif kind == LISTCONSTRUCT_KIND:
-            # should build a Data
-            values = []
-            for cvalue in node.inputs():
-                values.append(cvalue.toIValue())
-            data_nodes.append(
-                PythonConstant(name=node.output().debugName(), data=values)
-            )
-            # }
-            return
         else:
             module_getter_ref = MODULE_PATH_ATEN
-            # HERE we remove unecessary OPS
-            if kind.endswith("_"):
-                # allow to find correct pytorch API fn
-                kind = kind[:-1]
-            if kind in [
-                "aten::sub",
-                "aten::add",
-            ]:
-                # remove useless ref to scaling (probably never used)
-                inputs = inputs[:2]
+            op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
 
-            if kind in ["aten::mean", "aten::sum"]:
-                inputs = inputs[:3]
-
-            if kind == "aten::elu":
-                # difference between aten and python API
-                inputs = inputs[:2]
-
-            if kind == "aten::clone":
-                # remove useless ref to memory_format (for us)
-                inputs = inputs[:1]
-            try:
-                op_ref = aten_name_to_torch_fn(kind)
-            except AttributeError:
-                pass
-
-        outputs = []
+        outputs: T.List[TensorVariable] = []
         for out_node in node.outputs():  #: torch._C.Value
             out = TensorVariable.parse(out_node)
             data_nodes.append(out)
@@ -347,7 +387,7 @@ class TorchOp:
         return results
 
     @property
-    def _args(self) -> T.Tuple[T.Any]:
+    def _args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
 
     def realise_output_type_and_size(self) -> bool:
@@ -384,7 +424,7 @@ class TorchModuleTraceHelper:
         if auto_parse:
             self.parse()
 
-    @property
+    @property  # type: ignore
     @lru_cache(1)
     def _torch_trace(self):
         try:
@@ -398,7 +438,7 @@ class TorchModuleTraceHelper:
                 "this module (explaination available in README)"
             ) from exp
 
-    @property
+    @property  # type: ignore
     @lru_cache(1)
     def _torch_graph(self):
         return self._torch_trace.graph
@@ -428,7 +468,7 @@ class TorchModuleTraceHelper:
 
     def _parse_core(self):
         """Parse all Operations and collect the scope infos"""
-        attr_to_scope: T.Dict[T.Any, str] = dict()
+        attr_to_scope: T.Dict[T.Any, str] = {}
         for node in self._torch_graph.nodes():
             if node.kind() == GETATTR_KIND:
                 attr_name = node.s("name")
@@ -439,31 +479,35 @@ class TorchModuleTraceHelper:
                     parent_attr_name = parent.s("name")
                     parent_scope = attr_to_scope[parent_attr_name]
                     attr_scope = parent_scope.split("/")[-1]
-                    attr_to_scope[attr_name] = "{}/{}.{}".format(
-                        parent_scope, attr_scope, attr_name
-                    )
+                    attr_to_scope[
+                        attr_name
+                    ] = f"{parent_scope}/{attr_scope}.{attr_name}"
                 else:
                     attr_to_scope[attr_name] = f"__module.{attr_name}"
                 # We don't need classtype nodes; scope will provide this information
                 if node.output().type().kind() != CLASSTYPE_KIND:
+                    try:
+                        op = TorchOp.parse(
+                            self._module,
+                            node,
+                            scope=attr_to_scope[attr_name],
+                            data_nodes=self.data_nodes,
+                        )
+                        self.op_nodes.append(op)
+                    except TorchOpTranslatedDifferently:
+                        pass
+
+            else:
+                try:
                     op = TorchOp.parse(
                         self._module,
                         node,
-                        scope=attr_to_scope[attr_name],
+                        scope="",
                         data_nodes=self.data_nodes,
                     )
-                    if op is not None:
-                        self.op_nodes.append(op)
-
-            else:
-                op = TorchOp.parse(
-                    self._module,
-                    node,
-                    scope="",
-                    data_nodes=self.data_nodes,
-                )
-                if op is not None:
                     self.op_nodes.append(op)
+                except TorchOpTranslatedDifferently:
+                    pass
 
     def _parse_outputs(self):
         """Parse traced graph outputs"""
@@ -474,7 +518,7 @@ class TorchModuleTraceHelper:
 
     def _update_scope_reference(self):
         """Update scope in op_nodes with additional infos"""
-        alias_to_name = dict()
+        alias_to_name = {}
         base_name = _parse_traced_name(self._torch_trace)
         for name, module in self._torch_trace.named_modules(prefix="__module"):
             mod_name = _parse_traced_name(module)
@@ -543,7 +587,6 @@ class TorchModuleTraceHelper:
     def merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
-        # TODO <<====
         # Re-Wire input and output naming => {
         wire_inputs = callmethod_node.inputs
         wire_outputs = callmethod_node.outputs
