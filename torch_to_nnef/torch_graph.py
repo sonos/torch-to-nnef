@@ -234,7 +234,7 @@ class TorchConstant(Data):
         return self.data
 
 
-def _parse_geattr(node, module, data_nodes):
+def _parse_geattr(node: torch._C.Node, module, data_nodes):
     tensor_name = node['name']
     data_state = getattr(module, tensor_name).data
     data_nodes.append(
@@ -247,12 +247,24 @@ def _parse_geattr(node, module, data_nodes):
     )
 
 
-def _parse_contant(node, data_nodes):
+def _parse_contant(node: torch._C.Node, data_nodes):
     try:
         data = node['value']
     except RuntimeError:
         data = None
-    data_nodes.append(PythonConstant(name=node.output().debugName(), data=data))
+    name = node.output().debugName()
+    dtype = node.output().type().annotation_str
+    if dtype == "bool":
+        data = bool(data)
+    elif dtype == "int":
+        data = int(data)
+    elif dtype == "float":
+        data = float(data)
+    elif dtype == "NoneType":
+        data = None
+    else:
+        raise NotImplementedError(dtype)
+    data_nodes.append(PythonConstant(name=name, data=data))
 
 
 def _parse_list_construct(node, data_nodes):
