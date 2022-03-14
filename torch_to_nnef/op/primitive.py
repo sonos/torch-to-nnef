@@ -1,9 +1,9 @@
 import typing as T
 
+import numpy as np
+import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
-import torch
-import numpy as np
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
 from torch_to_nnef.torch_graph import Data, PythonConstant
@@ -191,7 +191,7 @@ def softplus(torch_graph, **kwargs):
     node = kwargs['node']
     const = node.inputs[1]
     if const.data != 1:
-        raise NotImplemented(
+        raise NotImplementedError(
             "This version is not implemented and"
             " would need use of a specific fragment"
         )
@@ -239,7 +239,6 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
-    # tuple of ints dilation, bool transposed, tuple of ints output_padding, int groups, bool benchmark, bool deterministic, bool cudnn_enabled
     (
         input_node,
         weight_node,
@@ -669,7 +668,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def pow(g, node, name_to_tensor, **kwargs):
+def pow_(g, node, name_to_tensor, **kwargs):
     (input_node, exponent_node) = node.inputs
     inputs = [name_to_tensor[input_node.export_name]]
     if exponent_node.data:
@@ -874,9 +873,6 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
 def cat(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
     dim = dim_node.data
-    import ipdb
-
-    ipdb.set_trace()
     _add_single_output_op(
         g,
         node,
@@ -960,7 +956,7 @@ def mean(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("mean_reduce", g, node, name_to_tensor, torch_graph)
 
 
-def sum(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_sum(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("sum_reduce", g, node, name_to_tensor, torch_graph)
 
 
@@ -1121,6 +1117,12 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
+    """Main primitive dispatcher
+
+    Allow to write in graph any not Quantized Operation from pytorch defined in
+    node attribute.
+
+    """
     aten_op_name = node.kind.split("::")[1]
 
     # remap
@@ -1138,11 +1140,15 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "greater": 'gt',
         "less_equal": 'le',
         "greater_equal": 'ge',
-        "any": "reduce_any",  # avoid python builtin collision
-        "all": "reduce_all",  # avoid python builtin collision
         "reflection_pad1d": "reflection_padnd",
         "replication_pad1d": "replication_padnd",
         "constant_pad1d": "constant_padnd",
+        # avoid to ovewrite python builtin {
+        "any": "reduce_any",
+        "all": "reduce_all",
+        "sum": "reduce_sum",
+        "pow": "pow_",
+        # }
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [
@@ -1197,11 +1203,11 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
-    else:
-        return globals()[aten_op_name](
-            g=g,
-            node=node,
-            name_to_tensor=name_to_tensor,
-            null_ref=null_ref,
-            torch_graph=torch_graph,
-        )
+
+    return globals()[aten_op_name](
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+        torch_graph=torch_graph,
+    )
