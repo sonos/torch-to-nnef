@@ -12,6 +12,7 @@ from torch import jit, nn
 from torch_to_nnef.dtypes import (
     INT_TO_TORCH_DTYPE,
     TORCH_TO_NUMPY_DTYPE,
+    is_quantized_dtype,
     str_to_torch_dtype,
 )
 
@@ -33,6 +34,10 @@ class TorchOpTranslatedDifferently(ValueError):
     pass
 
 
+class NotFoundDataNode(ValueError):
+    pass
+
+
 CALL_KIND = "prim::CallMethod"
 CONSTANT_KIND = "prim::Constant"
 GETATTR_KIND = "prim::GetAttr"
@@ -40,17 +45,19 @@ LISTCONSTRUCT_KIND = "prim::ListConstruct"
 PARAM_KIND = "prim::Param"
 CLASSTYPE_KIND = "ClassType"
 
-MODULE_PATH_ATEN = "TORCH_INTERNAL"
+MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
+MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
 
 def aten_name_to_torch_fn(aten_name):
     name = aten_name.replace("aten::", "")
-    name = SPECIAL_ATEN_REMAP_PYTORCH.get(name, name)
-    try:
-        return getattr(torch, name)
-    except AttributeError:
-        return getattr(torch.nn.functional, name)
+    return getattr(torch.ops.aten, name)
+
+
+def quantized_name_to_torch_fn(aten_name):
+    name = aten_name.replace("quantized::", "")
+    return getattr(torch.ops.quantized, name)
 
 
 def _refid_clean(name: str) -> str:
@@ -113,6 +120,7 @@ def _is_io_qantized_module(module):
 def maybe_quantize_args_tensor(module, args):
     if _is_io_qantized_module(module):
         args = [
+            # force cast in quantized form
             torch.quantize_per_tensor(
                 in_item.float(),
                 torch.tensor(0.1),
@@ -120,15 +128,7 @@ def maybe_quantize_args_tensor(module, args):
                 dtype=torch.quint8,
             )
             if isinstance(in_item, torch.Tensor)
-            and (
-                in_item.dtype
-                not in [
-                    torch.qint32,
-                    torch.qint8,
-                    torch.quint4x2,
-                    torch.quint8,
-                ]
-            )
+            and not is_quantized_dtype(in_item.dtype)
             else in_item
             for in_item in args
         ]
@@ -185,9 +185,17 @@ class TensorVariable(Data):
             raise UnableToTraceData(self)
         if self.data is not None:
             return self.data
-        return torch.rand(
-            [321 if x is None else x for x in (self.shape or [])]
-        ).to(self.dtype)
+        data = torch.rand([321 if x is None else x for x in (self.shape or [])])
+        if is_quantized_dtype(self.dtype):
+            # should be traced with correct value if possible
+            if data.dtype == torch.int8:
+                print("something strange")
+                # __import__('ipdb').set_trace()
+                pass
+            return torch.quantize_per_tensor(
+                data, scale=1.0, zero_point=0, dtype=self.dtype
+            )
+        return data.to(self.dtype)
 
     @classmethod
     def parse(cls, node_c_value: torch._C.Value) -> "TensorVariable":
@@ -204,6 +212,23 @@ class TensorVariable(Data):
 @dataclass
 class PythonConstant(Data):
     data: T.Any
+
+    @property
+    def np_dtype(self) -> np.dtype:
+        raise NotImplementedError()
+
+    @property
+    def tracing_data(self):
+        return self.data
+
+
+@dataclass
+class BlobTorchScriptObject(Data):
+    """Used only in Quantized Operators
+
+    from our current obervation
+
+    """
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -234,7 +259,15 @@ class TorchConstant(Data):
         return self.data
 
 
-def _parse_geattr(node: torch._C.Node, module, data_nodes):
+def _find_data_node(data_nodes: T.List[Data], name: str):
+    try:
+        return next(d for d in data_nodes if d.name == name)
+    except StopIteration:
+        names = [dnode.name for dnode in data_nodes]
+        raise NotFoundDataNode(f"'{name}' not found in {names}")
+
+
+def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
     tensor_name = node['name']
     data_state = getattr(module, tensor_name).data
     data_nodes.append(
@@ -243,6 +276,18 @@ def _parse_geattr(node: torch._C.Node, module, data_nodes):
             shape=list(data_state.shape),
             dtype=data_state.dtype,
             data=data_state,
+        )
+    )
+
+
+def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
+    pack_name = node['name']
+    pack = getattr(module, pack_name)
+    assert isinstance(pack, torch._C.ScriptObject)
+    data_nodes.append(
+        BlobTorchScriptObject(
+            name=pack_name,
+            data=pack,
         )
     )
 
@@ -348,7 +393,7 @@ class TorchOp:
 
         # rerouted
         if kind == GETATTR_KIND:
-            _parse_geattr(node, module, data_nodes)
+            _parse_getattr_tensor(node, module, data_nodes)
             raise TorchOpTranslatedDifferently(
                 "geattr handled as TensorVariable"
             )
@@ -368,10 +413,17 @@ class TorchOp:
             op_ref = getattr(module, module_getter_ref)
             call_name = inputs[0].debugName()
             inputs = inputs[1:]
+        elif kind.startswith("quantized::"):
+            module_getter_ref = MODULE_PATH_QUANTIZED
+            op_ref = quantized_name_to_torch_fn(kind)
+            for inp in inputs:
+                in_name = inp.debugName()
+                try:
+                    _find_data_node(data_nodes, in_name)
+                except NotFoundDataNode as exp:
+                    _parse_getattr_script_obj(inp.node(), module, data_nodes)
+                # torch.ops.quantized.
         else:
-            if kind.endswith("_"):
-                # allow to find correct pytorch API fn
-                kind = kind[:-1]
             module_getter_ref = MODULE_PATH_ATEN
             op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
 
@@ -382,14 +434,18 @@ class TorchOp:
                 data_nodes.append(out)
                 outputs.append(out)
 
-        inputs = [
-            next(d for d in data_nodes if d.name == inp.debugName())
-            for inp in inputs
-        ]
+        try:
+            inputs = [
+                _find_data_node(data_nodes, inp.debugName()) for inp in inputs
+            ]
+        except NotFoundDataNode:
+            __import__('ipdb').set_trace()
+            pass
         if not outputs:
             raise TorchOpTranslatedDifferently(
                 "Avoid reccording no return operations"
             )
+
         return cls(
             kind=kind,
             inputs=inputs,
@@ -401,34 +457,23 @@ class TorchOp:
         )
 
     def call_op(self, input_args):
-        if self.kind == "aten::to":
-            # note wrong type
-            results = input_args[0].to(INT_TO_TORCH_DTYPE[input_args[1]])
-        elif self.kind == "aten::repeat":
-            results = input_args[0].repeat(input_args[1])
-        elif self.kind in [
-            "aten::reflection_pad1d",
-            "aten::reflection_padnd",
-        ]:
-            results = nn.functional.pad(
-                input_args[0], pad=input_args[1], mode="reflect"
-            )
-        elif self.kind in [
-            "aten::replication_pad1d",
-            "aten::replication_padnd",
-        ]:
-            results = nn.functional.pad(
-                input_args[0], pad=input_args[1], mode="replicate"
-            )
-        else:
-            if self.op_ref is not None:
+        if self.op_ref is not None:
+            try:
                 results = self.op_ref(*self._args)
-            else:
-                raise NotImplementedError(self)
+            except NotImplementedError as exp:
+                print(exp)
+                print(self.op_ref)
+                __import__('ipdb').set_trace()
+        else:
+            raise NotImplementedError(self)
         return results
 
     @property
     def _args(self) -> T.Tuple[T.Any, ...]:
+        if self.op_ref and _is_io_qantized_module(self.op_ref):
+            for dnode in self.inputs:
+                if not is_quantized_dtype(dnode.dtype):
+                    dnode.dtype = torch.quint8
         return tuple(_.tracing_data for _ in self.inputs)
 
     def realise_output_type_and_size(self) -> bool:
@@ -554,7 +599,7 @@ class TorchModuleTraceHelper:
         """Parse traced graph outputs"""
         for node in self._torch_graph.outputs():
             self.outputs.append(
-                next(d for d in self.data_nodes if d.name == node.debugName())
+                _find_data_node(self.data_nodes, node.debugName())
             )
 
     def _update_scope_reference(self):
