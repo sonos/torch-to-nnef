@@ -138,10 +138,7 @@ def maybe_quantize_args_tensor(module, args):
 @dataclass
 class Data:
     name: str
-
-    @property
-    def data(self):
-        raise NotImplementedError()
+    data: T.Any
 
     @property
     def export_name(self) -> str:
@@ -167,7 +164,7 @@ class TensorVariable(Data):
     dtype: T.Optional[torch.dtype]
 
     # used as reference in case of Op outputs
-    data: T.Optional[torch.Tensor] = None
+    data: T.Optional[torch.Tensor]
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -241,7 +238,6 @@ def _parse_geattr(node, module, data_nodes):
             data=data_state,
         )
     )
-    raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
 
 
 def _parse_contant(node, data_nodes):
@@ -250,7 +246,6 @@ def _parse_contant(node, data_nodes):
     except RuntimeError:
         data = None
     data_nodes.append(PythonConstant(name=node.output().debugName(), data=data))
-    raise TorchOpTranslatedDifferently("constant handled as PythonConstant")
 
 
 def _parse_list_construct(node, data_nodes):
@@ -262,9 +257,6 @@ def _parse_list_construct(node, data_nodes):
         PythonConstant(name=node.output().debugName(), data=values)
     )
     # }
-    raise TorchOpTranslatedDifferently(
-        "List Construct handled as PythonConstant"
-    )
 
 
 def _aten_inputs_and_op_ref(kind, inputs):
@@ -294,7 +286,7 @@ def _aten_inputs_and_op_ref(kind, inputs):
         op_ref = aten_name_to_torch_fn(kind)
     except AttributeError:
         pass
-    return inputs, op_ref
+    return op_ref, inputs
 
 
 @dataclass
@@ -318,7 +310,6 @@ class TorchOp:
         cls, module, node: torch._C.Node, scope: str, data_nodes: T.List[Data]
     ) -> "TorchOp":
         op_ref = None
-
         inputs = list(node.inputs())
         call_name = None
         kind = node.kind()
@@ -326,10 +317,19 @@ class TorchOp:
         # rerouted
         if kind == GETATTR_KIND:
             _parse_geattr(node, module, data_nodes)
-        elif kind == CONSTANT_KIND:
+            raise TorchOpTranslatedDifferently(
+                "geattr handled as TensorVariable"
+            )
+        if kind == CONSTANT_KIND:
             _parse_contant(node, data_nodes)
-        elif kind == LISTCONSTRUCT_KIND:
+            raise TorchOpTranslatedDifferently(
+                "constant handled as PythonConstant"
+            )
+        if kind == LISTCONSTRUCT_KIND:
             _parse_list_construct(node, data_nodes)
+            raise TorchOpTranslatedDifferently(
+                "List Construct handled as PythonConstant"
+            )
 
         if kind == CALL_KIND:
             module_getter_ref = inputs[0].node()['name']
@@ -346,12 +346,13 @@ class TorchOp:
             data_nodes.append(out)
             outputs.append(out)
 
+        inputs = [
+            next(d for d in data_nodes if d.name == inp.debugName())
+            for inp in inputs
+        ]
         return cls(
             kind=kind,
-            inputs=[
-                next(d for d in data_nodes if d.name == inp.debugName())
-                for inp in inputs
-            ],
+            inputs=inputs,
             outputs=outputs,
             scope=scope,
             module_path=module_getter_ref,
