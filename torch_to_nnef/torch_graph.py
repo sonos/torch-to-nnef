@@ -352,8 +352,8 @@ class TorchOp:
         if kind == CALL_KIND:
             module_getter_ref = inputs[0].node()['name']
             op_ref = getattr(module, module_getter_ref)
-            inputs = inputs[1:]
             call_name = inputs[0].debugName()
+            inputs = inputs[1:]
         else:
             if kind.endswith("_"):
                 # allow to find correct pytorch API fn
@@ -363,14 +363,19 @@ class TorchOp:
 
         outputs: T.List[TensorVariable] = []
         for out_node in node.outputs():  #: torch._C.Value
-            out = TensorVariable.parse(out_node)
-            data_nodes.append(out)
-            outputs.append(out)
+            if out_node.type().annotation_str != "NoneType":
+                out = TensorVariable.parse(out_node)
+                data_nodes.append(out)
+                outputs.append(out)
 
         inputs = [
             next(d for d in data_nodes if d.name == inp.debugName())
             for inp in inputs
         ]
+        if not outputs:
+            raise TorchOpTranslatedDifferently(
+                "Avoid reccording no return operations"
+            )
         return cls(
             kind=kind,
             inputs=inputs,
