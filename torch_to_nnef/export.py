@@ -51,4 +51,3 @@ def export_model_to_nnef(
             generate_custom_fragments=len(active_custom_fragments) > 0,
             version_custom_fragments=__version__,
         )(nnef_graph, str(file_path_export))
-

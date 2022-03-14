@@ -123,7 +123,7 @@ def _register_state_node_as_variable(
         outputs=nnef_tensor_ref,
         attribs={
             "label": nnef_tensor_ref.name,
-            "shape": list(nnef_tensor_ref.shape),
+            "shape": list(torch_tensor.shape),
             "dtype": nnef_tensor_ref.dtype,
         },
     )
@@ -327,11 +327,11 @@ def _pooling_op(
             "Use of ceil to compute output shape is not implem"
         )
 
-    padding = padding_node.data
-    kernel_size = kernel_size_node.data
-    stride = stride_node.data
+    padding = padding_node.data or []
+    kernel_size = kernel_size_node.data or []
+    stride = stride_node.data or []
     if dilation_node:
-        dilation = dilation_node.data
+        dilation = dilation_node.data or []
     else:
         dilation = [0 for _ in stride]
 
@@ -872,7 +872,19 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def cat(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError("cat not implemented")
+    (input_node, dim_node) = node.inputs
+    dim = dim_node.data
+    import ipdb
+
+    ipdb.set_trace()
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "concat",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"axis": dim},
+    )
 
 
 def split(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1082,7 +1094,7 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
                 outputs=nnef_tensor,
                 attribs={
                     "label": nnef_tensor.name,
-                    "shape": list(nnef_tensor.shape),
+                    "shape": list(snode.shape),
                     "dtype": nnef_tensor.dtype,
                 },
             )
