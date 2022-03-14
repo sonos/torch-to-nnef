@@ -1,6 +1,6 @@
 import logging
 import typing as T
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -745,7 +745,26 @@ class TorchModuleTraceHelper:
                     callmethod_node=op,
                 )
 
-    def parse(self):
+    def apply_renaming_scheme(self, scheme="natural_verbose"):
+        """ """
+        if scheme == "natural_verbose":
+            return
+        if scheme == "numeric":
+            count_ref = defaultdict(int)
+            for dnode in self.data_nodes:
+                data_type = dnode
+                prefix = {
+                    TensorVariable: "v",
+                    PythonConstant: "c",
+                    BlobTorchScriptObject: "b",
+                    TorchConstant: "t",
+                    ListWithTensor: "l",
+                }[data_type.__class__]
+                suffix = count_ref[prefix]
+                count_ref[prefix] += 1
+                dnode.name = prefix + str(suffix)
+
+    def parse(self, renaming_scheme="numeric"):
         self._parse_inputs()
         self._parse_core()
         self._parse_outputs()
@@ -753,20 +772,9 @@ class TorchModuleTraceHelper:
         self._update_data_node_name_with_base_context()
         self._infer_missing_shapes_from_ops_outputs()
         self.recursive_call_method()
+        if renaming_scheme:
+            self.apply_renaming_scheme(renaming_scheme)
         return self
-
-    @classmethod
-    def parse_model(cls, module, args, omit_useless_nodes=True):
-        """This method parses a PyTorch model graph and produces
-        a list of nodes and node stats for eventual conversion to NNEF format.
-        """
-        graph_helper = cls(
-            module,
-            args,
-            omit_useless_nodes=omit_useless_nodes,
-        )
-        graph_helper.parse()
-        return graph_helper
 
     def printall(self):
         raise NotImplementedError()
