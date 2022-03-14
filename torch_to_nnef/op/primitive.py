@@ -7,7 +7,7 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
-from torch_to_nnef.torch_graph import Data, PythonConstant
+from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 
 def _add_output_tensor(
@@ -27,15 +27,16 @@ def _add_output_tensor(
 
 
 def _add_single_output_op(
-    g, node, name_to_tensor, nnef_op_type, inputs, attrs=None
+    g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
     out = _add_output_tensor(g, node, name_to_tensor)
-
+    if isinstance(inputs, list) and ensure_tuple:
+        inputs = tuple(inputs)
     NOperation(
         graph=g,
         type=nnef_op_type,
         name=f"{node.outputs[0].export_name}_op",
-        inputs=tuple(inputs) if isinstance(inputs, list) else inputs,
+        inputs=inputs,
         outputs=tuple([out]),
         attribs=attrs or {},
     )
@@ -874,13 +875,28 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
 def cat(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
     dim = dim_node.data
+    assert isinstance(input_node, ListWithTensor)
+    inputs = []
+    for input_item in input_node.data:
+        if input_item.export_name in name_to_tensor:
+            tensor_ref = name_to_tensor[input_item.export_name]
+        else:
+            tensor_ref = _register_state_node_as_variable(
+                input_item.data,
+                slug_name=input_item.export_name,
+                node=node,
+                g=g,
+                name_to_tensor=name_to_tensor,
+            )
+        inputs.append(tensor_ref)
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
         "concat",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=inputs,
         attrs={"axis": dim},
+        ensure_tuple=False,
     )
 
 
@@ -1135,8 +1151,8 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "bitwise_not": "not",
         "bitwise_not_cpu": "not",
         "bitwise_cpu": "and",
-        "__and_": "and",
-        "__or_": "or",
+        "__and__": "and",
+        "__or__": "or",
         "less": 'lt',
         "greater": 'gt',
         "less_equal": 'le',
