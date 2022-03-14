@@ -104,15 +104,13 @@ addopts = "-p no:warnings -s"
 
 
 [tool.pylint.master]
-extension-pkg-whitelist = ["numpy", "orjson", "ray"]
+extension-pkg-whitelist = ["torch", "numpy"]
 
 [tool.pylint.typecheck]
-ignored-modules = ["numpy", "orjson", "ray"]
-ignored-classes = ["numpy", "ray", "tune"]
+ignored-modules = ["torch", "numpy"]
+ignored-classes = ["torch", "numpy"]
 generated-members = [
-    "pandas.*",
     "torch.*",
-    "ray.*"
 ]
 
 [tool.pylint.format]
@@ -141,4 +139,3 @@ disable=[
 
 [tool.pylint.DESIGN]
 max-attributes = 15
-

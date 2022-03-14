@@ -2,10 +2,8 @@ import typing as T
 
 import numpy as np
 import torch
-from torch import nn
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
-from nnef_tools.model import Graph as NGraph
 
 
 def _torch_qtensor_to_ntensor(g, tensor, name):
@@ -63,8 +61,8 @@ def _register_state_node_as_variable(
         outputs=nnef_tensor_ref,
         attribs={
             "label": nnef_tensor_ref.name,
-            "shape": list(nnef_tensor_ref.shape),
-            "dtype": nnef_tensor_ref.dtype,
+            "shape": list(torch_tensor.shape),
+            "dtype": torch_tensor.numpy().dtype,
         },
     )
 
