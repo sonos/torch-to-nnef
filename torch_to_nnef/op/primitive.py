@@ -701,32 +701,23 @@ def pow_(g, node, name_to_tensor, **kwargs):
 
 def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     (
-        input_name,
-        scale_name,
-        zero_point_name,
+        input_node,
+        scale_node,
+        zero_point_node,
         _,  # dtype_name
-    ) = node.export_inputs
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    scale = torch_graph.get_node_by_export_name(scale_name).value
-    zero_point = torch_graph.get_node_by_export_name(zero_point_name).value
+    ) = node.inputs
     # dtype = torch_graph.get_node_by_export_name(dtype_name).value
-    NOperation(
-        graph=g,
-        type="zero_point_linear_quantize",
-        name=f"{node.export_name}_op",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "zero_point_linear_quantize",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={
             # "dtype": out.dtype,
             # "shape": list(node.shape),
-            "zero_point": zero_point,
-            "scale": scale,
+            "zero_point": zero_point_node.data,
+            "scale": scale_node.data,
             "bits": 8,
             "signed": True,  # dtype != torch.quint8,
             "symmetric": False,
@@ -741,18 +732,20 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
 
        (x - zero_point) / scale
     """
-    input_name = node.export_inputs[0]
-    input_node = torch_graph.get_node_by_export_name(input_name)
-    if "linear_quant" not in input_node.attributes:
-        raise NotImplementedError("need to propagate linear_quant in attr.")
-    scale = np.array(input_node.attributes['linear_quant']['scale'])
-    zero_point = np.array(input_node.attributes['linear_quant']['zero_point'])
+    input_node = node.inputs[0]
+    input_name = input_node.export_name
+    # TODO
+    # if "linear_quant" not in input_node.attributes:
+    # raise NotImplementedError("need to propagate linear_quant in attr.")
+    scale = np.array(1.0)
+    zero_point = np.array(0)
 
+    node = node.outputs[0]
     cast_name = f"{node.export_name}_cast"
     out_cast = NTensor(
         g,
         cast_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        dtype=node.np_dtype,
         shape=node.shape,
     )
     name_to_tensor[cast_name] = out_cast
@@ -770,7 +763,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     out_sub = NTensor(
         g,
         sub_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        dtype=node.np_dtype,
         shape=node.shape,
     )
     name_to_tensor[sub_name] = out_sub
@@ -785,7 +778,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
                 NTensor(
                     g,
                     sub_name + "_zero_point",
-                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+                    dtype=node.np_dtype,
                     data=zero_point,
                 ),
             ]
@@ -797,7 +790,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     out_div = NTensor(
         g,
         node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+        dtype=node.np_dtype,
         shape=node.shape,
     )
     name_to_tensor[node.export_name] = out_div
@@ -812,7 +805,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
                 NTensor(
                     g,
                     div_name + "_scale",
-                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
+                    dtype=node.np_dtype,
                     data=scale,
                 ),
             ]
@@ -1185,8 +1178,8 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "bitwise_not": "not",
         "bitwise_not_cpu": "not",
         "bitwise_cpu": "and",
-        "__and_": "and",
-        "__or_": "or",
+        "__and__": "and",
+        "__or__": "or",
         "less": 'lt',
         "greater": 'gt',
         "less_equal": 'le',

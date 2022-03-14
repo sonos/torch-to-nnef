@@ -1,5 +1,5 @@
-import torch
 import numpy as np
+import torch
 
 NUMPY_TO_TORCH_DTYPE = {
     np.int8: torch.int8,
@@ -19,6 +19,15 @@ NUMPY_TO_TORCH_DTYPE = {
     np.bool_: torch.bool,
 }
 TORCH_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_TO_TORCH_DTYPE.items()}
+# In both direction it's not a mapping 1<->1 so update is needed
+TORCH_TO_NUMPY_DTYPE.update(
+    {
+        torch.quint8: np.uint8,
+        torch.qint8: np.int8,
+        torch.qint32: np.int32,
+    }
+)
+
 
 INT_TO_TORCH_DTYPE = {
     1: torch.int8,
@@ -57,3 +66,7 @@ def torch_dtype_to_str(torch_type):
     if torch_type == torch.qint8:
         torch_type = torch.int8
     return NUMPY_DTYPE_TO_STR[TORCH_TO_NUMPY_DTYPE[torch_type]]
+
+
+def is_quantized_dtype(dtype: torch.dtype):
+    return dtype in [torch.quint8, torch.qint8, torch.quint4x2, torch.qint32]
