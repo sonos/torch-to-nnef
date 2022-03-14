@@ -262,6 +262,8 @@ def _parse_contant(node: torch._C.Node, data_nodes):
         data = float(data)
     elif dtype == "NoneType":
         data = None
+    elif dtype == "Tensor":
+        assert isinstance(data, torch.Tensor)
     else:
         raise NotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
