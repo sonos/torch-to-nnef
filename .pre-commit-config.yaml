@@ -12,6 +12,10 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
         args: [ --unsafe ]
+      - id: check-json
+      - id: pretty-format-json
+        args: ['--no-sort-keys', '--autofix']
+      - id: check-toml
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.8.0
     hooks:
@@ -32,3 +36,13 @@ repos:
     hooks:
       - id: mypy
         exclude: tests/
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.29.0
+    hooks:
+    - id: pyupgrade
+      args: ['--py37-plus']
+  - repo: git@github.com:PyCQA/prospector.git
+    rev: 1.5.1
+    hooks:
+      - id: prospector
+        types: [python]
