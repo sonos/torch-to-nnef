@@ -282,9 +282,6 @@ def _parse_list_construct(node, data_nodes):
 
 def _aten_inputs_and_op_ref(kind, inputs):
     # HERE we remove unecessary OPS
-    if kind.endswith("_"):
-        # allow to find correct pytorch API fn
-        kind = kind[:-1]
     if kind in [
         "aten::sub",
         "aten::add",
@@ -358,6 +355,9 @@ class TorchOp:
             inputs = inputs[1:]
             call_name = inputs[0].debugName()
         else:
+            if kind.endswith("_"):
+                # allow to find correct pytorch API fn
+                kind = kind[:-1]
             module_getter_ref = MODULE_PATH_ATEN
             op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
 
