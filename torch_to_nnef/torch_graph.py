@@ -34,13 +34,13 @@ class TorchOpTranslatedDifferently(ValueError):
 
 
 CALL_KIND = "prim::CallMethod"
-GETATTR_KIND = "prim::GetAttr"
 CONSTANT_KIND = "prim::Constant"
+GETATTR_KIND = "prim::GetAttr"
 LISTCONSTRUCT_KIND = "prim::ListConstruct"
-MODULE_PATH_ATEN = "TORCH_INTERNAL"
-
+PARAM_KIND = "prim::Param"
 CLASSTYPE_KIND = "ClassType"
 
+MODULE_PATH_ATEN = "TORCH_INTERNAL"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
 
@@ -197,7 +197,7 @@ class TensorVariable(Data):
             name=node_c_value.debugName(),
             shape=node_type.sizes(),
             dtype=str_to_torch_dtype(stype) if stype else None,
-            data=None,
+            data=node_c_value.toIValue(),
         )
 
 
@@ -212,6 +212,13 @@ class PythonConstant(Data):
     @property
     def tracing_data(self):
         return self.data
+
+
+@dataclass
+class ListWithTensor(Data):
+    """ListWithTensor is a list that contains tensor constant or not"""
+
+    data: T.List[Data]
 
 
 @dataclass
@@ -251,11 +258,25 @@ def _parse_contant(node, data_nodes):
 def _parse_list_construct(node, data_nodes):
     # should build a Data
     values = []
+    contains_tensors = False
     for cvalue in node.inputs():
-        values.append(cvalue.toIValue())
-    data_nodes.append(
-        PythonConstant(name=node.output().debugName(), data=values)
-    )
+        value = cvalue.toIValue()
+        if str(cvalue.type()) == "Tensor":
+            contains_tensors = True
+            value = TensorVariable.parse(cvalue)
+
+        values.append(value)
+
+    if contains_tensors:
+        for value in values:
+            if not isinstance(value, TensorVariable):
+                raise NotImplementedError()
+            data_nodes.append(value)
+        data_node = ListWithTensor(name=node.output().debugName(), data=values)
+    else:
+        data_node = PythonConstant(name=node.output().debugName(), data=values)
+    data_nodes.append(data_node)
+
     # }
 
 
