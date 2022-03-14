@@ -304,49 +304,6 @@ INPUT_AND_MODELS += [
     ),
 ]
 
-# Test classical vision models
-if os.environ.get("MODELS"):
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 224, 224),
-            vision_mdl.alexnet(pretrained=True),
-        ),
-    ]
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 256, 256),
-            model,
-        )
-        for model in [
-            vision_mdl.resnet50(pretrained=True),
-            # vision_mdl.regnet_y_8gf(pretrained=True), # works - similar to resnet
-            vision_mdl.efficientnet_b0(pretrained=True),
-        ]
-    ]
-
-
-# Test with quantization
-if os.environ.get("Q8"):
-    INPUT_AND_MODELS = [
-        (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
-        for mod in [
-            nn.Sequential(
-                nn.intrinsic.ConvBnReLU1d(
-                    nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
-                ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
-                # ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(15, 50, 7, stride=3, padding=3),
-                # nn.BatchNorm1d(50),
-                # nn.ReLU(),
-                # ),
-            ),
-        ]
-    ]
-
-
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), op)
     for op in [
@@ -376,6 +333,54 @@ INPUT_AND_MODELS += [
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
     ]
 ]
+
+
+# Test classical vision models
+if os.environ.get("MODELS"):
+    INPUT_AND_MODELS += [
+        (
+            torch.rand(1, 3, 224, 224),
+            vision_mdl.alexnet(pretrained=True),
+        ),
+    ]
+    INPUT_AND_MODELS += [
+        (
+            torch.rand(1, 3, 256, 256),
+            model,
+        )
+        for model in [
+            vision_mdl.resnet50(pretrained=True),
+            # vision_mdl.regnet_y_8gf(
+            # pretrained=True
+            # ),  # works - similar to resnet
+            vision_mdl.mnasnet1_0(
+                pretrained=True
+            ),  # works - nas similar to resnet
+            vision_mdl.efficientnet_b0(pretrained=True),
+        ]
+    ]
+
+
+# Test with quantization
+if os.environ.get("Q8"):
+    INPUT_AND_MODELS = [
+        (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
+        for mod in [
+            nn.Sequential(
+                nn.intrinsic.ConvBnReLU1d(
+                    nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
+                ),
+                # nn.intrinsic.ConvBnReLU1d(
+                # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
+                # ),
+                # nn.intrinsic.ConvBnReLU1d(
+                # nn.Conv1d(15, 50, 7, stride=3, padding=3),
+                # nn.BatchNorm1d(50),
+                # nn.ReLU(),
+                # ),
+            ),
+        ]
+    ]
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
