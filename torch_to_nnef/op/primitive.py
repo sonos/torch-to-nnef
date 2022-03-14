@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import typing as T
 
 import numpy as np
