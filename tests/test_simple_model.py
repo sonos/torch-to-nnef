@@ -320,7 +320,7 @@ if os.environ.get("MODELS"):
         for model in [
             vision_mdl.resnet50(pretrained=True),
             # vision_mdl.regnet_y_8gf(pretrained=True), # works - similar to resnet
-            # vision_mdl.efficientnet_b0(pretrained=True),
+            vision_mdl.efficientnet_b0(pretrained=True),
         ]
     ]
 
