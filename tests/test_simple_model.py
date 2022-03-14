@@ -1,20 +1,18 @@
 """Tests simple models."""
 
-from functools import partial
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 from datetime import datetime
-
-
-import pytest
+from functools import partial
+from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 from torch import nn
-
 from torchvision import models as vision_mdl
+
 from torch_to_nnef.export import export_model_to_nnef
 
 INPUT_AND_MODELS = []
@@ -53,17 +51,18 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
     @classmethod
     def quantize_model_and_stub(cls, model):
         model = cls(model)
+        # pylint: disable-next=attribute-defined-outside-init
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
 
 
-class CatPrim(nn.Module):
-    def __init__(self):
+class ListInputPrim(nn.Module):
+    def __init__(self, op, dims):
         super().__init__()
-        self.y = torch.rand(13, 10, 1)
-        self.op = torch.cat
+        self.y = torch.rand(*dims)
+        self.op = op
 
     def forward(self, x):
         return self.op([x, self.y], dim=1)
@@ -129,7 +128,6 @@ INPUT_AND_MODELS = [
         # }
         # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
-        # tract does not know how to serialize Bool
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,
@@ -167,7 +165,6 @@ INPUT_AND_MODELS += [
 ]
 
 
-"""
 INPUT_AND_MODELS += [
     (
         torch.tensor(
@@ -176,11 +173,10 @@ INPUT_AND_MODELS += [
         UnaryPrimitive(op),
     )
     for op in [
-        TensorFnPrimitive("any", {"dim": 1}),
-        TensorFnPrimitive("all", {"dim": 1}),
+        # TensorFnPrimitive("any", {"dim": 1}),
+        # TensorFnPrimitive("all", {"dim": 1}),
     ]
 ]
-"""
 
 # _binary
 INPUT_AND_MODELS += [
@@ -351,15 +347,35 @@ if os.environ.get("Q8"):
     ]
 
 
-"""
 INPUT_AND_MODELS += [
-    (
-        ([torch.rand(13, 10, 1), torch.rand(13, 10, 1)],),
-        UnaryPrimitive(partial(torch.cat, dim=1)),
-    )
+    (torch.rand(13, 10, 1), op)
+    for op in [
+        ListInputPrim(torch.cat, (13, 10, 1)),
+        # ListInputPrim(torch.stack, (13, 10, 1)), # not implemented in tract
+    ]
 ]
-"""
-INPUT_AND_MODELS += [(torch.rand(13, 10, 1), CatPrim())]
+
+
+def nnef_split(value, axis, ratios):
+    assert value.shape[axis] % sum(ratios) == 0
+
+    multiplier = value.shape[axis] // sum(ratios)
+    sections = [ratio * multiplier for ratio in ratios]
+    return torch.split(value, split_size_or_sections=sections, dim=axis)
+
+
+INPUT_AND_MODELS += [
+    (torch.rand(13, 10, 1), UnaryPrimitive(op))
+    for op in [
+        # internal cpp failure for now
+        # partial(torch.unbind, axis=1),
+        # partial(nnef_split, axis=1, ratios=[3, 3, 4]),
+        #
+        #
+        lambda x: torch.max(x, dim=1, keepdim=True)[0],
+        lambda x: torch.min(x, dim=1, keepdim=False)[0],
+    ]
+]
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):

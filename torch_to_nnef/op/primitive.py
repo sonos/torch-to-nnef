@@ -900,6 +900,34 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def stack(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_node, dim_node) = node.inputs
+    dim = dim_node.data
+    assert isinstance(input_node, ListWithTensor)
+    inputs = []
+    for input_item in input_node.data:
+        if input_item.export_name in name_to_tensor:
+            tensor_ref = name_to_tensor[input_item.export_name]
+        else:
+            tensor_ref = _register_state_node_as_variable(
+                input_item.data,
+                slug_name=input_item.export_name,
+                node=node,
+                g=g,
+                name_to_tensor=name_to_tensor,
+            )
+        inputs.append(tensor_ref)
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "stack",
+        inputs=inputs,
+        attrs={"axis": dim},
+        ensure_tuple=False,
+    )
+
+
 def split(g, node, name_to_tensor, null_ref, torch_graph):
     raise NotImplementedError("split not implemented")
 
@@ -993,6 +1021,38 @@ def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
     _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
 
 
+def reduce_max(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("max_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def reduce_min(g, node, name_to_tensor, null_ref, torch_graph):
+    _reducer("min_reduce", g, node, name_to_tensor, torch_graph)
+
+
+def max_(g, node, name_to_tensor, null_ref, torch_graph):
+    if isinstance(node.inputs[1], PythonConstant):
+        return reduce_max(g, node, name_to_tensor, null_ref, torch_graph)
+    return _unary_output_op_without_params(
+        nnef_op_type="max",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+
+
+def min_(g, node, name_to_tensor, null_ref, torch_graph):
+    if isinstance(node.inputs[1], PythonConstant):
+        return reduce_min(g, node, name_to_tensor, null_ref, torch_graph)
+    return _unary_output_op_without_params(
+        nnef_op_type="min",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+
+
 def repeat(g, node, name_to_tensor, null_ref, torch_graph):
     (input_name, dim_name) = node.export_inputs
     out = NTensor(
@@ -1081,55 +1141,29 @@ def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def where(g, node, name_to_tensor, null_ref, torch_graph):
-    (condition_name, true_value_name, false_value_name) = node.export_inputs
-    condition_node = torch_graph.get_node_by_export_name(condition_name)
-    true_value_node = torch_graph.get_node_by_export_name(true_value_name)
-    false_value_node = torch_graph.get_node_by_export_name(false_value_name)
+    (condition_node, true_value_node, false_value_node) = node.inputs
 
-    for snode, name in zip(
-        [condition_node, true_value_node, false_value_node],
-        [condition_name, true_value_name, false_value_name],
-    ):
-        if hasattr(snode, "value"):
-            data = snode.value.numpy()
-            nnef_tensor = NTensor(
-                g,
-                snode.export_name,
-                dtype=data.dtype.type,
-                shape=snode.shape,
-                data=data,
+    inputs = []
+    for snode in [condition_node, true_value_node, false_value_node]:
+        name = snode.export_name
+        if name in name_to_tensor:
+            inputs.append(name_to_tensor[name])
+        else:
+            snode_ref = _register_state_node_as_variable(
+                torch_tensor=snode.data,
+                slug_name=name,
+                node=node,
+                g=g,
+                name_to_tensor=name_to_tensor,
             )
-            var = NOperation(
-                graph=g,
-                type="variable",
-                name=f"{node.export_name}_{condition_name}_var",
-                inputs=None,
-                outputs=nnef_tensor,
-                attribs={
-                    "label": nnef_tensor.name,
-                    "shape": list(snode.shape),
-                    "dtype": nnef_tensor.dtype,
-                },
-            )
-            name_to_tensor[name] = var.output
+            inputs.append(snode_ref)
 
-    out = NTensor(
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    NOperation(
-        graph=g,
-        type="select",
-        name=f"{node.export_name}_select",
-        inputs=(
-            name_to_tensor[condition_name],
-            name_to_tensor[true_value_name],
-            name_to_tensor[false_value_name],
-        ),
-        outputs=tuple([out]),
+        node,
+        name_to_tensor,
+        nnef_op_type="select",
+        inputs=inputs,
     )
 
 
@@ -1165,6 +1199,8 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "all": "reduce_all",
         "sum": "reduce_sum",
         "pow": "pow_",
+        "max": "max_",
+        "min": "min_",
         # }
     }.get(aten_op_name, aten_op_name)
 
@@ -1196,8 +1232,6 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "log2",
         "copy",
         "rcp",
-        "min",
-        "max",
         "not",
         "eq",
         "ne",
