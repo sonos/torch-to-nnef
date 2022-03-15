@@ -149,6 +149,8 @@ def conv1d_relu(g, node, name_to_tensor, null_ref, torch_graph):
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
+        dtype=np.int8,
+        quant=conv_output_tensor.quant,
     )
     name_to_tensor[out_tensor_name] = output_tensor
     NOperation(
