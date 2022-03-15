@@ -706,15 +706,29 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         zero_point_node,
         _,  # dtype_name
     ) = node.inputs
-    # dtype = torch_graph.get_node_by_export_name(dtype_name).value
-    _add_single_output_op(
+    cast_name = node.outputs[0].export_name
+    out_cast = NTensor(
         g,
-        node,
-        name_to_tensor,
-        "zero_point_linear_quantize",
-        inputs=name_to_tensor[input_node.export_name],
-        attrs={
-            # "dtype": out.dtype,
+        cast_name,
+        quant={
+            "zero_point": zero_point_node.data,
+            "scale": scale_node.data,
+            "bits": 8,
+            "signed": True,  # Should Be dependant of torch type quint vs qint
+            "symmetric": False,
+            "op-name": "zero_point_linear_quantize",
+        },
+    )
+    name_to_tensor[cast_name] = out_cast
+    input_node = node.inputs[0]
+    input_name = input_node.export_name
+    NOperation(
+        graph=g,
+        type="zero_point_linear_quantize",
+        name=f"{cast_name}_dequantize",
+        inputs=name_to_tensor[input_name],
+        outputs=tuple([out_cast]),
+        attribs={
             # "shape": list(node.shape),
             "zero_point": zero_point_node.data,
             "scale": scale_node.data,
@@ -732,6 +746,24 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
 
        (x - zero_point) / scale
     """
+    if False:
+        cast_name = node.outputs[0].export_name
+        out_cast = NTensor(
+            g,
+            cast_name,
+        )
+        name_to_tensor[cast_name] = out_cast
+        input_node = node.inputs[0]
+        input_name = input_node.export_name
+        NOperation(
+            graph=g,
+            type="",
+            name=f"{cast_name}_dequantize",
+            inputs=name_to_tensor[input_name],
+            outputs=tuple([out_cast]),
+            # attribs={"dtype": np.float32},
+        )
+        return
     input_node = node.inputs[0]
     input_name = input_node.export_name
     # TODO
