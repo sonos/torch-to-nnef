@@ -54,6 +54,9 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         # pylint: disable-next=attribute-defined-outside-init
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
+        model_qat.train()
+        for _ in range(10):
+            model_qat(torch.rand(1, 10, 100))
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
 
@@ -427,6 +430,17 @@ def test_should_fail_since_false_output():
         ), f"SHOULD fail tract io check with {model}"
 
 
+def nop(x, *args, **kwargs):
+    return x
+
+
+def special_quantize_io(x, model, is_input):
+    if is_input:
+        # return model.quantize()x
+        return model.quant(x).int_repr()
+    return model.quant(x).int_repr()
+
+
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_model_export(test_input, model):
     """Test simple models"""
@@ -450,12 +464,15 @@ def test_model_export(test_input, model):
             output_names=output_names,
             verbose=False,
         )
-
+        if isinstance(model, torch.quantization.QuantWrapper):
+            fn = partial(special_quantize_io, model=model)
+        else:
+            fn = nop
         kwargs = {
-            f"input_{idx}": input_arg.detach().numpy()
+            f"input_{idx}": fn(input_arg.detach(), is_input=True).numpy()
             for idx, input_arg in enumerate(tup_inputs)
         }
-        kwargs["output"] = test_output.detach().numpy()
+        kwargs["output"] = fn(test_output.detach(), is_input=False).numpy()
 
         np.savez(io_npz_path, **kwargs)
         real_export_path = export_path.with_suffix(".nnef.tgz")

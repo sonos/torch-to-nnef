@@ -706,37 +706,17 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         zero_point_node,
         _,  # dtype_name
     ) = node.inputs
-    cast_name = node.outputs[0].export_name
-    out_cast = NTensor(
-        g,
-        cast_name,
-        quant={
-            "zero_point": zero_point_node.data,
-            "scale": scale_node.data,
-            "bits": 8,
-            "signed": True,  # Should Be dependant of torch type quint vs qint
-            "symmetric": False,
-            "op-name": "zero_point_linear_quantize",
-        },
-    )
-    name_to_tensor[cast_name] = out_cast
     input_node = node.inputs[0]
-    input_name = input_node.export_name
-    NOperation(
-        graph=g,
-        type="zero_point_linear_quantize",
-        name=f"{cast_name}_dequantize",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out_cast]),
-        attribs={
-            # "shape": list(node.shape),
-            "zero_point": zero_point_node.data,
-            "scale": scale_node.data,
-            "bits": 8,
-            "signed": True,  # dtype != torch.quint8,
-            "symmetric": False,
-        },
-    )
+    tensor = name_to_tensor[input_node.export_name]
+    tensor.quant = {
+        "zero_point": zero_point_node.data,
+        "scale": scale_node.data,
+        "bits": 8,
+        "signed": True,  # Should Be dependant of torch type quint vs qint
+        "symmetric": False,
+        "op-name": "zero_point_linear_quantize",
+    }
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
 def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
@@ -746,104 +726,8 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
 
        (x - zero_point) / scale
     """
-    if False:
-        cast_name = node.outputs[0].export_name
-        out_cast = NTensor(
-            g,
-            cast_name,
-        )
-        name_to_tensor[cast_name] = out_cast
-        input_node = node.inputs[0]
-        input_name = input_node.export_name
-        NOperation(
-            graph=g,
-            type="",
-            name=f"{cast_name}_dequantize",
-            inputs=name_to_tensor[input_name],
-            outputs=tuple([out_cast]),
-            # attribs={"dtype": np.float32},
-        )
-        return
     input_node = node.inputs[0]
-    input_name = input_node.export_name
-    # TODO
-    # if "linear_quant" not in input_node.attributes:
-    # raise NotImplementedError("need to propagate linear_quant in attr.")
-    scale = np.array(1.0)
-    zero_point = np.array(0)
-
-    node = node.outputs[0]
-    cast_name = f"{node.export_name}_cast"
-    out_cast = NTensor(
-        g,
-        cast_name,
-        dtype=node.np_dtype,
-        shape=node.shape,
-    )
-    name_to_tensor[cast_name] = out_cast
-
-    NOperation(
-        graph=g,
-        type="cast",
-        name=f"{node.export_name}_dequantize",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out_cast]),
-        attribs={"dtype": np.float32},
-    )
-
-    sub_name = f"{node.export_name}_sub"
-    out_sub = NTensor(
-        g,
-        sub_name,
-        dtype=node.np_dtype,
-        shape=node.shape,
-    )
-    name_to_tensor[sub_name] = out_sub
-
-    NOperation(
-        graph=g,
-        type="sub",
-        name=f"{node.export_name}_dequantize",
-        inputs=tuple(
-            [
-                name_to_tensor[input_name],
-                NTensor(
-                    g,
-                    sub_name + "_zero_point",
-                    dtype=node.np_dtype,
-                    data=zero_point,
-                ),
-            ]
-        ),
-        outputs=tuple([out_sub]),
-    )
-
-    div_name = f"{node.export_name}_div"
-    out_div = NTensor(
-        g,
-        node.export_name,
-        dtype=node.np_dtype,
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out_div
-
-    NOperation(
-        graph=g,
-        type="div",
-        name=f"{node.export_name}",
-        inputs=tuple(
-            [
-                out_sub,
-                NTensor(
-                    g,
-                    div_name + "_scale",
-                    dtype=node.np_dtype,
-                    data=scale,
-                ),
-            ]
-        ),
-        outputs=tuple([out_div]),
-    )
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
 def transpose(g, node, name_to_tensor, null_ref, torch_graph):
