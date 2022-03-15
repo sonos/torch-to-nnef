@@ -45,10 +45,10 @@ def _register_state_node_as_variable(
     g,
     name_to_tensor,
 ):
+
     # peculiarity of tract implementation
     if len(torch_tensor.shape) == 1:
         torch_tensor = torch_tensor.unsqueeze(0)
-
     nnef_tensor_ref = add_quantized_tensor_to_ngraph(
         g, node, torch_tensor, slug_name, name_to_tensor
     )
@@ -73,12 +73,14 @@ def _conv(packed_params, node, g, name_to_tensor):
     conv_bias = packed_params.bias()
 
     onode = node.outputs[0]
-    stride = packed_params.stride()
-    dilation = packed_params.dilation()
-    padding = packed_params.padding()
+    stride = packed_params.stride()[:1]
+    dilation = packed_params.dilation()[:1]
+    padding = packed_params.padding()[:1]
     groups = packed_params.groups()
     weight_ref = _register_state_node_as_variable(
-        conv_weight,
+        # 2nd axis is good
+        #
+        conv_weight.permute(0, 1, 3, 2).squeeze(-1),  # .permute(3, 1, 0, 2),
         slug_name="weight",
         node=onode,
         g=g,
@@ -102,6 +104,14 @@ def _conv(packed_params, node, g, name_to_tensor):
         graph=g,
         name=out_tensor_name,
         dtype=np.int8,
+        quant={
+            "scale": node.inputs[2].data,
+            "zero_point": node.inputs[3].data,
+            "bits": 8,
+            "signed": True,  # Should Be dependant of torch type quint vs qint
+            "symmetric": False,
+            "op-name": "zero_point_linear_quantize",
+        },
     )
     name_to_tensor[out_tensor_name] = output_tensor
 
