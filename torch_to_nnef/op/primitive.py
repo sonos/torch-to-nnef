@@ -12,10 +12,9 @@ from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 def _add_output_tensor(
     g,
-    node,
+    onode,
     name_to_tensor,
 ):
-    onode = node.outputs[0]
     out = NTensor(
         g,
         onode.export_name,
@@ -29,7 +28,7 @@ def _add_output_tensor(
 def _add_single_output_op(
     g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
-    out = _add_output_tensor(g, node, name_to_tensor)
+    out = _add_output_tensor(g, node.outputs[0], name_to_tensor)
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     NOperation(
@@ -850,14 +849,16 @@ def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def _reducer(aten_op_name: str, g, node, name_to_tensor, torch_graph):
+def _reducer(
+    aten_op_name: str, g, node, name_to_tensor, torch_graph, output_idx: int = 0
+):
 
     (input_node, dim_node, keep_dim_node) = node.inputs
 
     keep_dim = keep_dim_node.data
 
-    onode = node.outputs[0]
-    out = _add_output_tensor(g, node, name_to_tensor)
+    onode = node.outputs[output_idx]
+    out = _add_output_tensor(g, onode, name_to_tensor)
     op_reduce_out = None
     if not keep_dim:
         # apply squeeze
@@ -905,19 +906,39 @@ def argmin(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def reduce_any(g, node, name_to_tensor, null_ref, torch_graph):
+    assert len(node.outputs) == 1
     _reducer("any_reduce", g, node, name_to_tensor, torch_graph)
 
 
 def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
+    assert len(node.outputs) == 1
     _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
 
 
 def reduce_max(g, node, name_to_tensor, null_ref, torch_graph):
+    n_outputs = len(node.outputs)
+    if n_outputs > 2:
+        raise NotImplementedError(
+            f"unknown 'max' variant with {n_outputs} outputs used"
+        )
     _reducer("max_reduce", g, node, name_to_tensor, torch_graph)
+    if n_outputs == 2:
+        _reducer(
+            "argmax_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
+        )
 
 
 def reduce_min(g, node, name_to_tensor, null_ref, torch_graph):
+    n_outputs = len(node.outputs)
+    if n_outputs > 2:
+        raise NotImplementedError(
+            f"unknown 'min' variant with {n_outputs} outputs used"
+        )
     _reducer("min_reduce", g, node, name_to_tensor, torch_graph)
+    if n_outputs == 2:
+        _reducer(
+            "argmin_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
+        )
 
 
 def max_(g, node, name_to_tensor, null_ref, torch_graph):

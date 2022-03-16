@@ -131,8 +131,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("mean", {"dim": 1}),
         TensorFnPrimitive("mean", {"dim": 1, "keepdim": True}),
         TensorFnPrimitive("sum", {"dim": 1}),
-        # TensorFnPrimitive("max", {"dim": 1}),  # 2x outputs
-        # TensorFnPrimitive("min", {"dim": 1}), # 2x outputs
+        TensorFnPrimitive("max", {"dim": 1}),
+        TensorFnPrimitive("min", {"dim": 1}),
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
         # TensorFnPrimitive(
@@ -258,7 +258,8 @@ INPUT_AND_MODELS += [
         # nn.AvgPool1d(10), # Not same results between tract and Pytorch
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
-        # Should we handle LSTM and GRU ??? => ONNX ->tract NNEF (check gen)
+        # nn.LSTM(100, 5),
+        # nn.GRU(100, 5),
     ]
 ]
 
@@ -438,8 +439,11 @@ def test_model_export(test_input, model):
             test_input if isinstance(test_input, tuple) else (test_input,)
         )
         input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
-        output_names = ["output"]
         test_output = model(*tup_inputs)
+        if isinstance(test_output, torch.Tensor):
+            test_output = [test_output]
+        test_output = list(test_output)
+        output_names = [f"output_{idx}" for idx, _ in enumerate(test_output)]
         export_model_to_nnef(
             model=model,
             args=test_input,
@@ -456,7 +460,12 @@ def test_model_export(test_input, model):
             f"input_{idx}": fn(input_arg.detach(), is_input=True).numpy()
             for idx, input_arg in enumerate(tup_inputs)
         }
-        kwargs["output"] = fn(test_output.detach(), is_input=False).numpy()
+        kwargs.update(
+            {
+                f"output_{idx}": fn(output_arg.detach(), is_input=True).numpy()
+                for idx, output_arg in enumerate(test_output)
+            }
+        )
 
         np.savez(io_npz_path, **kwargs)
         real_export_path = export_path.with_suffix(".nnef.tgz")
