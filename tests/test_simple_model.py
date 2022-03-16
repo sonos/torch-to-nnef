@@ -71,6 +71,14 @@ class ListInputPrim(nn.Module):
         return self.op([x, self.y], dim=1)
 
 
+def nnef_split(value, axis, ratios):
+    assert value.shape[axis] % sum(ratios) == 0
+
+    multiplier = value.shape[axis] // sum(ratios)
+    sections = [ratio * multiplier for ratio in ratios]
+    return torch.split(value, split_size_or_sections=sections, dim=axis)
+
+
 # Base unary operations
 _condition_1 = condition = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
@@ -114,9 +122,6 @@ INPUT_AND_MODELS = [
         partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
-        # need torch_graph to handle ops with multi outputs {
-        #    partial(torch.unbind, dim=1)
-        # }
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,
@@ -300,14 +305,6 @@ INPUT_AND_MODELS += [
         # ListInputPrim(torch.stack, (13, 10, 1)), # not implemented in tract
     ]
 ]
-
-
-def nnef_split(value, axis, ratios):
-    assert value.shape[axis] % sum(ratios) == 0
-
-    multiplier = value.shape[axis] // sum(ratios)
-    sections = [ratio * multiplier for ratio in ratios]
-    return torch.split(value, split_size_or_sections=sections, dim=axis)
 
 
 INPUT_AND_MODELS += [

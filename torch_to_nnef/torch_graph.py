@@ -43,6 +43,7 @@ TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
 CLASSTYPE_KIND = "ClassType"
 TUPLETYPE_KIND = "TupleType"
+LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
 
 MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
@@ -536,6 +537,11 @@ class TorchOp:
                     out = TupleTensors.parse_from_tuple_type(out_node)
                     for tupitem in out.data:
                         data_nodes.append(tupitem)
+                elif out_node.type().kind() == LISTTYPE_KIND:
+                    raise NotImplementedError(
+                        "ListType can be of arbitrary length "
+                        "and will probably need a special Class to handle it"
+                    )
                 else:
                     out = TensorVariable.parse(out_node)
                 outputs.append(out)
