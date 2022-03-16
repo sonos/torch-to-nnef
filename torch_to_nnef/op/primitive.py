@@ -1068,16 +1068,17 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
     # remap
+    if aten_op_name.endswith("_"):
+        aten_op_name = aten_op_name[:-1]
     aten_op_name = {
-        "add_": "add",
         "_relu": "relu",
         "reciprocal": "rcp",
         "clone": "copy",
         "bitwise_not": "not",
         "bitwise_not_cpu": "not",
         "bitwise_cpu": "and",
-        "__and__": "and",
-        "__or__": "or",
+        "__and_": "and",
+        "__or_": "or",
         "less": 'lt',
         "greater": 'gt',
         "less_equal": 'le',

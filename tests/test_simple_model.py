@@ -316,7 +316,6 @@ INPUT_AND_MODELS += [
         # partial(torch.unbind, axis=1),
         # partial(nnef_split, axis=1, ratios=[3, 3, 4]),
         #
-        #
         lambda x: torch.max(x, dim=1, keepdim=True)[0],
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
     ]

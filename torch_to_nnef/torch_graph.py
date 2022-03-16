@@ -367,7 +367,9 @@ def _aten_inputs_and_op_ref(kind, inputs):
     # HERE we remove unecessary OPS
     if kind in [
         "aten::sub",
+        "aten::sub_",
         "aten::add",
+        "aten::add_",
     ]:
         # remove useless ref to scaling (probably never used)
         inputs = inputs[:2]
