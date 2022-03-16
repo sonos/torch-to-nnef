@@ -337,11 +337,8 @@ def _pooling_op(
         dilation = [0 for _ in stride]
 
     # peculiarity of tract implementation
-    # not sure what to do need discussion with @kali
     # apparently tract does expect max_pool to be always 2d only (including
     # input.shape)
-
-    # To handle this on our side we should
     onode = node.outputs[0]
     if len(onode.shape) > len(kernel_size):
         missing_n_dims = len(onode.shape) - len(kernel_size)
@@ -349,8 +346,6 @@ def _pooling_op(
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
         padding = padding + ([0] * missing_n_dims)
-    # kernel_size = [1, 1] + kernel_size + [1]
-    # but also 'unsqueeze' input by 1 and 'squeeze' it back
 
     _add_single_output_op(
         g,
