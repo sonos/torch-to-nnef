@@ -790,6 +790,9 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
         if input_item.export_name in name_to_tensor:
             tensor_ref = name_to_tensor[input_item.export_name]
         else:
+            if input_item.data is None:
+                torch_graph.printall()
+                raise NotImplementedError(f"cat with input_item: {input_item}")
             tensor_ref = _register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,

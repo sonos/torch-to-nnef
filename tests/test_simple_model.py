@@ -217,7 +217,6 @@ INPUT_AND_MODELS += [
         BinaryPrimitive(op),
     )
     for op in [
-        # tract does not handle io being bool
         (lambda x, y: x & y),  # and
         (lambda x, y: x | y),  # or
     ]
