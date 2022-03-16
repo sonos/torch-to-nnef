@@ -72,10 +72,10 @@ class ListInputPrim(nn.Module):
 
 
 # Base unary operations
-_condition_1 = condition = torch.eye(13, 10).to(torch.bool)
-_input0 = torch.zeros(13, 10)
+_condition_1 = condition = torch.eye(5, 4).to(torch.bool)
+_input0 = torch.zeros(5, 4)
 INPUT_AND_MODELS = [
-    (torch.rand(13, 10), UnaryPrimitive(op))
+    (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
     for op in [
         torch.sin,
         torch.cos,
@@ -103,34 +103,20 @@ INPUT_AND_MODELS = [
         # torch.atanh,
         # torch.reciprocal,
         # torch.clone,
+        # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
-        # In [59]: torch.arange(10).reshape(5, 2)
-        # Out[59]:
-        # tensor([[0, 1],
-        #         [2, 3],
-        #         [4, 5],
-        #         [6, 7],
-        #         [8, 9]])
-        # In [60]: torch.transpose(torch.arange(10).reshape(5, 2), dim0=1, dim1=0)
-        # Out[60]:
-        # tensor([[0, 2, 4, 6, 8],
-        #         [1, 3, 5, 7, 9]])
-        # partial(
-        # torch.transpose, dim0=1, dim1=0
-        # ),  # tract does not find same results ??
-        #
-        # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
-        #
-        partial(torch.reshape, shape=(13, 5, 2)),
+        # tract need reversed NNEF transpose.axes=[] order than spec
+        partial(torch.transpose, dim0=1, dim1=0),
+        # tract need reversed NNEF transpose.axes=[] order than spec
+        partial(torch.permute, dims=[1, 0]),
+        partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
+        partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
         # need torch_graph to handle ops with multi outputs {
-        #    partial(torch.split, split_size_or_sections=5, dim=1),
         #    partial(torch.unbind, dim=1)
         # }
-        # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
-        partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,
