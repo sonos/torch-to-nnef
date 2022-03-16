@@ -731,53 +731,37 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def transpose(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dim0_name, dim1_name) = node.export_inputs
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    dim0 = torch_graph.get_node_by_export_name(dim0_name).value
-    dim1 = torch_graph.get_node_by_export_name(dim1_name).value
+    (input_node, dim0_node, dim1_node) = node.inputs
+    dim0 = dim0_node.data
+    dim1 = dim1_node.data
 
     new_dims_ranks = []
-    for _ in range(len(node.shape)):
+    for _ in reversed(range(len(node.outputs[0].shape))):
         if _ == dim0:
             new_dims_ranks.append(dim1)
         elif _ == dim1:
             new_dims_ranks.append(dim0)
         else:
             new_dims_ranks.append(_)
-
-    NOperation(
-        graph=g,
-        type="transpose",
-        name=f"{node.export_name}",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"axes": new_dims_ranks},
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"axes": new_dims_ranks},
     )
 
 
 def permute(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dims_name) = node.export_inputs
-    out = NTensor(
+    (input_node, dims_node) = node.inputs
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    dims = torch_graph.get_node_by_export_name(dims_name).attributes['values']
-    NOperation(
-        graph=g,
-        type="transpose",
-        name=f"{node.export_name}",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"axes": dims},
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"axes": list(reversed(dims_node.data))},
     )
 
 
