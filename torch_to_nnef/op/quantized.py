@@ -69,8 +69,8 @@ def _register_state_node_as_variable(
 
 
 def _conv(packed_params, node, g, name_to_tensor):
-    conv_weight = packed_params.weight()
-    conv_bias = packed_params.bias()
+    conv_weight = packed_params.weight().data
+    conv_bias = packed_params.bias().data
 
     onode = node.outputs[0]
     stride = packed_params.stride()[:1]

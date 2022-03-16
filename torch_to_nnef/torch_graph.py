@@ -1,9 +1,6 @@
-import logging
 import typing as T
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache
 
 import numpy as np
 import torch
@@ -16,11 +13,9 @@ from torch_to_nnef.dtypes import (
     is_quantized_dtype,
     str_to_torch_dtype,
 )
+from torch_to_nnef.utils import cache
 
 # from .console import Console
-
-
-LOGGER = logging.getLogger(__name__)
 
 
 class JitTraceFailed(RuntimeError):
@@ -285,9 +280,9 @@ class TorchConstant(Data):
 def _find_data_node(data_nodes: T.List[Data], name: str):
     try:
         return next(d for d in data_nodes if d.name == name)
-    except StopIteration:
+    except StopIteration as exp:
         names = [dnode.name for dnode in data_nodes]
-        raise NotFoundDataNode(f"'{name}' not found in {names}")
+        raise NotFoundDataNode(f"'{name}' not found in {names}") from exp
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
@@ -332,6 +327,12 @@ def _parse_contant(node: torch._C.Node, data_nodes):
         data = None
     elif dtype == "Tensor":
         assert isinstance(data, torch.Tensor)
+        data_nodes.append(
+            TensorVariable(
+                name=name, data=data, shape=list(data.shape), dtype=data.dtype
+            )
+        )
+        return
     else:
         raise NotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
@@ -443,7 +444,7 @@ class TorchOp:
                 in_name = inp.debugName()
                 try:
                     _find_data_node(data_nodes, in_name)
-                except NotFoundDataNode as exp:
+                except NotFoundDataNode:
                     _parse_getattr_script_obj(inp.node(), module, data_nodes)
         else:
             module_getter_ref = MODULE_PATH_ATEN
@@ -484,12 +485,6 @@ class TorchOp:
         return tuple(_.tracing_data for _ in self.inputs)
 
     def realise_output_type_and_size(self) -> bool:
-        # TODO find right place to add this
-        if self.op_ref and _is_io_qantized_module(self.op_ref):
-            for dnode in self.inputs:
-                if not is_quantized_dtype(dnode.dtype):
-                    dnode.dtype = torch.quint8
-
         if not all(_.tracable for _ in self.inputs):
             return False
 
@@ -532,7 +527,7 @@ class TorchModuleTraceHelper:
             self.parse(provided_inputs=inputs, provided_outputs=outputs)
 
     @property  # type: ignore
-    @lru_cache(1)
+    @cache
     def _torch_trace(self):
         try:
             return jit.trace(self._module, self._args)
@@ -546,7 +541,7 @@ class TorchModuleTraceHelper:
             ) from exp
 
     @property  # type: ignore
-    @lru_cache(1)
+    @cache
     def _torch_graph(self):
         return self._torch_trace.graph
 
@@ -702,12 +697,6 @@ class TorchModuleTraceHelper:
                 raise NotImplementedError(
                     f"missing unshaped_data: {unshaped_data}"
                 )
-                LOGGER.warning(
-                    "following nodes doesn't have shape concretized:"
-                )
-                for _ in unshaped_data.values():
-                    LOGGER.warning("\t%s", _)
-                break
 
     def merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
@@ -722,6 +711,12 @@ class TorchModuleTraceHelper:
                     innode if innode != node else ref_node
                     for innode in op_node.inputs
                 ]
+            for data_node in self.data_nodes:
+                if isinstance(data_node, ListWithTensor):  # update ref
+                    data_node.data = [
+                        dnode if dnode != node else ref_node
+                        for dnode in data_node.data
+                    ]
 
         for node, ref_node in zip(submodule_graph.outputs, wire_outputs):
             for op_node in submodule_graph.op_nodes:
@@ -729,6 +724,12 @@ class TorchModuleTraceHelper:
                     outnode if outnode != node else ref_node
                     for outnode in op_node.outputs
                 ]
+            for data_node in self.data_nodes:
+                if isinstance(data_node, ListWithTensor):  # update ref
+                    data_node.data = [
+                        dnode if dnode != node else ref_node
+                        for dnode in data_node.data
+                    ]
 
         to_del_nodes = submodule_graph.inputs + submodule_graph.outputs
         submodule_graph.data_nodes = [
@@ -787,13 +788,21 @@ class TorchModuleTraceHelper:
                 )
 
     def apply_renaming_scheme(self, scheme="natural_verbose"):
-        """ """
+        """Rename availlable data node following a scheme
+
+        by default the natural_verbose pattern built is as close as possible
+        to Pytorch graph context info. This pattern might come as too verbose.
+
+        we propose a more concise numeric pattern that allow easier debug
+        when looking at NNEF export correctness.
+
+        """
         if scheme == "natural_verbose":
             return
         if scheme == "numeric":
             count_ref = defaultdict(int)
+            mapping = {}
             for dnode in self.data_nodes:
-                data_type = dnode
                 prefix = {
                     TensorVariable: "v",
                     PythonConstant: "c",
@@ -801,10 +810,14 @@ class TorchModuleTraceHelper:
                     TorchConstant: "t",
                     ListWithTensor: "l",
                     Data: "d",  # not used, avoid static analysis complain
-                }[data_type.__class__]
+                }[dnode.__class__]
+                if dnode.name in mapping:
+                    dnode.name = mapping[dnode.name]
+                    continue
                 suffix = count_ref[prefix]
                 count_ref[prefix] += 1
-                dnode.name = prefix + str(suffix)
+                mapping[dnode.name] = prefix + str(suffix)
+                dnode.name = mapping[dnode.name]
 
     def parse(
         self,
@@ -832,8 +845,8 @@ class TorchModuleTraceHelper:
                 "subsection": "red",  # dim bold
             }
         )
-        print = console.print
-        print(
+        cprint = console.print
+        cprint(
             "\n\n[type]"
             + "_" * 35
             + "[Pytorch JIT Graph]"
@@ -841,36 +854,45 @@ class TorchModuleTraceHelper:
             + "[/type]"
         )
         inputs_str = ", ".join(_.slug for _ in self.inputs)
-        print(f"inputs: ({inputs_str})")
-        print("")
-        print(f"\t[subsection]Static Constants:[/subsection]")
+        cprint(f"inputs: ({inputs_str})")
+        cprint("")
+        cprint("\t[subsection]Static Constants:[/subsection]")
         for _ in self.data_nodes:
             if isinstance(_, PythonConstant):
-                print(
+                cprint(
                     f"\t\t[type]{type(_.data).__name__}[/type] "
                     f"[var]{_.export_name}[/var] := {_.data}"
                 )
 
-        print()
-        print(f"\t[subsection]Static Tensor:[/subsection]")
+        cprint()
+        cprint("\t[subsection]Static Tensor:[/subsection]")
         for _ in self.data_nodes:
-            if isinstance(_, TensorVariable) and _.data:
-                print(
+            if isinstance(_, TensorVariable) and _.data is not None:
+                cprint(
                     f"\t\t[type]{_.dtype}[/type] "
                     f"[var]{_.export_name}[/var] := shape({_.shape})"
                 )
 
-        print()
-        print(f"\t[subsection]Blob TorchScript:[/subsection]")
+        cprint()
+        cprint("\t[subsection]Blob TorchScript:[/subsection]")
         for _ in self.data_nodes:
             if isinstance(_, BlobTorchScriptObject):
-                print(
+                cprint(
                     f"\t\t[type]{type(_.data).__name__}[/type] "
                     f"[var]{_.export_name}[/var] := ?"
                 )
+        cprint("")
+        cprint("\t[subsection]List:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, ListWithTensor):
+                refs = ", ".join([d.export_name for d in _.data])
+                cprint(
+                    f"\t\t[type]List[/type] "
+                    f"[var]{_.export_name}[/var] := ({refs})"
+                )
 
-        print("")
-        print(f"\t[subsection]Directed Acyclic Graph:[/subsection]")
+        cprint("")
+        cprint("\t[subsection]Directed Acyclic Graph:[/subsection]")
         for _ in self.op_nodes:
             inputs_str = ""
             if _.inputs:
@@ -885,12 +907,12 @@ class TorchModuleTraceHelper:
                     for o in _.outputs
                 ]
             )
-            print(
-                f"\t\t "
+            cprint(
+                "\t\t "
                 f"{outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
         outputs_str = ", ".join(_.slug for _ in self.outputs)
-        print("")
-        print(f"outputs: ({outputs_str})")
-        print("[type]" + "_" * 100 + "[/type]")
+        cprint("")
+        cprint(f"outputs: ({outputs_str})")
+        cprint("[type]" + "_" * 100 + "[/type]")
