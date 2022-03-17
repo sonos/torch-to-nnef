@@ -330,7 +330,7 @@ if os.environ.get("MODELS"):
     INPUT_AND_MODELS += [
         (
             torch.rand(1, 3, 224, 224),
-            vision_mdl.alexnet(pretrained=True),
+            vision_mdl.alexnet(pretrained=True, progress=False),
         ),
     ]
     INPUT_AND_MODELS += [
@@ -339,14 +339,14 @@ if os.environ.get("MODELS"):
             model,
         )
         for model in [
-            vision_mdl.resnet50(pretrained=True),
+            vision_mdl.resnet50(pretrained=True, progress=False),
             # vision_mdl.regnet_y_8gf(
             # pretrained=True
             # ),  # works - similar to resnet
             vision_mdl.mnasnet1_0(
-                pretrained=True
+                pretrained=True, progress=False
             ),  # works - nas similar to resnet
-            vision_mdl.efficientnet_b0(pretrained=True),
+            vision_mdl.efficientnet_b0(pretrained=True, progress=False),
         ]
     ]
 
