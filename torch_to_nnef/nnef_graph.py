@@ -1,4 +1,3 @@
-import logging
 import typing as T
 from datetime import datetime
 
@@ -7,17 +6,13 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import TORCH_TO_NUMPY_DTYPE
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
-
 from torch_to_nnef.torch_graph import (
-    TorchModuleTraceHelper,
-    TensorVariable,
     Data,
+    TensorVariable,
+    TorchModuleTraceHelper,
 )
-
-LOGGER = logging.getLogger(__name__)
 
 
 class GraphExtractor:
@@ -39,7 +34,7 @@ class GraphExtractor:
             )
         if node.kind.startswith("prim::"):
             if node.kind == "prim::ListConstruct":
-                return
+                return []
 
         if node.kind.startswith("quantized::"):
             return quantized_node_to_nnef_tensor_and_ops(

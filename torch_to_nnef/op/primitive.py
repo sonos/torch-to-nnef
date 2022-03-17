@@ -12,10 +12,9 @@ from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 def _add_output_tensor(
     g,
-    node,
+    onode,
     name_to_tensor,
 ):
-    onode = node.outputs[0]
     out = NTensor(
         g,
         onode.export_name,
@@ -29,7 +28,7 @@ def _add_output_tensor(
 def _add_single_output_op(
     g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
-    out = _add_output_tensor(g, node, name_to_tensor)
+    out = _add_output_tensor(g, node.outputs[0], name_to_tensor)
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     NOperation(
@@ -337,11 +336,8 @@ def _pooling_op(
         dilation = [0 for _ in stride]
 
     # peculiarity of tract implementation
-    # not sure what to do need discussion with @kali
     # apparently tract does expect max_pool to be always 2d only (including
     # input.shape)
-
-    # To handle this on our side we should
     onode = node.outputs[0]
     if len(onode.shape) > len(kernel_size):
         missing_n_dims = len(onode.shape) - len(kernel_size)
@@ -349,8 +345,6 @@ def _pooling_op(
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
         padding = padding + ([0] * missing_n_dims)
-    # kernel_size = [1, 1] + kernel_size + [1]
-    # but also 'unsqueeze' input by 1 and 'squeeze' it back
 
     _add_single_output_op(
         g,
@@ -701,37 +695,22 @@ def pow_(g, node, name_to_tensor, **kwargs):
 
 def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     (
-        input_name,
-        scale_name,
-        zero_point_name,
+        input_node,
+        scale_node,
+        zero_point_node,
         _,  # dtype_name
-    ) = node.export_inputs
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    scale = torch_graph.get_node_by_export_name(scale_name).value
-    zero_point = torch_graph.get_node_by_export_name(zero_point_name).value
-    # dtype = torch_graph.get_node_by_export_name(dtype_name).value
-    NOperation(
-        graph=g,
-        type="zero_point_linear_quantize",
-        name=f"{node.export_name}_op",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={
-            # "dtype": out.dtype,
-            # "shape": list(node.shape),
-            "zero_point": zero_point,
-            "scale": scale,
-            "bits": 8,
-            "signed": True,  # dtype != torch.quint8,
-            "symmetric": False,
-        },
-    )
+    ) = node.inputs
+    input_node = node.inputs[0]
+    tensor = name_to_tensor[input_node.export_name]
+    tensor.quant = {
+        "zero_point": zero_point_node.data,
+        "scale": scale_node.data,
+        "bits": 8,
+        "signed": True,  # Should Be dependant of torch type quint vs qint
+        "symmetric": False,
+        "op-name": "zero_point_linear_quantize",
+    }
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
 def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
@@ -741,134 +720,42 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
 
        (x - zero_point) / scale
     """
-    input_name = node.export_inputs[0]
-    input_node = torch_graph.get_node_by_export_name(input_name)
-    if "linear_quant" not in input_node.attributes:
-        raise NotImplementedError("need to propagate linear_quant in attr.")
-    scale = np.array(input_node.attributes['linear_quant']['scale'])
-    zero_point = np.array(input_node.attributes['linear_quant']['zero_point'])
-
-    cast_name = f"{node.export_name}_cast"
-    out_cast = NTensor(
-        g,
-        cast_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[cast_name] = out_cast
-
-    NOperation(
-        graph=g,
-        type="cast",
-        name=f"{node.export_name}_dequantize",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out_cast]),
-        attribs={"dtype": np.float32},
-    )
-
-    sub_name = f"{node.export_name}_sub"
-    out_sub = NTensor(
-        g,
-        sub_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[sub_name] = out_sub
-
-    NOperation(
-        graph=g,
-        type="sub",
-        name=f"{node.export_name}_dequantize",
-        inputs=tuple(
-            [
-                name_to_tensor[input_name],
-                NTensor(
-                    g,
-                    sub_name + "_zero_point",
-                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-                    data=zero_point,
-                ),
-            ]
-        ),
-        outputs=tuple([out_sub]),
-    )
-
-    div_name = f"{node.export_name}_div"
-    out_div = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out_div
-
-    NOperation(
-        graph=g,
-        type="div",
-        name=f"{node.export_name}",
-        inputs=tuple(
-            [
-                out_sub,
-                NTensor(
-                    g,
-                    div_name + "_scale",
-                    dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-                    data=scale,
-                ),
-            ]
-        ),
-        outputs=tuple([out_div]),
-    )
+    input_node = node.inputs[0]
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
 def transpose(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dim0_name, dim1_name) = node.export_inputs
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    dim0 = torch_graph.get_node_by_export_name(dim0_name).value
-    dim1 = torch_graph.get_node_by_export_name(dim1_name).value
+    (input_node, dim0_node, dim1_node) = node.inputs
+    dim0 = dim0_node.data
+    dim1 = dim1_node.data
 
     new_dims_ranks = []
-    for _ in range(len(node.shape)):
+    for _ in reversed(range(len(node.outputs[0].shape))):
         if _ == dim0:
             new_dims_ranks.append(dim1)
         elif _ == dim1:
             new_dims_ranks.append(dim0)
         else:
             new_dims_ranks.append(_)
-
-    NOperation(
-        graph=g,
-        type="transpose",
-        name=f"{node.export_name}",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"axes": new_dims_ranks},
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"axes": new_dims_ranks},
     )
 
 
 def permute(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dims_name) = node.export_inputs
-    out = NTensor(
+    (input_node, dims_node) = node.inputs
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    dims = torch_graph.get_node_by_export_name(dims_name).attributes['values']
-    NOperation(
-        graph=g,
-        type="transpose",
-        name=f"{node.export_name}",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"axes": dims},
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"axes": list(reversed(dims_node.data))},
     )
 
 
@@ -881,6 +768,9 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
         if input_item.export_name in name_to_tensor:
             tensor_ref = name_to_tensor[input_item.export_name]
         else:
+            if input_item.data is None:
+                torch_graph.printall()
+                raise NotImplementedError(f"cat with input_item: {input_item}")
             tensor_ref = _register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,
@@ -959,14 +849,16 @@ def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def _reducer(aten_op_name: str, g, node, name_to_tensor, torch_graph):
+def _reducer(
+    aten_op_name: str, g, node, name_to_tensor, torch_graph, output_idx: int = 0
+):
 
     (input_node, dim_node, keep_dim_node) = node.inputs
 
     keep_dim = keep_dim_node.data
 
-    onode = node.outputs[0]
-    out = _add_output_tensor(g, node, name_to_tensor)
+    onode = node.outputs[output_idx]
+    out = _add_output_tensor(g, onode, name_to_tensor)
     op_reduce_out = None
     if not keep_dim:
         # apply squeeze
@@ -1014,19 +906,39 @@ def argmin(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def reduce_any(g, node, name_to_tensor, null_ref, torch_graph):
+    assert len(node.outputs) == 1
     _reducer("any_reduce", g, node, name_to_tensor, torch_graph)
 
 
 def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
+    assert len(node.outputs) == 1
     _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
 
 
 def reduce_max(g, node, name_to_tensor, null_ref, torch_graph):
+    n_outputs = len(node.outputs)
+    if n_outputs > 2:
+        raise NotImplementedError(
+            f"unknown 'max' variant with {n_outputs} outputs used"
+        )
     _reducer("max_reduce", g, node, name_to_tensor, torch_graph)
+    if n_outputs == 2:
+        _reducer(
+            "argmax_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
+        )
 
 
 def reduce_min(g, node, name_to_tensor, null_ref, torch_graph):
+    n_outputs = len(node.outputs)
+    if n_outputs > 2:
+        raise NotImplementedError(
+            f"unknown 'min' variant with {n_outputs} outputs used"
+        )
     _reducer("min_reduce", g, node, name_to_tensor, torch_graph)
+    if n_outputs == 2:
+        _reducer(
+            "argmin_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
+        )
 
 
 def max_(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1177,8 +1089,9 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     aten_op_name = node.kind.split("::")[1]
 
     # remap
+    if aten_op_name.endswith("_"):
+        aten_op_name = aten_op_name[:-1]
     aten_op_name = {
-        "add_": "add",
         "_relu": "relu",
         "reciprocal": "rcp",
         "clone": "copy",

@@ -10,7 +10,6 @@ from torch.onnx.utils import (
     select_model_mode_for_export,
 )
 
-
 from . import __version__
 from .nnef_graph import GraphExtractor
 from .op.fragments import FRAGMENTS
