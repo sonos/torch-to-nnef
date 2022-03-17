@@ -41,10 +41,13 @@ LISTCONSTRUCT_KIND = "prim::ListConstruct"
 PARAM_KIND = "prim::Param"
 TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
+NUMTOTENSOR_KIND = "prim::NumToTensor"
+
 CLASSTYPE_KIND = "ClassType"
 TUPLETYPE_KIND = "TupleType"
 LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
+INTTYPE_kIND = "IntType"
 
 MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
 MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
@@ -228,11 +231,16 @@ class TensorVariable(Data):
     @classmethod
     def parse(cls, node_c_value: torch._C.Value) -> "TensorVariable":
         node_type = node_c_value.type()
-        stype = node_type.scalarType()
-        dtype = str_to_torch_dtype(stype) if stype else None
+        if node_type.kind() == INTTYPE_kIND:
+            dtype = torch.int32
+        else:
+            stype = node_type.scalarType()
+            dtype = str_to_torch_dtype(stype) if stype else None
         return cls(
             name=node_c_value.debugName(),
-            shape=node_type.sizes(),
+            shape=(1,)
+            if node_type.kind() == INTTYPE_kIND
+            else node_type.sizes(),
             dtype=dtype,
             data=node_c_value.toIValue(),
             quant=None,
@@ -383,6 +391,10 @@ def _parse_contant(node: torch._C.Node, data_nodes):
             )
         )
         return
+    elif dtype == "Device":
+        # Device will not be useful info for us but we pass it to avoid
+        # dereferencing it from full graph
+        pass
     else:
         raise NotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
@@ -525,6 +537,12 @@ class TorchOp:
                     )
                 )
                 raise TorchOpTranslatedDifferently("Tuple Construct")
+            if kind == NUMTOTENSOR_KIND:
+                # Warning ! this hard wire will only work if input
+                # is only used for this cast to tensor
+                dnode = _find_data_node(data_nodes, node.input().debugName())
+                dnode.name = node.output().debugName()
+                raise TorchOpTranslatedDifferently("NumToTensor re-wired")
             raise NotImplementedError(node)
         else:
             module_getter_ref = MODULE_PATH_ATEN
@@ -578,11 +596,15 @@ class TorchOp:
         if not all(_.tracable for _ in self.inputs):
             return False
 
-        # generate all data
-        # and call ops to infer missing infos
+        # generate all data and call ops to infer missing infos
         results = self.call_op()
+
+        if isinstance(results, int):
+            results = torch.tensor(results, dtype=torch.int32)
+
         if isinstance(results, torch.Tensor):
             results = (results,)
+
         for data_node, result in zip(self.outputs, results):
             data_node.dtype = result.dtype
             data_node.shape = list(result.shape)
