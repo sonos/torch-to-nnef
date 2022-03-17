@@ -333,6 +333,21 @@ optional = true
 python-versions = "*"
 
 [[package]]
+name = "nnef"
+version = "0.3"
+description = "A package for parsing NNEF files"
+category = "main"
+optional = false
+python-versions = "*"
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/DreamerMind/nnef.git"
+reference = "main"
+resolved_reference = "46eb7be1daccbb43a73aedfef64e65ab212242c1"
+
+[[package]]
 name = "nnef-tools"
 version = "1.0"
 description = "A package for managing NNEF files"
@@ -825,7 +840,7 @@ test = ["pytest", "black", "isort", "mypy", "flake8", "flake8-docstrings", "pyte
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.0,<4.0"
-content-hash = "320b6d3a57f8d38c18c8df7f8ba93c48fd1b6375ac73bf144448c642dda1833f"
+content-hash = "247eb2f8fc7cd1a8896d879b3cdfccc7b9faf57645d0681b918460df3fb37112"
 
 [metadata.files]
 atomicwrites = [
@@ -1066,6 +1081,7 @@ mypy-extensions = [
     {file = "mypy_extensions-0.4.3-py2.py3-none-any.whl", hash = "sha256:090fedd75945a69ae91ce1303b5824f428daf5a028d2f6ab8a299250a846f15d"},
     {file = "mypy_extensions-0.4.3.tar.gz", hash = "sha256:2d82818f5bb3e369420cb3c4060a7970edba416647068eb4c5343488a6c604a8"},
 ]
+nnef = []
 nnef-tools = []
 nodeenv = [
     {file = "nodeenv-1.6.0-py2.py3-none-any.whl", hash = "sha256:621e6b7076565ddcacd2db0294c0381e01fd28945ab36bcf00f41c5daf63bef7"},
