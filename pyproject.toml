@@ -29,7 +29,7 @@ torch = "^1.10.2"
 nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev="e6733b055cebd0f5a6ab60f883f6714763ce9ec1"}
 # need to wait poetry 1.2 release to support subdirectory for now use pip to install this as ad-oc deps
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@e6733b055cebd0f5a6ab60f883f6714763ce9ec1#egg=nnef&subdirectory=./parser/python"
-#nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev="e6733b055cebd0f5a6ab60f883f6714763ce9ec1", subdirectory="parser/python"}
+nnef = { git = "https://github.com/DreamerMind/nnef.git", branch="main"}
 # }
 
 
