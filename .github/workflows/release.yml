@@ -71,4 +71,9 @@ jobs:
           prerelease: false
 
       - name: publish to SONOS python registry
-        run: poetry publish --repository ${{ secret.SONOS_PM_URL }} --username ${{ secret.SONOS_PM_USER }} --password ${{ secret.SONOS_PM_PASSWORD }}
+        shell: bash
+        env:
+            REPOSITORY: ${{ secret.SONOS_PM_URL }}
+            USERNAME: ${{ secret.SONOS_PM_USER }}
+            PASSWORD: ${{ secret.SONOS_PM_PASSWORD }}
+        run: poetry publish --repository "$REPOSITORY" --username "$USERNAME" --password "$PASSWORD"
