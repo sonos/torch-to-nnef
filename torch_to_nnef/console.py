@@ -20,12 +20,15 @@ class Console:
     def __init__(self, theme: T.Optional[T.Dict[str, str]]):
         self.theme = theme
         try:
+            # pylint: disable-next=import-outside-toplevel
             from rich.console import Console as rConsole
+
+            # pylint: disable-next=import-outside-toplevel
             from rich.theme import Theme
 
-            self.print = rConsole(theme=Theme(self.theme)).print
+            self.print = rConsole(theme=Theme(self.theme)).print  # type: ignore
         except ImportError:
-            self.print = self._degraded_print
+            self.print = self._degraded_print  # type: ignore
 
     @staticmethod
     def _degraded_print(*args):

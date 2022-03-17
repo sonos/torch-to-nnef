@@ -1,24 +1,19 @@
-import logging
 import typing as T
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import lru_cache
 
 import numpy as np
 import torch
 import torch.jit._trace
 from torch import jit, nn
 
+from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import (
-    INT_TO_TORCH_DTYPE,
     TORCH_TO_NUMPY_DTYPE,
+    is_quantized_dtype,
     str_to_torch_dtype,
 )
-
-# from .console import Console
-
-
-LOGGER = logging.getLogger(__name__)
+from torch_to_nnef.utils import cache
 
 
 class JitTraceFailed(RuntimeError):
@@ -33,24 +28,38 @@ class TorchOpTranslatedDifferently(ValueError):
     pass
 
 
+class NotFoundDataNode(ValueError):
+    pass
+
+
 CALL_KIND = "prim::CallMethod"
 CONSTANT_KIND = "prim::Constant"
 GETATTR_KIND = "prim::GetAttr"
 LISTCONSTRUCT_KIND = "prim::ListConstruct"
 PARAM_KIND = "prim::Param"
-CLASSTYPE_KIND = "ClassType"
+TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
+TUPLEUNPACK_KIND = "prim::TupleUnpack"
+NUMTOTENSOR_KIND = "prim::NumToTensor"
 
-MODULE_PATH_ATEN = "TORCH_INTERNAL"
+CLASSTYPE_KIND = "ClassType"
+TUPLETYPE_KIND = "TupleType"
+LISTTYPE_KIND = "ListType"
+NONETYPE_KIND = "NoneType"
+INTTYPE_kIND = "IntType"
+
+MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
+MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
 
 def aten_name_to_torch_fn(aten_name):
     name = aten_name.replace("aten::", "")
-    name = SPECIAL_ATEN_REMAP_PYTORCH.get(name, name)
-    try:
-        return getattr(torch, name)
-    except AttributeError:
-        return getattr(torch.nn.functional, name)
+    return getattr(torch.ops.aten, name)
+
+
+def quantized_name_to_torch_fn(aten_name):
+    name = aten_name.replace("quantized::", "")
+    return getattr(torch.ops.quantized, name)
 
 
 def _refid_clean(name: str) -> str:
@@ -65,6 +74,13 @@ def _parse_traced_name(module):
     else:
         module_name = getattr(module, "original_name", "Module")
     return module_name
+
+
+def _expand_tuples_if_exists(data_items):
+    for data_item in data_items:
+        if isinstance(data_item, TupleTensors):
+            yield from data_item.data
+        yield data_item
 
 
 def _find_common_root(
@@ -113,6 +129,7 @@ def _is_io_qantized_module(module):
 def maybe_quantize_args_tensor(module, args):
     if _is_io_qantized_module(module):
         args = [
+            # force cast in quantized form
             torch.quantize_per_tensor(
                 in_item.float(),
                 torch.tensor(0.1),
@@ -120,15 +137,7 @@ def maybe_quantize_args_tensor(module, args):
                 dtype=torch.quint8,
             )
             if isinstance(in_item, torch.Tensor)
-            and (
-                in_item.dtype
-                not in [
-                    torch.qint32,
-                    torch.qint8,
-                    torch.quint4x2,
-                    torch.quint8,
-                ]
-            )
+            and not is_quantized_dtype(in_item.dtype)
             else in_item
             for in_item in args
         ]
@@ -156,6 +165,10 @@ class Data:
     def shaped_and_typed(self) -> bool:
         return self.shaped and self.typed
 
+    @property
+    def tracable(self) -> bool:
+        return self.shaped_and_typed
+
 
 @dataclass
 class TensorVariable(Data):
@@ -165,6 +178,16 @@ class TensorVariable(Data):
 
     # used as reference in case of Op outputs
     data: T.Optional[torch.Tensor]
+
+    quant: T.Optional[T.Dict[str, T.Any]] = None
+
+    @property
+    def slug(self) -> str:
+        return (
+            f"{self.export_name}: {self.dtype}@{self.shape}" + ""
+            if not self.quant
+            else "q8(scale={self.quant['scale']}, zerop={self.quant['zero_point']})"
+        )
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -180,24 +203,45 @@ class TensorVariable(Data):
         return bool(self.dtype)
 
     @property
+    def tracable(self) -> bool:
+        if is_quantized_dtype(self.dtype) and self.quant is None:
+            return False
+        return self.shaped_and_typed
+
+    @property
     def tracing_data(self):
-        if not self.shaped_and_typed:
+        if not self.tracable:
             raise UnableToTraceData(self)
+
         if self.data is not None:
             return self.data
-        return torch.rand(
-            [321 if x is None else x for x in (self.shape or [])]
-        ).to(self.dtype)
+
+        data = torch.rand([321 if x is None else x for x in (self.shape or [])])
+        if is_quantized_dtype(self.dtype):
+            return torch.quantize_per_tensor(
+                data,
+                scale=self.quant['scale'],
+                zero_point=self.quant['zero_point'],
+                dtype=self.dtype,
+            )
+        return data.to(self.dtype)
 
     @classmethod
     def parse(cls, node_c_value: torch._C.Value) -> "TensorVariable":
         node_type = node_c_value.type()
-        stype = node_type.scalarType()
+        if node_type.kind() == INTTYPE_kIND:
+            dtype = torch.int32
+        else:
+            stype = node_type.scalarType()
+            dtype = str_to_torch_dtype(stype) if stype else None
         return cls(
             name=node_c_value.debugName(),
-            shape=node_type.sizes(),
-            dtype=str_to_torch_dtype(stype) if stype else None,
+            shape=(1,)
+            if node_type.kind() == INTTYPE_kIND
+            else node_type.sizes(),
+            dtype=dtype,
             data=node_c_value.toIValue(),
+            quant=None,
         )
 
 
@@ -212,6 +256,61 @@ class PythonConstant(Data):
     @property
     def tracing_data(self):
         return self.data
+
+
+@dataclass
+class BlobTorchScriptObject(Data):
+    """Used only in Quantized Operators
+
+    from our current obervation
+
+    """
+
+    @property
+    def np_dtype(self) -> np.dtype:
+        raise NotImplementedError()
+
+    @property
+    def tracing_data(self):
+        return self.data
+
+
+class TupleTensors(Data):
+    """Should be only used as transition
+
+    None should be remaining once graph is fully expanded
+    """
+
+    data: T.List[TensorVariable]
+
+    @property
+    def slug(self) -> str:
+        slugs = ", ".join(_.slug for _ in self.data)
+        return f'tupleTensor({self.export_name})({slugs})'
+
+    @property
+    def dtype(self):
+        return None
+
+    @classmethod
+    def parse_from_tuple_type(
+        cls, node_c_value: torch._C.Value
+    ) -> "TupleTensors":
+        node_type = node_c_value.type()
+        name = node_c_value.debugName()
+        assert node_type.kind() == TUPLETYPE_KIND
+        elements = []
+        for idx, elm in enumerate(node_type.elements()):
+            stype = elm.scalarType()
+            dtype = str_to_torch_dtype(stype) if stype else None
+            elm_data = TensorVariable(
+                name=f"{name}_{idx}",
+                shape=elm.sizes(),
+                dtype=dtype,
+                data=None,
+            )
+            elements.append(elm_data)
+        return TupleTensors(name, elements)
 
 
 @dataclass
@@ -234,7 +333,15 @@ class TorchConstant(Data):
         return self.data
 
 
-def _parse_geattr(node: torch._C.Node, module, data_nodes):
+def _find_data_node(data_nodes: T.List[Data], name: str):
+    try:
+        return next(d for d in data_nodes if d.name == name)
+    except StopIteration as exp:
+        names = [dnode.name for dnode in data_nodes]
+        raise NotFoundDataNode(f"'{name}' not found in {names}") from exp
+
+
+def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
     tensor_name = node['name']
     data_state = getattr(module, tensor_name).data
     data_nodes.append(
@@ -243,6 +350,18 @@ def _parse_geattr(node: torch._C.Node, module, data_nodes):
             shape=list(data_state.shape),
             dtype=data_state.dtype,
             data=data_state,
+        )
+    )
+
+
+def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
+    pack_name = node['name']
+    pack = getattr(module, pack_name)
+    assert isinstance(pack, torch._C.ScriptObject)
+    data_nodes.append(
+        BlobTorchScriptObject(
+            name=pack_name,
+            data=pack,
         )
     )
 
@@ -264,6 +383,16 @@ def _parse_contant(node: torch._C.Node, data_nodes):
         data = None
     elif dtype == "Tensor":
         assert isinstance(data, torch.Tensor)
+        data_nodes.append(
+            TensorVariable(
+                name=name, data=data, shape=list(data.shape), dtype=data.dtype
+            )
+        )
+        return
+    elif dtype == "Device":
+        # Device will not be useful info for us but we pass it to avoid
+        # dereferencing it from full graph
+        pass
     else:
         raise NotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
@@ -298,7 +427,9 @@ def _aten_inputs_and_op_ref(kind, inputs):
     # HERE we remove unecessary OPS
     if kind in [
         "aten::sub",
+        "aten::sub_",
         "aten::add",
+        "aten::add_",
     ]:
         # remove useless ref to scaling (probably never used)
         inputs = inputs[:2]
@@ -348,7 +479,7 @@ class TorchOp:
 
         # rerouted
         if kind == GETATTR_KIND:
-            _parse_geattr(node, module, data_nodes)
+            _parse_getattr_tensor(node, module, data_nodes)
             raise TorchOpTranslatedDifferently(
                 "geattr handled as TensorVariable"
             )
@@ -368,28 +499,78 @@ class TorchOp:
             op_ref = getattr(module, module_getter_ref)
             call_name = inputs[0].debugName()
             inputs = inputs[1:]
+        elif kind.startswith("quantized::"):
+            module_getter_ref = MODULE_PATH_QUANTIZED
+            op_ref = quantized_name_to_torch_fn(kind)
+            for inp in inputs:
+                in_name = inp.debugName()
+                try:
+                    _find_data_node(data_nodes, in_name)
+                except NotFoundDataNode:
+                    _parse_getattr_script_obj(inp.node(), module, data_nodes)
+        elif kind.startswith("prim::"):
+            if kind == TUPLEUNPACK_KIND:
+                dnodes = _find_data_node(
+                    data_nodes, node.input().debugName()
+                ).data
+                for dnode, o_node_c_value in zip(dnodes, node.outputs()):
+                    o_type = o_node_c_value.type()
+                    stype = o_type.scalarType()
+                    dtype = str_to_torch_dtype(stype) if stype else None
+                    dnode.name = o_node_c_value.debugName()
+                    dnode.shape = o_type.sizes()
+                    dnode.dtype = dtype
+                    dnode.data = o_node_c_value.toIValue()
+                raise TorchOpTranslatedDifferently("Tuple unpacked")
+            if kind == TUPLECONSTRUCT_KIND:
+                data_nodes.append(
+                    TupleTensors(
+                        name=node.output().debugName(),
+                        data=[
+                            _find_data_node(
+                                data_nodes, i_node_c_value.debugName()
+                            )
+                            for i_node_c_value in node.inputs()
+                        ],
+                    )
+                )
+                raise TorchOpTranslatedDifferently("Tuple Construct")
+            if kind == NUMTOTENSOR_KIND:
+                # Warning ! this hard wire will only work if input
+                # is only used for this cast to tensor
+                dnode = _find_data_node(data_nodes, node.input().debugName())
+                dnode.name = node.output().debugName()
+                raise TorchOpTranslatedDifferently("NumToTensor re-wired")
+            raise NotImplementedError(node)
         else:
-            if kind.endswith("_"):
-                # allow to find correct pytorch API fn
-                kind = kind[:-1]
             module_getter_ref = MODULE_PATH_ATEN
             op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
 
-        outputs: T.List[TensorVariable] = []
+        outputs: T.List[T.Union[TensorVariable, TupleTensors]] = []
         for out_node in node.outputs():  #: torch._C.Value
-            if out_node.type().annotation_str != "NoneType":
-                out = TensorVariable.parse(out_node)
-                data_nodes.append(out)
+            if out_node.type().annotation_str != NONETYPE_KIND:
+                if out_node.type().kind() == TUPLETYPE_KIND:
+                    out = TupleTensors.parse_from_tuple_type(out_node)
+                    for tupitem in out.data:
+                        data_nodes.append(tupitem)
+                elif out_node.type().kind() == LISTTYPE_KIND:
+                    raise NotImplementedError(
+                        "ListType can be of arbitrary length "
+                        "and will probably need a special Class to handle it"
+                    )
+                else:
+                    out = TensorVariable.parse(out_node)
                 outputs.append(out)
+                data_nodes.append(out)
 
         inputs = [
-            next(d for d in data_nodes if d.name == inp.debugName())
-            for inp in inputs
+            _find_data_node(data_nodes, inp.debugName()) for inp in inputs
         ]
         if not outputs:
             raise TorchOpTranslatedDifferently(
                 "Avoid reccording no return operations"
             )
+
         return cls(
             kind=kind,
             inputs=inputs,
@@ -400,48 +581,36 @@ class TorchOp:
             call_name=call_name,
         )
 
-    def call_op(self, input_args):
-        if self.kind == "aten::to":
-            # note wrong type
-            results = input_args[0].to(INT_TO_TORCH_DTYPE[input_args[1]])
-        elif self.kind == "aten::repeat":
-            results = input_args[0].repeat(input_args[1])
-        elif self.kind in [
-            "aten::reflection_pad1d",
-            "aten::reflection_padnd",
-        ]:
-            results = nn.functional.pad(
-                input_args[0], pad=input_args[1], mode="reflect"
-            )
-        elif self.kind in [
-            "aten::replication_pad1d",
-            "aten::replication_padnd",
-        ]:
-            results = nn.functional.pad(
-                input_args[0], pad=input_args[1], mode="replicate"
-            )
-        else:
-            if self.op_ref is not None:
-                results = self.op_ref(*self._args)
-            else:
-                raise NotImplementedError(self)
-        return results
+    def call_op(self):
+        if self.op_ref is not None:
+            return self.op_ref(*self._args)
+        raise NotImplementedError(self)
 
     @property
     def _args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
 
     def realise_output_type_and_size(self) -> bool:
-        if not all(_.shaped_and_typed for _ in self.inputs):
+        if not all(_.tracable for _ in self.inputs):
             return False
-        # generate all data
-        # and call ops to infer missing infos
-        results = self.call_op(self._args)
+
+        # generate all data and call ops to infer missing infos
+        results = self.call_op()
+
+        if isinstance(results, int):
+            results = torch.tensor(results, dtype=torch.int32)
+
         if isinstance(results, torch.Tensor):
             results = (results,)
+
         for data_node, result in zip(self.outputs, results):
             data_node.dtype = result.dtype
             data_node.shape = list(result.shape)
+            if is_quantized_dtype(result.dtype):
+                data_node.quant = {
+                    "scale": result.q_scale(),
+                    "zero_point": result.q_zero_point(),
+                }
         return True
 
 
@@ -454,19 +623,21 @@ class TorchModuleTraceHelper:
         args: T.Tuple[T.Any],
         omit_useless_nodes: bool = True,
         auto_parse: bool = True,
+        inputs: T.Optional[T.List[TensorVariable]] = None,
+        outputs: T.Optional[T.List[TensorVariable]] = None,
     ):
         self.op_nodes: T.List[TorchOp] = []
-        self.data_nodes: T.List[Data] = []
         self.inputs: T.List[TensorVariable] = []
         self.outputs: T.List[TensorVariable] = []
+        self.data_nodes: T.List[Data] = []
         self._module = module
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         if auto_parse:
-            self.parse()
+            self.parse(provided_inputs=inputs, provided_outputs=outputs)
 
     @property  # type: ignore
-    @lru_cache(1)
+    @cache
     def _torch_trace(self):
         try:
             return jit.trace(self._module, self._args)
@@ -480,7 +651,7 @@ class TorchModuleTraceHelper:
             ) from exp
 
     @property  # type: ignore
-    @lru_cache(1)
+    @cache
     def _torch_graph(self):
         return self._torch_trace.graph
 
@@ -493,8 +664,11 @@ class TorchModuleTraceHelper:
             op.outputs = [to_node if _ == from_node else _ for _ in op.outputs]
         self.data_nodes = [_ for _ in self.data_nodes if _ != from_node]
 
-    def _parse_inputs(self):
+    def _parse_inputs(
+        self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
+    ):
         """Parse traced graph inputs"""
+        idx = 0
         for node_c_value in self._torch_graph.inputs():
             if self._omit_useless_nodes:
                 if (
@@ -504,6 +678,12 @@ class TorchModuleTraceHelper:
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
+                if provided_inputs is not None:
+                    original_input = provided_inputs[idx]
+                    tv.shape = original_input.shape
+                    tv.dtype = original_input.dtype
+                    tv.quant = original_input.quant
+                    idx += 1
                 self.inputs.append(tv)
                 self.data_nodes.append(tv)
 
@@ -550,12 +730,26 @@ class TorchModuleTraceHelper:
                 except TorchOpTranslatedDifferently:
                     pass
 
-    def _parse_outputs(self):
+    def _parse_outputs(
+        self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
+    ):
         """Parse traced graph outputs"""
-        for node in self._torch_graph.outputs():
-            self.outputs.append(
-                next(d for d in self.data_nodes if d.name == node.debugName())
-            )
+        for idx, node in enumerate(self._torch_graph.outputs()):
+            output = _find_data_node(self.data_nodes, node.debugName())
+            if provided_outputs is not None:
+                original_output = provided_outputs[idx]
+                if isinstance(original_output, TupleTensors):
+                    for soriginal, sout in zip(
+                        original_output.data, output.data
+                    ):
+                        sout.shape = soriginal.shape
+                        sout.dtype = soriginal.dtype
+                        sout.quant = soriginal.quant
+                else:
+                    output.shape = original_output.shape
+                    output.dtype = original_output.dtype
+                    output.quant = original_output.quant
+            self.outputs.append(output)
 
     def _update_scope_reference(self):
         """Update scope in op_nodes with additional infos"""
@@ -601,7 +795,7 @@ class TorchModuleTraceHelper:
     def _infer_missing_shapes_from_ops_outputs(self):
         unshaped_data = {}
         for node in self.data_nodes:
-            if not node.shaped_and_typed:
+            if not node.tracable:
                 unshaped_data[node.name] = node
 
         remaining_ops = self.op_nodes
@@ -618,33 +812,52 @@ class TorchModuleTraceHelper:
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
             end_len = len(unshaped_data)
             if start_len == end_len:
-                LOGGER.warning(
-                    "following nodes doesn't have shape concretized:"
+                raise NotImplementedError(
+                    f"missing unshaped_data: {unshaped_data}"
                 )
-                for _ in unshaped_data.values():
-                    LOGGER.warning("\t%s", _)
-                break
 
-    def merge_subraph(
+    def _merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
         # Re-Wire input and output naming => {
         wire_inputs = callmethod_node.inputs
         wire_outputs = callmethod_node.outputs
 
-        for node, ref_node in zip(submodule_graph.inputs, wire_inputs):
+        for node, ref_node in zip(
+            _expand_tuples_if_exists(submodule_graph.inputs),
+            _expand_tuples_if_exists(wire_inputs),
+        ):
             for op_node in submodule_graph.op_nodes:
                 op_node.inputs = [
                     innode if innode != node else ref_node
                     for innode in op_node.inputs
                 ]
+            for data_node in self.data_nodes:
+                if isinstance(
+                    data_node, (ListWithTensor, TupleTensors)
+                ):  # update ref
+                    data_node.data = [
+                        dnode if dnode != node else ref_node
+                        for dnode in data_node.data
+                    ]
 
-        for node, ref_node in zip(submodule_graph.outputs, wire_outputs):
+        for node, ref_node in zip(
+            _expand_tuples_if_exists(submodule_graph.outputs),
+            _expand_tuples_if_exists(wire_outputs),
+        ):
             for op_node in submodule_graph.op_nodes:
                 op_node.outputs = [
                     outnode if outnode != node else ref_node
                     for outnode in op_node.outputs
                 ]
+            for data_node in self.data_nodes:
+                if isinstance(
+                    data_node, (ListWithTensor, TupleTensors)
+                ):  # update ref
+                    data_node.data = [
+                        dnode if dnode != node else ref_node
+                        for dnode in data_node.data
+                    ]
 
         to_del_nodes = submodule_graph.inputs + submodule_graph.outputs
         submodule_graph.data_nodes = [
@@ -665,7 +878,7 @@ class TorchModuleTraceHelper:
         self.op_nodes += submodule_graph.op_nodes
         self.data_nodes += submodule_graph.data_nodes
 
-    def recursive_call_method(self):
+    def _recursive_call_method(self):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -690,8 +903,10 @@ class TorchModuleTraceHelper:
                     op.op_ref,
                     op._args,
                     omit_useless_nodes=self._omit_useless_nodes,
+                    inputs=op.inputs,
+                    outputs=op.outputs,
                 )
-                self.merge_subraph(
+                self._merge_subraph(
                     submodule_graph,
                     prefix="s"  # ensure we do not start with integer varname
                     + op.call_name
@@ -700,28 +915,190 @@ class TorchModuleTraceHelper:
                     callmethod_node=op,
                 )
 
-    def parse(self):
-        self._parse_inputs()
+    def apply_renaming_scheme(self, scheme="natural_verbose"):
+        """Rename availlable data node following a scheme
+
+        by default the natural_verbose pattern built is as close as possible
+        to Pytorch graph context info. This pattern might come as too verbose.
+
+        we propose a more concise numeric pattern that allow easier debug
+        when looking at NNEF export correctness.
+
+        """
+        if scheme == "natural_verbose":
+            return
+        if scheme == "numeric":
+            count_ref = defaultdict(int)
+            mapping = {}
+            for dnode in self.data_nodes:
+                prefix = {
+                    TensorVariable: "v",
+                    PythonConstant: "c",
+                    BlobTorchScriptObject: "b",
+                    TorchConstant: "t",
+                    ListWithTensor: "l",
+                    TupleTensors: "tt",
+                    Data: "d",  # not used, avoid static analysis complain
+                }[dnode.__class__]
+                if dnode.name in mapping:
+                    dnode.name = mapping[dnode.name]
+                    continue
+                suffix = count_ref[prefix]
+                count_ref[prefix] += 1
+                mapping[dnode.name] = prefix + str(suffix)
+                dnode.name = mapping[dnode.name]
+
+    def _avoid_reference_to_tuples(self):
+        """Remove all references to tuple by using only unpacked variables"""
+        new_data_nodes = []
+        for dnode in self.data_nodes:
+            if isinstance(dnode, TupleTensors):
+                continue
+            new_data_nodes.append(dnode)
+        self.data_nodes = new_data_nodes
+
+        new_inputs = []
+        for dnode in self.inputs:
+            if isinstance(dnode, TupleTensors):
+                for sdnode in dnode.data:
+                    new_inputs.append(sdnode)
+            else:
+                new_inputs.append(dnode)
+        self.inputs = new_inputs
+
+        new_outputs = []
+        for dnode in self.outputs:
+            if isinstance(dnode, TupleTensors):
+                for sdnode in dnode.data:
+                    new_outputs.append(sdnode)
+            else:
+                new_outputs.append(dnode)
+
+        self.outputs = new_outputs
+        for op in self.op_nodes:
+            op_new_inputs = []
+            for dnode in op.inputs:
+                if isinstance(dnode, TupleTensors):
+                    for sdnode in dnode.data:
+                        op_new_inputs.append(sdnode)
+                else:
+                    op_new_inputs.append(dnode)
+            op.inputs = op_new_inputs
+
+            op_new_outputs = []
+            for dnode in op.outputs:
+                if isinstance(dnode, TupleTensors):
+                    for sdnode in dnode.data:
+                        op_new_outputs.append(sdnode)
+                else:
+                    op_new_outputs.append(dnode)
+            op.outputs = op_new_outputs
+
+    def parse(
+        self,
+        renaming_scheme: str = "numeric",
+        provided_inputs=None,
+        provided_outputs=None,
+    ):
+        self._parse_inputs(provided_inputs)
         self._parse_core()
-        self._parse_outputs()
+        self._parse_outputs(provided_outputs)
         self._update_scope_reference()
         self._update_data_node_name_with_base_context()
         self._infer_missing_shapes_from_ops_outputs()
-        self.recursive_call_method()
+        self._recursive_call_method()
+        self._avoid_reference_to_tuples()
+        if renaming_scheme:
+            self.apply_renaming_scheme(renaming_scheme)
         return self
 
-    @classmethod
-    def parse_model(cls, module, args, omit_useless_nodes=True):
-        """This method parses a PyTorch model graph and produces
-        a list of nodes and node stats for eventual conversion to NNEF format.
-        """
-        graph_helper = cls(
-            module,
-            args,
-            omit_useless_nodes=omit_useless_nodes,
-        )
-        graph_helper.parse()
-        return graph_helper
-
     def printall(self):
-        raise NotImplementedError()
+        console = Console(
+            theme={
+                "type": "blue",
+                "var": "grey82",
+                "kind": "yellow",
+                "subsection": "red",  # dim bold
+            }
+        )
+        cprint = console.print
+        cprint(
+            "\n\n[type]"
+            + "_" * 35
+            + "[Pytorch JIT Graph]"
+            + "_" * 35
+            + "[/type]"
+        )
+        inputs_str = ", ".join(_.slug for _ in self.inputs)
+        cprint(f"inputs: ({inputs_str})")
+        cprint("")
+        cprint("\t[subsection]Static Constants:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, PythonConstant):
+                cprint(
+                    f"\t\t[type]{type(_.data).__name__}[/type] "
+                    f"[var]{_.export_name}[/var] := {_.data}"
+                )
+
+        cprint()
+        cprint("\t[subsection]Static Tensor:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, TensorVariable) and _.data is not None:
+                cprint(
+                    f"\t\t[type]{_.dtype}[/type] "
+                    f"[var]{_.export_name}[/var] := shape({_.shape})"
+                )
+
+        cprint()
+        cprint("\t[subsection]Blob TorchScript:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, BlobTorchScriptObject):
+                cprint(
+                    f"\t\t[type]{type(_.data).__name__}[/type] "
+                    f"[var]{_.export_name}[/var] := ?"
+                )
+        cprint("")
+        cprint("\t[subsection]List:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, ListWithTensor):
+                refs = ", ".join([d.export_name for d in _.data])
+                cprint(
+                    f"\t\t[type]List[/type] "
+                    f"[var]{_.export_name}[/var] := ({refs})"
+                )
+
+        cprint("")
+        cprint("\t[subsection]TupleTensors:[/subsection]")
+        for _ in self.data_nodes:
+            if isinstance(_, TupleTensors):
+                refs = ", ".join([d.export_name for d in _.data])
+                cprint(
+                    f"\t\t[type]TupleTensors[/type] "
+                    f"[var]{_.export_name}[/var] := ({refs})"
+                )
+
+        cprint("")
+        cprint("\t[subsection]Directed Acyclic Graph:[/subsection]")
+        for _ in self.op_nodes:
+            inputs_str = ""
+            if _.inputs:
+                inputs_str = ", ".join(
+                    f"[var]{i.export_name}[/var]" for i in _.inputs
+                )
+                inputs_str = f"( {inputs_str} )"
+            cls_name = ""
+            outputs_str = ", ".join(
+                [
+                    f"[type]{o.dtype}[/type] [var]{o.export_name}[/var]"
+                    for o in _.outputs
+                ]
+            )
+            cprint(
+                "\t\t "
+                f"{outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
+            )
+
+        outputs_str = ", ".join(_.slug for _ in self.outputs)
+        cprint("")
+        cprint(f"outputs: ({outputs_str})")
+        cprint("[type]" + "_" * 100 + "[/type]")

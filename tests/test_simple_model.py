@@ -14,6 +14,11 @@ from torch import nn
 from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.tract import (
+    build_io,
+    debug_dumper_pytorch_to_onnx_to_nnef,
+    tract_assert_io,
+)
 
 INPUT_AND_MODELS = []
 
@@ -54,6 +59,9 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         # pylint: disable-next=attribute-defined-outside-init
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
+        model_qat.train()
+        for _ in range(10):
+            model_qat(torch.rand(1, 10, 100))
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
 
@@ -68,11 +76,19 @@ class ListInputPrim(nn.Module):
         return self.op([x, self.y], dim=1)
 
 
+def nnef_split(value, axis, ratios):
+    assert value.shape[axis] % sum(ratios) == 0
+
+    multiplier = value.shape[axis] // sum(ratios)
+    sections = [ratio * multiplier for ratio in ratios]
+    return torch.split(value, split_size_or_sections=sections, dim=axis)
+
+
 # Base unary operations
-_condition_1 = condition = torch.eye(13, 10).to(torch.bool)
-_input0 = torch.zeros(13, 10)
+_condition_1 = condition = torch.eye(5, 4).to(torch.bool)
+_input0 = torch.zeros(5, 4)
 INPUT_AND_MODELS = [
-    (torch.rand(13, 10), UnaryPrimitive(op))
+    (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
     for op in [
         torch.sin,
         torch.cos,
@@ -100,33 +116,16 @@ INPUT_AND_MODELS = [
         # torch.atanh,
         # torch.reciprocal,
         # torch.clone,
+        # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
-        # In [59]: torch.arange(10).reshape(5, 2)
-        # Out[59]:
-        # tensor([[0, 1],
-        #         [2, 3],
-        #         [4, 5],
-        #         [6, 7],
-        #         [8, 9]])
-        # In [60]: torch.transpose(torch.arange(10).reshape(5, 2), dim0=1, dim1=0)
-        # Out[60]:
-        # tensor([[0, 2, 4, 6, 8],
-        #         [1, 3, 5, 7, 9]])
-        # partial(
-        # torch.transpose, dim0=1, dim1=0
-        # ),  # tract does not find same results ??
-        #
-        # partial(torch.permute, dims=[1, 0]), # tract does not find same results ??
-        #
-        partial(torch.reshape, shape=(13, 5, 2)),
+        # tract need reversed NNEF transpose.axes=[] order than spec
+        partial(torch.transpose, dim0=1, dim1=0),
+        # tract need reversed NNEF transpose.axes=[] order than spec
+        partial(torch.permute, dims=[1, 0]),
+        partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
-        # need torch_graph to handle ops with multi outputs {
-        #    partial(torch.split, split_size_or_sections=5, dim=1),
-        #    partial(torch.unbind, dim=1)
-        # }
-        # partial(nn.functional.pad, pad=(0, 1), mode="replicate"), # not implemnted in tract
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
         # lambda x: torch.where(
         # _condition_1,
@@ -142,8 +141,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("mean", {"dim": 1}),
         TensorFnPrimitive("mean", {"dim": 1, "keepdim": True}),
         TensorFnPrimitive("sum", {"dim": 1}),
-        # TensorFnPrimitive("max", {"dim": 1}),  # 2x outputs
-        # TensorFnPrimitive("min", {"dim": 1}), # 2x outputs
+        TensorFnPrimitive("max", {"dim": 1}),
+        TensorFnPrimitive("min", {"dim": 1}),
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
         # TensorFnPrimitive(
@@ -214,7 +213,6 @@ INPUT_AND_MODELS += [
         BinaryPrimitive(op),
     )
     for op in [
-        # tract does not handle io being bool
         (lambda x, y: x & y),  # and
         (lambda x, y: x | y),  # or
     ]
@@ -270,7 +268,8 @@ INPUT_AND_MODELS += [
         # nn.AvgPool1d(10), # Not same results between tract and Pytorch
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
-        # Should we handle LSTM and GRU ??? => ONNX ->tract NNEF (check gen)
+        # nn.LSTM(100, 5),
+        # nn.GRU(100, 5),
     ]
 ]
 
@@ -313,21 +312,12 @@ INPUT_AND_MODELS += [
 ]
 
 
-def nnef_split(value, axis, ratios):
-    assert value.shape[axis] % sum(ratios) == 0
-
-    multiplier = value.shape[axis] // sum(ratios)
-    sections = [ratio * multiplier for ratio in ratios]
-    return torch.split(value, split_size_or_sections=sections, dim=axis)
-
-
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [
         # internal cpp failure for now
         # partial(torch.unbind, axis=1),
         # partial(nnef_split, axis=1, ratios=[3, 3, 4]),
-        #
         #
         lambda x: torch.max(x, dim=1, keepdim=True)[0],
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
@@ -383,22 +373,6 @@ if os.environ.get("Q8"):
     ]
 
 
-def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
-    subprocess.check_call(
-        f'tract {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
-        shell=True,
-    )
-
-
-def tract_assert_io(nnef_path: Path, io_npz_path: Path):
-    cmd = f"tract {nnef_path} --input-bundle {io_npz_path} -O run --assert-output-bundle {io_npz_path}"
-    try:
-        subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-
 def test_should_fail_since_false_output():
     with tempfile.TemporaryDirectory() as tmpdir:
         test_input = torch.rand(1, 10, 100)
@@ -427,6 +401,14 @@ def test_should_fail_since_false_output():
         ), f"SHOULD fail tract io check with {model}"
 
 
+# INPUT_AND_MODELS = [
+# (torch.rand(1, 10, 100), layer)
+# for layer in [
+# nn.LSTM(100, 5),
+# ]
+# ]
+
+
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_model_export(test_input, model):
     """Test simple models"""
@@ -436,12 +418,9 @@ def test_model_export(test_input, model):
 
         model = model.eval()
 
-        tup_inputs = (
-            test_input if isinstance(test_input, tuple) else (test_input,)
+        input_names, output_names = build_io(
+            model, test_input, io_npz_path=io_npz_path
         )
-        input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
-        output_names = ["output"]
-        test_output = model(*tup_inputs)
         export_model_to_nnef(
             model=model,
             args=test_input,
@@ -450,14 +429,6 @@ def test_model_export(test_input, model):
             output_names=output_names,
             verbose=False,
         )
-
-        kwargs = {
-            f"input_{idx}": input_arg.detach().numpy()
-            for idx, input_arg in enumerate(tup_inputs)
-        }
-        kwargs["output"] = test_output.detach().numpy()
-
-        np.savez(io_npz_path, **kwargs)
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
         try:
@@ -479,23 +450,7 @@ def test_model_export(test_input, model):
                 f"&& tar -xvzf {real_export_path} && cp {io_npz_path} {exp_path}/io.npz",
                 shell=True,
             )
-            tract_exp_path = exp_path / "tract"
-            tract_exp_path.mkdir()
-            onnx_path = tract_exp_path / "model.onnx"
-            torch.onnx.export(
-                model,
-                test_input,
-                str(onnx_path),
-                input_names=input_names,
-                output_names=output_names,
-            )
-            nnef_path = tract_exp_path / "tract_onnx_converted_model.nnef"
-            tract_convert_onnx_to_nnef(
-                onnx_path,
-                io_npz_path,
-                nnef_path=nnef_path,
-            )
-            subprocess.check_output(
-                f"cd {tract_exp_path} && tar -xvf {nnef_path}", shell=True
+            debug_dumper_pytorch_to_onnx_to_nnef(
+                model, test_input, target_folder=exp_path / "tract"
             )
             raise exp
