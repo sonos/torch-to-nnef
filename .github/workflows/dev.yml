@@ -32,6 +32,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-versions }}
 
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install tract
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
