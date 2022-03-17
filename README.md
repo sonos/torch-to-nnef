@@ -1,4 +1,4 @@
-# torch to nnef
+# Torch to NNEF
 
 Any Pytorch Model to NNEF file format
 
