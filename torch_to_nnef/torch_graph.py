@@ -15,8 +15,6 @@ from torch_to_nnef.dtypes import (
 )
 from torch_to_nnef.utils import cache
 
-# from .console import Console
-
 
 class JitTraceFailed(RuntimeError):
     pass
