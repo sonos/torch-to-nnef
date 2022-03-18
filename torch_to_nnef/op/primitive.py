@@ -706,7 +706,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
         "bits": 8,
-        "signed": True,  # Should Be dependant of torch type quint vs qint
+        "signed": False,  # Should Be dependant of torch type quint vs qint
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }

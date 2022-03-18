@@ -65,6 +65,11 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
 
+    def forward(self, x):
+        x = self.quant(x)
+        x = self.module(x)
+        return x
+
 
 class ListInputPrim(nn.Module):
     def __init__(self, op, dims):
@@ -357,9 +362,12 @@ if os.environ.get("Q8"):
         (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
         for mod in [
             nn.Sequential(
-                nn.intrinsic.ConvBnReLU1d(
-                    nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
-                ),
+                nn.Conv1d(10, 20, 3, bias=False),
+                # nn.intrinsic.ConvBnReLU1d(
+                # nn.Conv1d(10, 20, 3, bias=False),
+                # nn.BatchNorm1d(20),
+                # nn.ReLU(),
+                # ),
                 # nn.intrinsic.ConvBnReLU1d(
                 # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
                 # ),
