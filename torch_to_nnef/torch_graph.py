@@ -13,6 +13,10 @@ from torch_to_nnef.dtypes import (
     is_quantized_dtype,
     str_to_torch_dtype,
 )
+from torch_to_nnef.op.custom_extractors import (
+    ModuleInfoExtractor,
+    NotFoundModuleExtractor,
+)
 from torch_to_nnef.utils import cache
 
 
@@ -1000,6 +1004,14 @@ class TorchModuleTraceHelper:
         provided_inputs=None,
         provided_outputs=None,
     ):
+        try:
+            extractor = ModuleInfoExtractor.get_by_module(self._module)
+            extractor.generate_in_torch_graph(
+                self, provided_inputs, provided_outputs
+            )
+            return self
+        except NotFoundModuleExtractor:
+            pass
         self._parse_inputs(provided_inputs)
         self._parse_core()
         self._parse_outputs(provided_outputs)
