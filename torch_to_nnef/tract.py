@@ -28,9 +28,8 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path):
 
 def special_quantize_io(x, model, is_input):
     if is_input:
-        # return model.quantize()x
         return model.quant(x).int_repr()
-    return model.quant(x).int_repr()
+    return x.int_repr()
 
 
 def nop(x, *args, **kwargs):
@@ -64,7 +63,7 @@ def build_io(model, test_input, io_npz_path=None):
         }
         kwargs.update(
             {
-                key: fn(output_arg.detach(), is_input=True).numpy()
+                key: fn(output_arg.detach(), is_input=False).numpy()
                 for key, output_arg in zip(output_names, test_output)
             }
         )
