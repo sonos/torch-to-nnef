@@ -6,6 +6,10 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.op.custom_extractors import (
+    CUSTOMOP_KIND,
+    ModuleInfoExtractor,
+)
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
@@ -38,6 +42,14 @@ class GraphExtractor:
 
         if node.kind.startswith("quantized::"):
             return quantized_node_to_nnef_tensor_and_ops(
+                self.g,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
+            )
+        if node.kind.startswith(CUSTOMOP_KIND):
+            return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
                 self.g,
                 node,
                 name_to_tensor,
