@@ -60,7 +60,7 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
         model_qat.train()
-        for _ in range(10):
+        for _ in range(100):
             model_qat(torch.rand(1, 10, 100))
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
@@ -364,7 +364,7 @@ if os.environ.get("Q8"):
             nn.Sequential(
                 nn.Conv1d(10, 20, 3, bias=False),
                 # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(10, 20, 3, bias=False),
+                # nn.Conv1d(10, 20, 3),
                 # nn.BatchNorm1d(20),
                 # nn.ReLU(),
                 # ),

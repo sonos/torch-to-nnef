@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import typing as T
 from collections import defaultdict
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ class NotFoundDataNode(ValueError):
     pass
 
 
+UNKNOWN_TRACE_SHAPE_VALUE = 321
 CALL_KIND = "prim::CallMethod"
 CONSTANT_KIND = "prim::Constant"
 GETATTR_KIND = "prim::GetAttr"
@@ -220,7 +222,12 @@ class TensorVariable(Data):
         if self.data is not None:
             return self.data
 
-        data = torch.rand([321 if x is None else x for x in (self.shape or [])])
+        data = torch.rand(
+            [
+                UNKNOWN_TRACE_SHAPE_VALUE if x is None else x
+                for x in (self.shape or [])
+            ]
+        )
         if is_quantized_dtype(self.dtype):
             return torch.quantize_per_tensor(
                 data,
@@ -240,7 +247,7 @@ class TensorVariable(Data):
             dtype = str_to_torch_dtype(stype) if stype else None
         return cls(
             name=node_c_value.debugName(),
-            shape=(1,)
+            shape=[1]
             if node_type.kind() == INTTYPE_kIND
             else node_type.sizes(),
             dtype=dtype,
@@ -456,12 +463,90 @@ def _aten_inputs_and_op_ref(kind, inputs):
     return op_ref, inputs
 
 
+def _rerouted_parsing(
+    kind: str, node: torch._C.Node, data_nodes: T.List[Data], module
+):
+    """Specific torch Kind operation are transformed
+
+    to improve readability of intermediate representation
+
+        If specific kind matched it raise TorchOpTranslatedDifferently
+        meaning it is handled differently than vanilla torch graph
+
+    """
+    if kind == GETATTR_KIND:
+        _parse_getattr_tensor(node, module, data_nodes)
+        raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
+    if kind == CONSTANT_KIND:
+        _parse_contant(node, data_nodes)
+        raise TorchOpTranslatedDifferently("constant handled as PythonConstant")
+    if kind == LISTCONSTRUCT_KIND:
+        _parse_list_construct(node, data_nodes)
+        raise TorchOpTranslatedDifferently(
+            "List Construct handled as PythonConstant"
+        )
+    if kind.startswith("prim::"):
+        if kind == TUPLEUNPACK_KIND:
+            dnodes = _find_data_node(data_nodes, node.input().debugName()).data
+            for dnode, o_node_c_value in zip(dnodes, node.outputs()):
+                o_type = o_node_c_value.type()
+                stype = o_type.scalarType()
+                dtype = str_to_torch_dtype(stype) if stype else None
+                dnode.name = o_node_c_value.debugName()
+                dnode.shape = o_type.sizes()
+                dnode.dtype = dtype
+                dnode.data = o_node_c_value.toIValue()
+            raise TorchOpTranslatedDifferently("Tuple unpacked")
+        if kind == TUPLECONSTRUCT_KIND:
+            data_nodes.append(
+                TupleTensors(
+                    name=node.output().debugName(),
+                    data=[
+                        _find_data_node(data_nodes, i_node_c_value.debugName())
+                        for i_node_c_value in node.inputs()
+                    ],
+                )
+            )
+            raise TorchOpTranslatedDifferently("Tuple Construct")
+        if kind == NUMTOTENSOR_KIND:
+            # Warning ! this hard wire will only work if input
+            # is only used for this cast to tensor
+            dnode = _find_data_node(data_nodes, node.input().debugName())
+            dnode.name = node.output().debugName()
+            raise TorchOpTranslatedDifferently("NumToTensor re-wired")
+        if kind != CALL_KIND:
+            raise NotImplementedError(node)
+
+
+def _extract_op_infos(kind: str, module, inputs, data_nodes: T.List[Data]):
+    """Extract informations from module or torch operation"""
+    call_name = None
+    if kind == CALL_KIND:
+        module_getter_ref = inputs[0].node()['name']
+        op_ref = getattr(module, module_getter_ref)
+        call_name = inputs[0].debugName()
+        inputs = inputs[1:]
+    elif kind.startswith("quantized::"):
+        module_getter_ref = MODULE_PATH_QUANTIZED
+        op_ref = quantized_name_to_torch_fn(kind)
+        for inp in inputs:
+            in_name = inp.debugName()
+            try:
+                _find_data_node(data_nodes, in_name)
+            except NotFoundDataNode:
+                _parse_getattr_script_obj(inp.node(), module, data_nodes)
+    else:
+        module_getter_ref = MODULE_PATH_ATEN
+        op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
+    return (call_name, module_getter_ref, op_ref, inputs)
+
+
 @dataclass
 class TorchOp:
     kind: str
     module_path: str
     inputs: T.List[Data]
-    outputs: T.List[TensorVariable]
+    outputs: T.List[T.Union[TensorVariable, TupleTensors]]
     scope: str
     op_ref: T.Optional[
         T.Callable[[T.Any], T.Any]
@@ -473,103 +558,48 @@ class TorchOp:
         return self.kind == CALL_KIND
 
     @classmethod
+    def _parse_outputs(cls, node: torch._C.Node, data_nodes: T.List[Data]):
+        outputs: T.List[T.Union[TensorVariable, TupleTensors]] = []
+        for out_node in node.outputs():  #: torch._C.Value
+            if out_node.type().annotation_str != NONETYPE_KIND:
+                if out_node.type().kind() == LISTTYPE_KIND:
+                    raise NotImplementedError(
+                        "ListType can be of arbitrary length "
+                        "and will probably need a special Class to handle it"
+                    )
+                if out_node.type().kind() == TUPLETYPE_KIND:
+                    tuple_out = TupleTensors.parse_from_tuple_type(out_node)
+                    for tupitem in tuple_out.data:
+                        data_nodes.append(tupitem)
+                    # ducktyping/factorize tensor_out & tuple_out
+                    # lead to mypy complain hence repeated
+                    outputs.append(tuple_out)
+                    data_nodes.append(tuple_out)
+                else:
+                    tensor_out = TensorVariable.parse(out_node)
+                    outputs.append(tensor_out)
+                    data_nodes.append(tensor_out)
+        return outputs
+
+    @classmethod
     def parse(
         cls, module, node: torch._C.Node, scope: str, data_nodes: T.List[Data]
     ) -> "TorchOp":
         op_ref = None
         inputs = list(node.inputs())
-        call_name = None
         kind = node.kind()
 
-        # rerouted
-        if kind == GETATTR_KIND:
-            _parse_getattr_tensor(node, module, data_nodes)
-            raise TorchOpTranslatedDifferently(
-                "geattr handled as TensorVariable"
-            )
-        if kind == CONSTANT_KIND:
-            _parse_contant(node, data_nodes)
-            raise TorchOpTranslatedDifferently(
-                "constant handled as PythonConstant"
-            )
-        if kind == LISTCONSTRUCT_KIND:
-            _parse_list_construct(node, data_nodes)
-            raise TorchOpTranslatedDifferently(
-                "List Construct handled as PythonConstant"
-            )
-
-        if kind == CALL_KIND:
-            module_getter_ref = inputs[0].node()['name']
-            op_ref = getattr(module, module_getter_ref)
-            call_name = inputs[0].debugName()
-            inputs = inputs[1:]
-        elif kind.startswith("quantized::"):
-            module_getter_ref = MODULE_PATH_QUANTIZED
-            op_ref = quantized_name_to_torch_fn(kind)
-            for inp in inputs:
-                in_name = inp.debugName()
-                try:
-                    _find_data_node(data_nodes, in_name)
-                except NotFoundDataNode:
-                    _parse_getattr_script_obj(inp.node(), module, data_nodes)
-        elif kind.startswith("prim::"):
-            if kind == TUPLEUNPACK_KIND:
-                dnodes = _find_data_node(
-                    data_nodes, node.input().debugName()
-                ).data
-                for dnode, o_node_c_value in zip(dnodes, node.outputs()):
-                    o_type = o_node_c_value.type()
-                    stype = o_type.scalarType()
-                    dtype = str_to_torch_dtype(stype) if stype else None
-                    dnode.name = o_node_c_value.debugName()
-                    dnode.shape = o_type.sizes()
-                    dnode.dtype = dtype
-                    dnode.data = o_node_c_value.toIValue()
-                raise TorchOpTranslatedDifferently("Tuple unpacked")
-            if kind == TUPLECONSTRUCT_KIND:
-                data_nodes.append(
-                    TupleTensors(
-                        name=node.output().debugName(),
-                        data=[
-                            _find_data_node(
-                                data_nodes, i_node_c_value.debugName()
-                            )
-                            for i_node_c_value in node.inputs()
-                        ],
-                    )
-                )
-                raise TorchOpTranslatedDifferently("Tuple Construct")
-            if kind == NUMTOTENSOR_KIND:
-                # Warning ! this hard wire will only work if input
-                # is only used for this cast to tensor
-                dnode = _find_data_node(data_nodes, node.input().debugName())
-                dnode.name = node.output().debugName()
-                raise TorchOpTranslatedDifferently("NumToTensor re-wired")
-            raise NotImplementedError(node)
-        else:
-            module_getter_ref = MODULE_PATH_ATEN
-            op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
-
-        outputs: T.List[T.Union[TensorVariable, TupleTensors]] = []
-        for out_node in node.outputs():  #: torch._C.Value
-            if out_node.type().annotation_str != NONETYPE_KIND:
-                if out_node.type().kind() == TUPLETYPE_KIND:
-                    out = TupleTensors.parse_from_tuple_type(out_node)
-                    for tupitem in out.data:
-                        data_nodes.append(tupitem)
-                elif out_node.type().kind() == LISTTYPE_KIND:
-                    raise NotImplementedError(
-                        "ListType can be of arbitrary length "
-                        "and will probably need a special Class to handle it"
-                    )
-                else:
-                    out = TensorVariable.parse(out_node)
-                outputs.append(out)
-                data_nodes.append(out)
+        _rerouted_parsing(kind, node, data_nodes, module)
+        (call_name, module_getter_ref, op_ref, inputs) = _extract_op_infos(
+            kind, module, inputs, data_nodes
+        )
 
         inputs = [
             _find_data_node(data_nodes, inp.debugName()) for inp in inputs
         ]
+
+        outputs = cls._parse_outputs(node, data_nodes)
+
         if not outputs:
             raise TorchOpTranslatedDifferently(
                 "Avoid reccording no return operations"
@@ -608,13 +638,14 @@ class TorchOp:
             results = (results,)
 
         for data_node, result in zip(self.outputs, results):
-            data_node.dtype = result.dtype
-            data_node.shape = list(result.shape)
-            if is_quantized_dtype(result.dtype):
-                data_node.quant = {
-                    "scale": result.q_scale(),
-                    "zero_point": result.q_zero_point(),
-                }
+            if isinstance(data_node, TensorVariable):
+                data_node.dtype = result.dtype
+                data_node.shape = list(result.shape)
+                if is_quantized_dtype(result.dtype):
+                    data_node.quant = {
+                        "scale": result.q_scale(),
+                        "zero_point": result.q_zero_point(),
+                    }
         return True
 
 
@@ -952,8 +983,7 @@ class TorchModuleTraceHelper:
                 mapping[dnode.name] = prefix + str(suffix)
                 dnode.name = mapping[dnode.name]
 
-    def _avoid_reference_to_tuples(self):
-        """Remove all references to tuple by using only unpacked variables"""
+    def _filter_tuple_tensor_from_data_nodes(self):
         new_data_nodes = []
         for dnode in self.data_nodes:
             if isinstance(dnode, TupleTensors):
@@ -961,42 +991,25 @@ class TorchModuleTraceHelper:
             new_data_nodes.append(dnode)
         self.data_nodes = new_data_nodes
 
-        new_inputs = []
-        for dnode in self.inputs:
+    def _expand_tuple_in(self, iterable):
+        expanded_data_nodes = []
+        for dnode in iterable:
             if isinstance(dnode, TupleTensors):
                 for sdnode in dnode.data:
-                    new_inputs.append(sdnode)
+                    expanded_data_nodes.append(sdnode)
             else:
-                new_inputs.append(dnode)
-        self.inputs = new_inputs
+                expanded_data_nodes.append(dnode)
+        return expanded_data_nodes
 
-        new_outputs = []
-        for dnode in self.outputs:
-            if isinstance(dnode, TupleTensors):
-                for sdnode in dnode.data:
-                    new_outputs.append(sdnode)
-            else:
-                new_outputs.append(dnode)
+    def _avoid_reference_to_tuples(self):
+        """Remove all references to tuple by using only unpacked variables"""
+        self._filter_tuple_tensor_from_data_nodes()
 
-        self.outputs = new_outputs
+        self.inputs = self._expand_tuple_in(self.inputs)
+        self.outputs = self._expand_tuple_in(self.outputs)
         for op in self.op_nodes:
-            op_new_inputs = []
-            for dnode in op.inputs:
-                if isinstance(dnode, TupleTensors):
-                    for sdnode in dnode.data:
-                        op_new_inputs.append(sdnode)
-                else:
-                    op_new_inputs.append(dnode)
-            op.inputs = op_new_inputs
-
-            op_new_outputs = []
-            for dnode in op.outputs:
-                if isinstance(dnode, TupleTensors):
-                    for sdnode in dnode.data:
-                        op_new_outputs.append(sdnode)
-                else:
-                    op_new_outputs.append(dnode)
-            op.outputs = op_new_outputs
+            op.inputs = self._expand_tuple_in(op.inputs)
+            op.outputs = self._expand_tuple_in(op.outputs)
 
     def parse(
         self,

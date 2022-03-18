@@ -698,8 +698,9 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         input_node,
         scale_node,
         zero_point_node,
-        _,  # dtype_name
+        dtype_node,
     ) = node.inputs
+    assert dtype_node.data == 13, "is not expected quint8"
     input_node = node.inputs[0]
     tensor = name_to_tensor[input_node.export_name]
     tensor.quant = {

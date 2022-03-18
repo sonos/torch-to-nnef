@@ -8,6 +8,7 @@ This may be for two main reasons:
     - Some layer might not be serializable to .jit
 
 """
+import typing as T
 
 import torch
 from torch import nn
@@ -23,9 +24,9 @@ class _ModuleInfoRegistery(type):
 
     """Allow extract in NNEF behavior from specific nn.Module"""
 
-    MODULE_CLASS = None
+    MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
 
-    REGISTRY = {}
+    REGISTRY: T.Dict[T.Type[nn.Module], "_ModuleInfoRegistery"] = {}
 
     def __new__(cls, name, bases, attrs):
         # instantiate a new type corresponding to the type of class being defined
@@ -41,10 +42,13 @@ class _ModuleInfoRegistery(type):
 
 
 class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
-    MODULE_CLASS = None
+    MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
 
     def __init__(self):
-        assert self.MODULE_CLASS is not None
+        if self.MODULE_CLASS is None:
+            raise NotImplementedError(
+                f"Need to specify MODULE_CLASS in class {self.__class__}"
+            )
 
     @classmethod
     def get_by_kind(cls, kind: str):
@@ -85,6 +89,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
     def _generate_in_torch_graph(
         self, torch_graph, provided_inputs, provided_outputs
     ):
+        # pylint: disable-next=import-outside-toplevel
         from .. import torch_graph as tg
 
         inputs = []
@@ -141,7 +146,14 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             )
         )
 
-    def convert_to_nnef(self, *args, **kwargs):
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+    ):
         raise NotImplementedError()
 
 

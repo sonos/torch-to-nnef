@@ -5,8 +5,6 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-torch.nn.quantized.DeQuantize
-
 
 def is_signed_q8(np_dtype: np.dtype):
     assert np_dtype in [np.uint8, np.int8]
@@ -98,7 +96,7 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
         name_to_tensor=name_to_tensor,
     )
     bias_ref = null_ref
-    if conv_bias:
+    if conv_bias is not None:
         bias_ref = _register_state_node_as_variable(
             torch.quantize_per_tensor(
                 conv_bias.data,
