@@ -1,0 +1,4 @@
+fragment silu( input: tensor<scalar> ) -> ( output : tensor<scalar> )
+{
+  output = input * sigmoid(input);
+}

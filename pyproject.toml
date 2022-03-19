@@ -19,6 +19,7 @@ packages = [
     { include = "torch_to_nnef" },
     { include = "tests", format = "sdist" },
 ]
+include = ["CHANGELOG.md"]
 
 [tool.poetry.dependencies]
 python = ">=3.7.0,<4.0"
@@ -142,3 +143,12 @@ disable=[
 
 [tool.pylint.DESIGN]
 max-attributes = 15
+
+[tool.mypy]
+python_version = "3.7"
+
+[[tool.mypy.overrides]]
+module = "torch"
+ignore_missing_imports = true
+follow_imports = "skip"
+follow_imports_for_stubs = true
