@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import torch
 from nnef_tools.io.nnef.writer import Writer as NNEFWriter
 from torch.onnx import TrainingMode
@@ -12,7 +11,7 @@ from torch.onnx.utils import (
 
 from . import __version__
 from .nnef_graph import GraphExtractor
-from .op.fragments import FRAGMENTS
+from .op.fragment import FRAGMENTS
 
 
 def export_model_to_nnef(

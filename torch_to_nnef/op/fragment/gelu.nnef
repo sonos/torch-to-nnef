@@ -1,0 +1,4 @@
+fragment gelu( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = 0.5 * x * (1 + tanh(x * 0.7978845608 * (1 + 0.044715 * x * x)));
+}
