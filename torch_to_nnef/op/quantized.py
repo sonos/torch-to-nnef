@@ -88,9 +88,9 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     conv_weight = packed_params.weight().data
     conv_bias = packed_params.bias()
 
-    stride = packed_params.stride()[:1]
-    dilation = packed_params.dilation()[:1]
-    padding = packed_params.padding()[:1]
+    stride = packed_params.stride()[1:]
+    dilation = packed_params.dilation()[1:]
+    padding = packed_params.padding()[1:]
     groups = packed_params.groups()
 
     weight_ref = register_state_node_as_variable(
