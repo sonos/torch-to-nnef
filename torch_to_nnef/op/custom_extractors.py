@@ -11,7 +11,10 @@ This may be for two main reasons:
 import typing as T
 
 import torch
+from nnef_tools.model import Operation as NOperation
 from torch import nn
+
+from torch_to_nnef.op import primitive
 
 CUSTOMOP_KIND = "wired_custom::"
 
@@ -160,6 +163,44 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 class LSTMExtractor(ModuleInfoExtractor):
     MODULE_CLASS = nn.LSTM
 
+    def tensor_params(self, lstm, c_0, h_0):
+        W_ii, W_if, W_ig, W_io = lstm.weight_ih_l0.split(
+            int(lstm.weight_ih_l0.shape[0] / 4)
+        )
+        W_hi, W_hf, W_hg, W_ho = lstm.weight_hh_l0.split(
+            int(lstm.weight_hh_l0.shape[0] / 4)
+        )
+        b_ii, b_if, b_ig, b_io = lstm.bias_ih_l0.split(
+            int(lstm.bias_ih_l0.shape[0] / 4)
+        )
+        b_hi, b_hf, b_hg, b_ho = lstm.bias_hh_l0.split(
+            int(lstm.bias_hh_l0.shape[0] / 4)
+        )
+        return {
+            "c_0": c_0,
+            "h_0": h_0,
+            # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
+            "W_ii": W_ii,
+            "W_if": W_if,
+            "W_ig": W_ig,
+            "W_io": W_io,
+            # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
+            "W_hi": W_hi,
+            "W_hf": W_hf,
+            "W_hg": W_hg,
+            "W_ho": W_ho,
+            # lstm packed in order (b_ii|b_if|b_ig|b_io)
+            "b_ii": b_ii,
+            "b_if": b_if,
+            "b_ig": b_ig,
+            "b_io": b_io,
+            # lstm packed in order (b_hi|b_hf|b_hg|b_ho)
+            "b_hi": b_hi,
+            "b_hf": b_hf,
+            "b_hg": b_hg,
+            "b_ho": b_ho,
+        }
+
     def convert_to_nnef(
         self,
         g,
@@ -168,5 +209,99 @@ class LSTMExtractor(ModuleInfoExtractor):
         null_ref,
         torch_graph,
     ):
-        torch_graph.printall()
-        raise NotImplementedError("Missing implementation NNEF LSTM")
+        lstm = node.op_ref
+
+        nnef_fragment_selected = "lstm"
+        if hasattr(lstm, "proj_size") and lstm.proj_size > 0:
+            raise NotImplementedError(
+                "Missing implementation NNEF LSTM with projection"
+            )
+
+        if lstm.bias is False:
+            raise NotImplementedError(
+                "Missing implementation NNEF LSTM with no Bias"
+            )
+
+        D = 2 if lstm.bidirectional else 1
+        if lstm.bidirectional:
+            raise NotImplementedError(
+                "Missing implementation NNEF LSTM with bidirectional"
+            )
+
+        if lstm.batch_first:
+            raise NotImplementedError(
+                "Missing handling of proper matrix "
+                "permutation of IO due to batch_first use"
+            )
+        if lstm.num_layers > 1:
+            raise NotImplementedError("Missing handling of multi layer LSTM ")
+        if len(node.inputs) < 2:
+            h_0 = torch.zeros(
+                lstm.num_layers * D, lstm.proj_size or lstm.hidden_size
+            )
+        else:
+            # might be a TensorVariable with data NOT already setted
+            h_0 = node.inputs[1].data
+
+        if len(node.inputs) < 3:
+            c_0 = torch.zeros(lstm.num_layers * D, lstm.hidden_size)
+        else:
+            # might be a TensorVariable with data NOT already setted
+            c_0 = node.inputs[2].data
+
+        name_to_nnef_variable = {}
+        for var_name, torch_tensor in self.tensor_params(
+            lstm, c_0, h_0
+        ).items():
+            name_to_nnef_variable[
+                var_name
+            ] = primitive.register_state_node_as_variable(
+                torch_tensor.detach(),
+                var_name,
+                node,
+                g,
+                name_to_tensor,
+            )
+
+        # output, h_n, c_n
+        outputs = [
+            primitive.add_output_tensor(g, out_node, name_to_tensor)
+            for out_node in node.outputs
+        ]
+
+        argument_order = [
+            "c_0",
+            "h_0",
+            "W_ii",
+            "b_ii",
+            "W_hi",
+            "b_hi",
+            "W_if",
+            "b_if",
+            "W_hf",
+            "b_hf",
+            "W_ig",
+            "b_ig",
+            "W_hg",
+            "b_hg",
+            "W_io",
+            "b_io",
+            "W_ho",
+            "b_ho",
+        ]
+
+        NOperation(
+            graph=g,
+            type=nnef_fragment_selected,
+            name=f"{node.outputs[0].export_name}_op",
+            inputs=tuple(
+                [name_to_tensor[node.inputs[0].export_name]]
+                + [
+                    name_to_nnef_variable[arg_name]
+                    for arg_name in argument_order
+                ]
+            ),
+            outputs=tuple(outputs),
+            attribs={},
+        )
+        return [nnef_fragment_selected]
