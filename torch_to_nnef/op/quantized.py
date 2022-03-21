@@ -1,3 +1,9 @@
+"""
+Quantized layers and primitives
+
+Maybe usefull when looking at X:
+    packed_params._method_names()
+"""
 import typing as T
 
 import numpy as np
@@ -44,7 +50,7 @@ def add_quantized_tensor_to_ngraph(
     return ntensor
 
 
-def _register_state_node_as_variable(
+def register_state_node_as_variable(
     torch_tensor: torch.Tensor,
     slug_name: str,
     node,
@@ -87,7 +93,7 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     padding = packed_params.padding()[:1]
     groups = packed_params.groups()
 
-    weight_ref = _register_state_node_as_variable(
+    weight_ref = register_state_node_as_variable(
         # 2nd axis is to remove in conv1d packed_params
         conv_weight.squeeze(2),
         slug_name="weight",
@@ -95,9 +101,9 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
         g=g,
         name_to_tensor=name_to_tensor,
     )
-    bias_ref = null_ref
+    bias_ref = None
     if conv_bias is not None:
-        bias_ref = _register_state_node_as_variable(
+        bias_ref = register_state_node_as_variable(
             torch.quantize_per_tensor(
                 conv_bias.data,
                 scale=conv_weight.q_scale(),
@@ -127,15 +133,18 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     )
     name_to_tensor[out_tensor_name] = output_tensor
 
+    inputs = [
+        name_to_tensor[input_node.export_name],
+        weight_ref,
+    ]
+    if bias_ref is not None:
+        inputs.append(bias_ref)
+
     NOperation(
         graph=g,
         type="conv",
         name=f"{onode.export_name}_conv",
-        inputs=(
-            name_to_tensor[input_node.export_name],
-            weight_ref,
-            bias_ref,
-        ),
+        inputs=tuple(inputs),
         outputs=output_tensor,
         attribs={
             "dilation": list(dilation),

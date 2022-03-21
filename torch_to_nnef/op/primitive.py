@@ -10,7 +10,7 @@ from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
 from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 
-def _add_output_tensor(
+def add_output_tensor(
     g,
     onode,
     name_to_tensor,
@@ -28,7 +28,7 @@ def _add_output_tensor(
 def _add_single_output_op(
     g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
-    out = _add_output_tensor(g, node.outputs[0], name_to_tensor)
+    out = add_output_tensor(g, node.outputs[0], name_to_tensor)
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     NOperation(
@@ -100,7 +100,7 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
     return _unary_output_op_without_params(nnef_op_type, **kwargs)
 
 
-def _register_state_node_as_variable(
+def register_state_node_as_variable(
     torch_tensor: torch.Tensor,
     slug_name: str,
     node,
@@ -141,7 +141,7 @@ def _weight_bias_and_output_tensor(
     null_ref,
 ):
     weight = weight_node.data
-    weight_ref = _register_state_node_as_variable(
+    weight_ref = register_state_node_as_variable(
         torch_tensor=weight,
         slug_name="weight",
         node=node,
@@ -151,7 +151,7 @@ def _weight_bias_and_output_tensor(
 
     bias_ref = null_ref
     if bias_node.data is not None:
-        bias_ref = _register_state_node_as_variable(
+        bias_ref = register_state_node_as_variable(
             torch_tensor=bias_node.data,
             slug_name="bias",
             node=node,
@@ -424,14 +424,14 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         null_ref,
     )
-    running_mean_ref = _register_state_node_as_variable(
+    running_mean_ref = register_state_node_as_variable(
         running_mean_node.data,
         slug_name="running_mean",
         node=node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
-    running_var_ref = _register_state_node_as_variable(
+    running_var_ref = register_state_node_as_variable(
         running_var_node.data,
         slug_name="running_var",
         node=node,
@@ -772,7 +772,7 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
             if input_item.data is None:
                 torch_graph.printall()
                 raise NotImplementedError(f"cat with input_item: {input_item}")
-            tensor_ref = _register_state_node_as_variable(
+            tensor_ref = register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,
                 node=node,
@@ -800,7 +800,7 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
         if input_item.export_name in name_to_tensor:
             tensor_ref = name_to_tensor[input_item.export_name]
         else:
-            tensor_ref = _register_state_node_as_variable(
+            tensor_ref = register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,
                 node=node,
@@ -859,7 +859,7 @@ def _reducer(
     keep_dim = keep_dim_node.data
 
     onode = node.outputs[output_idx]
-    out = _add_output_tensor(g, onode, name_to_tensor)
+    out = add_output_tensor(g, onode, name_to_tensor)
     op_reduce_out = None
     if not keep_dim:
         # apply squeeze
@@ -1062,7 +1062,7 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
         if name in name_to_tensor:
             inputs.append(name_to_tensor[name])
         else:
-            snode_ref = _register_state_node_as_variable(
+            snode_ref = register_state_node_as_variable(
                 torch_tensor=snode.data,
                 slug_name=name,
                 node=node,
@@ -1077,6 +1077,28 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         nnef_op_type="select",
         inputs=inputs,
+    )
+
+
+def matmul(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_node,
+        other_node,
+    ) = node.inputs
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "matmul",
+        inputs=(
+            name_to_tensor[input_node.export_name],
+            name_to_tensor[other_node.export_name],
+        ),
+        attrs={
+            "transposeA": False,
+            "transposeB": False,
+        },
     )
 
 
@@ -1159,7 +1181,6 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         'ge',
         'and',
         'or',
-        'matmul',
     ]:
         return _unary_output_op_without_params(
             nnef_op_type=aten_op_name,

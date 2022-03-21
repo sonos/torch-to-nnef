@@ -54,14 +54,14 @@ class TensorFnPrimitive(nn.Module):
 
 class WithQuantDeQuant(torch.quantization.QuantWrapper):
     @classmethod
-    def quantize_model_and_stub(cls, model):
+    def quantize_model_and_stub(cls, model, input_shape):
         model = cls(model)
         # pylint: disable-next=attribute-defined-outside-init
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
         model_qat.train()
         for _ in range(100):
-            model_qat(torch.rand(1, 10, 100))
+            model_qat(torch.rand(input_shape))
         model_q8 = torch.quantization.convert(model_qat.eval())
         return model_q8
 
@@ -203,9 +203,15 @@ INPUT_AND_MODELS += [
 ]
 
 INPUT_AND_MODELS += [
-    ((torch.rand(13, 10), torch.rand(13, 10).T), BinaryPrimitive(op))
+    (
+        (
+            torch.arange(10).reshape(5, 2).float(),
+            torch.arange(10).reshape(5, 2).T.float(),
+        ),
+        BinaryPrimitive(op),
+    )
     for op in [
-        # torch.matmul,  # tract not same results ??
+        # torch.matmul,
     ]
 ]
 
@@ -358,11 +364,20 @@ if os.environ.get("MODELS"):
 
 # Test with quantization
 if os.environ.get("Q8"):
+    my_shape = [1, 5, 2]
+    reduce_r = 1
+    for si in my_shape:
+        reduce_r *= si
     INPUT_AND_MODELS = [
-        (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
+        (
+            torch.arange(reduce_r).reshape(*my_shape).float(),
+            WithQuantDeQuant.quantize_model_and_stub(mod, input_shape=my_shape),
+        )
         for mod in [
             nn.Sequential(
-                nn.Conv1d(10, 20, 3, bias=False),
+                nn.Conv1d(
+                    my_shape[1], 3, min(my_shape[2], 3), stride=2, bias=False
+                ),
                 # nn.intrinsic.ConvBnReLU1d(
                 # nn.Conv1d(10, 20, 3),
                 # nn.BatchNorm1d(20),

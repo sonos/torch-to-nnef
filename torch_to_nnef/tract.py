@@ -36,21 +36,26 @@ def nop(x, *args, **kwargs):
     return x
 
 
+def _unfold_outputs(test_outputs):
+    if isinstance(test_outputs, torch.Tensor):
+        test_outputs = [test_outputs]
+    test_outputs = list(test_outputs)
+
+    unfolded_outputs = []
+    for out in test_outputs:
+        if isinstance(out, torch.Tensor):
+            unfolded_outputs.append(out)
+        elif isinstance(out, (list, tuple)):
+            for sub_out in out:
+                unfolded_outputs.append(sub_out)
+    return unfolded_outputs
+
+
 def build_io(model, test_input, io_npz_path=None):
     tup_inputs = test_input if isinstance(test_input, tuple) else (test_input,)
     input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
-    test_output = model(*tup_inputs)
-    # We do not handle complex outputs except tensor or list of tensor {
-    if isinstance(test_output, torch.Tensor):
-        test_output = [test_output]
-    test_output = list(test_output)
-    if len(test_output) == 2 and isinstance(
-        test_output[1], tuple
-    ):  # LSTM special case
-        test_output[1] = test_output[1][0]
-    # }
-
-    output_names = [f"output_{idx}" for idx, _ in enumerate(test_output)]
+    test_outputs = _unfold_outputs(model(*tup_inputs))
+    output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
 
     if io_npz_path is not None:
         if isinstance(model, torch.quantization.QuantWrapper):
@@ -64,7 +69,7 @@ def build_io(model, test_input, io_npz_path=None):
         kwargs.update(
             {
                 key: fn(output_arg.detach(), is_input=False).numpy()
-                for key, output_arg in zip(output_names, test_output)
+                for key, output_arg in zip(output_names, test_outputs)
             }
         )
         np.savez(io_npz_path, **kwargs)
