@@ -40,6 +40,9 @@ class UnaryPrimitive(nn.Module):
         super().__init__()
         self.op = op
 
+    def extra_repr(self):
+        return f"op={self.op}"
+
     def forward(self, x):
         return self.op(x)
 
@@ -48,6 +51,9 @@ class BinaryPrimitive(nn.Module):
     def __init__(self, op):
         super().__init__()
         self.op = op
+
+    def extra_repr(self):
+        return f"op={self.op}"
 
     def forward(self, x1, x2):
         return self.op(x1, x2)
@@ -59,6 +65,9 @@ class TensorFnPrimitive(nn.Module):
         self.op = op
         self.args = args or tuple()
         self.kwargs = kwargs
+
+    def extra_repr(self):
+        return f"op={self.op}"
 
     def forward(self, x):
         return getattr(x, self.op)(*self.args, **self.kwargs)
@@ -89,6 +98,9 @@ class ListInputPrim(nn.Module):
         self.y = torch.rand(*dims)
         self.op = op
 
+    def extra_repr(self):
+        return f"op={self.op}"
+
     def forward(self, x):
         return self.op([x, self.y], dim=1)
 
@@ -102,7 +114,7 @@ def nnef_split(value, axis, ratios):
 
 
 # Base unary operations
-_condition_1 = condition = torch.eye(5, 4).to(torch.bool)
+_condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
 INPUT_AND_MODELS = [
     (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
@@ -432,7 +444,9 @@ def test_should_fail_since_false_output():
             + 1,  # <-- here we artificially add 1 to make it FAIL
         )
         assert not tract_assert_io(
-            export_path.with_suffix(".nnef.tgz"), io_npz_path
+            export_path.with_suffix(".nnef.tgz"),
+            io_npz_path,
+            raise_exception=False,
         ), f"SHOULD fail tract io check with {model}"
 
 
@@ -467,9 +481,7 @@ def test_model_export(test_input, model):
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
         try:
-            tract_assert_io(
-                real_export_path, io_npz_path, raise_exception=True
-            ), f"failed tract io check with {model}"
+            tract_assert_io(real_export_path, io_npz_path, raise_exception=True)
         except IOPytorchTractNotISOError as exp:
             if not os.environ.get("DEBUG", False):
                 raise exp
@@ -489,5 +501,9 @@ def test_model_export(test_input, model):
                 test_input,
                 target_folder=exp_path / "tract",
                 raise_export_error=False,
+            )
+            exp.args = tuple(
+                [f"test with model: {model}\n" + exp.args[0]]
+                + list(exp.args)[1:]
             )
             raise exp

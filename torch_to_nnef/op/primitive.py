@@ -39,6 +39,7 @@ def _add_single_output_op(
         outputs=tuple([out]),
         attribs=attrs or {},
     )
+    return out
 
 
 def add_tensor_to_ngraph(

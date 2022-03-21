@@ -36,7 +36,7 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:
         _, err = proc.communicate()
-        if err:
+        if err and "ERROR" in err.decode("utf8"):
             if raise_exception:
                 raise IOPytorchTractNotISOError(err.decode("utf8"))
             return False
