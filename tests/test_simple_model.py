@@ -15,12 +15,24 @@ from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.tract import (
+    IOPytorchTractNotISOError,
     build_io,
     debug_dumper_pytorch_to_onnx_to_nnef,
     tract_assert_io,
 )
 
 INPUT_AND_MODELS = []
+
+
+from .utils import set_seed  # noqa: E402
+
+#
+# in some case bug may happen with random at specific seed
+# you can alway do this to brute force find failure mode
+# in your bash
+# $ for i in {0..100}; do  echo $i; SEED=$i DEBUG=1 Q8=1 py.test ; done;
+
+set_seed(int(os.environ.get("SEED", 25)))
 
 
 class UnaryPrimitive(nn.Module):
@@ -364,7 +376,7 @@ if os.environ.get("MODELS"):
 
 # Test with quantization
 if os.environ.get("Q8"):
-    my_shape = [1, 5, 2]
+    my_shape = [1, 2, 2]
     reduce_r = 1
     for si in my_shape:
         reduce_r *= si
@@ -376,7 +388,7 @@ if os.environ.get("Q8"):
         for mod in [
             nn.Sequential(
                 nn.Conv1d(
-                    my_shape[1], 3, min(my_shape[2], 3), stride=2, bias=False
+                    my_shape[1], 1, min(my_shape[2], 3), stride=1, bias=False
                 ),
                 # nn.intrinsic.ConvBnReLU1d(
                 # nn.Conv1d(10, 20, 3),
@@ -455,11 +467,10 @@ def test_model_export(test_input, model):
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
         try:
-
-            assert tract_assert_io(
-                real_export_path, io_npz_path
+            tract_assert_io(
+                real_export_path, io_npz_path, raise_exception=True
             ), f"failed tract io check with {model}"
-        except AssertionError as exp:
+        except IOPytorchTractNotISOError as exp:
             if not os.environ.get("DEBUG", False):
                 raise exp
             exp_path = (
@@ -474,6 +485,9 @@ def test_model_export(test_input, model):
                 shell=True,
             )
             debug_dumper_pytorch_to_onnx_to_nnef(
-                model, test_input, target_folder=exp_path / "tract"
+                model,
+                test_input,
+                target_folder=exp_path / "tract",
+                raise_export_error=False,
             )
             raise exp

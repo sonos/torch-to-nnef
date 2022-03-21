@@ -10,20 +10,37 @@ import torch
 from torch import nn
 
 
+class OnnxExportError(RuntimeError):
+    pass
+
+
+class TractOnnxToNNEFError(RuntimeError):
+    pass
+
+
+class IOPytorchTractNotISOError(ValueError):
+    pass
+
+
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     subprocess.check_call(
         f'tract {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
         shell=True,
+        stderr=subprocess.STDOUT,
     )
 
 
-def tract_assert_io(nnef_path: Path, io_npz_path: Path):
+def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
     cmd = f"tract {nnef_path} --input-bundle {io_npz_path} -O run --assert-output-bundle {io_npz_path}"
-    try:
-        subprocess.check_call(cmd, shell=True, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    with subprocess.Popen(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as proc:
+        _, err = proc.communicate()
+        if err:
+            if raise_exception:
+                raise IOPytorchTractNotISOError(err.decode("utf8"))
+            return False
+    return True
 
 
 def special_quantize_io(x, model, is_input):
@@ -77,41 +94,70 @@ def build_io(model, test_input, io_npz_path=None):
 
 
 def pytorch_to_onnx_to_tract_to_nnef(
-    model: nn.Module, test_input, nnef_path, onnx_path=None, io_npz_path=None
-):
+    model: nn.Module,
+    test_input,
+    nnef_path,
+    onnx_path=None,
+    io_npz_path=None,
+    raise_export_error: bool = True,
+) -> bool:
     with tempfile.TemporaryDirectory() as tmpdir:
         onnx_path = onnx_path or (Path(tmpdir) / "model.onnx")
         io_npz_path = io_npz_path or (Path(tmpdir) / "io.npz")
         input_names, output_names = build_io(model, test_input, io_npz_path)
-        torch.onnx.export(
-            model,
-            test_input,
-            str(onnx_path),
-            input_names=input_names,
-            output_names=output_names,
-        )
-        tract_convert_onnx_to_nnef(
-            onnx_path,
-            io_npz_path,
-            nnef_path=nnef_path,
-        )
+        try:
+            torch.onnx.export(
+                model,
+                test_input,
+                str(onnx_path),
+                input_names=input_names,
+                output_names=output_names,
+            )
+        # parametrized failure exception emission
+        # pylint: disable-next=broad-except
+        except Exception as exp:
+            if raise_export_error:
+                raise OnnxExportError(exp.args) from exp
+            print("ONNX export error")
+            return False
+        try:
+            tract_convert_onnx_to_nnef(
+                onnx_path,
+                io_npz_path,
+                nnef_path=nnef_path,
+            )
+        # parametrized failure exception emission
+        # pylint: disable-next=broad-except
+        except Exception as exp:
+            if raise_export_error:
+                raise TractOnnxToNNEFError(exp.args) from exp
+            print("tract ONNX->NNEF export error")
+            return False
+        return True
 
 
 def debug_dumper_pytorch_to_onnx_to_nnef(
-    model: nn.Module, test_input, target_folder: Path
-):
+    model: nn.Module,
+    test_input,
+    target_folder: Path,
+    raise_export_error: bool = True,
+) -> bool:
     assert not target_folder.exists()
     target_folder.mkdir()
     onnx_path = target_folder / "model.onnx"
     nnef_path = target_folder / "tract_onnx_converted_model.nnef"
     io_npz_path = target_folder / "io.npz"
-    pytorch_to_onnx_to_tract_to_nnef(
+    sucessfull_export = pytorch_to_onnx_to_tract_to_nnef(
         model,
         test_input,
         nnef_path,
         onnx_path=onnx_path,
         io_npz_path=io_npz_path,
+        raise_export_error=raise_export_error,
     )
+    if not sucessfull_export:
+        return False
     subprocess.check_output(
         f"cd {target_folder} && tar -xvf {nnef_path}", shell=True
     )
+    return True
