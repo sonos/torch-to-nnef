@@ -1,5 +1,5 @@
 
-extension tract_registry pulse;
+extension tract_registry tract_nnef;
 extension tract_registry tract_core;
 
 fragment lstm_scan_loop(
@@ -19,7 +19,7 @@ fragment lstm_scan_loop(
     W_io: tensor<scalar>,
     b_io: tensor<scalar>,
     W_ho: tensor<scalar>
-) -> ( c_t: tensor<scalar>, h_t: tensor<scalar>) {
+) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
     # input gate
     i_t = sigmoid(matmul(W_ii, x_t) + b_ii + matmul(W_hi, h_t_prev) + b_hi);
 
@@ -62,7 +62,7 @@ fragment lstm(
     b_io: tensor<scalar>,
     W_ho: tensor<scalar>,
     b_ho: tensor<scalar>
-) -> (c_n tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar>) {
+) -> ( c_n : tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar> ) {
   (c_n , c_t, h_t) = tract_core_scan(
       body = "lstm_scan_loop",
       scan = [

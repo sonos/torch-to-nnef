@@ -120,7 +120,7 @@ def _replacement_to_relative_module_path(replacements: T.List[str]):
     )
 
 
-def _is_io_qantized_module(module):
+def _is_io_quantized_module(module):
     if isinstance(module, nn.Sequential):
         module = module[0]
     return not isinstance(module, torch.nn.quantized.Quantize) and any(
@@ -133,7 +133,7 @@ def _is_io_qantized_module(module):
 
 
 def maybe_quantize_args_tensor(module, args):
-    if _is_io_qantized_module(module):
+    if _is_io_quantized_module(module):
         args = [
             # force cast in quantized form
             torch.quantize_per_tensor(

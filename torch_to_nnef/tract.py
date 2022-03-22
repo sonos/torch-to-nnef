@@ -1,5 +1,6 @@
 """ Tools to manipulate tract programatically """
 
+import os
 import subprocess
 import tempfile
 from functools import partial
@@ -8,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
+
+TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 
 class OnnxExportError(RuntimeError):
@@ -24,14 +27,14 @@ class IOPytorchTractNotISOError(ValueError):
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     subprocess.check_call(
-        f'tract {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
+        f'{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
         shell=True,
         stderr=subprocess.STDOUT,
     )
 
 
 def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
-    cmd = f"tract {nnef_path} --input-bundle {io_npz_path} -O run --assert-output-bundle {io_npz_path}"
+    cmd = f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} -vvv -O run --assert-output-bundle {io_npz_path}"
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:

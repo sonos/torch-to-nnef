@@ -14,8 +14,6 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from torch import nn
 
-from torch_to_nnef.op import primitive
-
 CUSTOMOP_KIND = "wired_custom::"
 
 
@@ -209,6 +207,9 @@ class LSTMExtractor(ModuleInfoExtractor):
         null_ref,
         torch_graph,
     ):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
         lstm = node.op_ref
 
         nnef_fragment_selected = "lstm"
@@ -301,7 +302,8 @@ class LSTMExtractor(ModuleInfoExtractor):
                     for arg_name in argument_order
                 ]
             ),
-            outputs=tuple(outputs),
+            outputs=list(outputs),
             attribs={},
+            custom=True,
         )
         return [nnef_fragment_selected]

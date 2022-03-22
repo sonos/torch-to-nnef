@@ -450,12 +450,12 @@ def test_should_fail_since_false_output():
         ), f"SHOULD fail tract io check with {model}"
 
 
-# INPUT_AND_MODELS = [
-# (torch.rand(1, 10, 100), layer)
-# for layer in [
-# nn.LSTM(100, 5),
-# ]
-# ]
+INPUT_AND_MODELS = [
+    (torch.rand(1, 10, 100), layer)
+    for layer in [
+        nn.LSTM(100, 5),
+    ]
+]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
