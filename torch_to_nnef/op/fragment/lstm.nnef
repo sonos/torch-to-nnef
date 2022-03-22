@@ -1,9 +1,10 @@
 
-extension tract_registry tract_nnef;
 extension tract_registry tract_core;
 
 fragment lstm_scan_loop(
-    input: tensor<scalar>,
+    c_t_prev: tensor<scalar>,
+    h_t_prev: tensor<scalar>,
+    x_t: tensor<scalar>,
     W_ii: tensor<scalar>,
     b_ii: tensor<scalar>,
     W_hi: tensor<scalar>,
@@ -18,19 +19,20 @@ fragment lstm_scan_loop(
     b_hg: tensor<scalar>,
     W_io: tensor<scalar>,
     b_io: tensor<scalar>,
-    W_ho: tensor<scalar>
+    W_ho: tensor<scalar>,
+    b_ho: tensor<scalar>
 ) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
     # input gate
-    i_t = sigmoid(matmul(W_ii, x_t) + b_ii + matmul(W_hi, h_t_prev) + b_hi);
+    i_t = sigmoid(matmul(W_ii, x_t, transposeB=true) + b_ii + matmul(W_hi, h_t_prev, transposeB=true) + b_hi);
 
     # forget gate
-    f_t = sigmoid(matmul(W_if, x_t) + b_if + matmul(W_hf, h_t_prev) + b_hf);
+    f_t = sigmoid(matmul(W_if, x_t, transposeB=true) + b_if + matmul(W_hf, h_t_prev, transposeB=true) + b_hf);
 
     # cell gate
-    g_t = tanh(matmul(W_ig, x_t) + b_ig + matmul(W_hg, h_t_prev) + b_hg);
+    g_t = tanh(matmul(W_ig, x_t, transposeB=true) + b_ig + matmul(W_hg, h_t_prev, transposeB=true) + b_hg);
 
     # output gate
-    o_t = sigmoid(matmul(W_io, x_t) + b_io + matmul(W_ho, h_t_prev) + b_ho);
+    o_t = sigmoid(matmul(W_io, x_t, transposeB=true) + b_io + matmul(W_ho, h_t_prev, transposeB=true) + b_ho);
 
     # cell state at time t
     c_t = f_t * c_t_prev + i_t * g_t;
@@ -62,11 +64,11 @@ fragment lstm(
     b_io: tensor<scalar>,
     W_ho: tensor<scalar>,
     b_ho: tensor<scalar>
-) -> ( c_n : tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar> ) {
+) -> ( c_n : tensor<scalar>, c_t : tensor<scalar>, h_t : tensor<scalar> ) {
   (c_n , c_t, h_t) = tract_core_scan(
       body = "lstm_scan_loop",
       scan = [
-          ("input", input, 0, 1)
+          ("x_t", input, 0, 1)
       ],
       full = [
           ("W_ii", W_ii),
@@ -91,7 +93,9 @@ fragment lstm(
           ("h_t_prev", h_0, "h_t")
       ],
       output = [
-          ("c_t", "full", 0), ("h_t", "last", 0), ("c_t", "last", 0)
+          ("c_t", "full", 0),
+          ("c_t", "last", 0),
+          ("h_t", "full", 0)
       ],
       skip = 0
   );

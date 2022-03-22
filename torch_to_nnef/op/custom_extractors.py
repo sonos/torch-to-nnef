@@ -12,6 +12,7 @@ import typing as T
 
 import torch
 from nnef_tools.model import Operation as NOperation
+from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
 CUSTOMOP_KIND = "wired_custom::"
@@ -254,10 +255,11 @@ class LSTMExtractor(ModuleInfoExtractor):
         for var_name, torch_tensor in self.tensor_params(
             lstm, c_0, h_0
         ).items():
+            torch_tensor = torch_tensor.detach()
             name_to_nnef_variable[
                 var_name
             ] = primitive.register_state_node_as_variable(
-                torch_tensor.detach(),
+                torch_tensor,
                 var_name,
                 node,
                 g,
@@ -290,20 +292,39 @@ class LSTMExtractor(ModuleInfoExtractor):
             "W_ho",
             "b_ho",
         ]
+        assert (
+            node.inputs[0].shape[0] == 1
+        ), "first dim need to be only 1 since batch_size beyond are not supported"
+
+        input_tensor = name_to_tensor[node.inputs[0].export_name]
+
+        squeeezed_out_name = f"{input_tensor.name}_batch_squeezed"
+        squeeezed_out = NTensor(
+            g,
+            squeeezed_out_name,
+            dtype=input_tensor.dtype,
+            shape=input_tensor.shape[1:],
+        )
+        name_to_tensor[squeeezed_out_name] = squeeezed_out
+        NOperation(
+            graph=g,
+            type="squeeze",
+            inputs=input_tensor,
+            outputs=squeeezed_out,
+            attribs={"axes": [0]},
+        )
 
         NOperation(
             graph=g,
             type=nnef_fragment_selected,
             name=f"{node.outputs[0].export_name}_op",
             inputs=tuple(
-                [name_to_tensor[node.inputs[0].export_name]]
+                [squeeezed_out]
                 + [
                     name_to_nnef_variable[arg_name]
                     for arg_name in argument_order
                 ]
             ),
-            outputs=list(outputs),
-            attribs={},
-            custom=True,
+            outputs=tuple(outputs),
         )
         return [nnef_fragment_selected]
