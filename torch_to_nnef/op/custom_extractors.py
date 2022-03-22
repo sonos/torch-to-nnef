@@ -255,11 +255,10 @@ class LSTMExtractor(ModuleInfoExtractor):
         for var_name, torch_tensor in self.tensor_params(
             lstm, c_0, h_0
         ).items():
-            torch_tensor = torch_tensor.detach()
             name_to_nnef_variable[
                 var_name
             ] = primitive.register_state_node_as_variable(
-                torch_tensor,
+                torch_tensor.detach(),
                 var_name,
                 node,
                 g,

@@ -22,17 +22,31 @@ fragment lstm_scan_loop(
     W_ho: tensor<scalar>,
     b_ho: tensor<scalar>
 ) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
+    # does not use linear ops yet due to tract declutter issue
+
     # input gate
-    i_t = sigmoid(matmul(W_ii, x_t, transposeB=true) + b_ii + matmul(W_hi, h_t_prev, transposeB=true) + b_hi);
+    i_t = sigmoid(
+        matmul(x_t, W_ii, transposeB=true) + b_ii
+        + matmul(h_t_prev, W_hi, transposeB=true) + b_hi
+    );
 
     # forget gate
-    f_t = sigmoid(matmul(W_if, x_t, transposeB=true) + b_if + matmul(W_hf, h_t_prev, transposeB=true) + b_hf);
+    f_t = sigmoid(
+        matmul(x_t, W_if, transposeB=true) + b_if
+        + matmul(h_t_prev, W_hf, transposeB=true) + b_hf
+    );
 
     # cell gate
-    g_t = tanh(matmul(W_ig, x_t, transposeB=true) + b_ig + matmul(W_hg, h_t_prev, transposeB=true) + b_hg);
+    g_t = tanh(
+        matmul(x_t, W_ig, transposeB=true) + b_ig
+        + matmul(h_t_prev, W_hg, transposeB=true) + b_hg
+    );
 
     # output gate
-    o_t = sigmoid(matmul(W_io, x_t, transposeB=true) + b_io + matmul(W_ho, h_t_prev, transposeB=true) + b_ho);
+    o_t = sigmoid(
+        matmul(x_t, W_io, transposeB=true) + b_io
+        + matmul(h_t_prev,W_ho, transposeB=true) + b_ho
+    );
 
     # cell state at time t
     c_t = f_t * c_t_prev + i_t * g_t;
