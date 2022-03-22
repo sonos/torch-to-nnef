@@ -9,7 +9,7 @@ from torch.onnx.utils import (
     select_model_mode_for_export,
 )
 
-from . import __version__
+# from . import __version__
 from .nnef_graph import GraphExtractor
 from .op.fragment import FRAGMENTS
 
@@ -47,5 +47,5 @@ def export_model_to_nnef(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
-            version_custom_fragments=__version__,
+            version_custom_fragments=None,  # using version might create conflict with ops
         )(nnef_graph, str(file_path_export))

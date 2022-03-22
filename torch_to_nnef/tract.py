@@ -34,7 +34,10 @@ def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
 
 
 def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
-    cmd = f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} -vvv -O run --assert-output-bundle {io_npz_path}"
+    cmd = (
+        f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} "
+        f"--nnef-tract-core -vvv -O run --assert-output-bundle {io_npz_path}"
+    )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:
