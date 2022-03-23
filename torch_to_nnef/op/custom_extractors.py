@@ -158,36 +158,173 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         raise NotImplementedError()
 
 
-class LSTMExtractor(ModuleInfoExtractor):
+class _RNNMixin:
+    def _core_convert_to_nnef(
+        self,
+        module,
+        node,
+        g,
+        name_to_tensor,
+        nnef_fragment_name,
+        argument_names_order,
+        **tensor_params_kwargs,
+    ):
+        """
+        Avoid repeated configuration of:
+            batch_first
+            multi_layers
+        """
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        assert (
+            node.inputs[0].shape[0 if module.batch_first else 1] == 1
+        ), "first dim need to be only 1 since batch_size beyond are not supported"
+
+        input_tensor = name_to_tensor[node.inputs[0].export_name]
+
+        if module.batch_first:
+            transposed_input_tensor = primitive.add_output_tensor(
+                g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
+            )
+            NOperation(
+                g,
+                type="transpose",
+                inputs=input_tensor,
+                outputs=transposed_input_tensor,
+                attribs={"axes": [1, 0]},
+            )
+            input_tensor = transposed_input_tensor
+
+        last_hc_at_each_layers = []
+        for layer_index in range(module.num_layers):
+            name_to_nnef_variable = {}
+            for var_name, torch_tensor in self.tensor_params(
+                module, **tensor_params_kwargs, layer_index=layer_index
+            ).items():
+                name_to_nnef_variable[
+                    var_name
+                ] = primitive.register_state_node_as_variable(
+                    torch_tensor,
+                    var_name,
+                    node,
+                    g,
+                    name_to_tensor,
+                )
+
+            # outputs: h_n, h_last
+            outputs = [
+                primitive.add_output_tensor(
+                    g,
+                    out_node,
+                    name_to_tensor,
+                    name_suffix=f"_l{layer_index}"
+                    if module.num_layers > 1
+                    else "",
+                )
+                for out_node in node.outputs
+            ]
+
+            argument_order = [
+                f"l{layer_index}_{arg_name}"
+                for arg_name in argument_names_order
+            ]
+
+            NOperation(
+                graph=g,
+                type=nnef_fragment_name,
+                inputs=tuple(
+                    [input_tensor]
+                    + [name_to_nnef_variable[_] for _ in argument_order]
+                ),
+                outputs=tuple(outputs),
+            )
+            # map to next layer
+            input_tensor = outputs[0]
+            last_hc_at_each_layers.append(outputs[1:])
+
+        if module.batch_first:
+            out_transpose_tensor = primitive.add_output_tensor(
+                g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
+            )
+            NOperation(
+                g,
+                type="transpose",
+                inputs=input_tensor,
+                outputs=out_transpose_tensor,
+                attribs={"axes": [1, 0]},
+            )
+            input_tensor = out_transpose_tensor
+
+        h_out_name = node.outputs[0].export_name
+        input_tensor.name = h_out_name
+        name_to_tensor[h_out_name] = input_tensor
+
+        if module.num_layers > 1:
+            # allow to concat last from each layers for h_t and and c_t
+            for idx, out_node in enumerate(node.outputs[1:]):
+                real_output = primitive.add_output_tensor(
+                    g, out_node, name_to_tensor
+                )
+                NOperation(
+                    graph=g,
+                    type="concat",
+                    inputs=[_[idx] for _ in last_hc_at_each_layers],
+                    outputs=real_output,
+                    attribs={"axis": 0},
+                )
+
+        return [nnef_fragment_name]
+
+    def _apply_layer_and_unsqueeze_to_params(self, params, layer_index: int):
+        for k, v in params.items():
+            v = v.detach()
+            if k.startswith('b_'):
+                v = v.unsqueeze(0)
+            params[k] = v.unsqueeze(0)
+
+        return {f"l{layer_index}_{k}": v for k, v in params.items()}
+
+
+class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.LSTM
 
-    def tensor_params(self, lstm, c_0, h_0):
+    def tensor_params(self, lstm, c_0, h_0, layer_index: int = 0):
+        h_0_layer = h_0.split(1)[layer_index]
+        c_0_layer = c_0.split(1)[layer_index]
+
         # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
-        W_ii, W_if, W_ig, W_io = lstm.weight_ih_l0.split(
-            int(lstm.weight_ih_l0.shape[0] / 4)
-        )
+        w_var = getattr(lstm, f"weight_ih_l{layer_index}")
+        W_ii, W_if, W_ig, W_io = w_var.split(int(w_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
-        W_hi, W_hf, W_hg, W_ho = lstm.weight_hh_l0.split(
-            int(lstm.weight_hh_l0.shape[0] / 4)
-        )
-        if hasattr(lstm, "bias_ih_l0") and lstm.bias_ih_l0 is not None:
+        w_var = getattr(lstm, f"weight_hh_l{layer_index}")
+        W_hi, W_hf, W_hg, W_ho = w_var.split(int(w_var.shape[0] / 4))
+
+        bias_i_name = f"bias_ih_l{layer_index}"
+        if (
+            hasattr(lstm, bias_i_name)
+            and getattr(lstm, bias_i_name) is not None
+        ):
+            b_var = getattr(lstm, bias_i_name)
             # lstm packed in order (b_ii|b_if|b_ig|b_io)
-            b_ii, b_if, b_ig, b_io = lstm.bias_ih_l0.split(
-                int(lstm.bias_ih_l0.shape[0] / 4)
-            )
+            b_ii, b_if, b_ig, b_io = b_var.split(int(b_var.shape[0] / 4))
         else:
             b_ii, b_if, b_ig, b_io = (torch.tensor(0.0) for _ in range(4))
-        if hasattr(lstm, "bias_hh_l0") and lstm.bias_hh_l0 is not None:
+
+        bias_h_name = f"bias_hh_l{layer_index}"
+        if (
+            hasattr(lstm, bias_h_name)
+            and getattr(lstm, bias_h_name) is not None
+        ):
             # lstm packed in order (b_hi|b_hf|b_hg|b_ho)
-            b_hi, b_hf, b_hg, b_ho = lstm.bias_hh_l0.split(
-                int(lstm.bias_hh_l0.shape[0] / 4)
-            )
+            b_var = getattr(lstm, bias_h_name)
+            b_hi, b_hf, b_hg, b_ho = b_var.split(int(b_var.shape[0] / 4))
         else:
             b_hi, b_hf, b_hg, b_ho = (torch.tensor(0.0) for _ in range(4))
 
-        return {
-            "c_0": c_0,
-            "h_0": h_0,
+        params = {
+            "c_0": c_0_layer,
+            "h_0": h_0_layer,
             # -----------
             "W_ii": W_ii,
             "W_if": W_if,
@@ -204,6 +341,7 @@ class LSTMExtractor(ModuleInfoExtractor):
             "b_g": b_ig + b_hg,
             "b_o": b_io + b_ho,
         }
+        return self._apply_layer_and_unsqueeze_to_params(params, layer_index)
 
     def convert_to_nnef(
         self,
@@ -213,8 +351,6 @@ class LSTMExtractor(ModuleInfoExtractor):
         null_ref,
         torch_graph,
     ):
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import primitive
 
         lstm = node.op_ref
 
@@ -231,13 +367,6 @@ class LSTMExtractor(ModuleInfoExtractor):
                 "Missing implementation NNEF LSTM with bidirectional"
             )
 
-        if lstm.batch_first:
-            raise NotImplementedError(
-                "Missing handling of proper matrix "
-                "permutation of IO due to batch_first use"
-            )
-        if lstm.num_layers > 1:
-            raise NotImplementedError("Missing handling of multi layer LSTM")
         if len(node.inputs) < 2:
             h_0 = torch.zeros(
                 lstm.num_layers * D, lstm.proj_size or lstm.hidden_size
@@ -252,67 +381,35 @@ class LSTMExtractor(ModuleInfoExtractor):
             # might be a TensorVariable with data NOT already setted
             c_0 = node.inputs[2].data
 
-        name_to_nnef_variable = {}
-        for var_name, torch_tensor in self.tensor_params(
-            lstm, c_0, h_0
-        ).items():
-            torch_tensor = torch_tensor.detach()
-            if var_name.startswith('b_'):
-                torch_tensor = torch_tensor.unsqueeze(0)
-            torch_tensor = torch_tensor.unsqueeze(0)
-            name_to_nnef_variable[
-                var_name
-            ] = primitive.register_state_node_as_variable(
-                torch_tensor,
-                var_name,
-                node,
-                g,
-                name_to_tensor,
-            )
-
-        # output, h_n, c_n
-        outputs = [
-            primitive.add_output_tensor(g, out_node, name_to_tensor)
-            for out_node in node.outputs
-        ]
-
-        argument_order = [
-            "c_0",
-            "h_0",
-            "W_ii",
-            "W_hi",
-            "W_if",
-            "W_hf",
-            "W_ig",
-            "W_hg",
-            "W_io",
-            "W_ho",
-            # -----
-            "b_i",
-            "b_f",
-            "b_g",
-            "b_o",
-        ]
-        assert (
-            node.inputs[0].shape[0 if lstm.batch_first else 1] == 1
-        ), "first dim need to be only 1 since batch_size beyond are not supported"
-
-        input_tensor = name_to_tensor[node.inputs[0].export_name]
-
-        NOperation(
-            graph=g,
-            type=nnef_fragment_selected,
-            name=f"{node.outputs[0].export_name}_op",
-            inputs=tuple(
-                [input_tensor]
-                + [name_to_nnef_variable[_] for _ in argument_order]
-            ),
-            outputs=tuple(outputs),
+        tensor_params_kwargs = {"h_0": h_0, "c_0": c_0}
+        return self._core_convert_to_nnef(
+            module=lstm,
+            node=node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+            nnef_fragment_name=nnef_fragment_selected,
+            argument_names_order=[
+                "c_0",
+                "h_0",
+                "W_ii",
+                "W_hi",
+                "W_if",
+                "W_hf",
+                "W_ig",
+                "W_hg",
+                "W_io",
+                "W_ho",
+                # -----
+                "b_i",
+                "b_f",
+                "b_g",
+                "b_o",
+            ],
+            **tensor_params_kwargs,
         )
-        return [nnef_fragment_selected]
 
 
-class GRUExtractor(ModuleInfoExtractor):
+class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.GRU
 
     def tensor_params(self, gru, h_0, layer_index: int = 0):
@@ -357,13 +454,7 @@ class GRUExtractor(ModuleInfoExtractor):
             "b_in": b_in,
             "b_hn": b_hn,
         }
-        for k, v in params.items():
-            v = v.detach()
-            if k.startswith('b_'):
-                v = v.unsqueeze(0)
-            params[k] = v.unsqueeze(0)
-
-        return {f"l{layer_index}_{k}": v for k, v in params.items()}
+        return self._apply_layer_and_unsqueeze_to_params(params, layer_index)
 
     def convert_to_nnef(
         self,
@@ -373,8 +464,6 @@ class GRUExtractor(ModuleInfoExtractor):
         null_ref,
         torch_graph,
     ):
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import primitive
 
         gru = node.op_ref
 
@@ -391,115 +480,26 @@ class GRUExtractor(ModuleInfoExtractor):
         else:
             # might be a TensorVariable with data NOT already setted
             h_0 = node.inputs[1].data
-
-        assert (
-            node.inputs[0].shape[0 if gru.batch_first else 1] == 1
-        ), "first dim need to be only 1 since batch_size beyond are not supported"
-
-        input_tensor = name_to_tensor[node.inputs[0].export_name]
-
-        if gru.batch_first:
-            transposed_input_tensor = primitive.add_output_tensor(
-                g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
-            )
-            NOperation(
-                g,
-                type="transpose",
-                inputs=input_tensor,
-                outputs=transposed_input_tensor,
-                attribs={"axes": [1, 0, 2]},
-            )
-            input_tensor = transposed_input_tensor
-
-        last_h_at_each_layers = []
-        for layer_index in range(gru.num_layers):
-            name_to_nnef_variable = {}
-            for var_name, torch_tensor in self.tensor_params(
-                gru, h_0, layer_index=layer_index
-            ).items():
-                name_to_nnef_variable[
-                    var_name
-                ] = primitive.register_state_node_as_variable(
-                    torch_tensor,
-                    var_name,
-                    node,
-                    g,
-                    name_to_tensor,
-                )
-
-            # outputs: h_n, h_last
-            outputs = [
-                primitive.add_output_tensor(
-                    g,
-                    out_node,
-                    name_to_tensor,
-                    name_suffix=f"_l{layer_index}"
-                    if gru.num_layers > 1
-                    else "",
-                )
-                for out_node in node.outputs
-            ]
-
-            argument_order = [
-                f"l{layer_index}_{arg_name}"
-                for arg_name in [
-                    "h_0",
-                    "W_ir",
-                    "W_hr",
-                    "W_iz",
-                    "W_hz",
-                    "W_in",
-                    "W_hn",
-                    # -----
-                    "b_r",
-                    "b_z",
-                    "b_in",
-                    "b_hn",
-                ]
-            ]
-
-            NOperation(
-                graph=g,
-                type=nnef_fragment_selected,
-                inputs=tuple(
-                    [input_tensor]
-                    + [name_to_nnef_variable[_] for _ in argument_order]
-                ),
-                outputs=tuple(outputs),
-            )
-            # map to next layer
-            input_tensor = outputs[0]
-            last_h_at_each_layers.append(outputs[1])
-
-        if gru.batch_first:
-            out_transpose_tensor = primitive.add_output_tensor(
-                g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
-            )
-            NOperation(
-                g,
-                type="transpose",
-                inputs=input_tensor,
-                outputs=out_transpose_tensor,
-                attribs={"axes": [1, 0]},
-            )
-            input_tensor = out_transpose_tensor
-
-        h_out_name = node.outputs[0].export_name
-        input_tensor.name = h_out_name
-        name_to_tensor[h_out_name] = input_tensor
-
-        if gru.num_layers > 1:
-            real_outputs = [
-                primitive.add_output_tensor(g, out_node, name_to_tensor)
-                for out_node in node.outputs[1:]
-            ]
-
-            NOperation(
-                graph=g,
-                type="concat",
-                inputs=last_h_at_each_layers,
-                outputs=real_outputs[0],
-                attribs={"axis": 0},
-            )
-
-        return [nnef_fragment_selected]
+        tensor_params_kwargs = {"h_0": h_0}
+        return self._core_convert_to_nnef(
+            module=gru,
+            node=node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+            nnef_fragment_name=nnef_fragment_selected,
+            argument_names_order=[
+                "h_0",
+                "W_ir",
+                "W_hr",
+                "W_iz",
+                "W_hz",
+                "W_in",
+                "W_hn",
+                # -----
+                "b_r",
+                "b_z",
+                "b_in",
+                "b_hn",
+            ],
+            **tensor_params_kwargs,
+        )
