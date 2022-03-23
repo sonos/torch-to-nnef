@@ -12,7 +12,6 @@ import typing as T
 
 import torch
 from nnef_tools.model import Operation as NOperation
-from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
 CUSTOMOP_KIND = "wired_custom::"
@@ -163,41 +162,47 @@ class LSTMExtractor(ModuleInfoExtractor):
     MODULE_CLASS = nn.LSTM
 
     def tensor_params(self, lstm, c_0, h_0):
+        # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
         W_ii, W_if, W_ig, W_io = lstm.weight_ih_l0.split(
             int(lstm.weight_ih_l0.shape[0] / 4)
         )
+        # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
         W_hi, W_hf, W_hg, W_ho = lstm.weight_hh_l0.split(
             int(lstm.weight_hh_l0.shape[0] / 4)
         )
-        b_ii, b_if, b_ig, b_io = lstm.bias_ih_l0.split(
-            int(lstm.bias_ih_l0.shape[0] / 4)
-        )
-        b_hi, b_hf, b_hg, b_ho = lstm.bias_hh_l0.split(
-            int(lstm.bias_hh_l0.shape[0] / 4)
-        )
+        if hasattr(lstm, "bias_ih_l0") and lstm.bias_ih_l0 is not None:
+            # lstm packed in order (b_ii|b_if|b_ig|b_io)
+            b_ii, b_if, b_ig, b_io = lstm.bias_ih_l0.split(
+                int(lstm.bias_ih_l0.shape[0] / 4)
+            )
+        else:
+            b_ii, b_if, b_ig, b_io = (torch.tensor(0.0) for _ in range(4))
+        if hasattr(lstm, "bias_hh_l0") and lstm.bias_hh_l0 is not None:
+            # lstm packed in order (b_hi|b_hf|b_hg|b_ho)
+            b_hi, b_hf, b_hg, b_ho = lstm.bias_hh_l0.split(
+                int(lstm.bias_hh_l0.shape[0] / 4)
+            )
+        else:
+            b_hi, b_hf, b_hg, b_ho = (torch.tensor(0.0) for _ in range(4))
+
         return {
             "c_0": c_0,
             "h_0": h_0,
-            # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
+            # -----------
             "W_ii": W_ii,
             "W_if": W_if,
             "W_ig": W_ig,
             "W_io": W_io,
-            # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
+            # -----------
             "W_hi": W_hi,
             "W_hf": W_hf,
             "W_hg": W_hg,
             "W_ho": W_ho,
-            # lstm packed in order (b_ii|b_if|b_ig|b_io)
-            "b_ii": b_ii,
-            "b_if": b_if,
-            "b_ig": b_ig,
-            "b_io": b_io,
-            # lstm packed in order (b_hi|b_hf|b_hg|b_ho)
-            "b_hi": b_hi,
-            "b_hf": b_hf,
-            "b_hg": b_hg,
-            "b_ho": b_ho,
+            # lstm pre summed bias
+            "b_i": b_ii + b_hi,
+            "b_f": b_if + b_hf,
+            "b_g": b_ig + b_hg,
+            "b_o": b_io + b_ho,
         }
 
     def convert_to_nnef(
@@ -219,11 +224,6 @@ class LSTMExtractor(ModuleInfoExtractor):
                 "Missing implementation NNEF LSTM with projection"
             )
 
-        if lstm.bias is False:
-            raise NotImplementedError(
-                "Missing implementation NNEF LSTM with no Bias"
-            )
-
         D = 2 if lstm.bidirectional else 1
         if lstm.bidirectional:
             raise NotImplementedError(
@@ -236,7 +236,7 @@ class LSTMExtractor(ModuleInfoExtractor):
                 "permutation of IO due to batch_first use"
             )
         if lstm.num_layers > 1:
-            raise NotImplementedError("Missing handling of multi layer LSTM ")
+            raise NotImplementedError("Missing handling of multi layer LSTM")
         if len(node.inputs) < 2:
             h_0 = torch.zeros(
                 lstm.num_layers * D, lstm.proj_size or lstm.hidden_size
@@ -255,10 +255,14 @@ class LSTMExtractor(ModuleInfoExtractor):
         for var_name, torch_tensor in self.tensor_params(
             lstm, c_0, h_0
         ).items():
+            torch_tensor = torch_tensor.detach()
+            if var_name.startswith('b_'):
+                torch_tensor = torch_tensor.unsqueeze(0)
+            torch_tensor = torch_tensor.unsqueeze(0)
             name_to_nnef_variable[
                 var_name
             ] = primitive.register_state_node_as_variable(
-                torch_tensor.detach(),
+                torch_tensor,
                 var_name,
                 node,
                 g,
@@ -275,21 +279,18 @@ class LSTMExtractor(ModuleInfoExtractor):
             "c_0",
             "h_0",
             "W_ii",
-            "b_ii",
             "W_hi",
-            "b_hi",
             "W_if",
-            "b_if",
             "W_hf",
-            "b_hf",
             "W_ig",
-            "b_ig",
             "W_hg",
-            "b_hg",
             "W_io",
-            "b_io",
             "W_ho",
-            "b_ho",
+            # -----
+            "b_i",
+            "b_f",
+            "b_g",
+            "b_o",
         ]
         assert (
             node.inputs[0].shape[0] == 1
@@ -297,32 +298,13 @@ class LSTMExtractor(ModuleInfoExtractor):
 
         input_tensor = name_to_tensor[node.inputs[0].export_name]
 
-        squeeezed_out_name = f"{input_tensor.name}_batch_squeezed"
-        squeeezed_out = NTensor(
-            g,
-            squeeezed_out_name,
-            dtype=input_tensor.dtype,
-            shape=input_tensor.shape[1:],
-        )
-        name_to_tensor[squeeezed_out_name] = squeeezed_out
-        NOperation(
-            graph=g,
-            type="squeeze",
-            inputs=input_tensor,
-            outputs=squeeezed_out,
-            attribs={"axes": [0]},
-        )
-
         NOperation(
             graph=g,
             type=nnef_fragment_selected,
             name=f"{node.outputs[0].export_name}_op",
             inputs=tuple(
-                [squeeezed_out]
-                + [
-                    name_to_nnef_variable[arg_name]
-                    for arg_name in argument_order
-                ]
+                [input_tensor]
+                + [name_to_nnef_variable[_] for _ in argument_order]
             ),
             outputs=tuple(outputs),
         )
