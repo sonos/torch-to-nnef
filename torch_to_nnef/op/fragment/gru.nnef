@@ -1,0 +1,74 @@
+extension tract_registry tract_core;
+
+
+fragment gru_scan_loop(
+    h_t_prev: tensor<scalar>,
+
+    xt_Wr_t: tensor<scalar>,
+    xt_Wz_t: tensor<scalar>,
+    xt_Wn_t: tensor<scalar>,
+
+    W_hr: tensor<scalar>,
+    W_hz: tensor<scalar>,
+    W_hn: tensor<scalar>,
+    b_hn: tensor<scalar>
+) -> ( h_t: tensor<scalar> ) {
+    # reset gate
+    r_t = sigmoid(xt_Wr_t + matmul(h_t_prev, W_hr, transposeB=true));
+
+    # update gate
+    z_t = sigmoid(xt_Wz_t + matmul(h_t_prev, W_hz, transposeB=true));
+
+    # new gate
+    n_t = tanh(xt_Wn_t + r_t * (matmul(h_t_prev, W_hn, transposeB=true) + b_hn));
+
+    # hidden state at time t
+    h_t = (1.0 - z_t) * n_t + z_t * h_t_prev;
+}
+
+
+fragment gru(
+    input: tensor<scalar>,
+    # initial h_t
+    h_0: tensor<scalar>,
+    # weights
+    W_ir: tensor<scalar>,
+    W_hr: tensor<scalar>,
+    W_iz: tensor<scalar>,
+    W_hz: tensor<scalar>,
+    W_in: tensor<scalar>,
+    W_hn: tensor<scalar>,
+    # biases
+    b_r: tensor<scalar>,
+    b_z: tensor<scalar>,
+    b_in: tensor<scalar>,
+    b_hn: tensor<scalar>
+) -> ( h_n : tensor<scalar>, h_t : tensor<scalar> ) {
+  # This GRU implementation is optimised CPU kernels usage via pulse definition
+  xt_Wr = matmul(input, W_ir, transposeB = true) + b_r;
+  xt_Wz = matmul(input, W_iz, transposeB = true) + b_z;
+  xt_Wn = matmul(input, W_in, transposeB = true) + b_in;
+
+  (h_n , h_t) = tract_core_scan(
+      body = "gru_scan_loop",
+      scan = [
+          ("xt_Wr_t", xt_Wr, 0, 1),
+          ("xt_Wz_t", xt_Wz, 0, 1),
+          ("xt_Wn_t", xt_Wn, 0, 1)
+      ],
+      full = [
+          ("W_hr", W_hr),
+          ("W_hz", W_hz),
+          ("W_hn", W_hn),
+          ("b_hn", b_hn)
+      ],
+      state = [
+          ("h_t_prev", h_0, "h_t")
+      ],
+      output = [
+          ("h_t", "full", 0),
+          ("h_t", "last", 0)
+      ],
+      skip = 0
+  );
+}
