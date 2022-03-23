@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import torch
 from torch import nn
+from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
@@ -414,6 +415,11 @@ if os.environ.get("MODELS"):
             ),  # works - nas similar to resnet
             vision_mdl.efficientnet_b0(pretrained=True, progress=False),
         ]
+    ]
+
+    INPUT_AND_MODELS = [
+        (torch.rand(1, 100, 64), model)
+        for model in [audio_mdl.DeepSpeech(64, n_hidden=256)]
     ]
 
 
