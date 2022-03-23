@@ -121,7 +121,7 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        dtype=np.int8,
+        dtype=np.uint8,
         quant={
             "scale": scale_node.data,
             "zero_point": zero_point_node.data,

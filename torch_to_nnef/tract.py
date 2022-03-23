@@ -3,9 +3,11 @@
 import os
 import subprocess
 import tempfile
+import typing as T
 from functools import partial
 from pathlib import Path
 
+import nnef
 import numpy as np
 import torch
 from torch import nn
@@ -27,7 +29,10 @@ class IOPytorchTractNotISOError(ValueError):
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     subprocess.check_call(
-        f'{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path}  dump --nnef {nnef_path}',
+        (
+            f"{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path} "
+            f"--nnef-tract-core  dump --nnef {nnef_path}"
+        ),
         shell=True,
         stderr=subprocess.STDOUT,
     )
@@ -42,10 +47,13 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:
         _, err = proc.communicate()
-        if err and "ERROR" in err.decode("utf8"):
-            if raise_exception:
-                raise IOPytorchTractNotISOError(err.decode("utf8"))
-            return False
+        if err:
+            serr = err.decode("utf8")
+            if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
+                if raise_exception:
+                    raise IOPytorchTractNotISOError(serr)
+                return False
+            # print(err)
     return True
 
 
@@ -167,3 +175,12 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
         f"cd {target_folder} && tar -xvf {nnef_path}", shell=True
     )
     return True
+
+
+def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
+    for wpath, owpath in weight_map_file_paths.items():
+        with wpath.open('rb') as fh:
+            with owpath.open('rb') as fh_o:
+                arr = nnef.read_tensor(fh)
+                oarr = nnef.read_tensor(fh_o)
+                assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"

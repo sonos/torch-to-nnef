@@ -10,18 +10,15 @@ from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
 from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 
-def add_output_tensor(
-    g,
-    onode,
-    name_to_tensor,
-):
+def add_output_tensor(g, onode, name_to_tensor, name_suffix: str = ""):
+    name = onode.export_name + name_suffix
     out = NTensor(
         g,
-        onode.export_name,
+        name,
         dtype=onode.np_dtype,
         shape=onode.shape,
     )
-    name_to_tensor[onode.export_name] = out
+    name_to_tensor[name] = out
     return out
 
 
@@ -708,7 +705,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
         "bits": 8,
-        "signed": False,  # Should Be dependant of torch type quint vs qint
+        "signed": False,
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }

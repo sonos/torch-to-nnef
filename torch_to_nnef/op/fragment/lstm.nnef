@@ -1,52 +1,33 @@
-
 extension tract_registry tract_core;
+
 
 fragment lstm_scan_loop(
     c_t_prev: tensor<scalar>,
     h_t_prev: tensor<scalar>,
-    x_t: tensor<scalar>,
-    W_ii: tensor<scalar>,
-    b_ii: tensor<scalar>,
+
+    xt_Wi_t: tensor<scalar>,
+    xt_Wf_t: tensor<scalar>,
+    xt_Wg_t: tensor<scalar>,
+    xt_Wo_t: tensor<scalar>,
+
     W_hi: tensor<scalar>,
-    b_hi: tensor<scalar>,
-    W_if: tensor<scalar>,
-    b_if: tensor<scalar>,
     W_hf: tensor<scalar>,
-    b_hf: tensor<scalar>,
-    W_ig: tensor<scalar>,
-    b_ig: tensor<scalar>,
     W_hg: tensor<scalar>,
-    b_hg: tensor<scalar>,
-    W_io: tensor<scalar>,
-    b_io: tensor<scalar>,
-    W_ho: tensor<scalar>,
-    b_ho: tensor<scalar>
+    W_ho: tensor<scalar>
 ) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
     # does not use linear ops yet due to tract declutter issue
 
     # input gate
-    i_t = sigmoid(
-        matmul(x_t, W_ii, transposeB=true) + b_ii
-        + matmul(h_t_prev, W_hi, transposeB=true) + b_hi
-    );
+    i_t = sigmoid(xt_Wi_t + matmul(h_t_prev, W_hi, transposeB=true));
 
     # forget gate
-    f_t = sigmoid(
-        matmul(x_t, W_if, transposeB=true) + b_if
-        + matmul(h_t_prev, W_hf, transposeB=true) + b_hf
-    );
+    f_t = sigmoid(xt_Wf_t + matmul(h_t_prev, W_hf, transposeB=true));
 
     # cell gate
-    g_t = tanh(
-        matmul(x_t, W_ig, transposeB=true) + b_ig
-        + matmul(h_t_prev, W_hg, transposeB=true) + b_hg
-    );
+    g_t = tanh(xt_Wg_t + matmul(h_t_prev, W_hg, transposeB=true));
 
     # output gate
-    o_t = sigmoid(
-        matmul(x_t, W_io, transposeB=true) + b_io
-        + matmul(h_t_prev,W_ho, transposeB=true) + b_ho
-    );
+    o_t = sigmoid(xt_Wo_t + matmul(h_t_prev, W_ho, transposeB=true));
 
     # cell state at time t
     c_t = f_t * c_t_prev + i_t * g_t;
@@ -61,55 +42,49 @@ fragment lstm(
     # initial c_t and h_t
     c_0: tensor<scalar>,
     h_0: tensor<scalar>,
-    # weights and biases
+    # weights
     W_ii: tensor<scalar>,
-    b_ii: tensor<scalar>,
     W_hi: tensor<scalar>,
-    b_hi: tensor<scalar>,
     W_if: tensor<scalar>,
-    b_if: tensor<scalar>,
     W_hf: tensor<scalar>,
-    b_hf: tensor<scalar>,
     W_ig: tensor<scalar>,
-    b_ig: tensor<scalar>,
     W_hg: tensor<scalar>,
-    b_hg: tensor<scalar>,
     W_io: tensor<scalar>,
-    b_io: tensor<scalar>,
     W_ho: tensor<scalar>,
-    b_ho: tensor<scalar>
+    # biases
+    b_i: tensor<scalar>,
+    b_f: tensor<scalar>,
+    b_g: tensor<scalar>,
+    b_o: tensor<scalar>
 ) -> ( c_n : tensor<scalar>, c_t : tensor<scalar>, h_t : tensor<scalar> ) {
+  # This LSTM implementation is optimised CPU kernels usage via pulse definition
+  xt_Wi = matmul(input, W_ii, transposeB = true) + b_i;
+  xt_Wf = matmul(input, W_if, transposeB = true) + b_f;
+  xt_Wg = matmul(input, W_ig, transposeB = true) + b_g;
+  xt_Wo = matmul(input, W_io, transposeB = true) + b_o;
+
   (c_n , c_t, h_t) = tract_core_scan(
       body = "lstm_scan_loop",
       scan = [
-          ("x_t", input, 0, 1)
+          ("xt_Wi_t", xt_Wi, 0, 1),
+          ("xt_Wf_t", xt_Wf, 0, 1),
+          ("xt_Wg_t", xt_Wg, 0, 1),
+          ("xt_Wo_t", xt_Wo, 0, 1)
       ],
       full = [
-          ("W_ii", W_ii),
-          ("b_ii", b_ii),
           ("W_hi", W_hi),
-          ("b_hi", b_hi),
-          ("W_if", W_if),
-          ("b_if", b_if),
           ("W_hf", W_hf),
-          ("b_hf", b_hf),
-          ("W_ig", W_ig),
-          ("b_ig", b_ig),
           ("W_hg", W_hg),
-          ("b_hg", b_hg),
-          ("W_io", W_io),
-          ("b_io", b_io),
-          ("W_ho", W_ho),
-          ("b_ho", b_ho)
+          ("W_ho", W_ho)
       ],
       state = [
           ("c_t_prev", c_0, "c_t"),
           ("h_t_prev", h_0, "h_t")
       ],
       output = [
-          ("c_t", "full", 0),
-          ("c_t", "last", 0),
-          ("h_t", "full", 0)
+          ("h_t", "full", 0),
+          ("h_t", "last", 0),
+          ("c_t", "last", 0)
       ],
       skip = 0
   );
