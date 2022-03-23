@@ -316,9 +316,6 @@ INPUT_AND_MODELS += [
         # nn.AvgPool1d(10), # Not same results between tract and Pytorch
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
-        nn.LSTM(100, 5),
-        nn.GRU(100, 5),
-        nn.GRU(100, 9, num_layers=3),
     ]
 ]
 
@@ -371,6 +368,22 @@ INPUT_AND_MODELS += [
         lambda x: torch.max(x, dim=1, keepdim=True)[0],
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
     ]
+]
+
+INPUT_AND_MODELS += [
+    # L x N x H
+    (torch.rand(33, 1, 100), layer)
+    for layer in [
+        nn.LSTM(100, 5),
+        nn.GRU(100, 5),
+        nn.GRU(100, 9, num_layers=3),
+    ]
+]
+
+INPUT_AND_MODELS += [
+    # N x L x H
+    (torch.rand(1, 33, 100), layer)
+    for layer in [nn.GRU(100, 5, batch_first=True)]
 ]
 
 

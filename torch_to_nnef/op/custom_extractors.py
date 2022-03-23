@@ -219,6 +219,7 @@ class LSTMExtractor(ModuleInfoExtractor):
         lstm = node.op_ref
 
         nnef_fragment_selected = "lstm"
+
         if hasattr(lstm, "proj_size") and lstm.proj_size > 0:
             raise NotImplementedError(
                 "Missing implementation NNEF LSTM with projection"
@@ -293,7 +294,7 @@ class LSTMExtractor(ModuleInfoExtractor):
             "b_o",
         ]
         assert (
-            node.inputs[0].shape[0] == 1
+            node.inputs[0].shape[0 if lstm.batch_first else 1] == 1
         ), "first dim need to be only 1 since batch_size beyond are not supported"
 
         input_tensor = name_to_tensor[node.inputs[0].export_name]
@@ -379,12 +380,6 @@ class GRUExtractor(ModuleInfoExtractor):
 
         nnef_fragment_selected = "gru"
 
-        if gru.batch_first:
-            raise NotImplementedError(
-                "Missing handling of proper matrix "
-                "permutation of IO due to batch_first use"
-            )
-
         D = 2 if gru.bidirectional else 1
         if gru.bidirectional:
             raise NotImplementedError(
@@ -398,10 +393,23 @@ class GRUExtractor(ModuleInfoExtractor):
             h_0 = node.inputs[1].data
 
         assert (
-            node.inputs[0].shape[0] == 1
+            node.inputs[0].shape[0 if gru.batch_first else 1] == 1
         ), "first dim need to be only 1 since batch_size beyond are not supported"
 
         input_tensor = name_to_tensor[node.inputs[0].export_name]
+
+        if gru.batch_first:
+            transposed_input_tensor = primitive.add_output_tensor(
+                g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
+            )
+            NOperation(
+                g,
+                type="transpose",
+                inputs=input_tensor,
+                outputs=transposed_input_tensor,
+                attribs={"axes": [1, 0, 2]},
+            )
+            input_tensor = transposed_input_tensor
 
         last_h_at_each_layers = []
         for layer_index in range(gru.num_layers):
@@ -463,13 +471,28 @@ class GRUExtractor(ModuleInfoExtractor):
             input_tensor = outputs[0]
             last_h_at_each_layers.append(outputs[1])
 
+        if gru.batch_first:
+            out_transpose_tensor = primitive.add_output_tensor(
+                g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
+            )
+            NOperation(
+                g,
+                type="transpose",
+                inputs=input_tensor,
+                outputs=out_transpose_tensor,
+                attribs={"axes": [1, 0]},
+            )
+            input_tensor = out_transpose_tensor
+
+        h_out_name = node.outputs[0].export_name
+        input_tensor.name = h_out_name
+        name_to_tensor[h_out_name] = input_tensor
+
         if gru.num_layers > 1:
             real_outputs = [
                 primitive.add_output_tensor(g, out_node, name_to_tensor)
                 for out_node in node.outputs[1:]
             ]
-            input_tensor.name = node.outputs[0].export_name
-            name_to_tensor[node.outputs[0].export_name] = input_tensor
 
             NOperation(
                 graph=g,
