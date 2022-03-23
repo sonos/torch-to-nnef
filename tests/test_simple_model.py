@@ -318,6 +318,7 @@ INPUT_AND_MODELS += [
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
         nn.LSTM(100, 5),
         nn.GRU(100, 5),
+        nn.GRU(100, 9, num_layers=3),
     ]
 ]
 
