@@ -11,7 +11,8 @@ import numpy as np
 import pytest
 import torch
 from torch import nn
-from torchaudio import models as audio_mdl
+
+# from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
@@ -382,14 +383,15 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-INPUT_AND_MODELS += [
-    # N x L x H
-    (torch.rand(1, 33, 100), layer)
-    for layer in [
-        nn.GRU(100, 5, batch_first=True),
-        nn.LSTM(100, 5, batch_first=True),
-    ]
-]
+
+# Add bidirectional to GRU and LSTM
+# INPUT_AND_MODELS = [
+# # N x L x H
+# (torch.rand(1, 33, 100), layer)
+# for layer in [
+# nn.GRU(100, 5, batch_first=True, bidirectional=True, num_layers=1),
+# ]
+# ]
 
 
 # Test classical vision models
@@ -417,9 +419,14 @@ if os.environ.get("MODELS"):
         ]
     ]
 
-    INPUT_AND_MODELS = [
+    INPUT_AND_MODELS += [
         (torch.rand(1, 100, 64), model)
-        for model in [audio_mdl.DeepSpeech(64, n_hidden=256)]
+        for model in [
+            # audio_mdl.DeepSpeech(64, n_hidden=256), # need to handle nn.RNN
+            # audio_mdl.Conformer(
+            # 64, num_heads=2, ffn_dim=128, depthwise_conv_kernel_size=31
+            # )
+        ]
     ]
 
 

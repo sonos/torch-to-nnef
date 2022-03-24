@@ -18,6 +18,7 @@ from torch_to_nnef.op.custom_extractors import (
     ModuleInfoExtractor,
     NotFoundModuleExtractor,
 )
+from torch_to_nnef.tract import nop
 from torch_to_nnef.utils import cache
 
 
@@ -46,6 +47,8 @@ PARAM_KIND = "prim::Param"
 TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
 NUMTOTENSOR_KIND = "prim::NumToTensor"
+ATEN_CONTIGUOUS_KIND = "aten::contiguous"
+ATEN_VIEW_KIND = "aten::view"
 
 CLASSTYPE_KIND = "ClassType"
 TUPLETYPE_KIND = "TupleType"
@@ -56,6 +59,9 @@ INTTYPE_kIND = "IntType"
 MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
 MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
+
+MAP_TO_NOP = [NUMTOTENSOR_KIND, LISTCONSTRUCT_KIND]
+MAP_TO_TENSOR_FN = [ATEN_CONTIGUOUS_KIND, ATEN_VIEW_KIND]
 
 
 def aten_name_to_torch_fn(aten_name):
@@ -87,6 +93,78 @@ def _expand_tuples_if_exists(data_items):
         if isinstance(data_item, TupleTensors):
             yield from data_item.data
         yield data_item
+
+
+def _unfold_graph_getattr(
+    module: nn.Module,
+    original_c_value: torch._C.Value,
+) -> T.Tuple[str, nn.Module]:
+    """Unfold  nn.Module python code reference to sub...sub modules in graph"""
+    submodule = module
+    getattr_node = original_c_value.node()
+    getter_sequence = []
+    original_name = getattr_node['name']
+    while getattr_node.kind() == GETATTR_KIND:
+        c_value = next(getattr_node.inputs())
+        getattr_node = c_value.node()
+        try:
+            getter_sequence.append(getattr_node['name'])
+            submodule = getattr(module, getter_sequence[-1])
+        except RuntimeError:
+            pass
+
+    try:
+        submodule = getattr(submodule, original_name)
+        getter_sequence.append(original_name)
+    except AttributeError:
+        pass
+
+    return ".".join(getter_sequence), submodule
+
+
+def _reconstruct_view_dims(
+    original_shape: T.Tuple[int, ...], wished_view: T.Tuple[int, ...]
+) -> T.Tuple[int, ...]:
+    """Reconstruct shapes of whished view
+
+    By example:
+        x_reshape = x.contiguous().view((-1,) + x.shape[2:])
+
+        Provide incomplete graph information about shapes filing info with None
+        as such:
+
+        view((-1, None, None))
+
+        but we know input by example:
+
+        (4, 64, 16, 128)
+
+        so we can solve real view dims to be:
+
+        (-1, 16, 128)
+
+    """
+    assert len(original_shape) > len(wished_view)
+    assert sum(_ == -1 for _ in wished_view) == 1, "impossible to guess ?"
+    completed_wished_view = list(wished_view)[:]
+
+    # try forward
+    for rank, dim_at_rank in enumerate(wished_view):
+        if dim_at_rank == -1:
+            # unable to guess further dimensions
+            break
+        completed_wished_view[rank] = original_shape[rank]
+
+    # try backward
+    for rank, dim_at_rank in enumerate(wished_view[::-1]):
+        if dim_at_rank == -1:
+            # unable to guess further dimensions
+            break
+        completed_wished_view[-rank - 1] = original_shape[-rank - 1]
+
+    assert len(wished_view) == len(completed_wished_view)
+    assert None not in completed_wished_view
+    return tuple(completed_wished_view)
 
 
 def _find_common_root(
@@ -328,7 +406,11 @@ class TupleTensors(Data):
 class ListWithTensor(Data):
     """ListWithTensor is a list that contains tensor constant or not"""
 
-    data: T.List[Data]
+    data: T.List[TensorVariable]
+
+    @property
+    def tracing_data(self) -> T.List[torch.Tensor]:
+        return [d.tracing_data for d in self.data]
 
 
 @dataclass
@@ -455,7 +537,12 @@ def _aten_inputs_and_op_ref(kind, inputs):
     if kind == "aten::clone":
         # remove useless ref to memory_format (for us)
         inputs = inputs[:1]
+    if kind == ATEN_CONTIGUOUS_KIND:
+        inputs = inputs[:1]
+
     op_ref = None
+    if kind in MAP_TO_NOP:
+        return nop, inputs
     try:
         op_ref = aten_name_to_torch_fn(kind)
     except AttributeError:
@@ -509,11 +596,7 @@ def _rerouted_parsing(
             )
             raise TorchOpTranslatedDifferently("Tuple Construct")
         if kind == NUMTOTENSOR_KIND:
-            # Warning ! this hard wire will only work if input
-            # is only used for this cast to tensor
-            dnode = _find_data_node(data_nodes, node.input().debugName())
-            dnode.name = node.output().debugName()
-            raise TorchOpTranslatedDifferently("NumToTensor re-wired")
+            return
         if kind != CALL_KIND:
             raise NotImplementedError(node)
 
@@ -522,8 +605,7 @@ def _extract_op_infos(kind: str, module, inputs, data_nodes: T.List[Data]):
     """Extract informations from module or torch operation"""
     call_name = None
     if kind == CALL_KIND:
-        module_getter_ref = inputs[0].node()['name']
-        op_ref = getattr(module, module_getter_ref)
+        module_getter_ref, op_ref = _unfold_graph_getattr(module, inputs[0])
         call_name = inputs[0].debugName()
         inputs = inputs[1:]
     elif kind.startswith("quantized::"):
@@ -617,6 +699,21 @@ class TorchOp:
 
     def call_op(self):
         if self.op_ref is not None:
+            if self.kind in MAP_TO_TENSOR_FN:
+                args = self._args
+                tensor = args[0]
+                subargs = args[1:]
+                if self.kind == ATEN_VIEW_KIND and None in subargs[0]:
+                    # custom reconstruction of missing dimensions infos
+                    subargs = list(subargs)
+                    subargs[0] = _reconstruct_view_dims(
+                        tensor.shape, subargs[0]
+                    )
+                    self.inputs[1].data = subargs[0]
+                    subargs = tuple(subargs)
+                return getattr(tensor, self.kind.replace("aten::", ""))(
+                    *subargs
+                )
             return self.op_ref(*self._args)
         raise NotImplementedError(self)
 
@@ -681,8 +778,9 @@ class TorchModuleTraceHelper:
                 "Unable to trace with jit one of following submodule:"
                 f"{[(k, v.__class__) for k,v in self._module.named_children()]} "
                 f"with original error:\n\n'{exp}'\n\n"
-                "You can aleviate this issue by applying a special hook"
-                "this module (explaination available in README)"
+                "This maybe due to provided input dimension. "
+                "If not you can aleviate this issue by applying a special hook"
+                "this module (explaination available in torch_to_nnef README)"
             ) from exp
 
     @property  # type: ignore
@@ -781,9 +879,12 @@ class TorchModuleTraceHelper:
                         sout.dtype = soriginal.dtype
                         sout.quant = soriginal.quant
                 else:
-                    output.shape = original_output.shape
-                    output.dtype = original_output.dtype
-                    output.quant = original_output.quant
+                    if isinstance(output, TensorVariable):
+                        output.shape = original_output.shape
+                        output.dtype = original_output.dtype
+                        output.quant = original_output.quant
+                    else:
+                        raise NotImplementedError(output)
             self.outputs.append(output)
 
     def _update_scope_reference(self):

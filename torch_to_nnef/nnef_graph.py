@@ -13,6 +13,7 @@ from torch_to_nnef.op.custom_extractors import (
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
+    MAP_TO_NOP,
     Data,
     TensorVariable,
     TorchModuleTraceHelper,
@@ -37,7 +38,7 @@ class GraphExtractor:
                 torch_graph=self._torch_graph_helper,
             )
         if node.kind.startswith("prim::"):
-            if node.kind == "prim::ListConstruct":
+            if node.kind in MAP_TO_NOP:
                 return []
 
         if node.kind.startswith("quantized::"):

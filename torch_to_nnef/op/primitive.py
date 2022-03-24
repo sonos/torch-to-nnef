@@ -6,7 +6,7 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
+from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE, TORCH_DTYPE_TO_NNEF_STR
 from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
 
@@ -612,6 +612,23 @@ def dropout(node, torch_graph, **kwargs):
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
+def contiguous(node, torch_graph, **kwargs):
+    """This does not translate to any operation"""
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
+
+
+def view(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_node, dim_node) = node.inputs
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"shape": dim_node.data},
+    )
+
+
 def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     """
     Using NNEF:
@@ -653,10 +670,10 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
         g,
         node,
         name_to_tensor,
-        "cast",
+        TORCH_DTYPE_TO_NNEF_STR[onode.dtype],
         inputs=name_to_tensor[input_node.export_name],
         attrs={
-            "dtype": onode.np_dtype,
+            # "dtype": onode.np_dtype,
             "shape": list(onode.shape),
         },
     )
