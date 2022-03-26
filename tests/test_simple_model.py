@@ -380,18 +380,10 @@ INPUT_AND_MODELS += [
         nn.GRU(100, 5),
         nn.GRU(100, 9, num_layers=3),
         nn.LSTM(100, 5, num_layers=2),
+        nn.GRU(100, 5, bidirectional=True, num_layers=1),
+        nn.LSTM(100, 5, bidirectional=True, num_layers=2),
     ]
 ]
-
-
-# Add bidirectional to GRU and LSTM
-# INPUT_AND_MODELS = [
-# # N x L x H
-# (torch.rand(1, 33, 100), layer)
-# for layer in [
-# nn.GRU(100, 5, batch_first=True, bidirectional=True, num_layers=1),
-# ]
-# ]
 
 
 # Test classical vision models

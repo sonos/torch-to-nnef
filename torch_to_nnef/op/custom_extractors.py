@@ -174,6 +174,7 @@ class _RNNMixin:
             batch_first
             multi_layers
         """
+        used_fragments = [nnef_fragment_name]
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import primitive
 
@@ -197,51 +198,90 @@ class _RNNMixin:
             input_tensor = transposed_input_tensor
 
         last_hc_at_each_layers = []
+
+        passes_is_backward = [False]
+        if module.bidirectional:
+            passes_is_backward += [True]
+
+        last_backward_h = None
+        last_forward_h = None
+        base_lstm_input = [input_tensor]
         for layer_index in range(module.num_layers):
-            name_to_nnef_variable = {}
-            for var_name, torch_tensor in self.tensor_params(
-                module, **tensor_params_kwargs, layer_index=layer_index
-            ).items():
-                name_to_nnef_variable[
-                    var_name
-                ] = primitive.register_state_node_as_variable(
-                    torch_tensor,
-                    var_name,
-                    node,
-                    g,
-                    name_to_tensor,
+            if last_forward_h:
+                base_lstm_input = [last_forward_h]
+
+            for is_backward in passes_is_backward:
+                linfo = str(layer_index)
+                name_to_nnef_variable = {}
+                for var_name, torch_tensor in self.tensor_params(
+                    module,
+                    **tensor_params_kwargs,
+                    layer_index=layer_index,
+                    backward=is_backward,
+                ).items():
+                    name_to_nnef_variable[
+                        var_name
+                    ] = primitive.register_state_node_as_variable(
+                        torch_tensor,
+                        var_name,
+                        node,
+                        g,
+                        name_to_tensor,
+                    )
+
+                if is_backward:
+                    linfo += "_backward"
+                # outputs: h_n, h_last
+                outputs = [
+                    primitive.add_output_tensor(
+                        g,
+                        out_node,
+                        name_to_tensor,
+                        name_suffix=f"_l{linfo}"
+                        if (module.num_layers > 1 or module.bidirectional)
+                        else "",
+                    )
+                    for out_node in node.outputs
+                ]
+
+                argument_order = [
+                    f"l{linfo}_{arg_name}" for arg_name in argument_names_order
+                ]
+
+                NOperation(
+                    graph=g,
+                    type=nnef_fragment_name,
+                    inputs=tuple(
+                        base_lstm_input
+                        + [name_to_nnef_variable[_] for _ in argument_order]
+                    ),
+                    outputs=tuple(outputs),
+                    attribs={"scan_pace": -1 if is_backward else 1},
                 )
+                if is_backward:
+                    last_backward_h = outputs[0]
+                else:
+                    last_forward_h = outputs[0]
 
-            # outputs: h_n, h_last
-            outputs = [
-                primitive.add_output_tensor(
+                last_hc_at_each_layers.append(outputs[1:])
+            if module.bidirectional:
+                out_packed_bidi = primitive.add_output_tensor(
                     g,
-                    out_node,
+                    node.outputs[0],
                     name_to_tensor,
-                    name_suffix=f"_l{layer_index}"
-                    if module.num_layers > 1
-                    else "",
+                    name_suffix=f"_l{layer_index}_packed_bidi",
                 )
-                for out_node in node.outputs
-            ]
+                NOperation(
+                    g,
+                    type="rnn_bidi_pack",
+                    inputs=tuple([last_forward_h, last_backward_h]),
+                    outputs=out_packed_bidi,
+                    attribs={"shape": module.hidden_size * 2},
+                )
+                last_forward_h = out_packed_bidi
 
-            argument_order = [
-                f"l{layer_index}_{arg_name}"
-                for arg_name in argument_names_order
-            ]
-
-            NOperation(
-                graph=g,
-                type=nnef_fragment_name,
-                inputs=tuple(
-                    [input_tensor]
-                    + [name_to_nnef_variable[_] for _ in argument_order]
-                ),
-                outputs=tuple(outputs),
-            )
-            # map to next layer
-            input_tensor = outputs[0]
-            last_hc_at_each_layers.append(outputs[1:])
+        if module.bidirectional:
+            used_fragments += ["rnn_bidi_pack"]
 
         if module.batch_first:
             out_transpose_tensor = primitive.add_output_tensor(
@@ -258,9 +298,9 @@ class _RNNMixin:
 
         h_out_name = node.outputs[0].export_name
         input_tensor.name = h_out_name
-        name_to_tensor[h_out_name] = input_tensor
+        name_to_tensor[h_out_name] = last_forward_h
 
-        if module.num_layers > 1:
+        if len(last_hc_at_each_layers) > 1:
             # allow to concat last from each layers for h_t and and c_t
             for idx, out_node in enumerate(node.outputs[1:]):
                 real_output = primitive.add_output_tensor(
@@ -273,34 +313,44 @@ class _RNNMixin:
                     outputs=real_output,
                     attribs={"axis": 0},
                 )
+        return used_fragments
 
-        return [nnef_fragment_name]
-
-    def _apply_layer_and_unsqueeze_to_params(self, params, layer_index: int):
+    def _apply_layer_and_unsqueeze_to_params(
+        self, params, layer_index: int, backward: bool = False
+    ):
         for k, v in params.items():
             v = v.detach()
             if k.startswith('b_'):
                 v = v.unsqueeze(0)
             params[k] = v.unsqueeze(0)
 
-        return {f"l{layer_index}_{k}": v for k, v in params.items()}
+        linfo = str(layer_index)
+        if backward:
+            linfo += "_backward"
+        return {f"l{linfo}_{k}": v for k, v in params.items()}
 
 
 class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.LSTM
 
-    def tensor_params(self, lstm, c_0, h_0, layer_index: int = 0):
+    def tensor_params(
+        self, lstm, c_0, h_0, layer_index: int = 0, backward: bool = False
+    ):
         h_0_layer = h_0.split(1)[layer_index]
         c_0_layer = c_0.split(1)[layer_index]
 
+        suffix = str(layer_index)
+        if backward:
+            suffix += "_reverse"
+
         # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
-        w_var = getattr(lstm, f"weight_ih_l{layer_index}")
+        w_var = getattr(lstm, f"weight_ih_l{suffix}")
         W_ii, W_if, W_ig, W_io = w_var.split(int(w_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
-        w_var = getattr(lstm, f"weight_hh_l{layer_index}")
+        w_var = getattr(lstm, f"weight_hh_l{suffix}")
         W_hi, W_hf, W_hg, W_ho = w_var.split(int(w_var.shape[0] / 4))
 
-        bias_i_name = f"bias_ih_l{layer_index}"
+        bias_i_name = f"bias_ih_l{suffix}"
         if (
             hasattr(lstm, bias_i_name)
             and getattr(lstm, bias_i_name) is not None
@@ -311,7 +361,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         else:
             b_ii, b_if, b_ig, b_io = (torch.tensor(0.0) for _ in range(4))
 
-        bias_h_name = f"bias_hh_l{layer_index}"
+        bias_h_name = f"bias_hh_l{suffix}"
         if (
             hasattr(lstm, bias_h_name)
             and getattr(lstm, bias_h_name) is not None
@@ -341,7 +391,9 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             "b_g": b_ig + b_hg,
             "b_o": b_io + b_ho,
         }
-        return self._apply_layer_and_unsqueeze_to_params(params, layer_index)
+        return self._apply_layer_and_unsqueeze_to_params(
+            params, layer_index, backward=backward
+        )
 
     def convert_to_nnef(
         self,
@@ -362,10 +414,6 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             )
 
         D = 2 if lstm.bidirectional else 1
-        if lstm.bidirectional:
-            raise NotImplementedError(
-                "Missing implementation NNEF LSTM with bidirectional"
-            )
 
         if len(node.inputs) < 2:
             h_0 = torch.zeros(
@@ -412,16 +460,23 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
 class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.GRU
 
-    def tensor_params(self, gru, h_0, layer_index: int = 0):
+    def tensor_params(
+        self, gru, h_0, layer_index: int = 0, backward: bool = False
+    ):
+
+        suffix = str(layer_index)
+        if backward:
+            suffix += "_reverse"
+
         h_0_layer = h_0.split(1)[layer_index]
         # gru weight packed in order (W_ir|W_iz|W_in)
-        w_var = getattr(gru, f"weight_ih_l{layer_index}")
+        w_var = getattr(gru, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
         # gru weight packed in order (W_hr|W_hz|W_hn)
-        w_var = getattr(gru, f"weight_hh_l{layer_index}")
+        w_var = getattr(gru, f"weight_hh_l{suffix}")
         W_hr, W_hz, W_hn = w_var.split(int(w_var.shape[0] / 3))
 
-        bias_i_name = f"bias_ih_l{layer_index}"
+        bias_i_name = f"bias_ih_l{suffix}"
         if hasattr(gru, bias_i_name) and getattr(gru, bias_i_name) is not None:
             # gru packed in order (b_ir|b_iz|b_in)
             bias_var = getattr(gru, bias_i_name)
@@ -429,7 +484,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         else:
             b_ir, b_iz, b_in = (torch.tensor(0.0) for _ in range(3))
 
-        bias_h_name = f"bias_hh_l{layer_index}"
+        bias_h_name = f"bias_hh_l{suffix}"
         if hasattr(gru, bias_h_name) and getattr(gru, bias_h_name) is not None:
             # gru packed in order (b_hr|b_hz|b_hn)
             bias_var = getattr(gru, bias_h_name)
@@ -454,7 +509,9 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
             "b_in": b_in,
             "b_hn": b_hn,
         }
-        return self._apply_layer_and_unsqueeze_to_params(params, layer_index)
+        return self._apply_layer_and_unsqueeze_to_params(
+            params, layer_index, backward=backward
+        )
 
     def convert_to_nnef(
         self,
@@ -470,10 +527,6 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_fragment_selected = "gru"
 
         D = 2 if gru.bidirectional else 1
-        if gru.bidirectional:
-            raise NotImplementedError(
-                "Missing implementation NNEF GRU with bidirectional"
-            )
 
         if len(node.inputs) < 2:
             h_0 = torch.zeros(gru.num_layers * D, gru.hidden_size)

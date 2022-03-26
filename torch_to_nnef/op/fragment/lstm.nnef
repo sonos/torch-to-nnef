@@ -1,5 +1,5 @@
+# comment to avoid NNEF multi-fragment packing issue
 extension tract_registry tract_core;
-
 
 fragment lstm_scan_loop(
     c_t_prev: tensor<scalar>,
@@ -55,21 +55,22 @@ fragment lstm(
     b_i: tensor<scalar>,
     b_f: tensor<scalar>,
     b_g: tensor<scalar>,
-    b_o: tensor<scalar>
-) -> ( c_n : tensor<scalar>, c_t : tensor<scalar>, h_t : tensor<scalar> ) {
+    b_o: tensor<scalar>,
+    scan_pace: integer
+) -> ( h_n : tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar> ) {
   # This LSTM implementation is optimised CPU kernels usage via pulse definition
   xt_Wi = matmul(input, W_ii, transposeB = true) + b_i;
   xt_Wf = matmul(input, W_if, transposeB = true) + b_f;
   xt_Wg = matmul(input, W_ig, transposeB = true) + b_g;
   xt_Wo = matmul(input, W_io, transposeB = true) + b_o;
 
-  (c_n , c_t, h_t) = tract_core_scan(
+  (h_n , h_t, c_t) = tract_core_scan(
       body = "lstm_scan_loop",
       scan = [
-          ("xt_Wi_t", xt_Wi, 0, 1),
-          ("xt_Wf_t", xt_Wf, 0, 1),
-          ("xt_Wg_t", xt_Wg, 0, 1),
-          ("xt_Wo_t", xt_Wo, 0, 1)
+          ("xt_Wi_t", xt_Wi, 0, scan_pace),
+          ("xt_Wf_t", xt_Wf, 0, scan_pace),
+          ("xt_Wg_t", xt_Wg, 0, scan_pace),
+          ("xt_Wo_t", xt_Wo, 0, scan_pace)
       ],
       full = [
           ("W_hi", W_hi),
@@ -82,9 +83,9 @@ fragment lstm(
           ("h_t_prev", h_0, "h_t")
       ],
       output = [
-          ("h_t", "full", 0),
-          ("h_t", "last", 0),
-          ("c_t", "last", 0)
+          ("h_t", "full", 0, scan_pace),
+          ("h_t", "last", 0, scan_pace),
+          ("c_t", "last", 0, scan_pace)
       ],
       skip = 0
   );
