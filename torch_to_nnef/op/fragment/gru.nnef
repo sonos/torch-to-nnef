@@ -1,3 +1,5 @@
+
+# comment to avoid NNEF multi-fragment packing issue
 extension tract_registry tract_core;
 
 
@@ -42,7 +44,8 @@ fragment gru(
     b_r: tensor<scalar>,
     b_z: tensor<scalar>,
     b_in: tensor<scalar>,
-    b_hn: tensor<scalar>
+    b_hn: tensor<scalar>,
+    scan_pace: integer
 ) -> ( h_n : tensor<scalar>, h_t : tensor<scalar> ) {
   # This GRU implementation is optimised CPU kernels usage via pulse definition
   xt_Wr = matmul(input, W_ir, transposeB = true) + b_r;
@@ -52,9 +55,9 @@ fragment gru(
   (h_n , h_t) = tract_core_scan(
       body = "gru_scan_loop",
       scan = [
-          ("xt_Wr_t", xt_Wr, 0, 1),
-          ("xt_Wz_t", xt_Wz, 0, 1),
-          ("xt_Wn_t", xt_Wn, 0, 1)
+          ("xt_Wr_t", xt_Wr, 0, scan_pace),
+          ("xt_Wz_t", xt_Wz, 0, scan_pace),
+          ("xt_Wn_t", xt_Wn, 0, scan_pace)
       ],
       full = [
           ("W_hr", W_hr),
@@ -66,8 +69,8 @@ fragment gru(
           ("h_t_prev", h_0, "h_t")
       ],
       output = [
-          ("h_t", "full", 0),
-          ("h_t", "last", 0)
+          ("h_t", "full", 0, scan_pace),
+          ("h_t", "last", 0, scan_pace)
       ],
       skip = 0
   );
