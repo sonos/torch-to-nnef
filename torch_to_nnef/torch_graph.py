@@ -103,12 +103,12 @@ def _unfold_graph_getattr(
     submodule = module
     getattr_node = original_c_value.node()
     getter_sequence = []
-    original_name = getattr_node['name']
+    original_name = getattr_node.s('name')
     while getattr_node.kind() == GETATTR_KIND:
         c_value = next(getattr_node.inputs())
         getattr_node = c_value.node()
         try:
-            getter_sequence.append(getattr_node['name'])
+            getter_sequence.append(getattr_node.s('name'))
             submodule = getattr(module, getter_sequence[-1])
         except RuntimeError:
             pass
@@ -435,7 +435,7 @@ def _find_data_node(data_nodes: T.List[Data], name: str):
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
-    tensor_name = node['name']
+    tensor_name = node.s('name')
     data_state = getattr(module, tensor_name).data
     data_nodes.append(
         TensorVariable(
@@ -448,7 +448,7 @@ def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
 
 
 def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
-    pack_name = node['name']
+    pack_name = node.s('name')
     pack = getattr(module, pack_name)
     assert isinstance(pack, torch._C.ScriptObject)
     data_nodes.append(
@@ -1112,6 +1112,38 @@ class TorchModuleTraceHelper:
             op.inputs = self._expand_tuple_in(op.inputs)
             op.outputs = self._expand_tuple_in(op.outputs)
 
+    def _filter_useless_nodes(self):
+        """remove all unused graph nodes
+
+        Backward propagation from graph output to input to select kept nodes
+
+        """
+        used_data_nodes: T.List[Data] = self.outputs[:]
+        used_op_nodes = []
+        remaining_op_nodes = self.op_nodes[:]
+        remaining_data_nodes = [
+            _ for _ in self.data_nodes if _ not in used_data_nodes
+        ]
+        new_frontier = True
+        while new_frontier:
+            new_frontier = False
+            for op in remaining_op_nodes:
+                for data_node in used_data_nodes:
+                    if data_node in op.outputs:
+                        used_op_nodes.append(op)
+                        used_data_nodes.extend(op.inputs)
+                        new_frontier = True
+                        break  # look at next op
+
+            remaining_data_nodes = [
+                _ for _ in remaining_data_nodes if _ not in used_data_nodes
+            ]
+            remaining_op_nodes = [
+                _ for _ in remaining_op_nodes if _ not in used_op_nodes
+            ]
+        self.op_nodes = used_op_nodes
+        self.data_nodes = used_data_nodes
+
     def parse(
         self,
         renaming_scheme: str = "numeric",
@@ -1134,8 +1166,10 @@ class TorchModuleTraceHelper:
         self._infer_missing_shapes_from_ops_outputs()
         self._recursive_call_method()
         self._avoid_reference_to_tuples()
+        self._filter_useless_nodes()
         if renaming_scheme:
             self.apply_renaming_scheme(renaming_scheme)
+
         return self
 
     def printall(self):
