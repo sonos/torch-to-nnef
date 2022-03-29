@@ -36,6 +36,8 @@ export_model_to_nnef(
     compression_level: int = 0, # tar.gz compression level
     log_level=logging.WARN, # default being logging.INFO
     check_same_io_as_tract=True, # default False need tract installed on machine
+    debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
+    # debug_bundle_path is generated only if tract IO is not valid
 )
 ```
 
