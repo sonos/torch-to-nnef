@@ -324,7 +324,7 @@ class _RNNMixin:
             multi_layers
         """
 
-        self._check_rank(node, module)
+        # self._check_rank(node, module)
 
         used_fragments = [nnef_fragment_name]
         if module.bidirectional:
