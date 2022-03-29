@@ -90,17 +90,25 @@ def _unfold_outputs(test_outputs):
     return unfolded_outputs
 
 
-def build_io(model, test_input, io_npz_path=None):
+def build_io(
+    model, test_input, io_npz_path=None, input_names=None, output_names=None
+):
     tup_inputs = test_input if isinstance(test_input, tuple) else (test_input,)
-    input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
+    if input_names is None:
+        input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
     test_outputs = _unfold_outputs(model(*tup_inputs))
-    output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
+    if output_names is None:
+        output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
+
+    assert len(input_names) == len(tup_inputs)
+    assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:
         if isinstance(model, torch.quantization.QuantWrapper):
             fn = partial(special_quantize_io, model=model)
         else:
             fn = nop
+
         kwargs = {
             key: fn(input_arg.detach(), is_input=True).numpy()
             for key, input_arg in zip(input_names, tup_inputs)
@@ -209,12 +217,20 @@ def assert_io_and_debug_bundle(
     nnef_file_path: Path,
     io_npz_path: T.Optional[Path] = None,
     debug_bundle_path: T.Optional[Path] = None,
+    input_names: T.Optional[T.List[str]] = None,
+    output_names: T.Optional[T.List[str]] = None,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
             if io_npz_path is None:
                 io_npz_path = Path(tmpdir) / "io.npz"
-                build_io(model, test_input, io_npz_path=io_npz_path)
+                build_io(
+                    model,
+                    test_input,
+                    io_npz_path=io_npz_path,
+                    input_names=input_names,
+                    output_names=output_names,
+                )
             assert nnef_file_path.exists()
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and Pytorch")

@@ -49,6 +49,8 @@ TUPLEUNPACK_KIND = "prim::TupleUnpack"
 NUMTOTENSOR_KIND = "prim::NumToTensor"
 ATEN_CONTIGUOUS_KIND = "aten::contiguous"
 ATEN_VIEW_KIND = "aten::view"
+ATEN_SIZE_KIND = "aten::size"
+ATEN_INT = "aten::Int"
 
 CLASSTYPE_KIND = "ClassType"
 TUPLETYPE_KIND = "TupleType"
@@ -148,8 +150,6 @@ def _reconstruct_view_dims(
         (-1, 16, 128)
 
     """
-    if len(original_shape) < len(wished_view):
-        return (4, 64, 16, 64)
     assert len(original_shape) >= len(wished_view)
     assert sum(_ == -1 for _ in wished_view) == 1, "impossible to guess ?"
     completed_wished_view = list(wished_view)[:]
@@ -366,6 +366,14 @@ class PythonConstant(Data):
     def __hash__(self):
         return hash(self.name)
 
+    def into_tensor_variable(self):
+        data = self.data
+        if not isinstance(data, torch.Tensor):
+            data = torch.tensor(self.data)
+        return TensorVariable(
+            name=self.name, data=data, shape=list(data.shape), dtype=data.dtype
+        )
+
 
 @dataclass
 class BlobTorchScriptObject(Data):
@@ -493,7 +501,7 @@ def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
     )
 
 
-def _parse_contant(node: torch._C.Node, data_nodes):
+def _parse_constant(node: torch._C.Node, data_nodes):
     try:
         data = node['value']
     except RuntimeError:
@@ -525,30 +533,65 @@ def _parse_contant(node: torch._C.Node, data_nodes):
     data_nodes.append(PythonConstant(name=name, data=data))
 
 
-def _parse_list_construct(node, data_nodes):
-    # should build a Data
+def _fetch_backward(data_nodes, c_node: torch._C.Node):
+    """backward search of final resolution argument from list_construct"""
+    if c_node.kind() in [ATEN_INT, NUMTOTENSOR_KIND]:
+        return _fetch_backward(data_nodes, c_node.input().node())
+
+    try:
+        return _find_data_node(data_nodes, c_node.output().debugName())
+    except NotFoundDataNode as exp:
+        raise NotImplementedError("_fetch_backward c_node:", c_node) from exp
+
+
+def _parse_list_construct_values(node, data_nodes):
     values = []
     contains_tensors = False
     for cvalue in node.inputs():
-        value = cvalue.toIValue()
-        if str(cvalue.type()) == "Tensor":
+        if cvalue.node().kind() == CONSTANT_KIND:
+            value = PythonConstant(
+                name=cvalue.node().output().debugName(), data=cvalue.toIValue()
+            )
+        else:
             contains_tensors = True
-            try:
-                value = _find_data_node(data_nodes, cvalue.debugName())
-            except NotFoundDataNode:
-                value = TensorVariable.parse(cvalue)
-
+            if cvalue.node().kind() == ATEN_INT:
+                value = _fetch_backward(data_nodes, cvalue.node())
+            elif str(cvalue.type()) == "Tensor":
+                try:
+                    value = _find_data_node(data_nodes, cvalue.debugName())
+                except NotFoundDataNode:
+                    value = TensorVariable.parse(cvalue)
+            else:
+                raise NotImplementedError(
+                    "parse list construct argument", cvalue
+                )
         values.append(value)
+    return contains_tensors, values
+
+
+def _parse_list_construct(node, data_nodes):
+    # should build a Data
+    contains_tensors, values = _parse_list_construct_values(node, data_nodes)
 
     if contains_tensors:
+        tensor_values = []
         for value in values:
-            if not isinstance(value, TensorVariable):
+            if isinstance(value, TensorVariable):
+                if not any(_.name == value.name for _ in data_nodes):
+                    data_nodes.append(value)
+            elif isinstance(value, PythonConstant):
+                # is a type int or float or bool or ... need to be casted
+                value = value.into_tensor_variable()
+            else:
                 raise NotImplementedError()
-            if not any(_.name == value.name for _ in data_nodes):
-                data_nodes.append(value)
-        data_node = ListWithTensor(name=node.output().debugName(), data=values)
+            tensor_values.append(value)
+        data_node = ListWithTensor(
+            name=node.output().debugName(), data=tensor_values
+        )
     else:
-        data_node = PythonConstant(name=node.output().debugName(), data=values)
+        data_node = PythonConstant(
+            name=node.output().debugName(), data=[v.data for v in values]
+        )
     data_nodes.append(data_node)
 
     # }
@@ -603,7 +646,7 @@ def _rerouted_parsing(
         _parse_getattr_tensor(node, module, data_nodes)
         raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
     if kind == CONSTANT_KIND:
-        _parse_contant(node, data_nodes)
+        _parse_constant(node, data_nodes)
         raise TorchOpTranslatedDifferently("constant handled as PythonConstant")
     if kind == LISTCONSTRUCT_KIND:
         _parse_list_construct(node, data_nodes)
@@ -777,6 +820,9 @@ class TorchOp:
 
         for data_node, result in zip(self.outputs, results):
             if isinstance(data_node, TensorVariable):
+                if self.kind == ATEN_SIZE_KIND:
+                    # note this is a special case where we fix variable value
+                    data_node.data = result
                 data_node.dtype = result.dtype
                 data_node.shape = list(result.shape)
                 if is_quantized_dtype(result.dtype):
@@ -903,9 +949,21 @@ class TorchModuleTraceHelper:
         assert isinstance(to_node, Data)
         from_node.name = to_node.name
         for op in self.op_nodes:
-            op.inputs = [to_node if _ == from_node else _ for _ in op.inputs]
-            op.outputs = [to_node if _ == from_node else _ for _ in op.outputs]
-        self.data_nodes = [_ for _ in self.data_nodes if _ != from_node]
+            op.inputs = [to_node if _ is from_node else _ for _ in op.inputs]
+            op.outputs = [to_node if _ is from_node else _ for _ in op.outputs]
+        self.data_nodes = [_ for _ in self.data_nodes if _ is not from_node]
+
+        # allow to remap item in containers as well
+        for dnode in self.data_nodes:
+            if _is_container(dnode):
+                new_data = []
+                for subdnode in dnode.data:
+                    if subdnode is from_node:
+                        value = to_node
+                    else:
+                        value = subdnode
+                    new_data.append(value)
+                dnode.data = new_data
 
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
@@ -1111,9 +1169,9 @@ class TorchModuleTraceHelper:
             _ for _ in submodule_graph.data_nodes if _ not in to_del_nodes
         ]
         for _ in submodule_graph.op_nodes:
-            res = _.scope.split("/", maxsplit=1)
+            res = _.scope.split(self.SEP, maxsplit=1)
             if len(res) >= 2 and isinstance(res, list):
-                _.scope = f"{res[0]}[{prefix}]/{res[1]}"
+                _.scope = f"{res[0]}[{prefix}]{self.SEP}{res[1]}"
             else:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
@@ -1248,7 +1306,7 @@ class TorchModuleTraceHelper:
             remaining_data_nodes.difference_update(used_data_nodes)
             remaining_op_nodes.difference_update(used_op_nodes)
 
-            if remaining_data_nodes:
+            if len(remaining_data_nodes):
                 # at each loop try to add new expansion of
                 # maybe added ListWithTensor, TupleTensors
                 additional_data_node_from_list = set()
