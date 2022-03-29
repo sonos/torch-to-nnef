@@ -41,8 +41,8 @@ export_model_to_nnef(
 )
 ```
 
-As shown in API it is by default not dependent of tract inference library but as
-optin to rely on it for extra-checks.
+As shown in API it is by default not relying on tract inference library but as
+optin to do few extra-checks with it.
 
 ## Limitation
 
