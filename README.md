@@ -17,7 +17,9 @@ integration in other project).
 
 Allow to export any pytorch model by providing input and model.
 ```python3
+import logging
 from pathlib import Path
+
 import torch
 from torch import nn
 from torch_to_nnef.export import export_model_to_nnef
@@ -31,6 +33,9 @@ export_model_to_nnef(
     file_path_export=Path("mybeautifulmodel.nnef"),
     input_names=["input"],
     output_names=["output"],
+    compression_level: int = 0, # tar.gz compression level
+    log_level=logging.WARN, # default being logging.INFO
+    check_same_io_as_tract=True, # default False need tract installed on machine
 )
 ```
 

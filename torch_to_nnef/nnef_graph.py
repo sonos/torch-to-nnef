@@ -97,8 +97,8 @@ class GraphExtractor:
 
     def build_nnef_graph(
         self,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         null = NTensor(
             self.g,
@@ -132,22 +132,24 @@ class GraphExtractor:
         self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = ginputs
-        assert len(input_names) == len(self.g.inputs)
-        for in_tensor, requested_name in zip(self.g.inputs, input_names):
-            in_tensor.name = requested_name
+        if input_names is not None:
+            assert len(input_names) == len(self.g.inputs)
+            for in_tensor, requested_name in zip(self.g.inputs, input_names):
+                in_tensor.name = requested_name
 
         self.g.outputs = [
             name_to_tensor[_.export_name]
             for _ in self._torch_graph_helper.outputs
         ]
-        assert len(output_names) == len(self.g.outputs)
-        for out_tensor, requested_name in zip(self.g.outputs, output_names):
-            out_tensor.name = requested_name
+        if output_names is not None:
+            assert len(output_names) == len(self.g.outputs)
+            for out_tensor, requested_name in zip(self.g.outputs, output_names):
+                out_tensor.name = requested_name
 
     def parse(
         self,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         self.build_nnef_graph(
             input_names,
