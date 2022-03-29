@@ -41,6 +41,9 @@ export_model_to_nnef(
 )
 ```
 
+As shown in API it is by default not dependent of tract inference library but as
+optin to rely on it for extra-checks.
+
 ## Limitation
 
 Torch Model need to be serializable to torch.jit (fancy python dict routing
