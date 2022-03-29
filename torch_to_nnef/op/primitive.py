@@ -1,4 +1,5 @@
 # pylint: disable=too-many-lines
+import logging
 import typing as T
 
 import numpy as np
@@ -8,6 +9,8 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE, TORCH_DTYPE_TO_NNEF_STR
 from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
+
+LOGGER = logging.getLogger(__name__)
 
 
 def add_output_tensor(g, onode, name_to_tensor, name_suffix: str = ""):
@@ -619,6 +622,9 @@ def contiguous(node, torch_graph, **kwargs):
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
+    if isinstance(dim_node, ListWithTensor):
+        dim_node.data = [tv.data.numpy().tolist() for tv in dim_node.data]
+
     _add_single_output_op(
         g,
         node,
@@ -771,7 +777,7 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         "transpose",
         inputs=name_to_tensor[input_node.export_name],
-        attrs={"axes": list(reversed(dims_node.data))},
+        attrs={"axes": dims_node.data},
     )
 
 
@@ -1024,8 +1030,15 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     ```
 
     """
-    raise NotImplementedError(
-        "the aten::size need custom NNEF operator from tract internals"
+    original_variable_output = node.outputs[0]
+    new_node = PythonConstant(
+        name=original_variable_output.name,
+        data=original_variable_output.data,
+    )
+    torch_graph.remap_node(original_variable_output, new_node)
+    LOGGER.warning(
+        "the aten::size need custom NNEF operator from tract internals. "
+        " For now we fix values at export time"
     )
 
 

@@ -191,7 +191,7 @@ class _RNNMixin:
             type="transpose",
             inputs=input_tensor,
             outputs=transposed_input_tensor,
-            attribs={"axes": [1, 0]},
+            attribs={"axes": [1, 0, 2]},
         )
         return transposed_input_tensor
 
@@ -207,7 +207,7 @@ class _RNNMixin:
             type="transpose",
             inputs=input_tensor,
             outputs=out_transpose_tensor,
-            attribs={"axes": [1, 0]},
+            attribs={"axes": [1, 0, 2]},
         )
         return out_transpose_tensor
 
@@ -445,8 +445,8 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-        h_0_layer = h_0.split(1)[layer_index]
-        c_0_layer = c_0.split(1)[layer_index]
+        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
+        c_0_layer = c_0.split(1)[layer_index].squeeze(0)
 
         suffix = str(layer_index)
         if backward:
@@ -524,16 +524,20 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
 
         D = 2 if lstm.bidirectional else 1
 
+        batch_rank = 0 if lstm.batch_first else 1
+        batch_dim = node.inputs[0].shape[batch_rank]
         if len(node.inputs) < 2:
             h_0 = torch.zeros(
-                lstm.num_layers * D, lstm.proj_size or lstm.hidden_size
+                lstm.num_layers * D,
+                batch_dim,
+                lstm.proj_size or lstm.hidden_size,
             )
         else:
             # might be a TensorVariable with data NOT already setted
             h_0 = node.inputs[1].data
 
         if len(node.inputs) < 3:
-            c_0 = torch.zeros(lstm.num_layers * D, lstm.hidden_size)
+            c_0 = torch.zeros(lstm.num_layers * D, batch_dim, lstm.hidden_size)
         else:
             # might be a TensorVariable with data NOT already setted
             c_0 = node.inputs[2].data
@@ -583,7 +587,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index]
+        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
         # module weight packed in order (W_ir|W_iz|W_in)
         w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
@@ -650,7 +654,9 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         D = 2 if gru.bidirectional else 1
 
         if len(node.inputs) < 2:
-            h_0 = torch.zeros(gru.num_layers * D, gru.hidden_size)
+            batch_rank = 0 if gru.batch_first else 1
+            batch_dim = node.inputs[0].shape[batch_rank]
+            h_0 = torch.zeros(gru.num_layers * D, batch_dim, gru.hidden_size)
         else:
             # might be a TensorVariable with data NOT already setted
             h_0 = node.inputs[1].data

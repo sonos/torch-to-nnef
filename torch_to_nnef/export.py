@@ -82,4 +82,6 @@ def export_model_to_nnef(
             args,
             file_path_export.with_suffix(".nnef.tgz"),
             debug_bundle_path=debug_bundle_path,
+            input_names=input_names,
+            output_names=output_names,
         )
