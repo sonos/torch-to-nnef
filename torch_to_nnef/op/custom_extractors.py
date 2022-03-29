@@ -12,6 +12,7 @@ import typing as T
 
 import torch
 from nnef_tools.model import Operation as NOperation
+from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
 CUSTOMOP_KIND = "wired_custom::"
@@ -91,7 +92,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         self, torch_graph, provided_inputs, provided_outputs
     ):
         # pylint: disable-next=import-outside-toplevel
-        from .. import torch_graph as tg
+        from torch_to_nnef import torch_graph as tg
 
         inputs = []
         for idx, arg in enumerate(torch_graph._args):
@@ -120,7 +121,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
         outputs = []
         for idx, result in enumerate(expanded_results):
-            if provided_outputs and idx >= len(provided_outputs):
+            if provided_outputs and idx > len(provided_outputs):
                 tensor_variable = provided_outputs[idx]
             else:
                 tensor_variable = tg.TensorVariable(
@@ -158,7 +159,155 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         raise NotImplementedError()
 
 
+T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
+
+
 class _RNNMixin:
+    def tensor_params(
+        self,
+        module: T_RNNS,
+        layer_index: int,
+        backward: bool,
+        **kwargs,
+    ):
+        raise NotImplementedError
+
+    def _check_rank(self, node, module):
+        batch_rank = 0 if module.batch_first else 1
+        assert node.inputs[0].shape[batch_rank] == 1, (
+            f"should be dim=1 for rank={batch_rank} since batch_size beyond are "
+            f"not supported but provided shape is {node.inputs[0].shape}"
+        )
+
+    def _pre_batch_first(self, g, input_tensor, node, name_to_tensor):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        transposed_input_tensor = primitive.add_output_tensor(
+            g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
+        )
+        NOperation(
+            g,
+            type="transpose",
+            inputs=input_tensor,
+            outputs=transposed_input_tensor,
+            attribs={"axes": [1, 0]},
+        )
+        return transposed_input_tensor
+
+    def _post_batch_first(self, g, input_tensor, node, name_to_tensor):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        out_transpose_tensor = primitive.add_output_tensor(
+            g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
+        )
+        NOperation(
+            g,
+            type="transpose",
+            inputs=input_tensor,
+            outputs=out_transpose_tensor,
+            attribs={"axes": [1, 0]},
+        )
+        return out_transpose_tensor
+
+    def _multi_layers_concat(
+        self, g, node, name_to_tensor, last_hc_at_each_layers
+    ):
+        """allow to concat last from each layers for h_t and and c_t"""
+
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        for idx, out_node in enumerate(node.outputs[1:]):
+            real_output = primitive.add_output_tensor(
+                g, out_node, name_to_tensor
+            )
+            NOperation(
+                graph=g,
+                type="concat",
+                inputs=[_[idx] for _ in last_hc_at_each_layers],
+                outputs=real_output,
+                attribs={"axis": 0},
+            )
+
+    def _translate_to_nnef_variable(
+        self,
+        module: T_RNNS,
+        tensor_params_kwargs,
+        layer_index: int,
+        node,  # : TensorVariable
+        g,
+        name_to_tensor,
+        is_backward: bool,
+    ) -> T.Dict[str, NTensor]:
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        name_to_nnef_variable = {}
+        for var_name, torch_tensor in self.tensor_params(
+            module,
+            layer_index=layer_index,
+            backward=is_backward,
+            **tensor_params_kwargs,
+        ).items():
+            name_to_nnef_variable[
+                var_name
+            ] = primitive.register_state_node_as_variable(
+                torch_tensor,
+                var_name,
+                node,
+                g,
+                name_to_tensor,
+            )
+        return name_to_nnef_variable
+
+    def _translate_to_nnef_outputs(
+        self, g, name_to_tensor, linfo: str, module: T_RNNS, node
+    ) -> T.List[NTensor]:
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        return [
+            primitive.add_output_tensor(
+                g,
+                out_node,
+                name_to_tensor,
+                name_suffix=f"_l{linfo}"
+                if (module.num_layers > 1 or module.bidirectional)
+                else "",
+            )
+            for out_node in node.outputs
+        ]
+
+    def _apply_rnn_bidirectional_pack_at_layer(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        layer_index: int,
+        last_forward_h: NTensor,
+        last_backward_h: NTensor,
+        module: T_RNNS,
+    ):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import primitive
+
+        out_packed_bidi = primitive.add_output_tensor(
+            g,
+            node.outputs[0],
+            name_to_tensor,
+            name_suffix=f"_l{layer_index}_packed_bidi",
+        )
+        NOperation(
+            g,
+            type="rnn_bidi_pack",
+            inputs=tuple([last_forward_h, last_backward_h]),
+            outputs=out_packed_bidi,
+            attribs={"shape": module.hidden_size * 2},
+        )
+        return out_packed_bidi
+
     def _core_convert_to_nnef(
         self,
         module,
@@ -174,28 +323,19 @@ class _RNNMixin:
             batch_first
             multi_layers
         """
-        used_fragments = [nnef_fragment_name]
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import primitive
 
-        assert (
-            node.inputs[0].shape[0 if module.batch_first else 1] == 1
-        ), "first dim need to be only 1 since batch_size beyond are not supported"
+        self._check_rank(node, module)
+
+        used_fragments = [nnef_fragment_name]
+        if module.bidirectional:
+            used_fragments += ["rnn_bidi_pack"]
 
         input_tensor = name_to_tensor[node.inputs[0].export_name]
 
         if module.batch_first:
-            transposed_input_tensor = primitive.add_output_tensor(
-                g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
+            input_tensor = self._pre_batch_first(
+                g, input_tensor, node, name_to_tensor
             )
-            NOperation(
-                g,
-                type="transpose",
-                inputs=input_tensor,
-                outputs=transposed_input_tensor,
-                attribs={"axes": [1, 0]},
-            )
-            input_tensor = transposed_input_tensor
 
         last_hc_at_each_layers = []
 
@@ -212,37 +352,22 @@ class _RNNMixin:
 
             for is_backward in passes_is_backward:
                 linfo = str(layer_index)
-                name_to_nnef_variable = {}
-                for var_name, torch_tensor in self.tensor_params(
+                name_to_nnef_variable = self._translate_to_nnef_variable(
                     module,
-                    **tensor_params_kwargs,
-                    layer_index=layer_index,
-                    backward=is_backward,
-                ).items():
-                    name_to_nnef_variable[
-                        var_name
-                    ] = primitive.register_state_node_as_variable(
-                        torch_tensor,
-                        var_name,
-                        node,
-                        g,
-                        name_to_tensor,
-                    )
+                    tensor_params_kwargs,
+                    layer_index,
+                    node,
+                    g,
+                    name_to_tensor,
+                    is_backward,
+                )
 
                 if is_backward:
                     linfo += "_backward"
                 # outputs: h_n, h_last
-                outputs = [
-                    primitive.add_output_tensor(
-                        g,
-                        out_node,
-                        name_to_tensor,
-                        name_suffix=f"_l{linfo}"
-                        if (module.num_layers > 1 or module.bidirectional)
-                        else "",
-                    )
-                    for out_node in node.outputs
-                ]
+                outputs = self._translate_to_nnef_outputs(
+                    g, name_to_tensor, linfo, module, node
+                )
 
                 argument_order = [
                     f"l{linfo}_{arg_name}" for arg_name in argument_names_order
@@ -265,54 +390,29 @@ class _RNNMixin:
 
                 last_hc_at_each_layers.append(outputs[1:])
             if module.bidirectional:
-                out_packed_bidi = primitive.add_output_tensor(
+                last_forward_h = self._apply_rnn_bidirectional_pack_at_layer(
                     g,
-                    node.outputs[0],
+                    node,
                     name_to_tensor,
-                    name_suffix=f"_l{layer_index}_packed_bidi",
+                    layer_index,
+                    last_forward_h,
+                    last_backward_h,
+                    module,
                 )
-                NOperation(
-                    g,
-                    type="rnn_bidi_pack",
-                    inputs=tuple([last_forward_h, last_backward_h]),
-                    outputs=out_packed_bidi,
-                    attribs={"shape": module.hidden_size * 2},
-                )
-                last_forward_h = out_packed_bidi
-
-        if module.bidirectional:
-            used_fragments += ["rnn_bidi_pack"]
 
         if module.batch_first:
-            out_transpose_tensor = primitive.add_output_tensor(
-                g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
+            input_tensor = self._post_batch_first(
+                g, input_tensor, node, name_to_tensor
             )
-            NOperation(
-                g,
-                type="transpose",
-                inputs=input_tensor,
-                outputs=out_transpose_tensor,
-                attribs={"axes": [1, 0]},
-            )
-            input_tensor = out_transpose_tensor
 
         h_out_name = node.outputs[0].export_name
         input_tensor.name = h_out_name
         name_to_tensor[h_out_name] = last_forward_h
 
         if len(last_hc_at_each_layers) > 1:
-            # allow to concat last from each layers for h_t and and c_t
-            for idx, out_node in enumerate(node.outputs[1:]):
-                real_output = primitive.add_output_tensor(
-                    g, out_node, name_to_tensor
-                )
-                NOperation(
-                    graph=g,
-                    type="concat",
-                    inputs=[_[idx] for _ in last_hc_at_each_layers],
-                    outputs=real_output,
-                    attribs={"axis": 0},
-                )
+            self._multi_layers_concat(
+                g, node, name_to_tensor, last_hc_at_each_layers
+            )
         return used_fragments
 
     def _apply_layer_and_unsqueeze_to_params(
@@ -333,8 +433,17 @@ class _RNNMixin:
 class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.LSTM
 
-    def tensor_params(
-        self, lstm, c_0, h_0, layer_index: int = 0, backward: bool = False
+    # should be good enough for this use case
+    #  liskov substitution being not used here
+    #  pylint: disable-next=arguments-differ
+    def tensor_params(  # type: ignore
+        self,
+        module: T_RNNS,
+        layer_index: int,
+        backward: bool,
+        c_0: torch.Tensor,
+        h_0: torch.Tensor,
+        **kwargs,
     ):
         h_0_layer = h_0.split(1)[layer_index]
         c_0_layer = c_0.split(1)[layer_index]
@@ -344,30 +453,30 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             suffix += "_reverse"
 
         # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
-        w_var = getattr(lstm, f"weight_ih_l{suffix}")
+        w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ii, W_if, W_ig, W_io = w_var.split(int(w_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
-        w_var = getattr(lstm, f"weight_hh_l{suffix}")
+        w_var = getattr(module, f"weight_hh_l{suffix}")
         W_hi, W_hf, W_hg, W_ho = w_var.split(int(w_var.shape[0] / 4))
 
         bias_i_name = f"bias_ih_l{suffix}"
         if (
-            hasattr(lstm, bias_i_name)
-            and getattr(lstm, bias_i_name) is not None
+            hasattr(module, bias_i_name)
+            and getattr(module, bias_i_name) is not None
         ):
-            b_var = getattr(lstm, bias_i_name)
-            # lstm packed in order (b_ii|b_if|b_ig|b_io)
+            b_var = getattr(module, bias_i_name)
+            # module packed in order (b_ii|b_if|b_ig|b_io)
             b_ii, b_if, b_ig, b_io = b_var.split(int(b_var.shape[0] / 4))
         else:
             b_ii, b_if, b_ig, b_io = (torch.tensor(0.0) for _ in range(4))
 
         bias_h_name = f"bias_hh_l{suffix}"
         if (
-            hasattr(lstm, bias_h_name)
-            and getattr(lstm, bias_h_name) is not None
+            hasattr(module, bias_h_name)
+            and getattr(module, bias_h_name) is not None
         ):
             # lstm packed in order (b_hi|b_hf|b_hg|b_ho)
-            b_var = getattr(lstm, bias_h_name)
+            b_var = getattr(module, bias_h_name)
             b_hi, b_hf, b_hg, b_ho = b_var.split(int(b_var.shape[0] / 4))
         else:
             b_hi, b_hf, b_hg, b_ho = (torch.tensor(0.0) for _ in range(4))
@@ -460,8 +569,14 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
 class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.GRU
 
-    def tensor_params(
-        self, gru, h_0, layer_index: int = 0, backward: bool = False
+    #  pylint: disable-next=arguments-differ
+    def tensor_params(  # type: ignore
+        self,
+        module: T_RNNS,
+        layer_index: int,
+        backward: bool,
+        h_0: torch.Tensor,
+        **kwargs,
     ):
 
         suffix = str(layer_index)
@@ -469,25 +584,31 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
             suffix += "_reverse"
 
         h_0_layer = h_0.split(1)[layer_index]
-        # gru weight packed in order (W_ir|W_iz|W_in)
-        w_var = getattr(gru, f"weight_ih_l{suffix}")
+        # module weight packed in order (W_ir|W_iz|W_in)
+        w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
-        # gru weight packed in order (W_hr|W_hz|W_hn)
-        w_var = getattr(gru, f"weight_hh_l{suffix}")
+        # module weight packed in order (W_hr|W_hz|W_hn)
+        w_var = getattr(module, f"weight_hh_l{suffix}")
         W_hr, W_hz, W_hn = w_var.split(int(w_var.shape[0] / 3))
 
         bias_i_name = f"bias_ih_l{suffix}"
-        if hasattr(gru, bias_i_name) and getattr(gru, bias_i_name) is not None:
-            # gru packed in order (b_ir|b_iz|b_in)
-            bias_var = getattr(gru, bias_i_name)
+        if (
+            hasattr(module, bias_i_name)
+            and getattr(module, bias_i_name) is not None
+        ):
+            # module packed in order (b_ir|b_iz|b_in)
+            bias_var = getattr(module, bias_i_name)
             b_ir, b_iz, b_in = bias_var.split(int(bias_var.shape[0] / 3))
         else:
             b_ir, b_iz, b_in = (torch.tensor(0.0) for _ in range(3))
 
         bias_h_name = f"bias_hh_l{suffix}"
-        if hasattr(gru, bias_h_name) and getattr(gru, bias_h_name) is not None:
-            # gru packed in order (b_hr|b_hz|b_hn)
-            bias_var = getattr(gru, bias_h_name)
+        if (
+            hasattr(module, bias_h_name)
+            and getattr(module, bias_h_name) is not None
+        ):
+            # module packed in order (b_hr|b_hz|b_hn)
+            bias_var = getattr(module, bias_h_name)
             b_hr, b_hz, b_hn = bias_var.split(int(bias_var.shape[0] / 3))
         else:
             b_hr, b_hz, b_hn = (torch.tensor(0.0) for _ in range(3))

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import torch
 from nnef_tools.io.nnef.writer import Writer as NNEFWriter
-from torch.onnx import TrainingMode
-from torch.onnx.utils import (
+from torch.onnx import TrainingMode  # type: ignore
+from torch.onnx.utils import (  # type: ignore
     _decide_input_format,
     _validate_dynamic_axes,
     select_model_mode_for_export,
@@ -47,5 +47,9 @@ def export_model_to_nnef(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
+            # could be better integrated by exposed extensions deps in active_custom_fragments
+            extensions=["tract_registry tract_core"]
+            if len(active_custom_fragments) > 0
+            else [],
             version_custom_fragments=None,  # using version might create conflict with ops
         )(nnef_graph, str(file_path_export))

@@ -36,7 +36,7 @@ def test_filter_out_useless_nodes():
             call_name="bob",
         )
     )
-    tth._filter_useless_nodes()
+    tth._filter_nodes_not_in_trace_between_inputs_and_outputs()
     assert not any(
         dnode.name in ["bob_in", "bob_out"] for dnode in tth.data_nodes
     )
