@@ -1,8 +1,3 @@
-
-# comment to avoid NNEF multi-fragment packing issue
-extension tract_registry tract_core;
-
-
 fragment gru_scan_loop(
     h_t_prev: tensor<scalar>,
 

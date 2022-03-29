@@ -1,6 +1,3 @@
-# comment to avoid NNEF multi-fragment packing issue
-extension tract_registry tract_core;
-
 fragment lstm_scan_loop(
     c_t_prev: tensor<scalar>,
     h_t_prev: tensor<scalar>,

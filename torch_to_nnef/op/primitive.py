@@ -1003,6 +1003,32 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def size(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
+
+    ```
+    The shape_of function is deprecated and is discouraged from use.
+    The reason is that it provides syntactic means to access a
+    property of tensors that is not defined via the syntax itself.
+
+    Furthermore, its definition is problematic in cases where the shape
+    of a tensor is not known in graph compilation time.
+
+    These result in problems with custom operations and operations with results
+    of dynamic shape for a consumer of an NNEF document.
+
+    By removing support for the shape_of function from NNEF syntax,
+    it becomes possible to de-couple parsing
+    from shape propagation in a consumer of an NNEF document.
+    ```
+
+    """
+    raise NotImplementedError(
+        "the aten::size need custom NNEF operator from tract internals"
+    )
+
+
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
     _add_single_output_op(
