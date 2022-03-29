@@ -1,3 +1,4 @@
+"""Tests internals torch graph intermediate representation."""
 import torch
 from torch import nn
 

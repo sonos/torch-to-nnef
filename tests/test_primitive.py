@@ -1,4 +1,4 @@
-"""Tests simple models."""
+"""Tests simple primitives."""
 
 import os
 import tempfile
