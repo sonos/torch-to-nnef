@@ -17,6 +17,7 @@ from torch_to_nnef.torch_graph import (
     Data,
     TensorVariable,
     TorchModuleTraceHelper,
+    _is_container,
 )
 
 
@@ -64,6 +65,11 @@ class GraphExtractor:
         def is_missing(node: Data):
             if node.export_name in name_to_tensor:
                 return False
+            if _is_container(node) and any(
+                is_missing(subnode) for subnode in node.data
+            ):
+                # case where partial data is available for container
+                return True
             if not isinstance(node, TensorVariable) or node.data is not None:
                 return False
             return True

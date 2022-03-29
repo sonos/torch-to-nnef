@@ -92,7 +92,7 @@ def _is_container(data_node: "Data"):
     return isinstance(data_node, (ListWithTensor, TupleTensors))
 
 
-def _exand_containers_if_exists(data_items):
+def _expand_containers_if_exists(data_items):
     for data_item in data_items:
         if _is_container(data_item):
             yield from data_item.data
@@ -1030,16 +1030,17 @@ class TorchModuleTraceHelper:
         )
 
         for node in self.op_nodes:
-            for input_node in _exand_containers_if_exists(node.inputs):
+            for input_node in _expand_containers_if_exists(node.inputs):
                 unique_name_to_scoped_name[input_node.name] = (
                     node.scope + self.SEP + input_node.name
                 )
 
-        for node in _exand_containers_if_exists(self.data_nodes):
-            node.name = selected_scope_name + self.SEP + node.name
+        for node in _expand_containers_if_exists(self.data_nodes):
+            if not node.name.startswith(selected_scope_name + self.SEP):
+                node.name = selected_scope_name + self.SEP + node.name
 
-        for node in _exand_containers_if_exists(self.inputs):
-            if not node.name.startswith(selected_scope_name):
+        for node in _expand_containers_if_exists(self.inputs):
+            if not node.name.startswith(selected_scope_name + self.SEP):
                 node.name = selected_scope_name + self.SEP + node.name
 
     def _infer_missing_shapes_from_ops_outputs(self):
@@ -1077,8 +1078,8 @@ class TorchModuleTraceHelper:
             datas_attr: str,
         ):
             for node, ref_node in zip(
-                _exand_containers_if_exists(node_subgraph_to_wire),
-                _exand_containers_if_exists(node_graph_to_wire),
+                _expand_containers_if_exists(node_subgraph_to_wire),
+                _expand_containers_if_exists(node_graph_to_wire),
             ):
                 for op_node in submodule_graph.op_nodes:
                     datas = []
@@ -1247,15 +1248,19 @@ class TorchModuleTraceHelper:
             remaining_data_nodes.difference_update(used_data_nodes)
             remaining_op_nodes.difference_update(used_op_nodes)
 
-        if remaining_data_nodes:
-            additional_data_node_from_list = set()
-            for used_data_node in used_data_nodes:
-                if _is_container(used_data_node):
-                    additional_data_node_from_list.update(used_data_node.data)
-            remaining_data_nodes.difference_update(
-                additional_data_node_from_list
-            )
-            used_data_nodes.update(additional_data_node_from_list)
+            if remaining_data_nodes:
+                # at each loop try to add new expansion of
+                # maybe added ListWithTensor, TupleTensors
+                additional_data_node_from_list = set()
+                for used_data_node in used_data_nodes:
+                    if _is_container(used_data_node):
+                        additional_data_node_from_list.update(
+                            used_data_node.data
+                        )
+                remaining_data_nodes.difference_update(
+                    additional_data_node_from_list
+                )
+                used_data_nodes.update(additional_data_node_from_list)
 
         # filtered bug with original order
         ordered_op_nodes_hashs = [hash(_) for _ in self.op_nodes]
@@ -1294,10 +1299,13 @@ class TorchModuleTraceHelper:
         self._recursive_call_method()
         self._avoid_reference_to_tuples()
         self._filter_nodes_not_in_trace_between_inputs_and_outputs()
+
         self._check_container_items_rely_on_data_nodes()
         self._check_io_rely_on_data_nodes()
+
         if renaming_scheme:
             self.apply_renaming_scheme(renaming_scheme)
+
         return self
 
     def printall(self):
