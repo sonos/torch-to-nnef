@@ -1,7 +1,6 @@
 """Tests simple models."""
 
 import os
-import subprocess
 import tempfile
 from datetime import datetime
 from functools import partial
@@ -16,12 +15,7 @@ from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
-from torch_to_nnef.tract import (
-    IOPytorchTractNotISOError,
-    build_io,
-    debug_dumper_pytorch_to_onnx_to_nnef,
-    tract_assert_io,
-)
+from torch_to_nnef.tract import build_io, tract_assert_io
 
 INPUT_AND_MODELS = []
 
@@ -518,33 +512,12 @@ def test_model_export(test_input, model):
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-        )
-        real_export_path = export_path.with_suffix(".nnef.tgz")
-        assert real_export_path.exists()
-        try:
-            tract_assert_io(real_export_path, io_npz_path, raise_exception=True)
-        except IOPytorchTractNotISOError as exp:
-            if not os.environ.get("DEBUG", False):
-                raise exp
-            exp_path = (
+            check_same_io_as_tract=True,
+            debug_bundle_path=(
                 Path.cwd()
                 / "failed_tests"
                 / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
             )
-            exp_path.mkdir(parents=True, exist_ok=True)
-            subprocess.check_output(
-                f"cd {exp_path} && rm -rf ./* && cp {real_export_path} {exp_path}/model.nnef.tgz "
-                f"&& tar -xvzf {real_export_path} && cp {io_npz_path} {exp_path}/io.npz",
-                shell=True,
-            )
-            debug_dumper_pytorch_to_onnx_to_nnef(
-                model,
-                test_input,
-                target_folder=exp_path / "tract",
-                raise_export_error=False,
-            )
-            exp.args = tuple(
-                [f"test with model: {model}\n" + exp.args[0]]
-                + list(exp.args)[1:]
-            )
-            raise exp
+            if os.environ.get("DEBUG", False)
+            else None,
+        )
