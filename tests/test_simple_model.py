@@ -15,6 +15,7 @@ from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.log import log
 from torch_to_nnef.tract import (
     IOPytorchTractNotISOError,
     build_io,
@@ -482,7 +483,7 @@ def test_should_fail_since_false_output():
             file_path_export=export_path,
             input_names=["input"],
             output_names=["output"],
-            verbose=False,
+            log_level=log.WARNING,
         )
 
         np.savez(
@@ -516,7 +517,7 @@ def test_model_export(test_input, model):
             file_path_export=export_path,
             input_names=input_names,
             output_names=output_names,
-            verbose=False,
+            log_level=log.INFO,
         )
         real_export_path = export_path.with_suffix(".nnef.tgz")
         assert real_export_path.exists()
