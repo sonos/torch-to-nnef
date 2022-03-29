@@ -1,3 +1,4 @@
+"""Tests canonical models."""
 import os
 
 import pytest
