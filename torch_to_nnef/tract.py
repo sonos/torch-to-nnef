@@ -1,5 +1,11 @@
-""" Tools to manipulate tract programatically """
+""" Tools to manipulate tract programatically
 
+
+NOTE: interaction are done with *Nix tty system in mind, no support for Window
+
+"""
+
+import logging
 import os
 import subprocess
 import tempfile
@@ -13,6 +19,8 @@ import torch
 from torch import nn
 
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
+
+LOGGER = logging.getLogger(__name__)
 
 
 class OnnxExportError(RuntimeError):
@@ -53,7 +61,7 @@ def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
                 if raise_exception:
                     raise IOPytorchTractNotISOError(serr)
                 return False
-            # print(err)
+            LOGGER.debug(err)
     return True
 
 
@@ -132,7 +140,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
         except Exception as exp:
             if raise_export_error:
                 raise OnnxExportError(exp.args) from exp
-            print("ONNX export error")
+            LOGGER.warning(f"ONNX export error: {exp}")
             return False
         try:
             tract_convert_onnx_to_nnef(
@@ -145,7 +153,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
         except Exception as exp:
             if raise_export_error:
                 raise TractOnnxToNNEFError(exp.args) from exp
-            print("tract ONNX->NNEF export error")
+            LOGGER.warning(f"tract ONNX->NNEF export error: {exp}")
             return False
         return True
 
@@ -184,3 +192,77 @@ def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
                 arr = nnef.read_tensor(fh)
                 oarr = nnef.read_tensor(fh_o)
                 assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
+
+
+def tract_version() -> str:
+    return (
+        subprocess.check_output(f"{TRACT_PATH} --version".split())
+        .decode("utf8")
+        .split(maxsplit=1)[-1]
+        .strip()
+    )
+
+
+def assert_io_and_debug_bundle(
+    model: nn.Module,
+    test_input,
+    nnef_file_path: Path,
+    io_npz_path: T.Optional[Path] = None,
+    debug_bundle_path: T.Optional[Path] = None,
+):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            if io_npz_path is None:
+                io_npz_path = Path(tmpdir) / "io.npz"
+                build_io(model, test_input, io_npz_path=io_npz_path)
+            assert nnef_file_path.exists()
+            assert io_npz_path.exists()
+            LOGGER.info("Start checking IO is ISO between tract and Pytorch")
+            tract_assert_io(nnef_file_path, io_npz_path, raise_exception=True)
+            LOGGER.info(
+                f"IO bit match between tract and Pytorch for {nnef_file_path}"
+            )
+        except IOPytorchTractNotISOError as exp:
+            if debug_bundle_path is None:
+                raise exp
+            nnef_file_path = nnef_file_path.absolute()
+            no_suffix_debug_bundle_path = debug_bundle_path.with_suffix(
+                ""
+            ).absolute()
+            no_suffix_debug_bundle_path.mkdir(parents=True)
+            subprocess.check_output(
+                f"cd {no_suffix_debug_bundle_path} && "
+                f"cp {nnef_file_path} {no_suffix_debug_bundle_path}/model.nnef.tgz && "
+                f"tar -xvzf {nnef_file_path} && "
+                f"cp {io_npz_path} {no_suffix_debug_bundle_path}/io.npz",
+                shell=True,
+            )
+            with (no_suffix_debug_bundle_path / "versions").open(
+                "w", encoding="utf8"
+            ) as fh:
+                fh.write(f"tract: {tract_version()}")
+
+            debug_dumper_pytorch_to_onnx_to_nnef(
+                model,
+                test_input,
+                target_folder=no_suffix_debug_bundle_path / "tract",
+                raise_export_error=False,
+            )
+            if any(
+                extension in debug_bundle_path.suffix
+                for extension in ["tgz", "tar.gz"]
+            ):
+                subprocess.check_output(
+                    f"cd {no_suffix_debug_bundle_path.parent} && "
+                    f"tar -cvzf {debug_bundle_path.absolute()} {no_suffix_debug_bundle_path.name} && cd - && "
+                    # rm acceptable since dir created ensured empty before use
+                    f"rm -r {no_suffix_debug_bundle_path}",
+                    shell=True,
+                )
+            LOGGER.info(f"debug bundle built at {debug_bundle_path}")
+
+            exp.args = tuple(
+                [f"test with model: {model}\n" + exp.args[0]]
+                + list(exp.args)[1:]
+            )
+            raise exp

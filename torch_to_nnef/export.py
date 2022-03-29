@@ -1,4 +1,3 @@
-import tempfile
 import typing as T
 from pathlib import Path
 
@@ -30,6 +29,7 @@ def export_model_to_nnef(
     compression_level: int = 0,
     log_level: int = log.INFO,
     check_same_io_as_tract: bool = False,
+    debug_bundle_path: T.Optional[Path] = None,
 ):
     """Main entrypoint of this library
 
@@ -77,14 +77,9 @@ def export_model_to_nnef(
             f"model exported successfully as NNEF at: {file_path_export}"
         )
     if check_same_io_as_tract:
-        LOGGER.info("Start checking IO is ISO between tract and Pytorch")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            nnef_path = file_path_export.with_suffix(".nnef.tgz")
-            io_npz_path = Path(tmpdir) / "io.npz"
-            input_names, output_names = tract.build_io(
-                model, args, io_npz_path=io_npz_path
-            )
-            tract.tract_assert_io(nnef_path, io_npz_path, raise_exception=True)
-        LOGGER.info(
-            f"IO bit match between tract and Pytorch for {file_path_export}"
+        tract.assert_io_and_debug_bundle(
+            model,
+            args,
+            file_path_export.with_suffix(".nnef.tgz"),
+            debug_bundle_path=debug_bundle_path,
         )
