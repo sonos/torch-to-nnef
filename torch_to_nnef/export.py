@@ -1,3 +1,5 @@
+import tempfile
+import typing as T
 from pathlib import Path
 
 import torch
@@ -10,20 +12,38 @@ from torch.onnx.utils import (  # type: ignore
 )
 
 # from . import __version__
-from .nnef_graph import GraphExtractor
-from .op.fragment import FRAGMENTS
+from torch_to_nnef import tract
+from torch_to_nnef.log import log
+from torch_to_nnef.nnef_graph import GraphExtractor
+from torch_to_nnef.op.fragment import FRAGMENTS
+
+LOGGER = log.getLogger(__name__)
 
 
 def export_model_to_nnef(
-    model,
-    args,
+    model: torch.nn.Module,
+    args,  # args pushed with *args in forward of module
     file_path_export: Path,
-    input_names,
-    output_names,
+    input_names: T.Optional[T.List[str]],
+    output_names: T.Optional[T.List[str]],
     dynamic_axes=None,
-    verbose=True,
-    compression_level=0,
+    compression_level: int = 0,
+    log_level: int = log.INFO,
+    check_same_io_as_tract: bool = False,
 ):
+    """Main entrypoint of this library
+
+    Export any torch.nn.Module to NNEF file format
+
+    """
+    logger = log.getLogger("torch_to_nnef")
+    logger.setLevel(log_level)
+    LOGGER.info(
+        f"start parse Pytorch model to be exported at {file_path_export}"
+    )
+    assert file_path_export.with_suffix(
+        ".nnef"
+    ), "export filepath should end with '.nnef'"
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         args = _decide_input_format(model, args)
         if dynamic_axes is None:
@@ -51,5 +71,20 @@ def export_model_to_nnef(
             extensions=["tract_registry tract_core"]
             if len(active_custom_fragments) > 0
             else [],
-            version_custom_fragments=None,  # using version might create conflict with ops
+            version_custom_fragments=None,  # using version sometime create conflict with ops
         )(nnef_graph, str(file_path_export))
+        LOGGER.info(
+            f"model exported successfully as NNEF at: {file_path_export}"
+        )
+    if check_same_io_as_tract:
+        LOGGER.info("Start checking IO is ISO between tract and Pytorch")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            nnef_path = file_path_export.with_suffix(".nnef.tgz")
+            io_npz_path = Path(tmpdir) / "io.npz"
+            input_names, output_names = tract.build_io(
+                model, args, io_npz_path=io_npz_path
+            )
+            tract.tract_assert_io(nnef_path, io_npz_path, raise_exception=True)
+        LOGGER.info(
+            f"IO bit match between tract and Pytorch for {file_path_export}"
+        )
