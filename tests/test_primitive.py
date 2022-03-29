@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -10,23 +9,12 @@ import numpy as np
 import pytest
 import torch
 from torch import nn
-from torchaudio import models as audio_mdl
-from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
-from torch_to_nnef.tract import build_io, tract_assert_io
+from torch_to_nnef.tract import tract_assert_io
 
-INPUT_AND_MODELS = []
-
-
-from .utils import set_seed  # noqa: E402
-
-#
-# in some case bug may happen with random at specific seed
-# you can alway do this to brute force find failure mode
-# in your bash
-# $ for i in {0..100}; do  echo $i; SEED=$i DEBUG=1 Q8=1 py.test || echo $i >> failed_seed.log; done;
+from .utils import _test_check_model_io, set_seed  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -56,49 +44,17 @@ class BinaryPrimitive(nn.Module):
 
 
 class TensorFnPrimitive(nn.Module):
-    def __init__(self, op, kwargs, args=None):
+    def __init__(self, op, kwargs=None, args=None):
         super().__init__()
         self.op = op
         self.args = args or tuple()
-        self.kwargs = kwargs
+        self.kwargs = kwargs or {}
 
     def extra_repr(self):
         return f"op={self.op}"
 
     def forward(self, x):
         return getattr(x, self.op)(*self.args, **self.kwargs)
-
-
-class WithQuantDeQuant(torch.quantization.QuantWrapper):
-    @classmethod
-    def quantize_model_and_stub(
-        cls, model, input_shape, representative_data=None
-    ):
-        model = cls(model)
-        # pylint: disable-next=attribute-defined-outside-init
-        model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
-        model_qat = torch.quantization.prepare_qat(model)
-        model_qat.train()
-        scale = 1.0
-        offset = 0.0
-        if representative_data is not None:
-            dmax = representative_data.max()
-            dmin = representative_data.min()
-            drange = (dmax - dmin).abs()
-            # add 10% safe margin
-            dmax += drange / 100 * 200
-            dmin -= drange / 100 * 200
-            scale = (dmax - dmin).abs()
-            offset = dmin
-        for _ in range(100):
-            model_qat(torch.rand(input_shape) * scale + offset)
-        model_q8 = torch.quantization.convert(model_qat.eval())
-        return model_q8
-
-    def forward(self, x):
-        x = self.quant(x)
-        x = self.module(x)
-        return x
 
 
 class ListInputPrim(nn.Module):
@@ -183,6 +139,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("min", {"dim": 1}),
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
+        TensorFnPrimitive("view", args=(13, 5, 2)),
         # TensorFnPrimitive(
         # "repeat", kwargs={}, args=([1, 2, 1],)
         # ),  # missing an s in repeat export to nnef since tract is false
@@ -379,88 +336,13 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+
 # INPUT_AND_MODELS = [
 # (torch.rand(33, 1, 100), layer)
 # for layer in [
 # nn.LSTM(100, 30, proj_size=17, num_layers=2),
 # ]
 # ]
-
-# Test classical vision models
-if os.environ.get("MODELS"):
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 224, 224),
-            vision_mdl.alexnet(pretrained=True, progress=False),
-        ),
-    ]
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 256, 256),
-            model,
-        )
-        for model in [
-            vision_mdl.resnet50(pretrained=True, progress=False),
-            # vision_mdl.regnet_y_8gf(
-            # pretrained=True
-            # ),  # works - similar to resnet
-            vision_mdl.mnasnet1_0(
-                pretrained=True, progress=False
-            ),  # works - nas similar to resnet
-            vision_mdl.efficientnet_b0(pretrained=True, progress=False),
-        ]
-    ]
-
-    INPUT_AND_MODELS += [
-        (torch.rand(1, 100, 64), model)
-        for model in [
-            audio_mdl.DeepSpeech(64, n_hidden=256),  # need to handle nn.RNN
-            # audio_mdl.Conformer(
-            # 64, num_heads=2, ffn_dim=128, depthwise_conv_kernel_size=31
-            # )
-        ]
-    ]
-
-
-# Test with quantization
-if os.environ.get("Q8"):
-    # my_shape = [1, 2, 2]
-    my_shape = [1, 256, 10]
-    reduce_r = 1
-    for si in my_shape:
-        reduce_r *= si
-    INPUT_AND_MODELS = [
-        (
-            torch.arange(reduce_r).reshape(*my_shape).float(),
-            WithQuantDeQuant.quantize_model_and_stub(
-                mod,
-                input_shape=my_shape,
-                representative_data=torch.arange(reduce_r)
-                .reshape(*my_shape)
-                .float(),
-            ),
-        )
-        for mod in [
-            nn.Sequential(
-                nn.Conv1d(
-                    my_shape[1], 1, min(my_shape[2], 3), stride=1, bias=False
-                ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(10, 20, 3),
-                # nn.BatchNorm1d(20),
-                # nn.ReLU(),
-                # ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
-                # ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(15, 50, 7, stride=3, padding=3),
-                # nn.BatchNorm1d(50),
-                # nn.ReLU(),
-                # ),
-            ),
-        ]
-    ]
 
 
 def test_should_fail_since_false_output():
@@ -494,30 +376,6 @@ def test_should_fail_since_false_output():
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_model_export(test_input, model):
+def test_primitive_export(test_input, model):
     """Test simple models"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
-
-        model = model.eval()
-
-        input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
-        )
-        export_model_to_nnef(
-            model=model,
-            args=test_input,
-            file_path_export=export_path,
-            input_names=input_names,
-            output_names=output_names,
-            log_level=log.INFO,
-            check_same_io_as_tract=True,
-            debug_bundle_path=(
-                Path.cwd()
-                / "failed_tests"
-                / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
-            )
-            if os.environ.get("DEBUG", False)
-            else None,
-        )
+    _test_check_model_io(model=model, test_input=test_input)
