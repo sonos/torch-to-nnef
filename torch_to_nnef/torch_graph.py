@@ -1040,25 +1040,37 @@ class TorchModuleTraceHelper:
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph outputs"""
-        for idx, node in enumerate(self._torch_graph.outputs()):
-            output = _find_data_node(self.data_nodes, node.debugName())
-            if provided_outputs is not None:
-                original_output = provided_outputs[idx]
-                if _is_container(original_output):
-                    for soriginal, sout in zip(
-                        original_output.data, output.data  # type: ignore
-                    ):
-                        sout.shape = soriginal.shape
-                        sout.dtype = soriginal.dtype
-                        sout.quant = soriginal.quant
+        torch_graph_outputs = self._torch_graph.outputs()
+        outputs = [
+            _find_data_node(self.data_nodes, _.debugName())
+            for _ in torch_graph_outputs
+        ]
+
+        if provided_outputs is not None:
+            exanded_outputs = list(_expand_containers_if_exists(outputs))
+            original_outputs = list(
+                _expand_containers_if_exists(provided_outputs)
+            )
+            assert len(exanded_outputs) == len(
+                original_outputs
+            ), f"{len(exanded_outputs)} == {len(original_outputs)}"
+            for original_output, output in zip(
+                original_outputs, exanded_outputs
+            ):
+                if _is_container(original_output) and _is_container(output):
+                    # can be safely explored
+                    continue
+                if isinstance(output, TensorVariable):
+                    output.shape = original_output.shape
+                    output.dtype = original_output.dtype
+                    output.quant = original_output.quant
                 else:
-                    if isinstance(output, TensorVariable):
-                        output.shape = original_output.shape
-                        output.dtype = original_output.dtype
-                        output.quant = original_output.quant
-                    else:
-                        raise NotImplementedError(output)
-            self.outputs.append(output)
+                    raise NotImplementedError(
+                        f"output={output}\ncompared to:\n"
+                        f"original_output={original_output}"
+                    )
+
+        self.outputs = outputs
 
     def _update_scope_reference(self):
         """Update scope in op_nodes with additional infos"""

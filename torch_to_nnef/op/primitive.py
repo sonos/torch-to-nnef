@@ -240,6 +240,13 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     return ["gelu"]
 
 
+def hardtanh(**kwargs):
+    node = kwargs["node"]
+    node.inputs = node.inputs[:2]  # remove inplace param
+    _unary_input_output_op_with_constant("hard_tanh", **kwargs)
+    return ["hard_tanh"]
+
+
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     (
         input_node,
