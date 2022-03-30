@@ -622,8 +622,6 @@ def contiguous(node, torch_graph, **kwargs):
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
-    if isinstance(dim_node, ListWithTensor):
-        dim_node.data = [tv.data.numpy().tolist() for tv in dim_node.data]
 
     _add_single_output_op(
         g,
@@ -1033,9 +1031,19 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     original_variable_output = node.outputs[0]
     new_node = PythonConstant(
         name=original_variable_output.name,
-        data=original_variable_output.data,
+        data=original_variable_output.data.numpy().tolist(),
     )
     torch_graph.remap_node(original_variable_output, new_node)
+
+    for data_node in torch_graph.data_nodes:
+        if (
+            isinstance(data_node, ListWithTensor)
+            and any(_ is new_node for _ in data_node.data)
+            and all(isinstance(_, PythonConstant) for _ in data_node.data)
+        ):
+            # recompute fixed data based on new infos
+            data_node.data = [_.data for _ in data_node.data]
+
     LOGGER.warning(
         "the aten::size need custom NNEF operator from tract internals. "
         " For now we fix values at export time"

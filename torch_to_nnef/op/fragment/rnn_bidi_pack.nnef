@@ -1,8 +1,9 @@
+
 fragment rnn_bidi_pack(
     h_n: tensor<scalar>,
     h_n_backward: tensor<scalar>,
     shape: integer
-)-> ( stacked : tensor<scalar> ) {
+) -> ( stacked : tensor<scalar> ) {
     # Pack and appropriately forward and backward results from bidirectional RNN
     concatenated = concat(
       [
