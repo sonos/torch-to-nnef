@@ -683,3 +683,97 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
             ],
             **tensor_params_kwargs,
         )
+
+
+class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
+    MODULE_CLASS = nn.RNN
+
+    #  pylint: disable-next=arguments-differ
+    def tensor_params(  # type: ignore
+        self,
+        module: T_RNNS,
+        layer_index: int,
+        backward: bool,
+        h_0: torch.Tensor,
+        **kwargs,
+    ):
+
+        suffix = str(layer_index)
+        if backward:
+            suffix += "_reverse"
+
+        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
+
+        w_ih = getattr(module, f"weight_ih_l{suffix}")
+        w_hh = getattr(module, f"weight_hh_l{suffix}")
+
+        bias_i_name = f"bias_ih_l{suffix}"
+        if (
+            hasattr(module, bias_i_name)
+            and getattr(module, bias_i_name) is not None
+        ):
+            # module packed in order (b_ir|b_iz|b_in)
+            bias_ih = getattr(module, bias_i_name)
+        else:
+            bias_ih = torch.tensor(0.0)
+
+        bias_h_name = f"bias_hh_l{suffix}"
+        if (
+            hasattr(module, bias_h_name)
+            and getattr(module, bias_h_name) is not None
+        ):
+            # module packed in order (b_hr|b_hz|b_hn)
+            bias_hh = getattr(module, bias_h_name)
+        else:
+            bias_hh = torch.tensor(0.0)
+
+        params = {
+            "h_0": h_0_layer,
+            "W_ih": w_ih,
+            "W_hh": w_hh,
+            # -----
+            # pre summed bias
+            "b_ih_hh": bias_ih + bias_hh,
+        }
+        return self._apply_layer_and_unsqueeze_to_params(
+            params, layer_index, backward=backward
+        )
+
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+    ):
+
+        rnn = node.op_ref
+
+        nnef_fragment_selected = "rnn"
+
+        D = 2 if rnn.bidirectional else 1
+
+        if len(node.inputs) < 2:
+            batch_rank = 0 if rnn.batch_first else 1
+            batch_dim = node.inputs[0].shape[batch_rank]
+            h_0 = torch.zeros(rnn.num_layers * D, batch_dim, rnn.hidden_size)
+        else:
+            # might be a TensorVariable with data NOT already setted
+            h_0 = node.inputs[1].data
+        tensor_params_kwargs = {"h_0": h_0}
+        return self._core_convert_to_nnef(
+            module=rnn,
+            node=node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+            nnef_fragment_name=nnef_fragment_selected,
+            argument_names_order=[
+                "h_0",
+                "W_ih",
+                "W_hh",
+                # -----
+                "b_ih_hh",
+            ],
+            **tensor_params_kwargs,
+        )
