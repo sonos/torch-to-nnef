@@ -247,7 +247,7 @@ def hardtanh(**kwargs):
     return ["hard_tanh"]
 
 
-def log_softmax(g, node, name_to_tensor, **kwargs):
+def log_softmax(**kwargs):
     _unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
 
