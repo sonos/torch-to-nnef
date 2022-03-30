@@ -1042,7 +1042,12 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
             and all(isinstance(_, PythonConstant) for _ in data_node.data)
         ):
             # recompute fixed data based on new infos
-            data_node.data = [_.data for _ in data_node.data]
+            torch_graph.remap_node(
+                data_node,
+                PythonConstant(
+                    name=data_node.name, data=[_.data for _ in data_node.data]
+                ),
+            )
 
     LOGGER.warning(
         "the aten::size need custom NNEF operator from tract internals. "
