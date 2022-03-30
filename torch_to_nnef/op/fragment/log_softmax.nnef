@@ -1,6 +1,6 @@
 fragment log_softmax(
-    input: tensor<scalar>, axes: integer[] = [1]
+    input: tensor<scalar>, axis: integer = 1
 ) -> ( output : tensor<scalar> )
 {
-  output = log(softmax(input , axes=axes));
+  output = log(softmax(input, axes=[axis]));
 }
