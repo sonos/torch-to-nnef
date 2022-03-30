@@ -247,6 +247,31 @@ def hardtanh(**kwargs):
     return ["hard_tanh"]
 
 
+def slice_(g, node, name_to_tensor, **kwargs):
+    input_node, dim_node, begin_node, end_node, stride_node = node.inputs
+
+    # we assert for now all node except first are all constant
+
+    dim = dim_node.data
+
+    # we use this since by default pytorch generate max int32 value for end
+    end = min(end_node.data, input_node.shape[dim])
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={
+            "axes": [dim],
+            "begin": [begin_node.data],
+            "end": [end],
+            "stride": [stride_node.data],
+        },
+    )
+
+
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
     (
         input_node,
@@ -1211,6 +1236,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "pow": "pow_",
         "max": "max_",
         "min": "min_",
+        "slice": "slice_"
         # }
     }.get(aten_op_name, aten_op_name)
 
