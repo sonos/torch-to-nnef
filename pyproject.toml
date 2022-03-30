@@ -70,7 +70,6 @@ dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "bump2version"
 
 [tool.black]
 line-length = 80
-skip-string-normalization = true
 target-version = ['py36', 'py37', 'py38']
 include = '\.pyi?$'
 exclude = '''

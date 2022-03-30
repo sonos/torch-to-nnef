@@ -173,7 +173,7 @@ def _weight_bias_and_output_tensor(
 
 
 def softmax(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     if node.inputs[2]:
         del node.inputs[2]
     return _unary_input_output_op_with_constant("softmax", **kwargs)
@@ -190,7 +190,7 @@ def softplus(torch_graph, **kwargs):
         y = log(exp(x) + 1.0)
 
     """
-    node = kwargs['node']
+    node = kwargs["node"]
     const = node.inputs[1]
     if const.data != 1:
         raise NotImplementedError(
@@ -202,19 +202,19 @@ def softplus(torch_graph, **kwargs):
 
 
 def elu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("elu", **kwargs)
 
 
 def leaky_relu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
 def prelu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("prelu", **kwargs)
 
@@ -995,7 +995,7 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
     )
     name_to_tensor[node.export_name] = out
     repeat_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
-        'values'
+        "values"
     ]
     NOperation(
         graph=g,
@@ -1185,10 +1185,10 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "bitwise_cpu": "and",
         "__and_": "and",
         "__or_": "or",
-        "less": 'lt',
-        "greater": 'gt',
-        "less_equal": 'le',
-        "greater_equal": 'ge',
+        "less": "lt",
+        "greater": "gt",
+        "less_equal": "le",
+        "greater_equal": "ge",
         "reflection_pad1d": "reflection_padnd",
         "replication_pad1d": "replication_padnd",
         "constant_pad1d": "constant_padnd",
@@ -1237,12 +1237,12 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "sub",
         "mul",
         "div",
-        'lt',
-        'gt',
-        'le',
-        'ge',
-        'and',
-        'or',
+        "lt",
+        "gt",
+        "le",
+        "ge",
+        "and",
+        "or",
     ]:
         return _unary_output_op_without_params(
             nnef_op_type=aten_op_name,

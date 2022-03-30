@@ -195,8 +195,8 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
 
 def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
     for wpath, owpath in weight_map_file_paths.items():
-        with wpath.open('rb') as fh:
-            with owpath.open('rb') as fh_o:
+        with wpath.open("rb") as fh:
+            with owpath.open("rb") as fh_o:
                 arr = nnef.read_tensor(fh)
                 oarr = nnef.read_tensor(fh_o)
                 assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
