@@ -1,4 +1,6 @@
 # pylint: disable=too-many-lines
+
+import logging
 import typing as T
 from collections import defaultdict
 from dataclasses import dataclass
@@ -20,6 +22,8 @@ from torch_to_nnef.op.custom_extractors import (
 )
 from torch_to_nnef.tract import nop
 from torch_to_nnef.utils import cache
+
+LOGGER = logging.getLogger(__name__)
 
 
 class JitTraceFailed(RuntimeError):
@@ -109,21 +113,21 @@ def _unfold_graph_getattr(
     submodule = module
     getattr_node = original_c_value.node()
     getter_sequence = []
-    original_name = getattr_node.s('name')
+    original_name = getattr_node.s("name")
     while getattr_node.kind() == GETATTR_KIND:
         c_value = next(getattr_node.inputs())
         getattr_node = c_value.node()
         try:
-            getter_sequence.append(getattr_node.s('name'))
+            getter_sequence.append(getattr_node.s("name"))
             submodule = getattr(module, getter_sequence[-1])
-        except RuntimeError:
-            pass
+        except RuntimeError as exp:
+            LOGGER.debug(exp)
 
     try:
         submodule = getattr(submodule, original_name)
         getter_sequence.append(original_name)
-    except AttributeError:
-        pass
+    except AttributeError as exp:
+        LOGGER.debug(exp)
 
     return ".".join(getter_sequence), submodule
 
@@ -323,8 +327,8 @@ class TensorVariable(Data):
         if is_quantized_dtype(self.dtype):
             return torch.quantize_per_tensor(
                 data,
-                scale=self.quant['scale'],
-                zero_point=self.quant['zero_point'],
+                scale=self.quant["scale"],
+                zero_point=self.quant["zero_point"],
                 dtype=self.dtype,
             )
         return data.to(self.dtype)
@@ -408,7 +412,7 @@ class TupleTensors(Data):
     @property
     def slug(self) -> str:
         slugs = ", ".join(_.slug for _ in self.data)
-        return f'tupleTensor({self.export_name})({slugs})'
+        return f"tupleTensor({self.export_name})({slugs})"
 
     @property
     def dtype(self):
@@ -477,7 +481,7 @@ def _find_data_node(data_nodes: T.List[Data], name: str):
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
-    tensor_name = node.s('name')
+    tensor_name = node.s("name")
     data_state = getattr(module, tensor_name).data
     data_nodes.append(
         TensorVariable(
@@ -490,7 +494,7 @@ def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
 
 
 def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
-    pack_name = node.s('name')
+    pack_name = node.s("name")
     pack = getattr(module, pack_name)
     assert isinstance(pack, torch._C.ScriptObject)
     data_nodes.append(
@@ -503,7 +507,7 @@ def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
 
 def _parse_constant(node: torch._C.Node, data_nodes):
     try:
-        data = node['value']
+        data = node["value"]
     except RuntimeError:
         data = None
     name = node.output().debugName()

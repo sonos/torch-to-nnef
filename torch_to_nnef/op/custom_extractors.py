@@ -420,7 +420,7 @@ class _RNNMixin:
     ):
         for k, v in params.items():
             v = v.detach()
-            if k.startswith('b_'):
+            if k.startswith("b_"):
                 v = v.unsqueeze(0)
             params[k] = v.unsqueeze(0)
 

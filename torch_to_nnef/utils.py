@@ -1,7 +1,7 @@
 import functools
 from typing import Callable, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def cache(func: Callable[..., T]) -> T:
