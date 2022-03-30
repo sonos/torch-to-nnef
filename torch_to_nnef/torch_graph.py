@@ -586,8 +586,7 @@ def _parse_list_construct(node, data_nodes):
                 if not any(_.name == value.name for _ in data_nodes):
                     data_nodes.append(value)
             elif isinstance(value, PythonConstant):
-                # is a type int or float or bool or ... need to be casted
-                value = value.into_tensor_variable()
+                pass
             else:
                 raise NotImplementedError()
             tensor_values.append(value)
