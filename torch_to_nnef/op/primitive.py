@@ -1,4 +1,5 @@
 # pylint: disable=too-many-lines
+import logging
 import typing as T
 
 import numpy as np
@@ -6,29 +7,28 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE
+from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE, TORCH_DTYPE_TO_NNEF_STR
 from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
 
+LOGGER = logging.getLogger(__name__)
 
-def _add_output_tensor(
-    g,
-    onode,
-    name_to_tensor,
-):
+
+def add_output_tensor(g, onode, name_to_tensor, name_suffix: str = ""):
+    name = onode.export_name + name_suffix
     out = NTensor(
         g,
-        onode.export_name,
+        name,
         dtype=onode.np_dtype,
         shape=onode.shape,
     )
-    name_to_tensor[onode.export_name] = out
+    name_to_tensor[name] = out
     return out
 
 
 def _add_single_output_op(
     g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
-    out = _add_output_tensor(g, node.outputs[0], name_to_tensor)
+    out = add_output_tensor(g, node.outputs[0], name_to_tensor)
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     NOperation(
@@ -39,6 +39,7 @@ def _add_single_output_op(
         outputs=tuple([out]),
         attribs=attrs or {},
     )
+    return out
 
 
 def add_tensor_to_ngraph(
@@ -100,7 +101,7 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
     return _unary_output_op_without_params(nnef_op_type, **kwargs)
 
 
-def _register_state_node_as_variable(
+def register_state_node_as_variable(
     torch_tensor: torch.Tensor,
     slug_name: str,
     node,
@@ -141,7 +142,7 @@ def _weight_bias_and_output_tensor(
     null_ref,
 ):
     weight = weight_node.data
-    weight_ref = _register_state_node_as_variable(
+    weight_ref = register_state_node_as_variable(
         torch_tensor=weight,
         slug_name="weight",
         node=node,
@@ -151,7 +152,7 @@ def _weight_bias_and_output_tensor(
 
     bias_ref = null_ref
     if bias_node.data is not None:
-        bias_ref = _register_state_node_as_variable(
+        bias_ref = register_state_node_as_variable(
             torch_tensor=bias_node.data,
             slug_name="bias",
             node=node,
@@ -172,7 +173,7 @@ def _weight_bias_and_output_tensor(
 
 
 def softmax(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     if node.inputs[2]:
         del node.inputs[2]
     return _unary_input_output_op_with_constant("softmax", **kwargs)
@@ -189,7 +190,7 @@ def softplus(torch_graph, **kwargs):
         y = log(exp(x) + 1.0)
 
     """
-    node = kwargs['node']
+    node = kwargs["node"]
     const = node.inputs[1]
     if const.data != 1:
         raise NotImplementedError(
@@ -201,19 +202,19 @@ def softplus(torch_graph, **kwargs):
 
 
 def elu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("elu", **kwargs)
 
 
 def leaky_relu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
 def prelu(**kwargs):
-    node = kwargs['node']
+    node = kwargs["node"]
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("prelu", **kwargs)
 
@@ -237,6 +238,46 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
         null_ref=null_ref,
     )
     return ["gelu"]
+
+
+def hardtanh(**kwargs):
+    node = kwargs["node"]
+    node.inputs = node.inputs[:2]  # remove inplace param
+    _unary_input_output_op_with_constant("hard_tanh", **kwargs)
+    return ["hard_tanh"]
+
+
+def log_softmax(**kwargs):
+    node = kwargs["node"]
+    if node.inputs[2]:
+        del node.inputs[2]
+    _unary_input_output_op_with_constant("log_softmax", **kwargs)
+    return ["log_softmax"]
+
+
+def slice_(g, node, name_to_tensor, **kwargs):
+    input_node, dim_node, begin_node, end_node, stride_node = node.inputs
+
+    # we assert for now all node except first are all constant
+
+    dim = dim_node.data
+
+    # we use this since by default pytorch generate max int32 value for end
+    end = min(end_node.data, input_node.shape[dim])
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={
+            "axes": [dim],
+            "begin": [begin_node.data],
+            "end": [end],
+            "stride": [stride_node.data],
+        },
+    )
 
 
 def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
@@ -371,6 +412,14 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
     ) = node.inputs
 
+    input_rank = len(input_node.shape)
+    for _ in range(input_rank - len(weight_node.data.shape)):
+        weight_node.data = weight_node.data.unsqueeze(0)
+
+    if bias_node.data is not None:
+        for _ in range(input_rank - len(bias_node.data.shape)):
+            bias_node.data = bias_node.data.unsqueeze(0)
+
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
         g,
         node,
@@ -424,14 +473,14 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         null_ref,
     )
-    running_mean_ref = _register_state_node_as_variable(
+    running_mean_ref = register_state_node_as_variable(
         running_mean_node.data,
         slug_name="running_mean",
         node=node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
-    running_var_ref = _register_state_node_as_variable(
+    running_var_ref = register_state_node_as_variable(
         running_var_node.data,
         slug_name="running_var",
         node=node,
@@ -614,6 +663,24 @@ def dropout(node, torch_graph, **kwargs):
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
 
 
+def contiguous(node, torch_graph, **kwargs):
+    """This does not translate to any operation"""
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
+
+
+def view(g, node, name_to_tensor, null_ref, torch_graph):
+    (input_node, dim_node) = node.inputs
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=name_to_tensor[input_node.export_name],
+        attrs={"shape": dim_node.data},
+    )
+
+
 def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     """
     Using NNEF:
@@ -655,10 +722,10 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
         g,
         node,
         name_to_tensor,
-        "cast",
+        TORCH_DTYPE_TO_NNEF_STR[onode.dtype],
         inputs=name_to_tensor[input_node.export_name],
         attrs={
-            "dtype": onode.np_dtype,
+            # "dtype": onode.np_dtype,
             "shape": list(onode.shape),
         },
     )
@@ -698,15 +765,16 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         input_node,
         scale_node,
         zero_point_node,
-        _,  # dtype_name
+        dtype_node,
     ) = node.inputs
+    assert dtype_node.data == 13, "is not expected quint8"
     input_node = node.inputs[0]
     tensor = name_to_tensor[input_node.export_name]
     tensor.quant = {
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
         "bits": 8,
-        "signed": True,  # Should Be dependant of torch type quint vs qint
+        "signed": False,
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }
@@ -755,7 +823,7 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         "transpose",
         inputs=name_to_tensor[input_node.export_name],
-        attrs={"axes": list(reversed(dims_node.data))},
+        attrs={"axes": dims_node.data},
     )
 
 
@@ -771,7 +839,7 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
             if input_item.data is None:
                 torch_graph.printall()
                 raise NotImplementedError(f"cat with input_item: {input_item}")
-            tensor_ref = _register_state_node_as_variable(
+            tensor_ref = register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,
                 node=node,
@@ -799,7 +867,7 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
         if input_item.export_name in name_to_tensor:
             tensor_ref = name_to_tensor[input_item.export_name]
         else:
-            tensor_ref = _register_state_node_as_variable(
+            tensor_ref = register_state_node_as_variable(
                 input_item.data,
                 slug_name=input_item.export_name,
                 node=node,
@@ -858,7 +926,7 @@ def _reducer(
     keep_dim = keep_dim_node.data
 
     onode = node.outputs[output_idx]
-    out = _add_output_tensor(g, onode, name_to_tensor)
+    out = add_output_tensor(g, onode, name_to_tensor)
     op_reduce_out = None
     if not keep_dim:
         # apply squeeze
@@ -975,7 +1043,7 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
     )
     name_to_tensor[node.export_name] = out
     repeat_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
-        'values'
+        "values"
     ]
     NOperation(
         graph=g,
@@ -984,6 +1052,54 @@ def repeat(g, node, name_to_tensor, null_ref, torch_graph):
         inputs=name_to_tensor[input_name],
         outputs=tuple([out]),
         attribs={"repeats": repeat_dims},
+    )
+
+
+def size(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
+
+    ```
+    The shape_of function is deprecated and is discouraged from use.
+    The reason is that it provides syntactic means to access a
+    property of tensors that is not defined via the syntax itself.
+
+    Furthermore, its definition is problematic in cases where the shape
+    of a tensor is not known in graph compilation time.
+
+    These result in problems with custom operations and operations with results
+    of dynamic shape for a consumer of an NNEF document.
+
+    By removing support for the shape_of function from NNEF syntax,
+    it becomes possible to de-couple parsing
+    from shape propagation in a consumer of an NNEF document.
+    ```
+
+    """
+    original_variable_output = node.outputs[0]
+    new_node = PythonConstant(
+        name=original_variable_output.name,
+        data=original_variable_output.data.numpy().tolist(),
+    )
+    torch_graph.remap_node(original_variable_output, new_node)
+
+    for data_node in torch_graph.data_nodes:
+        if (
+            isinstance(data_node, ListWithTensor)
+            and any(_ is new_node for _ in data_node.data)
+            and all(isinstance(_, PythonConstant) for _ in data_node.data)
+        ):
+            # recompute fixed data based on new infos
+            torch_graph.remap_node(
+                data_node,
+                PythonConstant(
+                    name=data_node.name, data=[_.data for _ in data_node.data]
+                ),
+            )
+
+    LOGGER.warning(
+        "the aten::size need custom NNEF operator from tract internals. "
+        " For now we fix values at export time"
     )
 
 
@@ -1061,7 +1177,7 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
         if name in name_to_tensor:
             inputs.append(name_to_tensor[name])
         else:
-            snode_ref = _register_state_node_as_variable(
+            snode_ref = register_state_node_as_variable(
                 torch_tensor=snode.data,
                 slug_name=name,
                 node=node,
@@ -1076,6 +1192,28 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         nnef_op_type="select",
         inputs=inputs,
+    )
+
+
+def matmul(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_node,
+        other_node,
+    ) = node.inputs
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "matmul",
+        inputs=(
+            name_to_tensor[input_node.export_name],
+            name_to_tensor[other_node.export_name],
+        ),
+        attrs={
+            "transposeA": False,
+            "transposeB": False,
+        },
     )
 
 
@@ -1100,10 +1238,10 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "bitwise_cpu": "and",
         "__and_": "and",
         "__or_": "or",
-        "less": 'lt',
-        "greater": 'gt',
-        "less_equal": 'le',
-        "greater_equal": 'ge',
+        "less": "lt",
+        "greater": "gt",
+        "less_equal": "le",
+        "greater_equal": "ge",
         "reflection_pad1d": "reflection_padnd",
         "replication_pad1d": "replication_padnd",
         "constant_pad1d": "constant_padnd",
@@ -1114,6 +1252,7 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "pow": "pow_",
         "max": "max_",
         "min": "min_",
+        "slice": "slice_"
         # }
     }.get(aten_op_name, aten_op_name)
 
@@ -1152,13 +1291,12 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "sub",
         "mul",
         "div",
-        'lt',
-        'gt',
-        'le',
-        'ge',
-        'and',
-        'or',
-        'matmul',
+        "lt",
+        "gt",
+        "le",
+        "ge",
+        "and",
+        "or",
     ]:
         return _unary_output_op_without_params(
             nnef_op_type=aten_op_name,

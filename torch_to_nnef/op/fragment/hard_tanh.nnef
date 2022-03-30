@@ -1,0 +1,6 @@
+fragment hard_tanh(
+    input: tensor<scalar>, min_val: scalar = -1.0, max_val: scalar = 1.0
+) -> ( output : tensor<scalar> )
+{
+  output = min(max(input , min_val), max_val);
+}

@@ -1,9 +1,7 @@
-"""Tests simple models."""
+"""Tests simple primitives."""
 
 import os
-import subprocess
 import tempfile
-from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -11,22 +9,23 @@ import numpy as np
 import pytest
 import torch
 from torch import nn
-from torchvision import models as vision_mdl
 
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.tract import (
-    build_io,
-    debug_dumper_pytorch_to_onnx_to_nnef,
-    tract_assert_io,
-)
+from torch_to_nnef.log import log
+from torch_to_nnef.tract import tract_assert_io
 
-INPUT_AND_MODELS = []
+from .utils import _test_check_model_io, set_seed  # noqa: E402
+
+set_seed(int(os.environ.get("SEED", 25)))
 
 
 class UnaryPrimitive(nn.Module):
     def __init__(self, op):
         super().__init__()
         self.op = op
+
+    def extra_repr(self):
+        return f"op={self.op}"
 
     def forward(self, x):
         return self.op(x)
@@ -37,33 +36,25 @@ class BinaryPrimitive(nn.Module):
         super().__init__()
         self.op = op
 
+    def extra_repr(self):
+        return f"op={self.op}"
+
     def forward(self, x1, x2):
         return self.op(x1, x2)
 
 
 class TensorFnPrimitive(nn.Module):
-    def __init__(self, op, kwargs, args=None):
+    def __init__(self, op, kwargs=None, args=None):
         super().__init__()
         self.op = op
         self.args = args or tuple()
-        self.kwargs = kwargs
+        self.kwargs = kwargs or {}
+
+    def extra_repr(self):
+        return f"op={self.op}"
 
     def forward(self, x):
         return getattr(x, self.op)(*self.args, **self.kwargs)
-
-
-class WithQuantDeQuant(torch.quantization.QuantWrapper):
-    @classmethod
-    def quantize_model_and_stub(cls, model):
-        model = cls(model)
-        # pylint: disable-next=attribute-defined-outside-init
-        model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
-        model_qat = torch.quantization.prepare_qat(model)
-        model_qat.train()
-        for _ in range(10):
-            model_qat(torch.rand(1, 10, 100))
-        model_q8 = torch.quantization.convert(model_qat.eval())
-        return model_q8
 
 
 class ListInputPrim(nn.Module):
@@ -71,6 +62,9 @@ class ListInputPrim(nn.Module):
         super().__init__()
         self.y = torch.rand(*dims)
         self.op = op
+
+    def extra_repr(self):
+        return f"op={self.op}"
 
     def forward(self, x):
         return self.op([x, self.y], dim=1)
@@ -85,7 +79,7 @@ def nnef_split(value, axis, ratios):
 
 
 # Base unary operations
-_condition_1 = condition = torch.eye(5, 4).to(torch.bool)
+_condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
 INPUT_AND_MODELS = [
     (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
@@ -145,6 +139,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("min", {"dim": 1}),
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
+        TensorFnPrimitive("view", args=(13, 5, 2)),
         # TensorFnPrimitive(
         # "repeat", kwargs={}, args=([1, 2, 1],)
         # ),  # missing an s in repeat export to nnef since tract is false
@@ -198,9 +193,15 @@ INPUT_AND_MODELS += [
 ]
 
 INPUT_AND_MODELS += [
-    ((torch.rand(13, 10), torch.rand(13, 10).T), BinaryPrimitive(op))
+    (
+        (
+            torch.arange(10).reshape(5, 2).float(),
+            torch.arange(10).reshape(5, 2).T.float(),
+        ),
+        BinaryPrimitive(op),
+    )
     for op in [
-        # torch.matmul,  # tract not same results ??
+        # torch.matmul,
     ]
 ]
 
@@ -268,8 +269,6 @@ INPUT_AND_MODELS += [
         # nn.AvgPool1d(10), # Not same results between tract and Pytorch
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
-        # nn.LSTM(100, 5),
-        # nn.GRU(100, 5),
     ]
 ]
 
@@ -288,6 +287,8 @@ INPUT_AND_MODELS += [
         nn.GELU(),
         nn.SELU(),
         nn.SiLU(),
+        nn.Hardtanh(-1, 10),
+        nn.LogSoftmax(1),
     ]
 ]
 
@@ -324,53 +325,49 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-
-# Test classical vision models
-if os.environ.get("MODELS"):
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 224, 224),
-            vision_mdl.alexnet(pretrained=True, progress=False),
-        ),
+INPUT_AND_MODELS += [
+    # L x N x H
+    (torch.rand(33, 1, 20), layer)
+    for layer in [
+        nn.LSTM(20, 5),
+        nn.GRU(20, 5),
+        nn.RNN(20, 5),
+        nn.GRU(20, 9, num_layers=3),
+        nn.LSTM(20, 5, num_layers=2),
+        nn.RNN(20, 5, num_layers=3),
+        nn.GRU(20, 5, bidirectional=True, num_layers=1),
+        nn.LSTM(20, 5, bidirectional=True, num_layers=2),
+        nn.RNN(20, 5, bidirectional=True, num_layers=3),
     ]
-    INPUT_AND_MODELS += [
-        (
-            torch.rand(1, 3, 256, 256),
-            model,
-        )
-        for model in [
-            vision_mdl.resnet50(pretrained=True, progress=False),
-            # vision_mdl.regnet_y_8gf(
-            # pretrained=True
-            # ),  # works - similar to resnet
-            vision_mdl.mnasnet1_0(
-                pretrained=True, progress=False
-            ),  # works - nas similar to resnet
-            vision_mdl.efficientnet_b0(pretrained=True, progress=False),
-        ]
+]
+INPUT_AND_MODELS += [
+    # N x L x  H
+    (torch.rand(1, 3, 10), layer)
+    for layer in [
+        nn.GRU(10, 5, batch_first=True, num_layers=1),
+        nn.GRU(10, 5, batch_first=True, bidirectional=True, num_layers=1),
+        nn.LSTM(10, 5, batch_first=True, bidirectional=True, num_layers=2),
+        nn.RNN(10, 5, batch_first=True, bidirectional=True, num_layers=1),
     ]
+]
 
 
-# Test with quantization
-if os.environ.get("Q8"):
-    INPUT_AND_MODELS = [
-        (torch.rand(1, 10, 100), WithQuantDeQuant.quantize_model_and_stub(mod))
-        for mod in [
-            nn.Sequential(
-                nn.intrinsic.ConvBnReLU1d(
-                    nn.Conv1d(10, 20, 3), nn.BatchNorm1d(20), nn.ReLU()
-                ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(20, 15, 5, stride=2), nn.BatchNorm1d(15), nn.ReLU()
-                # ),
-                # nn.intrinsic.ConvBnReLU1d(
-                # nn.Conv1d(15, 50, 7, stride=3, padding=3),
-                # nn.BatchNorm1d(50),
-                # nn.ReLU(),
-                # ),
-            ),
-        ]
+INPUT_AND_MODELS += [
+    # N x L x  H
+    (torch.rand(1, 3, 10), layer)
+    for layer in [
+        # test slice
+        UnaryPrimitive(lambda x: x[:, 2:, :]),
     ]
+]
+
+
+# INPUT_AND_MODELS = [
+# (torch.rand(33, 1, 100), layer)
+# for layer in [
+# nn.LSTM(100, 30, proj_size=17, num_layers=2),
+# ]
+# ]
 
 
 def test_should_fail_since_false_output():
@@ -387,7 +384,7 @@ def test_should_fail_since_false_output():
             file_path_export=export_path,
             input_names=["input"],
             output_names=["output"],
-            verbose=False,
+            log_level=log.WARNING,
         )
 
         np.savez(
@@ -397,60 +394,13 @@ def test_should_fail_since_false_output():
             + 1,  # <-- here we artificially add 1 to make it FAIL
         )
         assert not tract_assert_io(
-            export_path.with_suffix(".nnef.tgz"), io_npz_path
+            export_path.with_suffix(".nnef.tgz"),
+            io_npz_path,
+            raise_exception=False,
         ), f"SHOULD fail tract io check with {model}"
 
 
-# INPUT_AND_MODELS = [
-# (torch.rand(1, 10, 100), layer)
-# for layer in [
-# nn.LSTM(100, 5),
-# ]
-# ]
-
-
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_model_export(test_input, model):
+def test_primitive_export(test_input, model):
     """Test simple models"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
-
-        model = model.eval()
-
-        input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
-        )
-        export_model_to_nnef(
-            model=model,
-            args=test_input,
-            file_path_export=export_path,
-            input_names=input_names,
-            output_names=output_names,
-            verbose=False,
-        )
-        real_export_path = export_path.with_suffix(".nnef.tgz")
-        assert real_export_path.exists()
-        try:
-
-            assert tract_assert_io(
-                real_export_path, io_npz_path
-            ), f"failed tract io check with {model}"
-        except AssertionError as exp:
-            if not os.environ.get("DEBUG", False):
-                raise exp
-            exp_path = (
-                Path.cwd()
-                / "failed_tests"
-                / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
-            )
-            exp_path.mkdir(parents=True, exist_ok=True)
-            subprocess.check_output(
-                f"cd {exp_path} && rm -rf ./* && cp {real_export_path} {exp_path}/model.nnef.tgz "
-                f"&& tar -xvzf {real_export_path} && cp {io_npz_path} {exp_path}/io.npz",
-                shell=True,
-            )
-            debug_dumper_pytorch_to_onnx_to_nnef(
-                model, test_input, target_folder=exp_path / "tract"
-            )
-            raise exp
+    _test_check_model_io(model=model, test_input=test_input)

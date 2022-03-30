@@ -3,8 +3,8 @@ import typing as T
 
 
 def striptags(data):
-    p = re.compile(r'\[.*?\]')
-    return p.sub('', data)
+    p = re.compile(r"\[.*?\]")
+    return p.sub("", data)
 
 
 class Console:

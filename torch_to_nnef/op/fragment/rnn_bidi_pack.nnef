@@ -1,0 +1,25 @@
+
+fragment rnn_bidi_pack(
+    h_n: tensor<scalar>,
+    h_n_backward: tensor<scalar>,
+    shape: integer
+) -> ( stacked : tensor<scalar> ) {
+    # Pack and appropriately forward and backward results from bidirectional RNN
+    concatenated = concat(
+      [
+          unsqueeze( h_n, axes = [1] ),
+          unsqueeze( h_n_backward, axes = [1] )
+      ],
+      axis = 1
+    );
+    transposed = transpose(
+        concatenated,
+        axes = [ 0, 2, 1, 3 ]
+    );
+    stacked = reshape(
+      transposed,
+      shape = [ shape ],
+      axis_start = 2,
+      axis_count = 2
+    );
+}
