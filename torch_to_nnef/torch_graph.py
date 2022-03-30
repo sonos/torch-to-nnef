@@ -110,24 +110,26 @@ def _unfold_graph_getattr(
     original_c_value: torch._C.Value,
 ) -> T.Tuple[str, nn.Module]:
     """Unfold  nn.Module python code reference to sub...sub modules in graph"""
-    submodule = module
     getattr_node = original_c_value.node()
-    getter_sequence = []
-    original_name = getattr_node.s("name")
+    getter_sequence: T.List[str] = []
+
+    def getter_fn(getattr_node: torch._C.Node, getter_sequence: T.List[str]):
+        try:
+            getter_sequence.append(getattr_node.s("name"))
+        except RuntimeError:
+            # ensure we are at root reference
+            assert next(getattr_node.outputs()).debugName() == "self.1"
+
+    getter_fn(getattr_node, getter_sequence)
     while getattr_node.kind() == GETATTR_KIND:
         c_value = next(getattr_node.inputs())
         getattr_node = c_value.node()
-        try:
-            getter_sequence.append(getattr_node.s("name"))
-            submodule = getattr(module, getter_sequence[-1])
-        except RuntimeError as exp:
-            LOGGER.debug(exp)
+        getter_fn(getattr_node, getter_sequence)
 
-    try:
-        submodule = getattr(submodule, original_name)
-        getter_sequence.append(original_name)
-    except AttributeError as exp:
-        LOGGER.debug(exp)
+    getter_sequence = getter_sequence[::-1]
+    submodule = module
+    for getter_item in getter_sequence:
+        submodule = getattr(submodule, getter_item)
 
     return ".".join(getter_sequence), submodule
 
