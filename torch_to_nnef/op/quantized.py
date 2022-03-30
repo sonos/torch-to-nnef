@@ -1,3 +1,9 @@
+"""
+Quantized layers and primitives
+
+Maybe usefull when looking at X:
+    packed_params._method_names()
+"""
 import typing as T
 
 import numpy as np
@@ -6,19 +12,25 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 
+def is_signed_q8(np_dtype: np.dtype):
+    assert np_dtype in [np.uint8, np.int8]
+    return np_dtype == np.int8
+
+
 def _torch_qtensor_to_ntensor(g, tensor, name):
     np_int_tensor = tensor.int_repr().numpy()
+    np_dtype = np_int_tensor.dtype.type
     return NTensor(
         g,
         name=name,
         shape=tuple(tensor.shape),
-        dtype=np_int_tensor.dtype.type,
+        dtype=np_dtype,
         data=np_int_tensor,
         quant={
             "scale": tensor.q_scale(),
             "zero_point": tensor.q_zero_point(),
             "bits": 8,
-            "signed": True,  # Should Be dependant of torch type quint vs qint
+            "signed": is_signed_q8(np_dtype),
             "symmetric": False,
             "op-name": "zero_point_linear_quantize",
         },
@@ -38,7 +50,7 @@ def add_quantized_tensor_to_ngraph(
     return ntensor
 
 
-def _register_state_node_as_variable(
+def register_state_node_as_variable(
     torch_tensor: torch.Tensor,
     slug_name: str,
     node,
@@ -68,62 +80,71 @@ def _register_state_node_as_variable(
     return var.output
 
 
-def _conv(packed_params, node, g, name_to_tensor):
-    conv_weight = packed_params.weight().data
-    conv_bias = packed_params.bias().data
-
+def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
+    (input_node, packed_params_node, scale_node, zero_point_node) = node.inputs
     onode = node.outputs[0]
-    stride = packed_params.stride()[:1]
-    dilation = packed_params.dilation()[:1]
-    padding = packed_params.padding()[:1]
+
+    packed_params = packed_params_node.data
+    conv_weight = packed_params.weight().data
+    conv_bias = packed_params.bias()
+
+    stride = packed_params.stride()[1:]
+    dilation = packed_params.dilation()[1:]
+    padding = packed_params.padding()[1:]
     groups = packed_params.groups()
-    weight_ref = _register_state_node_as_variable(
-        # 2nd axis is good
-        #
-        conv_weight.permute(0, 1, 3, 2).squeeze(-1),  # .permute(3, 1, 0, 2),
+
+    weight_ref = register_state_node_as_variable(
+        # 2nd axis is to remove in conv1d packed_params
+        conv_weight.squeeze(2),
         slug_name="weight",
         node=onode,
         g=g,
         name_to_tensor=name_to_tensor,
     )
-    bias_ref = _register_state_node_as_variable(
-        torch.quantize_per_tensor(
-            conv_bias,
-            scale=conv_weight.q_scale(),
-            zero_point=conv_weight.q_zero_point(),
-            dtype=conv_weight.dtype,
-        ),
-        slug_name="bias",
-        node=onode,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
+    bias_ref = None
+    if conv_bias is not None:
+        bias_ref = register_state_node_as_variable(
+            torch.quantize_per_tensor(
+                conv_bias.data,
+                scale=conv_weight.q_scale(),
+                zero_point=conv_weight.q_zero_point(),
+                dtype=conv_weight.dtype,
+            ),
+            slug_name="bias",
+            node=onode,
+            g=g,
+            name_to_tensor=name_to_tensor,
+        )
 
-    out_tensor_name = f"{onode.export_name}_conv"
+    out_tensor_name = f"{onode.export_name}{suffix_output_tensor}"
+
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        dtype=np.int8,
+        dtype=np.uint8,
         quant={
-            "scale": node.inputs[2].data,
-            "zero_point": node.inputs[3].data,
+            "scale": scale_node.data,
+            "zero_point": zero_point_node.data,
             "bits": 8,
-            "signed": True,  # Should Be dependant of torch type quint vs qint
+            "signed": False,
             "symmetric": False,
             "op-name": "zero_point_linear_quantize",
         },
     )
     name_to_tensor[out_tensor_name] = output_tensor
 
+    inputs = [
+        name_to_tensor[input_node.export_name],
+        weight_ref,
+    ]
+    if bias_ref is not None:
+        inputs.append(bias_ref)
+
     NOperation(
         graph=g,
         type="conv",
         name=f"{onode.export_name}_conv",
-        inputs=(
-            name_to_tensor[node.inputs[0].export_name],
-            weight_ref,
-            bias_ref,
-        ),
+        inputs=tuple(inputs),
         outputs=output_tensor,
         attribs={
             "dilation": list(dilation),
@@ -140,16 +161,16 @@ def _conv(packed_params, node, g, name_to_tensor):
 
 def conv1d_relu(g, node, name_to_tensor, null_ref, torch_graph):
 
-    packed_params = node.inputs[1].data
-
-    conv_output_tensor = _conv(packed_params, node, g, name_to_tensor)
+    conv_output_tensor = _conv(
+        node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
+    )
 
     onode = node.outputs[0]
     out_tensor_name = onode.export_name
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        dtype=np.int8,
+        dtype=np.uint8,
         quant=conv_output_tensor.quant,
     )
     name_to_tensor[out_tensor_name] = output_tensor
@@ -161,6 +182,10 @@ def conv1d_relu(g, node, name_to_tensor, null_ref, torch_graph):
         outputs=tuple([output_tensor]),
         attribs={},
     )
+
+
+def conv1d(g, node, name_to_tensor, null_ref, torch_graph):
+    _conv(node, g, name_to_tensor, null_ref)
 
 
 def quantized_node_to_nnef_tensor_and_ops(

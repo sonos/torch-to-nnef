@@ -6,12 +6,18 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.op.custom_extractors import (
+    CUSTOMOP_KIND,
+    ModuleInfoExtractor,
+)
 from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
+    MAP_TO_NOP,
     Data,
     TensorVariable,
     TorchModuleTraceHelper,
+    _is_container,
 )
 
 
@@ -33,11 +39,19 @@ class GraphExtractor:
                 torch_graph=self._torch_graph_helper,
             )
         if node.kind.startswith("prim::"):
-            if node.kind == "prim::ListConstruct":
+            if node.kind in MAP_TO_NOP:
                 return []
 
         if node.kind.startswith("quantized::"):
             return quantized_node_to_nnef_tensor_and_ops(
+                self.g,
+                node,
+                name_to_tensor,
+                null_ref,
+                torch_graph=self._torch_graph_helper,
+            )
+        if node.kind.startswith(CUSTOMOP_KIND):
+            return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
                 self.g,
                 node,
                 name_to_tensor,
@@ -51,6 +65,11 @@ class GraphExtractor:
         def is_missing(node: Data):
             if node.export_name in name_to_tensor:
                 return False
+            if _is_container(node) and any(
+                is_missing(subnode) for subnode in node.data
+            ):
+                # case where partial data is available for container
+                return True
             if not isinstance(node, TensorVariable) or node.data is not None:
                 return False
             return True
@@ -78,8 +97,8 @@ class GraphExtractor:
 
     def build_nnef_graph(
         self,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         null = NTensor(
             self.g,
@@ -113,22 +132,24 @@ class GraphExtractor:
         self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = ginputs
-        assert len(input_names) == len(self.g.inputs)
-        for in_tensor, requested_name in zip(self.g.inputs, input_names):
-            in_tensor.name = requested_name
+        if input_names is not None:
+            assert len(input_names) == len(self.g.inputs)
+            for in_tensor, requested_name in zip(self.g.inputs, input_names):
+                in_tensor.name = requested_name
 
         self.g.outputs = [
             name_to_tensor[_.export_name]
             for _ in self._torch_graph_helper.outputs
         ]
-        assert len(output_names) == len(self.g.outputs)
-        for out_tensor, requested_name in zip(self.g.outputs, output_names):
-            out_tensor.name = requested_name
+        if output_names is not None:
+            assert len(output_names) == len(self.g.outputs)
+            for out_tensor, requested_name in zip(self.g.outputs, output_names):
+                out_tensor.name = requested_name
 
     def parse(
         self,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         self.build_nnef_graph(
             input_names,

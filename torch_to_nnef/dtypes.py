@@ -45,6 +45,25 @@ NUMPY_DTYPE_TO_STR = {v: k for k, v in STR_TO_NUMPY_DTYPE.items()}
 NUMPY_DTYPE_TO_STR.update({int: "Long"})
 
 
+TORCH_DTYPE_TO_NNEF_STR = {
+    torch.int8: "integer",
+    torch.int16: "integer",
+    torch.int32: "integer",
+    torch.int64: "integer",
+    torch.uint8: "integer",
+    torch.short: "integer",
+    torch.long: "integer",
+    torch.int: "integer",
+    torch.float: "scalar",
+    torch.double: "scalar",
+    torch.float16: "scalar",
+    torch.float32: "scalar",
+    torch.float64: "scalar",
+    torch.bool: "logical",
+    torch.bool: "logical",
+}
+
+
 def str_to_torch_dtype(torch_type_str: str):
     return NUMPY_TO_TORCH_DTYPE[STR_TO_NUMPY_DTYPE[torch_type_str]]
 
