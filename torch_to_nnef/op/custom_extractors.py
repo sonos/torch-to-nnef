@@ -401,12 +401,12 @@ class _RNNMixin:
                 )
 
         if module.batch_first:
-            input_tensor = self._post_batch_first(
-                g, input_tensor, node, name_to_tensor
+            last_forward_h = self._post_batch_first(
+                g, last_forward_h, node, name_to_tensor
             )
 
         h_out_name = node.outputs[0].export_name
-        input_tensor.name = h_out_name
+        last_forward_h.name = h_out_name
         name_to_tensor[h_out_name] = last_forward_h
 
         if len(last_hc_at_each_layers) > 1:
