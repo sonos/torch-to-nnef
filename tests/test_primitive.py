@@ -287,6 +287,7 @@ INPUT_AND_MODELS += [
         nn.GELU(),
         nn.SELU(),
         nn.SiLU(),
+        nn.Hardtanh(-1, 10),
     ]
 ]
 
@@ -354,7 +355,8 @@ INPUT_AND_MODELS += [
     # N x L x  H
     (torch.rand(1, 3, 10), layer)
     for layer in [
-        nn.Hardtanh(-1, 10),
+        # test slice
+        UnaryPrimitive(lambda x: x[:, 2:, :]),
     ]
 ]
 
