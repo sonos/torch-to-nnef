@@ -1,10 +1,20 @@
 # Changelog
 
-## [0.1.5] (2022-03-17)
+## [0.1.5] (2022-03-30)
 
 ### Added
 
-* Hook system on modules
+* Hook system on modules (allowing to avoid jit.trace expansion replaced by custom code )
+* py.test Tract IO complaints added to errors
+* better test representation
+* LSTM/GRU/RNN handled (excepted LSTM with projection)
+* Hard tanh
+* ISO with tract check
+* Logging with log level exposed
+* TRUNet export
+* debug bundling optin
+* Numerous operators
+* Q8 errors explorations
 
 ## [0.1.4] (2022-03-17)
 
