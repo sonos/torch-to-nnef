@@ -416,8 +416,9 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
     for _ in range(input_rank - len(weight_node.data.shape)):
         weight_node.data = weight_node.data.unsqueeze(0)
 
-    for _ in range(input_rank - len(bias_node.data.shape)):
-        bias_node.data = bias_node.data.unsqueeze(0)
+    if bias_node.data is not None:
+        for _ in range(input_rank - len(bias_node.data.shape)):
+            bias_node.data = bias_node.data.unsqueeze(0)
 
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
         g,
