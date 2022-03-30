@@ -325,14 +325,23 @@ INPUT_AND_MODELS += [
 
 INPUT_AND_MODELS += [
     # L x N x H
-    (torch.rand(33, 1, 100), layer)
+    (torch.rand(33, 1, 20), layer)
     for layer in [
-        nn.LSTM(100, 5),
-        nn.GRU(100, 5),
-        nn.GRU(100, 9, num_layers=3),
-        nn.LSTM(100, 5, num_layers=2),
-        nn.GRU(100, 5, bidirectional=True, num_layers=1),
-        nn.LSTM(100, 5, bidirectional=True, num_layers=2),
+        nn.LSTM(20, 5),
+        nn.GRU(20, 5),
+        nn.GRU(20, 9, num_layers=3),
+        nn.LSTM(20, 5, num_layers=2),
+        nn.GRU(20, 5, bidirectional=True, num_layers=1),
+        nn.LSTM(20, 5, bidirectional=True, num_layers=2),
+    ]
+]
+INPUT_AND_MODELS += [
+    # N x L x  H
+    (torch.rand(1, 3, 10), layer)
+    for layer in [
+        nn.GRU(10, 5, batch_first=True, num_layers=1),
+        nn.GRU(10, 5, batch_first=True, bidirectional=True, num_layers=1),
+        nn.LSTM(10, 5, batch_first=True, bidirectional=True, num_layers=2),
     ]
 ]
 
