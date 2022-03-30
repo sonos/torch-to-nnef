@@ -247,6 +247,11 @@ def hardtanh(**kwargs):
     return ["hard_tanh"]
 
 
+def log_softmax(g, node, name_to_tensor, **kwargs):
+    _unary_input_output_op_with_constant("log_softmax", **kwargs)
+    return ["log_softmax"]
+
+
 def slice_(g, node, name_to_tensor, **kwargs):
     input_node, dim_node, begin_node, end_node, stride_node = node.inputs
 
