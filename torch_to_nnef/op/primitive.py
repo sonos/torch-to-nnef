@@ -248,6 +248,9 @@ def hardtanh(**kwargs):
 
 
 def log_softmax(**kwargs):
+    node = kwargs["node"]
+    if node.inputs[2]:
+        del node.inputs[2]
     _unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
 
