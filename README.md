@@ -90,6 +90,6 @@ class MyCustomHandler(ModuleInfoExtractor):
         pass
 ```
 
-## Bug repport & Contribution
+## Bug report & Contributions
 
 Please refer to [this page](./CONTRIBUTING.md)
