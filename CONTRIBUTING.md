@@ -9,13 +9,14 @@ You can contribute in many ways:
 
 ### Report Bugs
 
-Report bugs at https://github.com/JulienBalianSonos/torch_to_nnef/issues.
+Report bugs at https://github.com/sonos/torch-to-nnef/issues.
 
 If you are reporting a bug, please include:
 
 * Your operating system name and version.
 * Any details about your local setup that might be helpful in troubleshooting.
 * Detailed steps to reproduce the bug.
+* Ideally share the debug bundle generated from `export_model_to_nnef(..., debug_bundle_path=)`
 
 ### Fix Bugs
 
@@ -52,7 +53,7 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
 2. Clone your fork locally
 
     ```
-    $ git clone git@github.com:your_name_here/torch_to_nnef.git
+    $ git clone git@github.com:sonos/torch_to_nnef.git
     ```
 
 3. Ensure [poetry](https://python-poetry.org/docs/) is installed.

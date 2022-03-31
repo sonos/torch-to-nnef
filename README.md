@@ -60,3 +60,36 @@ Compared to the 2 other possible Graph API for pytorch we chose it because:
 - `torch.jit.script`: offer a more flexible graph repr than trace and do not freeze
   Logical structure into the path taken during sample execution (contrary to trace),
   but it seems some tensor_size are not extracted as well.
+
+## Advanced usage
+
+In case you want control specific `torch.nn.Module` expansion to NNEF you can
+register a new `torch_to_nnef.op.custom_extractors.ModuleInfoExtractor` by
+subclassing it and defining it's `MODULE_CLASS` attribute.
+
+In such scenario you will need to write your own graph expansion logic in
+`convert_to_nnef` as follows:
+
+```python3
+
+from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
+
+class MyCustomHandler(ModuleInfoExtractor):
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+    ):
+        # here your custom logic to implement NNEF module subgraph
+        # you can take inspiration from `torch_to_nnef.op.primitive`
+        # or aready written custom extractors such as
+        # `torch_to_nnef.op.custom_extractors.LSTMExtractor`
+        pass
+```
+
+## Bug repport & Contribution
+
+Please refer to [this page](./CONTRIBUTING.md)

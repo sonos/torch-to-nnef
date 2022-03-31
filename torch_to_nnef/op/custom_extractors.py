@@ -1,11 +1,13 @@
 """
-`ops.special` provide mechanism to extract to NNEF while bypassing full expension
-of `torch.Module` within `torch_graph`.
+`ops.custom_extractors` provide mechanism to extract to NNEF while bypassing full expension
+of `torch.Module` within `torch_graph` which by default use torch.jit.trace .
 
 This may be for two main reasons:
     - Some layer such as LSTM/GRU have complex expension which are better
       handled by encapsulation instead of spreading high number of variable
     - Some layer might not be serializable to .jit
+    - There might be some edge case where you prefer to keep full control on
+      exported NNEF subgraph.
 
 """
 import typing as T
