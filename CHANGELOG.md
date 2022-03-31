@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2022-03-31
+### Fix
+- try corect parse with release worflow
+
 ## [0.2.0] - 2022-03-30
 ### Added
 - Hook system on modules (allowing to avoid jit.trace expansion replaced by custom code )
