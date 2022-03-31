@@ -76,4 +76,6 @@ jobs:
             REPOSITORY: ${{ secrets.SONOS_PM_URL }}
             USERNAME: ${{ secrets.SONOS_PM_USER }}
             PASSWORD: ${{ secrets.SONOS_PM_PASSWORD }}
-        run: poetry publish --repository "$REPOSITORY" --username "$USERNAME" --password "$PASSWORD"
+        run: |
+          poetry config repositories.snips "$REPOSITORY"
+          poetry publish --repository snips --username "$USERNAME" --password "$PASSWORD"
