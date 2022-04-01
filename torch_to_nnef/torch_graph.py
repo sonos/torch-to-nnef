@@ -80,6 +80,14 @@ def quantized_name_to_torch_fn(aten_name):
     return getattr(torch.ops.quantized, name)
 
 
+def _add_prefix_if_start_with_digit(text: str, prefix: str) -> str:
+    """ensure we do not start with integer a text"""
+    _prefix = ""
+    if text[0] in "0123456789":
+        _prefix = prefix
+    return _prefix + text
+
+
 def _refid_clean(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = name.replace(sep, "_")
@@ -1235,8 +1243,7 @@ class TorchModuleTraceHelper:
                 )
                 self._merge_subraph(
                     submodule_graph,
-                    prefix="s"  # ensure we do not start with integer varname
-                    + op.call_name
+                    prefix=_add_prefix_if_start_with_digit(op.call_name, "s")
                     + f"_c{ref_count[op.call_name]}",
                     module_prefix=op.module_path,
                     callmethod_node=op,
