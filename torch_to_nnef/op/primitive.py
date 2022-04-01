@@ -817,6 +817,9 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
 
 def permute(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dims_node) = node.inputs
+    print(node.inputs)
+    print(node.outputs)
+    __import__("ipdb").set_trace()
     _add_single_output_op(
         g,
         node,
