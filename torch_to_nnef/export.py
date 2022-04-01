@@ -30,6 +30,7 @@ def export_model_to_nnef(
     log_level: int = log.INFO,
     check_same_io_as_tract: bool = False,
     debug_bundle_path: T.Optional[Path] = None,
+    renaming_scheme: str = "numeric",
 ):
     """Main entrypoint of this library
 
@@ -52,7 +53,9 @@ def export_model_to_nnef(
         if isinstance(args, (torch.Tensor, int, float, bool)):
             args = (args,)
 
-        graph_extractor = GraphExtractor(model, args)
+        graph_extractor = GraphExtractor(
+            model, args, renaming_scheme=renaming_scheme
+        )
         nnef_graph = graph_extractor.parse(
             input_names,
             output_names,

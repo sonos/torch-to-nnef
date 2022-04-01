@@ -22,9 +22,13 @@ from torch_to_nnef.torch_graph import (
 
 
 class GraphExtractor:
-    def __init__(self, model, args):
+    def __init__(self, model, args, renaming_scheme: str = "numeric"):
         self.model = model
-        self._torch_graph_helper = TorchModuleTraceHelper(model, args)
+        self._torch_graph_helper = TorchModuleTraceHelper(
+            model,
+            args,
+            renaming_scheme=renaming_scheme,
+        )
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()

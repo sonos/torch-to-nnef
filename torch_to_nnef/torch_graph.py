@@ -886,6 +886,7 @@ class TorchModuleTraceHelper:
         auto_parse: bool = True,
         inputs: T.Optional[T.List[TensorVariable]] = None,
         outputs: T.Optional[T.List[TensorVariable]] = None,
+        renaming_scheme: str = "numeric",
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[TensorVariable] = []
@@ -895,7 +896,11 @@ class TorchModuleTraceHelper:
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         if auto_parse:
-            self.parse(provided_inputs=inputs, provided_outputs=outputs)
+            self.parse(
+                provided_inputs=inputs,
+                provided_outputs=outputs,
+                renaming_scheme=renaming_scheme,
+            )
 
     @property
     def data_nodes(self):
@@ -1270,6 +1275,8 @@ class TorchModuleTraceHelper:
                 count_ref[prefix] += 1
                 mapping[dnode.name] = prefix + str(suffix)
                 dnode.name = mapping[dnode.name]
+
+        raise NotImplementedError(f"renaming scheme: {scheme}")
 
     def _filter_tuple_tensor_from_data_nodes(self):
         new_data_nodes = []
