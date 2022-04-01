@@ -661,11 +661,13 @@ def dropout(node, torch_graph, **kwargs):
 
     # this replace order is important for graph of single nodes or starting with
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 def contiguous(node, torch_graph, **kwargs):
     """This does not translate to any operation"""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
@@ -805,6 +807,7 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
             new_dims_ranks.append(dim0)
         else:
             new_dims_ranks.append(_)
+
     _add_single_output_op(
         g,
         node,
@@ -817,9 +820,6 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
 
 def permute(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dims_node) = node.inputs
-    print(node.inputs)
-    print(node.outputs)
-    __import__("ipdb").set_trace()
     _add_single_output_op(
         g,
         node,
@@ -1099,6 +1099,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
                     name=data_node.name, data=[_.data for _ in data_node.data]
                 ),
             )
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
     LOGGER.warning(
         "the aten::size need custom NNEF operator from tract internals. "
