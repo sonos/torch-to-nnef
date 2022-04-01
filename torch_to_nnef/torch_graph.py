@@ -452,6 +452,9 @@ class TupleTensors(Data):
         return hash(self.slug)
 
 
+TtupleOrVar = T.Union[TensorVariable, TupleTensors]
+
+
 @dataclass
 class ListWithTensor(Data):
     """ListWithTensor is a list that contains tensor constant or not"""
@@ -722,7 +725,7 @@ class TorchOp:
     kind: str
     module_path: str
     inputs: T.List[Data]
-    outputs: T.List[T.Union[TensorVariable, TupleTensors]]
+    outputs: T.List[TtupleOrVar]
     scope: str
     op_ref: T.Optional[
         T.Callable[[T.Any], T.Any]
@@ -738,7 +741,7 @@ class TorchOp:
 
     @classmethod
     def _parse_outputs(cls, node: torch._C.Node, data_nodes: T.List[Data]):
-        outputs: T.List[T.Union[TensorVariable, TupleTensors]] = []
+        outputs: T.List[TtupleOrVar] = []
         for out_node in node.outputs():  #: torch._C.Value
             if out_node.type().annotation_str != NONETYPE_KIND:
                 if out_node.type().kind() == LISTTYPE_KIND:
@@ -889,16 +892,16 @@ class TorchModuleTraceHelper:
     def __init__(
         self,
         module: nn.Module,
-        args: T.Tuple[T.Any],
+        args: T.Tuple[T.Any, ...],  # likely mostly torch tensor
         omit_useless_nodes: bool = True,
         auto_parse: bool = True,
-        inputs: T.Optional[T.List[TensorVariable]] = None,
-        outputs: T.Optional[T.List[TensorVariable]] = None,
+        inputs: T.Optional[T.List[Data]] = None,
+        outputs: T.Optional[T.List[TtupleOrVar]] = None,
         renaming_scheme: str = "numeric",
     ):
         self.op_nodes: T.List[TorchOp] = []
-        self.inputs: T.List[TensorVariable] = []
-        self.outputs: T.List[TensorVariable] = []
+        self.inputs: T.List[Data] = []
+        self.outputs: T.List[TtupleOrVar] = []
         self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
         self._module = module
         self._args = maybe_quantize_args_tensor(module, args)
@@ -1213,7 +1216,7 @@ class TorchModuleTraceHelper:
         self.op_nodes += submodule_graph.op_nodes
         self.data_nodes += submodule_graph.data_nodes
 
-    def _recursive_call_method(self):
+    def _recursive_call_method(self, renaming_scheme: str):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -1228,10 +1231,11 @@ class TorchModuleTraceHelper:
         is needed.
 
         """
-        ref_count = defaultdict(int)
+        ref_count: T.Dict[str, int] = defaultdict(int)
         for op in self.op_nodes:
             if op.is_callmethod:
-                ref_count[op.call_name] += 1
+                cname = op.call_name or ""
+                ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
                 assert isinstance(op.op_ref, nn.Module)
                 submodule_graph = TorchModuleTraceHelper(
@@ -1240,11 +1244,15 @@ class TorchModuleTraceHelper:
                     omit_useless_nodes=self._omit_useless_nodes,
                     inputs=op.inputs,
                     outputs=op.outputs,
+                    renaming_scheme=renaming_scheme,
                 )
+                prefix = ""
+                if cname is not None:
+                    prefix = _add_prefix_if_start_with_digit(cname, "s")
+                prefix += f"_c{ref_count[cname]}"
                 self._merge_subraph(
                     submodule_graph,
-                    prefix=_add_prefix_if_start_with_digit(op.call_name, "s")
-                    + f"_c{ref_count[op.call_name]}",
+                    prefix=prefix,
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
@@ -1386,7 +1394,7 @@ class TorchModuleTraceHelper:
         self._update_scope_reference()
         self._update_data_node_name_with_base_context()
         self._infer_missing_shapes_from_ops_outputs()
-        self._recursive_call_method()
+        self._recursive_call_method(renaming_scheme=renaming_scheme)
         self._avoid_reference_to_tuples()
         self._filter_nodes_not_in_trace_between_inputs_and_outputs()
 
@@ -1476,7 +1484,7 @@ class TorchModuleTraceHelper:
             cls_name = ""
             outputs_str = ", ".join(
                 [
-                    f"[type]{o.dtype}[/type] [var]{o.export_name}[/var]"
+                    f"[type]{o.dtype if hasattr(o, 'dtype') else type(o.data)}[/type] [var]{o.export_name}[/var]"
                     for o in _.outputs
                 ]
             )
