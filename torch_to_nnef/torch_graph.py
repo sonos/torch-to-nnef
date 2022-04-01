@@ -1282,6 +1282,7 @@ class TorchModuleTraceHelper:
                 count_ref[prefix] += 1
                 mapping[dnode.name] = prefix + str(suffix)
                 dnode.name = mapping[dnode.name]
+            return
 
         raise NotImplementedError(f"renaming scheme: {scheme}")
 
