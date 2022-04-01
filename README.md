@@ -3,7 +3,7 @@
 
 Any Pytorch Model to NNEF file format
 
-> warning ! This project is still in alpha and might break/change api quickly
+> warning ! This project is still in beta and might break/change api quickly
 
 ## Goals & Scope
 
@@ -12,6 +12,17 @@ We intend to export any model formulated with vanilla Torch whatever tensor type
 
 Minimum dependencies in production python package generated (to allow easy
 integration in other project).
+
+## Install
+
+For now you can either use internal Snips Nexus repository:
+```
+$ pip install torch_to_nnef
+$ # or
+$ poetry add torch_to_nnef
+```
+
+or reference this github project.
 
 ## Features
 
