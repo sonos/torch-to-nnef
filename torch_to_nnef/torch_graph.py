@@ -302,6 +302,12 @@ class TensorVariable(Data):
         return TORCH_TO_NUMPY_DTYPE[self.dtype]
 
     @property
+    def rank(self) -> T.Optional[int]:
+        if self.data is not None:
+            return len(self.data.shape)
+        return len(self.shape) if self.shape else None
+
+    @property
     def shaped(self) -> bool:
         return self.shape is not None
 
