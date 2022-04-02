@@ -370,6 +370,22 @@ INPUT_AND_MODELS += [
 # ]
 
 
+def _test_ids(test_fixtures):
+    test_names = []
+    for data, module in test_fixtures:
+        data_fmt = ""
+        if isinstance(data, torch.Tensor):
+            data_fmt = f"{data.dtype}{list(data.shape)}"
+        else:
+            for d in data:
+                data_fmt += f"{d.dtype}{list(d.shape)}, "
+        if len(str(module)) > 100:
+            module = str(module.__class__.__name__) + "__" + str(module)[:100]
+        test_name = f"{module}({data_fmt})"
+        test_names.append(test_name)
+    return test_names
+
+
 def test_should_fail_since_false_output():
     with tempfile.TemporaryDirectory() as tmpdir:
         test_input = torch.rand(1, 10, 100)
@@ -400,7 +416,9 @@ def test_should_fail_since_false_output():
         ), f"SHOULD fail tract io check with {model}"
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
+@pytest.mark.parametrize(
+    "test_input,model", INPUT_AND_MODELS, ids=_test_ids(INPUT_AND_MODELS)
+)
 def test_primitive_export(test_input, model):
     """Test simple models"""
     _test_check_model_io(model=model, test_input=test_input)
