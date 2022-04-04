@@ -3,6 +3,7 @@ import logging
 import typing as T
 
 import numpy as np
+from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
@@ -18,24 +19,44 @@ LOGGER = logging.getLogger(__name__)
 
 
 def add_tensor_variable_node_as_nnef_tensor(
-    g, node, name_to_tensor: T.Dict[str, NTensor], name_suffix: str = ""
+    g: NGraph,
+    node: TensorVariable,
+    name_to_tensor: T.Dict[str, NTensor],
+    name_suffix: str = "",
 ):
+    """Create nnef tensor and register in graph from torch_graph.Data node
+
+    It automatically adds variable if node is a torch tensor is associated
+    (it avoids bloating nnef graph file with matrix values)
+
+    """
     name = node.export_name
     if name_suffix:
         name += f"_{name_suffix}"
 
-    out = NTensor(
+    nnef_tensor_ref = NTensor(
         g,
         name,
         dtype=node.np_dtype,
         shape=node.shape,
     )
     if node.data is not None:
-        out.data = node.data.detach().numpy()
-        out.shape = tuple(node.data.shape)
+        nnef_tensor_ref.data = node.data.detach().numpy()
+        nnef_tensor_ref.shape = tuple(node.data.shape)
+        NOperation(
+            graph=g,
+            type="variable",
+            inputs=None,
+            outputs=nnef_tensor_ref,
+            attribs={
+                "label": nnef_tensor_ref.name,
+                "shape": list(nnef_tensor_ref.shape),
+                "dtype": nnef_tensor_ref.dtype,
+            },
+        )
 
-    name_to_tensor[name] = out
-    return out
+    name_to_tensor[name] = nnef_tensor_ref
+    return nnef_tensor_ref
 
 
 def register_state_node_as_variable(
@@ -45,27 +66,13 @@ def register_state_node_as_variable(
     name_to_tensor,
 ):
     # peculiarity of tract implementation
-    if node.data and len(node.data.shape) == 1:
+    if node.data is not None and len(node.data.shape) == 1:
         node.data = node.data.unsqueeze(0)
         node.shape = list(node.data.shape)
 
-    nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
+    return add_tensor_variable_node_as_nnef_tensor(
         g, node, name_to_tensor, slug_name
     )
-
-    NOperation(
-        graph=g,
-        type="variable",
-        name=f"{node.export_name}_{slug_name}_var",
-        inputs=None,
-        outputs=nnef_tensor_ref,
-        attribs={
-            "label": nnef_tensor_ref.name,
-            "shape": list(nnef_tensor_ref.shape),
-            "dtype": nnef_tensor_ref.dtype,
-        },
-    )
-    return nnef_tensor_ref
 
 
 def get_or_add_tensor_variable_in_nnef(
