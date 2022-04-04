@@ -50,10 +50,10 @@ export_model_to_nnef(
     debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
     # debug_bundle_path is generated only if tract IO is not valid
 
-    renaming_scheme="numeric", # name torch variable in a concise way for readability
+    renaming_scheme="numeric", # name NNEF variable in a concise way for readability
     # other possible choice with "natural_verbose" is as close as possible
     # to nn.Module exported variable naming
-    # this renaming_scheme is only useful is you intend to read generated
+    # the renaming_scheme is only useful is you intend to read generated
     # NNEF format else do not set it
 )
 ```

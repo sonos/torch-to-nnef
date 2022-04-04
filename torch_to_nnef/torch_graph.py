@@ -524,7 +524,7 @@ def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
     )
 
 
-def _parse_constant(node: torch._C.Node, data_nodes):
+def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
     try:
         data = node["value"]
     except RuntimeError:
@@ -546,7 +546,7 @@ def _parse_constant(node: torch._C.Node, data_nodes):
                 name=name, data=data, shape=list(data.shape), dtype=data.dtype
             )
         )
-        return
+        return data_nodes[-1]
     elif dtype == "Device":
         # Device will not be useful info for us but we pass it to avoid
         # dereferencing it from full graph
@@ -554,6 +554,7 @@ def _parse_constant(node: torch._C.Node, data_nodes):
     else:
         raise NotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
+    return data_nodes[-1]
 
 
 def _fetch_backward(data_nodes, c_node: torch._C.Node):
@@ -572,9 +573,11 @@ def _parse_list_construct_values(node, data_nodes):
     contains_tensors = False
     for cvalue in node.inputs():
         if cvalue.node().kind() == CONSTANT_KIND:
-            value = PythonConstant(
-                name=cvalue.node().output().debugName(), data=cvalue.toIValue()
+            value = _parse_constant(
+                cvalue.node(), []  # data_nodes empty as added later
             )
+            if isinstance(value, TensorVariable):
+                contains_tensors = True
         else:
             contains_tensors = True
             if cvalue.node().kind() == ATEN_INT:
@@ -865,7 +868,7 @@ class _OrderedStrictSet(list):
     """
 
     def append(self, item):
-        assert all(elm.name != item.name for elm in self)
+        assert all(elm.name != item.name for elm in self), item.name
         return super().append(item)
 
 

@@ -185,8 +185,10 @@ class _RNNMixin:
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import primitive
 
-        transposed_input_tensor = primitive.add_output_tensor(
-            g, node.inputs[0], name_to_tensor, name_suffix="_transposed"
+        transposed_input_tensor = (
+            primitive.add_tensor_variable_node_as_nnef_tensor(
+                g, node.inputs[0], name_to_tensor, name_suffix="transposed"
+            )
         )
         NOperation(
             g,
@@ -202,8 +204,10 @@ class _RNNMixin:
         from torch_to_nnef.op import primitive
 
         input_tensor.name += "_batch_first"
-        out_transpose_tensor = primitive.add_output_tensor(
-            g, node.outputs[0], name_to_tensor
+        out_transpose_tensor = (
+            primitive.add_tensor_variable_node_as_nnef_tensor(
+                g, node.outputs[0], name_to_tensor
+            )
         )
         NOperation(
             g,
@@ -223,7 +227,7 @@ class _RNNMixin:
         from torch_to_nnef.op import primitive
 
         for idx, out_node in enumerate(node.outputs[1:]):
-            real_output = primitive.add_output_tensor(
+            real_output = primitive.add_tensor_variable_node_as_nnef_tensor(
                 g, out_node, name_to_tensor
             )
             NOperation(
@@ -257,11 +261,16 @@ class _RNNMixin:
             name_to_nnef_variable[
                 var_name
             ] = primitive.register_state_node_as_variable(
-                torch_tensor,
-                var_name,
-                node,
-                g,
-                name_to_tensor,
+                slug_name=var_name,
+                # build imaginary node to fill data correctly
+                node=primitive.TensorVariable(
+                    name=node.outputs[0].name,
+                    data=torch_tensor,
+                    shape=list(torch_tensor.shape),
+                    dtype=torch_tensor.dtype,
+                ),
+                g=g,
+                name_to_tensor=name_to_tensor,
             )
         return name_to_nnef_variable
 
@@ -272,11 +281,11 @@ class _RNNMixin:
         from torch_to_nnef.op import primitive
 
         return [
-            primitive.add_output_tensor(
+            primitive.add_tensor_variable_node_as_nnef_tensor(
                 g,
                 out_node,
                 name_to_tensor,
-                name_suffix=f"_l{linfo}"
+                name_suffix=f"l{linfo}"
                 if (module.num_layers > 1 or module.bidirectional)
                 else "",
             )
@@ -296,11 +305,11 @@ class _RNNMixin:
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import primitive
 
-        out_packed_bidi = primitive.add_output_tensor(
+        out_packed_bidi = primitive.add_tensor_variable_node_as_nnef_tensor(
             g,
             node.outputs[0],
             name_to_tensor,
-            name_suffix=f"_l{layer_index}_packed_bidi",
+            name_suffix=f"l{layer_index}_packed_bidi",
         )
         NOperation(
             g,

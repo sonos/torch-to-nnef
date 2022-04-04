@@ -3,32 +3,87 @@ import logging
 import typing as T
 
 import numpy as np
-import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE, TORCH_DTYPE_TO_NNEF_STR
-from torch_to_nnef.torch_graph import Data, ListWithTensor, PythonConstant
+from torch_to_nnef.torch_graph import (
+    Data,
+    ListWithTensor,
+    PythonConstant,
+    TensorVariable,
+)
 
 LOGGER = logging.getLogger(__name__)
 
 
-def add_output_tensor(g, onode, name_to_tensor, name_suffix: str = ""):
-    name = onode.export_name + name_suffix
+def add_tensor_variable_node_as_nnef_tensor(
+    g, node, name_to_tensor: T.Dict[str, NTensor], name_suffix: str = ""
+):
+    name = node.export_name
+    if name_suffix:
+        name += f"_{name_suffix}"
+
     out = NTensor(
         g,
         name,
-        dtype=onode.np_dtype,
-        shape=onode.shape,
+        dtype=node.np_dtype,
+        shape=node.shape,
     )
+    if node.data is not None:
+        out.data = node.data.detach().numpy()
+        out.shape = tuple(node.data.shape)
+
     name_to_tensor[name] = out
     return out
+
+
+def register_state_node_as_variable(
+    slug_name: str,
+    node: TensorVariable,
+    g,
+    name_to_tensor,
+):
+    # peculiarity of tract implementation
+    if node.data and len(node.data.shape) == 1:
+        node.data = node.data.unsqueeze(0)
+        node.shape = list(node.data.shape)
+
+    nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
+        g, node, name_to_tensor, slug_name
+    )
+
+    NOperation(
+        graph=g,
+        type="variable",
+        name=f"{node.export_name}_{slug_name}_var",
+        inputs=None,
+        outputs=nnef_tensor_ref,
+        attribs={
+            "label": nnef_tensor_ref.name,
+            "shape": list(nnef_tensor_ref.shape),
+            "dtype": nnef_tensor_ref.dtype,
+        },
+    )
+    return nnef_tensor_ref
+
+
+def get_or_add_tensor_variable_in_nnef(
+    g, node, name_to_tensor, name_suffix: str = ""
+):
+    if node.export_name not in name_to_tensor:
+        add_tensor_variable_node_as_nnef_tensor(
+            g, node, name_to_tensor, name_suffix
+        )
+    return name_to_tensor[node.export_name]
 
 
 def _add_single_output_op(
     g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
 ):
-    out = add_output_tensor(g, node.outputs[0], name_to_tensor)
+    out = add_tensor_variable_node_as_nnef_tensor(
+        g, node.outputs[0], name_to_tensor
+    )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     NOperation(
@@ -42,27 +97,6 @@ def _add_single_output_op(
     return out
 
 
-def add_tensor_to_ngraph(
-    g,
-    node,
-    tensor: torch.Tensor,
-    tensor_name: str,
-    name_to_tensor: T.Dict[str, NTensor],
-):
-    onode = node.outputs[0]
-    name = f"{onode.export_name}_{tensor_name}"
-    tensor_np = tensor.numpy()
-    ntensor = NTensor(
-        g,
-        name=name,
-        shape=tuple(tensor.shape),
-        dtype=tensor_np.dtype.type,
-        data=tensor_np,
-    )
-    name_to_tensor[name] = ntensor
-    return ntensor
-
-
 def _unary_output_op_without_params(
     nnef_op_type: str, g, node, name_to_tensor, null_ref
 ):
@@ -72,8 +106,10 @@ def _unary_output_op_without_params(
         name_to_tensor,
         nnef_op_type=nnef_op_type,
         inputs=[
-            name_to_tensor[inp.export_name] if inp else null_ref
-            for inp in node.inputs
+            name_to_tensor[_.export_name]
+            # get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            if _ else null_ref
+            for _ in node.inputs
         ],
     )
 
@@ -101,38 +137,6 @@ def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
     return _unary_output_op_without_params(nnef_op_type, **kwargs)
 
 
-def register_state_node_as_variable(
-    torch_tensor: torch.Tensor,
-    slug_name: str,
-    node,
-    g,
-    name_to_tensor,
-):
-
-    # peculiarity of tract implementation
-    if len(torch_tensor.shape) == 1:
-        torch_tensor = torch_tensor.unsqueeze(0)
-
-    nnef_tensor_ref = add_tensor_to_ngraph(
-        g, node, torch_tensor, slug_name, name_to_tensor
-    )
-
-    var = NOperation(
-        graph=g,
-        type="variable",
-        name=f"{node.outputs[0].export_name}_{slug_name}_var",
-        inputs=None,
-        outputs=nnef_tensor_ref,
-        attribs={
-            "label": nnef_tensor_ref.name,
-            "shape": list(torch_tensor.shape),
-            "dtype": nnef_tensor_ref.dtype,
-        },
-    )
-
-    return var.output
-
-
 def _weight_bias_and_output_tensor(
     g,
     node,
@@ -141,11 +145,9 @@ def _weight_bias_and_output_tensor(
     name_to_tensor,
     null_ref,
 ):
-    weight = weight_node.data
     weight_ref = register_state_node_as_variable(
-        torch_tensor=weight,
         slug_name="weight",
-        node=node,
+        node=weight_node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
@@ -153,9 +155,8 @@ def _weight_bias_and_output_tensor(
     bias_ref = null_ref
     if bias_node.data is not None:
         bias_ref = register_state_node_as_variable(
-            torch_tensor=bias_node.data,
             slug_name="bias",
-            node=node,
+            node=bias_node,
             g=g,
             name_to_tensor=name_to_tensor,
         )
@@ -165,7 +166,7 @@ def _weight_bias_and_output_tensor(
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
-        dtype=weight.numpy().dtype.type,
+        dtype=weight_ref.dtype,
         shape=tuple(out_node.shape) if out_node.shape else None,
     )
     name_to_tensor[out_tensor_name] = output_tensor
@@ -473,16 +474,14 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
         null_ref,
     )
     running_mean_ref = register_state_node_as_variable(
-        running_mean_node.data,
         slug_name="running_mean",
-        node=node,
+        node=running_mean_node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
     running_var_ref = register_state_node_as_variable(
-        running_var_node.data,
         slug_name="running_var",
-        node=node,
+        node=running_var_node,
         g=g,
         name_to_tensor=name_to_tensor,
     )
@@ -791,9 +790,8 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
                 torch_graph.printall()
                 raise NotImplementedError(f"cat with input_item: {input_item}")
             tensor_ref = register_state_node_as_variable(
-                input_item.data,
                 slug_name=input_item.export_name,
-                node=node,
+                node=input_item,
                 g=g,
                 name_to_tensor=name_to_tensor,
             )
@@ -819,9 +817,8 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
             tensor_ref = name_to_tensor[input_item.export_name]
         else:
             tensor_ref = register_state_node_as_variable(
-                input_item.data,
                 slug_name=input_item.export_name,
-                node=node,
+                node=input_item,
                 g=g,
                 name_to_tensor=name_to_tensor,
             )
@@ -877,7 +874,7 @@ def _reducer(
     keep_dim = keep_dim_node.data
 
     onode = node.outputs[output_idx]
-    out = add_output_tensor(g, onode, name_to_tensor)
+    out = add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
     op_reduce_out = None
     if not keep_dim:
         # apply squeeze
@@ -1130,9 +1127,8 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
             inputs.append(name_to_tensor[name])
         else:
             snode_ref = register_state_node_as_variable(
-                torch_tensor=snode.data,
                 slug_name=name,
-                node=node,
+                node=snode,
                 g=g,
                 name_to_tensor=name_to_tensor,
             )
