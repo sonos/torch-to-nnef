@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - 2022-04-04
+### Fix
+- Fix base TRUNet
+- Expose renaming scheme
+- Add id to unittest for easier debug
+
 ## [0.2.1] - 2022-03-31
 ### Fix
 - try corect parse with release worflow

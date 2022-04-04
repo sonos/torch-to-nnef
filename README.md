@@ -3,7 +3,7 @@
 
 Any Pytorch Model to NNEF file format
 
-> warning ! This project is still in alpha and might break/change api quickly
+> warning ! This project is still in beta and might break/change api quickly
 
 ## Goals & Scope
 
@@ -12,6 +12,17 @@ We intend to export any model formulated with vanilla Torch whatever tensor type
 
 Minimum dependencies in production python package generated (to allow easy
 integration in other project).
+
+## Install
+
+For now you can either use internal Snips Nexus repository:
+```
+$ pip install torch_to_nnef
+$ # or
+$ poetry add torch_to_nnef
+```
+
+or reference this github project via your prefered package manager.
 
 ## Features
 
@@ -38,6 +49,12 @@ export_model_to_nnef(
     check_same_io_as_tract=True, # default False need tract installed on machine
     debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
     # debug_bundle_path is generated only if tract IO is not valid
+
+    renaming_scheme="numeric", # name torch variable in a concise way for readability
+    # other possible choice with "natural_verbose" is as close as possible
+    # to nn.Module exported variable naming
+    # this renaming_scheme is only useful is you intend to read generated
+    # NNEF format else do not set it
 )
 ```
 

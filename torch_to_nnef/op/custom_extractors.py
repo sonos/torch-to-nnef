@@ -201,8 +201,9 @@ class _RNNMixin:
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import primitive
 
+        input_tensor.name += "_batch_first"
         out_transpose_tensor = primitive.add_output_tensor(
-            g, node.outputs[0], name_to_tensor, name_suffix="_batch_first"
+            g, node.outputs[0], name_to_tensor
         )
         NOperation(
             g,
