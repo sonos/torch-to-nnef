@@ -140,9 +140,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
         TensorFnPrimitive("view", args=(13, 5, 2)),
-        # TensorFnPrimitive(
-        # "repeat", kwargs={}, args=([1, 2, 1],)
-        # ),  # missing an s in repeat export to nnef since tract is false
+        TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],

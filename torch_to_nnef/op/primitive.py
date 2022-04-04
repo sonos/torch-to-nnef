@@ -7,7 +7,7 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import STR_TO_NUMPY_DTYPE, TORCH_DTYPE_TO_NNEF_STR
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_NNEF_STR
 from torch_to_nnef.torch_graph import (
     Data,
     ListWithTensor,
@@ -113,9 +113,9 @@ def _unary_output_op_without_params(
         name_to_tensor,
         nnef_op_type=nnef_op_type,
         inputs=[
-            name_to_tensor[_.export_name]
-            # get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            if _ else null_ref
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            if _
+            else null_ref
             for _ in node.inputs
         ],
     )
@@ -278,7 +278,9 @@ def slice_(g, node, name_to_tensor, **kwargs):
         node,
         name_to_tensor,
         "slice",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={
             "axes": [dim],
             "begin": [begin_node.data],
@@ -328,7 +330,7 @@ def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
         type="deconv" if transposed else "conv",
         name=f"{node.outputs[0].export_name}_op",
         inputs=(
-            name_to_tensor[input_node.export_name],
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
             weight_ref,
             bias_ref,
         ),
@@ -400,7 +402,9 @@ def _pooling_op(
         node,
         name_to_tensor,
         nnef_op_name,
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={
             "size": list(kernel_size),
             "padding": [
@@ -440,7 +444,11 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         graph=g,
         type="linear",
         name=f"{node.outputs[0].export_name}_op",
-        inputs=(name_to_tensor[input_node.export_name], weight_ref, bias_ref),
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            weight_ref,
+            bias_ref,
+        ),
         outputs=output_tensor,
         attribs={},
     )
@@ -498,7 +506,7 @@ def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
         type="batch_normalization",
         name=f"{node.outputs[0].export_name}_op",
         inputs=(
-            name_to_tensor[input_node.export_name],
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
             running_mean_ref,
             running_var_ref,
             bias_ref,
@@ -587,7 +595,9 @@ def _adaptive_pool(
         node,
         name_to_tensor,
         nnef_op_name,
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={
             "size": list(stride),
             "padding": [(0, 0) for _ in stride],
@@ -632,7 +642,9 @@ def view(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "reshape",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"shape": dim_node.data},
     )
 
@@ -654,7 +666,9 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "reshape",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={
             "dtype": onode.np_dtype,
             "shape": list(onode.shape),
@@ -679,7 +693,9 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         TORCH_DTYPE_TO_NNEF_STR[onode.dtype],
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={
             # "dtype": onode.np_dtype,
             "shape": list(onode.shape),
@@ -689,7 +705,7 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
 
 def pow_(g, node, name_to_tensor, **kwargs):
     (input_node, exponent_node) = node.inputs
-    inputs = [name_to_tensor[input_node.export_name]]
+    inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
     if exponent_node.data:
         exponent = exponent_node.data
         if exponent == 2:
@@ -700,19 +716,16 @@ def pow_(g, node, name_to_tensor, **kwargs):
             raise NotImplementedError("take a look at pow in nnef spec")
     else:
         op_type = "pow"
-        inputs += [name_to_tensor[exponent_node.export_name]]
+        inputs += [
+            get_or_add_tensor_variable_in_nnef(g, exponent_node, name_to_tensor)
+        ]
 
-    onode = node.outputs[0]
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
         op_type,
         inputs=inputs,
-        attrs={
-            "dtype": onode.np_dtype,
-            "shape": list(onode.shape),
-        },
     )
 
 
@@ -725,7 +738,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     ) = node.inputs
     assert dtype_node.data == 13, "is not expected quint8"
     input_node = node.inputs[0]
-    tensor = name_to_tensor[input_node.export_name]
+    tensor = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     tensor.quant = {
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
@@ -767,7 +780,9 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "transpose",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"axes": new_dims_ranks},
     )
 
@@ -779,7 +794,9 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "transpose",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"axes": dims_node.data},
     )
 
@@ -791,7 +808,9 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
     inputs = []
     for input_item in input_node.data:
         if input_item.export_name in name_to_tensor:
-            tensor_ref = name_to_tensor[input_item.export_name]
+            tensor_ref = get_or_add_tensor_variable_in_nnef(
+                g, input_item, name_to_tensor
+            )
         else:
             if input_item.data is None:
                 torch_graph.printall()
@@ -821,7 +840,10 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
     inputs = []
     for input_item in input_node.data:
         if input_item.export_name in name_to_tensor:
-            tensor_ref = name_to_tensor[input_item.export_name]
+            tensor_ref = get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            )
+
         else:
             tensor_ref = register_state_node_as_variable(
                 slug_name=input_item.export_name,
@@ -854,7 +876,9 @@ def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "unsqueeze",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"axes": [dim]},
     )
 
@@ -867,7 +891,9 @@ def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "squeeze",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"axes": [dim]},
     )
 
@@ -897,7 +923,9 @@ def _reducer(
         graph=g,
         type=aten_op_name,
         name=f"{onode.export_name}_{aten_op_name}",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         outputs=out if keep_dim else op_reduce_out,
         attribs={"axes": dim_node.data},
     )
@@ -988,25 +1016,17 @@ def min_(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def repeat(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_name, dim_name) = node.export_inputs
-    out = NTensor(
+def repeat(g, node, name_to_tensor, **kwargs):
+    (input_node, dim_node) = node.inputs
+    _add_single_output_op(
         g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE[node.subtype or node.dtype],
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-    repeat_dims = torch_graph.get_node_by_export_name(dim_name).attributes[
-        "values"
-    ]
-    NOperation(
-        graph=g,
-        type="tile",
-        name=f"{node.export_name}_tile",
-        inputs=name_to_tensor[input_name],
-        outputs=tuple([out]),
-        attribs={"repeats": repeat_dims},
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"repeats": dim_node.data},
     )
 
 
@@ -1066,7 +1086,9 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "reshape",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"shape": dim_node.data},
     )
 
@@ -1084,7 +1106,9 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         nnef_op_type="pad",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"padding": pads, "border": "reflect"},
     )
 
@@ -1101,7 +1125,9 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         nnef_op_type="pad",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"padding": pads, "border": "replicate"},
     )
 
@@ -1119,7 +1145,9 @@ def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         nnef_op_type="pad",
-        inputs=name_to_tensor[input_node.export_name],
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"padding": pads, "value": value},
     )
 
@@ -1162,8 +1190,8 @@ def matmul(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         "matmul",
         inputs=(
-            name_to_tensor[input_node.export_name],
-            name_to_tensor[other_node.export_name],
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            get_or_add_tensor_variable_in_nnef(g, other_node, name_to_tensor),
         ),
         attrs={
             "transposeA": False,
