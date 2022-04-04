@@ -3,14 +3,13 @@ from datetime import datetime
 
 import numpy as np
 from nnef_tools.model import Graph as NGraph
-from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
+from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops, external
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
@@ -111,26 +110,15 @@ class GraphExtractor:
             dtype=np.float32,
             data=np.zeros(shape=(), dtype=np.float32),
         )
-        name_to_tensor = {}
+        name_to_tensor: T.Dict[str, NTensor] = {}
         ginputs = []
         for node in self._torch_graph_helper.inputs:
-            tensor = NTensor(
-                graph=self.g,
-                name=node.export_name,
-                dtype=node.np_dtype,
-                shape=node.shape,
-            )
-            name_to_tensor[node.export_name] = tensor
-            ginputs.append(tensor)
-            NOperation(
-                graph=self.g,
-                type="external",
-                inputs=None,
-                outputs=tensor,
-                attribs={
-                    "shape": list(tensor.shape),
-                    "dtype": tensor.dtype,
-                },
+            ginputs.append(
+                external(
+                    self.g,
+                    node,
+                    name_to_tensor,
+                )
             )
 
         self._add_operators(name_to_tensor, null_ref=null)

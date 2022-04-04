@@ -260,8 +260,8 @@ class _RNNMixin:
         ).items():
             name_to_nnef_variable[
                 var_name
-            ] = primitive.register_state_node_as_variable(
-                slug_name=var_name,
+            ] = primitive.add_tensor_variable_node_as_nnef_tensor(
+                name_suffix=var_name,
                 # build imaginary node to fill data correctly
                 node=primitive.TensorVariable(
                     name=node.outputs[0].name,
