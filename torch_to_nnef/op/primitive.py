@@ -380,8 +380,8 @@ def _pooling_op(
     # apparently tract does expect max_pool to be always 2d only (including
     # input.shape)
     onode = node.outputs[0]
-    if len(onode.shape) > len(kernel_size):
-        missing_n_dims = len(onode.shape) - len(kernel_size)
+    if onode.rank > len(kernel_size):
+        missing_n_dims = onode.rank - len(kernel_size)
         kernel_size = ([1] * missing_n_dims) + kernel_size
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
@@ -412,12 +412,11 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
     ) = node.inputs
 
-    input_rank = len(input_node.shape)
-    for _ in range(input_rank - len(weight_node.data.shape)):
+    for _ in range(input_node.rank - weight_node.rank):
         weight_node.data = weight_node.data.unsqueeze(0)
 
     if bias_node.data is not None:
-        for _ in range(input_rank - len(bias_node.data.shape)):
+        for _ in range(input_node.rank - bias_node.rank):
             bias_node.data = bias_node.data.unsqueeze(0)
 
     weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
@@ -573,8 +572,8 @@ def _adaptive_pool(
         )
     ]
     onode = node.outputs[0]
-    if len(onode.shape) > len(stride):
-        missing_n_dims = len(onode.shape) - len(stride)
+    if onode.rank > len(stride):
+        missing_n_dims = onode.rank - len(stride)
         stride = ([1] * missing_n_dims) + stride
 
     _add_single_output_op(
@@ -594,57 +593,6 @@ def _adaptive_pool(
 
 
 def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
-    """
-    RoI pooling generates a fixed size output by pooling regions of variable size.
-
-    fragment avg_roi_pool(
-        input: tensor<scalar>,              # the feature maps to pool from
-        rois: tensor<scalar>,               # the regions of interest
-        batch_index: tensor<integer>,       # batch indices for each RoI
-        output_size: integer[] )            # the desired output size
-    -> ( output: tensor<scalar> )
-
-    # pool_values = get_array_values_from_inputs(pool_values_name)
-    torch_graph.printall()
-    input_node = torch_graph.get_node_by_export_name(input_name)
-
-    rois_ref = add_tensor_to_ngraph(
-        g,
-        node,
-        tensor=torch.from_numpy(
-            np.array([[0, dim] for dim in input_node.shape]).flatten()
-        ),
-        tensor_name="rois",
-        name_to_tensor=name_to_tensor,
-    )
-    batch_index_ref = add_tensor_to_ngraph(
-        g,
-        node,
-        tensor=torch.from_numpy(np.arange(input_node.shape[0])),
-        tensor_name="batch_index",
-        name_to_tensor=name_to_tensor,
-    )
-
-    out = NTensor(
-        g,
-        node.export_name,
-        dtype=STR_TO_NUMPY_DTYPE(node.subtype or node.dtype),
-        shape=node.shape,
-    )
-    name_to_tensor[node.export_name] = out
-
-    outputs = [out]
-    NOperation(
-        graph=g,
-        type="avg_roi_pool",
-        name=f"{node.export_name}_op",
-        inputs=[name_to_tensor[input_name], rois_ref, batch_index_ref],
-        outputs=tuple(outputs),
-        attribs={"output_size": node.shape},
-    )
-
-    """
-
     # WARNING will liklely only wor with full defined shapes in shape
     _adaptive_pool("avg_pool", g, node, name_to_tensor, null_ref, torch_graph)
 
@@ -661,11 +609,13 @@ def dropout(node, torch_graph, **kwargs):
 
     # this replace order is important for graph of single nodes or starting with
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 def contiguous(node, torch_graph, **kwargs):
     """This does not translate to any operation"""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
@@ -798,13 +748,14 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
     dim1 = dim1_node.data
 
     new_dims_ranks = []
-    for _ in reversed(range(len(node.outputs[0].shape))):
+    for _ in reversed(range(node.outputs[0].rank)):
         if _ == dim0:
             new_dims_ranks.append(dim1)
         elif _ == dim1:
             new_dims_ranks.append(dim0)
         else:
             new_dims_ranks.append(_)
+
     _add_single_output_op(
         g,
         node,
@@ -1096,6 +1047,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
                     name=data_node.name, data=[_.data for _ in data_node.data]
                 ),
             )
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
     LOGGER.warning(
         "the aten::size need custom NNEF operator from tract internals. "
@@ -1121,8 +1073,8 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
         np.array(pads_node.data).reshape(-1, 2).tolist()[::-1]
     )  # strangeness of torch
     onode = node.outputs[0]
-    if len(pads) < len(onode.shape):
-        pads = [[0, 0]] * (len(onode.shape) - len(pads)) + pads
+    if len(pads) < onode.rank:
+        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     _add_single_output_op(
         g,
         node,
@@ -1138,8 +1090,8 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     pads = pads_node.data
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
-    if len(pads) < len(onode.shape):
-        pads = [[0, 0]] * (len(onode.shape) - len(pads)) + pads
+    if len(pads) < onode.rank:
+        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     _add_single_output_op(
         g,
         node,
@@ -1156,8 +1108,8 @@ def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     pads = pads_node.data
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
-    if len(pads) < len(onode.shape):
-        pads = [[0, 0]] * (len(onode.shape) - len(pads)) + pads
+    if len(pads) < onode.rank:
+        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     _add_single_output_op(
         g,
         node,

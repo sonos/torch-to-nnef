@@ -80,6 +80,14 @@ def quantized_name_to_torch_fn(aten_name):
     return getattr(torch.ops.quantized, name)
 
 
+def _add_prefix_if_start_with_digit(text: str, prefix: str) -> str:
+    """ensure we do not start with integer a text"""
+    _prefix = ""
+    if text[0] in "0123456789":
+        _prefix = prefix
+    return _prefix + text
+
+
 def _refid_clean(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = name.replace(sep, "_")
@@ -294,6 +302,12 @@ class TensorVariable(Data):
         return TORCH_TO_NUMPY_DTYPE[self.dtype]
 
     @property
+    def rank(self) -> T.Optional[int]:
+        if self.data is not None:
+            return len(self.data.shape)
+        return len(self.shape) if self.shape else None
+
+    @property
     def shaped(self) -> bool:
         return self.shape is not None
 
@@ -442,6 +456,9 @@ class TupleTensors(Data):
 
     def __hash__(self):
         return hash(self.slug)
+
+
+TtupleOrVar = T.Union[TensorVariable, TupleTensors]
 
 
 @dataclass
@@ -714,7 +731,7 @@ class TorchOp:
     kind: str
     module_path: str
     inputs: T.List[Data]
-    outputs: T.List[T.Union[TensorVariable, TupleTensors]]
+    outputs: T.List[TtupleOrVar]
     scope: str
     op_ref: T.Optional[
         T.Callable[[T.Any], T.Any]
@@ -730,7 +747,7 @@ class TorchOp:
 
     @classmethod
     def _parse_outputs(cls, node: torch._C.Node, data_nodes: T.List[Data]):
-        outputs: T.List[T.Union[TensorVariable, TupleTensors]] = []
+        outputs: T.List[TtupleOrVar] = []
         for out_node in node.outputs():  #: torch._C.Value
             if out_node.type().annotation_str != NONETYPE_KIND:
                 if out_node.type().kind() == LISTTYPE_KIND:
@@ -881,21 +898,26 @@ class TorchModuleTraceHelper:
     def __init__(
         self,
         module: nn.Module,
-        args: T.Tuple[T.Any],
+        args: T.Tuple[T.Any, ...],  # likely mostly torch tensor
         omit_useless_nodes: bool = True,
         auto_parse: bool = True,
-        inputs: T.Optional[T.List[TensorVariable]] = None,
-        outputs: T.Optional[T.List[TensorVariable]] = None,
+        inputs: T.Optional[T.List[Data]] = None,
+        outputs: T.Optional[T.List[TtupleOrVar]] = None,
+        renaming_scheme: str = "numeric",
     ):
         self.op_nodes: T.List[TorchOp] = []
-        self.inputs: T.List[TensorVariable] = []
-        self.outputs: T.List[TensorVariable] = []
+        self.inputs: T.List[Data] = []
+        self.outputs: T.List[TtupleOrVar] = []
         self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
         self._module = module
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         if auto_parse:
-            self.parse(provided_inputs=inputs, provided_outputs=outputs)
+            self.parse(
+                provided_inputs=inputs,
+                provided_outputs=outputs,
+                renaming_scheme=renaming_scheme,
+            )
 
     @property
     def data_nodes(self):
@@ -1200,7 +1222,7 @@ class TorchModuleTraceHelper:
         self.op_nodes += submodule_graph.op_nodes
         self.data_nodes += submodule_graph.data_nodes
 
-    def _recursive_call_method(self):
+    def _recursive_call_method(self, renaming_scheme: str):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -1215,10 +1237,11 @@ class TorchModuleTraceHelper:
         is needed.
 
         """
-        ref_count = defaultdict(int)
+        ref_count: T.Dict[str, int] = defaultdict(int)
         for op in self.op_nodes:
             if op.is_callmethod:
-                ref_count[op.call_name] += 1
+                cname = op.call_name or ""
+                ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
                 assert isinstance(op.op_ref, nn.Module)
                 submodule_graph = TorchModuleTraceHelper(
@@ -1227,12 +1250,15 @@ class TorchModuleTraceHelper:
                     omit_useless_nodes=self._omit_useless_nodes,
                     inputs=op.inputs,
                     outputs=op.outputs,
+                    renaming_scheme=renaming_scheme,
                 )
+                prefix = ""
+                if cname is not None:
+                    prefix = _add_prefix_if_start_with_digit(cname, "s")
+                prefix += f"_c{ref_count[cname]}"
                 self._merge_subraph(
                     submodule_graph,
-                    prefix="s"  # ensure we do not start with integer varname
-                    + op.call_name
-                    + f"_c{ref_count[op.call_name]}",
+                    prefix=prefix,
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
@@ -1270,6 +1296,9 @@ class TorchModuleTraceHelper:
                 count_ref[prefix] += 1
                 mapping[dnode.name] = prefix + str(suffix)
                 dnode.name = mapping[dnode.name]
+            return
+
+        raise NotImplementedError(f"renaming scheme: {scheme}")
 
     def _filter_tuple_tensor_from_data_nodes(self):
         new_data_nodes = []
@@ -1371,7 +1400,7 @@ class TorchModuleTraceHelper:
         self._update_scope_reference()
         self._update_data_node_name_with_base_context()
         self._infer_missing_shapes_from_ops_outputs()
-        self._recursive_call_method()
+        self._recursive_call_method(renaming_scheme=renaming_scheme)
         self._avoid_reference_to_tuples()
         self._filter_nodes_not_in_trace_between_inputs_and_outputs()
 
@@ -1461,7 +1490,7 @@ class TorchModuleTraceHelper:
             cls_name = ""
             outputs_str = ", ".join(
                 [
-                    f"[type]{o.dtype}[/type] [var]{o.export_name}[/var]"
+                    f"[type]{o.dtype if hasattr(o, 'dtype') else type(o.data)}[/type] [var]{o.export_name}[/var]"
                     for o in _.outputs
                 ]
             )
