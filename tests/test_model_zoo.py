@@ -39,9 +39,19 @@ INPUT_AND_MODELS += [
         audio_mdl.DeepSpeech(64, n_hidden=256),
     ]
 ]
+
+# INPUT_AND_MODELS = [
+# ((torch.rand(1, 100, 64), torch.tensor([100])), model)
+# for model in [
 # audio_mdl.Conformer(
-# 64, num_heads=2, ffn_dim=128, depthwise_conv_kernel_size=31
+# 64,
+# num_heads=2,
+# num_layers=2,
+# ffn_dim=128,
+# depthwise_conv_kernel_size=31,
 # )
+# ]
+# ]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)

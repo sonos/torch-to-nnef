@@ -1,4 +1,18 @@
 # pylint: disable=too-many-lines
+"""
+torch_graph is intended to extract full representation of pytorch Graph
+into a stable intermediate representation suitable to then apply translation
+operation to NNEF. This means that not all Pytorch orginal graph is translated.
+By example, we ignore part linked to device location informations,
+memory specific operation or parameters linked to gradients.
+
+This choice which is different compared to torch.onnx module due to the
+absence of control (on our side) over evolution of Pytorch internals.
+If some of the Pytorch internals are modified only this module should idealy
+be impacted.
+
+"""
+
 
 import logging
 import typing as T
@@ -43,6 +57,8 @@ class NotFoundDataNode(ValueError):
 
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
+
+PRIM_STARTID = "prim::"
 CALL_KIND = "prim::CallMethod"
 CONSTANT_KIND = "prim::Constant"
 GETATTR_KIND = "prim::GetAttr"
@@ -51,10 +67,14 @@ PARAM_KIND = "prim::Param"
 TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
 NUMTOTENSOR_KIND = "prim::NumToTensor"
+
+ATEN_STARTID = "aten::"
 ATEN_CONTIGUOUS_KIND = "aten::contiguous"
 ATEN_VIEW_KIND = "aten::view"
 ATEN_SIZE_KIND = "aten::size"
 ATEN_INT = "aten::Int"
+ATEN_ARANGE = "aten::arange"
+
 
 CLASSTYPE_KIND = "ClassType"
 TUPLETYPE_KIND = "TupleType"
@@ -71,7 +91,7 @@ MAP_TO_TENSOR_FN = [ATEN_CONTIGUOUS_KIND, ATEN_VIEW_KIND]
 
 
 def aten_name_to_torch_fn(aten_name):
-    name = aten_name.replace("aten::", "")
+    name = aten_name.replace(ATEN_STARTID, "")
     return getattr(torch.ops.aten, name)
 
 
@@ -622,8 +642,12 @@ def _parse_list_construct(node, data_nodes):
     # }
 
 
-def _aten_inputs_and_op_ref(kind, inputs):
-    # HERE we remove unecessary OPS
+def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
+    abstracted_inputs = [
+        _find_data_node(data_nodes, inp.debugName())
+        for inp in inputs
+        if not isinstance(inp, Data)
+    ]
     if kind in [
         "aten::sub",
         "aten::sub_",
@@ -631,35 +655,71 @@ def _aten_inputs_and_op_ref(kind, inputs):
         "aten::add_",
     ]:
         # remove useless ref to scaling (probably never used)
-        inputs = inputs[:2]
+        abstracted_inputs = abstracted_inputs[:2]
 
     if kind in ["aten::mean", "aten::sum"]:
-        inputs = inputs[:3]
+        abstracted_inputs = abstracted_inputs[:3]
 
     if kind == "aten::elu":
         # difference between aten and python API
-        inputs = inputs[:2]
+        abstracted_inputs = abstracted_inputs[:2]
 
     if kind == "aten::clone":
         # remove useless ref to memory_format (for us)
-        inputs = inputs[:1]
-    if kind == ATEN_CONTIGUOUS_KIND:
-        inputs = inputs[:1]
+        abstracted_inputs = abstracted_inputs[:1]
 
+    if kind == "aten::expand":
+        # remove useless ref to inplicit (for us)
+        abstracted_inputs = abstracted_inputs[:-1]
+
+    if kind == ATEN_CONTIGUOUS_KIND:
+        abstracted_inputs = abstracted_inputs[:1]
+
+    if kind == ATEN_ARANGE:
+        # we guess from observation that provided arange params are either:
+        # [start, end, step, dtype, layout_type, device, requires_grad]
+        # [start, end, dtype, layout_type, device, requires_grad]
+        # [end, dtype, layout_type, device, requires_grad]
+
+        abstracted_inputs = abstracted_inputs[:-4]  # skip even dtype
+
+        # cast to torch dtype
+        # abstracted_inputs[-1].data = SCALAR_TYPE_TO_PYTORCH_TYPE[
+        # abstracted_inputs[-1].data
+        # ]
+
+        n_inputs = len(abstracted_inputs)
+        if n_inputs < 1 or n_inputs > 3:
+            raise NotImplementedError(n_inputs, abstracted_inputs)
+        if n_inputs == 1:
+            abstracted_inputs.insert(
+                0,
+                PythonConstant(
+                    abstracted_inputs[0].name + "_stub_start", data=0
+                ),
+            )
+        abstracted_inputs.insert(
+            2,
+            PythonConstant(abstracted_inputs[0].name + "_stub_step", data=1),
+        )
+
+    return abstracted_inputs
+
+
+def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
+    abstracted_inputs = _prepare_arguments(kind, inputs, data_nodes)
     op_ref = None
-    if kind in MAP_TO_NOP:
-        return nop, inputs
     try:
         op_ref = aten_name_to_torch_fn(kind)
     except AttributeError:
         pass
-    return op_ref, inputs
+    return op_ref, abstracted_inputs
 
 
 def _rerouted_parsing(
     kind: str, node: torch._C.Node, data_nodes: T.List[Data], module
 ):
-    """Specific torch Kind operation are transformed
+    """Specific torch kind operation are transformed
 
     to improve readability of intermediate representation
 
@@ -678,7 +738,7 @@ def _rerouted_parsing(
         raise TorchOpTranslatedDifferently(
             "List Construct handled as PythonConstant"
         )
-    if kind.startswith("prim::"):
+    if kind.startswith(PRIM_STARTID):
         if kind == TUPLEUNPACK_KIND:
             dnodes = _find_data_node(data_nodes, node.input().debugName()).data
             for dnode, o_node_c_value in zip(dnodes, node.outputs()):
@@ -725,8 +785,23 @@ def _extract_op_infos(kind: str, module, inputs, data_nodes: T.List[Data]):
                 _parse_getattr_script_obj(inp.node(), module, data_nodes)
     else:
         module_getter_ref = MODULE_PATH_ATEN
-        op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs)
-    return (call_name, module_getter_ref, op_ref, inputs)
+        if kind in MAP_TO_NOP:
+            op_ref = nop  # type: ignore
+        elif kind.startswith(ATEN_STARTID):
+            op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs, data_nodes)
+        else:
+            raise NotImplementedError(
+                f"Unable to extract operation from {kind}"
+            )
+
+    abstracted_inputs = [
+        inp
+        if isinstance(inp, Data)
+        else _find_data_node(data_nodes, inp.debugName())
+        for inp in inputs
+    ]
+
+    return (call_name, module_getter_ref, op_ref, abstracted_inputs)
 
 
 @dataclass
@@ -785,10 +860,6 @@ class TorchOp:
             kind, module, inputs, data_nodes
         )
 
-        inputs = [
-            _find_data_node(data_nodes, inp.debugName()) for inp in inputs
-        ]
-
         outputs = cls._parse_outputs(node, data_nodes)
 
         if not outputs:
@@ -807,6 +878,20 @@ class TorchOp:
         )
 
     def call_op(self):
+        """Produce operation output based on traced inputs with real torch call
+
+        This operation call is done via self._args arguments (for now).
+        Which means that we need to have all args needed in parameters order,
+        following at least 1 underling torch operation signature.
+
+        NOTE: we use a different approach than original torch.onnx which pass
+        parameter by keyword arguments, this is due to the fact that we are not
+        aware of argument name being provided in exported graph (
+            from what we understand torch.onnx solve this via explicit
+            rerouting of all signatures, which might be a bit bulky in most case
+        ).
+
+        """
         if self.op_ref is not None:
             if self.kind in MAP_TO_TENSOR_FN:
                 args = self._args
@@ -820,7 +905,7 @@ class TorchOp:
                     )
                     self.inputs[1].data = subargs[0]
                     subargs = tuple(subargs)
-                return getattr(tensor, self.kind.replace("aten::", ""))(
+                return getattr(tensor, self.kind.replace(ATEN_STARTID, ""))(
                     *subargs
                 )
             return self.op_ref(*self._args)

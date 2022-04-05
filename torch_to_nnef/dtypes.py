@@ -30,6 +30,26 @@ TORCH_TO_NUMPY_DTYPE.update(
     }
 )
 
+# borrowed from torch.onnx.symbolic_helper
+SCALAR_TYPE_TO_PYTORCH_TYPE = [
+    torch.uint8,  # 0
+    torch.int8,  # 1
+    torch.short,  # 2
+    torch.int,  # 3
+    torch.int64,  # 4
+    torch.half,  # 5
+    torch.float,  # 6
+    torch.double,  # 7
+    None,  # 8
+    torch.complex64,  # 9
+    torch.complex128,  # 10
+    torch.bool,  # 11
+    torch.qint8,  # 12
+    torch.quint8,  # 13
+    torch.qint32,  # 14
+    torch.bfloat16,  # 15
+]
+
 
 STR_TO_NUMPY_DTYPE = {
     "QUInt8": np.int8,
