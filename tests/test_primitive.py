@@ -97,17 +97,17 @@ INPUT_AND_MODELS = [
         torch.sqrt,
         torch.rsqrt,
         torch.log2,
+        torch.tan,
+        torch.asin,
+        torch.acos,
+        torch.atan,
+        torch.sinh,
+        torch.cosh,
+        torch.tanh,
+        torch.asinh,
+        torch.acosh,
+        torch.atanh,
         # unimplemented tract {
-        # torch.tan,
-        # torch.asin,
-        # torch.acos,
-        # torch.atan,
-        # torch.sinh,
-        # torch.cosh,
-        # torch.tanh,
-        # torch.asinh,
-        # torch.acosh,
-        # torch.atanh,
         # torch.reciprocal,
         # torch.clone,
         # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
@@ -128,6 +128,15 @@ INPUT_AND_MODELS = [
         # ),
     ]
 ]
+INPUT_AND_MODELS += [
+    # N x L x  H
+    ((torch.rand(10) - 0.5) * 3, layer)
+    for layer in [
+        # test slice
+        TensorFnPrimitive("trunc"),
+    ]
+]
+
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [

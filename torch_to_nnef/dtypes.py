@@ -14,11 +14,12 @@ NUMPY_TO_TORCH_DTYPE = {
     np.float16: torch.float16,
     np.float32: torch.float32,
     np.float64: torch.float64,
-    np.int: torch.int,
-    np.short: torch.short,
-    np.long: torch.long,
     np.bool: torch.bool,
     np.bool_: torch.bool,
+    # next mapping are avoided as they map silently to builtin python type
+    # np.int: torch.int,
+    # np.short: torch.short,
+    # np.long: torch.long,
 }
 TORCH_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_TO_TORCH_DTYPE.items()}
 # In both direction it's not a mapping 1<->1 so update is needed
@@ -57,6 +58,7 @@ STR_TO_NUMPY_DTYPE = {
     "Float": np.float32,
     "float": np.float32,
     "int": np.int32,
+    "Int": np.int32,
     "Bool": np.bool_,
     "bool": np.bool_,
     "Half": np.float16,

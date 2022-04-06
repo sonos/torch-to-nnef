@@ -10,7 +10,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_NNEF_STR
 from torch_to_nnef.torch_graph import (
     Data,
-    ListWithTensor,
+    FixedTensorList,
     PythonConstant,
     TensorVariable,
 )
@@ -51,17 +51,18 @@ def add_tensor_variable_node_as_nnef_tensor(
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()
         nnef_tensor_ref.shape = tuple(node.data.shape)
-        add_nnef_operation(
-            graph=g,
-            type="variable",
-            inputs=None,
-            outputs=nnef_tensor_ref,
-            attribs={
-                "label": nnef_tensor_ref.name,
-                "shape": list(nnef_tensor_ref.shape),
-                "dtype": nnef_tensor_ref.dtype,
-            },
-        )
+        if len(node.data.size()) > 0:
+            add_nnef_operation(
+                graph=g,
+                type="variable",
+                inputs=None,
+                outputs=nnef_tensor_ref,
+                attribs={
+                    "label": nnef_tensor_ref.name,
+                    "shape": list(nnef_tensor_ref.shape),
+                    "dtype": nnef_tensor_ref.dtype,
+                },
+            )
 
     name_to_tensor[name] = nnef_tensor_ref
     return nnef_tensor_ref
@@ -113,6 +114,8 @@ def get_or_add_tensor_variable_in_nnef(
     g, node, name_to_tensor, name_suffix: str = ""
 ):
     if node.export_name not in name_to_tensor:
+        if isinstance(node, PythonConstant):
+            node = node.into_tensor_variable()
         add_tensor_variable_node_as_nnef_tensor(
             g, node, name_to_tensor, name_suffix
         )
@@ -140,22 +143,65 @@ def external(
 
 
 def _add_single_output_op(
-    g, node, name_to_tensor, nnef_op_type, inputs, attrs=None, ensure_tuple=True
-):
+    g,
+    node,
+    name_to_tensor,
+    nnef_op_type,
+    inputs,
+    attrs=None,
+    ensure_tuple=True,
+    output_tensor_name_suffix: str = "",
+) -> NTensor:
+    assert len(node.outputs) == 1
     out = add_tensor_variable_node_as_nnef_tensor(
-        g, node.outputs[0], name_to_tensor
+        g,
+        node.outputs[0],
+        name_to_tensor,
+        name_suffix=output_tensor_name_suffix,
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
     add_nnef_operation(
         graph=g,
         type=nnef_op_type,
-        name=f"{node.outputs[0].export_name}_op",
         inputs=inputs,
         outputs=tuple([out]),
         attribs=attrs or {},
     )
     return out
+
+
+def _add_multi_output_op(
+    g,
+    node,
+    name_to_tensor,
+    nnef_op_type,
+    inputs,
+    attrs=None,
+    ensure_tuple=True,
+    output_tensor_name_suffix: str = "",
+):
+    assert len(node.outputs) > 1
+    output_tensors = []
+    for out_node in node.outputs:
+        out = add_tensor_variable_node_as_nnef_tensor(
+            g,
+            out_node,
+            name_to_tensor,
+            name_suffix=output_tensor_name_suffix,
+        )
+        output_tensors.append(out)
+
+    if isinstance(inputs, list) and ensure_tuple:
+        inputs = tuple(inputs)
+    add_nnef_operation(
+        graph=g,
+        type=nnef_op_type,
+        inputs=inputs,
+        outputs=tuple(output_tensors),
+        attribs=attrs or {},
+    )
+    return output_tensors
 
 
 def _unary_output_op_without_params(
@@ -717,6 +763,10 @@ def contiguous(node, torch_graph, **kwargs):
 def view(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
 
+    if isinstance(dim_node, PythonConstant):
+        dim_data = dim_node.data
+    else:
+        raise NotImplementedError(dim_node)
     _add_single_output_op(
         g,
         node,
@@ -725,8 +775,54 @@ def view(g, node, name_to_tensor, null_ref, torch_graph):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"shape": dim_node.data},
+        attrs={"shape": dim_data},
     )
+
+
+def div(g, node, name_to_tensor, null_ref, torch_graph):
+    input_node = node.inputs[0]
+    divisor_node = node.inputs[1]
+    suffix_div_op_output = ""
+    rounding_mode = None
+    if len(node.inputs) == 3:
+        rounding_mode = node.inputs[2].data
+        suffix_div_op_output = "div"
+
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "div",
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            get_or_add_tensor_variable_in_nnef(g, divisor_node, name_to_tensor),
+        ),
+        output_tensor_name_suffix=suffix_div_op_output,
+    )
+    if rounding_mode:
+        _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            rounding_mode,
+            inputs=out,
+        )
+        if rounding_mode == "trunc":
+            return [rounding_mode]
+    return []
+
+
+def trunc(g, node, name_to_tensor, null_ref, torch_graph):
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "trunc",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, node.inputs[0], name_to_tensor
+        ),
+    )
+    return ["trunc"]
 
 
 def flatten(g, node, name_to_tensor, null_ref, torch_graph):
@@ -884,7 +980,7 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
 def cat(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
     dim = dim_node.data
-    assert isinstance(input_node, ListWithTensor)
+    assert isinstance(input_node, FixedTensorList)
     inputs = []
     for input_item in input_node.data:
         if (
@@ -911,7 +1007,7 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
 def stack(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, dim_node) = node.inputs
     dim = dim_node.data
-    assert isinstance(input_node, ListWithTensor)
+    assert isinstance(input_node, FixedTensorList)
     inputs = []
     for input_item in input_node.data:
         if (
@@ -933,10 +1029,6 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
         attrs={"axis": dim},
         ensure_tuple=False,
     )
-
-
-def split(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError("split not implemented")
 
 
 def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1123,16 +1215,21 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     ```
 
     """
+    original_vec_node, dim_node = node.inputs
     original_variable_output = node.outputs[0]
+    if original_variable_output.data is None:
+        dim = original_vec_node.shape[dim_node.data]
+    else:
+        dim = original_variable_output.data.numpy().tolist()
     new_node = PythonConstant(
         name=original_variable_output.name,
-        data=original_variable_output.data.numpy().tolist(),
+        data=dim,
     )
     torch_graph.remap_node(original_variable_output, new_node)
 
     for data_node in torch_graph.data_nodes:
         if (
-            isinstance(data_node, ListWithTensor)
+            isinstance(data_node, FixedTensorList)
             and any(_ is new_node for _ in data_node.data)
             and all(isinstance(_, PythonConstant) for _ in data_node.data)
         ):
@@ -1272,6 +1369,37 @@ def matmul(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def split(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError("split not implemented")
+
+
+def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    split<?>(
+        value: tensor<?>,
+        axis: integer,
+        ratios: integer[]
+    ) -> ( values: tensor<?>[] )
+    """
+    (input_node, ratio_node, dim_node) = node.inputs
+    assert isinstance(dim_node, PythonConstant)
+    assert isinstance(ratio_node, PythonConstant)
+
+    _add_multi_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "split",
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+        ),
+        attrs={
+            "axis": dim_node.data,
+            "ratios": ratio_node.data,
+        },
+    )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     """Main primitive dispatcher
 
@@ -1345,7 +1473,6 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "add",
         "sub",
         "mul",
-        "div",
         "lt",
         "gt",
         "le",

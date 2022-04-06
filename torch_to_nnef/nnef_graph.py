@@ -43,6 +43,10 @@ class GraphExtractor:
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:
+                assert len(node.inputs) == 1 and len(node.outputs) == 1
+                self._torch_graph_helper.remap_node(
+                    node.outputs[0], node.inputs[0]
+                )
                 return []
 
         if node.kind.startswith("quantized::"):
@@ -80,19 +84,22 @@ class GraphExtractor:
         operators_nodes = self._torch_graph_helper.op_nodes[:]
         while operators_nodes:
             done_nodes = []
-            for node in operators_nodes:
-                # node inputs are already realised
-                if any(is_missing(in_node) for in_node in node.inputs):
+            for op_node in operators_nodes:
+                # op_node inputs are already realised
+                if any(is_missing(_) for _ in op_node.inputs):
                     continue
                 custom_fragments = self._op_nodes_to_nnef_operation(
-                    node, name_to_tensor, null_ref=null_ref
+                    op_node, name_to_tensor, null_ref=null_ref
                 )
                 if custom_fragments:
                     self.activated_custom_fragment_keys.update(custom_fragments)
-                done_nodes.append(node)
+                done_nodes.append(op_node)
             if len(done_nodes) == 0 and operators_nodes:
                 self._torch_graph_helper.printall()
-                print(operators_nodes)
+                print(
+                    "unable to realise operators with outputs",
+                    [out.name for op in operators_nodes for out in op.outputs],
+                )
                 raise RuntimeError("DAG seems impossible to unfold")
             operators_nodes = [
                 _ for _ in operators_nodes if _ not in done_nodes

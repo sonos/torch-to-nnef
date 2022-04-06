@@ -1,0 +1,4 @@
+fragment trunc( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = select(x < 0.0, ceil(x), floor(x));
+}

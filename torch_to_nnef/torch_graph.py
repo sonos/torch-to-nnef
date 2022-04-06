@@ -56,6 +56,10 @@ class NotFoundDataNode(ValueError):
     pass
 
 
+class CheckError(ValueError):
+    pass
+
+
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
 PRIM_STARTID = "prim::"
@@ -66,6 +70,7 @@ LISTCONSTRUCT_KIND = "prim::ListConstruct"
 PARAM_KIND = "prim::Param"
 TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
+LISTUNPACK_KIND = "prim::ListUnpack"
 NUMTOTENSOR_KIND = "prim::NumToTensor"
 
 ATEN_STARTID = "aten::"
@@ -123,7 +128,7 @@ def _parse_traced_name(module):
 
 
 def _is_container(data_node: "Data"):
-    return isinstance(data_node, (ListWithTensor, TupleTensors))
+    return isinstance(data_node, (FixedTensorList, TupleTensors))
 
 
 def _expand_containers_if_exists(data_items):
@@ -482,8 +487,8 @@ TtupleOrVar = T.Union[TensorVariable, TupleTensors]
 
 
 @dataclass
-class ListWithTensor(Data):
-    """ListWithTensor is a list that contains tensor constant or not"""
+class FixedTensorList(Data):
+    """FixedTensorList is a list that contains tensor constant or not"""
 
     data: T.List[TensorVariable]
 
@@ -493,6 +498,30 @@ class ListWithTensor(Data):
 
     def __hash__(self):
         return hash(self.name)
+
+
+def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
+    """Hold outputs of aten::chunk and other pytorch graph Tensor[]"""
+
+    node_type = node_c_value.type()
+    assert node_type.kind() == LISTTYPE_KIND
+    LOGGER.warning(
+        "ListType can be of arbitrary length "
+        "but we can not handle this dynamism at inference "
+        " so 'split and other ops' will generate array "
+        "of tensor with fixed size"
+    )
+    used_in = node_c_value.uses()
+    if len(used_in) != 1:
+        raise NotImplementedError()
+    use_op = used_in[0].user
+    if use_op.kind() != LISTUNPACK_KIND:
+        raise NotImplementedError()
+
+    return FixedTensorList(
+        name=node_c_value.debugName(),
+        data=[TensorVariable.parse(_) for _ in use_op.outputs()],
+    )
 
 
 @dataclass
@@ -557,6 +586,8 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
         data = int(data)
     elif dtype == "float":
         data = float(data)
+    elif dtype == "str":
+        data = str(data)
     elif dtype == "NoneType":
         data = None
     elif dtype == "Tensor":
@@ -581,7 +612,6 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
     """backward search of final resolution argument from list_construct"""
     if c_node.kind() in [ATEN_INT, NUMTOTENSOR_KIND]:
         return _fetch_backward(data_nodes, c_node.input().node())
-
     try:
         return _find_data_node(data_nodes, c_node.output().debugName())
     except NotFoundDataNode as exp:
@@ -630,7 +660,7 @@ def _parse_list_construct(node, data_nodes):
             else:
                 raise NotImplementedError()
             tensor_values.append(value)
-        data_node = ListWithTensor(
+        data_node = FixedTensorList(
             name=node.output().debugName(), data=tensor_values
         )
     else:
@@ -671,6 +701,10 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
     if kind == "aten::expand":
         # remove useless ref to inplicit (for us)
         abstracted_inputs = abstracted_inputs[:-1]
+
+    if kind == "aten::ones":
+        # remove useless ref even dtype for now
+        abstracted_inputs = abstracted_inputs[:1]
 
     if kind == ATEN_CONTIGUOUS_KIND:
         abstracted_inputs = abstracted_inputs[:1]
@@ -763,11 +797,16 @@ def _rerouted_parsing(
             raise TorchOpTranslatedDifferently("Tuple Construct")
         if kind == NUMTOTENSOR_KIND:
             return
+        if kind == LISTUNPACK_KIND:
+            # note: maybe should be replace dataNode to a ListWithTensor
+            raise TorchOpTranslatedDifferently("List unpacked")
         if kind != CALL_KIND:
             raise NotImplementedError(node)
 
 
-def _extract_op_infos(kind: str, module, inputs, data_nodes: T.List[Data]):
+def _extract_op_infos(
+    kind: str, module, inputs, data_nodes: T.List[Data], node
+):
     """Extract informations from module or torch operation"""
     call_name = None
     if kind == CALL_KIND:
@@ -829,11 +868,11 @@ class TorchOp:
         for out_node in node.outputs():  #: torch._C.Value
             if out_node.type().annotation_str != NONETYPE_KIND:
                 if out_node.type().kind() == LISTTYPE_KIND:
-                    raise NotImplementedError(
-                        "ListType can be of arbitrary length "
-                        "and will probably need a special Class to handle it"
-                    )
-                if out_node.type().kind() == TUPLETYPE_KIND:
+                    fixed_tensor_list = dynamic_tensor_list_parse(out_node)
+                    data_nodes += fixed_tensor_list.data
+                    data_nodes.append(fixed_tensor_list)
+                    outputs += fixed_tensor_list.data
+                elif out_node.type().kind() == TUPLETYPE_KIND:
                     tuple_out = TupleTensors.parse_from_tuple_type(out_node)
                     for tupitem in tuple_out.data:
                         data_nodes.append(tupitem)
@@ -856,8 +895,9 @@ class TorchOp:
         kind = node.kind()
 
         _rerouted_parsing(kind, node, data_nodes, module)
+
         (call_name, module_getter_ref, op_ref, inputs) = _extract_op_infos(
-            kind, module, inputs, data_nodes
+            kind, module, inputs, data_nodes, node
         )
 
         outputs = cls._parse_outputs(node, data_nodes)
@@ -976,7 +1016,7 @@ class TorchModuleTraceHelper:
     of modification of Pytorch Internals (think Adapter Pattern).
 
     Warning !
-        Only NOT nested container structure (TupleTensors, ListWithTensor, ...)
+        Only NOT nested container structure (TupleTensors, FixedTensorList, ...)
         are supported for now
 
     """
@@ -1030,14 +1070,13 @@ class TorchModuleTraceHelper:
     def _check_io_rely_on_data_nodes(self):
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
-            assert any(
-                _ is inode for _ in self.data_nodes
-            ), f"not referenced correctly input: {inode}"
+            if not any(_ is inode for _ in self.data_nodes):
+                __import__("ipdb").set_trace()
+                raise CheckError(f"not referenced correctly input: {inode}")
 
         for onode in self.outputs:
-            assert any(
-                _ is onode for _ in self.data_nodes
-            ), f"not referenced correctly output: {onode}"
+            if not any(_ is onode for _ in self.data_nodes):
+                raise CheckError(f"not referenced correctly output: {onode}")
 
     @property  # type: ignore
     @cache
@@ -1079,6 +1118,10 @@ class TorchModuleTraceHelper:
                         value = subdnode
                     new_data.append(value)
                 dnode.data = new_data
+
+        # add if not exists in graph
+        if not any(to_node is _ for _ in self.data_nodes):
+            self.data_nodes.append(to_node)
 
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
@@ -1157,15 +1200,14 @@ class TorchModuleTraceHelper:
         ]
 
         if provided_outputs is not None:
-            exanded_outputs = list(_expand_containers_if_exists(outputs))
+            expanded_output = list(_expand_containers_if_exists(outputs))
             original_outputs = list(
                 _expand_containers_if_exists(provided_outputs)
             )
-            assert len(exanded_outputs) == len(
-                original_outputs
-            ), f"{len(exanded_outputs)} == {len(original_outputs)}"
+            if len(expanded_output) != len(original_outputs):
+                CheckError(f"{len(expanded_output)} == {len(original_outputs)}")
             for original_output, output in zip(
-                original_outputs, exanded_outputs
+                original_outputs, expanded_output
             ):
                 if _is_container(original_output) and _is_container(output):
                     # can be safely explored
@@ -1371,7 +1413,7 @@ class TorchModuleTraceHelper:
                 PythonConstant: "c",
                 BlobTorchScriptObject: "b",
                 TorchConstant: "t",
-                ListWithTensor: "l",
+                FixedTensorList: "l",
                 TupleTensors: "tt",
                 Data: "d",  # not used, avoid static analysis complain
             }
@@ -1442,7 +1484,7 @@ class TorchModuleTraceHelper:
 
             if len(remaining_data_nodes):
                 # at each loop try to add new expansion of
-                # maybe added ListWithTensor, TupleTensors
+                # maybe added FixedTensorList, TupleTensors
                 additional_data_node_from_list = set()
                 for used_data_node in used_data_nodes:
                     if _is_container(used_data_node):
@@ -1549,7 +1591,7 @@ class TorchModuleTraceHelper:
         cprint("")
         cprint("\t[subsection]List:[/subsection]")
         for _ in self.data_nodes:
-            if isinstance(_, ListWithTensor):
+            if isinstance(_, FixedTensorList):
                 refs = ", ".join([d.export_name for d in _.data])
                 cprint(
                     f"\t\t[type]List[/type] "
