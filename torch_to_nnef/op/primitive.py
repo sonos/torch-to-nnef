@@ -3,6 +3,7 @@ import logging
 import typing as T
 
 import numpy as np
+import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
@@ -1304,6 +1305,8 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node, value_node) = node.inputs
     value = value_node.data
+    # ensure cast to same dtype as output
+    value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
     pads = pads_node.data
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
@@ -1369,35 +1372,44 @@ def matmul(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def split(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError("split not implemented")
-
-
 def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
-    """
+    """We are aware that
     split<?>(
         value: tensor<?>,
         axis: integer,
         ratios: integer[]
     ) -> ( values: tensor<?>[] )
+
+    exists but since tract does not support it, we reexpress it with slice
     """
     (input_node, ratio_node, dim_node) = node.inputs
     assert isinstance(dim_node, PythonConstant)
     assert isinstance(ratio_node, PythonConstant)
-
-    _add_multi_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "split",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-        ),
-        attrs={
-            "axis": dim_node.data,
-            "ratios": ratio_node.data,
-        },
-    )
+    current_dim_elm_idx = 0
+    for (out_node, n_elements) in zip(node.outputs, ratio_node.data):
+        inputs = get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        )
+        out = add_tensor_variable_node_as_nnef_tensor(
+            g,
+            out_node,
+            name_to_tensor,
+        )
+        if isinstance(inputs, list):
+            inputs = tuple(inputs)
+        add_nnef_operation(
+            graph=g,
+            type="slice",
+            inputs=inputs,
+            outputs=tuple([out]),
+            attribs={
+                "axes": [dim_node.data],
+                "begin": [current_dim_elm_idx],
+                "end": [current_dim_elm_idx + n_elements],
+                "stride": [1],
+            },
+        )
+        current_dim_elm_idx += n_elements
 
 
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
