@@ -1484,7 +1484,7 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
     which can be re-expressed as:
         torch.arange(9).reshape(3, 3).repeat(2).reshape(2, 3, 3)
 
-    this allow us to express it as a NNEF tile followed by a reshape.
+    this allows us to express it as a NNEF tile followed by a reshape.
 
     """
     (input_node, shape_node) = node.inputs
