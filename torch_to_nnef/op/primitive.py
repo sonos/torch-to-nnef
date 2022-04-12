@@ -768,6 +768,12 @@ def view(g, node, name_to_tensor, null_ref, torch_graph):
 
     if isinstance(axis_node, PythonConstant):
         dim_data = axis_node.data
+    elif isinstance(axis_node, FixedTensorList):
+        dim_data = [ax_node.data for ax_node in axis_node.data]
+        if len([_ for _ in dim_data if _ is None]) > 1:
+            raise NotImplementedError(
+                f"too much unknown dimenssions for view {dim_data}"
+            )
     else:
         raise NotImplementedError(axis_node)
     _add_single_output_op(
@@ -1436,7 +1442,6 @@ def arange(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def masked_fill_(g, node, name_to_tensor, null_ref, torch_graph):
-    __import__("ipdb").set_trace()
     raise NotImplementedError()
 
 
