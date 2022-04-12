@@ -1482,12 +1482,32 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
                  [6, 7, 8]]])
 
     which can be re-expressed as:
-        torch.arange(9).reshape(3, 3).repeat(2, 2).reshape(2, 3, 3)
+        torch.arange(9).reshape(3, 3).repeat(2).reshape(2, 3, 3)
 
     this allow us to express it as a NNEF tile followed by a reshape.
 
     """
-    raise NotImplementedError()
+    (input_node, shape_node) = node.inputs
+    repeat_dims = sum(shape_node.data[: -input_node.rank])
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"repeats": [repeat_dims] + [1] * (input_node.rank - 1)},
+        output_tensor_name_suffix="repeat",
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=out,
+        attrs={"shape": shape_node.data},
+    )
 
 
 def glu(g, node, name_to_tensor, null_ref, torch_graph):

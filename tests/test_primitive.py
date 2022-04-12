@@ -142,6 +142,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("argmin", {"dim": 1}),
         TensorFnPrimitive("view", args=(13, 5, 2)),
         TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
+        TensorFnPrimitive("expand", args=(2, 2, 3, 3)),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],
@@ -363,7 +364,7 @@ INPUT_AND_MODELS += [
 
 
 # INPUT_AND_MODELS = [
-# (torch.rand(33, 1, 100), layer)
+# (torch.arange(9).reshape(3, 3).float(), layer)
 # for layer in [
 # # nn.LSTM(100, 30, proj_size=17, num_layers=2),
 # ]
