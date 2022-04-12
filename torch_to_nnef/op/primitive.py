@@ -1422,7 +1422,7 @@ def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
     raise NotImplementedError()
 
 
-def expand(g, node, name_to_tensor, null_ref, torch_graph):
+def chunk(g, node, name_to_tensor, null_ref, torch_graph):
     raise NotImplementedError()
 
 
@@ -1467,16 +1467,48 @@ def layer_norm(g, node, name_to_tensor, null_ref, torch_graph):
     return [op_name]
 
 
-def chunk(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError()
+def expand(g, node, name_to_tensor, null_ref, torch_graph):
+    """
+    Illustration of expand:
+        torch.arange(9).reshape(3, 3).expand(2, 3, 3)
 
+        Out[4]:
+        tensor([[[0, 1, 2],
+                 [3, 4, 5],
+                 [6, 7, 8]],
 
-def bmm(g, node, name_to_tensor, null_ref, torch_graph):
+                [[0, 1, 2],
+                 [3, 4, 5],
+                 [6, 7, 8]]])
+
+    which can be re-expressed as:
+        torch.arange(9).reshape(3, 3).repeat(2, 2).reshape(2, 3, 3)
+
+    this allow us to express it as a NNEF tile followed by a reshape.
+
+    """
     raise NotImplementedError()
 
 
 def glu(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError()
+    input_node, dim_node = node.inputs
+    if dim_node.data < 0:
+        dim_node.data = input_node.rank + dim_node.data
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="glu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+        ],
+        attrs={
+            "axis": dim_node.data,
+            "half_dim_size": int(input_node.shape[dim_node.data] / 2),
+            "dim_size": input_node.shape[dim_node.data],
+        },
+    )
+    return ["glu"]
 
 
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1514,8 +1546,9 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         "pow": "pow_",
         "max": "max_",
         "min": "min_",
-        "slice": "slice_"
+        "slice": "slice_",
         # }
+        "bmm": "matmul",  # since NNEF matmul does not care about rank
     }.get(aten_op_name, aten_op_name)
 
     if aten_op_name in [

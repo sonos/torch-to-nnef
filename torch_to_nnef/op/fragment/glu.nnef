@@ -1,0 +1,11 @@
+fragment glu(
+    input: tensor<scalar>,
+    axis: integer,
+    half_dim_size: integer,
+    dim_size: integer
+) -> ( output : tensor<scalar> )
+{
+  a = slice(input, axes=[axis], begin=[0], end=[half_dim_size]);
+  b = slice(input, axes=[axis], begin=[half_dim_size], end=[dim_size]);
+  output = a * sigmoid(b, axes=[axis]);
+}

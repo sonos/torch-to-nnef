@@ -200,7 +200,7 @@ INPUT_AND_MODELS += [
         BinaryPrimitive(op),
     )
     for op in [
-        # torch.matmul,
+        torch.matmul,
     ]
 ]
 
@@ -357,6 +357,7 @@ INPUT_AND_MODELS += [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
         torch.nn.LayerNorm(10),
+        torch.nn.GLU(),
     ]
 ]
 
@@ -364,7 +365,7 @@ INPUT_AND_MODELS += [
 # INPUT_AND_MODELS = [
 # (torch.rand(33, 1, 100), layer)
 # for layer in [
-# nn.LSTM(100, 30, proj_size=17, num_layers=2),
+# # nn.LSTM(100, 30, proj_size=17, num_layers=2),
 # ]
 # ]
 
