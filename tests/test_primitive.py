@@ -356,6 +356,7 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
+        torch.nn.LayerNorm(10),
     ]
 ]
 

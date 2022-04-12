@@ -151,7 +151,8 @@ def _unfold_graph_getattr(
             getter_sequence.append(getattr_node.s("name"))
         except RuntimeError:
             # ensure we are at root reference
-            assert next(getattr_node.outputs()).debugName() == "self.1"
+            dname = next(getattr_node.outputs()).debugName()
+            assert dname.startswith("self"), dname
 
     getter_fn(getattr_node, getter_sequence)
     while getattr_node.kind() == GETATTR_KIND:
@@ -549,11 +550,10 @@ def _find_data_node(data_nodes: T.List[Data], name: str):
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
-    tensor_name = node.s("name")
-    data_state = getattr(module, tensor_name).data
+    data_state = _unfold_graph_getattr(module, node.output())[1].data
     data_nodes.append(
         TensorVariable(
-            name=tensor_name,
+            name=node.output().debugName(),
             shape=list(data_state.shape),
             dtype=data_state.dtype,
             data=data_state,
@@ -562,8 +562,8 @@ def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
 
 
 def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
-    pack_name = node.s("name")
-    pack = getattr(module, pack_name)
+    pack_name = node.output().debugName()
+    pack = _unfold_graph_getattr(module, node.output())[1]
     assert isinstance(pack, torch._C.ScriptObject)
     data_nodes.append(
         BlobTorchScriptObject(
@@ -843,6 +843,19 @@ def _extract_op_infos(
     return (call_name, module_getter_ref, op_ref, abstracted_inputs)
 
 
+class EvaluateOptimizedTracedOp:
+    """Evaluate Optimized traced Function code so that signature always match"""
+
+    def __init__(self, module, traced_and_optimized_module):
+        self.mod = module
+        self.traced_and_optimized_module = traced_and_optimized_module
+
+    def __call__(self, *args, **kwargs):
+        # _actual_script_module is an implementation details
+        # from torch/jit/_trace.py:l1076 in TracedModule
+        return self.traced_and_optimized_module._actual_script_module(*args)
+
+
 @dataclass
 class TorchOp:
     kind: str
@@ -888,7 +901,12 @@ class TorchOp:
 
     @classmethod
     def parse(
-        cls, module, node: torch._C.Node, scope: str, data_nodes: T.List[Data]
+        cls,
+        module,
+        node: torch._C.Node,
+        scope: str,
+        data_nodes: T.List[Data],
+        module_traced,
     ) -> "TorchOp":
         op_ref = None
         inputs = list(node.inputs())
@@ -896,11 +914,17 @@ class TorchOp:
 
         _rerouted_parsing(kind, node, data_nodes, module)
 
+        op_ref_traced = None
+        if kind == CALL_KIND:
+            _, op_ref_traced = _unfold_graph_getattr(module_traced, inputs[0])
+
         (call_name, module_getter_ref, op_ref, inputs) = _extract_op_infos(
             kind, module, inputs, data_nodes, node
         )
-
         outputs = cls._parse_outputs(node, data_nodes)
+
+        if kind == CALL_KIND:
+            op_ref = EvaluateOptimizedTracedOp(op_ref, op_ref_traced)
 
         if not outputs:
             raise TorchOpTranslatedDifferently(
@@ -968,6 +992,12 @@ class TorchOp:
         if isinstance(results, torch.Tensor):
             results = (results,)
 
+        if len(self.outputs) != len(results):
+            raise CheckError(
+                f"Arity Missmatch between extracted from graph len({len(self.outputs)}) "
+                f"and the one experienced in tracing simulation len({len(results)}) "
+                f"for {self.op_ref}"
+            )
         for data_node, result in zip(self.outputs, results):
             if isinstance(data_node, TensorVariable):
                 if self.kind == ATEN_SIZE_KIND:
@@ -1032,12 +1062,14 @@ class TorchModuleTraceHelper:
         inputs: T.Optional[T.List[Data]] = None,
         outputs: T.Optional[T.List[TtupleOrVar]] = None,
         renaming_scheme: str = "numeric",
+        module_traced: T.Optional[torch.jit.TracedModule] = None,
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
         self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
         self._module = module
+        self._module_traced = module_traced
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         if auto_parse:
@@ -1071,7 +1103,6 @@ class TorchModuleTraceHelper:
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
             if not any(_ is inode for _ in self.data_nodes):
-                __import__("ipdb").set_trace()
                 raise CheckError(f"not referenced correctly input: {inode}")
 
         for onode in self.outputs:
@@ -1082,7 +1113,13 @@ class TorchModuleTraceHelper:
     @cache
     def _torch_trace(self):
         try:
-            return jit.trace(self._module, self._args)
+            if self._module_traced is not None:
+                return self._module_traced
+            return jit.trace(
+                self._module,
+                self._args,
+                check_trace=True,
+            )
         except RuntimeError as exp:
             raise JitTraceFailed(
                 "Unable to trace with jit one of following submodule:"
@@ -1172,6 +1209,7 @@ class TorchModuleTraceHelper:
                             node,
                             scope=attr_to_scope[attr_name],
                             data_nodes=self.data_nodes,
+                            module_traced=self._torch_trace,
                         )
                         self.op_nodes.append(op)
                     except TorchOpTranslatedDifferently:
@@ -1184,6 +1222,7 @@ class TorchModuleTraceHelper:
                         node,
                         scope="",
                         data_nodes=self.data_nodes,
+                        module_traced=self._torch_trace,
                     )
                     self.op_nodes.append(op)
                 except TorchOpTranslatedDifferently:
@@ -1221,7 +1260,6 @@ class TorchModuleTraceHelper:
                         f"output={output}\ncompared to:\n"
                         f"original_output={original_output}"
                     )
-
         self.outputs = outputs
 
     def _update_scope_reference(self):
@@ -1373,6 +1411,10 @@ class TorchModuleTraceHelper:
                 cname = op.call_name or ""
                 ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
+                module_traced = None
+                if isinstance(op.op_ref, EvaluateOptimizedTracedOp):
+                    module_traced = op.op_ref.traced_and_optimized_module
+                    op.op_ref = op.op_ref.mod
                 assert isinstance(op.op_ref, nn.Module)
                 submodule_graph = TorchModuleTraceHelper(
                     op.op_ref,
@@ -1381,6 +1423,7 @@ class TorchModuleTraceHelper:
                     inputs=op.inputs,
                     outputs=op.outputs,
                     renaming_scheme=renaming_scheme,
+                    module_traced=module_traced,
                 )
                 prefix = ""
                 if cname is not None:
@@ -1506,7 +1549,9 @@ class TorchModuleTraceHelper:
         ordered_data_nodes_hashs = [hash(_) for _ in self.data_nodes]
         self.data_nodes = sorted(
             list(used_data_nodes),
-            key=lambda _: ordered_data_nodes_hashs.index(hash(_)),
+            key=lambda _: ordered_data_nodes_hashs.index(hash(_))
+            if _ in ordered_data_nodes_hashs
+            else -1,
         )
 
     def parse(

@@ -1386,10 +1386,8 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
     assert isinstance(dim_node, PythonConstant)
     assert isinstance(ratio_node, PythonConstant)
     current_dim_elm_idx = 0
+    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     for (out_node, n_elements) in zip(node.outputs, ratio_node.data):
-        inputs = get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        )
         out = add_tensor_variable_node_as_nnef_tensor(
             g,
             out_node,
@@ -1410,6 +1408,75 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
             },
         )
         current_dim_elm_idx += n_elements
+
+
+def arange(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def masked_fill_(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def expand(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def layer_norm(g, node, name_to_tensor, null_ref, torch_graph):
+    (
+        input_tensor_node,
+        _,  # normalized_shape_node
+        weight_node,
+        bias_node,
+        eps_node,
+        elementwise_affine_node,
+    ) = node.inputs
+
+    mean_axes = sorted(
+        input_tensor_node.rank - r - 1
+        for r in range(input_tensor_node.rank - 2)
+    )
+    has_affine = elementwise_affine_node.data and not (
+        # check affine as any use
+        (bias_node.data == 0).all().tolist()
+        and (weight_node.data == 1).all().tolist()
+    )
+    inputs = [input_tensor_node]
+    op_name = "layer_norm"
+    if has_affine:
+        op_name = "layer_norm_with_affine"
+        inputs += [weight_node, bias_node]
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type=op_name,
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            if _
+            else null_ref
+            for _ in inputs
+        ],
+        attrs={"mean_axes": mean_axes, "eps": eps_node.data},
+    )
+
+    return [op_name]
+
+
+def chunk(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def bmm(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
+
+
+def glu(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError()
 
 
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):

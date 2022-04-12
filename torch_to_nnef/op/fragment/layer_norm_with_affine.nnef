@@ -1,0 +1,13 @@
+fragment layer_norm_with_affine(
+    x: tensor<scalar>,
+    gamma: tensor<scalar>,
+    beta: tensor<scalar>,
+    mean_axes: integer[],
+    eps: scalar
+) -> ( y: tensor<scalar> )
+{
+    mean = sum_reduce(x, axes=mean_axes, normalize=true);
+    sub_mean = x - mean;
+    inv_stdvar = rsqrt(sum_reduce(sqr(sub_mean), axes=mean_axes, normalize=true) + eps);
+    y = sub_mean * inv_stdvar * gamma + beta;
+}
