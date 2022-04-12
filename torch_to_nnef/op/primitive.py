@@ -365,11 +365,10 @@ def log_softmax(**kwargs):
 
 
 def slice_(g, node, name_to_tensor, **kwargs):
-    input_node, dim_node, begin_node, end_node, stride_node = node.inputs
+    input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
     # we assert for now all node except first are all constant
-
-    dim = dim_node.data
+    dim = axis_node.data
 
     # we use this since by default pytorch generate max int32 value for end
     end = min(end_node.data, input_node.shape[dim])
@@ -762,12 +761,12 @@ def contiguous(node, torch_graph, **kwargs):
 
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
+    (input_node, axis_node) = node.inputs
 
-    if isinstance(dim_node, PythonConstant):
-        dim_data = dim_node.data
+    if isinstance(axis_node, PythonConstant):
+        dim_data = axis_node.data
     else:
-        raise NotImplementedError(dim_node)
+        raise NotImplementedError(axis_node)
     _add_single_output_op(
         g,
         node,
@@ -979,8 +978,8 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def cat(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
-    dim = dim_node.data
+    (input_node, axis_node) = node.inputs
+    dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
     inputs = []
     for input_item in input_node.data:
@@ -1006,8 +1005,8 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def stack(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
-    dim = dim_node.data
+    (input_node, axis_node) = node.inputs
+    dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
     inputs = []
     for input_item in input_node.data:
@@ -1033,9 +1032,9 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
+    (input_node, axis_node) = node.inputs
 
-    dim = dim_node.data
+    dim = axis_node.data
     _add_single_output_op(
         g,
         node,
@@ -1049,8 +1048,8 @@ def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
-    dim = dim_node.data
+    (input_node, axis_node) = node.inputs
+    dim = axis_node.data
     _add_single_output_op(
         g,
         node,
@@ -1067,7 +1066,7 @@ def _reducer(
     aten_op_name: str, g, node, name_to_tensor, torch_graph, output_idx: int = 0
 ):
 
-    (input_node, dim_node, keep_dim_node) = node.inputs
+    (input_node, axis_node, keep_dim_node) = node.inputs
 
     keep_dim = keep_dim_node.data
 
@@ -1092,7 +1091,7 @@ def _reducer(
             g, input_node, name_to_tensor
         ),
         outputs=out if keep_dim else op_reduce_out,
-        attribs={"axes": dim_node.data},
+        attribs={"axes": axis_node.data},
     )
     if not keep_dim:
         add_nnef_operation(
@@ -1101,7 +1100,7 @@ def _reducer(
             name=f"{onode.export_name}_squeeze",
             inputs=op_reduce_out,
             outputs=out,
-            attribs={"axes": dim_node.data},
+            attribs={"axes": axis_node.data},
         )
 
 
@@ -1182,7 +1181,7 @@ def min_(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def repeat(g, node, name_to_tensor, **kwargs):
-    (input_node, dim_node) = node.inputs
+    (input_node, axis_node) = node.inputs
     _add_single_output_op(
         g,
         node,
@@ -1191,7 +1190,7 @@ def repeat(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"repeats": dim_node.data},
+        attrs={"repeats": axis_node.data},
     )
 
 
@@ -1216,10 +1215,10 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     ```
 
     """
-    original_vec_node, dim_node = node.inputs
+    original_vec_node, axis_node = node.inputs
     original_variable_output = node.outputs[0]
     if original_variable_output.data is None:
-        dim = original_vec_node.shape[dim_node.data]
+        dim = original_vec_node.shape[axis_node.data]
     else:
         dim = original_variable_output.data.numpy().tolist()
     new_node = PythonConstant(
@@ -1250,7 +1249,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
-    (input_node, dim_node) = node.inputs
+    (input_node, axis_node) = node.inputs
     _add_single_output_op(
         g,
         node,
@@ -1259,7 +1258,7 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"shape": dim_node.data},
+        attrs={"shape": axis_node.data},
     )
 
 
@@ -1382,8 +1381,8 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
 
     exists but since tract does not support it, we reexpress it with slice
     """
-    (input_node, ratio_node, dim_node) = node.inputs
-    assert isinstance(dim_node, PythonConstant)
+    (input_node, ratio_node, axis_node) = node.inputs
+    assert isinstance(axis_node, PythonConstant)
     assert isinstance(ratio_node, PythonConstant)
     current_dim_elm_idx = 0
     inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
@@ -1401,7 +1400,7 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
             inputs=inputs,
             outputs=tuple([out]),
             attribs={
-                "axes": [dim_node.data],
+                "axes": [axis_node.data],
                 "begin": [current_dim_elm_idx],
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],
@@ -1411,7 +1410,21 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def arange(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError()
+    """This operator can not be exactly exported to NNEF.
+
+    In general NNEF spec is against dynamism it could provide so
+
+    we implement it as a simple constant variable.
+
+    """
+    (start_node, end_node, step_node) = node.inputs
+    LOGGER.warning(
+        "the aten::arange need custom NNEF operator from tract internals. "
+        " For now we fix values at export time"
+    )
+    node.outputs[0].data = torch.arange(
+        start_node.data, end_node.data, step=step_node.data
+    )
 
 
 def masked_fill_(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1423,7 +1436,33 @@ def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def chunk(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError()
+    (input_node, n_chunk_node, axis_node) = node.inputs
+    assert n_chunk_node.data == len(node.outputs)
+    assert (
+        len({tuple(o.shape) for o in node.outputs}) == 1
+    ), "all chunk are not equal"
+    n_elements = node.outputs[0].shape[axis_node.data]
+    current_dim_elm_idx = 0
+    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    for out_node in node.outputs:
+        out = add_tensor_variable_node_as_nnef_tensor(
+            g,
+            out_node,
+            name_to_tensor,
+        )
+        add_nnef_operation(
+            graph=g,
+            type="slice",
+            inputs=inputs,
+            outputs=tuple([out]),
+            attribs={
+                "axes": [axis_node.data],
+                "begin": [current_dim_elm_idx],
+                "end": [current_dim_elm_idx + n_elements],
+                "stride": [1],
+            },
+        )
+        current_dim_elm_idx += n_elements
 
 
 def layer_norm(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1511,9 +1550,9 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
 
 
 def glu(g, node, name_to_tensor, null_ref, torch_graph):
-    input_node, dim_node = node.inputs
-    if dim_node.data < 0:
-        dim_node.data = input_node.rank + dim_node.data
+    input_node, axis_node = node.inputs
+    if axis_node.data < 0:
+        axis_node.data = input_node.rank + axis_node.data
     _add_single_output_op(
         g,
         node,
@@ -1523,9 +1562,9 @@ def glu(g, node, name_to_tensor, null_ref, torch_graph):
             get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
         ],
         attrs={
-            "axis": dim_node.data,
-            "half_dim_size": int(input_node.shape[dim_node.data] / 2),
-            "dim_size": input_node.shape[dim_node.data],
+            "axis": axis_node.data,
+            "half_dim_size": int(input_node.shape[axis_node.data] / 2),
+            "dim_size": input_node.shape[axis_node.data],
         },
     )
     return ["glu"]
