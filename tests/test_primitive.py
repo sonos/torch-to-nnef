@@ -99,6 +99,7 @@ INPUT_AND_MODELS = [
         torch.asinh,
         torch.acosh,
         torch.atanh,
+        torch.zeros_like,
         # unimplemented tract {
         # torch.reciprocal,
         # torch.clone,

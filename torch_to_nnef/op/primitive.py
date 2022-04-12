@@ -8,7 +8,10 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_NNEF_STR
+from torch_to_nnef.dtypes import (
+    SCALAR_TYPE_TO_PYTORCH_TYPE,
+    TORCH_DTYPE_TO_NNEF_STR,
+)
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -1425,14 +1428,41 @@ def arange(g, node, name_to_tensor, null_ref, torch_graph):
     node.outputs[0].data = torch.arange(
         start_node.data, end_node.data, step=step_node.data
     )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
 
 
 def masked_fill_(g, node, name_to_tensor, null_ref, torch_graph):
+    __import__("ipdb").set_trace()
     raise NotImplementedError()
 
 
 def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
-    raise NotImplementedError()
+    """This operator can not be exactly exported to NNEF.
+
+    In general NNEF spec is against dynamism it could provide so
+
+    we implement it as a simple constant variable.
+
+    """
+    (input_node, dtype_node, *_) = node.inputs
+    LOGGER.warning(
+        "the aten::zeros_like need custom NNEF operator from tract internals. "
+        " For now we fix values at export time"
+    )
+
+    node.outputs[0].data = torch.zeros(
+        input_node.shape,
+        dtype=SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data],
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
 
 
 def chunk(g, node, name_to_tensor, null_ref, torch_graph):
