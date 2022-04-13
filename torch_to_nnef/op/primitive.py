@@ -1687,6 +1687,8 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
     """
     (input_node, shape_node) = node.inputs
     repeat_dims = sum(shape_node.data[: -input_node.rank])
+    if repeat_dims == 0:
+        repeat_dims = 1
     out = _add_single_output_op(
         g,
         node,
