@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0] - 2022-04-13
+
+### Fix
+- rank expansion done right (TRUnet normalisations options works)
+- TorchTrace optimization may from time to time change signature of Modules so we needed to take it into account in torch_graph module.
+
+### Added
+- added aten::ops : zeros_like, expand, GLU, split, arange, chunk, layer_norm, trunc
+- ability to export Deepspeech
+- ability to export Wavenet
+- ability to export Conformer
+
 ## [0.2.2] - 2022-04-04
 ### Fix
 - Fix base TRUNet
