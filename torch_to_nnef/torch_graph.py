@@ -56,6 +56,10 @@ class NotFoundDataNode(ValueError):
     pass
 
 
+class NotFoundTorchOp(ValueError):
+    pass
+
+
 class CheckError(ValueError):
     pass
 
@@ -322,6 +326,11 @@ class TensorVariable(Data):
             else "q8(scale={self.quant['scale']}, zerop={self.quant['zero_point']})"
         )
 
+    def cast_float_inplace(self):
+        if self.data is not None:
+            self.data = self.data.float()
+            self.dtype = self.data.dtype
+
     @property
     def np_dtype(self) -> np.dtype:
         assert self.dtype is not None
@@ -406,11 +415,18 @@ class PythonConstant(Data):
         raise NotImplementedError()
 
     @property
+    def tracable(self) -> bool:
+        return True
+
+    @property
     def tracing_data(self):
         return self.data
 
     def __hash__(self):
         return hash(self.name)
+
+    def cast_float_inplace(self):
+        self.data = float(self.data)
 
     def into_tensor_variable(self):
         data = self.data
@@ -499,6 +515,12 @@ class FixedTensorList(Data):
 
     def __hash__(self):
         return hash(self.name)
+
+    def __repr__(self):
+        datas = ""
+        for d in self.data:
+            datas += f"\t\t\t{d},\n"
+        return f"FixedTensorList(name='{self.name}', data=[\n{datas}\t\t])"
 
 
 def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
@@ -798,7 +820,7 @@ def _rerouted_parsing(
         if kind == NUMTOTENSOR_KIND:
             return
         if kind == LISTUNPACK_KIND:
-            # note: maybe should be replace dataNode to a ListWithTensor
+            # note: maybe should be replace dataNode to a FixedTensorList
             raise TorchOpTranslatedDifferently("List unpacked")
         if kind != CALL_KIND:
             raise NotImplementedError(node)
@@ -972,7 +994,15 @@ class TorchOp:
                 return getattr(tensor, self.kind.replace(ATEN_STARTID, ""))(
                     *subargs
                 )
-            return self.op_ref(*self._args)
+            args = self._args
+            # hacky/bad way to pass argument that are named argument only {
+            kwargs = {}
+            if self.kind == "aten::div":
+                kwargs["rounding_mode"] = args[2]
+                args = args[:-1]
+                self.op_ref = torch.div
+            # }
+            return self.op_ref(*args, **kwargs)
         raise NotImplementedError(self)
 
     @property
@@ -980,6 +1010,7 @@ class TorchOp:
         return tuple(_.tracing_data for _ in self.inputs)
 
     def realise_output_type_and_size(self) -> bool:
+        """This trace output and try to find out type shape and even constant realisation"""
         if not all(_.tracable for _ in self.inputs):
             return False
 
@@ -998,7 +1029,12 @@ class TorchOp:
                 f"and the one experienced in tracing simulation len({len(results)}) "
                 f"for {self.op_ref}"
             )
+        is_constant_inputs = all(
+            input_node.data is not None for input_node in self.inputs
+        )
         for data_node, result in zip(self.outputs, results):
+            if is_constant_inputs:
+                data_node.data = result
             if isinstance(data_node, TensorVariable):
                 if self.kind == ATEN_SIZE_KIND:
                     # note this is a special case where we fix variable value
@@ -1011,6 +1047,19 @@ class TorchOp:
                         "zero_point": result.q_zero_point(),
                     }
         return True
+
+    def __repr__(self):
+        body = f"\tkind={self.kind}\n"
+        inputs = ""
+        for input_ in self.inputs:
+            inputs += f"\t\t{input_},\n"
+        body += f"\tinputs=(\n{inputs}\n\t)\n"
+
+        outputs = ""
+        for output in self.outputs:
+            outputs += f"\t\t{output},\n"
+        body += f"\toutputs=(\n{outputs}\t)\n"
+        return f"TorchOp(\n{body}\n)".replace("\t", " " * 2)
 
 
 class _OrderedStrictSet(list):
@@ -1586,6 +1635,13 @@ class TorchModuleTraceHelper:
             self.apply_renaming_scheme(renaming_scheme)
 
         return self
+
+    def find_data_node_producer(self, data_node: Data):
+        for op in self.op_nodes:
+            for op_out_dnode in _expand_containers_if_exists(op.outputs):
+                if op_out_dnode is data_node:
+                    return op
+        raise NotFoundTorchOp("Did not find operation node")
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""
