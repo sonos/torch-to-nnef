@@ -142,12 +142,11 @@ def _expand_containers_if_exists(data_items):
         yield data_item
 
 
-def _unfold_graph_getattr(
-    module: nn.Module,
-    original_c_value: torch._C.Value,
-) -> T.Tuple[str, nn.Module]:
+def _unfold_graph_getattr_by_node(
+    module: T.Union[nn.Module, torch.jit.TracedModule],
+    getattr_node: torch._C.Node,
+) -> T.Tuple[str, T.Union[nn.Module, torch.jit.TracedModule]]:
     """Unfold  nn.Module python code reference to sub...sub modules in graph"""
-    getattr_node = original_c_value.node()
     getter_sequence: T.List[str] = []
 
     def getter_fn(getattr_node: torch._C.Node, getter_sequence: T.List[str]):
@@ -159,7 +158,7 @@ def _unfold_graph_getattr(
             assert dname.startswith("self"), dname
 
     getter_fn(getattr_node, getter_sequence)
-    while getattr_node.kind() == GETATTR_KIND:
+    while getattr_node.kind() in [GETATTR_KIND, CALL_KIND]:
         c_value = next(getattr_node.inputs())
         getattr_node = c_value.node()
         getter_fn(getattr_node, getter_sequence)
@@ -572,7 +571,7 @@ def _find_data_node(data_nodes: T.List[Data], name: str):
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
-    data_state = _unfold_graph_getattr(module, node.output())[1].data
+    data_state = _unfold_graph_getattr_by_node(module, node)[1].data
     data_nodes.append(
         TensorVariable(
             name=node.output().debugName(),
@@ -585,7 +584,7 @@ def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
 
 def _parse_getattr_script_obj(node: torch._C.Node, module, data_nodes):
     pack_name = node.output().debugName()
-    pack = _unfold_graph_getattr(module, node.output())[1]
+    pack = _unfold_graph_getattr_by_node(module, node)[1]
     assert isinstance(pack, torch._C.ScriptObject)
     data_nodes.append(
         BlobTorchScriptObject(
@@ -772,9 +771,7 @@ def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
     return op_ref, abstracted_inputs
 
 
-def _rerouted_parsing(
-    kind: str, node: torch._C.Node, data_nodes: T.List[Data], module
-):
+def _rerouted_parsing(node: torch._C.Node, data_nodes: T.List[Data], module):
     """Specific torch kind operation are transformed
 
     to improve readability of intermediate representation
@@ -783,6 +780,7 @@ def _rerouted_parsing(
         meaning it is handled differently than vanilla torch graph
 
     """
+    kind: str = node.kind()
     if kind == GETATTR_KIND:
         _parse_getattr_tensor(node, module, data_nodes)
         raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
@@ -824,17 +822,42 @@ def _rerouted_parsing(
             raise TorchOpTranslatedDifferently("List unpacked")
         if kind != CALL_KIND:
             raise NotImplementedError(node)
+    if kind == CALL_KIND and not any(
+        bool(use) for onode in node.outputs() for use in onode.uses()
+    ):
+        raise TorchOpTranslatedDifferently(
+            "This method outputs are not used anywhere in graph"
+        )
 
 
 def _extract_op_infos(
-    kind: str, module, inputs, data_nodes: T.List[Data], node
-):
+    module,
+    data_nodes: T.List[Data],
+    node: torch._C.Node,
+    module_traced: torch.jit.TracedModule,
+) -> T.Tuple[
+    str, T.Optional[str], str, T.Callable[[T.Any], T.Any], T.List[Data]
+]:
     """Extract informations from module or torch operation"""
     call_name = None
+    kind: str = node.kind()
+    inputs = list(node.inputs())
+
     if kind == CALL_KIND:
-        module_getter_ref, op_ref = _unfold_graph_getattr(module, inputs[0])
-        call_name = inputs[0].debugName()
+        value_call_ref = inputs[0]
+        module_getter_ref, op_ref = _unfold_graph_getattr_by_node(
+            module, value_call_ref.node()
+        )
+        call_name = value_call_ref.debugName()
         inputs = inputs[1:]
+        # use appropriate graph
+        _, op_ref_traced = _unfold_graph_getattr_by_node(
+            module_traced, value_call_ref.node()
+        )
+        op_ref = TracedModuleCallBox(
+            op_ref, op_ref_traced, function_name=node.s("name")
+        )
+
     elif kind.startswith("quantized::"):
         module_getter_ref = MODULE_PATH_QUANTIZED
         op_ref = quantized_name_to_torch_fn(kind)
@@ -855,27 +878,42 @@ def _extract_op_infos(
                 f"Unable to extract operation from {kind}"
             )
 
-    abstracted_inputs = [
+    abstracted_inputs: T.List[Data] = [
         inp
         if isinstance(inp, Data)
         else _find_data_node(data_nodes, inp.debugName())
         for inp in inputs
     ]
 
-    return (call_name, module_getter_ref, op_ref, abstracted_inputs)
+    return (kind, call_name, module_getter_ref, op_ref, abstracted_inputs)
 
 
-class EvaluateOptimizedTracedOp:
-    """Evaluate Optimized traced Function code so that signature always match"""
+class TracedModuleCallBox:
+    """Evaluate Optimized traced Function code so that signature always match
 
-    def __init__(self, module, traced_and_optimized_module):
+    original Module is passed to do proper un-boxing later on.
+    This is needed because we have a re-routing based on actual module classtype.
+
+    """
+
+    def __init__(
+        self,
+        module: nn.Module,
+        traced_module: torch.jit.TracedModule,
+        function_name: str,
+    ):
         self.mod = module
-        self.traced_and_optimized_module = traced_and_optimized_module
+        self.traced_module = traced_module
+        self.function_name = function_name
 
     def __call__(self, *args, **kwargs):
         # _actual_script_module is an implementation details
         # from torch/jit/_trace.py:l1076 in TracedModule
-        return self.traced_and_optimized_module._actual_script_module(*args)
+        if self.function_name == "forward":
+            traced_op_call = self.traced_module._actual_script_module.forward
+        else:
+            traced_op_call = getattr(self.traced_module, self.function_name)
+        return traced_op_call(*args, **kwargs)
 
 
 @dataclass
@@ -885,9 +923,7 @@ class TorchOp:
     inputs: T.List[Data]
     outputs: T.List[TtupleOrVar]
     scope: str
-    op_ref: T.Optional[
-        T.Callable[[T.Any], T.Any]
-    ]  # multiple ins and outs possible
+    op_ref: T.Optional[T.Callable]  # multiple ins and outs possible
     call_name: T.Optional[str]
 
     def __hash__(self):
@@ -931,22 +967,16 @@ class TorchOp:
         module_traced,
     ) -> "TorchOp":
         op_ref = None
-        inputs = list(node.inputs())
-        kind = node.kind()
+        _rerouted_parsing(node, data_nodes, module)
 
-        _rerouted_parsing(kind, node, data_nodes, module)
-
-        op_ref_traced = None
-        if kind == CALL_KIND:
-            _, op_ref_traced = _unfold_graph_getattr(module_traced, inputs[0])
-
-        (call_name, module_getter_ref, op_ref, inputs) = _extract_op_infos(
-            kind, module, inputs, data_nodes, node
-        )
+        (
+            kind,
+            call_name,
+            module_getter_ref,
+            op_ref,
+            inputs,
+        ) = _extract_op_infos(module, data_nodes, node, module_traced)
         outputs = cls._parse_outputs(node, data_nodes)
-
-        if kind == CALL_KIND:
-            op_ref = EvaluateOptimizedTracedOp(op_ref, op_ref_traced)
 
         if not outputs:
             raise TorchOpTranslatedDifferently(
@@ -1461,8 +1491,8 @@ class TorchModuleTraceHelper:
                 ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
                 module_traced = None
-                if isinstance(op.op_ref, EvaluateOptimizedTracedOp):
-                    module_traced = op.op_ref.traced_and_optimized_module
+                if isinstance(op.op_ref, TracedModuleCallBox):
+                    module_traced = op.op_ref.traced_module
                     op.op_ref = op.op_ref.mod
                 assert isinstance(op.op_ref, nn.Module)
                 submodule_graph = TorchModuleTraceHelper(
