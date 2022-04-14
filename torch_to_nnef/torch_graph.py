@@ -855,7 +855,7 @@ def _extract_op_infos(
             module_traced, value_call_ref.node()
         )
         op_ref = TracedModuleCallBox(
-            op_ref, op_ref_traced, function_name=node.s("name")
+            op_ref, op_ref_traced, fn_name=node.s("name")
         )
 
     elif kind.startswith("quantized::"):
@@ -900,19 +900,19 @@ class TracedModuleCallBox:
         self,
         module: nn.Module,
         traced_module: torch.jit.TracedModule,
-        function_name: str,
+        fn_name: str,
     ):
         self.mod = module
         self.traced_module = traced_module
-        self.function_name = function_name
+        self.fn_name = fn_name
 
     def __call__(self, *args, **kwargs):
         # _actual_script_module is an implementation details
         # from torch/jit/_trace.py:l1076 in TracedModule
-        if self.function_name == "forward":
+        if self.fn_name == "forward":
             traced_op_call = self.traced_module._actual_script_module.forward
         else:
-            traced_op_call = getattr(self.traced_module, self.function_name)
+            traced_op_call = getattr(self.traced_module, self.fn_name)
         return traced_op_call(*args, **kwargs)
 
 
@@ -1027,7 +1027,7 @@ class TorchOp:
             args = self._args
             # hacky/bad way to pass argument that are named argument only {
             kwargs = {}
-            if self.kind == "aten::div":
+            if self.kind == "aten::div" and len(args) >= 3:
                 kwargs["rounding_mode"] = args[2]
                 args = args[:-1]
                 self.op_ref = torch.div
@@ -1106,11 +1106,11 @@ class _OrderedStrictSet(list):
         return super().append(item)
 
 
-class TorchModuleTraceHelper:
+class TorchModuleIRGraph:
 
-    """Helper extracting Torch Graph with jit.trace in recursive manner
+    """Torch Graph intermediate representation from: jit.trace with recursion
 
-    with simpler data structures:
+    This is not direct torch._C.Graph but simpler abstraction, with:
 
     A list of data nodes in `self.data_nodes`
     A list of operations nodes in `self.op_nodes`
@@ -1121,11 +1121,12 @@ class TorchModuleTraceHelper:
     This abstraction of the vanilla Torch Graph allow to manipulate graph
     in order to check/complete missing data informations and ignore
     useless operations for our transcription needs.
+
     It's also allows to be less reliant on base graph in case
     of modification of Pytorch Internals (think Adapter Pattern).
 
     Warning !
-        Only NOT nested container structure (TupleTensors, FixedTensorList, ...)
+        Only NOT nested data container (TupleTensors, FixedTensorList, ...)
         are supported for now
 
     """
@@ -1142,6 +1143,7 @@ class TorchModuleTraceHelper:
         outputs: T.Optional[T.List[TtupleOrVar]] = None,
         renaming_scheme: str = "numeric",
         module_traced: T.Optional[torch.jit.TracedModule] = None,
+        fn_trace_call_name: T.Optional[str] = None,
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[Data] = []
@@ -1149,6 +1151,7 @@ class TorchModuleTraceHelper:
         self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
         self._module = module
         self._module_traced = module_traced
+        self._fn_trace_call_name = fn_trace_call_name
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         if auto_parse:
@@ -1211,8 +1214,11 @@ class TorchModuleTraceHelper:
 
     @property  # type: ignore
     @cache
-    def _torch_graph(self):
-        return self._torch_trace.graph
+    def _original_torch_graph(self):
+        trace = self._torch_trace
+        if self._fn_trace_call_name and self._fn_trace_call_name != "forward":
+            trace = getattr(trace, self._fn_trace_call_name)
+        return trace.graph
 
     def remap_node(self, from_node, to_node):
         assert isinstance(from_node, Data)
@@ -1244,7 +1250,7 @@ class TorchModuleTraceHelper:
     ):
         """Parse traced graph inputs"""
         idx = 0
-        for node_c_value in self._torch_graph.inputs():
+        for node_c_value in self._original_torch_graph.inputs():
             if self._omit_useless_nodes:
                 if (
                     len(node_c_value.uses()) == 0
@@ -1265,7 +1271,7 @@ class TorchModuleTraceHelper:
     def _parse_core(self):
         """Parse all Operations and collect the scope infos"""
         attr_to_scope: T.Dict[T.Any, str] = {}
-        for node in self._torch_graph.nodes():
+        for node in self._original_torch_graph.nodes():
             if node.kind() == GETATTR_KIND:
                 attr_name = node.s("name")
                 parent = node.input().node()
@@ -1311,7 +1317,7 @@ class TorchModuleTraceHelper:
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph outputs"""
-        torch_graph_outputs = self._torch_graph.outputs()
+        torch_graph_outputs = self._original_torch_graph.outputs()
         outputs = [
             _find_data_node(self.data_nodes, _.debugName())
             for _ in torch_graph_outputs
@@ -1491,11 +1497,14 @@ class TorchModuleTraceHelper:
                 ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
                 module_traced = None
+                fn_trace_call_name = None
                 if isinstance(op.op_ref, TracedModuleCallBox):
                     module_traced = op.op_ref.traced_module
+                    fn_trace_call_name = op.op_ref.fn_name
                     op.op_ref = op.op_ref.mod
+
                 assert isinstance(op.op_ref, nn.Module)
-                submodule_graph = TorchModuleTraceHelper(
+                submodule_graph = TorchModuleIRGraph(
                     op.op_ref,
                     op._args,
                     omit_useless_nodes=self._omit_useless_nodes,
@@ -1503,6 +1512,7 @@ class TorchModuleTraceHelper:
                     outputs=op.outputs,
                     renaming_scheme=renaming_scheme,
                     module_traced=module_traced,
+                    fn_trace_call_name=fn_trace_call_name,
                 )
                 prefix = ""
                 if cname is not None:
