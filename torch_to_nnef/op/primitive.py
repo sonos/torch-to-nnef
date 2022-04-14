@@ -417,7 +417,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 
 def hardtanh(**kwargs):
     node = kwargs["node"]
-    node.inputs = node.inputs[:2]  # remove inplace param
+    node.inputs = node.inputs[:3]  # remove inplace param
     _unary_input_output_op_with_constant("hard_tanh", **kwargs)
     return ["hard_tanh"]
 
@@ -1508,7 +1508,7 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
             inputs=inputs,
             outputs=tuple([out]),
             attribs={
-                "axes": [],
+                "axes": [pick_rank(input_node, axis_node.data)],
                 "begin": [current_dim_elm_idx],
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],

@@ -762,7 +762,10 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
 
         rnn = node.op_ref
 
-        nnef_fragment_selected = "rnn"
+        nnef_fragment_selected = {
+            "tanh": "rnn_tanh",
+            "relu": "rnn_relu",
+        }[rnn.nonlinearity.lower()]
 
         D = 2 if rnn.bidirectional else 1
 

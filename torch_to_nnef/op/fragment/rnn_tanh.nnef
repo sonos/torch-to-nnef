@@ -8,7 +8,7 @@ fragment rnn_scan_loop(
 }
 
 
-fragment rnn(
+fragment rnn_tanh(
     input: tensor<scalar>,
     # initial h_t
     h_0: tensor<scalar>,
