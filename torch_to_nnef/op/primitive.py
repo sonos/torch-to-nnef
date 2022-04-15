@@ -1590,11 +1590,11 @@ def ones(g, node, name_to_tensor, null_ref, torch_graph):
         "the aten::ones replaced by constant traced values (follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
+    dtype = torch.float32
+    if len(_) > 0:
+        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
 
-    node.outputs[0].data = torch.ones(
-        input_node.shape,
-        # dtype=SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data],
-    )
+    node.outputs[0].data = torch.ones(input_node.shape, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
         g,
         node.outputs[0],
@@ -1610,15 +1610,18 @@ def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
     we implement it as a simple constant variable.
 
     """
-    (input_node, dtype_node, *_) = node.inputs
+    (input_node, *_) = node.inputs
     LOGGER.warning(
         "the aten::zeros_like replaced by constant traced values (follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
+    dtype = torch.float32
+    if len(_) > 0:
+        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
 
     node.outputs[0].data = torch.zeros(
         input_node.shape,
-        dtype=SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data],
+        dtype=dtype,
     )
     add_tensor_variable_node_as_nnef_tensor(
         g,
