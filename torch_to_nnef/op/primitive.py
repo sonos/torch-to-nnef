@@ -132,7 +132,7 @@ def external(
 ):
     """Add External NNEF Operation in graph"""
     nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
-        g, node, name_to_tensor
+        g, node, name_to_tensor, prevent_variable=True
     )
     add_nnef_operation(
         graph=g,
@@ -820,6 +820,12 @@ def dropout(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
+def detach(node, torch_graph, **kwargs):
+    """This does not translate to any operation"""
+    torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
+    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
+
+
 def contiguous(node, torch_graph, **kwargs):
     """This does not translate to any operation"""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
@@ -949,10 +955,7 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
 def to(g, node, name_to_tensor, null_ref, torch_graph):
     (
         input_node,
-        _,  # dtype_name
-        _,  # non_blocking_name
-        _,  # copy_name
-        _,  # memory_format_name
+        *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
     ) = node.inputs
 
     onode = node.outputs[0]
@@ -1371,6 +1374,8 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
 
 def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
+    assert isinstance(pads_node.data, list)
+    assert all(isinstance(_, int) for _ in pads_node.data)
     pads = (
         np.array(pads_node.data).reshape(-1, 2).tolist()[::-1]
     )  # strangeness of torch
@@ -1391,6 +1396,8 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
+    assert isinstance(pads_node.data, list)
+    assert all(isinstance(_, int) for _ in pads_node.data)
     pads = pads_node.data
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
@@ -1410,6 +1417,8 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node, value_node) = node.inputs
+    assert isinstance(pads_node.data, list)
+    assert all(isinstance(_, int) for _ in pads_node.data)
     value = value_node.data
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
@@ -1565,6 +1574,31 @@ def masked_fill(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         nnef_op_type="select",
         inputs=inputs,
+    )
+
+
+def ones(g, node, name_to_tensor, null_ref, torch_graph):
+    """This operator can not be exactly exported to NNEF.
+
+    In general NNEF spec is against dynamism it could provide so
+
+    we implement it as a simple constant variable.
+
+    """
+    (input_node, *_) = node.inputs
+    LOGGER.warning(
+        "the aten::ones replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+
+    node.outputs[0].data = torch.ones(
+        input_node.shape,
+        # dtype=SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data],
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
     )
 
 

@@ -302,6 +302,10 @@ class Data:
     def tracable(self) -> bool:
         return self.shaped_and_typed
 
+    @property
+    def is_constant(self):
+        raise NotImplementedError()
+
     def __hash__(self):
         return hash(self.name)
 
@@ -348,6 +352,10 @@ class TensorVariable(Data):
     @property
     def typed(self) -> bool:
         return bool(self.dtype)
+
+    @property
+    def is_constant(self) -> bool:
+        return self.data is not None
 
     @property
     def tracable(self) -> bool:
@@ -408,6 +416,10 @@ class TensorVariable(Data):
 @dataclass
 class PythonConstant(Data):
     data: T.Any
+
+    @property
+    def is_constant(self) -> bool:
+        return True
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -475,6 +487,10 @@ class TupleTensors(Data):
     def dtype(self):
         return None
 
+    @property
+    def is_constant(self) -> bool:
+        return all(data.is_constant for data in self.data)
+
     @classmethod
     def parse_from_tuple_type(
         cls, node_c_value: torch._C.Value
@@ -507,6 +523,10 @@ class FixedTensorList(Data):
     """FixedTensorList is a list that contains tensor constant or not"""
 
     data: T.List[TensorVariable]
+
+    @property
+    def is_constant(self) -> bool:
+        return all(data.is_constant for data in self.data)
 
     @property
     def tracing_data(self) -> T.List[torch.Tensor]:
@@ -544,22 +564,6 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
         name=node_c_value.debugName(),
         data=[TensorVariable.parse(_) for _ in use_op.outputs()],
     )
-
-
-@dataclass
-class TorchConstant(Data):
-    data: torch.Tensor
-
-    @property
-    def np_dtype(self) -> np.dtype:
-        return TORCH_TO_NUMPY_DTYPE[self.data.dtype]
-
-    @property
-    def tracing_data(self):
-        return self.data
-
-    def __hash__(self):
-        return hash(self.name)
 
 
 def _find_data_node(data_nodes: T.List[Data], name: str):
@@ -1036,6 +1040,14 @@ class TorchOp:
         raise NotImplementedError(self)
 
     @property
+    def has_constant_inputs(self) -> bool:
+        for input_node in self.inputs:
+            if input_node.is_constant:
+                continue
+            return False
+        return True
+
+    @property
     def _args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
 
@@ -1059,11 +1071,8 @@ class TorchOp:
                 f"and the one experienced in tracing simulation len({len(results)}) "
                 f"for {self.op_ref}"
             )
-        is_constant_inputs = all(
-            input_node.data is not None for input_node in self.inputs
-        )
         for data_node, result in zip(self.outputs, results):
-            if is_constant_inputs:
+            if self.has_constant_inputs:
                 data_node.data = result
             if isinstance(data_node, TensorVariable):
                 if self.kind == ATEN_SIZE_KIND:
@@ -1544,7 +1553,6 @@ class TorchModuleIRGraph:
                 TensorVariable: "v",
                 PythonConstant: "c",
                 BlobTorchScriptObject: "b",
-                TorchConstant: "t",
                 FixedTensorList: "l",
                 TupleTensors: "tt",
                 Data: "d",  # not used, avoid static analysis complain
