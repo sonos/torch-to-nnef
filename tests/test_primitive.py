@@ -114,6 +114,9 @@ INPUT_AND_MODELS = [
         partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
+        partial(torch.clamp, min=5, max=20.0),
+        partial(torch.clamp, min=10),
+        partial(torch.clamp, max=11),
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,

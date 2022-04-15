@@ -7,7 +7,7 @@
 - TorchTrace optimization may from time to time change signature of `nn.Module` so we needed to take it into account in `torch_to_nnef.torch_graph` module.
 
 ### Added
-- Added aten::ops : `zeros_like`, `ones`, `expand`, `GLU`, `split`, `arange`, `chunk`, `layer_norm`, `trunc`, `masked_fill`
+- Added aten::ops : `zeros_like`, `ones`, `expand`, `GLU`, `split`, `arange`, `chunk`, `layer_norm`, `trunc`, `masked_fill`, `clamp`
 - Ability to export and unit-tested: `Deepspeech`, `Conformer`
 - Ability to export `Wavenet`, `TDNN-ECAPA`
 
