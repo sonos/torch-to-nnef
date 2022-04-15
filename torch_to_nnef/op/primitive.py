@@ -1772,6 +1772,43 @@ def glu(g, node, name_to_tensor, null_ref, torch_graph):
     return ["glu"]
 
 
+def clamp(g, node, name_to_tensor, null_ref, torch_graph):
+    input_node, min_clamp, max_clamp = node.inputs
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if min_clamp.data:
+        output = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="max",
+            inputs=[
+                input_tensor,
+                get_or_add_tensor_variable_in_nnef(
+                    g, min_clamp, name_to_tensor
+                ),
+            ],
+            output_tensor_name_suffix="clamp_min" if max_clamp.data else "",
+        )
+        input_tensor = output
+
+    if max_clamp.data:
+        _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="min",
+            inputs=[
+                input_tensor,
+                get_or_add_tensor_variable_in_nnef(
+                    g, max_clamp, name_to_tensor
+                ),
+            ],
+        )
+
+
 def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     """Main primitive dispatcher
 
