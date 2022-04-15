@@ -836,7 +836,7 @@ def _get_list_of_int(data_node, torch_graph):
     if isinstance(data_node, PythonConstant):
         int_list = data_node.data
     elif isinstance(data_node, FixedTensorList):
-        int_list = [ax_node.data for ax_node in data_node.data]
+        int_list = [int(_.data) for _ in data_node.data]
         if any(_ is None for _ in int_list):
             for ax_data in data_node.data:
                 if ax_data.data is None:
@@ -844,7 +844,7 @@ def _get_list_of_int(data_node, torch_graph):
                     producer.realise_output_type_and_size()
                     if ax_data.data is not None:
                         ax_data.data = ax_data.data.tolist()
-            int_list = [int(ax_node.data) for ax_node in data_node.data]
+            int_list = [int(_.data) for _ in data_node.data]
             if len([_ for _ in int_list if _ is None]) > 1:
                 raise NotImplementedError(
                     f"too much unknown dimenssions for view {int_list}"
@@ -852,7 +852,7 @@ def _get_list_of_int(data_node, torch_graph):
     else:
         raise NotImplementedError("extracting int list from ", data_node)
 
-    assert all(isinstance(_, int) for _ in int_list)
+    assert all(isinstance(_, int) for _ in int_list), int_list
     return int_list
 
 
@@ -1593,8 +1593,8 @@ def ones(g, node, name_to_tensor, null_ref, torch_graph):
     dtype = torch.float32
     if len(_) > 0:
         dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
-
-    node.outputs[0].data = torch.ones(input_node.shape, dtype=dtype)
+    dim_data = _get_list_of_int(input_node, torch_graph)
+    node.outputs[0].data = torch.ones(dim_data, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
         g,
         node.outputs[0],

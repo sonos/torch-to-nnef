@@ -1469,6 +1469,7 @@ class TorchModuleIRGraph:
         submodule_graph.data_nodes = [
             _ for _ in submodule_graph.data_nodes if _ not in to_del_nodes
         ]
+
         for _ in submodule_graph.op_nodes:
             res = _.scope.split(self.SEP, maxsplit=1)
             if len(res) >= 2 and isinstance(res, list):
@@ -1604,6 +1605,10 @@ class TorchModuleIRGraph:
 
         """
         used_data_nodes = set(self.outputs)
+        used_data_nodes.update(
+            self.inputs
+        )  # Ensure we do not dish Module inputs
+
         used_op_nodes = set()
         remaining_op_nodes = set(self.op_nodes)
         remaining_data_nodes = set(self.data_nodes).difference(used_data_nodes)
