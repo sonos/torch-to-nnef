@@ -1385,11 +1385,10 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
 
 def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
-    assert isinstance(pads_node.data, list)
-    assert all(isinstance(_, int) for _ in pads_node.data)
-    pads = (
-        np.array(pads_node.data).reshape(-1, 2).tolist()[::-1]
-    )  # strangeness of torch
+    pads = _get_list_of_int(pads_node, torch_graph)
+    assert isinstance(pads, list)
+    assert all(isinstance(_, int) for _ in pads)
+    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
     if len(pads) < onode.rank:
         pads = [[0, 0]] * (onode.rank - len(pads)) + pads
@@ -1407,9 +1406,9 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
-    assert isinstance(pads_node.data, list)
-    assert all(isinstance(_, int) for _ in pads_node.data)
-    pads = pads_node.data
+    pads = _get_list_of_int(pads_node, torch_graph)
+    assert isinstance(pads, list)
+    assert all(isinstance(_, int) for _ in pads)
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
     if len(pads) < onode.rank:
@@ -1428,12 +1427,12 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node, value_node) = node.inputs
-    assert isinstance(pads_node.data, list)
-    assert all(isinstance(_, int) for _ in pads_node.data)
+    pads = _get_list_of_int(pads_node, torch_graph)
+    assert isinstance(pads, list)
+    assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
-    pads = pads_node.data
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
     if len(pads) < onode.rank:
