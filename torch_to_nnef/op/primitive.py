@@ -832,11 +832,20 @@ def contiguous(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
-def _get_list_of_int(data_node, torch_graph):
+def _get_list_of_int(data_node, torch_graph, accept_none: int = 0):
+    assert accept_none >= 0
+    accepted_none = 0
+
+    def cast_element(val, accepted_none):
+        if val is None and accept_none > 0 and accepted_none < accept_none:
+            accepted_none += 1
+            return val
+        return int(val)
+
     if isinstance(data_node, PythonConstant):
         int_list = data_node.data
     elif isinstance(data_node, FixedTensorList):
-        int_list = [int(_.data) for _ in data_node.data]
+        int_list = [cast_element(_.data, accepted_none) for _ in data_node.data]
         if any(_ is None for _ in int_list):
             for ax_data in data_node.data:
                 if ax_data.data is None:
@@ -844,7 +853,9 @@ def _get_list_of_int(data_node, torch_graph):
                     producer.realise_output_type_and_size()
                     if ax_data.data is not None:
                         ax_data.data = ax_data.data.tolist()
-            int_list = [int(_.data) for _ in data_node.data]
+            int_list = [
+                cast_element(_.data, accepted_none) for _ in data_node.data
+            ]
             if len([_ for _ in int_list if _ is None]) > 1:
                 raise NotImplementedError(
                     f"too much unknown dimenssions for view {int_list}"
@@ -859,7 +870,7 @@ def _get_list_of_int(data_node, torch_graph):
 def view(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, axis_node) = node.inputs
 
-    dim_data = _get_list_of_int(axis_node, torch_graph)
+    dim_data = _get_list_of_int(axis_node, torch_graph, accept_none=1)
 
     assert all(isinstance(_, int) for _ in dim_data)
     _add_single_output_op(
@@ -1359,7 +1370,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, axis_node) = node.inputs
 
-    dim_data = _get_list_of_int(axis_node, torch_graph)
+    dim_data = _get_list_of_int(axis_node, torch_graph, accept_none=1)
     _add_single_output_op(
         g,
         node,
