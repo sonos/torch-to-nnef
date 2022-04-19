@@ -40,18 +40,19 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-INPUT_AND_MODELS += [
-    ((torch.rand(1, 100, 64), torch.tensor([100])), model)
-    for model in [
-        audio_mdl.Conformer(
-            64,
-            num_heads=1,
-            num_layers=1,
-            ffn_dim=128,
-            depthwise_conv_kernel_size=31,
-        )
+if hasattr(audio_mdl, "Conformer"):
+    INPUT_AND_MODELS += [
+        ((torch.rand(1, 100, 64), torch.tensor([100])), model)
+        for model in [
+            audio_mdl.Conformer(
+                64,
+                num_heads=1,
+                num_layers=1,
+                ffn_dim=128,
+                depthwise_conv_kernel_size=31,
+            )
+        ]
     ]
-]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
