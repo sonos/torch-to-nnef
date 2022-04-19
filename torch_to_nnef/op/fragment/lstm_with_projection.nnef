@@ -1,0 +1,97 @@
+extension tract_registry tract_core;
+
+fragment lstm_with_projection_scan_loop(
+    c_t_prev: tensor<scalar>,
+    h_t_prev: tensor<scalar>,
+
+    xt_Wi_t: tensor<scalar>,
+    xt_Wf_t: tensor<scalar>,
+    xt_Wg_t: tensor<scalar>,
+    xt_Wo_t: tensor<scalar>,
+
+    W_hi: tensor<scalar>,
+    W_hf: tensor<scalar>,
+    W_hg: tensor<scalar>,
+    W_ho: tensor<scalar>,
+    # linked to reccurent projection layer
+    W_hr: tensor<scalar>
+) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
+    # does not use linear ops yet due to tract declutter issue
+
+    # input gate
+    i_t = sigmoid(xt_Wi_t + matmul(h_t_prev, W_hi, transposeB=true));
+
+    # forget gate
+    f_t = sigmoid(xt_Wf_t + matmul(h_t_prev, W_hf, transposeB=true));
+
+    # cell gate
+    g_t = tanh(xt_Wg_t + matmul(h_t_prev, W_hg, transposeB=true));
+
+    # output gate
+    o_t = sigmoid(xt_Wo_t + matmul(h_t_prev, W_ho, transposeB=true));
+
+    # cell state at time t
+    c_t = f_t * c_t_prev + i_t * g_t;
+
+    # hidden state at time t
+    m_t = o_t * tanh(c_t);
+    h_t = matmul(m_t, W_hr, transposeB=true);
+}
+
+
+fragment lstm_with_projection(
+    input: tensor<scalar>,
+    # initial c_t and h_t
+    c_0: tensor<scalar>,
+    h_0: tensor<scalar>,
+    # weights
+    W_ii: tensor<scalar>,
+    W_hi: tensor<scalar>,
+    W_if: tensor<scalar>,
+    W_hf: tensor<scalar>,
+    W_ig: tensor<scalar>,
+    W_hg: tensor<scalar>,
+    W_io: tensor<scalar>,
+    W_ho: tensor<scalar>,
+    # biases
+    b_i: tensor<scalar>,
+    b_f: tensor<scalar>,
+    b_g: tensor<scalar>,
+    b_o: tensor<scalar>,
+    # projection weights
+    W_hr: tensor<scalar>,
+    scan_pace: integer
+) -> ( h_n : tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar> ) {
+  # This LSTM implementation is optimised CPU kernels usage via pulse definition
+  xt_Wi = matmul(input, W_ii, transposeB = true) + b_i;
+  xt_Wf = matmul(input, W_if, transposeB = true) + b_f;
+  xt_Wg = matmul(input, W_ig, transposeB = true) + b_g;
+  xt_Wo = matmul(input, W_io, transposeB = true) + b_o;
+
+  (h_n , h_t, c_t) = tract_core_scan(
+      body = "lstm_with_projection_scan_loop",
+      scan = [
+          ("xt_Wi_t", xt_Wi, 0, scan_pace),
+          ("xt_Wf_t", xt_Wf, 0, scan_pace),
+          ("xt_Wg_t", xt_Wg, 0, scan_pace),
+          ("xt_Wo_t", xt_Wo, 0, scan_pace)
+      ],
+      full = [
+          ("W_hi", W_hi),
+          ("W_hf", W_hf),
+          ("W_hg", W_hg),
+          ("W_ho", W_ho),
+          ("W_hr", W_hr)
+      ],
+      state = [
+          ("c_t_prev", c_0, "c_t"),
+          ("h_t_prev", h_0, "h_t")
+      ],
+      output = [
+          ("h_t", "full", 0, scan_pace),
+          ("h_t", "last", 0, scan_pace),
+          ("c_t", "last", 0, scan_pace)
+      ],
+      skip = 0
+  );
+}

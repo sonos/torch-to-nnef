@@ -341,6 +341,7 @@ INPUT_AND_MODELS += [
         nn.GRU(20, 5, bidirectional=True, num_layers=1),
         nn.LSTM(20, 5, bidirectional=True, num_layers=2),
         nn.RNN(20, 5, bidirectional=True, num_layers=3),
+        nn.LSTM(20, 5, proj_size=3, num_layers=2),
     ]
 ]
 INPUT_AND_MODELS += [
@@ -365,14 +366,6 @@ INPUT_AND_MODELS += [
         torch.nn.GLU(),
     ]
 ]
-
-
-# INPUT_AND_MODELS = [
-# (torch.arange(9).reshape(3, 3).float(), layer)
-# for layer in [
-# # nn.LSTM(100, 30, proj_size=17, num_layers=2),
-# ]
-# ]
 
 
 def _test_ids(test_fixtures):

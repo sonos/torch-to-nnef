@@ -469,6 +469,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         W_ii, W_if, W_ig, W_io = w_var.split(int(w_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
         w_var = getattr(module, f"weight_hh_l{suffix}")
+
         W_hi, W_hf, W_hg, W_ho = w_var.split(int(w_var.shape[0] / 4))
 
         bias_i_name = f"bias_ih_l{suffix}"
@@ -512,6 +513,11 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             "b_g": b_ig + b_hg,
             "b_o": b_io + b_ho,
         }
+        if hasattr(module, "proj_size") and module.proj_size > 0:  # type: ignore
+            # LSTM.weight_hr_l[k] may be with suffix
+            W_hr = getattr(module, f"weight_hr_l{suffix}")
+            params["W_hr"] = W_hr
+
         return self._apply_layer_and_unsqueeze_to_params(
             params, layer_index, backward=backward
         )
@@ -530,9 +536,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_fragment_selected = "lstm"
 
         if hasattr(lstm, "proj_size") and lstm.proj_size > 0:
-            raise NotImplementedError(
-                "Missing implementation NNEF LSTM with projection"
-            )
+            nnef_fragment_selected = "lstm_with_projection"
 
         D = 2 if lstm.bidirectional else 1
 
@@ -555,29 +559,33 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             c_0 = node.inputs[2].data
 
         tensor_params_kwargs = {"h_0": h_0, "c_0": c_0}
+
+        argument_names_order = [
+            "c_0",
+            "h_0",
+            "W_ii",
+            "W_hi",
+            "W_if",
+            "W_hf",
+            "W_ig",
+            "W_hg",
+            "W_io",
+            "W_ho",
+            # -----
+            "b_i",
+            "b_f",
+            "b_g",
+            "b_o",
+        ]
+        if hasattr(lstm, "proj_size") and lstm.proj_size > 0:
+            argument_names_order.append("W_hr")
         return self._core_convert_to_nnef(
             module=lstm,
             node=node,
             g=g,
             name_to_tensor=name_to_tensor,
             nnef_fragment_name=nnef_fragment_selected,
-            argument_names_order=[
-                "c_0",
-                "h_0",
-                "W_ii",
-                "W_hi",
-                "W_if",
-                "W_hf",
-                "W_ig",
-                "W_hg",
-                "W_io",
-                "W_ho",
-                # -----
-                "b_i",
-                "b_f",
-                "b_g",
-                "b_o",
-            ],
+            argument_names_order=argument_names_order,
             **tensor_params_kwargs,
         )
 
