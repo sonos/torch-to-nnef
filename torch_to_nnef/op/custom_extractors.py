@@ -123,7 +123,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
         outputs = []
         for idx, result in enumerate(expanded_results):
-            if provided_outputs and idx > len(provided_outputs):
+            if provided_outputs and idx < len(provided_outputs):
                 tensor_variable = provided_outputs[idx]
             else:
                 tensor_variable = tg.TensorVariable(
