@@ -53,7 +53,7 @@ export_model_to_nnef(
     renaming_scheme="numeric", # name NNEF variable in a concise way for readability
     # other possible choice with "natural_verbose" is as close as possible
     # to nn.Module exported variable naming
-    # the renaming_scheme is only useful is you intend to read generated
+    # the renaming_scheme is only useful if you intend to read generated
     # NNEF format else do not set it
 )
 ```
