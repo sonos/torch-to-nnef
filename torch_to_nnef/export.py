@@ -66,18 +66,20 @@ def export_model_to_nnef(
         )
 
         active_custom_fragments = {
-            _: FRAGMENTS[_]
+            _: FRAGMENTS[_].definition
             for _ in graph_extractor.activated_custom_fragment_keys
+        }
+        active_custom_fragments_extensions = {
+            ext
+            for _ in graph_extractor.activated_custom_fragment_keys
+            for ext in FRAGMENTS[_].extensions
         }
 
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
-            # could be better integrated by exposed extensions deps in active_custom_fragments
-            extensions=["tract_registry tract_core"]
-            if len(active_custom_fragments) > 0
-            else [],
+            extensions=list(active_custom_fragments_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
         )(nnef_graph, str(file_path_export))
         LOGGER.info(
