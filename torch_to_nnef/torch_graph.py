@@ -135,10 +135,12 @@ def _is_container(data_node: "Data"):
     return isinstance(data_node, (FixedTensorList, TupleTensors))
 
 
-def _expand_containers_if_exists(data_items):
+def _expand_containers_if_exists(data_items, filter_container: bool = False):
     for data_item in data_items:
         if _is_container(data_item):
             yield from data_item.data
+            if filter_container:
+                continue
         yield data_item
 
 
@@ -1065,13 +1067,19 @@ class TorchOp:
         if isinstance(results, torch.Tensor):
             results = (results,)
 
-        if len(self.outputs) != len(results):
+        output_nodes = list(
+            _expand_containers_if_exists(self.outputs, filter_container=True)
+        )
+        output_values = list(
+            _expand_containers_if_exists(results, filter_container=True)
+        )
+        if len(output_nodes) != len(output_values):
             raise CheckError(
-                f"Arity Missmatch between extracted from graph len({len(self.outputs)}) "
-                f"and the one experienced in tracing simulation len({len(results)}) "
+                f"Arity Missmatch between extracted from graph len({len(output_nodes)}) "
+                f"and the one experienced in tracing simulation len({len(output_values)}) "
                 f"for {self.op_ref}"
             )
-        for data_node, result in zip(self.outputs, results):
+        for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
                 data_node.data = result
             if isinstance(data_node, TensorVariable):
