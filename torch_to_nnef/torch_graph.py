@@ -904,7 +904,7 @@ class TracedModuleCallBox:
         self,
         module: nn.Module,
         traced_module: torch.jit.TracedModule,
-        fn_name: str,
+        fn_name: str = "forward",
     ):
         self.mod = module
         self.traced_module = traced_module
@@ -1774,7 +1774,8 @@ class TorchModuleIRGraph:
             cls_name = ""
             outputs_str = ", ".join(
                 [
-                    f"[type]{o.dtype if hasattr(o, 'dtype') else type(o.data)}[/type] [var]{o.export_name}[/var]"
+                    f"[type]{o.dtype if hasattr(o, 'dtype') else type(o.data)}"
+                    f"[/type] [var]{o.export_name}[/var]"
                     for o in _.outputs
                 ]
             )
