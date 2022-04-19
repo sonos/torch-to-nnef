@@ -12,6 +12,7 @@
 - Added aten::ops : `zeros_like`, `ones`, `expand`, `GLU`, `split`, `arange`, `chunk`, `layer_norm`, `trunc`, `masked_fill`, `clamp`, `to`
 - Ability to export and unit-tested: `Deepspeech`, `Conformer`
 - Ability to export `Wavenet`, `TDNN-ECAPA`
+- Added LSTM with `projection`
 
 ## [0.2.2] - 2022-04-04
 ### Fix
