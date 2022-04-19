@@ -7,6 +7,9 @@
 - TorchTrace optimization may from time to time change signature of `nn.Module` so we needed to take it into account in `torch_to_nnef.torch_graph` module.
 - NNEF fragments file now express with their own extensions, this allows for finer
   grain export notation
+- macos-latest OS removed from matrix test in CI since we have limited use (
+ we will re-add it once tract latest version will be out
+)
 
 ### Added
 - Added aten::ops : `zeros_like`, `ones`, `expand`, `GLU`, `split`, `arange`, `chunk`, `layer_norm`, `trunc`, `masked_fill`, `clamp`, `to`
