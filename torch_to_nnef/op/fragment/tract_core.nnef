@@ -1,0 +1,4 @@
+extension tract_registry tract_core;
+# This NNEF fragment is used to export proper extension
+# of a built-in custom operator from inference engine
+# typical usecase are: tract_core_cast, ...

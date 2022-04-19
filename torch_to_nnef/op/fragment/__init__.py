@@ -29,6 +29,8 @@ class Fragment:
                         .strip()
                     )
                     continue
+                if defline.strip().startswith("#"):  # avoid to export comments
+                    continue
                 filtered_definition += f"{defline}\n"
         return cls(
             name=name, extensions=extensions, definition=filtered_definition

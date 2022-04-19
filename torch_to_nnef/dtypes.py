@@ -73,16 +73,26 @@ TORCH_DTYPE_TO_NNEF_STR = {
     torch.int32: "integer",
     torch.int64: "integer",
     torch.uint8: "integer",
-    torch.short: "integer",
-    torch.long: "integer",
-    torch.int: "integer",
     torch.float: "scalar",
     torch.double: "scalar",
     torch.float16: "scalar",
     torch.float32: "scalar",
     torch.float64: "scalar",
     torch.bool: "logical",
-    torch.bool: "logical",
+}
+
+TORCH_DTYPE_TO_TRACT_STR = {
+    torch.int8: "i8",
+    torch.int16: "i16",
+    torch.int32: "i32",
+    torch.int64: "i64",
+    torch.uint8: "u8",
+    torch.float16: "f16",
+    torch.float32: "f32",
+    torch.float64: "f64",
+    torch.complex64: "complexf64",
+    torch.complex128: "complexf128",
+    torch.bool: "bool",
 }
 
 

@@ -10,7 +10,7 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
     SCALAR_TYPE_TO_PYTORCH_TYPE,
-    TORCH_DTYPE_TO_NNEF_STR,
+    TORCH_DTYPE_TO_TRACT_STR,
 )
 from torch_to_nnef.torch_graph import (
     Data,
@@ -970,19 +970,24 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
     ) = node.inputs
 
     onode = node.outputs[0]
+    LOGGER.warning(
+        "convert .to() with tract custom operator since it can express "
+        "all torch type (contrary to vanilla cast NNEF operator)"
+    )
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
-        TORCH_DTYPE_TO_NNEF_STR[onode.dtype],
+        "tract_core_cast",
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
         attrs={
-            # "dtype": onode.np_dtype,
-            "shape": list(onode.shape),
+            "to": TORCH_DTYPE_TO_TRACT_STR[onode.dtype],
+            # "shape": list(onode.shape),
         },
     )
+    return ["tract_core"]
 
 
 def pow_(g, node, name_to_tensor, **kwargs):
