@@ -14,11 +14,12 @@ NUMPY_TO_TORCH_DTYPE = {
     np.float16: torch.float16,
     np.float32: torch.float32,
     np.float64: torch.float64,
-    np.int: torch.int,
-    np.short: torch.short,
-    np.long: torch.long,
     np.bool: torch.bool,
     np.bool_: torch.bool,
+    # next mapping are avoided as they map silently to builtin python type
+    # np.int: torch.int,
+    # np.short: torch.short,
+    # np.long: torch.long,
 }
 TORCH_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_TO_TORCH_DTYPE.items()}
 # In both direction it's not a mapping 1<->1 so update is needed
@@ -30,6 +31,26 @@ TORCH_TO_NUMPY_DTYPE.update(
     }
 )
 
+# borrowed from torch.onnx.symbolic_helper
+SCALAR_TYPE_TO_PYTORCH_TYPE = [
+    torch.uint8,  # 0
+    torch.int8,  # 1
+    torch.short,  # 2
+    torch.int,  # 3
+    torch.int64,  # 4
+    torch.half,  # 5
+    torch.float,  # 6
+    torch.double,  # 7
+    None,  # 8
+    torch.complex64,  # 9
+    torch.complex128,  # 10
+    torch.bool,  # 11
+    torch.qint8,  # 12
+    torch.quint8,  # 13
+    torch.qint32,  # 14
+    torch.bfloat16,  # 15
+]
+
 
 STR_TO_NUMPY_DTYPE = {
     "QUInt8": np.int8,
@@ -37,6 +58,7 @@ STR_TO_NUMPY_DTYPE = {
     "Float": np.float32,
     "float": np.float32,
     "int": np.int32,
+    "Int": np.int32,
     "Bool": np.bool_,
     "bool": np.bool_,
     "Half": np.float16,
@@ -51,16 +73,26 @@ TORCH_DTYPE_TO_NNEF_STR = {
     torch.int32: "integer",
     torch.int64: "integer",
     torch.uint8: "integer",
-    torch.short: "integer",
-    torch.long: "integer",
-    torch.int: "integer",
     torch.float: "scalar",
     torch.double: "scalar",
     torch.float16: "scalar",
     torch.float32: "scalar",
     torch.float64: "scalar",
     torch.bool: "logical",
-    torch.bool: "logical",
+}
+
+TORCH_DTYPE_TO_TRACT_STR = {
+    torch.int8: "i8",
+    torch.int16: "i16",
+    torch.int32: "i32",
+    torch.int64: "i64",
+    torch.uint8: "u8",
+    torch.float16: "f16",
+    torch.float32: "f32",
+    torch.float64: "f64",
+    torch.complex64: "complexf64",
+    torch.complex128: "complexf128",
+    torch.bool: "bool",
 }
 
 

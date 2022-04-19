@@ -5,7 +5,7 @@ from torch import nn
 from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
-    TorchModuleTraceHelper,
+    TorchModuleIRGraph,
     TorchOp,
 )
 
@@ -13,7 +13,7 @@ from torch_to_nnef.torch_graph import (
 def test_filter_out_useless_nodes():
     mdl = nn.Sequential(nn.Linear(10, 20), nn.GRU(20, 5, batch_first=True))
     args = (torch.rand(1, 100, 10),)
-    tth = TorchModuleTraceHelper(mdl, args)
+    tth = TorchModuleIRGraph(mdl, args)
 
     bob_in = PythonConstant(name="bob_in", data=100)
     tth.data_nodes.append(bob_in)

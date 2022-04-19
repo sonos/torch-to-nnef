@@ -70,14 +70,6 @@ class ListInputPrim(nn.Module):
         return self.op([x, self.y], dim=1)
 
 
-def nnef_split(value, axis, ratios):
-    assert value.shape[axis] % sum(ratios) == 0
-
-    multiplier = value.shape[axis] // sum(ratios)
-    sections = [ratio * multiplier for ratio in ratios]
-    return torch.split(value, split_size_or_sections=sections, dim=axis)
-
-
 # Base unary operations
 _condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
@@ -97,17 +89,18 @@ INPUT_AND_MODELS = [
         torch.sqrt,
         torch.rsqrt,
         torch.log2,
+        torch.tan,
+        torch.asin,
+        torch.acos,
+        torch.atan,
+        torch.sinh,
+        torch.cosh,
+        torch.tanh,
+        torch.asinh,
+        torch.acosh,
+        torch.atanh,
+        torch.zeros_like,
         # unimplemented tract {
-        # torch.tan,
-        # torch.asin,
-        # torch.acos,
-        # torch.atan,
-        # torch.sinh,
-        # torch.cosh,
-        # torch.tanh,
-        # torch.asinh,
-        # torch.acosh,
-        # torch.atanh,
         # torch.reciprocal,
         # torch.clone,
         # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
@@ -121,6 +114,9 @@ INPUT_AND_MODELS = [
         partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
+        partial(torch.clamp, min=5, max=20.0),
+        partial(torch.clamp, min=10),
+        partial(torch.clamp, max=11),
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,
@@ -128,6 +124,15 @@ INPUT_AND_MODELS = [
         # ),
     ]
 ]
+INPUT_AND_MODELS += [
+    # N x L x  H
+    ((torch.rand(10) - 0.5) * 3, layer)
+    for layer in [
+        # test slice
+        TensorFnPrimitive("trunc"),
+    ]
+]
+
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [
@@ -140,9 +145,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("argmax", {"dim": 1}),
         TensorFnPrimitive("argmin", {"dim": 1}),
         TensorFnPrimitive("view", args=(13, 5, 2)),
-        # TensorFnPrimitive(
-        # "repeat", kwargs={}, args=([1, 2, 1],)
-        # ),  # missing an s in repeat export to nnef since tract is false
+        TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
+        TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],
@@ -201,7 +205,7 @@ INPUT_AND_MODELS += [
         BinaryPrimitive(op),
     )
     for op in [
-        # torch.matmul,
+        torch.matmul,
     ]
 ]
 
@@ -318,8 +322,7 @@ INPUT_AND_MODELS += [
     for op in [
         # internal cpp failure for now
         # partial(torch.unbind, axis=1),
-        # partial(nnef_split, axis=1, ratios=[3, 3, 4]),
-        #
+        partial(torch.split, split_size_or_sections=[3, 3, 4], dim=1),
         lambda x: torch.max(x, dim=1, keepdim=True)[0],
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
     ]
@@ -338,6 +341,7 @@ INPUT_AND_MODELS += [
         nn.GRU(20, 5, bidirectional=True, num_layers=1),
         nn.LSTM(20, 5, bidirectional=True, num_layers=2),
         nn.RNN(20, 5, bidirectional=True, num_layers=3),
+        nn.LSTM(20, 5, proj_size=3, num_layers=2),
     ]
 ]
 INPUT_AND_MODELS += [
@@ -358,16 +362,10 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
+        torch.nn.LayerNorm(10),
+        torch.nn.GLU(),
     ]
 ]
-
-
-# INPUT_AND_MODELS = [
-# (torch.rand(33, 1, 100), layer)
-# for layer in [
-# nn.LSTM(100, 30, proj_size=17, num_layers=2),
-# ]
-# ]
 
 
 def _test_ids(test_fixtures):

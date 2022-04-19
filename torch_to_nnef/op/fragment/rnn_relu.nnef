@@ -1,14 +1,16 @@
-fragment rnn_scan_loop(
+extension tract_registry tract_core;
+
+fragment rnn_relu_scan_loop(
     h_t_prev: tensor<scalar>,
     xt_Wi_t: tensor<scalar>,
     W_hh: tensor<scalar>
 ) -> ( h_t: tensor<scalar> ) {
 
-    h_t = tanh(xt_Wi_t + matmul(h_t_prev, W_hh, transposeB=true));
+    h_t = relu(xt_Wi_t + matmul(h_t_prev, W_hh, transposeB=true));
 }
 
 
-fragment rnn(
+fragment rnn_relu(
     input: tensor<scalar>,
     # initial h_t
     h_0: tensor<scalar>,
@@ -23,7 +25,7 @@ fragment rnn(
   xt_Wi_t = matmul(input, W_ih, transposeB = true) + b_ih_hh;
 
   (h_n , h_t) = tract_core_scan(
-      body = "rnn_scan_loop",
+      body = "rnn_relu_scan_loop",
       scan = [
           ("xt_Wi_t", xt_Wi_t, 0, scan_pace)
       ],

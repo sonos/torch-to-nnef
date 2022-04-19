@@ -3,32 +3,38 @@ from datetime import datetime
 
 import numpy as np
 from nnef_tools.model import Graph as NGraph
-from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops
+from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops, external
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
     Data,
     TensorVariable,
-    TorchModuleTraceHelper,
+    TorchModuleIRGraph,
     _is_container,
 )
 
 
 class GraphExtractor:
-    def __init__(self, model, args, renaming_scheme: str = "numeric"):
+    def __init__(
+        self,
+        model,
+        args,
+        renaming_scheme: str = "numeric",
+        check_io_names_qte_match: bool = True,
+    ):
         self.model = model
-        self._torch_graph_helper = TorchModuleTraceHelper(
+        self._torch_ir_graph = TorchModuleIRGraph(
             model,
             args,
             renaming_scheme=renaming_scheme,
         )
+        self._check_io_names_qte_match = check_io_names_qte_match
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
@@ -40,10 +46,12 @@ class GraphExtractor:
                 node,
                 name_to_tensor,
                 null_ref,
-                torch_graph=self._torch_graph_helper,
+                torch_graph=self._torch_ir_graph,
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:
+                assert len(node.inputs) == 1 and len(node.outputs) == 1
+                self._torch_ir_graph.remap_node(node.outputs[0], node.inputs[0])
                 return []
 
         if node.kind.startswith("quantized::"):
@@ -52,7 +60,7 @@ class GraphExtractor:
                 node,
                 name_to_tensor,
                 null_ref,
-                torch_graph=self._torch_graph_helper,
+                torch_graph=self._torch_ir_graph,
             )
         if node.kind.startswith(CUSTOMOP_KIND):
             return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
@@ -60,7 +68,7 @@ class GraphExtractor:
                 node,
                 name_to_tensor,
                 null_ref,
-                torch_graph=self._torch_graph_helper,
+                torch_graph=self._torch_ir_graph,
             )
 
         raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
@@ -78,22 +86,25 @@ class GraphExtractor:
                 return False
             return True
 
-        operators_nodes = self._torch_graph_helper.op_nodes[:]
+        operators_nodes = self._torch_ir_graph.op_nodes[:]
         while operators_nodes:
             done_nodes = []
-            for node in operators_nodes:
-                # node inputs are already realised
-                if any(is_missing(in_node) for in_node in node.inputs):
+            for op_node in operators_nodes:
+                # op_node inputs are already realised
+                if any(is_missing(_) for _ in op_node.inputs):
                     continue
                 custom_fragments = self._op_nodes_to_nnef_operation(
-                    node, name_to_tensor, null_ref=null_ref
+                    op_node, name_to_tensor, null_ref=null_ref
                 )
                 if custom_fragments:
                     self.activated_custom_fragment_keys.update(custom_fragments)
-                done_nodes.append(node)
+                done_nodes.append(op_node)
             if len(done_nodes) == 0 and operators_nodes:
-                self._torch_graph_helper.printall()
-                print(operators_nodes)
+                self._torch_ir_graph.printall()
+                print(
+                    "unable to realise operators with outputs",
+                    [out.name for op in operators_nodes for out in op.outputs],
+                )
                 raise RuntimeError("DAG seems impossible to unfold")
             operators_nodes = [
                 _ for _ in operators_nodes if _ not in done_nodes
@@ -111,42 +122,32 @@ class GraphExtractor:
             dtype=np.float32,
             data=np.zeros(shape=(), dtype=np.float32),
         )
-        name_to_tensor = {}
+        name_to_tensor: T.Dict[str, NTensor] = {}
         ginputs = []
-        for node in self._torch_graph_helper.inputs:
-            tensor = NTensor(
-                graph=self.g,
-                name=node.export_name,
-                dtype=node.np_dtype,
-                shape=node.shape,
-            )
-            name_to_tensor[node.export_name] = tensor
-            ginputs.append(tensor)
-            NOperation(
-                graph=self.g,
-                type="external",
-                inputs=None,
-                outputs=tensor,
-                attribs={
-                    "shape": list(tensor.shape),
-                    "dtype": tensor.dtype,
-                },
+        for node in self._torch_ir_graph.inputs:
+            ginputs.append(
+                external(
+                    self.g,
+                    node,
+                    name_to_tensor,
+                )
             )
 
         self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = ginputs
         if input_names is not None:
-            assert len(input_names) == len(self.g.inputs)
+            if self._check_io_names_qte_match:
+                assert len(input_names) == len(self.g.inputs)
             for in_tensor, requested_name in zip(self.g.inputs, input_names):
                 in_tensor.name = requested_name
 
         self.g.outputs = [
-            name_to_tensor[_.export_name]
-            for _ in self._torch_graph_helper.outputs
+            name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
         if output_names is not None:
-            assert len(output_names) == len(self.g.outputs)
+            if self._check_io_names_qte_match:
+                assert len(output_names) == len(self.g.outputs)
             for out_tensor, requested_name in zip(self.g.outputs, output_names):
                 out_tensor.name = requested_name
 

@@ -1,6 +1,6 @@
 extension tract_registry tract_core;
 
-fragment lstm_scan_loop(
+fragment lstm_with_projection_scan_loop(
     c_t_prev: tensor<scalar>,
     h_t_prev: tensor<scalar>,
 
@@ -12,7 +12,9 @@ fragment lstm_scan_loop(
     W_hi: tensor<scalar>,
     W_hf: tensor<scalar>,
     W_hg: tensor<scalar>,
-    W_ho: tensor<scalar>
+    W_ho: tensor<scalar>,
+    # linked to reccurent projection layer
+    W_hr: tensor<scalar>
 ) -> ( c_t: tensor<scalar>, h_t: tensor<scalar> ) {
     # does not use linear ops yet due to tract declutter issue
 
@@ -32,11 +34,12 @@ fragment lstm_scan_loop(
     c_t = f_t * c_t_prev + i_t * g_t;
 
     # hidden state at time t
-    h_t = o_t * tanh(c_t);
+    m_t = o_t * tanh(c_t);
+    h_t = matmul(m_t, W_hr, transposeB=true);
 }
 
 
-fragment lstm(
+fragment lstm_with_projection(
     input: tensor<scalar>,
     # initial c_t and h_t
     c_0: tensor<scalar>,
@@ -55,6 +58,8 @@ fragment lstm(
     b_f: tensor<scalar>,
     b_g: tensor<scalar>,
     b_o: tensor<scalar>,
+    # projection weights
+    W_hr: tensor<scalar>,
     scan_pace: integer
 ) -> ( h_n : tensor<scalar>, h_t : tensor<scalar>, c_t : tensor<scalar> ) {
   # This LSTM implementation is optimised CPU kernels usage via pulse definition
@@ -64,7 +69,7 @@ fragment lstm(
   xt_Wo = matmul(input, W_io, transposeB = true) + b_o;
 
   (h_n , h_t, c_t) = tract_core_scan(
-      body = "lstm_scan_loop",
+      body = "lstm_with_projection_scan_loop",
       scan = [
           ("xt_Wi_t", xt_Wi, 0, scan_pace),
           ("xt_Wf_t", xt_Wf, 0, scan_pace),
@@ -75,7 +80,8 @@ fragment lstm(
           ("W_hi", W_hi),
           ("W_hf", W_hf),
           ("W_hg", W_hg),
-          ("W_ho", W_ho)
+          ("W_ho", W_ho),
+          ("W_hr", W_hr)
       ],
       state = [
           ("c_t_prev", c_0, "c_t"),

@@ -17,6 +17,8 @@ import nnef
 import numpy as np
 import torch
 from torch import nn
+from torch.onnx import TrainingMode  # type: ignore
+from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
@@ -96,7 +98,10 @@ def build_io(
     tup_inputs = test_input if isinstance(test_input, tuple) else (test_input,)
     if input_names is None:
         input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
-    test_outputs = _unfold_outputs(model(*tup_inputs))
+
+    with select_model_mode_for_export(model, TrainingMode.EVAL):
+        test_outputs = _unfold_outputs(model(*tup_inputs))
+
     if output_names is None:
         output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
 

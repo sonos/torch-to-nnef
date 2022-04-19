@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0] - 2022-04-13
+
+### Fix
+- Rank expansion done right (`TRUnet` normalisations options works)
+- TorchTrace optimization may from time to time change signature of `nn.Module` so we needed to take it into account in `torch_to_nnef.torch_graph` module.
+- NNEF fragments file now express with their own extensions, this allows for finer
+  grain export notation
+- macos-latest OS removed from matrix test in CI since we have limited use (
+ we will re-add it once tract latest version will be out
+)
+
+### Added
+- Added aten::ops : `zeros_like`, `ones`, `expand`, `GLU`, `split`, `arange`, `chunk`, `layer_norm`, `trunc`, `masked_fill`, `clamp`, `to`
+- Ability to export and unit-tested: `Deepspeech`, `Conformer`
+- Ability to export `Wavenet`, `TDNN-ECAPA`
+- Added LSTM with `projection`
+
 ## [0.2.2] - 2022-04-04
 ### Fix
 - Fix base TRUNet

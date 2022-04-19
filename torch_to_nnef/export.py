@@ -31,6 +31,7 @@ def export_model_to_nnef(
     check_same_io_as_tract: bool = False,
     debug_bundle_path: T.Optional[Path] = None,
     renaming_scheme: str = "numeric",
+    check_io_names_qte_match: bool = True,
 ):
     """Main entrypoint of this library
 
@@ -54,7 +55,10 @@ def export_model_to_nnef(
             args = (args,)
 
         graph_extractor = GraphExtractor(
-            model, args, renaming_scheme=renaming_scheme
+            model,
+            args,
+            renaming_scheme=renaming_scheme,
+            check_io_names_qte_match=check_io_names_qte_match,
         )
         nnef_graph = graph_extractor.parse(
             input_names,
@@ -62,18 +66,26 @@ def export_model_to_nnef(
         )
 
         active_custom_fragments = {
-            _: FRAGMENTS[_]
+            _: FRAGMENTS[_].definition
             for _ in graph_extractor.activated_custom_fragment_keys
         }
+        active_custom_fragments_extensions = {
+            ext
+            for _ in graph_extractor.activated_custom_fragment_keys
+            for ext in FRAGMENTS[_].extensions
+        }
+        if len(active_custom_fragments_extensions) > 0:
+            LOGGER.warning(
+                "The exported NNEF model need special custom extensions "
+                f"such as {active_custom_fragments_extensions} be sure "
+                "to use an inference engine that support them"
+            )
 
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
-            # could be better integrated by exposed extensions deps in active_custom_fragments
-            extensions=["tract_registry tract_core"]
-            if len(active_custom_fragments) > 0
-            else [],
+            extensions=list(active_custom_fragments_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
         )(nnef_graph, str(file_path_export))
         LOGGER.info(

@@ -1,0 +1,44 @@
+extension tract_registry tract_core;
+
+fragment rnn_tanh_scan_loop(
+    h_t_prev: tensor<scalar>,
+    xt_Wi_t: tensor<scalar>,
+    W_hh: tensor<scalar>
+) -> ( h_t: tensor<scalar> ) {
+
+    h_t = tanh(xt_Wi_t + matmul(h_t_prev, W_hh, transposeB=true));
+}
+
+
+fragment rnn_tanh(
+    input: tensor<scalar>,
+    # initial h_t
+    h_0: tensor<scalar>,
+    # weights
+    W_ih: tensor<scalar>,
+    W_hh: tensor<scalar>,
+    # biases
+    b_ih_hh: tensor<scalar>,
+    scan_pace: integer
+) -> ( h_n : tensor<scalar>, h_t : tensor<scalar> ) {
+  # This RNN implementation is optimised CPU kernels usage via pulse definition
+  xt_Wi_t = matmul(input, W_ih, transposeB = true) + b_ih_hh;
+
+  (h_n , h_t) = tract_core_scan(
+      body = "rnn_tanh_scan_loop",
+      scan = [
+          ("xt_Wi_t", xt_Wi_t, 0, scan_pace)
+      ],
+      full = [
+          ("W_hh", W_hh)
+      ],
+      state = [
+          ("h_t_prev", h_0, "h_t")
+      ],
+      output = [
+          ("h_t", "full", 0, scan_pace),
+          ("h_t", "last", 0, scan_pace)
+      ],
+      skip = 0
+  );
+}

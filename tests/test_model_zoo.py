@@ -3,8 +3,7 @@ import os
 
 import pytest
 import torch
-
-# from torchaudio import models as audio_mdl
+from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 
 from .utils import _test_check_model_io, set_seed  # noqa: E402
@@ -35,14 +34,25 @@ INPUT_AND_MODELS += [
 ]
 
 INPUT_AND_MODELS += [
-    (torch.rand(1, 100, 64), model)
+    (torch.rand(1, 1, 100, 64), model)
     for model in [
-        # audio_mdl.DeepSpeech(64, n_hidden=256),  # need to handle nn.RNN
-        # audio_mdl.Conformer(
-        # 64, num_heads=2, ffn_dim=128, depthwise_conv_kernel_size=31
-        # )
+        audio_mdl.DeepSpeech(64, n_hidden=256),
     ]
 ]
+
+if hasattr(audio_mdl, "Conformer"):
+    INPUT_AND_MODELS += [
+        ((torch.rand(1, 100, 64), torch.tensor([100])), model)
+        for model in [
+            audio_mdl.Conformer(
+                64,
+                num_heads=1,
+                num_layers=1,
+                ffn_dim=128,
+                depthwise_conv_kernel_size=31,
+            )
+        ]
+    ]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
