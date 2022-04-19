@@ -74,6 +74,12 @@ def export_model_to_nnef(
             for _ in graph_extractor.activated_custom_fragment_keys
             for ext in FRAGMENTS[_].extensions
         }
+        if len(active_custom_fragments_extensions) > 0:
+            LOGGER.warning(
+                "The exported NNEF model need special custom extensions "
+                f"such as {active_custom_fragments_extensions} be sure "
+                "to use an inference engine that support them"
+            )
 
         NNEFWriter(
             compression=compression_level,
