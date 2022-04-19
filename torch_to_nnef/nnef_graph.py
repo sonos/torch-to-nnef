@@ -21,13 +21,20 @@ from torch_to_nnef.torch_graph import (
 
 
 class GraphExtractor:
-    def __init__(self, model, args, renaming_scheme: str = "numeric"):
+    def __init__(
+        self,
+        model,
+        args,
+        renaming_scheme: str = "numeric",
+        check_io_names_qte_match: bool = True,
+    ):
         self.model = model
         self._torch_ir_graph = TorchModuleIRGraph(
             model,
             args,
             renaming_scheme=renaming_scheme,
         )
+        self._check_io_names_qte_match = check_io_names_qte_match
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
@@ -130,7 +137,8 @@ class GraphExtractor:
 
         self.g.inputs = ginputs
         if input_names is not None:
-            assert len(input_names) == len(self.g.inputs)
+            if self._check_io_names_qte_match:
+                assert len(input_names) == len(self.g.inputs)
             for in_tensor, requested_name in zip(self.g.inputs, input_names):
                 in_tensor.name = requested_name
 
@@ -138,7 +146,8 @@ class GraphExtractor:
             name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
         if output_names is not None:
-            assert len(output_names) == len(self.g.outputs)
+            if self._check_io_names_qte_match:
+                assert len(output_names) == len(self.g.outputs)
             for out_tensor, requested_name in zip(self.g.outputs, output_names):
                 out_tensor.name = requested_name
 

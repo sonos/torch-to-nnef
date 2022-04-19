@@ -31,6 +31,7 @@ def export_model_to_nnef(
     check_same_io_as_tract: bool = False,
     debug_bundle_path: T.Optional[Path] = None,
     renaming_scheme: str = "numeric",
+    check_io_names_qte_match: bool = True,
 ):
     """Main entrypoint of this library
 
@@ -54,7 +55,10 @@ def export_model_to_nnef(
             args = (args,)
 
         graph_extractor = GraphExtractor(
-            model, args, renaming_scheme=renaming_scheme
+            model,
+            args,
+            renaming_scheme=renaming_scheme,
+            check_io_names_qte_match=check_io_names_qte_match,
         )
         nnef_graph = graph_extractor.parse(
             input_names,
