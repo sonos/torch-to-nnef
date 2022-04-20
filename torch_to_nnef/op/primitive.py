@@ -1131,7 +1131,7 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
             torch_graph.printall()
             raise NotImplementedError(f"stack with input_item: {input_item}")
         tensor_ref = get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
+            g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
     _add_single_output_op(
@@ -1141,6 +1141,20 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
         "stack",
         inputs=inputs,
         attrs={"axis": pick_rank(input_node, dim)},
+        ensure_tuple=False,
+    )
+
+
+def unbind(g, node, name_to_tensor, null_ref, torch_graph):
+    """unbind is `unstack` in NNEF"""
+    input_node, axis_node = node.inputs
+    _add_multi_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "unstack",
+        inputs=input_node,
+        attrs={"axis": pick_rank(input_node, axis_node.data)},
         ensure_tuple=False,
     )
 
