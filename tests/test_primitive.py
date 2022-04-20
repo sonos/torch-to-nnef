@@ -223,13 +223,13 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-# tract do not handle cast op
-# INPUT_AND_MODELS += [
-# (
-# torch.tensor([True, False, True]),
-# TensorFnPrimitive("to", {"dtype": torch.bool}),
-# )
-# ]
+# tract do handle cast op with specific ops
+INPUT_AND_MODELS += [
+    (
+        torch.tensor([1, 0, 1]),
+        TensorFnPrimitive("to", {"dtype": torch.bool}),
+    )
+]
 
 
 # Base Layers
@@ -293,6 +293,7 @@ INPUT_AND_MODELS += [
         nn.SiLU(),
         nn.Hardtanh(-1, 10),
         nn.LogSoftmax(1),
+        nn.LogSoftmax(dim=-1),
     ]
 ]
 
