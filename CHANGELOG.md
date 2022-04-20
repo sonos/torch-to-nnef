@@ -4,6 +4,8 @@
 
 ### Fix
 - LogSofmax with negative value [#9](https://github.com/sonos/torch-to-nnef/issues/9)
+- switch-on cast test
+
 
 ## [0.3.0] - 2022-04-13
 
