@@ -1153,7 +1153,9 @@ def unbind(g, node, name_to_tensor, null_ref, torch_graph):
         node,
         name_to_tensor,
         "unstack",
-        inputs=input_node,
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
         attrs={"axis": pick_rank(input_node, axis_node.data)},
         ensure_tuple=False,
     )

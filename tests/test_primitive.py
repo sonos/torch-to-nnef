@@ -58,9 +58,9 @@ class TensorFnPrimitive(nn.Module):
 
 
 class ListInputPrim(nn.Module):
-    def __init__(self, op, dims):
+    def __init__(self, op, y):
         super().__init__()
-        self.y = torch.rand(*dims)
+        self.y = y
         self.op = op
 
     def extra_repr(self):
@@ -312,8 +312,7 @@ INPUT_AND_MODELS += [
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), op)
     for op in [
-        ListInputPrim(torch.cat, (13, 10, 1)),
-        # ListInputPrim(torch.stack, (13, 10, 1)), # not implemented in tract
+        ListInputPrim(torch.cat, torch.rand(13, 10, 1)),
     ]
 ]
 
@@ -321,8 +320,6 @@ INPUT_AND_MODELS += [
 INPUT_AND_MODELS += [
     (torch.rand(13, 10, 1), UnaryPrimitive(op))
     for op in [
-        # internal cpp failure for now
-        # partial(torch.unbind, axis=1),
         partial(torch.split, split_size_or_sections=[3, 3, 4], dim=1),
         lambda x: torch.max(x, dim=1, keepdim=True)[0],
         lambda x: torch.min(x, dim=1, keepdim=False)[0],
@@ -365,6 +362,14 @@ INPUT_AND_MODELS += [
         UnaryPrimitive(lambda x: x[:, 2:, :]),
         torch.nn.LayerNorm(10),
         torch.nn.GLU(),
+    ]
+]
+
+INPUT_AND_MODELS += [
+    (torch.arange(6).reshape(1, 2, 3).float(), op)
+    for op in [
+        UnaryPrimitive(partial(torch.unbind, axis=1)),
+        ListInputPrim(torch.stack, y=torch.arange(6).reshape(1, 2, 3).float()),
     ]
 ]
 
