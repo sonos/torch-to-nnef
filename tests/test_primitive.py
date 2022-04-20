@@ -293,6 +293,7 @@ INPUT_AND_MODELS += [
         nn.SiLU(),
         nn.Hardtanh(-1, 10),
         nn.LogSoftmax(1),
+        nn.LogSoftmax(dim=-1),
     ]
 ]
 

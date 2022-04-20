@@ -426,6 +426,9 @@ def log_softmax(**kwargs):
     node = kwargs["node"]
     if node.inputs[2]:
         del node.inputs[2]
+    input_node, axis_node = node.inputs
+    assert isinstance(axis_node.data, int)
+    axis_node.data = pick_rank(input_node, axis_node.data)
     _unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
 
@@ -1768,8 +1771,6 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
 
 def glu(g, node, name_to_tensor, null_ref, torch_graph):
     input_node, axis_node = node.inputs
-    if axis_node.data < 0:
-        axis_node.data = input_node.rank + axis_node.data
     _add_single_output_op(
         g,
         node,
