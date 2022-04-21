@@ -2,10 +2,13 @@
 [![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml)
 
 Any Pytorch Model to NNEF file format.
+
 When NNEF spec is insufficant to express computational graph, the use of extensions from
 [tract inference engine](github.com/sonos/tract) is done seamlessly.
-We do use special tract components to express: recurrent layers (LSTM, GRU,...),
-dynamics streamable dimensions, and casting (since NNEF spec is too vague in this regard).
+We do use special tract components to express:
+- recurrent layers (LSTM, GRU,...)
+- dynamics streamable dimensions
+- casting (since NNEF spec is too vague in this regard)
 
 > warning ! This project is still in beta, if you encounter any bug please follow `Bug report` section instructions
 
