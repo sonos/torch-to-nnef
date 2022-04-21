@@ -10,15 +10,16 @@ Any Pytorch Model to NNEF file format.
 We intend to export any model formulated with vanilla Torch whatever tensor type
 (handling quantized model).
 
-Minimum dependencies in production python package generated (to allow easy
-integration in other project).
-
 When NNEF spec is insufficient to express computational graph, we may use extensions from
 [tract inference engine](github.com/sonos/tract) seamlessly.
 By example we use special tract components to express:
 - recurrent layers (LSTM, GRU,...)
 - dynamic streamable input dimensions
 - casting (since NNEF spec is too vague in this regard)
+
+This package strive to have minimum dependencies (to allow easy integration in other project).
+
+We aims to support Pytorch > 1.8.0 with tract > 1.16.4 over Linux and MacOS systems.
 
 ## Install
 
