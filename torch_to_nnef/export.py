@@ -45,7 +45,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                             external_op.attribs["shape"]
                         )
                     ]
-                    custom_extensions.add(f"tract_symbol {axis_name}")
+                    custom_extensions.add("tract_pulse_streaming_symbol")
                 break
     return custom_extensions
 
