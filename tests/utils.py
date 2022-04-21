@@ -24,7 +24,7 @@ def set_seed(seed=0, cudnn=False, torch=True):
     random.seed(seed)
 
 
-def _test_check_model_io(model: Torch.nn.Module, test_input):
+def _test_check_model_io(model: Torch.nn.Module, test_input, dynamic_axes=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -49,4 +49,5 @@ def _test_check_model_io(model: Torch.nn.Module, test_input):
             )
             if os.environ.get("DEBUG", False)
             else None,
+            dynamic_axes=dynamic_axes,
         )
