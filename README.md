@@ -13,7 +13,7 @@ We intend to export any model formulated with vanilla Torch whatever tensor type
 Minimum dependencies in production python package generated (to allow easy
 integration in other project).
 
-When NNEF spec is insufficant to express computational graph, the use of extensions from
+When NNEF spec is insufficient to express computational graph, the use of extensions from
 [tract inference engine](github.com/sonos/tract) is done seamlessly.
 We do use special tract components to express:
 - recurrent layers (LSTM, GRU,...)
