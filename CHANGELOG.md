@@ -1,11 +1,15 @@
 # Changelog
 
-## Next
+## [0.3.1] - 2022-04-22
 
 ### Fix
 - LogSofmax with negative value [#9](https://github.com/sonos/torch-to-nnef/issues/9)
 - switch-on cast test
 
+### Added
+- `dynamic_axes` in export API allowing to handle streaming dimensions
+- Added aten::ops : `stack`, `unbind`,
+- Filter `slice` if aplied without effect (slice on full range)
 
 ## [0.3.0] - 2022-04-13
 
