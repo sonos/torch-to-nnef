@@ -1050,7 +1050,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     We will only handle the case of zero_point affine quantization for now.
     which in reverse of quantization is:
 
-       (x - zero_point) / scale
+       (x - zero_point) * scale
     """
     input_node = node.inputs[0]
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
