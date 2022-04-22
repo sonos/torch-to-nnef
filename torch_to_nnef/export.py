@@ -1,6 +1,7 @@
 import typing as T
 from pathlib import Path
 
+import nnef
 import torch
 from nnef_tools.io.nnef.writer import Writer as NNEFWriter
 from torch.onnx import TrainingMode  # type: ignore
@@ -17,6 +18,36 @@ from torch_to_nnef.nnef_graph import GraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 
 LOGGER = log.getLogger(__name__)
+
+
+def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
+    custom_extensions = set()
+    for node_name, named_dims in dynamic_axes.items():
+        for inp_tensor in nnef_graph.inputs:
+            if inp_tensor.name == node_name:
+                LOGGER.debug("found matching node element")
+                assert len(inp_tensor.producers) == 1
+                external_op = inp_tensor.producers[0]
+                assert external_op.type == "external"
+                for axis, axis_name in named_dims.items():
+                    if len(axis_name) != 1:
+                        raise ValueError(
+                            "axis_name in dynamic_axes must "
+                            "be of length 1 to follow tract convention "
+                            f"but was given '{axis_name}' "
+                            f"in dynamic_axes={dynamic_axes}"
+                        )
+                    external_op.attribs["shape"] = [
+                        nnef.Identifier(str(axis_name))
+                        if idx == axis
+                        else dim_size
+                        for idx, dim_size in enumerate(
+                            external_op.attribs["shape"]
+                        )
+                    ]
+                    custom_extensions.add("tract_pulse_streaming_symbol")
+                break
+    return custom_extensions
 
 
 def export_model_to_nnef(
@@ -69,15 +100,21 @@ def export_model_to_nnef(
             _: FRAGMENTS[_].definition
             for _ in graph_extractor.activated_custom_fragment_keys
         }
-        active_custom_fragments_extensions = {
+        active_custom_extensions = {
             ext
             for _ in graph_extractor.activated_custom_fragment_keys
             for ext in FRAGMENTS[_].extensions
         }
-        if len(active_custom_fragments_extensions) > 0:
+        if dynamic_axes is not None:
+            custom_extensions = apply_dynamic_shape_in_nnef(
+                dynamic_axes, nnef_graph
+            )
+            active_custom_extensions.update(custom_extensions)
+
+        if len(active_custom_extensions) > 0:
             LOGGER.warning(
                 "The exported NNEF model need special custom extensions "
-                f"such as {active_custom_fragments_extensions} be sure "
+                f"such as {active_custom_extensions} be sure "
                 "to use an inference engine that support them"
             )
 
@@ -85,7 +122,7 @@ def export_model_to_nnef(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=len(active_custom_fragments) > 0,
-            extensions=list(active_custom_fragments_extensions),
+            extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
         )(nnef_graph, str(file_path_export))
         LOGGER.info(

@@ -1,17 +1,25 @@
 # Torch to NNEF
 [![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml)
 
-Any Pytorch Model to NNEF file format
+Any Pytorch Model to NNEF file format.
 
-> warning ! This project is still in beta and might break/change api quickly
+> warning ! This project is still in beta, if you encounter any bug please follow `Bug report` section instructions
 
 ## Goals & Scope
 
 We intend to export any model formulated with vanilla Torch whatever tensor type
 (handling quantized model).
 
-Minimum dependencies in production python package generated (to allow easy
-integration in other project).
+When NNEF spec is insufficient to express computational graph, we may use extensions from
+[tract inference engine](github.com/sonos/tract) seamlessly.
+By example we use special tract components to express:
+- recurrent layers (LSTM, GRU,...)
+- dynamic streamable input dimensions
+- casting (since NNEF spec is too vague in this regard)
+
+This package strive to have minimum dependencies (to allow easy integration in other project).
+
+We aims to support Pytorch > 1.8.0 with tract > 1.16.4 over Linux and MacOS systems.
 
 ## Install
 
@@ -55,6 +63,12 @@ export_model_to_nnef(
     # to nn.Module exported variable naming
     # the renaming_scheme is only useful if you intend to read generated
     # NNEF format else do not set it
+
+    dynamic_axes={"input": {2: "S"}} # follow onnx export convention with additional constraint
+    # that named dimension need to be single letter symbol (due to tract spec)
+
+    check_io_names_qte_match=True # may be setted to False in some rare case:
+    # if one of the input provided is removed since it is not used to generate outputs
 )
 ```
 
@@ -65,6 +79,14 @@ optin to do few extra-checks with it.
 
 Torch Model need to be serializable to torch.jit (fancy python dict routing
 or others might prevent proper tracing of it).
+
+This apply for nn.Module with forward containing default None parameters which
+will crash as no work arround have been found yet.
+
+Also we follow to some extent limitation of NNEF specification, in particular
+we concretize dynamic shape at export so that no other operators than external
+can hold dynamics symbol attribute (by example: all operation using part of shape
+of another tensor has those transformed to fixed int)
 
 ## Design choice
 
