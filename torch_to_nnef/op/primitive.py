@@ -433,7 +433,7 @@ def log_softmax(**kwargs):
     return ["log_softmax"]
 
 
-def slice_(g, node, name_to_tensor, **kwargs):
+def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
     # we assert for now all node except first are all constant
@@ -441,6 +441,11 @@ def slice_(g, node, name_to_tensor, **kwargs):
 
     # we use this since by default pytorch generate max int32 value for end
     end = min(end_node.data, input_node.shape[dim])
+
+    if begin_node.data == 0 and end == input_node.shape[dim]:
+        LOGGER.debug("Slice is not needed since it have not effect")
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+        return
 
     _add_single_output_op(
         g,
