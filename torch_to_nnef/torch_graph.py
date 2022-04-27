@@ -915,7 +915,9 @@ class TracedModuleCallBox:
     def __call__(self, *args, **kwargs):
         # _actual_script_module is an implementation details
         # from torch/jit/_trace.py:l1076 in TracedModule
-        if self.fn_name == "forward":
+        if self.fn_name == "forward" and not isinstance(
+            self.traced_module, torch.jit._script.RecursiveScriptModule
+        ):
             traced_op_call = self.traced_module._actual_script_module.forward
         else:
             traced_op_call = getattr(self.traced_module, self.fn_name)
