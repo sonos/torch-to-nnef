@@ -4,6 +4,7 @@
 
 ### Added
 - Better collected environment with OS, GCC, python and more package info
+- Export Q8 Conv{1,2}d and Linear
 
 
 ## [0.3.1] - 2022-04-22
@@ -15,7 +16,7 @@
 ### Added
 - `dynamic_axes` in export API allowing to handle streaming dimensions
 - Added aten::ops : `stack`, `unbind`,
-- Filter `slice` if aplied without effect (slice on full range)
+- Filter `slice` if applied without effect (slice on full range)
 
 ## [0.3.0] - 2022-04-13
 

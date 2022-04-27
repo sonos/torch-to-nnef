@@ -32,8 +32,8 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
             dmin = representative_data.min()
             drange = (dmax - dmin).abs()
             # add 10% safe margin
-            dmax += drange / 100 * 200
-            dmin -= drange / 100 * 200
+            dmax += drange / 100 * 10
+            dmin -= drange / 100 * 10
             scale = (dmax - dmin).abs()
             offset = dmin
         for _ in range(100):
@@ -72,6 +72,7 @@ INPUT_AND_MODELS += [
         nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
     ]
 ]
+
 INPUT_AND_MODELS += [
     build_test_tup(mod, shape=(1, 3, 4))
     for mod in [
@@ -82,6 +83,33 @@ INPUT_AND_MODELS += [
         ),
     ]
 ]
+
+
+INPUT_AND_MODELS += [
+    build_test_tup(mod, shape=(1, 2, 3, 4))
+    for mod in [
+        nn.Conv2d(2, 2, kernel_size=(2, 3)),
+        nn.intrinsic.ConvBnReLU2d(
+            nn.Conv2d(2, 2, kernel_size=(2, 3)),
+            nn.BatchNorm2d(2),
+            nn.ReLU(),
+        ),
+    ]
+]
+
+INPUT_AND_MODELS += [
+    build_test_tup(mod, shape=(1, 2))
+    for mod in [
+        nn.Linear(2, 1),
+        nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
+    ]
+]
+
+
+# torch.nn.quantizable.LSTM??
+
+# to support ?
+# torch.nn.quantizable.MultiheadAttention??
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)

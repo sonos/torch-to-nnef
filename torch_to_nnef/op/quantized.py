@@ -11,6 +11,8 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.op.primitive import _add_single_output_op
+
 
 def is_signed_q8(np_dtype: np.dtype):
     assert np_dtype in [np.uint8, np.int8]
@@ -80,35 +82,23 @@ def register_state_node_as_variable(
     return var.output
 
 
-def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
-    (input_node, packed_params_node, scale_node, zero_point_node) = node.inputs
+def _weight_bias(g, node, weight, bias, name_to_tensor):
     onode = node.outputs[0]
-
-    packed_params = packed_params_node.data
-    conv_weight = packed_params.weight().data
-    conv_bias = packed_params.bias()
-
-    stride = packed_params.stride()[1:]
-    dilation = packed_params.dilation()[1:]
-    padding = packed_params.padding()[1:]
-    groups = packed_params.groups()
-
     weight_ref = register_state_node_as_variable(
-        # 2nd axis is to remove in conv1d packed_params
-        conv_weight.squeeze(2),
+        weight,
         slug_name="weight",
         node=onode,
         g=g,
         name_to_tensor=name_to_tensor,
     )
     bias_ref = None
-    if conv_bias is not None:
+    if bias is not None:
         bias_ref = register_state_node_as_variable(
             torch.quantize_per_tensor(
-                conv_bias.data,
-                scale=conv_weight.q_scale(),
-                zero_point=conv_weight.q_zero_point(),
-                dtype=conv_weight.dtype,
+                bias.data,
+                scale=weight.q_scale(),
+                zero_point=weight.q_zero_point(),
+                dtype=weight.dtype,
             ),
             slug_name="bias",
             node=onode,
@@ -116,8 +106,18 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
             name_to_tensor=name_to_tensor,
         )
 
-    out_tensor_name = f"{onode.export_name}{suffix_output_tensor}"
+    return weight_ref, bias_ref
 
+
+def _output_tensor_from_s_and_zp(
+    g,
+    name_to_tensor,
+    onode,
+    scale_node,
+    zero_point_node,
+    suffix_output_tensor: str = "",
+):
+    out_tensor_name = f"{onode.export_name}{suffix_output_tensor}"
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,
@@ -132,7 +132,50 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
         },
     )
     name_to_tensor[out_tensor_name] = output_tensor
+    return output_tensor
 
+
+def _conv(
+    node,
+    g,
+    name_to_tensor,
+    null_ref,
+    suffix_output_tensor="",
+    conv_rank: int = 1,
+):
+    (input_node, packed_params_node, scale_node, zero_point_node) = node.inputs
+
+    packed_params = packed_params_node.data
+    conv_weight = packed_params.weight().data
+    conv_bias = packed_params.bias()
+
+    # 2nd axis is to remove in conv1d packed_params
+    if conv_rank == 1:
+        conv_weight = conv_weight.squeeze(2)
+    # apply expansion to align inputs with weight {
+    for _ in range(input_node.rank - len(conv_weight.shape)):
+        conv_weight = conv_weight.unsqueeze(0)
+    if conv_bias is not None:
+        for _ in range(input_node.rank - len(conv_bias.shape)):
+            conv_bias = conv_bias.unsqueeze(0)
+    # }
+
+    stride = packed_params.stride()[-conv_rank:]
+    dilation = packed_params.dilation()[-conv_rank:]
+    padding = packed_params.padding()[-conv_rank:]
+    groups = packed_params.groups()
+
+    weight_ref, bias_ref = _weight_bias(
+        g, node, conv_weight, conv_bias, name_to_tensor
+    )
+    output_tensor = _output_tensor_from_s_and_zp(
+        g,
+        name_to_tensor,
+        node.outputs[0],
+        scale_node,
+        zero_point_node,
+        suffix_output_tensor=suffix_output_tensor,
+    )
     inputs = [
         name_to_tensor[input_node.export_name],
         weight_ref,
@@ -143,7 +186,6 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     NOperation(
         graph=g,
         type="conv",
-        name=f"{onode.export_name}_conv",
         inputs=tuple(inputs),
         outputs=output_tensor,
         attribs={
@@ -159,33 +201,93 @@ def _conv(node, g, name_to_tensor, null_ref, suffix_output_tensor=""):
     return output_tensor
 
 
-def conv1d_relu(g, node, name_to_tensor, null_ref, torch_graph):
+def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
+    (input_node, packed_params_node, scale_node, zero_point_node) = node.inputs
+
+    packed_params = packed_params_node.data
+    weight, bias = packed_params.unpack()
+    for _ in range(input_node.rank - len(weight.shape)):
+        weight = weight.unsqueeze(0)
+
+    if bias is not None:
+        for _ in range(input_node.rank - len(bias.shape)):
+            bias = bias.unsqueeze(0)
+
+    weight_ref, bias_ref = _weight_bias(g, node, weight, bias, name_to_tensor)
+    output_tensor = _output_tensor_from_s_and_zp(
+        g,
+        name_to_tensor,
+        node.outputs[0],
+        scale_node,
+        zero_point_node,
+        suffix_output_tensor=suffix_output_tensor,
+    )
+
+    inputs = [
+        name_to_tensor[input_node.export_name],
+        weight_ref,
+    ]
+    if bias_ref is not None:
+        inputs.append(bias_ref)
+
+    NOperation(
+        graph=g, type="linear", inputs=tuple(inputs), outputs=output_tensor
+    )
+    return output_tensor
+
+
+def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
     conv_output_tensor = _conv(
         node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
     )
 
-    onode = node.outputs[0]
-    out_tensor_name = onode.export_name
-    output_tensor = NTensor(
-        graph=g,
-        name=out_tensor_name,
-        dtype=np.uint8,
-        quant=conv_output_tensor.quant,
+    out = _add_single_output_op(
+        g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
-    name_to_tensor[out_tensor_name] = output_tensor
-    NOperation(
-        graph=g,
-        type="relu",
-        name=f"{onode.export_name}_relu",
-        inputs=conv_output_tensor,
-        outputs=tuple([output_tensor]),
-        attribs={},
-    )
+    out.quant = conv_output_tensor.quant
 
 
-def conv1d(g, node, name_to_tensor, null_ref, torch_graph):
+def conv1d(g, node, name_to_tensor, null_ref, **kwargs):
     _conv(node, g, name_to_tensor, null_ref)
+
+
+def linear(g, node, name_to_tensor, **kwargs):
+    _linear(node, g, name_to_tensor)
+
+
+def linear_relu(g, node, name_to_tensor, **kwargs):
+    linear_output_tensor = _linear(
+        node, g, name_to_tensor, suffix_output_tensor="_linear"
+    )
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="relu",
+        inputs=linear_output_tensor,
+    )
+    out.quant = linear_output_tensor.quant
+
+
+def conv2d(g, node, name_to_tensor, null_ref, **kwargs):
+    _conv(node, g, name_to_tensor, null_ref, conv_rank=2)
+
+
+def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
+    conv_output_tensor = _conv(
+        node,
+        g,
+        name_to_tensor,
+        null_ref,
+        suffix_output_tensor="_conv",
+        conv_rank=2,
+    )
+
+    out = _add_single_output_op(
+        g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
+    )
+    out.quant = conv_output_tensor.quant
 
 
 def quantized_node_to_nnef_tensor_and_ops(
