@@ -20,6 +20,8 @@ from torch import nn
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
+from torch_to_nnef.collect_env import dump_environment_versions
+
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 LOGGER = logging.getLogger(__name__)
@@ -41,7 +43,7 @@ def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     subprocess.check_call(
         (
             f"{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path} "
-            f"--nnef-tract-core  dump --nnef {nnef_path}"
+            f"--nnef-tract-core --nnef-tract-pulse dump --nnef {nnef_path}"
         ),
         shell=True,
         stderr=subprocess.STDOUT,
@@ -51,7 +53,8 @@ def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
 def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
     cmd = (
         f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} "
-        f"--nnef-tract-core -vvv -O run --assert-output-bundle {io_npz_path}"
+        f"--nnef-tract-core --nnef-tract-pulse "
+        f"-vvv -O run --assert-output-bundle {io_npz_path}"
     )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -207,15 +210,6 @@ def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
                 assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
 
 
-def tract_version() -> str:
-    return (
-        subprocess.check_output(f"{TRACT_PATH} --version".split())
-        .decode("utf8")
-        .split(maxsplit=1)[-1]
-        .strip()
-    )
-
-
 def assert_io_and_debug_bundle(
     model: nn.Module,
     test_input,
@@ -258,10 +252,7 @@ def assert_io_and_debug_bundle(
                 f"cp {io_npz_path} {no_suffix_debug_bundle_path}/io.npz",
                 shell=True,
             )
-            with (no_suffix_debug_bundle_path / "versions").open(
-                "w", encoding="utf8"
-            ) as fh:
-                fh.write(f"tract: {tract_version()}")
+            dump_environment_versions(no_suffix_debug_bundle_path)
 
             debug_dumper_pytorch_to_onnx_to_nnef(
                 model,

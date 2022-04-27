@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - pre release
+
+### Added
+- Better collected environment with OS, GCC, python and more package info
+
+
 ## [0.3.1] - 2022-04-22
 
 ### Fix
