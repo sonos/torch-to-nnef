@@ -2,6 +2,15 @@
 
 ## [0.3.2] - pre release
 
+### Fixed
+- Arity was not properly tracked in some Subgraph expansion when parameter where
+  flipped during torch optimization process (that modified ordering), this lead
+  to wrong matching between io of graph and subgraph during recursive process.
+
+- Div with an int type was not possible to cast implicitly to float by tract, to
+  avoid ronding behavior missmatch we did had casting wrapper to handle such
+  usecase properly.
+
 ### Added
 - Better collected environment with OS, GCC, python and more package info
 - Export Q8 Conv{1,2}d and Linear
