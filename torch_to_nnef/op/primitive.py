@@ -11,6 +11,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.dtypes import (
     SCALAR_TYPE_TO_PYTORCH_TYPE,
     TORCH_DTYPE_TO_TRACT_STR,
+    numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.torch_graph import (
     Data,
@@ -893,16 +894,71 @@ def view(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def _cast_to_if_not_dtype_and_variable(
+    g,
+    name_to_tensor,
+    node,
+    nnef_tensor: NTensor,
+    cast_to: np.dtype,
+    suffix: str = "",
+):
+    """Force casting not expressed in IR graph in case of div by example.
+
+    This is neccessary since tract and maybe other inference engine may not cast
+    implicitly to float during div operation by example leading to rounding
+    issues.
+
+    """
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=nnef_tensor,
+        attrs={
+            "to": numpy_dtype_to_tract_str(cast_to),
+        },
+        output_tensor_name_suffix=suffix,
+    )
+    return out, ["tract_core"]
+
+
 def div(g, node, name_to_tensor, null_ref, torch_graph):
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
     suffix_div_op_output = ""
     rounding_mode = None
+
+    used_custom_fragment = []
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    divisor_tensor = get_or_add_tensor_variable_in_nnef(
+        g, divisor_node, name_to_tensor
+    )
+    io_casting_with_dtype = None
+
+    int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
+    if hasattr(input_node, "dtype") and input_node.dtype in int_types:
+        io_casting_with_dtype = input_node.np_dtype
+        input_tensor, custom_fragments = _cast_to_if_not_dtype_and_variable(
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            nnef_tensor=input_tensor,
+            cast_to=np.float32,
+            suffix="casted",
+        )
+        used_custom_fragment += custom_fragments
+
     for c_node in [input_node, divisor_node]:
         c_node.cast_float_inplace()
 
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
+
+    if len(node.inputs) == 3 or io_casting_with_dtype is not None:
         suffix_div_op_output = "div"
 
     out = _add_single_output_op(
@@ -911,22 +967,36 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         "div",
         inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            get_or_add_tensor_variable_in_nnef(g, divisor_node, name_to_tensor),
+            input_tensor,
+            divisor_tensor,
         ),
         output_tensor_name_suffix=suffix_div_op_output,
     )
+
     if rounding_mode:
-        _add_single_output_op(
+        out = _add_single_output_op(
             g,
             node,
             name_to_tensor,
             rounding_mode,
             inputs=out,
+            output_tensor_name_suffix=""
+            if io_casting_with_dtype is None
+            else rounding_mode,
         )
         if rounding_mode == "trunc":
-            return [rounding_mode]
-    return []
+            used_custom_fragment.append(rounding_mode)
+
+    if io_casting_with_dtype is not None:
+        _, custom_fragments = _cast_to_if_not_dtype_and_variable(
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            nnef_tensor=out,
+            cast_to=io_casting_with_dtype,
+        )
+        used_custom_fragment += custom_fragments
+    return list(set(used_custom_fragment))
 
 
 def trunc(g, node, name_to_tensor, null_ref, torch_graph):

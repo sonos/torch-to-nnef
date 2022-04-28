@@ -108,5 +108,10 @@ def torch_dtype_to_str(torch_type):
     return NUMPY_DTYPE_TO_STR[TORCH_TO_NUMPY_DTYPE[torch_type]]
 
 
+def numpy_dtype_to_tract_str(dtype) -> str:
+    torch_dtype = NUMPY_TO_TORCH_DTYPE[dtype]
+    return TORCH_DTYPE_TO_TRACT_STR[torch_dtype]
+
+
 def is_quantized_dtype(dtype: T.Optional[torch.dtype]):
     return dtype in [torch.quint8, torch.qint8, torch.qint32]
