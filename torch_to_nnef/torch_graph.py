@@ -1173,6 +1173,7 @@ class TorchModuleIRGraph:
         self._fn_trace_call_name = fn_trace_call_name
         self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
+        self._provided_inputs_picked_indexes: T.List[int] = []
         if auto_parse:
             self.parse(
                 provided_inputs=inputs,
@@ -1268,8 +1269,15 @@ class TorchModuleIRGraph:
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph inputs"""
-        idx = 0
-        for node_c_value in self._original_torch_graph.inputs():
+        graph_inputs = list(self._original_torch_graph.inputs())[1:]
+        if provided_inputs is None:
+            provided_inputs = [None] * len(graph_inputs)  # type: ignore
+
+        assert len(graph_inputs) == len(provided_inputs)
+
+        for idx, (node_c_value, original_input) in enumerate(
+            zip(graph_inputs, provided_inputs)
+        ):
             if self._omit_useless_nodes:
                 if (
                     len(node_c_value.uses()) == 0
@@ -1278,14 +1286,14 @@ class TorchModuleIRGraph:
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
-                if provided_inputs is not None:
-                    original_input = provided_inputs[idx]
+                if original_input is not None:
                     tv.shape = original_input.shape
                     tv.dtype = original_input.dtype
                     tv.quant = original_input.quant
-                    idx += 1
                 self.inputs.append(tv)
                 self.data_nodes.append(tv)
+                # used at _merge_subraph
+                self._provided_inputs_picked_indexes.append(idx)
 
     def _parse_core(self):
         """Parse all Operations and collect the scope infos"""
@@ -1446,10 +1454,22 @@ class TorchModuleIRGraph:
             node_graph_to_wire: T.List[Data],
             datas_attr: str,
         ):
-            for node, ref_node in zip(
-                _expand_containers_if_exists(node_subgraph_to_wire),
-                _expand_containers_if_exists(node_graph_to_wire),
-            ):
+            if datas_attr == "inputs":
+                node_graph_to_wire = [
+                    node_graph_to_wire[idx]
+                    for idx in submodule_graph._provided_inputs_picked_indexes
+                ]
+            ref_nodes = list(
+                _expand_containers_if_exists(
+                    node_graph_to_wire, filter_container=True
+                )
+            )
+            nodes = list(
+                _expand_containers_if_exists(
+                    node_subgraph_to_wire, filter_container=True
+                )
+            )
+            for node, ref_node in zip(nodes, ref_nodes):
                 for op_node in submodule_graph.op_nodes:
                     datas = []
                     for dnode in getattr(op_node, datas_attr):
@@ -1680,7 +1700,6 @@ class TorchModuleIRGraph:
             return self
         except NotFoundModuleExtractor:
             pass
-
         self._parse_inputs(provided_inputs)
         self._parse_core()
         self._parse_outputs(provided_outputs)
