@@ -14,14 +14,20 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.op.primitive import _add_single_output_op
 
 
-def is_signed_q8(np_dtype: np.dtype):
-    assert np_dtype in [np.uint8, np.int8]
-    return np_dtype == np.int8
-
-
 def _torch_qtensor_to_ntensor(g, tensor, name):
     np_int_tensor = tensor.int_repr().numpy()
     np_dtype = np_int_tensor.dtype.type
+    qscheme = tensor.qscheme()
+    if qscheme == torch.per_channel_affine:
+        qscale = tensor.q_per_channel_scales()
+        qzerop = tensor.q_per_channel_zero_points()
+    elif qscheme == torch.per_tensor_affine:
+        qscale = tensor.q_scale()
+        qzerop = tensor.q_zero_point()
+    else:
+        raise NotImplementedError(
+            f"not suported quantization scheme {qscheme }"
+        )
     return NTensor(
         g,
         name=name,
@@ -29,10 +35,10 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         dtype=np_dtype,
         data=np_int_tensor,
         quant={
-            "scale": tensor.q_scale(),
-            "zero_point": tensor.q_zero_point(),
-            "bits": 8,
-            "signed": is_signed_q8(np_dtype),
+            "scale": qscale,
+            "zero_point": qzerop,
+            "bits": np_dtype().nbytes * 8,
+            "signed": np.issubdtype(np_dtype, np.signedinteger),
             "symmetric": False,
             "op-name": "zero_point_linear_quantize",
         },
@@ -93,13 +99,24 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
     )
     bias_ref = None
     if bias is not None:
-        bias_ref = register_state_node_as_variable(
-            torch.quantize_per_tensor(
+        qscheme = weight.qscheme()
+        if qscheme == torch.per_channel_affine:
+            raise NotImplementedError(
+                "tract does not support qscheme=per_channel_affine just yet"
+            )
+        if qscheme == torch.per_tensor_affine:
+            bias_tensor = torch.quantize_per_tensor(
                 bias.data,
                 scale=weight.q_scale(),
-                zero_point=weight.q_zero_point(),
-                dtype=weight.dtype,
-            ),
+                zero_point=0,
+                dtype=torch.qint32,
+            )
+        else:
+            raise NotImplementedError(
+                f"not suported quantization scheme {qscheme }"
+            )
+        bias_ref = register_state_node_as_variable(
+            bias_tensor,
             slug_name="bias",
             node=onode,
             g=g,
@@ -288,6 +305,10 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
         g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
     out.quant = conv_output_tensor.quant
+
+
+def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
+    raise NotImplementedError()
 
 
 def quantized_node_to_nnef_tensor_and_ops(

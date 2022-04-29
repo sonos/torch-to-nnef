@@ -2,7 +2,7 @@
 
 ## [0.3.2] - pre release
 
-### Fixed
+### Fix
 - Arity was not properly tracked in some Subgraph expansion when parameter where
   flipped during torch optimization process (that modified ordering), this lead
   to wrong matching between io of graph and subgraph during recursive process.
