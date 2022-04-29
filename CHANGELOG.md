@@ -8,13 +8,12 @@
   to wrong matching between io of graph and subgraph during recursive process.
 
 - Div with an int type was not possible to cast implicitly to float by tract, to
-  avoid ronding behavior missmatch we did had casting wrapper to handle such
+  avoid rounding behavior missmatch we did had casting wrapper to handle such
   usecase properly.
 
 ### Added
 - Better collected environment with OS, GCC, python and more package info
 - Export Q8 Conv{1,2}d and Linear
-
 - In Quantized network use scale/zero point of weight & **input** for bias export
 
 ## [0.3.1] - 2022-04-22
