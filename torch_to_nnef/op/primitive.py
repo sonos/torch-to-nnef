@@ -931,6 +931,9 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
 
     used_custom_fragment = []
 
+    for c_node in [input_node, divisor_node]:
+        c_node.cast_float_inplace()
+
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
@@ -951,9 +954,6 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
             suffix="casted",
         )
         used_custom_fragment += custom_fragments
-
-    for c_node in [input_node, divisor_node]:
-        c_node.cast_float_inplace()
 
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
