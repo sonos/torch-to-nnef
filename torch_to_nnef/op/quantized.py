@@ -105,10 +105,12 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
                 "tract does not support qscheme=per_channel_affine just yet"
             )
         if qscheme == torch.per_tensor_affine:
+            input_quant_infos = name_to_tensor[node.inputs[0].export_name].quant
             bias_tensor = torch.quantize_per_tensor(
                 bias.data,
-                scale=weight.q_scale(),
-                zero_point=0,
+                scale=weight.q_scale() * input_quant_infos["scale"],
+                zero_point=weight.q_zero_point()
+                + input_quant_infos["zero_point"],
                 dtype=torch.qint32,
             )
         else:
@@ -254,7 +256,6 @@ def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
 
 
 def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
-
     conv_output_tensor = _conv(
         node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
     )

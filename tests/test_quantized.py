@@ -32,8 +32,8 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
             dmin = representative_data.min()
             drange = (dmax - dmin).abs()
             # add 10% safe margin
-            dmax += drange / 100 * 10
-            dmin -= drange / 100 * 10
+            dmax += drange / 100 * 200
+            dmin -= drange / 100 * 200
             scale = (dmax - dmin).abs()
             offset = dmin
         for _ in range(100):
@@ -86,25 +86,44 @@ INPUT_AND_MODELS += [
 
 
 INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 2, 3, 4))
+    build_test_tup(mod, shape=(1, 2))
     for mod in [
-        nn.Conv2d(2, 2, kernel_size=(2, 3)),
-        nn.intrinsic.ConvBnReLU2d(
-            nn.Conv2d(2, 2, kernel_size=(2, 3)),
-            nn.BatchNorm2d(2),
-            nn.ReLU(),
-        ),
+        nn.Linear(2, 1, bias=False),
+        nn.Linear(2, 1, bias=True),
+        # nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
     ]
 ]
 
 INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 2))
+    build_test_tup(mod, shape=(1, 2, 3, 4))
     for mod in [
-        nn.Linear(2, 1),
-        nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
+        nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+        # nn.intrinsic.ConvBnReLU2d(
+        # nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+        # nn.BatchNorm2d(2),
+        # nn.ReLU(),
+        # ),
     ]
 ]
 
+
+# INPUT_AND_MODELS += [
+# (torch.rand(1, 3, 256, 256), mod)
+# for mod in [
+# # vision_mdl.quantization.alexnet(pretrained=True, quantize=True)
+# # vision_mdl.quantization.resnet50(pretrained=True, quantize=True)
+# ]
+# ]
+
+# torch.nn.quantizable.LSTM??
+
+# To Support ?
+# torch.nn.quantizable.MultiheadAttention??
+
+# INPUT_AND_MODELS += [
+# build_test_tup(mod, shape=(1, 3, 4))
+# for mod in [nn.intrinsic.ConvBnReLU2d()]
+# ]
 
 # torch.nn.quantizable.LSTM??
 
