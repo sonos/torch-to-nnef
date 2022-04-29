@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.2] - pre release
+## [0.3.2] - 2022-04-29
 
 ### Fix
 - Arity was not properly tracked in some Subgraph expansion when parameter where
