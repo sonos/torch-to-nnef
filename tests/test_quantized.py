@@ -18,24 +18,24 @@ set_seed(int(os.environ.get("SEED", 2)))  # 3 fail
 class WithQuantDeQuant(torch.quantization.QuantWrapper):
     @classmethod
     def quantize_model_and_stub(
-        cls, model, input_shape, representative_data=None
+        cls, model, input_shape, representative_data, safe_margin_percents=200
     ):
         model = cls(model)
         # pylint: disable-next=attribute-defined-outside-init
         model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
         model_qat = torch.quantization.prepare_qat(model)
         model_qat.train()
-        scale = 1.0
-        offset = 0.0
-        if representative_data is not None:
-            dmax = representative_data.max()
-            dmin = representative_data.min()
-            drange = (dmax - dmin).abs()
-            # add 10% safe margin
-            dmax += drange / 100 * 200
-            dmin -= drange / 100 * 200
-            scale = (dmax - dmin).abs()
-            offset = dmin
+
+        dmax = representative_data.max()
+        dmin = representative_data.min()
+        drange = (dmax - dmin).abs()
+
+        # add safe margin %
+        dmax += drange / 100 * safe_margin_percents
+        dmin -= drange / 100 * safe_margin_percents
+        scale = (dmax - dmin).abs()
+        offset = dmin
+
         for _ in range(100):
             model_qat(torch.rand(input_shape) * scale + offset)
         model_q8 = torch.quantization.convert(model_qat.eval())
@@ -51,7 +51,7 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
 INPUT_AND_MODELS = []
 
 
-def build_test_tup(mod, shape=(1, 2, 1)):
+def build_test_tup(mod, shape=(1, 2, 1), safe_margin_percents=200):
     reduce_r = 1
     for si in shape:
         reduce_r *= si
@@ -61,6 +61,7 @@ def build_test_tup(mod, shape=(1, 2, 1)):
             mod,
             input_shape=shape,
             representative_data=torch.arange(reduce_r).reshape(*shape).float(),
+            safe_margin_percents=safe_margin_percents,
         ),
     )
 
@@ -90,7 +91,7 @@ INPUT_AND_MODELS += [
     for mod in [
         nn.Linear(2, 1, bias=False),
         nn.Linear(2, 1, bias=True),
-        # nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
+        nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
     ]
 ]
 
