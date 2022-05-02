@@ -1,4 +1,10 @@
 # Changelog
+## [0.3.3] - 2022-05-02
+
+### Fix
+- Quantization info are passed correctly in case of type neutral information
+  like ((un)squeeze, transpose, split).
+- Dequantize is applied as a forced cast
 
 ## [0.3.2] - 2022-04-29
 
