@@ -1130,7 +1130,17 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
        (x - zero_point) * scale
     """
     input_node = node.inputs[0]
-    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+    nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    _, fragment_names = _cast_to_if_not_dtype_and_variable(
+        g,
+        name_to_tensor,
+        node,
+        nnef_tensor,
+        cast_to=np.float32,
+    )
+    return fragment_names
 
 
 def transpose(g, node, name_to_tensor, null_ref, torch_graph):
