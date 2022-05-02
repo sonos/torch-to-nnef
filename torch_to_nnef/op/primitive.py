@@ -214,6 +214,7 @@ def _add_single_output_op(
     attrs=None,
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
+    pass_quantization_params: bool = False,
 ) -> NTensor:
     assert len(node.outputs) == 1
     out = add_tensor_variable_node_as_nnef_tensor(
@@ -232,6 +233,12 @@ def _add_single_output_op(
         outputs=tuple([out]),
         attribs=attrs or {},
     )
+    if pass_quantization_params:
+        input_quants = (
+            inputs if isinstance(inputs, NTensor) else inputs[0]
+        ).quant
+        if input_quants:
+            out.quant = input_quants
     return out
 
 
@@ -1149,6 +1156,7 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
             g, input_node, name_to_tensor
         ),
         attrs={"axes": new_dims_ranks},
+        pass_quantization_params=True,
     )
 
 
@@ -1163,6 +1171,7 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
             g, input_node, name_to_tensor
         ),
         attrs={"axes": [pick_rank(input_node, _) for _ in dims_node.data]},
+        pass_quantization_params=True,
     )
 
 
@@ -1249,6 +1258,7 @@ def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
             g, input_node, name_to_tensor
         ),
         attrs={"axes": [pick_rank(input_node, dim)]},
+        pass_quantization_params=True,
     )
 
 
@@ -1264,6 +1274,7 @@ def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
             g, input_node, name_to_tensor
         ),
         attrs={"axes": [pick_rank(input_node, dim)]},
+        pass_quantization_params=True,
     )
 
 
@@ -1631,6 +1642,7 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],
             },
+            pass_quantization_params=True,
         )
         current_dim_elm_idx += n_elements
 
