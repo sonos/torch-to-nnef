@@ -1652,8 +1652,9 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],
             },
-            pass_quantization_params=True,
         )
+        if inputs.quant:
+            out.quant = inputs.quant
         current_dim_elm_idx += n_elements
 
 
