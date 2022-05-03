@@ -91,7 +91,7 @@ INPUT_AND_MODELS += [
     for mod in [
         nn.Linear(2, 1, bias=False),
         nn.Linear(2, 1, bias=True),
-        nn.intrinsic.LinearReLU(nn.Linear(2, 1), nn.ReLU()),
+        nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
     ]
 ]
 
