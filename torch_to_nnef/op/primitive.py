@@ -1855,9 +1855,21 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
 
     """
     (input_node, shape_node) = node.inputs
-    repeat_dims = sum(shape_node.data[: -input_node.rank])
-    if repeat_dims == 0:
-        repeat_dims = 1
+
+    repeats = []
+    for input_dim, shape_dim in zip(
+        input_node.shape, shape_node.data[-len(input_node.shape) :]
+    ):
+        if shape_dim in [-1, input_dim]:
+            repeats.append(1)
+        else:
+            repeats.append(int(shape_dim / input_dim))
+    if len(shape_node.data) - input_node.rank > 0:
+        base_mul = 1
+        for val in shape_node.data[: -input_node.rank]:
+            base_mul *= val
+        repeats.insert(0, base_mul)
+
     out = _add_single_output_op(
         g,
         node,
@@ -1866,7 +1878,7 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"repeats": [repeat_dims] + [1] * (input_node.rank - 1)},
+        attrs={"repeats": repeats},
         output_tensor_name_suffix="repeat",
     )
     _add_single_output_op(

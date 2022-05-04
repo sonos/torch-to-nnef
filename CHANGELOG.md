@@ -1,4 +1,11 @@
 # Changelog
+
+## Unreleased
+
+### Fix
+- expand can be expressed with negative values and repeat within rank dim
+- Conformer Architecture now export correctly regardless the number of Attention Head
+
 ## [0.3.3] - 2022-05-02
 
 ### Fix

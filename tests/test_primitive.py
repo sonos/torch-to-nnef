@@ -162,6 +162,14 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+INPUT_AND_MODELS += [
+    (torch.rand(3, 1, 1, 10), UnaryPrimitive(op))
+    for op in [
+        TensorFnPrimitive("expand", args=(3, 2, 1, 10)),
+        TensorFnPrimitive("expand", args=(-1, 2, -1, -1)),
+        TensorFnPrimitive("expand", args=(2, 3, 2, 1, 10)),
+    ]
+]
 
 INPUT_AND_MODELS += [
     (

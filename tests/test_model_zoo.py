@@ -46,8 +46,8 @@ if hasattr(audio_mdl, "Conformer"):
         for model in [
             audio_mdl.Conformer(
                 64,
-                num_heads=1,
-                num_layers=1,
+                num_heads=2,
+                num_layers=2,
                 ffn_dim=128,
                 depthwise_conv_kernel_size=31,
             )
