@@ -262,7 +262,7 @@ def _is_io_quantized_module(module):
 
 
 def maybe_quantize_args_tensor(module, args):
-    if _is_io_quantized_module(module):
+    if _is_io_quantized_module(module) and args is not None:
         args = [
             # force cast in quantized form
             torch.quantize_per_tensor(
@@ -840,7 +840,7 @@ def _extract_op_infos(
     module,
     data_nodes: T.List[Data],
     node: torch._C.Node,
-    module_traced: torch.jit.TracedModule,
+    traced_module: torch.jit.TracedModule,
 ) -> T.Tuple[
     str, T.Optional[str], str, T.Callable[[T.Any], T.Any], T.List[Data]
 ]:
@@ -858,9 +858,9 @@ def _extract_op_infos(
         inputs = inputs[1:]
         # use appropriate graph
         _, op_ref_traced = _unfold_graph_getattr_by_node(
-            module_traced, value_call_ref.node()
+            traced_module, value_call_ref.node()
         )
-        op_ref = TracedModuleCallBox(
+        op_ref = TorchModuleTracer(
             op_ref, op_ref_traced, fn_name=node.s("name")
         )
 
@@ -894,7 +894,7 @@ def _extract_op_infos(
     return (kind, call_name, module_getter_ref, op_ref, abstracted_inputs)
 
 
-class TracedModuleCallBox:
+class TorchModuleTracer:
     """Evaluate Optimized traced Function code so that signature always match
 
     original Module is passed to do proper un-boxing later on.
@@ -905,12 +905,59 @@ class TracedModuleCallBox:
     def __init__(
         self,
         module: nn.Module,
-        traced_module: torch.jit.TracedModule,
+        traced_module: torch.jit.TracedModule = None,
         fn_name: str = "forward",
+        args: T.Optional[
+            T.Tuple[T.Any, ...]
+        ] = None,  # likely mostly torch tensors
     ):
         self.mod = module
-        self.traced_module = traced_module
+        self._traced_module = traced_module
         self.fn_name = fn_name
+        self._args = maybe_quantize_args_tensor(module, args)
+
+    def into_ir_graph(
+        self,
+        inputs: T.Optional[T.List[Data]] = None,
+        outputs: T.Optional[T.List[TtupleOrVar]] = None,
+        renaming_scheme: str = "numeric",
+        **kwargs,
+    ):
+        ir_graph = TorchModuleIRGraph(torch_module_tracer=self, **kwargs)
+        ir_graph.parse(
+            provided_inputs=inputs,
+            provided_outputs=outputs,
+            renaming_scheme=renaming_scheme,
+        )
+        return ir_graph
+
+    @property
+    def traced_module(self):
+        if self._traced_module is None:
+            try:
+                self._traced_module = jit.trace(
+                    self.mod,
+                    self._args,
+                    check_trace=True,
+                )
+            except RuntimeError as exp:
+                raise JitTraceFailed(
+                    "Unable to trace with jit one of following submodule:"
+                    f"{[(k, v.__class__) for k,v in self.mod.named_children()]} "
+                    f"with original error:\n\n'{exp}'\n\n"
+                    "This maybe due to provided input dimension. "
+                    "If not, you can aleviate this issue by applying a special hook"
+                    "this module (explaination available in torch_to_nnef README)"
+                ) from exp
+        return self._traced_module
+
+    @property  # type: ignore
+    @cache
+    def torch_graph(self):
+        trace = self.traced_module
+        if self.fn_name and self.fn_name != "forward":
+            trace = getattr(trace, self.fn_name)
+        return trace.graph
 
     def __call__(self, *args, **kwargs):
         # _actual_script_module is an implementation details
@@ -972,7 +1019,7 @@ class TorchOp:
         node: torch._C.Node,
         scope: str,
         data_nodes: T.List[Data],
-        module_traced,
+        traced_module,
     ) -> "TorchOp":
         op_ref = None
         _rerouted_parsing(node, data_nodes, module)
@@ -983,7 +1030,7 @@ class TorchOp:
             module_getter_ref,
             op_ref,
             inputs,
-        ) = _extract_op_infos(module, data_nodes, node, module_traced)
+        ) = _extract_op_infos(module, data_nodes, node, traced_module)
         outputs = cls._parse_outputs(node, data_nodes)
 
         if not outputs:
@@ -1060,6 +1107,9 @@ class TorchOp:
         if not all(_.tracable for _ in self.inputs):
             return False
 
+        if isinstance(self.op_ref, TorchModuleTracer):
+            self.op_ref._args = self._args
+
         # generate all data and call ops to infer missing infos
         results = self.call_op()
 
@@ -1095,6 +1145,7 @@ class TorchOp:
                         "scale": result.q_scale(),
                         "zero_point": result.q_zero_point(),
                     }
+
         return True
 
     def __repr__(self):
@@ -1154,32 +1205,17 @@ class TorchModuleIRGraph:
 
     def __init__(
         self,
-        module: nn.Module,
-        args: T.Tuple[T.Any, ...],  # likely mostly torch tensor
+        torch_module_tracer: TorchModuleTracer,
         omit_useless_nodes: bool = True,
-        auto_parse: bool = True,
-        inputs: T.Optional[T.List[Data]] = None,
-        outputs: T.Optional[T.List[TtupleOrVar]] = None,
-        renaming_scheme: str = "numeric",
-        module_traced: T.Optional[torch.jit.TracedModule] = None,
-        fn_trace_call_name: T.Optional[str] = None,
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
+
         self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
-        self._module = module
-        self._module_traced = module_traced
-        self._fn_trace_call_name = fn_trace_call_name
-        self._args = maybe_quantize_args_tensor(module, args)
         self._omit_useless_nodes = omit_useless_nodes
         self._provided_inputs_picked_indexes: T.List[int] = []
-        if auto_parse:
-            self.parse(
-                provided_inputs=inputs,
-                provided_outputs=outputs,
-                renaming_scheme=renaming_scheme,
-            )
+        self._tracer = torch_module_tracer
 
     @property
     def data_nodes(self):
@@ -1211,35 +1247,6 @@ class TorchModuleIRGraph:
             if not any(_ is onode for _ in self.data_nodes):
                 raise CheckError(f"not referenced correctly output: {onode}")
 
-    @property  # type: ignore
-    @cache
-    def _torch_trace(self):
-        try:
-            if self._module_traced is not None:
-                return self._module_traced
-            return jit.trace(
-                self._module,
-                self._args,
-                check_trace=True,
-            )
-        except RuntimeError as exp:
-            raise JitTraceFailed(
-                "Unable to trace with jit one of following submodule:"
-                f"{[(k, v.__class__) for k,v in self._module.named_children()]} "
-                f"with original error:\n\n'{exp}'\n\n"
-                "This maybe due to provided input dimension. "
-                "If not, you can aleviate this issue by applying a special hook"
-                "this module (explaination available in torch_to_nnef README)"
-            ) from exp
-
-    @property  # type: ignore
-    @cache
-    def _original_torch_graph(self):
-        trace = self._torch_trace
-        if self._fn_trace_call_name and self._fn_trace_call_name != "forward":
-            trace = getattr(trace, self._fn_trace_call_name)
-        return trace.graph
-
     def remap_node(self, from_node, to_node):
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
@@ -1269,7 +1276,7 @@ class TorchModuleIRGraph:
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph inputs"""
-        graph_inputs = list(self._original_torch_graph.inputs())[1:]
+        graph_inputs = list(self._tracer.torch_graph.inputs())[1:]
         if provided_inputs is None:
             provided_inputs = [None] * len(graph_inputs)  # type: ignore
 
@@ -1298,7 +1305,7 @@ class TorchModuleIRGraph:
     def _parse_core(self):
         """Parse all Operations and collect the scope infos"""
         attr_to_scope: T.Dict[T.Any, str] = {}
-        for node in self._original_torch_graph.nodes():
+        for node in self._tracer.torch_graph.nodes():
             if node.kind() == GETATTR_KIND:
                 attr_name = node.s("name")
                 parent = node.input().node()
@@ -1317,11 +1324,11 @@ class TorchModuleIRGraph:
                 if node.output().type().kind() != CLASSTYPE_KIND:
                     try:
                         op = TorchOp.parse(
-                            self._module,
+                            self._tracer.mod,
                             node,
                             scope=attr_to_scope[attr_name],
                             data_nodes=self.data_nodes,
-                            module_traced=self._torch_trace,
+                            traced_module=self._tracer.traced_module,
                         )
                         self.op_nodes.append(op)
                     except TorchOpTranslatedDifferently:
@@ -1330,11 +1337,11 @@ class TorchModuleIRGraph:
             else:
                 try:
                     op = TorchOp.parse(
-                        self._module,
+                        self._tracer.mod,
                         node,
                         scope="",
                         data_nodes=self.data_nodes,
-                        module_traced=self._torch_trace,
+                        traced_module=self._tracer.traced_module,
                     )
                     self.op_nodes.append(op)
                 except TorchOpTranslatedDifferently:
@@ -1344,7 +1351,7 @@ class TorchModuleIRGraph:
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph outputs"""
-        torch_graph_outputs = self._original_torch_graph.outputs()
+        torch_graph_outputs = self._tracer.torch_graph.outputs()
         outputs = [
             _find_data_node(self.data_nodes, _.debugName())
             for _ in torch_graph_outputs
@@ -1377,8 +1384,10 @@ class TorchModuleIRGraph:
     def _update_scope_reference(self):
         """Update scope in op_nodes with additional infos"""
         alias_to_name = {}
-        base_name = _parse_traced_name(self._torch_trace)
-        for name, module in self._torch_trace.named_modules(prefix="__module"):
+        base_name = _parse_traced_name(self._tracer.traced_module)
+        for name, module in self._tracer.traced_module.named_modules(
+            prefix="__module"
+        ):
             mod_name = _parse_traced_name(module)
             attr_name = name.split(".")[-1]
             alias_to_name[name] = f"{mod_name}[{attr_name}]"
@@ -1536,23 +1545,12 @@ class TorchModuleIRGraph:
                 cname = op.call_name or ""
                 ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
-                module_traced = None
-                fn_trace_call_name = None
-                if isinstance(op.op_ref, TracedModuleCallBox):
-                    module_traced = op.op_ref.traced_module
-                    fn_trace_call_name = op.op_ref.fn_name
-                    op.op_ref = op.op_ref.mod
-
-                assert isinstance(op.op_ref, nn.Module)
-                submodule_graph = TorchModuleIRGraph(
-                    op.op_ref,
-                    op._args,
+                assert isinstance(op.op_ref, TorchModuleTracer), op.op_ref
+                submodule_graph = op.op_ref.into_ir_graph(
                     omit_useless_nodes=self._omit_useless_nodes,
                     inputs=op.inputs,
                     outputs=op.outputs,
                     renaming_scheme=renaming_scheme,
-                    module_traced=module_traced,
-                    fn_trace_call_name=fn_trace_call_name,
                 )
                 prefix = ""
                 if cname is not None:
@@ -1693,7 +1691,7 @@ class TorchModuleIRGraph:
         provided_outputs=None,
     ):
         try:
-            extractor = ModuleInfoExtractor.get_by_module(self._module)
+            extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
             extractor.generate_in_torch_graph(
                 self, provided_inputs, provided_outputs
             )

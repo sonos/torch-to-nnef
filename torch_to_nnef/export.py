@@ -14,7 +14,7 @@ from torch.onnx.utils import (  # type: ignore
 # from . import __version__
 from torch_to_nnef import tract
 from torch_to_nnef.log import log
-from torch_to_nnef.nnef_graph import GraphExtractor
+from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 
 LOGGER = log.getLogger(__name__)
@@ -85,7 +85,7 @@ def export_model_to_nnef(
         if isinstance(args, (torch.Tensor, int, float, bool)):
             args = (args,)
 
-        graph_extractor = GraphExtractor(
+        graph_extractor = TorchToNGraphExtractor(
             model,
             args,
             renaming_scheme=renaming_scheme,
