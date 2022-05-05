@@ -97,7 +97,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         from torch_to_nnef import torch_graph as tg
 
         inputs = []
-        for idx, arg in enumerate(torch_graph._args):
+        for idx, arg in enumerate(torch_graph._tracer._args):
             if provided_inputs:
                 tensor_variable = provided_inputs[idx]
             else:
@@ -109,7 +109,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                     data=None,
                 )
             inputs.append(tensor_variable)
-        results = torch_graph._module(*torch_graph._args)
+        results = torch_graph._tracer.mod(*torch_graph._tracer._args)
         if isinstance(results, torch.Tensor):
             results = (results,)
 
@@ -143,7 +143,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                 kind=f"{CUSTOMOP_KIND}{self._cname_slug}",
                 inputs=inputs,
                 outputs=outputs,
-                op_ref=torch_graph._module,
+                op_ref=torch_graph._tracer.mod,
                 call_name=self._cname_slug,
                 module_path="",
                 scope="",

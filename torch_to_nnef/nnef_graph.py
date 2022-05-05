@@ -15,12 +15,15 @@ from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
     Data,
     TensorVariable,
-    TorchModuleIRGraph,
+    TorchModuleTracer,
     _is_container,
 )
 
 
-class GraphExtractor:
+class TorchToNGraphExtractor:
+
+    """Extract Pytorch Graph and build associated nnef_tools.model.Graph"""
+
     def __init__(
         self,
         model,
@@ -29,11 +32,10 @@ class GraphExtractor:
         check_io_names_qte_match: bool = True,
     ):
         self.model = model
-        self._torch_ir_graph = TorchModuleIRGraph(
+        self._torch_ir_graph = TorchModuleTracer(
             model,
-            args,
-            renaming_scheme=renaming_scheme,
-        )
+            args=args,
+        ).into_ir_graph(renaming_scheme=renaming_scheme)
         self._check_io_names_qte_match = check_io_names_qte_match
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
