@@ -1031,6 +1031,7 @@ class TorchOp:
             op_ref,
             inputs,
         ) = _extract_op_infos(module, data_nodes, node, traced_module)
+
         outputs = cls._parse_outputs(node, data_nodes)
 
         if not outputs:
@@ -1080,6 +1081,7 @@ class TorchOp:
                     *subargs
                 )
             args = self._args
+
             # hacky/bad way to pass argument that are named argument only {
             kwargs = {}
             if self.kind == "aten::div" and len(args) >= 3:
@@ -1546,6 +1548,7 @@ class TorchModuleIRGraph:
                 ref_count[cname] += 1
                 assert isinstance(op, TorchOp)
                 assert isinstance(op.op_ref, TorchModuleTracer), op.op_ref
+                op.op_ref._args = op._args
                 submodule_graph = op.op_ref.into_ir_graph(
                     omit_useless_nodes=self._omit_useless_nodes,
                     inputs=op.inputs,
