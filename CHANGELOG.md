@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.3.4] - 2022-05-06
 
 ### Fix
 - expand can be expressed with negative values and repeat within rank dim
