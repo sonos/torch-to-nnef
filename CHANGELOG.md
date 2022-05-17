@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fix
+- fix nn.MultiHeadAttention case (not self attention) allow to export [Transpose](https://github.com/yangsenius/TransPose)
+
 ## [0.3.4] - 2022-05-06
 
 ### Fix

@@ -119,13 +119,17 @@ def maybe_unsqueeze_to_consistant_inputs_ranks(g, nnef_tensors):
 def get_or_add_tensor_variable_in_nnef(
     g, node, name_to_tensor, name_suffix: str = ""
 ):
-    if node.export_name not in name_to_tensor:
+    name = node.export_name
+    if name_suffix:
+        name += f"_{name_suffix}"
+
+    if name not in name_to_tensor:
         if isinstance(node, PythonConstant):
             node = node.into_tensor_variable()
         add_tensor_variable_node_as_nnef_tensor(
             g, node, name_to_tensor, name_suffix
         )
-    return name_to_tensor[node.export_name]
+    return name_to_tensor[name]
 
 
 def external(
@@ -324,20 +328,20 @@ def _weight_bias_and_output_tensor(
     name_to_tensor,
     null_ref,
 ):
-    weight_ref = add_tensor_variable_node_as_nnef_tensor(
+    weight_ref = get_or_add_tensor_variable_in_nnef(
         node=weight_node,
         g=g,
         name_to_tensor=name_to_tensor,
-        name_suffix="weight",
+        name_suffix="weight" if weight_node.data is not None else "",
     )
 
     bias_ref = null_ref
     if bias_node.data is not None:
-        bias_ref = add_tensor_variable_node_as_nnef_tensor(
+        bias_ref = get_or_add_tensor_variable_in_nnef(
             node=bias_node,
             g=g,
             name_to_tensor=name_to_tensor,
-            name_suffix="bias",
+            name_suffix="bias" if bias_node.data is not None else "",
         )
 
     out_node = node.outputs[0]
@@ -617,9 +621,11 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
     ) = node.inputs
 
     # expand in stored variable export to avoid adding unsqueeze in graph {
-    for _ in range(input_node.rank - weight_node.rank):
-        weight_node.data = weight_node.data.unsqueeze(0)
-        weight_node.shape = list(weight_node.data.shape)
+
+    if weight_node.data is not None:
+        for _ in range(input_node.rank - weight_node.rank):
+            weight_node.data = weight_node.data.unsqueeze(0)
+            weight_node.shape = list(weight_node.data.shape)
 
     if bias_node.data is not None:
         for _ in range(input_node.rank - bias_node.rank):
