@@ -1,9 +1,11 @@
 """Tests export quantized models."""
 import os
+import typing as T
 
 import pytest
 import torch
 from torch import nn
+from torch.quantization import quantize_fx
 
 from .utils import _test_check_model_io, set_seed  # noqa: E402
 
@@ -18,13 +20,40 @@ set_seed(int(os.environ.get("SEED", 2)))  # 3 fail
 class WithQuantDeQuant(torch.quantization.QuantWrapper):
     @classmethod
     def quantize_model_and_stub(
-        cls, model, input_shape, representative_data, safe_margin_percents=200
+        cls,
+        model: nn.Module,
+        input_shape: T.Tuple[int, ...],
+        representative_data: torch.Tensor,
+        safe_margin_percents: int = 200,
+        use_ao_quant: bool = True,
+        use_static: bool = False,
+        quant_engine: str = "qnnpack",
     ):
         model = cls(model)
-        # pylint: disable-next=attribute-defined-outside-init
-        model.qconfig = torch.quantization.get_default_qat_qconfig("qnnpack")
-        model_qat = torch.quantization.prepare_qat(model)
-        model_qat.train()
+        if use_ao_quant:
+            if use_static:
+                model_qprep = quantize_fx.prepare_fx(
+                    model.eval(),
+                    {"": torch.quantization.get_default_qconfig(quant_engine)},
+                )
+                return quantize_fx.convert_fx(model_qprep)
+
+            model_qat = quantize_fx.prepare_qat_fx(
+                model,
+                {"": torch.quantization.get_default_qat_qconfig(quant_engine)},
+            )
+            model_qat.train()
+        else:
+            if use_static:
+                model_fp32_prepared = torch.quantization.prepare(model.eval())
+                return torch.quantization.convert(model_fp32_prepared)
+
+            # pylint: disable-next=attribute-defined-outside-init
+            model.qconfig = torch.quantization.get_default_qat_qconfig(
+                quant_engine
+            )
+            model_qat = torch.quantization.prepare_qat(model)
+            model_qat.train()
 
         dmax = representative_data.max()
         dmin = representative_data.min()
@@ -35,10 +64,14 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
         dmin -= drange / 100 * safe_margin_percents
         scale = (dmax - dmin).abs()
         offset = dmin
-
         for _ in range(100):
             model_qat(torch.rand(input_shape) * scale + offset)
-        model_q8 = torch.quantization.convert(model_qat.eval())
+
+        if use_ao_quant:
+            model_q8 = quantize_fx.convert_fx(model_qat)
+        else:
+            model_q8 = torch.quantization.convert(model_qat.eval())
+
         return model_q8
 
     def forward(self, x):
@@ -51,7 +84,13 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
 INPUT_AND_MODELS = []
 
 
-def build_test_tup(mod, shape=(1, 2, 1), safe_margin_percents=200):
+def build_test_tup(
+    mod: nn.Module,
+    shape: T.Tuple[int, ...] = (1, 2, 1),
+    safe_margin_percents: int = 200,
+    use_ao_quant: bool = False,
+    use_static: bool = False,
+):
     reduce_r = 1
     for si in shape:
         reduce_r *= si
@@ -62,6 +101,8 @@ def build_test_tup(mod, shape=(1, 2, 1), safe_margin_percents=200):
             input_shape=shape,
             representative_data=torch.arange(reduce_r).reshape(*shape).float(),
             safe_margin_percents=safe_margin_percents,
+            use_ao_quant=use_ao_quant,
+            use_static=use_static,
         ),
     )
 
@@ -107,6 +148,8 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+# Need Monitoring !
+# With pytorch v1.11.0 MultiheadAttention and LSTM are supported via dynamic Quantization only
 
 # INPUT_AND_MODELS += [
 # (torch.rand(1, 3, 256, 256), mod)
@@ -116,20 +159,10 @@ INPUT_AND_MODELS += [
 # ]
 # ]
 
-# torch.nn.quantizable.LSTM??
-
-# To Support ?
-# torch.nn.quantizable.MultiheadAttention??
-
 # INPUT_AND_MODELS += [
 # build_test_tup(mod, shape=(1, 3, 4))
 # for mod in [nn.intrinsic.ConvBnReLU2d()]
 # ]
-
-# torch.nn.quantizable.LSTM??
-
-# to support ?
-# torch.nn.quantizable.MultiheadAttention??
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
