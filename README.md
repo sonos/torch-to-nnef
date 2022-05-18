@@ -88,6 +88,8 @@ we concretize dynamic shape at export so that no other operators than external
 can hold dynamics symbol attribute (by example: all operation using part of shape
 of another tensor has those transformed to fixed int)
 
+Only *Static* Quantization is supported and for now only with scheme `torch.per_tensor_affine`.
+
 ## Design choice
 
 We build on top of `torch.jit.trace` Graph representation (API exposed since `1.0`).
