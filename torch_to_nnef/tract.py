@@ -50,11 +50,17 @@ def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     )
 
 
-def tract_assert_io(nnef_path: Path, io_npz_path: Path, raise_exception=True):
+def tract_assert_io(
+    nnef_path: Path,
+    io_npz_path: Path,
+    raise_exception=True,
+    concretize_dim: T.Optional[int] = None,
+):
     cmd = (
         f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} "
         f"--nnef-tract-core --nnef-tract-pulse "
-        f"-vvv -O run --assert-output-bundle {io_npz_path}"
+        + (f"--concretize-dim {concretize_dim}" if concretize_dim else "")
+        + f"-vvv -O run --assert-output-bundle {io_npz_path}"
     )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -218,6 +224,7 @@ def assert_io_and_debug_bundle(
     debug_bundle_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
+    concretize_dim: T.Optional[int] = None,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -233,7 +240,12 @@ def assert_io_and_debug_bundle(
             assert nnef_file_path.exists()
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and Pytorch")
-            tract_assert_io(nnef_file_path, io_npz_path, raise_exception=True)
+            tract_assert_io(
+                nnef_file_path,
+                io_npz_path,
+                raise_exception=True,
+                concretize_dim=concretize_dim,
+            )
             LOGGER.info(
                 f"IO bit match between tract and Pytorch for {nnef_file_path}"
             )

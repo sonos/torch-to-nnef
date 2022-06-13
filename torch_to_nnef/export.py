@@ -50,6 +50,20 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
     return custom_extensions
 
 
+def find_concrete_dim(args, dynamic_axes):
+    inp = args[0]
+    try:
+        dim = next(
+            k
+            for node in dynamic_axes.values()
+            for k, v in node.items()
+            if v == "S"
+        )
+        return inp.shape[dim]
+    except StopIteration:
+        return None
+
+
 def export_model_to_nnef(
     model: torch.nn.Module,
     args,  # args pushed with *args in forward of module
@@ -136,4 +150,5 @@ def export_model_to_nnef(
             debug_bundle_path=debug_bundle_path,
             input_names=input_names,
             output_names=output_names,
+            concretize_dim=find_concrete_dim(args, dynamic_axes),
         )

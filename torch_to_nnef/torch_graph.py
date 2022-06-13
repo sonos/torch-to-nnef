@@ -1089,6 +1089,8 @@ class TorchOp:
                 args = args[:-1]
                 self.op_ref = torch.div
             # }
+            if self.kind == "aten::zeros_like":
+                args = args[:1]
             return self.op_ref(*args, **kwargs)
         raise NotImplementedError(self)
 
