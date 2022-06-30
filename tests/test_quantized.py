@@ -159,11 +159,6 @@ INPUT_AND_MODELS += [
 # ]
 # ]
 
-# INPUT_AND_MODELS += [
-# build_test_tup(mod, shape=(1, 3, 4))
-# for mod in [nn.intrinsic.ConvBnReLU2d()]
-# ]
-
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_quantize_export(test_input, model):

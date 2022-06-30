@@ -256,7 +256,11 @@ def _add_multi_output_op(
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
 ):
-    assert len(node.outputs) > 1
+    if len(node.outputs) == 1:
+        LOGGER.debug(
+            "Obverved multi to be single output "
+            "(which may be normal depending on graph)"
+        )
     output_tensors = []
     for out_node in node.outputs:
         out = add_tensor_variable_node_as_nnef_tensor(
