@@ -54,12 +54,10 @@ def tract_assert_io(
     nnef_path: Path,
     io_npz_path: Path,
     raise_exception=True,
-    concretize_dim: T.Optional[int] = None,
 ):
     cmd = (
         f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} "
         f"--nnef-tract-core --nnef-tract-pulse "
-        + (f"--concretize-dim {concretize_dim}" if concretize_dim else "")
         + f"-vvv -O run --assert-output-bundle {io_npz_path}"
     )
     with subprocess.Popen(
@@ -224,7 +222,6 @@ def assert_io_and_debug_bundle(
     debug_bundle_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
-    concretize_dim: T.Optional[int] = None,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -244,7 +241,6 @@ def assert_io_and_debug_bundle(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=True,
-                concretize_dim=concretize_dim,
             )
             LOGGER.info(
                 f"IO bit match between tract and Pytorch for {nnef_file_path}"
