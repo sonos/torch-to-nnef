@@ -1548,6 +1548,19 @@ def reshape(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def pad(node, **kwargs):
+    kind = node.inputs.pop(2)
+    if kind.data == "constant":
+        return constant_pad_nd(node=node, **kwargs)
+    if kind.data == "reflection":
+        node.inputs = node.inputs[:2]
+        return reflection_padnd(node=node, **kwargs)
+    if kind.data == "replicate":
+        node.inputs = node.inputs[:2]
+        return replication_padnd(node=node, **kwargs)
+    raise NotImplementedError(f"pad kind={kind.data} not implemented")
+
+
 def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
     pads = _get_list_of_int(pads_node, torch_graph)
