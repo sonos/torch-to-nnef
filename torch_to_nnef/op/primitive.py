@@ -1959,6 +1959,48 @@ def glu(g, node, name_to_tensor, null_ref, torch_graph):
     return ["glu"]
 
 
+def clamp_min(g, node, name_to_tensor, null_ref, torch_graph):
+    input_node = node.inputs[0]
+    clamp_value_node = node.inputs[1]
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="max",
+        inputs=[
+            input_tensor,
+            get_or_add_tensor_variable_in_nnef(
+                g, clamp_value_node, name_to_tensor
+            ),
+        ],
+    )
+
+
+def clamp_max(g, node, name_to_tensor, null_ref, torch_graph):
+    input_node = node.inputs[0]
+    clamp_value_node = node.inputs[1]
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="min",
+        inputs=[
+            input_tensor,
+            get_or_add_tensor_variable_in_nnef(
+                g, clamp_value_node, name_to_tensor
+            ),
+        ],
+    )
+
+
 def clamp(g, node, name_to_tensor, null_ref, torch_graph):
     input_node, min_clamp, max_clamp = node.inputs
 

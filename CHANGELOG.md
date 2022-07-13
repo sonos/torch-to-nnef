@@ -3,7 +3,8 @@
 ## Unreleased
 
 ### Added
-- tensor.norm with p 1 or 2
+- `tensor.norm` with p 1 or 2
+- `tensor.clamp_min(float)` and `tensor.clamp_max(float)`
 
 ### Fix
 - fix nn.MultiHeadAttention case (not self attention) allow to export [Transpose](https://github.com/yangsenius/TransPose)

@@ -149,6 +149,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
         TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
         TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
+        TensorFnPrimitive("clamp_min", args=(0.5,)),
+        TensorFnPrimitive("clamp_max", args=(0.5,)),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],
