@@ -431,6 +431,41 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     return ["gelu"]
 
 
+def norm(g, node, name_to_tensor, null_ref, **kwargs):
+    """
+    NOTE this is only the normed vector
+    """
+    input_node, p_node, axes_node, keep_dim_node = node.inputs
+    if p_node.data not in [1, 2]:
+        raise NotImplementedError("norm with p only supported for 1 and 2")
+
+    custom_fragment_name = f"norm_p{p_node.data}"
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        custom_fragment_name,
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": [pick_rank(input_node, dim) for dim in axes_node.data]},
+        output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
+    )
+    if not keep_dim_node.data:
+        _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "squeeze",
+            inputs=out,
+            attrs={
+                "axes": [pick_rank(input_node, dim) for dim in axes_node.data]
+            },
+            pass_quantization_params=True,
+        )
+    return [custom_fragment_name]
+
+
 def hardtanh(**kwargs):
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # remove inplace param

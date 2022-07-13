@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- tensor.norm with p 1 or 2
+
 ### Fix
 - fix nn.MultiHeadAttention case (not self attention) allow to export [Transpose](https://github.com/yangsenius/TransPose)
 

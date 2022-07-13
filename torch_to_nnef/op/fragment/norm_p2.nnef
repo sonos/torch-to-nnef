@@ -1,0 +1,4 @@
+fragment norm_p2( input: tensor<scalar>, axes: integer[]) -> ( output: tensor<scalar> )
+{
+     output = sqrt(sum_reduce(sqr(input), axes = axes));
+}

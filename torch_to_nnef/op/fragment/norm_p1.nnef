@@ -1,0 +1,4 @@
+fragment norm_p1( input: tensor<scalar>, axes: integer[]) -> ( output: tensor<scalar> )
+{
+     output = sum_reduce(abs(input), axes = axes);
+}

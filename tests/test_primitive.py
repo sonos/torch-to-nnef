@@ -147,6 +147,8 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("view", args=(13, 5, 2)),
         TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
         TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
+        TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
+        TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],
