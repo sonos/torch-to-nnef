@@ -2,13 +2,17 @@
 
 ## Unreleased
 
+
+## [0.4.0] - 2022-07-20
+
 ### Added
 - `tensor.norm` with p 1 or 2
 - `tensor.clamp_min(float)` and `tensor.clamp_max(float)`
-- torch quantize op lead to explicit `tract_core_cast` now
 
 ### Fix
 - fix nn.MultiHeadAttention case (not self attention) allow to export [Transpose](https://github.com/yangsenius/TransPose)
+### Change
+- torch quantize op lead to explicit `tract_core_cast` now
 
 ## [0.3.4] - 2022-05-06
 
