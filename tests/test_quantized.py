@@ -77,7 +77,7 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
     def forward(self, x):
         x = self.quant(x)
         x = self.module(x)
-        return x
+        return self.dequant(x)
 
 
 # Test with quantization

@@ -1156,7 +1156,14 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     assert dtype_node.data == 13, "is not expected quint8"
     input_node = node.inputs[0]
     tensor = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    tensor.quant = {
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=tensor,
+    )
+    out.quant = {
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
         "bits": 8,
@@ -1164,7 +1171,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }
-    torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+    return ["tract_core"]
 
 
 def dequantize(g, node, name_to_tensor, null_ref, torch_graph):

@@ -106,6 +106,8 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
             )
         if qscheme == torch.per_tensor_affine:
             input_quant_infos = name_to_tensor[node.inputs[0].export_name].quant
+            if not input_quant_infos:
+                input_quant_infos = node.inputs[0].quant
             bias_tensor = torch.quantize_per_tensor(
                 bias.data,
                 scale=weight.q_scale() * input_quant_infos["scale"],

@@ -10,7 +10,6 @@ import os
 import subprocess
 import tempfile
 import typing as T
-from functools import partial
 from pathlib import Path
 
 import nnef
@@ -74,12 +73,6 @@ def tract_assert_io(
     return True
 
 
-def special_quantize_io(x, model, is_input):
-    if is_input:
-        return model.quant(x).int_repr()
-    return x.int_repr()
-
-
 def nop(x, *args, **kwargs):
     return x
 
@@ -116,18 +109,14 @@ def build_io(
     assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:
-        if isinstance(model, torch.quantization.QuantWrapper):
-            fn = partial(special_quantize_io, model=model)
-        else:
-            fn = nop
 
         kwargs = {
-            key: fn(input_arg.detach(), is_input=True).numpy()
+            key: input_arg.detach().numpy()
             for key, input_arg in zip(input_names, tup_inputs)
         }
         kwargs.update(
             {
-                key: fn(output_arg.detach(), is_input=False).numpy()
+                key: output_arg.detach().numpy()
                 for key, output_arg in zip(output_names, test_outputs)
             }
         )
