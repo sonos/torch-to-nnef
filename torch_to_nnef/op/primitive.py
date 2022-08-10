@@ -2,6 +2,7 @@
 import logging
 import typing as T
 
+import nnef
 import numpy as np
 import torch
 from nnef_tools.model import Graph as NGraph
@@ -893,11 +894,17 @@ def contiguous(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
-def _get_list_of_int(data_node, torch_graph, accept_none: int = 0):
+def _get_list_of_int(
+    data_node, torch_graph, name_to_tensor, accept_none: int = 0
+):
     assert accept_none >= 0
     accepted_none = 0
 
-    def cast_element(val, accepted_none):
+    def cast_element(node, accepted_none):
+        tensor = name_to_tensor.get(node.export_name)
+        if tensor is not None:
+            return nnef.Identifier(tensor.name)
+        val = node.data
         if val is None and accept_none > 0 and accepted_none < accept_none:
             accepted_none += 1
             return val
@@ -906,7 +913,7 @@ def _get_list_of_int(data_node, torch_graph, accept_none: int = 0):
     if isinstance(data_node, PythonConstant):
         int_list = data_node.data
     elif isinstance(data_node, FixedTensorList):
-        int_list = [cast_element(_.data, accepted_none) for _ in data_node.data]
+        int_list = [cast_element(_, accepted_none) for _ in data_node.data]
         if any(_ is None for _ in int_list):
             for ax_data in data_node.data:
                 if ax_data.data is None:
@@ -919,21 +926,23 @@ def _get_list_of_int(data_node, torch_graph, accept_none: int = 0):
             ]
             if len([_ for _ in int_list if _ is None]) > 1:
                 raise NotImplementedError(
-                    f"too much unknown dimenssions for view {int_list}"
+                    f"too much unknown dimensions for view {int_list}"
                 )
     else:
-        raise NotImplementedError("extracting int list from ", data_node)
+        raise NotImplementedError("Extracting int list from ", data_node)
 
-    assert all(isinstance(_, int) for _ in int_list), int_list
+    assert all(
+        isinstance(_, (nnef.Identifier, int)) for _ in int_list
+    ), int_list
     return int_list
 
 
 def view(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, axis_node) = node.inputs
 
-    dim_data = _get_list_of_int(axis_node, torch_graph, accept_none=1)
-
-    assert all(isinstance(_, int) for _ in dim_data)
+    dim_data = _get_list_of_int(
+        axis_node, torch_graph, name_to_tensor=name_to_tensor, accept_none=1
+    )
     _add_single_output_op(
         g,
         node,
@@ -1505,44 +1514,45 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     from shape propagation in a consumer of an NNEF document.
     ```
 
+    Since it is a core component to express some dynamic network that may use
+    tract symbolic dimensions:
+    by example using stream size to apply an averaging:
+    We map it to `tract_core_shape_of`
+
     """
-    original_vec_node, axis_node = node.inputs
-    original_variable_output = node.outputs[0]
-    if original_variable_output.data is None:
-        dim = original_vec_node.shape[axis_node.data]
-    else:
-        dim = original_variable_output.data.numpy().tolist()
-    new_node = PythonConstant(
-        name=original_variable_output.name,
-        data=dim,
+    input_node, axis_node = node.inputs
+    # original_variable_output = node.outputs[0]
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_shape_of",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        output_tensor_name_suffix="shape",
     )
-    torch_graph.remap_node(original_variable_output, new_node)
-
-    for data_node in torch_graph.data_nodes:
-        if (
-            isinstance(data_node, FixedTensorList)
-            and any(_ is new_node for _ in data_node.data)
-            and all(isinstance(_, PythonConstant) for _ in data_node.data)
-        ):
-            # recompute fixed data based on new infos
-            torch_graph.remap_node(
-                data_node,
-                PythonConstant(
-                    name=data_node.name, data=[_.data for _ in data_node.data]
-                ),
-            )
-    torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
-
-    LOGGER.warning(
-        "aten::size replaced by constant traced value (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=out,
+        attrs={
+            "axes": [0],
+            "begin": [axis_node.data],
+            "end": [axis_node.data + 1],
+            "stride": [1],
+        },
     )
 
 
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, axis_node) = node.inputs
 
-    dim_data = _get_list_of_int(axis_node, torch_graph, accept_none=1)
+    dim_data = _get_list_of_int(
+        axis_node, torch_graph, name_to_tensor=name_to_tensor, accept_none=1
+    )
     _add_single_output_op(
         g,
         node,
@@ -1570,7 +1580,9 @@ def pad(node, **kwargs):
 
 def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
-    pads = _get_list_of_int(pads_node, torch_graph)
+    pads = _get_list_of_int(
+        pads_node, torch_graph, name_to_tensor=name_to_tensor
+    )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
@@ -1591,7 +1603,9 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node) = node.inputs
-    pads = _get_list_of_int(pads_node, torch_graph)
+    pads = _get_list_of_int(
+        pads_node, torch_graph, name_to_tensor=name_to_tensor
+    )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
@@ -1612,7 +1626,9 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
 
 def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     (input_node, pads_node, value_node) = node.inputs
-    pads = _get_list_of_int(pads_node, torch_graph)
+    pads = _get_list_of_int(
+        pads_node, torch_graph, name_to_tensor=name_to_tensor
+    )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
@@ -1790,7 +1806,9 @@ def ones(g, node, name_to_tensor, null_ref, torch_graph):
     dtype = torch.float32
     if len(_) > 0:
         dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
-    dim_data = _get_list_of_int(input_node, torch_graph)
+    dim_data = _get_list_of_int(
+        input_node, torch_graph, name_to_tensor=name_to_tensor
+    )
     node.outputs[0].data = torch.ones(dim_data, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
         g,
@@ -2145,7 +2163,6 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
-
     return globals()[aten_op_name](
         g=g,
         node=node,

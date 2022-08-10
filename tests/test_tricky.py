@@ -55,8 +55,8 @@ class SelectNotFirstOutput(nn.Module):
 
 INPUT_AND_MODELS = [
     # to solve this we will need to expand fully graph constant at torch_graph module level
-    # (torch.rand(5, 10, 4), DynamicDoubleBatchRank())
-    (torch.rand(5, 10, 4), SelectNotFirstOutput())
+    (torch.rand(5, 10, 4), DynamicDoubleBatchRank()),
+    (torch.rand(5, 10, 4), SelectNotFirstOutput()),
 ]
 
 
