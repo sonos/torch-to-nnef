@@ -181,7 +181,7 @@ def fill_negone_with_dim_by_rank_order(
     for rank_id, s in enumerate(shapes):
         if s == -1:
             new_shapes.append(input_node.shape[rank_id])
-        elif s > 0:
+        elif isinstance(s, nnef.Identifier) or s > 0:
             new_shapes.append(s)
         else:
             raise NotImplementedError("unexpected dim value: ", s)
@@ -1545,6 +1545,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
             "stride": [1],
         },
     )
+    return ["tract_core"]
 
 
 def reshape(g, node, name_to_tensor, null_ref, torch_graph):
@@ -1939,14 +1940,30 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
     """
     (input_node, shape_node) = node.inputs
 
+    shapes = []
+    for dim in shape_node.data:
+        if isinstance(dim, PythonConstant):
+            dim = dim.data
+        elif isinstance(dim, TensorVariable):
+            dim = nnef.Identifier(dim.export_name)
+        shapes.append(dim)
+
     repeats = []
     for input_dim, shape_dim in zip(
-        input_node.shape, shape_node.data[-len(input_node.shape) :]
+        input_node.shape, shapes[-len(input_node.shape) :]
     ):
         if shape_dim in [-1, input_dim]:
             repeats.append(1)
         else:
-            repeats.append(int(shape_dim / input_dim))
+            if input_dim > 1:
+                if isinstance(shape_dim, nnef.Identifier):
+                    raise NotImplementedError(
+                        "Need for addition of div Op. Not yet implemented"
+                    )
+                repeats.append(int(shape_dim / input_dim))
+            else:
+                repeats.append(shape_dim)
+
     if len(shape_node.data) - input_node.rank > 0:
         base_mul = 1
         for val in shape_node.data[: -input_node.rank]:
@@ -1970,11 +1987,7 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor,
         "reshape",
         inputs=out,
-        attrs={
-            "shape": fill_negone_with_dim_by_rank_order(
-                input_node, shape_node.data
-            )
-        },
+        attrs={"shape": fill_negone_with_dim_by_rank_order(input_node, shapes)},
     )
 
 
