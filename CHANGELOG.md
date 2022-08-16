@@ -3,6 +3,13 @@
 ## Unreleased
 
 
+## [0.5.0] - 2022-08-16
+
+### Change
+- `aten:size` is now transformed in `tract_core_shape_of` which is against NNEF
+  protocol specification but allow 'more' dynamic network to be expressed
+- `aten:reshape` allow symbolic dims as parameters
+
 ## [0.4.0] - 2022-07-20
 
 ### Added
