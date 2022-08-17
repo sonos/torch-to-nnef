@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.5.1] - 2022-08-17
+
+### Change
+- update `nnef` deps
 
 ## [0.5.0] - 2022-08-16
 
