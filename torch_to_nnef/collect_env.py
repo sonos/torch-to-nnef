@@ -158,6 +158,7 @@ def dump_environment_versions(pathdir: Path):
         fh.write(f"python_platform: {platform.platform()}\n")
         fh.write("\n")
         pip_version, pip_output_list = get_pip_packages()
+        assert pip_output_list is not None
         fh.write(f"Related python package from {pip_version}:\n")
         for line in pip_output_list.split("\n"):
             fh.write(f"{line}\n")

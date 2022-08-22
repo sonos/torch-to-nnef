@@ -1918,6 +1918,43 @@ def layer_norm(g, node, name_to_tensor, null_ref, torch_graph):
     return [op_name]
 
 
+def _expand_build_repeats(input_node, shape_node, shapes):
+    repeats = []
+    for input_dim, shape_dim in zip(
+        input_node.shape, shapes[-len(input_node.shape) :]
+    ):
+        if shape_dim in [-1, input_dim]:
+            repeats.append(1)
+        else:
+            if input_dim > 1:
+                if isinstance(shape_dim, nnef.Identifier):
+                    raise NotImplementedError(
+                        "Need for addition of div Op. Not yet implemented"
+                    )
+                repeats.append(int(shape_dim / input_dim))
+            else:
+                repeats.append(shape_dim)
+
+    if len(shape_node.data) - input_node.rank > 0:
+        base_mul = 1
+        mul_to_ids = []
+        for val in shape_node.data[: -input_node.rank]:
+            if isinstance(val, TensorVariable):
+                mul_to_ids.append(val)
+            else:
+                base_mul *= val
+        if mul_to_ids:
+            if base_mul == 1 and len(mul_to_ids) == 1:
+                base_mul = nnef.Identifier(mul_to_ids[0].export_name)
+            else:
+                raise NotImplementedError(
+                    "In such case would need to apply mul chain ops "
+                    "and replace base_mul with related assigned symbol"
+                )
+        repeats.insert(0, base_mul)
+    return repeats
+
+
 def expand(g, node, name_to_tensor, null_ref, torch_graph):
     """
     Illustration of expand:
@@ -1948,27 +1985,7 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
             dim = nnef.Identifier(dim.export_name)
         shapes.append(dim)
 
-    repeats = []
-    for input_dim, shape_dim in zip(
-        input_node.shape, shapes[-len(input_node.shape) :]
-    ):
-        if shape_dim in [-1, input_dim]:
-            repeats.append(1)
-        else:
-            if input_dim > 1:
-                if isinstance(shape_dim, nnef.Identifier):
-                    raise NotImplementedError(
-                        "Need for addition of div Op. Not yet implemented"
-                    )
-                repeats.append(int(shape_dim / input_dim))
-            else:
-                repeats.append(shape_dim)
-
-    if len(shape_node.data) - input_node.rank > 0:
-        base_mul = 1
-        for val in shape_node.data[: -input_node.rank]:
-            base_mul *= val
-        repeats.insert(0, base_mul)
+    repeats = _expand_build_repeats(input_node, shape_node, shapes)
 
     out = _add_single_output_op(
         g,
