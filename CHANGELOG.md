@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.5.2] - 2022-09-06
+
+### Change
+- update `nnef` deps with real original dir since poetry now support subdirectory
+- tract v0.17.7 should make the CI tests pass again
+
 ## [0.5.1] - 2022-08-17
 
 ### Change
