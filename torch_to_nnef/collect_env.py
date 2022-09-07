@@ -139,7 +139,7 @@ def get_pip_packages():
         return run_and_read_all(pip + " list --format=freeze | " + grep_cmd)
 
     pip_version = "pip3" if sys.version[0] == "3" else "pip"
-    out = run_with_pip(sys.executable + " -mpip")
+    out = run_with_pip(sys.executable + " -m pip")
 
     return pip_version, out
 
