@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.5.3] - 2022-09-08
+
+### Change
+- naming exported file with `.nnef` is no more required
+
 ## [0.5.2] - 2022-09-06
 
 ### Change
