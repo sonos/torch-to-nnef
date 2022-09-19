@@ -1102,6 +1102,13 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
+def einsum(g, node, name_to_tensor, null_ref, torch_graph):
+    raise NotImplementedError(
+        "einsum operator is not supported by `NNEF` or `tract-nnef` and"
+        "breaking it down to primite ops may be tricky"
+    )
+
+
 def to(g, node, name_to_tensor, null_ref, torch_graph):
     (
         input_node,
