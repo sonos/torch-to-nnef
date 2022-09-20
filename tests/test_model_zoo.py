@@ -54,6 +54,27 @@ if hasattr(audio_mdl, "Conformer"):
         ]
     ]
 
+if hasattr(audio_mdl, "ConvTasNet"):
+    INPUT_AND_MODELS += [
+        # input shape: batch, channel==1, frames
+        (
+            (torch.rand(1, 1, 1024),),
+            audio_mdl.ConvTasNet(
+                num_sources=2,
+                # encoder/decoder parameters
+                enc_kernel_size=16,
+                enc_num_feats=512,
+                # mask generator parameters
+                msk_kernel_size=3,
+                msk_num_feats=128,
+                msk_num_hidden_feats=512,
+                msk_num_layers=2,
+                msk_num_stacks=3,
+                msk_activate="sigmoid",
+            ),
+        )
+    ]
+
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_model_export(test_input, model):

@@ -4,6 +4,8 @@
 
 ### Added
 - `nnef_spec_strict` option in `export` allows to export strict the NNEF spec compliant model.
+- `group_norm` operator is supported.
+- `ConvTasNet` is supported.
 
 ## [0.5.3] - 2022-09-08
 
