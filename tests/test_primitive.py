@@ -386,6 +386,21 @@ INPUT_AND_MODELS += [
 ]
 
 
+# Next primitive to implement
+# INPUT_AND_MODELS += [
+# (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
+# for op in [
+# TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
+# ]
+# ]
+# INPUT_AND_MODELS += [
+# (
+# torch.arange(9).reshape(3, 3),
+# UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
+# )
+# ]
+
+
 def _test_ids(test_fixtures):
     test_names = []
     for data, module in test_fixtures:

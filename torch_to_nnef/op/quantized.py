@@ -315,7 +315,7 @@ def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 def quantized_node_to_nnef_tensor_and_ops(
-    g, node, name_to_tensor, null_ref, torch_graph
+    g, node, name_to_tensor, null_ref, torch_graph, nnef_spec_strict: bool
 ):
     ops_family, op_name = node.kind.split("::")
     assert ops_family == "quantized"
@@ -325,4 +325,5 @@ def quantized_node_to_nnef_tensor_and_ops(
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
         torch_graph=torch_graph,
+        nnef_spec_strict=nnef_spec_strict,
     )

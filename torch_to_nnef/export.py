@@ -63,7 +63,7 @@ def export_model_to_nnef(
     debug_bundle_path: T.Optional[Path] = None,
     renaming_scheme: str = "numeric",
     check_io_names_qte_match: bool = True,
-    nnef_spec_compliance: bool = False,
+    nnef_spec_strict: bool = False,
 ):
     """Main entrypoint of this library
 
@@ -72,16 +72,16 @@ def export_model_to_nnef(
     """
     logger = log.getLogger("torch_to_nnef")
     logger.setLevel(log_level)
-    if nnef_spec_compliance and check_same_io_as_tract:
+    if nnef_spec_strict and check_same_io_as_tract:
         LOGGER.warning(
-            "Activated `nnef_spec_compliance=True` and `check_same_io_as_tract=True`"
+            "Activated `nnef_spec_strict=True` and `check_same_io_as_tract=True`"
             " but NNEF specification limits dynamic shape export."
             "You may be unable to run with it's full expressivity within tract."
         )
-    if nnef_spec_compliance and dynamic_axes:
+    if nnef_spec_strict and dynamic_axes:
         raise ValueError(
             "NNEF spec does not allow dynamic_axes "
-            "(use either dynamic_axes=None or set nnef_spec_compliance=False)"
+            "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )
     LOGGER.info(
         f"start parse Pytorch model to be exported at {file_path_export}"
@@ -102,6 +102,7 @@ def export_model_to_nnef(
             args,
             renaming_scheme=renaming_scheme,
             check_io_names_qte_match=check_io_names_qte_match,
+            nnef_spec_strict=nnef_spec_strict,
         )
         nnef_graph = graph_extractor.parse(
             input_names,

@@ -22,6 +22,6 @@ def test_should_fail_compliance_NNEF_with_dyn_axes():
                 input_names=["input"],
                 output_names=["output"],
                 log_level=log.WARNING,
-                nnef_spec_compliance=True,
+                nnef_spec_strict=True,
                 dynamic_axes={"input": {1: "S"}},
             )

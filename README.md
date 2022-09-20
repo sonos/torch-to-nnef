@@ -10,8 +10,8 @@ Any Pytorch Model to NNEF file format.
 We intend to export any model formulated with vanilla Torch whatever tensor type
 (handling quantized model).
 
-When NNEF spec is insufficient to express computational graph, we may use extensions from
-[tract inference engine](github.com/sonos/tract) seamlessly.
+When NNEF spec is insufficient to express computational graph, we use extensions from
+[tract inference engine](github.com/sonos/tract) seamlessly (that you can opt-out with `nnef_spec_strict`).
 By example we use special tract components to express:
 - recurrent layers (LSTM, GRU,...)
 - dynamic streamable input dimensions
@@ -19,7 +19,7 @@ By example we use special tract components to express:
 
 This package strive to have minimum dependencies (to allow easy integration in other project).
 
-We aims to support Pytorch > 1.8.0 with tract > 1.16.4 over Linux and MacOS systems.
+We aims to support Pytorch > 1.8.0 with tract > 1.17.7 over Linux and MacOS systems.
 
 ## Install
 
@@ -69,11 +69,14 @@ export_model_to_nnef(
 
     check_io_names_qte_match=True # may be setted to False in some rare case:
     # if one of the input provided is removed since it is not used to generate outputs
+
+    nnef_spec_strict=False, # if set to true it follows NNEF spec
+    # strictly without any tract adaptations & features
 )
 ```
 
-As shown in API it is by default not relying on tract inference library but has
-optin to do few extra-checks with it.
+As shown in API it is by default not checked by tract inference library but has
+opt-in to ensure compatibility.
 
 ## Limitation
 
@@ -84,9 +87,7 @@ This apply for nn.Module with forward containing default None parameters which
 will crash as no work arround have been found yet.
 
 Also we follow to some extent limitation of NNEF specification, in particular
-we concretize dynamic shape at export so that no other operators than external
-can hold dynamics symbol attribute (by example: all operation using part of shape
-of another tensor has those transformed to fixed int)
+We concretize dynamic shape at export for some operators such as (zeros_like/ones/arange ...).
 
 Only *Static* Quantization is supported and for now only with scheme `torch.per_tensor_affine`.
 

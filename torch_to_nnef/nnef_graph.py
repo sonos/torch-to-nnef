@@ -30,6 +30,7 @@ class TorchToNGraphExtractor:
         args,
         renaming_scheme: str = "numeric",
         check_io_names_qte_match: bool = True,
+        nnef_spec_strict: bool = False,
     ):
         self.model = model
         self._torch_ir_graph = TorchModuleTracer(
@@ -37,6 +38,7 @@ class TorchToNGraphExtractor:
             args=args,
         ).into_ir_graph(renaming_scheme=renaming_scheme)
         self._check_io_names_qte_match = check_io_names_qte_match
+        self._nnef_spec_strict = nnef_spec_strict
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
@@ -49,6 +51,7 @@ class TorchToNGraphExtractor:
                 name_to_tensor,
                 null_ref,
                 torch_graph=self._torch_ir_graph,
+                nnef_spec_strict=self._nnef_spec_strict,
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:
@@ -63,6 +66,7 @@ class TorchToNGraphExtractor:
                 name_to_tensor,
                 null_ref,
                 torch_graph=self._torch_ir_graph,
+                nnef_spec_strict=self._nnef_spec_strict,
             )
         if node.kind.startswith(CUSTOMOP_KIND):
             return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
@@ -71,6 +75,7 @@ class TorchToNGraphExtractor:
                 name_to_tensor,
                 null_ref,
                 torch_graph=self._torch_ir_graph,
+                nnef_spec_strict=self._nnef_spec_strict,
             )
 
         raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")

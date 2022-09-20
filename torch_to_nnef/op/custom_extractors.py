@@ -157,6 +157,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         name_to_tensor,
         null_ref,
         torch_graph,
+        nnef_spec_strict: bool,
     ):
         raise NotImplementedError()
 
@@ -529,7 +530,12 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         name_to_tensor,
         null_ref,
         torch_graph,
+        nnef_spec_strict: bool,
     ):
+        if nnef_spec_strict:
+            raise ValueError(
+                "Impossible to export LSTM with NNEF spec compliance activated"
+            )
 
         lstm = node.op_ref
 
@@ -665,8 +671,12 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         name_to_tensor,
         null_ref,
         torch_graph,
+        nnef_spec_strict: bool,
     ):
-
+        if nnef_spec_strict:
+            raise ValueError(
+                "Impossible to export GRU with NNEF spec compliance activated"
+            )
         gru = node.op_ref
 
         nnef_fragment_selected = "gru"
@@ -766,7 +776,12 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         name_to_tensor,
         null_ref,
         torch_graph,
+        nnef_spec_strict: bool,
     ):
+        if nnef_spec_strict:
+            raise ValueError(
+                "Impossible to export RNN with NNEF spec compliance activated"
+            )
 
         rnn = node.op_ref
 
