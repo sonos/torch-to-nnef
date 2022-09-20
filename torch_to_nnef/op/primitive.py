@@ -23,6 +23,75 @@ from torch_to_nnef.torch_graph import (
 
 LOGGER = logging.getLogger(__name__)
 
+REMAP_ATEN_OP_NAMES = {
+    "_relu": "relu",
+    "reciprocal": "rcp",
+    "clone": "copy",
+    "bitwise_not": "not",
+    "bitwise_not_cpu": "not",
+    "bitwise_cpu": "and",
+    "__and_": "and",
+    "__or_": "or",
+    "less": "lt",
+    "greater": "gt",
+    "less_equal": "le",
+    "greater_equal": "ge",
+    "reflection_pad1d": "reflection_padnd",
+    "replication_pad1d": "replication_padnd",
+    "constant_pad1d": "constant_padnd",
+    # avoid to ovewrite python builtin {
+    "any": "reduce_any",
+    "all": "reduce_all",
+    "sum": "reduce_sum",
+    "pow": "pow_",
+    "max": "max_",
+    "min": "min_",
+    "slice": "slice_",
+    # }
+    "bmm": "matmul",  # since NNEF matmul does not care about rank
+}
+
+GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
+    "relu",
+    "sigmoid",
+    "log",
+    "exp",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "sinh",
+    "cosh",
+    "tanh",
+    "asinh",
+    "acosh",
+    "atanh",
+    "abs",
+    "sign",
+    "neg",
+    "floor",
+    "ceil",
+    "round",
+    "sqrt",
+    "rsqrt",
+    "log2",
+    "copy",
+    "rcp",
+    "not",
+    "eq",
+    "ne",
+    "add",
+    "sub",
+    "lt",
+    "gt",
+    "le",
+    "ge",
+    "and",
+    "or",
+]
+
 
 def add_nnef_operation(graph, inputs, *args, **kwargs):
     if isinstance(inputs, (list, tuple)) and len(inputs) >= 2:
@@ -188,7 +257,7 @@ def fill_negone_with_dim_by_rank_order(
     return new_shapes
 
 
-def mul(g, node, name_to_tensor, null_ref, torch_graph):
+def mul(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     other_node = node.inputs[1]
 
@@ -286,7 +355,7 @@ def _add_multi_output_op(
 
 
 def _unary_output_op_without_params(
-    nnef_op_type: str, g, node, name_to_tensor, null_ref
+    nnef_op_type: str, g, node, name_to_tensor, null_ref, **kwargs
 ):
     _add_single_output_op(
         g,
@@ -302,12 +371,12 @@ def _unary_output_op_without_params(
     )
 
 
-def _unary_input_output_op_with_constant(nnef_op_type, torch_graph, **kwargs):
-
+def _unary_input_output_op_with_constant(nnef_op_type, **kwargs):
+    # avoid unpacking then repacking {
     g = kwargs["g"]
     node = kwargs["node"]
     name_to_tensor = kwargs["name_to_tensor"]
-
+    # }
     for const in node.inputs[1:]:
         if isinstance(const, PythonConstant):
             data = np.array(const.data)
@@ -362,7 +431,9 @@ def _weight_bias_and_output_tensor(
 
 
 def softmax(**kwargs):
+    # avoid unpack/pack {
     node = kwargs["node"]
+    # }
     if node.inputs[2]:
         del node.inputs[2]
 
@@ -371,7 +442,7 @@ def softmax(**kwargs):
     return _unary_input_output_op_with_constant("softmax", **kwargs)
 
 
-def softplus(torch_graph, **kwargs):
+def softplus(**kwargs):
     """
     Note: numerical stability applied in Pytorch is not done in NNEF vanilla
     implementation, nor case beta != 1.
@@ -382,7 +453,9 @@ def softplus(torch_graph, **kwargs):
         y = log(exp(x) + 1.0)
 
     """
+    # avoid unpack/pack {
     node = kwargs["node"]
+    # }
     const = node.inputs[1]
     if const.data != 1:
         raise NotImplementedError(
@@ -394,19 +467,25 @@ def softplus(torch_graph, **kwargs):
 
 
 def elu(**kwargs):
+    # avoid unpack/pack {
     node = kwargs["node"]
+    # }
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("elu", **kwargs)
 
 
 def leaky_relu(**kwargs):
+    # avoid unpack/pack {
     node = kwargs["node"]
+    # }
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
 def prelu(**kwargs):
+    # avoid unpack/pack {
     node = kwargs["node"]
+    # }
     node.inputs = node.inputs[:2]  # remove inplace param
     return _unary_input_output_op_with_constant("prelu", **kwargs)
 
@@ -432,7 +511,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     return ["gelu"]
 
 
-def norm(g, node, name_to_tensor, null_ref, **kwargs):
+def norm(g, node, name_to_tensor, **kwargs):
     """
     NOTE this is only the normed vector
     """
@@ -516,7 +595,7 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
-def _convolution(g, node, name_to_tensor, null_ref, torch_graph):
+def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_node,
         weight_node,
@@ -696,7 +775,7 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
-def batch_norm(g, node, name_to_tensor, null_ref, torch_graph):
+def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
     """
 
     nnef inputs:
@@ -817,9 +896,7 @@ def avg_pool2d(g, node, name_to_tensor, **kwargs):
     )
 
 
-def _adaptive_pool(
-    nnef_op_name: str, g, node, name_to_tensor, null_ref, torch_graph
-):
+def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     (
         input_node,
         pool_values_node,
@@ -862,9 +939,9 @@ def _adaptive_pool(
     )
 
 
-def adaptive_avg_pool2d(g, node, name_to_tensor, null_ref, torch_graph):
-    # WARNING will liklely only wor with full defined shapes in shape
-    _adaptive_pool("avg_pool", g, node, name_to_tensor, null_ref, torch_graph)
+def adaptive_avg_pool2d(g, node, name_to_tensor, **kwargs):
+    # WARNING will liklely only work with full defined shapes in shape
+    _adaptive_pool("avg_pool", g, node, name_to_tensor)
 
 
 def dropout(node, torch_graph, **kwargs):
@@ -937,7 +1014,7 @@ def _get_list_of_int(
     return int_list
 
 
-def view(g, node, name_to_tensor, null_ref, torch_graph):
+def view(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
 
     dim_data = _get_list_of_int(
@@ -984,7 +1061,7 @@ def _cast_to_if_not_dtype_and_variable(
     return out, ["tract_core"]
 
 
-def div(g, node, name_to_tensor, null_ref, torch_graph):
+def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
     suffix_div_op_output = ""
@@ -1006,6 +1083,10 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
     int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
     if hasattr(input_node, "dtype") and input_node.dtype in int_types:
         io_casting_with_dtype = input_node.np_dtype
+        if nnef_spec_strict:
+            raise NotImplementedError(
+                "What NNEF compliance mean in such case ?"
+            )
         input_tensor, custom_fragments = _cast_to_if_not_dtype_and_variable(
             g=g,
             node=node,
@@ -1049,6 +1130,10 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
             used_custom_fragment.append(rounding_mode)
 
     if io_casting_with_dtype is not None:
+        if nnef_spec_strict:
+            raise NotImplementedError(
+                "What NNEF compliance mean in such case ?"
+            )
         _, custom_fragments = _cast_to_if_not_dtype_and_variable(
             g=g,
             node=node,
@@ -1060,7 +1145,7 @@ def div(g, node, name_to_tensor, null_ref, torch_graph):
     return list(set(used_custom_fragment))
 
 
-def trunc(g, node, name_to_tensor, null_ref, torch_graph):
+def trunc(g, node, name_to_tensor, **kwargs):
     _add_single_output_op(
         g,
         node,
@@ -1073,7 +1158,7 @@ def trunc(g, node, name_to_tensor, null_ref, torch_graph):
     return ["trunc"]
 
 
-def flatten(g, node, name_to_tensor, null_ref, torch_graph):
+def flatten(g, node, name_to_tensor, **kwargs):
     """
     Using NNEF:
         fragment reshape<?>(
@@ -1102,7 +1187,14 @@ def flatten(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def to(g, node, name_to_tensor, null_ref, torch_graph):
+def einsum(g, node, name_to_tensor, **kwargs):
+    raise NotImplementedError(
+        "einsum operator is not supported by `NNEF` or `tract-nnef` and"
+        "breaking it down to primite ops may be tricky"
+    )
+
+
+def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
@@ -1113,6 +1205,8 @@ def to(g, node, name_to_tensor, null_ref, torch_graph):
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
+    if nnef_spec_strict:
+        raise NotImplementedError("`to` with nnef_spec_strict ?")
     _add_single_output_op(
         g,
         node,
@@ -1155,7 +1249,7 @@ def pow_(g, node, name_to_tensor, **kwargs):
     )
 
 
-def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
+def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         input_node,
         scale_node,
@@ -1165,14 +1259,7 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
     assert dtype_node.data == 13, "is not expected quint8"
     input_node = node.inputs[0]
     tensor = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    out = _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_cast",
-        inputs=tensor,
-    )
-    out.quant = {
+    quant_infos = {
         "zero_point": zero_point_node.data,
         "scale": scale_node.data,
         "bits": 8,
@@ -1180,10 +1267,24 @@ def quantize_per_tensor(g, node, name_to_tensor, null_ref, torch_graph):
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }
+    if nnef_spec_strict:
+        LOGGER.debug(
+            "quantize with nnef_spec_strict: set quant info on direct output"
+        )
+        tensor.quant = quant_infos
+        return []
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=tensor,
+    )
+    out.quant = quant_infos
     return ["tract_core"]
 
 
-def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
+def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     We will only handle the case of zero_point affine quantization for now.
     which in reverse of quantization is:
@@ -1194,6 +1295,8 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
+    if nnef_spec_strict:
+        raise NotImplementedError("What NNEF compliance mean in such case")
     _, fragment_names = _cast_to_if_not_dtype_and_variable(
         g,
         name_to_tensor,
@@ -1204,7 +1307,7 @@ def dequantize(g, node, name_to_tensor, null_ref, torch_graph):
     return fragment_names
 
 
-def transpose(g, node, name_to_tensor, null_ref, torch_graph):
+def transpose(g, node, name_to_tensor, **kwargs):
     (input_node, dim0_node, dim1_node) = node.inputs
     dim0 = pick_rank(input_node, dim0_node.data)
     dim1 = pick_rank(input_node, dim1_node.data)
@@ -1231,7 +1334,7 @@ def transpose(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def permute(g, node, name_to_tensor, null_ref, torch_graph):
+def permute(g, node, name_to_tensor, **kwargs):
     (input_node, dims_node) = node.inputs
     _add_single_output_op(
         g,
@@ -1246,7 +1349,7 @@ def permute(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def cat(g, node, name_to_tensor, null_ref, torch_graph):
+def cat(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
@@ -1273,7 +1376,7 @@ def cat(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def stack(g, node, name_to_tensor, null_ref, torch_graph):
+def stack(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
@@ -1300,7 +1403,7 @@ def stack(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def unbind(g, node, name_to_tensor, null_ref, torch_graph):
+def unbind(g, node, name_to_tensor, **kwargs):
     """unbind is `unstack` in NNEF"""
     input_node, axis_node = node.inputs
     _add_multi_output_op(
@@ -1316,7 +1419,7 @@ def unbind(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
+def unsqueeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
 
     dim = axis_node.data
@@ -1333,7 +1436,7 @@ def unsqueeze(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
+def squeeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     _add_single_output_op(
@@ -1349,9 +1452,7 @@ def squeeze(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def _reducer(
-    aten_op_name: str, g, node, name_to_tensor, torch_graph, output_idx: int = 0
-):
+def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
 
     (input_node, axis_node, keep_dim_node) = node.inputs
 
@@ -1404,61 +1505,57 @@ def _reducer(
         )
 
 
-def mean(g, node, name_to_tensor, null_ref, torch_graph):
-    _reducer("mean_reduce", g, node, name_to_tensor, torch_graph)
+def mean(g, node, name_to_tensor, **kwargs):
+    _reducer("mean_reduce", g, node, name_to_tensor)
 
 
-def reduce_sum(g, node, name_to_tensor, null_ref, torch_graph):
-    _reducer("sum_reduce", g, node, name_to_tensor, torch_graph)
+def reduce_sum(g, node, name_to_tensor, **kwargs):
+    _reducer("sum_reduce", g, node, name_to_tensor)
 
 
-def argmax(g, node, name_to_tensor, null_ref, torch_graph):
-    _reducer("argmax_reduce", g, node, name_to_tensor, torch_graph)
+def argmax(g, node, name_to_tensor, **kwargs):
+    _reducer("argmax_reduce", g, node, name_to_tensor)
 
 
-def argmin(g, node, name_to_tensor, null_ref, torch_graph):
-    _reducer("argmin_reduce", g, node, name_to_tensor, torch_graph)
+def argmin(g, node, name_to_tensor, **kwargs):
+    _reducer("argmin_reduce", g, node, name_to_tensor)
 
 
-def reduce_any(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_any(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
-    _reducer("any_reduce", g, node, name_to_tensor, torch_graph)
+    _reducer("any_reduce", g, node, name_to_tensor)
 
 
-def reduce_all(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_all(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
-    _reducer("all_reduce", g, node, name_to_tensor, torch_graph)
+    _reducer("all_reduce", g, node, name_to_tensor)
 
 
-def reduce_max(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_max(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise NotImplementedError(
             f"unknown 'max' variant with {n_outputs} outputs used"
         )
-    _reducer("max_reduce", g, node, name_to_tensor, torch_graph)
+    _reducer("max_reduce", g, node, name_to_tensor)
     if n_outputs == 2:
-        _reducer(
-            "argmax_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
-        )
+        _reducer("argmax_reduce", g, node, name_to_tensor, output_idx=1)
 
 
-def reduce_min(g, node, name_to_tensor, null_ref, torch_graph):
+def reduce_min(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise NotImplementedError(
             f"unknown 'min' variant with {n_outputs} outputs used"
         )
-    _reducer("min_reduce", g, node, name_to_tensor, torch_graph)
+    _reducer("min_reduce", g, node, name_to_tensor)
     if n_outputs == 2:
-        _reducer(
-            "argmin_reduce", g, node, name_to_tensor, torch_graph, output_idx=1
-        )
+        _reducer("argmin_reduce", g, node, name_to_tensor, output_idx=1)
 
 
-def max_(g, node, name_to_tensor, null_ref, torch_graph):
+def max_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
-        return reduce_max(g, node, name_to_tensor, null_ref, torch_graph)
+        return reduce_max(g, node, name_to_tensor)
     return _unary_output_op_without_params(
         nnef_op_type="max",
         g=g,
@@ -1468,9 +1565,9 @@ def max_(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def min_(g, node, name_to_tensor, null_ref, torch_graph):
+def min_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
-        return reduce_min(g, node, name_to_tensor, null_ref, torch_graph)
+        return reduce_min(g, node, name_to_tensor)
     return _unary_output_op_without_params(
         nnef_op_type="min",
         g=g,
@@ -1494,7 +1591,7 @@ def repeat(g, node, name_to_tensor, **kwargs):
     )
 
 
-def size(g, node, name_to_tensor, null_ref, torch_graph):
+def size(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
 
@@ -1521,6 +1618,8 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
 
     """
     input_node, axis_node = node.inputs
+    if nnef_spec_strict:
+        raise NotImplementedError("size with nnef_spec_strict")
     # original_variable_output = node.outputs[0]
     out = _add_single_output_op(
         g,
@@ -1548,7 +1647,7 @@ def size(g, node, name_to_tensor, null_ref, torch_graph):
     return ["tract_core"]
 
 
-def reshape(g, node, name_to_tensor, null_ref, torch_graph):
+def reshape(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
 
     dim_data = _get_list_of_int(
@@ -1579,7 +1678,7 @@ def pad(node, **kwargs):
     raise NotImplementedError(f"pad kind={kind.data} not implemented")
 
 
-def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
+def reflection_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, pads_node) = node.inputs
     pads = _get_list_of_int(
         pads_node, torch_graph, name_to_tensor=name_to_tensor
@@ -1602,7 +1701,7 @@ def reflection_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
+def replication_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, pads_node) = node.inputs
     pads = _get_list_of_int(
         pads_node, torch_graph, name_to_tensor=name_to_tensor
@@ -1625,7 +1724,7 @@ def replication_padnd(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
+def constant_pad_nd(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, pads_node, value_node) = node.inputs
     pads = _get_list_of_int(
         pads_node, torch_graph, name_to_tensor=name_to_tensor
@@ -1651,7 +1750,7 @@ def constant_pad_nd(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def where(g, node, name_to_tensor, null_ref, torch_graph):
+def where(g, node, name_to_tensor, **kwargs):
     (condition_node, true_value_node, false_value_node) = node.inputs
 
     inputs = []
@@ -1677,7 +1776,7 @@ def where(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def matmul(g, node, name_to_tensor, null_ref, torch_graph):
+def matmul(g, node, name_to_tensor, **kwargs):
     (
         input_node,
         other_node,
@@ -1699,7 +1798,7 @@ def matmul(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
+def split_with_sizes(g, node, name_to_tensor, **kwargs):
     """We are aware that
     split<?>(
         value: tensor<?>,
@@ -1740,7 +1839,7 @@ def split_with_sizes(g, node, name_to_tensor, null_ref, torch_graph):
         current_dim_elm_idx += n_elements
 
 
-def arange(g, node, name_to_tensor, null_ref, torch_graph):
+def arange(g, node, name_to_tensor, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -1763,7 +1862,7 @@ def arange(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def masked_fill(g, node, name_to_tensor, null_ref, torch_graph):
+def masked_fill(g, node, name_to_tensor, **kwargs):
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
@@ -1791,7 +1890,7 @@ def masked_fill(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def ones(g, node, name_to_tensor, null_ref, torch_graph):
+def ones(g, node, name_to_tensor, torch_graph, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -1818,7 +1917,7 @@ def ones(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
+def zeros_like(g, node, name_to_tensor, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -1846,7 +1945,7 @@ def zeros_like(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def chunk(g, node, name_to_tensor, null_ref, torch_graph):
+def chunk(g, node, name_to_tensor, **kwargs):
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
     assert (
@@ -1877,7 +1976,7 @@ def chunk(g, node, name_to_tensor, null_ref, torch_graph):
         current_dim_elm_idx += n_elements
 
 
-def layer_norm(g, node, name_to_tensor, null_ref, torch_graph):
+def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_tensor_node,
         _,  # normalized_shape_node
@@ -1955,7 +2054,7 @@ def _expand_build_repeats(input_node, shape_node, shapes):
     return repeats
 
 
-def expand(g, node, name_to_tensor, null_ref, torch_graph):
+def expand(g, node, name_to_tensor, **kwargs):
     """
     Illustration of expand:
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
@@ -2008,7 +2107,7 @@ def expand(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def glu(g, node, name_to_tensor, null_ref, torch_graph):
+def glu(g, node, name_to_tensor, **kwargs):
     input_node, axis_node = node.inputs
     _add_single_output_op(
         g,
@@ -2027,7 +2126,7 @@ def glu(g, node, name_to_tensor, null_ref, torch_graph):
     return ["glu"]
 
 
-def clamp_min(g, node, name_to_tensor, null_ref, torch_graph):
+def clamp_min(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
 
@@ -2048,7 +2147,7 @@ def clamp_min(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def clamp_max(g, node, name_to_tensor, null_ref, torch_graph):
+def clamp_max(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
 
@@ -2069,7 +2168,7 @@ def clamp_max(g, node, name_to_tensor, null_ref, torch_graph):
     )
 
 
-def clamp(g, node, name_to_tensor, null_ref, torch_graph):
+def clamp(g, node, name_to_tensor, **kwargs):
     input_node, min_clamp, max_clamp = node.inputs
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
@@ -2106,7 +2205,14 @@ def clamp(g, node, name_to_tensor, null_ref, torch_graph):
         )
 
 
-def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
+def aten_to_nnef_tensor_and_ops(
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    torch_graph,
+    nnef_spec_strict: bool = False,
+) -> T.Optional[T.List[str]]:
     """Main primitive dispatcher
 
     Allow to write in graph any not Quantized Operation from pytorch defined in
@@ -2118,74 +2224,9 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
     # remap
     if aten_op_name.endswith("_"):
         aten_op_name = aten_op_name[:-1]
-    aten_op_name = {
-        "_relu": "relu",
-        "reciprocal": "rcp",
-        "clone": "copy",
-        "bitwise_not": "not",
-        "bitwise_not_cpu": "not",
-        "bitwise_cpu": "and",
-        "__and_": "and",
-        "__or_": "or",
-        "less": "lt",
-        "greater": "gt",
-        "less_equal": "le",
-        "greater_equal": "ge",
-        "reflection_pad1d": "reflection_padnd",
-        "replication_pad1d": "replication_padnd",
-        "constant_pad1d": "constant_padnd",
-        # avoid to ovewrite python builtin {
-        "any": "reduce_any",
-        "all": "reduce_all",
-        "sum": "reduce_sum",
-        "pow": "pow_",
-        "max": "max_",
-        "min": "min_",
-        "slice": "slice_",
-        # }
-        "bmm": "matmul",  # since NNEF matmul does not care about rank
-    }.get(aten_op_name, aten_op_name)
+    aten_op_name = REMAP_ATEN_OP_NAMES.get(aten_op_name, aten_op_name)
 
-    if aten_op_name in [
-        "relu",
-        "sigmoid",
-        "log",
-        "exp",
-        "sin",
-        "cos",
-        "tan",
-        "asin",
-        "acos",
-        "atan",
-        "sinh",
-        "cosh",
-        "tanh",
-        "asinh",
-        "acosh",
-        "atanh",
-        "abs",
-        "sign",
-        "neg",
-        "floor",
-        "ceil",
-        "round",
-        "sqrt",
-        "rsqrt",
-        "log2",
-        "copy",
-        "rcp",
-        "not",
-        "eq",
-        "ne",
-        "add",
-        "sub",
-        "lt",
-        "gt",
-        "le",
-        "ge",
-        "and",
-        "or",
-    ]:
+    if aten_op_name in GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES:
         return _unary_output_op_without_params(
             nnef_op_type=aten_op_name,
             g=g,
@@ -2199,4 +2240,5 @@ def aten_to_nnef_tensor_and_ops(g, node, name_to_tensor, null_ref, torch_graph):
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
         torch_graph=torch_graph,
+        nnef_spec_strict=nnef_spec_strict,
     )

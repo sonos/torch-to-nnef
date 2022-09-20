@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- `nnef_spec_strict` option in `export` allows to export strict the NNEF spec compliant model.
+
 ## [0.5.3] - 2022-09-08
 
 ### Change
