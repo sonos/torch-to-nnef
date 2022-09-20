@@ -2205,6 +2205,59 @@ def clamp(g, node, name_to_tensor, **kwargs):
         )
 
 
+def group_norm(g, node, name_to_tensor, **kwargs):
+    """
+    It is a special case of NNEF batch_normalization
+    with variance and mean being tensor
+    """
+    (
+        input_node,
+        n_groups_node,
+        scale_node,
+        offset_node,
+        eps_node,
+        _,  # is_affine_node
+    ) = node.inputs
+    for nd in [offset_node, scale_node]:
+        for _ in range(input_node.rank - nd.rank - 1):
+            nd.data = nd.data.unsqueeze(-1)
+        nd.shape = list(nd.data.shape)
+
+    offset_ref = add_tensor_variable_node_as_nnef_tensor(
+        name_suffix="offset",
+        node=offset_node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+    scale_ref = add_tensor_variable_node_as_nnef_tensor(
+        name_suffix="scale",
+        node=scale_node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+    )
+
+    # x.reshape(3, 1* 2* 2).mean_or_std(dim=1).repeat(2, 1).t().reshape(6)
+    _add_single_output_op(
+        g=g,
+        name_to_tensor=name_to_tensor,
+        node=node,
+        nnef_op_type="group_norm",
+        # name=f"{node.outputs[0].export_name}_op",
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            offset_ref,
+            scale_ref,
+        ),
+        attrs={
+            "epsilon": eps_node.data,
+            "num_groups": n_groups_node.data,
+            "batch_size": input_node.shape[0],
+            "num_channels": input_node.shape[1],
+        },
+    )
+    return ["group_norm"]
+
+
 def aten_to_nnef_tensor_and_ops(
     g,
     node,

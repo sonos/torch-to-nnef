@@ -99,7 +99,10 @@ MAP_TO_NOP = [NUMTOTENSOR_KIND, LISTCONSTRUCT_KIND]
 MAP_TO_TENSOR_FN = [ATEN_CONTIGUOUS_KIND, ATEN_VIEW_KIND]
 
 
-def aten_name_to_torch_fn(aten_name):
+def aten_name_to_torch_fn(
+    aten_name: str,
+):
+    """Get aten cpp torch operator raw python binding"""
     name = aten_name.replace(ATEN_STARTID, "")
     return getattr(torch.ops.aten, name)
 
@@ -1089,8 +1092,11 @@ class TorchOp:
                 args = args[:-1]
                 self.op_ref = torch.div
             # }
-            if self.kind == "aten::zeros_like":
+            if self.kind in ["aten::zeros_like", "aten::zeros"]:
                 args = args[:1]
+            if self.kind == "aten::empty":
+                args = args[:1]
+
             return self.op_ref(*args, **kwargs)
         raise NotImplementedError(self)
 

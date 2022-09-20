@@ -386,6 +386,16 @@ INPUT_AND_MODELS += [
 ]
 
 
+#
+mdl = nn.GroupNorm(num_groups=3, num_channels=6, eps=0.0)
+mdl.requires_grad_ = False
+mdl.eval()
+INPUT_AND_MODELS += [
+    (torch.arange(12).reshape(1, 6, 2).float(), mdl),
+    (torch.arange(12).reshape(1, 6, 2, 1).float(), mdl),
+]
+
+
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
