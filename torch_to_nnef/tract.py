@@ -39,7 +39,7 @@ class IOPytorchTractNotISOError(ValueError):
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
-    subprocess.check_call(
+    return subprocess.check_output(
         (
             f"{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path} "
             f"--nnef-tract-core --nnef-tract-pulse dump --nnef {nnef_path}"
@@ -131,7 +131,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
     onnx_path=None,
     io_npz_path=None,
     raise_export_error: bool = True,
-) -> bool:
+) -> T.Tuple[bool, str]:
     with tempfile.TemporaryDirectory() as tmpdir:
         onnx_path = onnx_path or (Path(tmpdir) / "model.onnx")
         io_npz_path = io_npz_path or (Path(tmpdir) / "io.npz")
@@ -150,7 +150,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
             if raise_export_error:
                 raise OnnxExportError(exp.args) from exp
             LOGGER.warning(f"ONNX export error: {exp}")
-            return False
+            return False, str(exp.args)
         try:
             tract_convert_onnx_to_nnef(
                 onnx_path,
@@ -162,9 +162,12 @@ def pytorch_to_onnx_to_tract_to_nnef(
         except Exception as exp:
             if raise_export_error:
                 raise TractOnnxToNNEFError(exp.args) from exp
-            LOGGER.warning(f"tract ONNX->NNEF export error: {exp}")
-            return False
-        return True
+            error_msg = str(exp.args[-1])
+            if isinstance(exp, subprocess.CalledProcessError):
+                error_msg = exp.output.decode("utf8")
+            LOGGER.warning(f"tract ONNX->NNEF export error: {error_msg}")
+            return False, error_msg
+        return True, ""
 
 
 def debug_dumper_pytorch_to_onnx_to_nnef(
@@ -175,10 +178,10 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
 ) -> bool:
     assert not target_folder.exists()
     target_folder.mkdir()
-    onnx_path = target_folder / "model.onnx"
-    nnef_path = target_folder / "tract_onnx_converted_model.nnef"
+    onnx_path = target_folder.parent / "model_exported_by_torch.onnx"
+    nnef_path = target_folder / "onnx_converted_by_tract_model.nnef.tgz"
     io_npz_path = target_folder / "io.npz"
-    sucessfull_export = pytorch_to_onnx_to_tract_to_nnef(
+    sucessfull_export, error_msg = pytorch_to_onnx_to_tract_to_nnef(
         model,
         test_input,
         nnef_path,
@@ -186,6 +189,11 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
         io_npz_path=io_npz_path,
         raise_export_error=raise_export_error,
     )
+    if error_msg:
+        with (target_folder / "tract_convert_error.log").open(
+            "w", encoding="utf8"
+        ) as fh:
+            fh.write(error_msg)
     if not sucessfull_export:
         return False
     subprocess.check_output(
@@ -242,11 +250,20 @@ def assert_io_and_debug_bundle(
                 ""
             ).absolute()
             no_suffix_debug_bundle_path.mkdir(parents=True)
+            no_suffix_debug_bundle_torch_to_nnef_path = (
+                no_suffix_debug_bundle_path / "torch_to_nnef"
+            )
+            no_suffix_debug_bundle_torch_to_nnef_path.mkdir(parents=True)
+            with (
+                no_suffix_debug_bundle_torch_to_nnef_path / "io_iso_error.log"
+            ).open("w", encoding="utf8") as fh:
+                fh.write(exp.args[0])
             subprocess.check_output(
-                f"cd {no_suffix_debug_bundle_path} && "
-                f"cp {nnef_file_path} {no_suffix_debug_bundle_path}/model.nnef.tgz && "
+                f""
+                f"cd {no_suffix_debug_bundle_torch_to_nnef_path} && "
+                f"cp {nnef_file_path} {no_suffix_debug_bundle_torch_to_nnef_path}/model.nnef.tgz && "
                 f"tar -xvzf {nnef_file_path} && "
-                f"cp {io_npz_path} {no_suffix_debug_bundle_path}/io.npz",
+                f"cp {io_npz_path} {no_suffix_debug_bundle_torch_to_nnef_path}/io.npz",
                 shell=True,
             )
             dump_environment_versions(no_suffix_debug_bundle_path)
@@ -254,7 +271,8 @@ def assert_io_and_debug_bundle(
             debug_dumper_pytorch_to_onnx_to_nnef(
                 model,
                 test_input,
-                target_folder=no_suffix_debug_bundle_path / "tract",
+                target_folder=no_suffix_debug_bundle_path
+                / "tract_onnx_converted_model",
                 raise_export_error=False,
             )
             if any(

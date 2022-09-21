@@ -86,7 +86,7 @@ or others might prevent proper tracing of it).
 This apply for nn.Module with forward containing default None parameters which
 will crash as no work arround have been found yet.
 
-Also we follow to some extent limitation of NNEF specification, in particular
+Also we follow to some extent limitation of NNEF specification, in particular:
 We concretize dynamic shape at export for some operators such as (zeros_like/ones/arange ...).
 
 Only *Static* Quantization is supported and for now only with scheme `torch.per_tensor_affine`.
