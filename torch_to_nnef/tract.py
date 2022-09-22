@@ -20,6 +20,7 @@ from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.collect_env import dump_environment_versions
+from torch_to_nnef.utils import SemanticVersion
 
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
@@ -36,6 +37,17 @@ class TractOnnxToNNEFError(RuntimeError):
 
 class IOPytorchTractNotISOError(ValueError):
     pass
+
+
+def tract_version() -> SemanticVersion:
+    return SemanticVersion.from_str(
+        subprocess.check_output(
+            f"{TRACT_PATH} --version".split(" "),
+            stderr=subprocess.STDOUT,
+        )
+        .decode("utf8")
+        .split(" ")[1]
+    )
 
 
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
