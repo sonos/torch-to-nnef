@@ -39,7 +39,7 @@ class IOPytorchTractNotISOError(ValueError):
     pass
 
 
-def tract_version() -> T.Optional[SemanticVersion]:
+def tract_version() -> SemanticVersion:
     return SemanticVersion.from_str(
         subprocess.check_output(
             f"{TRACT_PATH} --version".split(" "),
