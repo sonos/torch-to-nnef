@@ -229,6 +229,13 @@ def pick_rank(input_node, rank: int) -> int:
     return input_node.rank + rank
 
 
+def pick_value_in_rank(input_node, rank: int, index: int) -> int:
+    """Enforce that index in axis does contains only positive values"""
+    if index >= 0:
+        return index
+    return input_node.shape[rank] + index
+
+
 def fill_negone_with_dim_by_rank_order(
     input_node, shapes: T.List[int]
 ) -> T.List[int]:
@@ -588,8 +595,8 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
         ),
         attrs={
             "axes": [pick_rank(input_node, dim)],
-            "begin": [begin_node.data],
-            "end": [end],
+            "begin": [pick_value_in_rank(input_node, dim, begin_node.data)],
+            "end": [pick_value_in_rank(input_node, dim, end)],
             "stride": [stride_node.data],
         },
     )
