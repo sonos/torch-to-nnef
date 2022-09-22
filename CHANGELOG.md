@@ -6,6 +6,14 @@
 - `nnef_spec_strict` option in `export` allows to export strict the NNEF spec compliant model.
 - `group_norm` operator is supported.
 - `ConvTasNet` is supported.
+- `Wav2Vec2` encoder is supported (with GELU approximations).
+
+### Fix
+- negative index in `slice` are now handled for fixed dimensions
+
+### Change
+- `Exceptions` are now unified under TorchToNNEFError
+
 
 ## [0.5.3] - 2022-09-08
 
