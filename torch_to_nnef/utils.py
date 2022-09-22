@@ -1,4 +1,5 @@
 import functools
+from functools import total_ordering
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
@@ -16,3 +17,38 @@ def fullname(o):
     if module == "builtins":
         return klass.__qualname__  # avoid outputs like 'builtins.str'
     return module + "." + klass.__qualname__
+
+
+@total_ordering
+class SemanticVersion:
+    """Helper to check a version is higher than another"""
+
+    TAGS = ["major", "minor", "patch"]
+
+    def __init__(self, **kwargs):
+        for t in self.TAGS:
+            assert isinstance(kwargs[t], int), kwargs[t]
+            assert kwargs[t] >= 0, kwargs[t]
+
+        self.version = {t: kwargs[t] for t in self.TAGS}
+
+    @classmethod
+    def from_str(cls, version_str, sep="."):
+        vtags = list(map(int, version_str.strip().split(sep)))
+        assert len(vtags) == len(cls.TAGS)
+        return cls(**dict(zip(cls.TAGS, vtags)))
+
+    def __eq__(self, other):
+        return all(self.version[t] == other.version[t] for t in self.TAGS)
+
+    def __lt__(self, other):
+        for t in self.TAGS:
+            if self.version[t] < other.version[t]:
+                return True
+            if self.version[t] > other.version[t]:
+                return False
+        return False
+
+    def __repr__(self) -> str:
+        version_str = ".".join(str(self.version[t]) for t in self.TAGS)
+        return f"<Version {version_str}>"
