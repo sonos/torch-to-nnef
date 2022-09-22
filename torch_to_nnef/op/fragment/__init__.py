@@ -2,6 +2,8 @@ import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
+from torch_to_nnef.exceptions import FragmentFileError
+
 EXTENSION = ".nnef"
 NNEF_EXTENSION_KEYWORD = "extension"
 
@@ -42,7 +44,7 @@ class Fragment:
         for path in base_path.glob(f"**/*{EXTENSION}"):
             if path.is_file():
                 if path.name in names_loaded:
-                    raise KeyError(
+                    raise FragmentFileError(
                         f"This fragments name: {path.name} is already used"
                     )
                 names_loaded.add(path.name)

@@ -17,11 +17,13 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
+from torch_to_nnef.exceptions import (
+    NotFoundModuleExtractor,
+    StrictNNEFSpecError,
+    TorchToNNEFNotImplementedError,
+)
+
 CUSTOMOP_KIND = "wired_custom::"
-
-
-class NotFoundModuleExtractor(KeyError):
-    pass
 
 
 class _ModuleInfoRegistery(type):
@@ -50,7 +52,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     def __init__(self):
         if self.MODULE_CLASS is None:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 f"Need to specify MODULE_CLASS in class {self.__class__}"
             )
 
@@ -159,7 +161,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         torch_graph,
         nnef_spec_strict: bool,
     ):
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
 
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
@@ -173,7 +175,7 @@ class _RNNMixin:
         backward: bool,
         **kwargs,
     ):
-        raise NotImplementedError
+        raise TorchToNNEFNotImplementedError()
 
     def _check_rank(self, node, module):
         batch_rank = 0 if module.batch_first else 1
@@ -533,7 +535,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_spec_strict: bool,
     ):
         if nnef_spec_strict:
-            raise ValueError(
+            raise StrictNNEFSpecError(
                 "Impossible to export LSTM with NNEF spec compliance activated"
             )
 
@@ -674,7 +676,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_spec_strict: bool,
     ):
         if nnef_spec_strict:
-            raise ValueError(
+            raise StrictNNEFSpecError(
                 "Impossible to export GRU with NNEF spec compliance activated"
             )
         gru = node.op_ref
@@ -779,7 +781,7 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_spec_strict: bool,
     ):
         if nnef_spec_strict:
-            raise ValueError(
+            raise StrictNNEFSpecError(
                 "Impossible to export RNN with NNEF spec compliance activated"
             )
 

@@ -13,6 +13,7 @@ from torch.onnx.utils import (  # type: ignore
 
 # from . import __version__
 from torch_to_nnef import tract
+from torch_to_nnef.exceptions import DynamicShapeValue, StrictNNEFSpecError
 from torch_to_nnef.log import log
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
@@ -31,7 +32,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                 assert external_op.type == "external"
                 for axis, axis_name in named_dims.items():
                     if len(axis_name) != 1:
-                        raise ValueError(
+                        raise DynamicShapeValue(
                             "axis_name in dynamic_axes must "
                             "be of length 1 to follow tract convention "
                             f"but was given '{axis_name}' "
@@ -79,7 +80,7 @@ def export_model_to_nnef(
             "You may be unable to run with it's full expressivity within tract."
         )
     if nnef_spec_strict and dynamic_axes:
-        raise ValueError(
+        raise StrictNNEFSpecError(
             "NNEF spec does not allow dynamic_axes "
             "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )

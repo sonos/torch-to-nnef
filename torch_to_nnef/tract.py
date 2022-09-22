@@ -20,23 +20,16 @@ from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.collect_env import dump_environment_versions
+from torch_to_nnef.exceptions import (
+    IOPytorchTractNotISOError,
+    OnnxExportError,
+    TractOnnxToNNEFError,
+)
 from torch_to_nnef.utils import SemanticVersion
 
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 LOGGER = logging.getLogger(__name__)
-
-
-class OnnxExportError(RuntimeError):
-    pass
-
-
-class TractOnnxToNNEFError(RuntimeError):
-    pass
-
-
-class IOPytorchTractNotISOError(ValueError):
-    pass
 
 
 def tract_version() -> SemanticVersion:
