@@ -83,6 +83,11 @@ ATEN_VIEW_KIND = "aten::view"
 ATEN_SIZE_KIND = "aten::size"
 ATEN_INT = "aten::Int"
 ATEN_ARANGE = "aten::arange"
+ATEN_SCALARIMPLICIT = "aten::ScalarImplicit"
+ATEN_TO = "aten::to"
+ATEN_ZERO_LIKE = "aten::zeros_like"
+ATEN_ZEROS = "aten::zeros"
+ATEN_EMPTY = "aten::empty"
 
 
 CLASSTYPE_KIND = "ClassType"
@@ -90,12 +95,17 @@ TUPLETYPE_KIND = "TupleType"
 LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
 INTTYPE_kIND = "IntType"
+NUMBERTYPE_KIND = "NumberType"  # This type represents a Python number
+# Subtype hierarchy for Number Types (NumberType as the base type):
+# IntType <: NumberType
+# FloatType <: NumberType
+# ComplexType <:NumberType
 
 MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
 MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
-MAP_TO_NOP = [NUMTOTENSOR_KIND, LISTCONSTRUCT_KIND]
+MAP_TO_NOP = [NUMTOTENSOR_KIND, LISTCONSTRUCT_KIND, ATEN_SCALARIMPLICIT]
 MAP_TO_TENSOR_FN = [ATEN_CONTIGUOUS_KIND, ATEN_VIEW_KIND]
 
 
@@ -402,6 +412,12 @@ class TensorVariable(Data):
         if node_type.kind() == INTTYPE_kIND:
             dtype = torch.int32
         else:
+            if node_type.kind() == NUMBERTYPE_KIND:
+                parent_node = node_c_value.node()
+                if parent_node.kind() == ATEN_SCALARIMPLICIT:
+                    node_type = parent_node.input().type()
+                else:
+                    raise NotImplementedError()
             stype = node_type.scalarType()
             dtype = str_to_torch_dtype(stype) if stype else None
         return cls(
@@ -1092,11 +1108,12 @@ class TorchOp:
                 args = args[:-1]
                 self.op_ref = torch.div
             # }
-            if self.kind in ["aten::zeros_like", "aten::zeros"]:
+            if self.kind in [ATEN_ZERO_LIKE, ATEN_ZEROS, ATEN_EMPTY]:
                 args = args[:1]
-            if self.kind == "aten::empty":
-                args = args[:1]
-
+            if self.kind == ATEN_TO:
+                if isinstance(args[2], int):
+                    LOGGER.warning("wrongly `ordered` to parameters")
+                    args = args[:2]
             return self.op_ref(*args, **kwargs)
         raise NotImplementedError(self)
 

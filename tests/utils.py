@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch as Torch
+from torch.nn.utils.weight_norm import WeightNorm
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
@@ -51,3 +52,15 @@ def _test_check_model_io(model: Torch.nn.Module, test_input, dynamic_axes=None):
             else None,
             dynamic_axes=dynamic_axes,
         )
+
+
+def remove_weight_norm(module):
+    module_list = list(module.children())
+    if len(module_list) == 0:
+        for k, hook in module._forward_pre_hooks.items():
+            if isinstance(hook, WeightNorm):
+                hook.remove(module)
+                del module._forward_pre_hooks[k]
+    else:
+        for mod in module_list:
+            remove_weight_norm(mod)
