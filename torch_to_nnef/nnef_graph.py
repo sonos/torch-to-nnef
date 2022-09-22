@@ -5,6 +5,7 @@ import numpy as np
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.exceptions import IRError, TorchToNNEFNotImplementedError
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
@@ -78,7 +79,9 @@ class TorchToNGraphExtractor:
                 nnef_spec_strict=self._nnef_spec_strict,
             )
 
-        raise NotImplementedError(f"NNEF Operation for {node} NOT implmented")
+        raise TorchToNNEFNotImplementedError(
+            f"NNEF Operation for {node} NOT implmented"
+        )
 
     def _add_operators(self, name_to_tensor, null_ref):
         def is_missing(node: Data):
@@ -112,7 +115,7 @@ class TorchToNGraphExtractor:
                     "unable to realise operators with outputs",
                     [out.name for op in operators_nodes for out in op.outputs],
                 )
-                raise RuntimeError("DAG seems impossible to unfold")
+                raise IRError("DAG seems impossible to unfold")
             operators_nodes = [
                 _ for _ in operators_nodes if _ not in done_nodes
             ]

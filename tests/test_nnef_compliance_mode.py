@@ -5,6 +5,7 @@ import pytest
 import torch
 from nnef_tools.io.nnef.writer import tempfile
 
+from torch_to_nnef.exceptions import StrictNNEFSpecError
 from torch_to_nnef.export import export_model_to_nnef
 
 
@@ -14,7 +15,7 @@ def test_should_fail_compliance_NNEF_with_dyn_axes():
         model = torch.nn.Sequential(torch.nn.Conv1d(10, 20, 3))
         export_path = Path(tmpdir) / "model.nnef"
 
-        with pytest.raises(ValueError):
+        with pytest.raises(StrictNNEFSpecError):
             export_model_to_nnef(
                 model=model,
                 args=test_input,

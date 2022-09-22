@@ -14,6 +14,7 @@ from torch_to_nnef.dtypes import (
     TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
 )
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -260,7 +261,7 @@ def fill_negone_with_dim_by_rank_order(
         elif isinstance(s, nnef.Identifier) or s > 0:
             new_shapes.append(s)
         else:
-            raise NotImplementedError("unexpected dim value: ", s)
+            raise TorchToNNEFNotImplementedError("unexpected dim value: ", s)
     return new_shapes
 
 
@@ -465,7 +466,7 @@ def softplus(**kwargs):
     # }
     const = node.inputs[1]
     if const.data != 1:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             "This version is not implemented and"
             " would need use of a specific fragment"
         )
@@ -524,7 +525,9 @@ def norm(g, node, name_to_tensor, **kwargs):
     """
     input_node, p_node, axes_node, keep_dim_node = node.inputs
     if p_node.data not in [1, 2]:
-        raise NotImplementedError("norm with p only supported for 1 and 2")
+        raise TorchToNNEFNotImplementedError(
+            "norm with p only supported for 1 and 2"
+        )
 
     custom_fragment_name = f"norm_p{p_node.data}"
     out = _add_single_output_op(
@@ -696,7 +699,7 @@ def _pooling_op(
     ) = node_inputs
 
     if ceil_mode_node.data:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             "Use of ceil to compute output shape is not implem"
         )
 
@@ -870,7 +873,9 @@ def max_pool1d(g, node, name_to_tensor, **kwargs):
 def avg_pool1d(g, node, name_to_tensor, **kwargs):
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
-        raise NotImplementedError("not implemented count_include_pad=False")
+        raise TorchToNNEFNotImplementedError(
+            "not implemented count_include_pad=False"
+        )
     inputs_name_tuple = node.inputs[:-1]  # count_include_pad excluded
     inputs_name_tuple.insert(4, None)  # set missing dilation
     # Dilation is available
@@ -913,7 +918,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     if not all(
         dim and dim > 0 for dim in input_node.shape[-len(pool_values) :]
     ):
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             "dynamic dim used in adaptive pool is not Implemented yet"
         )
     # fixed at export auto adaptation
@@ -959,7 +964,7 @@ def dropout(node, torch_graph, **kwargs):
     ) = node.inputs
     # should wire directly input_node to output without intermediate
     if is_active_node.data:
-        raise NotImplementedError("dropout active at inference")
+        raise TorchToNNEFNotImplementedError("dropout active at inference")
 
     # this replace order is important for graph of single nodes or starting with
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
@@ -1009,11 +1014,13 @@ def _get_list_of_int(
                 cast_element(_.data, accepted_none) for _ in data_node.data
             ]
             if len([_ for _ in int_list if _ is None]) > 1:
-                raise NotImplementedError(
+                raise TorchToNNEFNotImplementedError(
                     f"too much unknown dimensions for view {int_list}"
                 )
     else:
-        raise NotImplementedError("Extracting int list from ", data_node)
+        raise TorchToNNEFNotImplementedError(
+            "Extracting int list from ", data_node
+        )
 
     assert all(
         isinstance(_, (nnef.Identifier, int)) for _ in int_list
@@ -1091,7 +1098,7 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     if hasattr(input_node, "dtype") and input_node.dtype in int_types:
         io_casting_with_dtype = input_node.np_dtype
         if nnef_spec_strict:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 "What NNEF compliance mean in such case ?"
             )
         input_tensor, custom_fragments = _cast_to_if_not_dtype_and_variable(
@@ -1138,7 +1145,7 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
     if io_casting_with_dtype is not None:
         if nnef_spec_strict:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 "What NNEF compliance mean in such case ?"
             )
         _, custom_fragments = _cast_to_if_not_dtype_and_variable(
@@ -1195,7 +1202,7 @@ def flatten(g, node, name_to_tensor, **kwargs):
 
 
 def einsum(g, node, name_to_tensor, **kwargs):
-    raise NotImplementedError(
+    raise TorchToNNEFNotImplementedError(
         "einsum operator is not supported by `NNEF` or `tract-nnef` and"
         "breaking it down to primite ops may be tricky"
     )
@@ -1213,7 +1220,7 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
     if nnef_spec_strict:
-        raise NotImplementedError("`to` with nnef_spec_strict ?")
+        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
     _add_single_output_op(
         g,
         node,
@@ -1240,7 +1247,9 @@ def pow_(g, node, name_to_tensor, **kwargs):
         elif exponent == -2:
             op_type = "rsqr"
         else:
-            raise NotImplementedError("take a look at pow in nnef spec")
+            raise TorchToNNEFNotImplementedError(
+                "take a look at pow in nnef spec"
+            )
     else:
         op_type = "pow"
         inputs += [
@@ -1303,7 +1312,9 @@ def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         g, input_node, name_to_tensor
     )
     if nnef_spec_strict:
-        raise NotImplementedError("What NNEF compliance mean in such case")
+        raise TorchToNNEFNotImplementedError(
+            "What NNEF compliance mean in such case"
+        )
     _, fragment_names = _cast_to_if_not_dtype_and_variable(
         g,
         name_to_tensor,
@@ -1367,7 +1378,9 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise NotImplementedError(f"cat with input_item: {input_item}")
+            raise TorchToNNEFNotImplementedError(
+                f"cat with input_item: {input_item}"
+            )
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
@@ -1394,7 +1407,9 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise NotImplementedError(f"stack with input_item: {input_item}")
+            raise TorchToNNEFNotImplementedError(
+                f"stack with input_item: {input_item}"
+            )
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
@@ -1541,7 +1556,7 @@ def reduce_all(g, node, name_to_tensor, **kwargs):
 def reduce_max(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             f"unknown 'max' variant with {n_outputs} outputs used"
         )
     _reducer("max_reduce", g, node, name_to_tensor)
@@ -1552,7 +1567,7 @@ def reduce_max(g, node, name_to_tensor, **kwargs):
 def reduce_min(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             f"unknown 'min' variant with {n_outputs} outputs used"
         )
     _reducer("min_reduce", g, node, name_to_tensor)
@@ -1626,7 +1641,7 @@ def size(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     input_node, axis_node = node.inputs
     if nnef_spec_strict:
-        raise NotImplementedError("size with nnef_spec_strict")
+        raise TorchToNNEFNotImplementedError("size with nnef_spec_strict")
     # original_variable_output = node.outputs[0]
     out = _add_single_output_op(
         g,
@@ -1682,7 +1697,9 @@ def pad(node, **kwargs):
     if kind.data == "replicate":
         node.inputs = node.inputs[:2]
         return replication_padnd(node=node, **kwargs)
-    raise NotImplementedError(f"pad kind={kind.data} not implemented")
+    raise TorchToNNEFNotImplementedError(
+        f"pad kind={kind.data} not implemented"
+    )
 
 
 def reflection_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
@@ -2034,7 +2051,7 @@ def _expand_build_repeats(input_node, shape_node, shapes):
         else:
             if input_dim > 1:
                 if isinstance(shape_dim, nnef.Identifier):
-                    raise NotImplementedError(
+                    raise TorchToNNEFNotImplementedError(
                         "Need for addition of div Op. Not yet implemented"
                     )
                 repeats.append(int(shape_dim / input_dim))
@@ -2053,7 +2070,7 @@ def _expand_build_repeats(input_node, shape_node, shapes):
             if base_mul == 1 and len(mul_to_ids) == 1:
                 base_mul = nnef.Identifier(mul_to_ids[0].export_name)
             else:
-                raise NotImplementedError(
+                raise TorchToNNEFNotImplementedError(
                     "In such case would need to apply mul chain ops "
                     "and replace base_mul with related assigned symbol"
                 )

@@ -30,38 +30,21 @@ from torch_to_nnef.dtypes import (
     is_quantized_dtype,
     str_to_torch_dtype,
 )
-from torch_to_nnef.op.custom_extractors import (
-    ModuleInfoExtractor,
+from torch_to_nnef.exceptions import (
     NotFoundModuleExtractor,
+    TorchCheckError,
+    TorchJitTraceFailed,
+    TorchNotFoundDataNode,
+    TorchNotFoundOp,
+    TorchOpTranslatedDifferently,
+    TorchToNNEFNotImplementedError,
+    TorchUnableToTraceData,
 )
+from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.tract import nop
 from torch_to_nnef.utils import cache
 
 LOGGER = logging.getLogger(__name__)
-
-
-class JitTraceFailed(RuntimeError):
-    pass
-
-
-class UnableToTraceData(ValueError):
-    pass
-
-
-class TorchOpTranslatedDifferently(ValueError):
-    pass
-
-
-class NotFoundDataNode(ValueError):
-    pass
-
-
-class NotFoundTorchOp(ValueError):
-    pass
-
-
-class CheckError(ValueError):
-    pass
 
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
@@ -319,7 +302,7 @@ class Data:
 
     @property
     def is_constant(self):
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
 
     def __hash__(self):
         return hash(self.name)
@@ -386,7 +369,7 @@ class TensorVariable(Data):
 
         """
         if not self.tracable:
-            raise UnableToTraceData(self)
+            raise TorchUnableToTraceData(self)
 
         if self.data is not None:
             return self.data
@@ -444,7 +427,7 @@ class PythonConstant(Data):
 
     @property
     def np_dtype(self) -> np.dtype:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
 
     @property
     def tracable(self) -> bool:
@@ -479,7 +462,7 @@ class BlobTorchScriptObject(Data):
 
     @property
     def np_dtype(self) -> np.dtype:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
 
     @property
     def tracing_data(self):
@@ -576,10 +559,10 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
     )
     used_in = node_c_value.uses()
     if len(used_in) != 1:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
     use_op = used_in[0].user
     if use_op.kind() != LISTUNPACK_KIND:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
 
     return FixedTensorList(
         name=node_c_value.debugName(),
@@ -592,7 +575,7 @@ def _find_data_node(data_nodes: T.List[Data], name: str):
         return next(d for d in data_nodes if d.name == name)
     except StopIteration as exp:
         names = [dnode.name for dnode in data_nodes]
-        raise NotFoundDataNode(f"'{name}' not found in {names}") from exp
+        raise TorchNotFoundDataNode(f"'{name}' not found in {names}") from exp
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
@@ -649,7 +632,7 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
         # dereferencing it from full graph
         pass
     else:
-        raise NotImplementedError(dtype)
+        raise TorchToNNEFNotImplementedError(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
     return data_nodes[-1]
 
@@ -660,8 +643,10 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
         return _fetch_backward(data_nodes, c_node.input().node())
     try:
         return _find_data_node(data_nodes, c_node.output().debugName())
-    except NotFoundDataNode as exp:
-        raise NotImplementedError("_fetch_backward c_node:", c_node) from exp
+    except TorchNotFoundDataNode as exp:
+        raise TorchToNNEFNotImplementedError(
+            "_fetch_backward c_node:", c_node
+        ) from exp
 
 
 def _parse_list_construct_values(node, data_nodes):
@@ -681,10 +666,10 @@ def _parse_list_construct_values(node, data_nodes):
             elif str(cvalue.type()) == "Tensor":
                 try:
                     value = _find_data_node(data_nodes, cvalue.debugName())
-                except NotFoundDataNode:
+                except TorchNotFoundDataNode:
                     value = TensorVariable.parse(cvalue)
             else:
-                raise NotImplementedError(
+                raise TorchToNNEFNotImplementedError(
                     "parse list construct argument", cvalue
                 )
         values.append(value)
@@ -704,7 +689,7 @@ def _parse_list_construct(node, data_nodes):
             elif isinstance(value, PythonConstant):
                 pass
             else:
-                raise NotImplementedError()
+                raise TorchToNNEFNotImplementedError()
             tensor_values.append(value)
         data_node = FixedTensorList(
             name=node.output().debugName(), data=tensor_values
@@ -770,7 +755,7 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
 
         n_inputs = len(abstracted_inputs)
         if n_inputs < 1 or n_inputs > 3:
-            raise NotImplementedError(n_inputs, abstracted_inputs)
+            raise TorchToNNEFNotImplementedError(n_inputs, abstracted_inputs)
         if n_inputs == 1:
             abstracted_inputs.insert(
                 0,
@@ -846,7 +831,7 @@ def _rerouted_parsing(node: torch._C.Node, data_nodes: T.List[Data], module):
             # note: maybe should be replace dataNode to a FixedTensorList
             raise TorchOpTranslatedDifferently("List unpacked")
         if kind != CALL_KIND:
-            raise NotImplementedError(node)
+            raise TorchToNNEFNotImplementedError(node)
     if kind == CALL_KIND and not any(
         bool(use) for onode in node.outputs() for use in onode.uses()
     ):
@@ -890,7 +875,7 @@ def _extract_op_infos(
             in_name = inp.debugName()
             try:
                 _find_data_node(data_nodes, in_name)
-            except NotFoundDataNode:
+            except TorchNotFoundDataNode:
                 _parse_getattr_script_obj(inp.node(), module, data_nodes)
     else:
         module_getter_ref = MODULE_PATH_ATEN
@@ -899,7 +884,7 @@ def _extract_op_infos(
         elif kind.startswith(ATEN_STARTID):
             op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs, data_nodes)
         else:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 f"Unable to extract operation from {kind}"
             )
 
@@ -960,7 +945,7 @@ class TorchModuleTracer:
                     check_trace=True,
                 )
             except RuntimeError as exp:
-                raise JitTraceFailed(
+                raise TorchJitTraceFailed(
                     "Unable to trace with jit one of following submodule:"
                     f"{[(k, v.__class__) for k,v in self.mod.named_children()]} "
                     f"with original error:\n\n'{exp}'\n\n"
@@ -1115,7 +1100,7 @@ class TorchOp:
                     LOGGER.warning("wrongly `ordered` to parameters")
                     args = args[:2]
             return self.op_ref(*args, **kwargs)
-        raise NotImplementedError(self)
+        raise TorchToNNEFNotImplementedError(self)
 
     @property
     def has_constant_inputs(self) -> bool:
@@ -1153,7 +1138,7 @@ class TorchOp:
             _expand_containers_if_exists(results, filter_container=True)
         )
         if len(output_nodes) != len(output_values):
-            raise CheckError(
+            raise TorchCheckError(
                 f"Arity Missmatch between extracted from graph len({len(output_nodes)}) "
                 f"and the one experienced in tracing simulation len({len(output_values)}) "
                 f"for {self.op_ref}"
@@ -1268,11 +1253,15 @@ class TorchModuleIRGraph:
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
             if not any(_ is inode for _ in self.data_nodes):
-                raise CheckError(f"not referenced correctly input: {inode}")
+                raise TorchCheckError(
+                    f"not referenced correctly input: {inode}"
+                )
 
         for onode in self.outputs:
             if not any(_ is onode for _ in self.data_nodes):
-                raise CheckError(f"not referenced correctly output: {onode}")
+                raise TorchCheckError(
+                    f"not referenced correctly output: {onode}"
+                )
 
     def remap_node(self, from_node, to_node):
         assert isinstance(from_node, Data)
@@ -1390,7 +1379,9 @@ class TorchModuleIRGraph:
                 _expand_containers_if_exists(provided_outputs)
             )
             if len(expanded_output) != len(original_outputs):
-                CheckError(f"{len(expanded_output)} == {len(original_outputs)}")
+                TorchCheckError(
+                    f"{len(expanded_output)} == {len(original_outputs)}"
+                )
             for original_output, output in zip(
                 original_outputs, expanded_output
             ):
@@ -1402,7 +1393,7 @@ class TorchModuleIRGraph:
                     output.dtype = original_output.dtype
                     output.quant = original_output.quant
                 else:
-                    raise NotImplementedError(
+                    raise TorchToNNEFNotImplementedError(
                         f"output={output}\ncompared to:\n"
                         f"original_output={original_output}"
                     )
@@ -1476,7 +1467,7 @@ class TorchModuleIRGraph:
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
             end_len = len(unshaped_data)
             if start_len == end_len:
-                raise NotImplementedError(
+                raise TorchToNNEFNotImplementedError(
                     f"missing unshaped_data: {unshaped_data}"
                 )
 
@@ -1625,7 +1616,7 @@ class TorchModuleIRGraph:
                 dnode.name = mapping[dnode.name]
             return
 
-        raise NotImplementedError(f"renaming scheme: {scheme}")
+        raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
     def _filter_tuple_tensor_from_data_nodes(self):
         new_data_nodes = []
@@ -1749,7 +1740,7 @@ class TorchModuleIRGraph:
             for op_out_dnode in _expand_containers_if_exists(op.outputs):
                 if op_out_dnode is data_node:
                     return op
-        raise NotFoundTorchOp("Did not find operation node")
+        raise TorchNotFoundOp("Did not find operation node")
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""

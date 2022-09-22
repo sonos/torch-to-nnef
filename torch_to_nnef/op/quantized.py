@@ -11,6 +11,7 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive import _add_single_output_op
 
 
@@ -25,7 +26,7 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         qscale = tensor.q_scale()
         qzerop = tensor.q_zero_point()
     else:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             f"not suported quantization scheme {qscheme }"
         )
     return NTensor(
@@ -101,7 +102,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
     if bias is not None:
         qscheme = weight.qscheme()
         if qscheme == torch.per_channel_affine:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 "tract does not support qscheme=per_channel_affine just yet"
             )
         if qscheme == torch.per_tensor_affine:
@@ -116,7 +117,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
                 dtype=torch.qint32,
             )
         else:
-            raise NotImplementedError(
+            raise TorchToNNEFNotImplementedError(
                 f"not suported quantization scheme {qscheme }"
             )
         bias_ref = register_state_node_as_variable(
@@ -311,7 +312,7 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
-    raise NotImplementedError()
+    raise TorchToNNEFNotImplementedError()
 
 
 def quantized_node_to_nnef_tensor_and_ops(
