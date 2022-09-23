@@ -254,7 +254,19 @@ def assert_io_and_debug_bundle(
             no_suffix_debug_bundle_path = debug_bundle_path.with_suffix(
                 ""
             ).absolute()
-            no_suffix_debug_bundle_path.mkdir(parents=True)
+
+            idx = 0
+            free_debug_bundle_path = no_suffix_debug_bundle_path
+            while True:
+                try:
+                    free_debug_bundle_path.mkdir(parents=True)
+                    no_suffix_debug_bundle_path = free_debug_bundle_path
+                    break
+                except FileExistsError:
+                    free_debug_bundle_path = free_debug_bundle_path.parent / (
+                        no_suffix_debug_bundle_path.name + "_" + str(idx)
+                    )
+                    idx += 1
             no_suffix_debug_bundle_torch_to_nnef_path = (
                 no_suffix_debug_bundle_path / "torch_to_nnef"
             )
