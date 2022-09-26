@@ -4,9 +4,10 @@
 
 ### Added
 - `nnef_spec_strict` option in `export` allows to export strict the NNEF spec compliant model.
-- `group_norm` operator is supported.
+- `select`, `group_norm`, `erf` operators are supported.
+- `gelu` was rewritten with `erf` fragment for precision.
 - `ConvTasNet` is supported.
-- `Wav2Vec2` encoder is supported (with GELU approximations).
+- `Wav2Vec2` encoder is supported.
 
 ### Fix
 - negative index in `slice` are now handled for fixed dimensions
