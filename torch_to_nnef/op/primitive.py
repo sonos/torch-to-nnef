@@ -516,7 +516,19 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
     )
-    return ["gelu"]
+    return ["erf", "gelu"]
+
+
+def erf(g, node, name_to_tensor, null_ref, **kwargs):
+    """Op should be added to tract-nnef eventualy"""
+    _unary_output_op_without_params(
+        "erf",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+    return ["erf"]
 
 
 def norm(g, node, name_to_tensor, **kwargs):
@@ -2280,6 +2292,42 @@ def group_norm(g, node, name_to_tensor, **kwargs):
         },
     )
     return ["group_norm"]
+
+
+def select(g, node, name_to_tensor, **kwargs):
+    input_node, axis_node, index_node = node.inputs
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={
+            "axes": [pick_rank(input_node, axis_node.data)],
+            "begin": [
+                pick_value_in_rank(input_node, axis_node.data, index_node.data)
+            ],
+            "end": [
+                pick_value_in_rank(
+                    input_node, axis_node.data, index_node.data + 1
+                )
+            ],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="_select",
+        pass_quantization_params=True,
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "squeeze",
+        inputs=out,
+        attrs={"axes": [pick_rank(input_node, axis_node.data)]},
+        pass_quantization_params=True,
+    )
 
 
 def aten_to_nnef_tensor_and_ops(

@@ -300,6 +300,7 @@ INPUT_AND_MODELS += [
         nn.Tanh(),
         nn.Softmax(1),
         nn.Softplus(),
+        UnaryPrimitive(torch.erf),
         nn.GELU(),
         nn.SELU(),
         nn.SiLU(),
@@ -395,6 +396,21 @@ INPUT_AND_MODELS += [
     (torch.arange(12).reshape(1, 6, 2, 1).float(), mdl),
 ]
 
+# torch.select
+INPUT_AND_MODELS += [
+    (torch.arange(6).reshape(1, 2, 3).float(), op)
+    for op in [
+        UnaryPrimitive(partial(torch.select, dim=1, index=0)),
+        UnaryPrimitive(partial(torch.select, dim=1, index=1)),
+        UnaryPrimitive(partial(torch.select, dim=2, index=2)),
+        TensorFnPrimitive("select", {"dim": 1, "index": 0}),
+    ]
+]
+
+# torch.erf
+INPUT_AND_MODELS = [
+    (torch.arange(6).reshape(1, 2, 3).float(), UnaryPrimitive(torch.erf))
+]
 
 # Next primitive to implement
 # INPUT_AND_MODELS += [

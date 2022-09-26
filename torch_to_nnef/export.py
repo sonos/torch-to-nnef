@@ -131,10 +131,15 @@ def export_model_to_nnef(
                 f"such as {active_custom_extensions} be sure "
                 "to use an inference engine that support them"
             )
-
+        custom_framgnent_names = list(active_custom_fragments.keys())
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
+            fragment_dependencies={
+                # this trick ensure all requested fragment are correctly loaded
+                _: custom_framgnent_names
+                for _ in custom_framgnent_names
+            },
             generate_custom_fragments=len(active_custom_fragments) > 0,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops

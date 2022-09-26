@@ -81,40 +81,37 @@ if hasattr(audio_mdl, "ConvTasNet"):
     ]
 
 
-if bool(os.environ.get("TEST_WAV2VEC", False)):
+class FilterOut(torch.nn.Module):
+    def __init__(self, wav2vec2_encoder):
+        super().__init__()
+        self.wav2vec2_encoder = wav2vec2_encoder.cpu()
 
-    class FilterOut(torch.nn.Module):
-        def __init__(self, wav2vec2_encoder):
-            super().__init__()
-            self.wav2vec2_encoder = wav2vec2_encoder.cpu()
+    def forward(
+        self,
+        features,
+    ):
+        return self.wav2vec2_encoder.transformer(features, attention_mask=None)
 
-        def forward(
-            self,
-            features,
-        ):
-            return self.wav2vec2_encoder.transformer(
-                features, attention_mask=None
-            )
 
-    wav2vec2_model = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H.get_model()
-    remove_weight_norm(wav2vec2_model)
-    wav2vec2_model.eval()
+wav2vec2_model = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H.get_model()
+remove_weight_norm(wav2vec2_model)
+wav2vec2_model.eval()
 
-    INPUT_AND_MODELS = [
-        # (
-        # (
-        # torch.rand(1, 2048),  # batch, num_frames
-        # torch.tensor([2048]),
-        # ),
-        # # torch_to_nnef.torch_graph.CheckError: Arity Missmatch 1 instead of 2
-        # model.feature_extractor,
-        # )
-        (
-            # torch.rand(1, 2, 512),
-            torch.rand(1, 2, 768),
-            FilterOut(wav2vec2_model.encoder),
-        ),
-    ]
+INPUT_AND_MODELS += [
+    # (
+    # (
+    # torch.rand(1, 2048),  # batch, num_frames
+    # torch.tensor([2048]),
+    # ),
+    # # torch_to_nnef.torch_graph.CheckError: Arity Missmatch 1 instead of 2
+    # model.feature_extractor,
+    # )
+    (
+        # torch.rand(1, 2, 512),
+        torch.rand(1, 2, 768),
+        FilterOut(wav2vec2_model.encoder),
+    ),
+]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
