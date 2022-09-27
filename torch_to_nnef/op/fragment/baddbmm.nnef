@@ -1,0 +1,9 @@
+fragment baddbmm(
+    input: tensor<scalar>,
+    batch1: tensor<scalar>,
+    batch2: tensor<scalar>,
+    alpha: scalar,
+    beta: scalar
+) -> ( y: tensor<scalar> ) {
+    y = beta * input + alpha * matmul(batch1, batch2);
+}

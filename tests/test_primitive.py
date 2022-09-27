@@ -43,6 +43,18 @@ class BinaryPrimitive(nn.Module):
         return self.op(x1, x2)
 
 
+class TernaryPrimitive(nn.Module):
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+
+    def extra_repr(self):
+        return f"op={self.op}"
+
+    def forward(self, x1, x2, x3):
+        return self.op(x1, x2, x3)
+
+
 class TensorFnPrimitive(nn.Module):
     def __init__(self, op, kwargs=None, args=None):
         super().__init__()
@@ -425,6 +437,17 @@ INPUT_AND_MODELS += [
             hidden_dim, num_heads=n_heads, dropout=0.0, batch_first=True
         )
     ]
+]
+
+INPUT_AND_MODELS += [
+    (
+        (
+            torch.arange(15).reshape(1, 5, 3).float(),  # input=(b×n×p)
+            torch.arange(10).reshape(1, 5, 2).float(),  # batch1=(b×n×m)
+            torch.arange(6).reshape(1, 2, 3).float(),  # batch2=(b×m×p)
+        ),
+        TernaryPrimitive(torch.baddbmm),
+    )
 ]
 
 # Next primitive to implement

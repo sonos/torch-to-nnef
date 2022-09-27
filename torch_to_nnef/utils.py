@@ -2,6 +2,8 @@ import functools
 from functools import total_ordering
 from typing import Callable, TypeVar
 
+import torch
+
 T = TypeVar("T")
 
 
@@ -17,6 +19,14 @@ def fullname(o):
     if module == "builtins":
         return klass.__qualname__  # avoid outputs like 'builtins.str'
     return module + "." + klass.__qualname__
+
+
+def torch_version_within(lower: str, upper: str):
+    """lower included but upper not included"""
+    torch_version = SemanticVersion.from_str(torch.__version__.split("+")[0])
+    lower_version = SemanticVersion.from_str(lower)
+    upper_version = SemanticVersion.from_str(upper)
+    return lower_version <= torch_version < upper_version
 
 
 @total_ordering
