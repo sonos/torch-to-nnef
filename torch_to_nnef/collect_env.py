@@ -136,7 +136,8 @@ def get_pip_packages():
             grep_cmd = rf'{findstr_cmd} /R "numpy torch mypy"'
         else:
             grep_cmd = r'grep "torch\|nnef\|numpy"'
-        return run_and_read_all(pip + " list --format=freeze | " + grep_cmd)
+        full_cmd = pip + " list --format=freeze | " + grep_cmd
+        return run_and_read_all(full_cmd)
 
     pip_version = "pip3" if sys.version[0] == "3" else "pip"
     out = run_with_pip(sys.executable + " -m pip")
@@ -158,7 +159,9 @@ def dump_environment_versions(pathdir: Path):
         fh.write(f"python_platform: {platform.platform()}\n")
         fh.write("\n")
         pip_version, pip_output_list = get_pip_packages()
-        assert pip_output_list is not None
-        fh.write(f"Related python package from {pip_version}:\n")
-        for line in pip_output_list.split("\n"):
-            fh.write(f"{line}\n")
+        if pip_output_list is None:
+            fh.write("no pip installation found, so package versions unknown")
+        else:
+            fh.write(f"Related python package from {pip_version}:\n")
+            for line in pip_output_list.split("\n"):
+                fh.write(f"{line}\n")

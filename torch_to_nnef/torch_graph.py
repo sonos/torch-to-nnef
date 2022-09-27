@@ -333,7 +333,7 @@ class TensorVariable(Data):
             self.dtype = self.data.dtype
 
     @property
-    def np_dtype(self) -> np.dtype:
+    def np_dtype(self):
         assert self.dtype is not None
         return TORCH_TO_NUMPY_DTYPE[self.dtype]
 
