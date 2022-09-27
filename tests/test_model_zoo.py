@@ -113,6 +113,11 @@ INPUT_AND_MODELS += [
     ),
 ]
 
+# export pretrained work but multi_head given slightly different values
+INPUT_AND_MODELS += [
+    (torch.rand(1, 3, 224, 224), vision_mdl.vit_b_16(pretrained=False)),
+]
+
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_model_export(test_input, model):
