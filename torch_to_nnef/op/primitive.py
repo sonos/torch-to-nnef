@@ -447,8 +447,8 @@ def softmax(**kwargs):
 
     # enforce use of positive rank
     node.inputs[1].data = pick_rank(node.inputs[0], node.inputs[1].data)
-    _unary_input_output_op_with_constant("softmax_bis", **kwargs)
-    return ["softmax_bis"]
+    _unary_input_output_op_with_constant("softmax", **kwargs)
+    return ["softmax"]
 
 
 def softplus(**kwargs):
