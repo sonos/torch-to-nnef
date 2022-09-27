@@ -103,6 +103,8 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             if provided_inputs:
                 tensor_variable = provided_inputs[idx]
             else:
+                if arg is None:
+                    continue
                 tensor_variable = tg.TensorVariable(
                     name=f"{self._cname_slug}_input_{idx}",
                     shape=list(arg.shape),

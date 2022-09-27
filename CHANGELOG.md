@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.6.1] - 2022-09-27
+
+- `baddbmm` operator is supported
+### Fix
+- all small fixes to have torch_to_nnef works with torch 1.12.0 and beyond (keeping backward compatibility)
+
 
 ## [0.6.0] - 2022-09-27
 

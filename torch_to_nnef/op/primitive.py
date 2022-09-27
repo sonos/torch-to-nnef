@@ -372,7 +372,7 @@ def _unary_output_op_without_params(
         nnef_op_type=nnef_op_type,
         inputs=[
             get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            if _
+            if _ and not (isinstance(_.data, str) and _.data == "none")
             else null_ref
             for _ in node.inputs
         ],
@@ -1755,7 +1755,7 @@ def pad(node, **kwargs):
     kind = node.inputs.pop(2)
     if kind.data == "constant":
         return constant_pad_nd(node=node, **kwargs)
-    if kind.data == "reflection":
+    if kind.data in ["reflection", "reflect"]:  # pre 1.12.0  # post 1.12.0
         node.inputs = node.inputs[:2]
         return reflection_padnd(node=node, **kwargs)
     if kind.data == "replicate":
@@ -2404,6 +2404,22 @@ def select(g, node, name_to_tensor, **kwargs):
         attrs={"axes": [pick_rank(input_node, axis_node.data)]},
         pass_quantization_params=True,
     )
+
+
+def baddbmm(g, node, name_to_tensor, **kwargs):
+    input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "baddbmm",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in [input_node, batch1_node, batch2_node]
+        ],
+        attrs={"beta": beta_node.data, "alpha": alpha_node.data},
+    )
+    return ["baddbmm"]
 
 
 def aten_to_nnef_tensor_and_ops(

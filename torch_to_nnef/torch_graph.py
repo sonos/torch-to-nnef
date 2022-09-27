@@ -37,12 +37,13 @@ from torch_to_nnef.exceptions import (
     TorchNotFoundDataNode,
     TorchNotFoundOp,
     TorchOpTranslatedDifferently,
+    TorchToNNEFError,
     TorchToNNEFNotImplementedError,
     TorchUnableToTraceData,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.tract import nop
-from torch_to_nnef.utils import cache
+from torch_to_nnef.utils import cache, torch_version_within
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ ATEN_TO = "aten::to"
 ATEN_ZERO_LIKE = "aten::zeros_like"
 ATEN_ZEROS = "aten::zeros"
 ATEN_EMPTY = "aten::empty"
+ATEN_GELU = "aten::gelu"
 
 
 CLASSTYPE_KIND = "ClassType"
@@ -446,6 +448,10 @@ class PythonConstant(Data):
     def into_tensor_variable(self):
         data = self.data
         if not isinstance(data, torch.Tensor):
+            if self.data == "none":
+                raise TorchToNNEFError(
+                    "'None' can not be transformed TensorVariable"
+                )
             data = torch.tensor(self.data)
         return TensorVariable(
             name=self.name, data=data, shape=list(data.shape), dtype=data.dtype
@@ -942,7 +948,9 @@ class TorchModuleTracer:
                 self._traced_module = jit.trace(
                     self.mod,
                     self._args,
-                    check_trace=True,
+                    check_trace=torch_version_within(
+                        "1.8.0", "1.12.0"
+                    ),  # since 1.12 get flaky on ViT model trace
                 )
             except RuntimeError as exp:
                 raise TorchJitTraceFailed(
@@ -1099,6 +1107,8 @@ class TorchOp:
                 if isinstance(args[2], int):
                     LOGGER.warning("wrongly `ordered` to parameters")
                     args = args[:2]
+            if self.kind == ATEN_GELU:
+                args = args[:1]  # skip the 'none' param starting torch 1.12.0
             return self.op_ref(*args, **kwargs)
         raise TorchToNNEFNotImplementedError(self)
 

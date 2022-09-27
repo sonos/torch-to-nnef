@@ -17,6 +17,7 @@ from torch_to_nnef.exceptions import DynamicShapeValue, StrictNNEFSpecError
 from torch_to_nnef.log import log
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
+from torch_to_nnef.utils import torch_version_within
 
 LOGGER = log.getLogger(__name__)
 
@@ -91,7 +92,9 @@ def export_model_to_nnef(
         ".nnef"
     ), "export filepath should end with '.nnef'"
     with select_model_mode_for_export(model, TrainingMode.EVAL):
-        args = _decide_input_format(model, args)
+        if torch_version_within(lower="1.8.0", upper="1.12.0"):
+            # change starting in 1.12.0 for recurent layers make it unsuitable
+            args = _decide_input_format(model, args)
         if dynamic_axes is None:
             dynamic_axes = {}
         _validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
