@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## [0.6.0] - 2022-09-27
+
 ### Added
 - `nnef_spec_strict` option in `export` allows to export strict the NNEF spec compliant model.
 - `select`, `group_norm`, `erf` operators are supported.
