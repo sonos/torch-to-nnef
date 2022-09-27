@@ -996,14 +996,19 @@ def contiguous(node, torch_graph, **kwargs):
 
 
 def _get_list_of_int(
-    data_node, torch_graph, name_to_tensor, accept_none: int = 0
+    data_node,
+    torch_graph,
+    name_to_tensor,
+    accept_none: int = 0,
+    has_dynamic_axes: bool = True,
 ):
     assert accept_none >= 0
     accepted_none = 0
 
     def cast_element(node, accepted_none):
+        nonlocal has_dynamic_axes
         tensor = name_to_tensor.get(node.export_name)
-        if tensor is not None:
+        if tensor is not None and has_dynamic_axes:
             return nnef.Identifier(tensor.name)
         val = node.data
         if val is None and accept_none > 0 and accepted_none < accept_none:
@@ -1022,9 +1027,7 @@ def _get_list_of_int(
                     producer.realise_output_type_and_size()
                     if ax_data.data is not None:
                         ax_data.data = ax_data.data.tolist()
-            int_list = [
-                cast_element(_.data, accepted_none) for _ in data_node.data
-            ]
+            int_list = [cast_element(_, accepted_none) for _ in data_node.data]
             if len([_ for _ in int_list if _ is None]) > 1:
                 raise TorchToNNEFNotImplementedError(
                     f"too much unknown dimensions for view {int_list}"
@@ -1040,11 +1043,14 @@ def _get_list_of_int(
     return int_list
 
 
-def view(g, node, name_to_tensor, torch_graph, **kwargs):
+def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
-
     dim_data = _get_list_of_int(
-        axis_node, torch_graph, name_to_tensor=name_to_tensor, accept_none=1
+        axis_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        accept_none=1,
+        has_dynamic_axes=has_dynamic_axes,
     )
     _add_single_output_op(
         g,
@@ -1625,7 +1631,15 @@ def repeat(g, node, name_to_tensor, **kwargs):
     )
 
 
-def size(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def size(
+    g,
+    node,
+    name_to_tensor,
+    nnef_spec_strict,
+    has_dynamic_axes,
+    torch_graph,
+    **kwargs,
+):
     """
     We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
 
@@ -1652,8 +1666,42 @@ def size(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
     """
     input_node, axis_node = node.inputs
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("size with nnef_spec_strict")
+    if nnef_spec_strict or not has_dynamic_axes:
+        original_vec_node, axis_node = node.inputs
+        original_variable_output = node.outputs[0]
+        if original_variable_output.data is None:
+            dim = original_vec_node.shape[axis_node.data]
+        else:
+            dim = original_variable_output.data.numpy().tolist()
+        new_node = PythonConstant(
+            name=original_variable_output.name,
+            data=dim,
+        )
+        torch_graph.remap_node(original_variable_output, new_node)
+
+        for data_node in torch_graph.data_nodes:
+            if (
+                isinstance(data_node, FixedTensorList)
+                and any(_ is new_node for _ in data_node.data)
+                and all(isinstance(_, PythonConstant) for _ in data_node.data)
+            ):
+                # recompute fixed data based on new infos
+                torch_graph.remap_node(
+                    data_node,
+                    PythonConstant(
+                        name=data_node.name,
+                        data=[_.data for _ in data_node.data],
+                    ),
+                )
+        torch_graph.op_nodes = [
+            _ for _ in torch_graph.op_nodes if _ is not node
+        ]
+
+        LOGGER.warning(
+            "aten::size replaced by constant traced value (follows NNEF spec)."
+            "Keeping dynamism would require dynamic_axes specified."
+        )
+        return []
     # original_variable_output = node.outputs[0]
     out = _add_single_output_op(
         g,
@@ -1681,11 +1729,15 @@ def size(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return ["tract_core"]
 
 
-def reshape(g, node, name_to_tensor, torch_graph, **kwargs):
+def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
 
     dim_data = _get_list_of_int(
-        axis_node, torch_graph, name_to_tensor=name_to_tensor, accept_none=1
+        axis_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        accept_none=1,
+        has_dynamic_axes=has_dynamic_axes,
     )
     _add_single_output_op(
         g,
@@ -1714,10 +1766,15 @@ def pad(node, **kwargs):
     )
 
 
-def reflection_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
+def reflection_padnd(
+    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+):
     (input_node, pads_node) = node.inputs
     pads = _get_list_of_int(
-        pads_node, torch_graph, name_to_tensor=name_to_tensor
+        pads_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        has_dynamic_axes=has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
@@ -1737,10 +1794,15 @@ def reflection_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
-def replication_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
+def replication_padnd(
+    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+):
     (input_node, pads_node) = node.inputs
     pads = _get_list_of_int(
-        pads_node, torch_graph, name_to_tensor=name_to_tensor
+        pads_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        has_dynamic_axes=has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
@@ -1760,10 +1822,15 @@ def replication_padnd(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
-def constant_pad_nd(g, node, name_to_tensor, torch_graph, **kwargs):
+def constant_pad_nd(
+    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+):
     (input_node, pads_node, value_node) = node.inputs
     pads = _get_list_of_int(
-        pads_node, torch_graph, name_to_tensor=name_to_tensor
+        pads_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        has_dynamic_axes=has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
@@ -1926,7 +1993,7 @@ def masked_fill(g, node, name_to_tensor, **kwargs):
     )
 
 
-def ones(g, node, name_to_tensor, torch_graph, **kwargs):
+def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -1943,7 +2010,10 @@ def ones(g, node, name_to_tensor, torch_graph, **kwargs):
     if len(_) > 0:
         dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
     dim_data = _get_list_of_int(
-        input_node, torch_graph, name_to_tensor=name_to_tensor
+        input_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        has_dynamic_axes=has_dynamic_axes,
     )
     node.outputs[0].data = torch.ones(dim_data, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
@@ -2068,6 +2138,7 @@ def _expand_build_repeats(input_node, shape_node, shapes):
                     )
                 repeats.append(int(shape_dim / input_dim))
             else:
+                # div per 1 hence shape_dim
                 repeats.append(shape_dim)
 
     if len(shape_node.data) - input_node.rank > 0:
@@ -2090,7 +2161,9 @@ def _expand_build_repeats(input_node, shape_node, shapes):
     return repeats
 
 
-def expand(g, node, name_to_tensor, **kwargs):
+def expand(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
     """
     Illustration of expand:
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
@@ -2117,7 +2190,10 @@ def expand(g, node, name_to_tensor, **kwargs):
         if isinstance(dim, PythonConstant):
             dim = dim.data
         elif isinstance(dim, TensorVariable):
-            dim = nnef.Identifier(dim.export_name)
+            if nnef_spec_strict or not has_dynamic_axes:
+                dim = int(dim.data)
+            else:
+                dim = nnef.Identifier(dim.export_name)
         shapes.append(dim)
 
     repeats = _expand_build_repeats(input_node, shape_node, shapes)
@@ -2337,6 +2413,7 @@ def aten_to_nnef_tensor_and_ops(
     null_ref,
     torch_graph,
     nnef_spec_strict: bool = False,
+    has_dynamic_axes: bool = False,
 ) -> T.Optional[T.List[str]]:
     """Main primitive dispatcher
 
@@ -2366,4 +2443,5 @@ def aten_to_nnef_tensor_and_ops(
         null_ref=null_ref,
         torch_graph=torch_graph,
         nnef_spec_strict=nnef_spec_strict,
+        has_dynamic_axes=has_dynamic_axes,
     )

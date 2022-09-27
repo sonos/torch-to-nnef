@@ -32,6 +32,7 @@ class TorchToNGraphExtractor:
         renaming_scheme: str = "numeric",
         check_io_names_qte_match: bool = True,
         nnef_spec_strict: bool = False,
+        has_dynamic_axes: bool = False,
     ):
         self.model = model
         self._torch_ir_graph = TorchModuleTracer(
@@ -40,6 +41,7 @@ class TorchToNGraphExtractor:
         ).into_ir_graph(renaming_scheme=renaming_scheme)
         self._check_io_names_qte_match = check_io_names_qte_match
         self._nnef_spec_strict = nnef_spec_strict
+        self._has_dynamic_axes = has_dynamic_axes
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
@@ -53,6 +55,7 @@ class TorchToNGraphExtractor:
                 null_ref,
                 torch_graph=self._torch_ir_graph,
                 nnef_spec_strict=self._nnef_spec_strict,
+                has_dynamic_axes=self._has_dynamic_axes,
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:

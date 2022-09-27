@@ -104,11 +104,14 @@ def export_model_to_nnef(
             renaming_scheme=renaming_scheme,
             check_io_names_qte_match=check_io_names_qte_match,
             nnef_spec_strict=nnef_spec_strict,
+            # has_dynamic_axes: bool alter export "operations"
+            # if False to use fixed shape provided by input sample
+            # Limitation: for now there is no proper tracing of dyn dim
+            # within the computational graph
+            # hence NO finegrain modification per axis referenced is applied
+            has_dynamic_axes=bool(dynamic_axes),
         )
-        nnef_graph = graph_extractor.parse(
-            input_names,
-            output_names,
-        )
+        nnef_graph = graph_extractor.parse(input_names, output_names)
 
         active_custom_fragments = {
             _: FRAGMENTS[_].definition
@@ -136,7 +139,7 @@ def export_model_to_nnef(
             compression=compression_level,
             fragments=active_custom_fragments,
             fragment_dependencies={
-                # this trick ensure all requested fragment are correctly loaded
+                # this trick ensure all requested fragment are exported
                 _: custom_framgnent_names
                 for _ in custom_framgnent_names
             },
