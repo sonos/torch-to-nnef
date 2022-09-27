@@ -8,6 +8,7 @@
 - `gelu` was rewritten with `erf` fragment for precision.
 - `ConvTasNet` is supported.
 - `Wav2Vec2` encoder is supported.
+- `VisionTransformer` (ViT) is supported.
 
 ### Fix
 - negative index in `slice` are now handled for fixed dimensions
