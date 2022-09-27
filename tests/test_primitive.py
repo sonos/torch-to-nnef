@@ -408,8 +408,23 @@ INPUT_AND_MODELS += [
 ]
 
 # torch.erf
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS += [
     (torch.arange(6).reshape(1, 2, 3).float(), UnaryPrimitive(torch.erf))
+]
+
+
+hidden_dim = 4
+n_heads = 2
+keys = torch.randint(2, (1, 2, hidden_dim)).float()
+values = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float()
+queries = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float() * 2
+INPUT_AND_MODELS += [
+    ((keys, values, queries), op)
+    for op in [
+        torch.nn.MultiheadAttention(
+            hidden_dim, num_heads=n_heads, dropout=0.0, batch_first=True
+        )
+    ]
 ]
 
 # Next primitive to implement
