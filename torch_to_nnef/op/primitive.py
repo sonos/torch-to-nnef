@@ -50,6 +50,7 @@ REMAP_ATEN_OP_NAMES = {
     "min": "min_",
     "slice": "slice_",
     "round": "round_",
+    "index": "index_",
     # }
     "bmm": "matmul",  # since NNEF matmul does not care about rank
 }
@@ -2511,6 +2512,79 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["baddbmm"]
+
+
+def index_(g, node, name_to_tensor, **kwargs):
+    """
+    fragment gather<?>(
+        input: tensor<?>,                 # the tensor to gather from
+        indices: tensor<integer>,         # the indices to gather at
+        axis: integer = 0 )               # the axis to gather at
+    -> ( output: tensor<?> )
+    """
+    # gather
+    input_node, indexes_node = node.inputs
+    # input_node = TensorVariable([?], shape=(169,4))
+    # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
+    if len(indexes_node.data) > 1:
+        raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "gather",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            get_or_add_tensor_variable_in_nnef(
+                g,
+                TensorVariable(
+                    name=f"gather_index_{node.outputs[0].export_name}",
+                    shape=[1],
+                    dtype=torch.int32,
+                    data=torch.tensor([0], dtype=torch.int32),
+                ),
+                name_to_tensor,
+            ),
+            get_or_add_tensor_variable_in_nnef(
+                g, indexes_node.data[0], name_to_tensor
+            ),
+        ],
+        # attrs={
+        # "axis": 0,
+        # "indices": ,
+        # },
+    )
+
+
+def remainder(g, node, name_to_tensor, **kwargs):
+    input_node, other_node = node.inputs
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "remainder",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in [input_node, other_node]
+        ],
+    )
+    return ["remainder"]
+
+
+def rsub(g, node, name_to_tensor, **kwargs):
+    input_node, other_node, alpha_node = node.inputs
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "rsub",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in [input_node, other_node]
+        ],
+        attrs={"alpha": alpha_node.data},
+    )
+    return ["rsub"]
 
 
 def aten_to_nnef_tensor_and_ops(

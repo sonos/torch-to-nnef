@@ -457,6 +457,18 @@ INPUT_AND_MODELS += [
     )
 ]
 
+
+INPUT_AND_MODELS += [
+    (
+        (
+            torch.arange(6).reshape(1, 2, 3).float(),
+            torch.arange(6).reshape(1, 2, 3).float() + 1.0,
+        ),
+        BinaryPrimitive(torch.remainder),
+    )
+]
+
+
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

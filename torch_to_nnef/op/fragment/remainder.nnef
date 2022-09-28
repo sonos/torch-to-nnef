@@ -1,0 +1,7 @@
+# a - a.div(b, rounding_mode="floor") * b
+fragment remainder(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( y: tensor<scalar> ) {
+    y = a - (floor(div(a, b)) * b);
+}

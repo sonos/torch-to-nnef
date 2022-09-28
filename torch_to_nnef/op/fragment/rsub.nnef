@@ -1,0 +1,7 @@
+fragment rsub(
+    a: tensor<scalar>,
+    b: tensor<scalar>,
+    alpha: scalar
+) -> ( y: tensor<scalar> ) {
+    y = a * -1.0 * alpha + b;
+}
