@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fix
+- `round` operator is now following tract core IEE implem and warn if vanilla NNEF version is used
+
 ## [0.6.1] - 2022-09-27
 
 - `baddbmm` operator is supported

@@ -48,6 +48,7 @@ REMAP_ATEN_OP_NAMES = {
     "max": "max_",
     "min": "min_",
     "slice": "slice_",
+    "round": "round_",
     # }
     "bmm": "matmul",  # since NNEF matmul does not care about rank
 }
@@ -74,7 +75,6 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
     "neg",
     "floor",
     "ceil",
-    "round",
     "sqrt",
     "rsqrt",
     "log2",
@@ -584,6 +584,18 @@ def log_softmax(**kwargs):
     axis_node.data = pick_rank(input_node, axis_node.data)
     _unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
+
+
+def round_(nnef_spec_strict, **kwargs):
+    if nnef_spec_strict:
+        LOGGER.warning(
+            "round: Spec definition of round in NNEF does not follow IEEE, "
+            "so it will not be exactly same behavior"
+        )
+        _unary_input_output_op_with_constant("round", **kwargs)
+        return []
+    _unary_input_output_op_with_constant("tract_core_round_even", **kwargs)
+    return ["tract_core"]
 
 
 def slice_(g, node, name_to_tensor, torch_graph, **kwargs):

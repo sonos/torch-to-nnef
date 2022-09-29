@@ -82,6 +82,13 @@ class ListInputPrim(nn.Module):
         return self.op([x, self.y], dim=1)
 
 
+INPUT_AND_MODELS = [
+    # this would not work with nnef_spec_strict activated
+    (torch.tensor(val), UnaryPrimitive(torch.round))
+    for val in [0.5, 1.5, -2.4]
+]
+
+
 # Base unary operations
 _condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
