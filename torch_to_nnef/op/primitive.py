@@ -2177,7 +2177,7 @@ def chunk(g, node, name_to_tensor, **kwargs):
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_tensor_node,
-        _,  # normalized_shape_node
+        normalized_shape_node,
         weight_node,
         bias_node,
         eps_node,
@@ -2186,7 +2186,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
 
     mean_axes = sorted(
         input_tensor_node.rank - r - 1
-        for r in range(input_tensor_node.rank - 2)
+        for r, _ in enumerate(normalized_shape_node.data)
     )
     has_affine = elementwise_affine_node.data and not (
         # check affine as any use
