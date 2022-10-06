@@ -2577,7 +2577,7 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
     return ["baddbmm"]
 
 
-def index_(g, node, name_to_tensor, **kwargs):
+def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
@@ -2591,32 +2591,29 @@ def index_(g, node, name_to_tensor, **kwargs):
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
     if len(indexes_node.data) > 1:
         raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
+
+    custom_fragments = []
+    if nnef_spec_strict:
+        op_name = "gather"
+    else:
+        op_name = "tract_core_gather"
+        custom_fragments += ["tract_core"]
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
-        "gather",
+        op_name,
         inputs=[
             get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            get_or_add_tensor_variable_in_nnef(
-                g,
-                TensorVariable(
-                    name=f"gather_index_{node.outputs[0].export_name}",
-                    shape=[1],
-                    dtype=torch.int32,
-                    data=torch.tensor([0], dtype=torch.int32),
-                ),
-                name_to_tensor,
-            ),
             get_or_add_tensor_variable_in_nnef(
                 g, indexes_node.data[0], name_to_tensor
             ),
         ],
-        # attrs={
-        # "axis": 0,
-        # "indices": ,
-        # },
+        attrs={
+            "axis": 0,
+        },
     )
+    return custom_fragments
 
 
 def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
