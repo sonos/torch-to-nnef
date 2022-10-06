@@ -1032,6 +1032,7 @@ def _get_list_of_int(
     name_to_tensor,
     accept_none: int = 0,
     has_dynamic_axes: bool = True,
+    force_none_as_tensor_ref: bool = False,
 ):
     assert accept_none >= 0
     accepted_none = 0
@@ -1039,7 +1040,7 @@ def _get_list_of_int(
     def cast_element(node, accepted_none):
         nonlocal has_dynamic_axes
         tensor = name_to_tensor.get(node.export_name)
-        if tensor is not None and has_dynamic_axes:
+        if tensor is not None and force_none_as_tensor_ref or has_dynamic_axes:
             return nnef.Identifier(tensor.name)
         val = node.data
         if val is None and accept_none > 0 and accepted_none < accept_none:
@@ -1328,9 +1329,68 @@ def pow_(g, node, name_to_tensor, **kwargs):
         elif exponent == -2:
             op_type = "rsqr"
         else:
-            raise TorchToNNEFNotImplementedError(
-                "take a look at pow in nnef spec"
+            # pow(x,y) := exp(x*log(y))
+            # so let's precompute log of y and apply exp(x*resy)
+            out_mul = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "log",
+                inputs=[
+                    get_or_add_tensor_variable_in_nnef(
+                        g, input_node, name_to_tensor
+                    ),
+                ],
+                output_tensor_name_suffix="log_part_pow",
             )
+            out_log = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "mul",
+                inputs=[
+                    out_mul,
+                    get_or_add_tensor_variable_in_nnef(
+                        g,
+                        PythonConstant(
+                            name=exponent_node.export_name, data=abs(exponent)
+                        ),
+                        name_to_tensor,
+                    ),
+                ],
+                output_tensor_name_suffix="mul_part_pow",
+            )
+
+            out = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "exp",
+                inputs=[out_log],
+                output_tensor_name_suffix="exp_part_pow"
+                if exponent < 0
+                else "",
+            )
+            if exponent < 0:  # in case of neg exponent: x**-y = 1/(x**y)
+                out = _add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "div",
+                    inputs=[
+                        get_or_add_tensor_variable_in_nnef(
+                            g,
+                            PythonConstant(
+                                name=f"{out.name}_div_since_neg_part_pow",
+                                data=1.0,
+                            ),
+                            name_to_tensor,
+                        ),
+                        out,
+                    ],
+                )
+
+            return
     else:
         op_type = "pow"
         inputs += [
@@ -1828,6 +1888,7 @@ def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         name_to_tensor=name_to_tensor,
         accept_none=1,
         has_dynamic_axes=has_dynamic_axes,
+        force_none_as_tensor_ref=True,
     )
     _add_single_output_op(
         g,
@@ -2630,7 +2691,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
         if not has_dynamic_axes or nnef_spec_strict:
             maxsize = input_node.shape[dim]
         else:
-            raise NotImplementedError("Should use shape_of")
+            raise TorchToNNEFNotImplementedError("Should use shape_of")
         shape_out = _add_single_output_op(
             g,
             node,

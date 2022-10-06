@@ -3,6 +3,8 @@
 ## Unreleased
 ### Added
 - `roll` operator
+- `pow` operator now support negative and scalars as exponent
+
 
 ## [0.6.10] - 2022-11-07
 

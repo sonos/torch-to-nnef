@@ -126,6 +126,7 @@ INPUT_AND_MODELS = [
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
+        partial(torch.pow, exponent=-0.5),
         # tract need reversed NNEF transpose.axes=[] order than spec
         partial(torch.transpose, dim0=1, dim1=0),
         # tract need reversed NNEF transpose.axes=[] order than spec
