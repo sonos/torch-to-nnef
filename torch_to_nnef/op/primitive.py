@@ -1925,6 +1925,8 @@ def constant_pad_nd(
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
+    if value is None:
+        value = 0  # add default value if not set
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
@@ -2556,8 +2558,19 @@ def index_(g, node, name_to_tensor, **kwargs):
     )
 
 
-def remainder(g, node, name_to_tensor, **kwargs):
+def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, other_node = node.inputs
+    if all(
+        isinstance(node, PythonConstant) for node in [input_node, other_node]
+    ):
+        torch_graph.remap_node(
+            from_node=node.outputs[0],
+            to_node=PythonConstant(
+                name=node.outputs[0].export_name,
+                data=input_node.data % other_node.data,
+            ),
+        )
+        return []
     _add_single_output_op(
         g,
         node,
@@ -2571,8 +2584,23 @@ def remainder(g, node, name_to_tensor, **kwargs):
     return ["remainder"]
 
 
-def rsub(g, node, name_to_tensor, **kwargs):
+def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, other_node, alpha_node = node.inputs
+    if all(
+        isinstance(_, PythonConstant)
+        for _ in [input_node, other_node, alpha_node]
+    ):
+        LOGGER.debug("Slice is not needed since it have not effect")
+        torch_graph.remap_node(
+            from_node=node.outputs[0],
+            to_node=PythonConstant(
+                name=node.outputs[0].export_name,
+                data=int(
+                    input_node.data * -1.0 * alpha_node.data + other_node.data
+                ),
+            ),
+        )
+        return []
     _add_single_output_op(
         g,
         node,

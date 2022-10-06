@@ -53,10 +53,30 @@ class SelectNotFirstOutput(nn.Module):
         return x2
 
 
+class LostDimPad(nn.Module):
+    """
+    Simplified part with parser issue in swin rolling attention mechanism
+    """
+
+    def __init__(self):
+        self.window_size = [1, 2]
+        super().__init__()
+
+    def forward(self, inp):
+        # B, H, W, C
+        _, _, W, _ = inp.shape
+        pad_r = (
+            self.window_size[1] - W % self.window_size[1]
+        ) % self.window_size[1]
+        x = nn.functional.pad(inp, (0, 0, 0, pad_r, 0, 0))
+        return x
+
+
 INPUT_AND_MODELS = [
     # to solve this we will need to expand fully graph constant at torch_graph module level
     (torch.rand(5, 10, 4), DynamicDoubleBatchRank()),
     (torch.rand(5, 10, 4), SelectNotFirstOutput()),
+    (torch.rand(1, 3, 16, 16), LostDimPad()),
 ]
 
 
