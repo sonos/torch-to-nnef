@@ -171,6 +171,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
         TensorFnPrimitive("clamp_min", args=(0.5,)),
         TensorFnPrimitive("clamp_max", args=(0.5,)),
+        TensorFnPrimitive("new_zeros", kwargs=dict(size=(3, 2))),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],

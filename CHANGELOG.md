@@ -2,9 +2,8 @@
 
 ## Unreleased
 ### Added
-- `roll` operator
+- `roll`, `new_zeros` operators
 - `pow` operator now support negative and scalars as exponent
-
 
 ## [0.6.10] - 2022-11-07
 

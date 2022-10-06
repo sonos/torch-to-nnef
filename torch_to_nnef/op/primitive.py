@@ -2735,6 +2735,34 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
+def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        _,  # input_node,
+        shape_node,
+        dtype_node,
+        _,  # ? example PythonConstant(data=0, ...)
+        _,  # device_node,
+        _,  # requires_grad_node
+    ) = node.inputs
+    LOGGER.warning(
+        "the aten::new_zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+
+    assert shape_node.data
+
+    node.outputs[0].data = torch.zeros(
+        shape_node.data,
+        dtype=dtype,
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
 def aten_to_nnef_tensor_and_ops(
     g,
     node,
