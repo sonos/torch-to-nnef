@@ -2615,6 +2615,68 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     return ["rsub"]
 
 
+def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
+    input_node, shifts_node, dims_node = node.inputs
+    shifts = shifts_node.data
+    dims = dims_node.data
+    assert len(shifts) == len(dims), "shifts and dims need to be sample size"
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    for i, _ in enumerate(shifts):
+        tensor_chunks = []
+        dim = dims[i]
+        shift = shifts[i]
+        if not has_dynamic_axes or nnef_spec_strict:
+            maxsize = input_node.shape[dim]
+        else:
+            raise NotImplementedError("Should use shape_of")
+        shape_out = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [pick_rank(input_node, dim)],
+                "begin": [pick_value_in_rank(input_node, dim, -shift)],
+                "end": [pick_value_in_rank(input_node, dim, maxsize)],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"roll_l{i}_p1",
+        )
+        tensor_chunks.append(shape_out)
+        shape_out = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [pick_rank(input_node, dim)],
+                "begin": [pick_value_in_rank(input_node, dim, 0)],
+                "end": [pick_value_in_rank(input_node, dim, -shift)],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"roll_l{i}_p2",
+        )
+        tensor_chunks.append(shape_out)
+        # result = g.op("Concat", *shapes, axis_i=dims[i])
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "concat",
+            inputs=tensor_chunks,
+            attrs={"axis": pick_rank(input_node, dim)},
+            ensure_tuple=False,
+            output_tensor_name_suffix=""
+            if i + 1 == len(shifts)
+            else f"roll_{i}",
+        )
+    return []
+
+
 def aten_to_nnef_tensor_and_ops(
     g,
     node,

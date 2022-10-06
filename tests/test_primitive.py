@@ -469,6 +469,13 @@ INPUT_AND_MODELS += [
     )
 ]
 
+INPUT_AND_MODELS += [
+    (
+        torch.arange(6).reshape(1, 2, 3).float(),
+        UnaryPrimitive(partial(torch.roll, shifts=(-1, -2), dims=(1, 2))),
+    )
+]
+
 
 # Next primitive to implement
 # INPUT_AND_MODELS += [
