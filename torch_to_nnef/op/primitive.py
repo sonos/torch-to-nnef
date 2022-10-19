@@ -21,6 +21,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.tract import tract_version_lower_or
 
 LOGGER = logging.getLogger(__name__)
 
@@ -94,9 +95,15 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
 ]
 
 
-def add_nnef_operation(graph, inputs, *args, **kwargs):
-    if isinstance(inputs, (list, tuple)) and len(inputs) >= 2:
-        inputs = maybe_unsqueeze_to_consistant_inputs_ranks(graph, inputs)
+def add_nnef_operation(
+    graph, inputs, *args, force_consistent_inputs_shapes: bool = True, **kwargs
+):
+    if (
+        isinstance(inputs, (list, tuple))
+        and len(inputs) >= 2
+        and force_consistent_inputs_shapes
+    ):
+        inputs = maybe_unsqueeze_to_consistent_inputs_ranks(graph, inputs)
     kwargs["graph"] = graph
     kwargs["inputs"] = inputs
     return NOperation(*args, **kwargs)
@@ -145,8 +152,8 @@ def add_tensor_variable_node_as_nnef_tensor(
     return nnef_tensor_ref
 
 
-def maybe_unsqueeze_to_consistant_inputs_ranks(g, nnef_tensors):
-    """May unsqueeze at 0 rank n time to ensure consistant rank between inputs
+def maybe_unsqueeze_to_consistent_inputs_ranks(g, nnef_tensors):
+    """May unsqueeze at 0 rank n time to ensure consistent rank between inputs
 
     This is done at export time and not inference time because:
     inference implementation may use 1 dim expansion from left to right
@@ -189,7 +196,7 @@ def maybe_unsqueeze_to_consistant_inputs_ranks(g, nnef_tensors):
 
 def get_or_add_tensor_variable_in_nnef(
     g, node, name_to_tensor, name_suffix: str = ""
-):
+) -> NTensor:
     name = node.export_name
     if name_suffix:
         name += f"_{name_suffix}"
@@ -657,7 +664,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None:
+    if bias_node.data is not None and tract_version_lower_or("0.18.1", False):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -693,6 +700,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
             "groups": groups,
             "border": "constant",
         },
+        force_consistent_inputs_shapes=False,
     )
 
 

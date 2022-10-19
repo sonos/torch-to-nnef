@@ -43,6 +43,14 @@ def tract_version() -> SemanticVersion:
     )
 
 
+def tract_version_lower_or(version: str, default: bool = False) -> bool:
+    """In case tract is not installed on  machine return default"""
+    try:
+        return tract_version() < SemanticVersion.from_str(version)
+    except subprocess.SubprocessError:
+        return default
+
+
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     return subprocess.check_output(
         (
