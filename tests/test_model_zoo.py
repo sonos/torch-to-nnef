@@ -7,6 +7,11 @@ import torchaudio
 from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 
+from tests.shifted_window_attention_patch import (
+    ExportableShiftedWindowAttention,
+    ExportableSwinTransformerBlock,
+)
+
 from .utils import (  # noqa: E402
     _test_check_model_io,
     remove_weight_norm,
@@ -113,15 +118,37 @@ INPUT_AND_MODELS += [
     ),
 ]
 
-# export pretrained work but multi_head given slightly different values
+# export pretrained work but multi_head giving slightly different values
 INPUT_AND_MODELS += [
     (torch.rand(1, 3, 224, 224), vision_mdl.vit_b_16(pretrained=False)),
 ]
 
-# export pretrained work but multi_head given slightly different values
-INPUT_AND_MODELS = [
-    (torch.rand(1, 3, 224, 224), vision_mdl.swin_b()),  # pretrained=False
+
+# swin_transformer {
+shift_win_attn = ExportableShiftedWindowAttention(
+    dim=16, window_size=[2, 4], shift_size=[1, 1], num_heads=2
+)
+shift_win_attn.eval()
+shift_win_attn(torch.rand(1, 3, 16, 16))  # precompute attn mask and few shapes
+INPUT_AND_MODELS += [
+    (torch.rand(1, 3, 16, 16), shift_win_attn),
 ]
+
+vision_mdl.swin_transformer.ShiftedWindowAttention = (
+    ExportableShiftedWindowAttention
+)
+vision_mdl.swin_transformer.SwinTransformerBlock = (
+    ExportableSwinTransformerBlock
+)
+
+data = torch.rand(1, 3, 224, 224)
+mdl = vision_mdl.swin_b()  # pretrained=False
+mdl.eval()
+
+mdl(data)  # precompute attn mask and few shapes
+INPUT_AND_MODELS = [(data, mdl)]
+
+# }
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)

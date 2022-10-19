@@ -394,6 +394,9 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
+        UnaryPrimitive(lambda x: x[..., 0::2]),
+        # UnaryPrimitive(lambda x: x[..., 1::2]),
+        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
         torch.nn.LayerNorm(10),
         torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
         torch.nn.GLU(),
@@ -479,6 +482,15 @@ INPUT_AND_MODELS += [
 ]
 
 
+INPUT_AND_MODELS = [
+    # N x L x  H
+    (torch.arange(20).reshape(1, 2, 10), layer)
+    for layer in [
+        UnaryPrimitive(lambda x: x[..., 0::2]),
+        # UnaryPrimitive(lambda x: x[..., 1::2]),
+        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
+    ]
+]
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

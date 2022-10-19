@@ -239,7 +239,11 @@ def pick_rank(input_node, rank: int) -> int:
     """Enforce that axis, axes ect does contains only positive values"""
     if rank >= 0:
         return rank
-    return input_node.rank + rank
+    if isinstance(input_node, FixedTensorList):
+        base_rank = len(input_node.data)
+    else:
+        base_rank = input_node.rank
+    return base_rank + rank
 
 
 def pick_value_in_rank(input_node, rank: int, index: int) -> int:
@@ -1049,7 +1053,7 @@ def _get_list_of_int(
         return int(val)
 
     if isinstance(data_node, PythonConstant):
-        int_list = data_node.data
+        int_list = [int(_) for _ in data_node.data]
     elif isinstance(data_node, FixedTensorList):
         int_list = [cast_element(_, accepted_none) for _ in data_node.data]
         if any(_ is None for _ in int_list):
@@ -2206,6 +2210,61 @@ def zeros_like(g, node, name_to_tensor, **kwargs):
     )
 
 
+def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        _,  # input_node,
+        shape_node,
+        dtype_node,
+        _,  # ? example PythonConstant(data=0, ...)
+        _,  # device_node,
+        _,  # requires_grad_node
+    ) = node.inputs
+    LOGGER.warning(
+        "the aten::new_zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+
+    assert shape_node.data
+
+    node.outputs[0].data = torch.zeros(
+        shape_node.data,
+        dtype=dtype,
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
+def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        shape_node,
+        dtype_node,
+        _,  # ? example PythonConstant(data=0, ...)
+        _,  # device_node,
+        _,  # requires_grad_node
+    ) = node.inputs
+    LOGGER.warning(
+        "the aten::zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+
+    assert shape_node.data
+
+    node.outputs[0].data = torch.zeros(
+        shape_node.data,
+        dtype=dtype,
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
 def chunk(g, node, name_to_tensor, **kwargs):
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
@@ -2712,7 +2771,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             inputs=input_tensor,
             attrs={
                 "axes": [pick_rank(input_node, dim)],
-                "begin": [pick_value_in_rank(input_node, dim, 0)],
+                "begin": [0],
                 "end": [pick_value_in_rank(input_node, dim, -shift)],
                 "stride": [1],
             },
@@ -2733,34 +2792,6 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             else f"roll_{i}",
         )
     return []
-
-
-def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    (
-        _,  # input_node,
-        shape_node,
-        dtype_node,
-        _,  # ? example PythonConstant(data=0, ...)
-        _,  # device_node,
-        _,  # requires_grad_node
-    ) = node.inputs
-    LOGGER.warning(
-        "the aten::new_zeros replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
-
-    assert shape_node.data
-
-    node.outputs[0].data = torch.zeros(
-        shape_node.data,
-        dtype=dtype,
-    )
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-    )
 
 
 def aten_to_nnef_tensor_and_ops(
