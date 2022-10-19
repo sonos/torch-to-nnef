@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## [0.6.2] - 2022-09-28
+
 ### Fix
 - `round` operator is now following tract core IEE implem and warn if vanilla NNEF version is used
+- `ipdb` is no more a dependency of this package
+- bump to black formatter v22 (to avoid click raising errors)
 
 ## [0.6.1] - 2022-09-27
 
