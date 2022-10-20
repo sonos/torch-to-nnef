@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.6.5] - 2022-10-20
+
+### Fix
+- Missing use of SONOS infra
+
 ## [0.6.4] - 2022-10-20
 
 ### Fix
