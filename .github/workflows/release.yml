@@ -17,7 +17,7 @@ jobs:
   # This workflow contains a single job called "release"
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, s2-player-builder]
 
     strategy:
       matrix:
