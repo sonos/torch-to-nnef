@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-## [0.6.3] - 2022-09-28
+## [0.6.4] - 2022-10-20
+
+### Fix
+- Push to SONOS repo as well
+
+## [0.6.3] - 2022-10-19
 
 ### Fix
 - `round` operator is now following tract core IEE implem and warn if vanilla NNEF version is used
