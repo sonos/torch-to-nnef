@@ -70,6 +70,16 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: publish to SNIPS python registry
+        shell: bash
+        env:
+            REPOSITORY: ${{ secrets.SNIPS_PM_URL }}
+            USERNAME: ${{ secrets.SNIPS_PM_USER }}
+            PASSWORD: ${{ secrets.SNIPS_PM_PASSWORD }}
+        run: |
+          poetry config repositories.snips "$REPOSITORY"
+          poetry publish --repository snips --username "$USERNAME" --password "$PASSWORD"
+
       - name: publish to SONOS python registry
         shell: bash
         env:
@@ -77,5 +87,5 @@ jobs:
             USERNAME: ${{ secrets.SONOS_PM_USER }}
             PASSWORD: ${{ secrets.SONOS_PM_PASSWORD }}
         run: |
-          poetry config repositories.snips "$REPOSITORY"
-          poetry publish --repository snips --username "$USERNAME" --password "$PASSWORD"
+          poetry config repositories.sonos "$REPOSITORY"
+          poetry publish --repository sonos --username "$USERNAME" --password "$PASSWORD"
