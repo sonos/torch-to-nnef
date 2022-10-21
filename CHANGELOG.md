@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.6.6] - 2022-10-21
+
+### Fix
+- Handle case with no tract binary found ( thanks to Theo :tada: )
+
 ## [0.6.5] - 2022-10-20
 
 ### Fix
