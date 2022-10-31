@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+## [0.6.7] - 2022-10-31
+
+### Fix
+- `aten:size` case with negative index is now translated correctly
+- `...-pre` tract version are now handled correctly
 
 ## [0.6.6] - 2022-10-21
 
