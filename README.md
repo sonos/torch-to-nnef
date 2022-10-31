@@ -12,14 +12,14 @@ We intend to export any model formulated with vanilla Torch whatever tensor type
 
 When NNEF spec is insufficient to express computational graph, we use extensions from
 [tract inference engine](github.com/sonos/tract) seamlessly (that you can opt-out with `nnef_spec_strict`).
-By example we use special tract components to express:
+For example, we use special tract components to express:
 - recurrent layers (LSTM, GRU,...)
 - dynamic streamable input dimensions
 - casting (since NNEF spec is too vague in this regard)
 
-This package strive to have minimum dependencies (to allow easy integration in other project).
+This package strives to have minimum dependencies (to allow easy integration in other project).
 
-We aims to support Pytorch > 1.8.0 with tract > 1.17.7 over Linux and MacOS systems.
+We aim to support Pytorch > 1.8.0 with tract > 1.17.7 over Linux and MacOS systems.
 
 ## Install
 
@@ -80,13 +80,13 @@ opt-in to ensure compatibility.
 
 ## Limitation
 
-Torch Model need to be serializable to torch.jit (fancy python dict routing
+Torch Model need to be serializable to `torch.jit` (fancy python dict routing
 or others might prevent proper tracing of it).
 
-This apply for nn.Module with forward containing default None parameters which
+This applies for `nn.Module` with forward containing default None parameters which
 will crash as no work arround have been found yet.
 
-Also we follow to some extent limitation of NNEF specification, in particular:
+Also, we follow to some extent limitation of NNEF specification, in particular:
 We concretize dynamic shape at export for some operators such as (zeros_like/ones/arange ...).
 
 Only *Static* Quantization is supported and for now only with scheme `torch.per_tensor_affine`.
