@@ -1769,6 +1769,21 @@ def size(
             },
             force_full_output_tensor_name=index_tensor_name,
         )
+
+    outnode = node.outputs[0]
+    new_outnode = torch_graph.find_node(index_tensor_name)
+    if not new_outnode:
+        new_outnode = TensorVariable(
+            name=index_tensor_name,
+            data=outnode.data,
+            shape=outnode.shape,
+            dtype=outnode.dtype,
+        )
+    torch_graph.remap_node(
+        from_node=outnode,
+        to_node=new_outnode,
+    )
+
     return ["tract_core"]
 
 

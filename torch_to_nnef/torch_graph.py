@@ -1273,6 +1273,12 @@ class TorchModuleIRGraph:
                     f"not referenced correctly output: {onode}"
                 )
 
+    def find_node(self, node_name: str) -> T.Optional[Data]:
+        for dnode in self.data_nodes:
+            if dnode.name == node_name:
+                return dnode
+        return None
+
     def remap_node(self, from_node, to_node):
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
