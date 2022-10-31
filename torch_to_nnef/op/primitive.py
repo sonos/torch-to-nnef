@@ -618,7 +618,6 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
-
     _add_single_output_op(
         g,
         node,
@@ -1741,8 +1740,8 @@ def size(
         inputs=out,
         attrs={
             "axes": [0],
-            "begin": [axis_node.data],
-            "end": [axis_node.data + 1],
+            "begin": [pick_value_in_rank(input_node, 0, axis_node.data)],
+            "end": [pick_value_in_rank(input_node, 0, axis_node.data + 1)],
             "stride": [1],
         },
     )

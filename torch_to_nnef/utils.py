@@ -44,7 +44,10 @@ class SemanticVersion:
 
     @classmethod
     def from_str(cls, version_str, sep="."):
-        vtags = list(map(int, version_str.strip().split(sep)))
+        version_chunks = version_str.strip().split(sep)
+        if "-" in version_chunks[-1]:
+            version_chunks[-1] = version_chunks[-1].split("-")[0]
+        vtags = list(map(int, version_chunks))
         assert len(vtags) == len(cls.TAGS)
         return cls(**dict(zip(cls.TAGS, vtags)))
 
