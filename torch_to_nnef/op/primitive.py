@@ -115,6 +115,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     name_to_tensor: T.Dict[str, NTensor],
     name_suffix: str = "",
     prevent_variable: bool = False,
+    force_full_output_tensor_name: T.Optional[str] = None,
 ):
     """Create NNEF tensor and register in graph from torch_graph.Data node
 
@@ -122,9 +123,12 @@ def add_tensor_variable_node_as_nnef_tensor(
     (it avoids bloating nnef graph file with matrix values)
 
     """
-    name = node.export_name
-    if name_suffix:
-        name += f"_{name_suffix}"
+    if force_full_output_tensor_name:
+        name = force_full_output_tensor_name
+    else:
+        name = node.export_name
+        if name_suffix:
+            name += f"_{name_suffix}"
 
     nnef_tensor_ref = NTensor(
         g,
@@ -304,6 +308,7 @@ def _add_single_output_op(
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
     pass_quantization_params: bool = False,
+    force_full_output_tensor_name: T.Optional[str] = None,
 ) -> NTensor:
     assert len(node.outputs) == 1
     out = add_tensor_variable_node_as_nnef_tensor(
@@ -312,6 +317,7 @@ def _add_single_output_op(
         name_to_tensor,
         name_suffix=output_tensor_name_suffix,
         prevent_variable=True,
+        force_full_output_tensor_name=force_full_output_tensor_name,
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
@@ -612,7 +618,12 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     dim = axis_node.data
 
     # we use this since by default pytorch generate max int32 value for end
-    end = min(end_node.data, input_node.shape[dim])
+    begin = pick_value_in_rank(input_node, dim, begin_node.data)
+    end = min(
+        pick_value_in_rank(input_node, dim, end_node.data),
+        input_node.shape[dim],
+    )
+    assert begin < end
 
     if begin_node.data == 0 and end == input_node.shape[dim]:
         LOGGER.debug("Slice is not needed since it have not effect")
@@ -628,8 +639,8 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
         ),
         attrs={
             "axes": [pick_rank(input_node, dim)],
-            "begin": [pick_value_in_rank(input_node, dim, begin_node.data)],
-            "end": [pick_value_in_rank(input_node, dim, end)],
+            "begin": [begin],
+            "end": [end],
             "stride": [stride_node.data],
         },
     )
@@ -1722,29 +1733,42 @@ def size(
         )
         return []
     # original_variable_output = node.outputs[0]
-    out = _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_shape_of",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        output_tensor_name_suffix="shape",
+
+    # ensure consistant name to avoid strangeness
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
     )
-    _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "slice",
-        inputs=out,
-        attrs={
-            "axes": [0],
-            "begin": [pick_value_in_rank(input_node, 0, axis_node.data)],
-            "end": [pick_value_in_rank(input_node, 0, axis_node.data + 1)],
-            "stride": [1],
-        },
-    )
+    shape_tensor_name = f"{input_tensor.name}_shape"
+    if shape_tensor_name in name_to_tensor:
+        out = name_to_tensor[shape_tensor_name]
+    else:
+        out = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=input_tensor,
+            force_full_output_tensor_name=shape_tensor_name,
+        )
+
+    begin = pick_value_in_rank(input_node, 0, axis_node.data)
+
+    index_tensor_name = f"{shape_tensor_name}_{begin}"
+    if index_tensor_name not in name_to_tensor:
+        _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=out,
+            attrs={
+                "axes": [0],
+                "begin": [begin],
+                "end": [begin + 1],
+                "stride": [1],
+            },
+            force_full_output_tensor_name=index_tensor_name,
+        )
     return ["tract_core"]
 
 
@@ -1944,6 +1968,8 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
         )
         if isinstance(inputs, list):
             inputs = tuple(inputs)
+        if n_elements <= 0:
+            raise TorchToNNEFNotImplementedError("unexpected n_elements<=0")
         add_nnef_operation(
             graph=g,
             type="slice",

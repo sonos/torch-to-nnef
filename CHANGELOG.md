@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+
+## [0.6.8] - 2022-10-31
+- `aten:size` expand is now consistant in nameing pattern and should be more
+  robust
+
+
 ## [0.6.7] - 2022-10-31
 
 ### Fix
