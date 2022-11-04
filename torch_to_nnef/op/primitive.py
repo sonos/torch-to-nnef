@@ -1751,7 +1751,7 @@ def size(
             force_full_output_tensor_name=shape_tensor_name,
         )
 
-    begin = pick_value_in_rank(input_node, 0, axis_node.data)
+    begin = pick_rank(input_node, axis_node.data)
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:
@@ -1769,7 +1769,6 @@ def size(
             },
             force_full_output_tensor_name=index_tensor_name,
         )
-
     outnode = node.outputs[0]
     new_outnode = torch_graph.find_node(index_tensor_name)
     if not new_outnode:
