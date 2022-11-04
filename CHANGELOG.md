@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## [0.6.9] - 2022-11-04
+
+### Fix
 - `aten:size` fix lost context for dyn shapes
 
 ## [0.6.8] - 2022-10-31
+### Fix
 - `aten:size` expand is now consistant in nameing pattern and should be more
   robust
 
