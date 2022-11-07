@@ -1207,6 +1207,38 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return list(set(used_custom_fragment))
 
 
+def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    input_node, divisor_node = node.inputs
+    for c_node in [input_node, divisor_node]:
+        c_node.cast_float_inplace()
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    divisor_tensor = get_or_add_tensor_variable_in_nnef(
+        g, divisor_node, name_to_tensor
+    )
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "div",
+        inputs=(
+            input_tensor,
+            divisor_tensor,
+        ),
+        output_tensor_name_suffix="div",
+    )
+    out = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "trunc",
+        inputs=out,
+    )
+    return ["trunc"]
+
+
 def trunc(g, node, name_to_tensor, **kwargs):
     _add_single_output_op(
         g,

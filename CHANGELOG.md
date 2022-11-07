@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.6.10] - 2022-11-07
+
+### Fix
+- `aten:floor_divide` new op from torch 1.13 (torch 1.13 is passing)
+
 ## [0.6.9] - 2022-11-04
 
 ### Fix
