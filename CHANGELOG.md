@@ -5,6 +5,9 @@
 - `roll`, `new_zeros`, `zeros` operators
 - `pow` operator now support negative and scalars as exponent
 
+### Fix
+- `rsub` & `remainder` operator with constant should be precomputed output constants
+
 ## [0.6.10] - 2022-11-07
 
 ### Fix
@@ -45,7 +48,6 @@
 ## [0.6.3] - 2022-10-19
 
 ### Fix
-- `rsub` & `remainder` operator with constant should be precomputed output constants
 - `round` operator is now following tract core IEE implem and warn if vanilla NNEF version is used
 - `ipdb` is no more a dependency of this package
 - bump to black formatter v22 (to avoid click raising errors)
