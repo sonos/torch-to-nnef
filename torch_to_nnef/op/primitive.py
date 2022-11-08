@@ -630,7 +630,11 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     )
     assert begin < end
 
-    if begin_node.data == 0 and end == input_node.shape[dim]:
+    if (
+        begin_node.data == 0
+        and end == input_node.shape[dim]
+        and stride_node.data == 1
+    ):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
