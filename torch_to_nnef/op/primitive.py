@@ -1044,7 +1044,9 @@ def _get_list_of_int(
     def cast_element(node, accepted_none):
         nonlocal has_dynamic_axes
         tensor = name_to_tensor.get(node.export_name)
-        if tensor is not None and force_none_as_tensor_ref or has_dynamic_axes:
+        if tensor is not None and (
+            force_none_as_tensor_ref or has_dynamic_axes
+        ):
             return nnef.Identifier(tensor.name)
         val = node.data
         if val is None and accept_none > 0 and accepted_none < accept_none:
