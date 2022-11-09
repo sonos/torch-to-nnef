@@ -159,13 +159,12 @@ def export_model_to_nnef(
         )
     if check_same_io_as_tract:
         # CHECK input and output are different
-        if len(
-            {t.name for t in nnef_graph.outputs}.difference(
-                [t.name for t in nnef_graph.inputs]
-            )
-        ) != len(nnef_graph.outputs):
+        _output_names = {str(t.name) for t in nnef_graph.outputs}
+        _input_names = {str(t.name) for t in nnef_graph.inputs}
+        if len(_output_names.difference(_input_names)) == 0:
             raise TractError(
-                "Tract does not support input passed as output without transform"
+                "Tract does not support input passed as output without transform: "
+                f"outputs={_output_names} inputs={_input_names}"
             )
         tract.assert_io_and_debug_bundle(
             model,
