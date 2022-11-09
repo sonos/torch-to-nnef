@@ -10,6 +10,7 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import TractError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
 from torch_to_nnef.tract import tract_assert_io
@@ -283,7 +284,6 @@ INPUT_AND_MODELS += [
             (3, 7),
         ),
         nn.Flatten(start_dim=1, end_dim=2),
-        nn.Dropout(),
         nn.MaxPool2d(
             kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False
         ),
@@ -482,13 +482,11 @@ INPUT_AND_MODELS += [
 ]
 
 
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS += [
     # N x L x  H
     (torch.arange(20).reshape(1, 2, 10), layer)
     for layer in [
         UnaryPrimitive(lambda x: x[..., 0::2]),
-        # UnaryPrimitive(lambda x: x[..., 1::2]),
-        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
     ]
 ]
 # Next primitive to implement
@@ -520,6 +518,23 @@ def _test_ids(test_fixtures):
         test_name = f"{module}({data_fmt})"
         test_names.append(test_name)
     return test_names
+
+
+def test_should_fail_since_no_input():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        test_input = torch.rand(1, 10, 100)
+        model = nn.Dropout()
+        with pytest.raises(TractError):
+            export_model_to_nnef(
+                model=model,
+                args=test_input,
+                file_path_export=export_path,
+                input_names=["input"],
+                output_names=["output"],
+                log_level=log.WARNING,
+                check_same_io_as_tract=True,
+            )
 
 
 def test_should_fail_since_false_output():

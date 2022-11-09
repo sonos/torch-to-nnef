@@ -303,6 +303,7 @@ class ExportableSwinTransformerBlock(SwinTransformerBlock):
 
     """Important to overwrite as well due attn_layer default"""
 
+    # pylint: disable-next=useless-parent-delegation
     def __init__(
         self,
         dim: int,
@@ -316,7 +317,6 @@ class ExportableSwinTransformerBlock(SwinTransformerBlock):
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
         attn_layer: Callable[..., nn.Module] = ExportableShiftedWindowAttention,
     ):
-        print("used to change default attn_layer")
         super().__init__(
             dim,
             num_heads,
