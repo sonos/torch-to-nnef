@@ -771,7 +771,12 @@ def _pooling_op(
         kernel_size = ([1] * missing_n_dims) + kernel_size
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
-        padding = padding + ([0] * missing_n_dims)
+
+        # pre 0.18.2 padding order differ
+        if tract_version_lower_or("0.18.2", False):
+            padding = padding + ([0] * missing_n_dims)
+        else:
+            padding = ([0] * missing_n_dims) + padding
 
     _add_single_output_op(
         g,
