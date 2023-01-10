@@ -289,6 +289,7 @@ INPUT_AND_MODELS += [
         ),
         nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
         nn.MaxPool2d(kernel_size=3, stride=4, padding=0, dilation=2),
+        nn.AvgPool2d(kernel_size=3, stride=4, padding=0),
         nn.AdaptiveAvgPool2d(32),
     ]
 ]
@@ -303,7 +304,7 @@ INPUT_AND_MODELS += [
         nn.Conv1d(10, 20, 3, padding=3),
         nn.BatchNorm1d(10, eps=0, momentum=0.1),
         nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
-        # nn.AvgPool1d(10), # Not same results between tract and Pytorch
+        nn.AvgPool1d(10),
         nn.ConvTranspose1d(10, 20, 3),
         nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
     ]
@@ -492,6 +493,7 @@ if not tract_version_lower_than("0.19.0"):
         )
         for qte in [2, 3]
     ]
+
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

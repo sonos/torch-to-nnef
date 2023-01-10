@@ -749,7 +749,7 @@ def _pooling_op(
         ceil_mode_node,
     ) = node_inputs
 
-    if ceil_mode_node.data:
+    if ceil_mode_node and ceil_mode_node.data:
         raise TorchToNNEFNotImplementedError(
             "Use of ceil to compute output shape is not implem"
         )
@@ -760,7 +760,7 @@ def _pooling_op(
     if dilation_node:
         dilation = dilation_node.data or []
     else:
-        dilation = [0 for _ in stride]
+        dilation = [1 for _ in stride]
 
     # peculiarity of tract implementation
     # apparently tract does expect max_pool to be always 2d only (including
@@ -934,6 +934,7 @@ def avg_pool1d(g, node, name_to_tensor, **kwargs):
         )
     inputs_name_tuple = node.inputs[:-1]  # count_include_pad excluded
     inputs_name_tuple.insert(4, None)  # set missing dilation
+
     # Dilation is available
     _pooling_op(
         "avg_pool",
@@ -955,9 +956,42 @@ def max_pool2d(g, node, name_to_tensor, **kwargs):
 
 
 def avg_pool2d(g, node, name_to_tensor, **kwargs):
+    """
+    cpp func parameters:
+    (const Tensor& input,
+    IntArrayRef kernel_size,
+    IntArrayRef stride,
+    IntArrayRef padding,
+    bool ceil_mode,
+    bool count_include_pad,
+    c10::optional<int64_t> divisor_override
+
+    _pooling_op expect:
+
+    (input_node,
+    kernel_size_node,
+    stride_node,
+    padding_node,
+    dilation_node,
+    ceil_mode_node)
+    """
+
+    count_include_pad = node.inputs[-2].data
+    if not count_include_pad:
+        raise TorchToNNEFNotImplementedError(
+            "not implemented count_include_pad=False"
+        )
+
+    divisor_overide = node.inputs[-1].data
+    if divisor_overide:
+        raise TorchToNNEFNotImplementedError(
+            f"not implemented divisor_override={divisor_overide}"
+        )
+    inputs_tups = node.inputs[:-2]
+    inputs_tups.insert(4, None)
     _pooling_op(
         "avg_pool",
-        node.inputs,
+        inputs_tups,
         g,
         node,
         name_to_tensor,

@@ -1,12 +1,17 @@
 # Changelog
 
 ## Unreleased
+
+
+# [0.7.0] - 2023-01-10
+
 ### Added
 - `roll`, `new_zeros`, `zeros` operators
 - `pow` operator now support negative and scalars as exponent
 
 ### Fix
 - `rsub` & `remainder` operator with constant should be precomputed output constants
+- `avg_pool1d`, `avg_pool2d` operators now work as expected
 
 ## [0.6.10] - 2022-11-07
 
