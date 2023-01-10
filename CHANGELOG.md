@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-
-# [0.7.0] - 2023-01-10
+## [0.7.1] - 2023-01-10
 
 ### Added
 - `roll`, `new_zeros`, `zeros` operators
