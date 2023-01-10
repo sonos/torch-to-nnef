@@ -13,7 +13,7 @@ from torch import nn
 from torch_to_nnef.exceptions import TractError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
-from torch_to_nnef.tract import tract_assert_io
+from torch_to_nnef.tract import tract_assert_io, tract_version_lower_than
 
 from .utils import _test_check_model_io, set_seed  # noqa: E402
 
@@ -394,7 +394,6 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
-        UnaryPrimitive(lambda x: x[..., 0::2]),
         # UnaryPrimitive(lambda x: x[..., 1::2]),
         # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
         torch.nn.LayerNorm(10),
@@ -482,13 +481,17 @@ INPUT_AND_MODELS += [
 ]
 
 
-INPUT_AND_MODELS += [
-    # N x L x  H
-    (torch.arange(20).reshape(1, 2, 10), layer)
-    for layer in [
-        UnaryPrimitive(lambda x: x[..., 0::2]),
+if not tract_version_lower_than("0.19.0"):
+    # 0.18.5 should have been introducing tract fix that allow slice stride
+    # but another bug prevented it's effectiveness
+    INPUT_AND_MODELS += [
+        # N x L x  H
+        (
+            torch.arange(qte * 10).reshape(1, qte, 10),
+            UnaryPrimitive(lambda x: x[..., 0::2]),
+        )
+        for qte in [2, 3]
     ]
-]
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

@@ -25,7 +25,6 @@ repos:
     rev: 22.10.0
     hooks:
       - id: black
-        language_version: python3.8
   - repo: https://github.com/pycqa/flake8
     rev: 5.0.4
     hooks:
@@ -42,7 +41,8 @@ repos:
     - id: pyupgrade
       args: ['--py37-plus']
   - repo: git@github.com:PyCQA/prospector.git
-    rev: 1.7.7
+    rev: v1.8.3
     hooks:
       - id: prospector
         types: [python]
+        args: ['-X']

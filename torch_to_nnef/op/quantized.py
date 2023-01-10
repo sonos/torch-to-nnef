@@ -13,7 +13,7 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive import _add_single_output_op
-from torch_to_nnef.tract import tract_version_lower_or
+from torch_to_nnef.tract import tract_version_lower_than
 
 
 def _torch_qtensor_to_ntensor(g, tensor, name):
@@ -46,14 +46,15 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         },
     )
 
-def register_bias_as_int(g, node,name_to_tensor, bias_tensor):
-    """ Simpler variable register for bias as int """
+
+def register_bias_as_int(g, node, name_to_tensor, bias_tensor):
+    """Simpler variable register for bias as int"""
     bias_tensor = bias_tensor.int_repr()
     # peculiarity of tract implementation
     if len(bias_tensor.shape) == 1:
         bias_tensor = bias_tensor.unsqueeze(0)
     name = f"{node.export_name}_bias"
-    nnef_tensor_ref =  NTensor(
+    nnef_tensor_ref = NTensor(
         g,
         name=name,
         shape=tuple(bias_tensor.shape),
@@ -152,7 +153,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
             raise TorchToNNEFNotImplementedError(
                 f"not suported quantization scheme {qscheme }"
             )
-        if tract_version_lower_or("0.19.0"):
+        if tract_version_lower_than("0.19.0"):
             bias_ref = register_state_node_as_variable(
                 bias_tensor,
                 slug_name="bias",
@@ -161,7 +162,9 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
                 name_to_tensor=name_to_tensor,
             )
         else:
-            bias_ref = register_bias_as_int(g, node,name_to_tensor, bias_tensor)
+            bias_ref = register_bias_as_int(
+                g, node, name_to_tensor, bias_tensor
+            )
 
     return weight_ref, bias_ref
 
@@ -212,7 +215,7 @@ def _conv(
     # apply expansion to align inputs with weight {
     for _ in range(input_node.rank - len(conv_weight.shape)):
         conv_weight = conv_weight.unsqueeze(0)
-    if conv_bias is not None and tract_version_lower_or("0.18.1", False):
+    if conv_bias is not None and tract_version_lower_than("0.18.1"):
         for _ in range(input_node.rank - len(conv_bias.shape)):
             conv_bias = conv_bias.unsqueeze(0)
     # }

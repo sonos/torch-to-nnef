@@ -21,7 +21,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
-from torch_to_nnef.tract import tract_version_lower_or
+from torch_to_nnef.tract import tract_version_lower_than
 
 LOGGER = logging.getLogger(__name__)
 
@@ -683,7 +683,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_or("0.18.1", False):
+    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -772,8 +772,8 @@ def _pooling_op(
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
 
-        # pre 0.18.2 padding order differ
-        if tract_version_lower_or("0.18.2", False):
+        # pre 0.19.0 padding order differ
+        if tract_version_lower_than("0.19.0"):
             padding = padding + ([0] * missing_n_dims)
         else:
             padding = ([0] * missing_n_dims) + padding

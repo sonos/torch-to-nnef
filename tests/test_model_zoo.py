@@ -11,6 +11,7 @@ from tests.shifted_window_attention_patch import (
     ExportableShiftedWindowAttention,
     ExportableSwinTransformerBlock,
 )
+from torch_to_nnef.tract import tract_version_greater_than
 
 from .utils import (  # noqa: E402
     _test_check_model_io,
@@ -125,7 +126,10 @@ INPUT_AND_MODELS += [
 
 
 # swin_transformer {
-if hasattr(vision_mdl, "swin_transformer"):
+# need slice with stride
+if hasattr(vision_mdl, "swin_transformer") and tract_version_greater_than(
+    "0.19.0"
+):
     vision_mdl.swin_transformer.ShiftedWindowAttention = (
         ExportableShiftedWindowAttention
     )

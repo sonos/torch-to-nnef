@@ -22,6 +22,9 @@ jobs:
       matrix:
         python-versions: [3.7, 3.9]
         os: [ubuntu-latest] # , macos-latest disabled since we have limited use
+        # we check at max 5 tract versions
+        # with only latest patch version maintained
+        tract-versions: [0.17.9, 0.18.5]
     runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -32,13 +35,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-versions }}
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: tract
+      - name: Install tract
+        run: |
+          ./dl_ci_tract.sh ${{ matrix.tract-versions }}
 
       - name: Install dependencies
         run: |
@@ -47,7 +46,7 @@ jobs:
 
       - name: test with tox
         run:
-          tox
+          TRACT_PATH=.tract/tract-x86_64-unknown-linux-musl-${{ matrix.tract-versions }}/tract tox
 
       - name: list files
         run: ls -l .
