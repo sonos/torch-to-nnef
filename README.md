@@ -52,7 +52,7 @@ export_model_to_nnef(
     file_path_export=Path("mybeautifulmodel.nnef"),
     input_names=["input"],
     output_names=["output"],
-    compression_level: int = 0, # tar.gz compression level
+    compression_level=0, # tar.gz compression level
     log_level=logging.WARN, # default being logging.INFO
     check_same_io_as_tract=True, # default False need tract installed on machine
     debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
@@ -64,10 +64,10 @@ export_model_to_nnef(
     # the renaming_scheme is only useful if you intend to read generated
     # NNEF format else do not set it
 
-    dynamic_axes={"input": {2: "S"}} # follow onnx export convention with additional constraint
+    dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
     # that named dimension need to be single letter symbol (due to tract spec)
 
-    check_io_names_qte_match=True # may be setted to False in some rare case:
+    check_io_names_qte_match=True, # may be setted to False in some rare case:
     # if one of the input provided is removed since it is not used to generate outputs
 
     nnef_spec_strict=False, # if set to true it follows NNEF spec

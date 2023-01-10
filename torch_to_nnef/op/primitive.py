@@ -21,7 +21,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
-from torch_to_nnef.tract import tract_version_lower_or
+from torch_to_nnef.tract import tract_version_lower_than
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ REMAP_ATEN_OP_NAMES = {
     "min": "min_",
     "slice": "slice_",
     "round": "round_",
+    "index": "index_",
     # }
     "bmm": "matmul",  # since NNEF matmul does not care about rank
 }
@@ -238,7 +239,11 @@ def pick_rank(input_node, rank: int) -> int:
     """Enforce that axis, axes ect does contains only positive values"""
     if rank >= 0:
         return rank
-    return input_node.rank + rank
+    if isinstance(input_node, FixedTensorList):
+        base_rank = len(input_node.data)
+    else:
+        base_rank = input_node.rank
+    return base_rank + rank
 
 
 def pick_value_in_rank(input_node, rank: int, index: int) -> int:
@@ -625,7 +630,11 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     )
     assert begin < end
 
-    if begin_node.data == 0 and end == input_node.shape[dim]:
+    if (
+        begin_node.data == 0
+        and end == input_node.shape[dim]
+        and stride_node.data == 1
+    ):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
@@ -674,7 +683,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_or("0.18.1", False):
+    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -762,7 +771,12 @@ def _pooling_op(
         kernel_size = ([1] * missing_n_dims) + kernel_size
         stride = ([1] * missing_n_dims) + stride
         dilation = ([1] * missing_n_dims) + dilation
-        padding = padding + ([0] * missing_n_dims)
+
+        # pre 0.19.0 padding order differ
+        if tract_version_lower_than("0.19.0"):
+            padding = padding + ([0] * missing_n_dims)
+        else:
+            padding = ([0] * missing_n_dims) + padding
 
     _add_single_output_op(
         g,
@@ -1031,6 +1045,7 @@ def _get_list_of_int(
     name_to_tensor,
     accept_none: int = 0,
     has_dynamic_axes: bool = True,
+    force_none_as_tensor_ref: bool = False,
 ):
     assert accept_none >= 0
     accepted_none = 0
@@ -1038,7 +1053,9 @@ def _get_list_of_int(
     def cast_element(node, accepted_none):
         nonlocal has_dynamic_axes
         tensor = name_to_tensor.get(node.export_name)
-        if tensor is not None and has_dynamic_axes:
+        if tensor is not None and (
+            force_none_as_tensor_ref or has_dynamic_axes
+        ):
             return nnef.Identifier(tensor.name)
         val = node.data
         if val is None and accept_none > 0 and accepted_none < accept_none:
@@ -1047,7 +1064,7 @@ def _get_list_of_int(
         return int(val)
 
     if isinstance(data_node, PythonConstant):
-        int_list = data_node.data
+        int_list = [int(_) for _ in data_node.data]
     elif isinstance(data_node, FixedTensorList):
         int_list = [cast_element(_, accepted_none) for _ in data_node.data]
         if any(_ is None for _ in int_list):
@@ -1327,9 +1344,68 @@ def pow_(g, node, name_to_tensor, **kwargs):
         elif exponent == -2:
             op_type = "rsqr"
         else:
-            raise TorchToNNEFNotImplementedError(
-                "take a look at pow in nnef spec"
+            # pow(x,y) := exp(x*log(y))
+            # so let's precompute log of y and apply exp(x*resy)
+            out_mul = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "log",
+                inputs=[
+                    get_or_add_tensor_variable_in_nnef(
+                        g, input_node, name_to_tensor
+                    ),
+                ],
+                output_tensor_name_suffix="log_part_pow",
             )
+            out_log = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "mul",
+                inputs=[
+                    out_mul,
+                    get_or_add_tensor_variable_in_nnef(
+                        g,
+                        PythonConstant(
+                            name=exponent_node.export_name, data=abs(exponent)
+                        ),
+                        name_to_tensor,
+                    ),
+                ],
+                output_tensor_name_suffix="mul_part_pow",
+            )
+
+            out = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "exp",
+                inputs=[out_log],
+                output_tensor_name_suffix="exp_part_pow"
+                if exponent < 0
+                else "",
+            )
+            if exponent < 0:  # in case of neg exponent: x**-y = 1/(x**y)
+                out = _add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "div",
+                    inputs=[
+                        get_or_add_tensor_variable_in_nnef(
+                            g,
+                            PythonConstant(
+                                name=f"{out.name}_div_since_neg_part_pow",
+                                data=1.0,
+                            ),
+                            name_to_tensor,
+                        ),
+                        out,
+                    ],
+                )
+
+            return
     else:
         op_type = "pow"
         inputs += [
@@ -1827,6 +1903,7 @@ def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         name_to_tensor=name_to_tensor,
         accept_none=1,
         has_dynamic_axes=has_dynamic_axes,
+        force_none_as_tensor_ref=True,
     )
     _add_single_output_op(
         g,
@@ -1924,6 +2001,8 @@ def constant_pad_nd(
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
+    if value is None:
+        value = 0  # add default value if not set
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
@@ -2142,6 +2221,61 @@ def zeros_like(g, node, name_to_tensor, **kwargs):
     )
 
 
+def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        _,  # input_node,
+        shape_node,
+        dtype_node,
+        _,  # ? example PythonConstant(data=0, ...)
+        _,  # device_node,
+        _,  # requires_grad_node
+    ) = node.inputs
+    LOGGER.warning(
+        "the aten::new_zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+
+    assert shape_node.data
+
+    node.outputs[0].data = torch.zeros(
+        shape_node.data,
+        dtype=dtype,
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
+def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        shape_node,
+        dtype_node,
+        _,  # ? example PythonConstant(data=0, ...)
+        _,  # device_node,
+        _,  # requires_grad_node
+    ) = node.inputs
+    LOGGER.warning(
+        "the aten::zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+
+    assert shape_node.data
+
+    node.outputs[0].data = torch.zeros(
+        shape_node.data,
+        dtype=dtype,
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
 def chunk(g, node, name_to_tensor, **kwargs):
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
@@ -2176,7 +2310,7 @@ def chunk(g, node, name_to_tensor, **kwargs):
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_tensor_node,
-        _,  # normalized_shape_node
+        normalized_shape_node,
         weight_node,
         bias_node,
         eps_node,
@@ -2185,7 +2319,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
 
     mean_axes = sorted(
         input_tensor_node.rank - r - 1
-        for r in range(input_tensor_node.rank - 2)
+        for r, _ in enumerate(normalized_shape_node.data)
     )
     has_affine = elementwise_affine_node.data and not (
         # check affine as any use
@@ -2511,6 +2645,164 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["baddbmm"]
+
+
+def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    """
+    fragment gather<?>(
+        input: tensor<?>,                 # the tensor to gather from
+        indices: tensor<integer>,         # the indices to gather at
+        axis: integer = 0 )               # the axis to gather at
+    -> ( output: tensor<?> )
+    """
+    # gather
+    input_node, indexes_node = node.inputs
+    # input_node = TensorVariable([?], shape=(169,4))
+    # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
+    if len(indexes_node.data) > 1:
+        raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
+
+    custom_fragments = []
+    if nnef_spec_strict:
+        op_name = "gather"
+    else:
+        op_name = "tract_core_gather"
+        custom_fragments += ["tract_core"]
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        op_name,
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            get_or_add_tensor_variable_in_nnef(
+                g, indexes_node.data[0], name_to_tensor
+            ),
+        ],
+        attrs={
+            "axis": 0,
+        },
+    )
+    return custom_fragments
+
+
+def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
+    input_node, other_node = node.inputs
+    if all(
+        isinstance(node, PythonConstant) for node in [input_node, other_node]
+    ):
+        torch_graph.remap_node(
+            from_node=node.outputs[0],
+            to_node=PythonConstant(
+                name=node.outputs[0].export_name,
+                data=input_node.data % other_node.data,
+            ),
+        )
+        return []
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "remainder",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in [input_node, other_node]
+        ],
+    )
+    return ["remainder"]
+
+
+def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
+    input_node, other_node, alpha_node = node.inputs
+    if all(
+        isinstance(_, PythonConstant)
+        for _ in [input_node, other_node, alpha_node]
+    ):
+        LOGGER.debug("Slice is not needed since it have not effect")
+        torch_graph.remap_node(
+            from_node=node.outputs[0],
+            to_node=PythonConstant(
+                name=node.outputs[0].export_name,
+                data=int(
+                    input_node.data * -1.0 * alpha_node.data + other_node.data
+                ),
+            ),
+        )
+        return []
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "rsub",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in [input_node, other_node]
+        ],
+        attrs={"alpha": alpha_node.data},
+    )
+    return ["rsub"]
+
+
+def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
+    input_node, shifts_node, dims_node = node.inputs
+    shifts = shifts_node.data
+    dims = dims_node.data
+    assert len(shifts) == len(dims), "shifts and dims need to be sample size"
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    for i, _ in enumerate(shifts):
+        tensor_chunks = []
+        dim = dims[i]
+        shift = shifts[i]
+        if not has_dynamic_axes or nnef_spec_strict:
+            maxsize = input_node.shape[dim]
+        else:
+            raise TorchToNNEFNotImplementedError("Should use shape_of")
+        shape_out = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [pick_rank(input_node, dim)],
+                "begin": [pick_value_in_rank(input_node, dim, -shift)],
+                "end": [pick_value_in_rank(input_node, dim, maxsize)],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"roll_l{i}_p1",
+        )
+        tensor_chunks.append(shape_out)
+        shape_out = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [pick_rank(input_node, dim)],
+                "begin": [0],
+                "end": [pick_value_in_rank(input_node, dim, -shift)],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"roll_l{i}_p2",
+        )
+        tensor_chunks.append(shape_out)
+        # result = g.op("Concat", *shapes, axis_i=dims[i])
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "concat",
+            inputs=tensor_chunks,
+            attrs={"axis": pick_rank(input_node, dim)},
+            ensure_tuple=False,
+            output_tensor_name_suffix=""
+            if i + 1 == len(shifts)
+            else f"roll_{i}",
+        )
+    return []
 
 
 def aten_to_nnef_tensor_and_ops(

@@ -13,7 +13,11 @@ from torch.onnx.utils import (  # type: ignore
 
 # from . import __version__
 from torch_to_nnef import tract
-from torch_to_nnef.exceptions import DynamicShapeValue, StrictNNEFSpecError
+from torch_to_nnef.exceptions import (
+    DynamicShapeValue,
+    StrictNNEFSpecError,
+    TractError,
+)
 from torch_to_nnef.log import log
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
@@ -154,6 +158,14 @@ def export_model_to_nnef(
             f"model exported successfully as NNEF at: {file_path_export}"
         )
     if check_same_io_as_tract:
+        # CHECK input and output are different
+        _output_names = {str(t.name) for t in nnef_graph.outputs}
+        _input_names = {str(t.name) for t in nnef_graph.inputs}
+        if len(_output_names.difference(_input_names)) == 0:
+            raise TractError(
+                "Tract does not support input passed as output without transform: "
+                f"outputs={_output_names} inputs={_input_names}"
+            )
         tract.assert_io_and_debug_bundle(
             model,
             args,

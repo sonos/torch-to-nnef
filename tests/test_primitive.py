@@ -10,9 +10,10 @@ import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import TractError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
-from torch_to_nnef.tract import tract_assert_io
+from torch_to_nnef.tract import tract_assert_io, tract_version_lower_than
 
 from .utils import _test_check_model_io, set_seed  # noqa: E402
 
@@ -126,6 +127,7 @@ INPUT_AND_MODELS = [
         # }
         partial(torch.pow, exponent=2.0),
         partial(torch.pow, exponent=-2.0),
+        partial(torch.pow, exponent=-0.5),
         # tract need reversed NNEF transpose.axes=[] order than spec
         partial(torch.transpose, dim0=1, dim1=0),
         # tract need reversed NNEF transpose.axes=[] order than spec
@@ -170,6 +172,7 @@ INPUT_AND_MODELS += [
         TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
         TensorFnPrimitive("clamp_min", args=(0.5,)),
         TensorFnPrimitive("clamp_max", args=(0.5,)),
+        TensorFnPrimitive("new_zeros", kwargs=dict(size=(3, 2))),
         partial(
             nn.functional.pad,
             pad=[0, 0, 0, 0, 0, 1],
@@ -281,7 +284,6 @@ INPUT_AND_MODELS += [
             (3, 7),
         ),
         nn.Flatten(start_dim=1, end_dim=2),
-        nn.Dropout(),
         nn.MaxPool2d(
             kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False
         ),
@@ -392,7 +394,10 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
+        # UnaryPrimitive(lambda x: x[..., 1::2]),
+        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
         torch.nn.LayerNorm(10),
+        torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
         torch.nn.GLU(),
     ]
 ]
@@ -457,6 +462,36 @@ INPUT_AND_MODELS += [
     )
 ]
 
+
+INPUT_AND_MODELS += [
+    (
+        (
+            torch.arange(6).reshape(1, 2, 3).float(),
+            torch.arange(6).reshape(1, 2, 3).float() + 1.0,
+        ),
+        BinaryPrimitive(torch.remainder),
+    )
+]
+
+INPUT_AND_MODELS += [
+    (
+        torch.arange(6).reshape(1, 2, 3).float(),
+        UnaryPrimitive(partial(torch.roll, shifts=(-1, -2), dims=(1, 2))),
+    )
+]
+
+
+if not tract_version_lower_than("0.19.0"):
+    # 0.18.5 should have been introducing tract fix that allow slice stride
+    # but another bug prevented it's effectiveness
+    INPUT_AND_MODELS += [
+        # N x L x  H
+        (
+            torch.arange(qte * 10).reshape(1, qte, 10),
+            UnaryPrimitive(lambda x: x[..., 0::2]),
+        )
+        for qte in [2, 3]
+    ]
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
@@ -486,6 +521,23 @@ def _test_ids(test_fixtures):
         test_name = f"{module}({data_fmt})"
         test_names.append(test_name)
     return test_names
+
+
+def test_should_fail_since_no_input():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        test_input = torch.rand(1, 10, 100)
+        model = nn.Dropout()
+        with pytest.raises(TractError):
+            export_model_to_nnef(
+                model=model,
+                args=test_input,
+                file_path_export=export_path,
+                input_names=["input"],
+                output_names=["output"],
+                log_level=log.WARNING,
+                check_same_io_as_tract=True,
+            )
 
 
 def test_should_fail_since_false_output():
