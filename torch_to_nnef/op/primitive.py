@@ -10,6 +10,7 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
+    NUMPY_TO_TORCH_DTYPE,
     SCALAR_TYPE_TO_PYTORCH_TYPE,
     TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
@@ -303,6 +304,47 @@ def mul(g, node, name_to_tensor, **kwargs):
     )
 
 
+def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
+    """Catch all input or attr that would still be torch_graph values into NNEF"""
+    casted_inputs = []
+    casted_attrs = {}
+
+    def cast(value):
+        if isinstance(value, (int, str, float, NTensor)):
+            return value
+        elif isinstance(value, TensorVariable):
+            return nnef.Identifier(
+                get_or_add_tensor_variable_in_nnef(
+                    g, value, name_to_tensor
+                ).name
+            )
+        elif isinstance(value, PythonConstant):
+            return value.data
+        elif isinstance(value, list):
+            return [cast(v) for v in value]
+        elif isinstance(value, tuple):
+            return tuple(cast(v) for v in value)
+        elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
+            return value
+        raise NotImplementedError(f"Wrong {value} value")
+
+    if isinstance(inputs, (tuple, list)):
+        for inp in inputs:
+            casted_inputs.append(cast(inp))
+        casted_inputs = tuple(casted_inputs)
+
+        if isinstance(inputs, list):  # some case need list of args as 1st arg
+            casted_inputs = list(inputs)
+    else:
+        casted_inputs = cast(inputs)
+
+    if attrs:
+        for attr_name, attr_value in attrs.items():
+            casted_attrs[attr_name] = cast(attr_value)
+
+    return casted_inputs, casted_attrs
+
+
 def _add_single_output_op(
     g,
     node,
@@ -326,6 +368,7 @@ def _add_single_output_op(
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
+    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
     add_nnef_operation(
         graph=g,
         type=nnef_op_type,
@@ -370,6 +413,7 @@ def _add_multi_output_op(
 
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
+    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
     add_nnef_operation(
         graph=g,
         type=nnef_op_type,

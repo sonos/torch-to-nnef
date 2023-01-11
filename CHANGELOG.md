@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.7.2] - 2023-01-11
+
+### Fix
+- dynamic_axes generated stream variables should be better casted to NNEF tensor ref
+
 ## [0.7.1] - 2023-01-10
 
 ### Added
