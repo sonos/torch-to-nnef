@@ -6,6 +6,7 @@ import torch
 import torchaudio
 from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
+from transformers import AlbertModel, AlbertTokenizer
 
 from tests.shifted_window_attention_patch import (
     ExportableShiftedWindowAttention,
@@ -143,6 +144,28 @@ if hasattr(vision_mdl, "swin_transformer") and tract_version_greater_than(
     INPUT_AND_MODELS += [(data, mdl)]
 
 # }
+
+
+# albert {
+
+tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
+inputs = tokenizer("Hello, I am happy", return_tensors="pt")
+
+
+class ALBERTModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = AlbertModel.from_pretrained("albert-base-v2")
+
+    def forward(self, *args):
+        outputs = self.model(*args)
+        last_hidden_states = outputs.last_hidden_state
+        return last_hidden_states
+
+
+# }
+
+INPUT_AND_MODELS = [(tuple(inputs.values()), ALBERTModel())]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
