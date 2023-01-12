@@ -327,7 +327,10 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
         elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
             return value
         elif isinstance(value, torch.Tensor):
-            return value.numpy()
+            nvalue = value.numpy()
+            if nvalue.shape == ():
+                nvalue = nvalue.tolist()
+            return nvalue
         raise NotImplementedError(f"Wrong {value} value of type: {type(value)}")
 
     if isinstance(inputs, (tuple, list)):
