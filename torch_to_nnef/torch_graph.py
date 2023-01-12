@@ -808,6 +808,19 @@ def _rerouted_parsing(node: torch._C.Node, data_nodes: T.List[Data], module):
         raise TorchOpTranslatedDifferently(
             "List Construct handled as PythonConstant"
         )
+    if kind == ATEN_INT:
+        ancestor_node = _fetch_backward(data_nodes, node)
+        if ancestor_node not in data_nodes:
+            data_nodes.append(ancestor_node)
+            raise TorchOpTranslatedDifferently("Int added tensor")
+        else:
+            # will be remaped to
+            tensor_out = TensorVariable.parse(node.output())
+            data_nodes.append(tensor_out)
+            raise TorchOpTranslatedDifferently(
+                "Int to be remaped", tensor_out, ancestor_node
+            )
+
     if kind.startswith(PRIM_STARTID):
         if kind == TUPLEUNPACK_KIND:
             dnodes = _find_data_node(data_nodes, node.input().debugName()).data
@@ -1036,6 +1049,9 @@ class TorchOp:
         op_ref = None
         _rerouted_parsing(node, data_nodes, module)
 
+        if node.kind() in [ATEN_INT]:  # , NUMTOTENSOR_KIND
+            __import__("ipdb").set_trace()
+            raise NotImplementedError(f"node: {node} should create an ops")
         (
             kind,
             call_name,
@@ -1337,6 +1353,14 @@ class TorchModuleIRGraph:
     def _parse_core(self):
         """Parse all Operations and collect the scope infos"""
         attr_to_scope: T.Dict[T.Any, str] = {}
+
+        to_remap = []
+
+        def maybe_gather_remap(exp_args):
+            if len(exp_args) == 3 and exp_args[0] == "Int to be remaped":
+                _, tensor_out, ancestor_node = exp_args
+                to_remap.append((tensor_out, ancestor_node))
+
         for node in self._tracer.torch_graph.nodes():
             if node.kind() == GETATTR_KIND:
                 attr_name = node.s("name")
@@ -1363,8 +1387,8 @@ class TorchModuleIRGraph:
                             traced_module=self._tracer.traced_module,
                         )
                         self.op_nodes.append(op)
-                    except TorchOpTranslatedDifferently:
-                        pass
+                    except TorchOpTranslatedDifferently as exp:
+                        maybe_gather_remap(exp.args)
 
             else:
                 try:
@@ -1376,8 +1400,12 @@ class TorchModuleIRGraph:
                         traced_module=self._tracer.traced_module,
                     )
                     self.op_nodes.append(op)
-                except TorchOpTranslatedDifferently:
-                    pass
+                except TorchOpTranslatedDifferently as exp:
+                    maybe_gather_remap(exp.args)
+
+        # remap if needed
+        for from_node, to_node in to_remap:
+            self.remap_node(from_node, to_node)
 
     def _parse_outputs(
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None

@@ -326,7 +326,9 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             return tuple(cast(v) for v in value)
         elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
             return value
-        raise NotImplementedError(f"Wrong {value} value")
+        elif isinstance(value, torch.Tensor):
+            return value.numpy()
+        raise NotImplementedError(f"Wrong {value} value of type: {type(value)}")
 
     if isinstance(inputs, (tuple, list)):
         for inp in inputs:
@@ -2913,12 +2915,16 @@ def aten_to_nnef_tensor_and_ops(
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
-    return globals()[aten_op_name](
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-        torch_graph=torch_graph,
-        nnef_spec_strict=nnef_spec_strict,
-        has_dynamic_axes=has_dynamic_axes,
-    )
+    try:
+        return globals()[aten_op_name](
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+            torch_graph=torch_graph,
+            nnef_spec_strict=nnef_spec_strict,
+            has_dynamic_axes=has_dynamic_axes,
+        )
+    except KeyError as exp:
+        torch_graph.printall()
+        raise exp
