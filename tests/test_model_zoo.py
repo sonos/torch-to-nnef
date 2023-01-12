@@ -165,7 +165,7 @@ class ALBERTModel(torch.nn.Module):
 
 # }
 
-INPUT_AND_MODELS = [(tuple(inputs.values()), ALBERTModel())]
+INPUT_AND_MODELS += [(tuple(inputs.values()), ALBERTModel())]
 
 
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)

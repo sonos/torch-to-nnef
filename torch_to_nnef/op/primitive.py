@@ -313,7 +313,6 @@ def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
             # containing exp notation 'e'
             nvalue = torch.from_numpy(np.array(value))
             var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
-            print("CASTED AS VAR", var_name)
             return nnef.Identifier(
                 get_or_add_tensor_variable_in_nnef(
                     g,
@@ -1468,68 +1467,12 @@ def pow_(g, node, name_to_tensor, **kwargs):
         elif exponent == -2:
             op_type = "rsqr"
         else:
-            # pow(x,y) := exp(x*log(y))
-            # so let's precompute log of y and apply exp(x*resy)
-            out_mul = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "log",
-                inputs=[
-                    get_or_add_tensor_variable_in_nnef(
-                        g, input_node, name_to_tensor
-                    ),
-                ],
-                output_tensor_name_suffix="log_part_pow",
-            )
-            out_log = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "mul",
-                inputs=[
-                    out_mul,
-                    get_or_add_tensor_variable_in_nnef(
-                        g,
-                        PythonConstant(
-                            name=exponent_node.export_name, data=abs(exponent)
-                        ),
-                        name_to_tensor,
-                    ),
-                ],
-                output_tensor_name_suffix="mul_part_pow",
-            )
-
-            out = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "exp",
-                inputs=[out_log],
-                output_tensor_name_suffix="exp_part_pow"
-                if exponent < 0
-                else "",
-            )
-            if exponent < 0:  # in case of neg exponent: x**-y = 1/(x**y)
-                out = _add_single_output_op(
-                    g,
-                    node,
-                    name_to_tensor,
-                    "div",
-                    inputs=[
-                        get_or_add_tensor_variable_in_nnef(
-                            g,
-                            PythonConstant(
-                                name=f"{out.name}_div_since_neg_part_pow",
-                                data=1.0,
-                            ),
-                            name_to_tensor,
-                        ),
-                        out,
-                    ],
+            op_type = "pow"
+            inputs += [
+                get_or_add_tensor_variable_in_nnef(
+                    g, exponent_node, name_to_tensor
                 )
-
-            return
+            ]
     else:
         op_type = "pow"
         inputs += [
