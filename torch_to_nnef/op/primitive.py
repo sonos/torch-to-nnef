@@ -141,7 +141,9 @@ def add_tensor_variable_node_as_nnef_tensor(
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()
         nnef_tensor_ref.shape = tuple(node.data.shape)
-        if not prevent_variable and len(node.data.size()) > 0:
+        if not prevent_variable and (
+            len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
+        ):
             add_nnef_operation(
                 graph=g,
                 type="variable",
@@ -304,6 +306,29 @@ def mul(g, node, name_to_tensor, **kwargs):
     )
 
 
+def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
+    if not isinstance(value, bool) and isinstance(value, (int, float)):
+        if "e" in str(value):
+            # create a tensor to avoid issue with number formatting
+            # containing exp notation 'e'
+            nvalue = torch.from_numpy(np.array(value))
+            var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
+            print("CASTED AS VAR", var_name)
+            return nnef.Identifier(
+                get_or_add_tensor_variable_in_nnef(
+                    g,
+                    TensorVariable(
+                        name=var_name,
+                        data=nvalue,
+                        shape=list(nvalue.shape),
+                        dtype=nvalue.dtype,
+                    ),
+                    name_to_tensor,
+                ).name
+            )
+    return value
+
+
 def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
     """Catch all input or attr that would still be torch_graph values into NNEF"""
     casted_inputs = []
@@ -311,7 +336,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
 
     def cast(value):
         if isinstance(value, (int, str, float, NTensor)):
-            return value
+            return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
         elif isinstance(value, TensorVariable):
             return nnef.Identifier(
                 get_or_add_tensor_variable_in_nnef(
@@ -330,7 +355,9 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             nvalue = value.numpy()
             if nvalue.shape == ():
                 nvalue = nvalue.tolist()
-            return nvalue
+            return _prevent_raw_number_with_e_notation(
+                g, name_to_tensor, nvalue
+            )
         raise NotImplementedError(f"Wrong {value} value of type: {type(value)}")
 
     if isinstance(inputs, (tuple, list)):
@@ -348,6 +375,17 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             casted_attrs[attr_name] = cast(attr_value)
 
     return casted_inputs, casted_attrs
+
+
+def cast_and_add_nnef_operation(name_to_tensor, **kwargs):
+    """ensure to cast parameters before adding operation to NNEF graph"""
+    kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
+        kwargs["inputs"],
+        kwargs["attribs"],
+        kwargs["graph"],
+        name_to_tensor,
+    )
+    return add_nnef_operation(**kwargs)
 
 
 def _add_single_output_op(
@@ -373,8 +411,8 @@ def _add_single_output_op(
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
-    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=nnef_op_type,
         inputs=inputs,
@@ -418,8 +456,8 @@ def _add_multi_output_op(
 
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
-    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=nnef_op_type,
         inputs=inputs,
@@ -749,7 +787,8 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
         null_ref,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="deconv" if transposed else "conv",
         name=f"{node.outputs[0].export_name}_op",
@@ -876,7 +915,8 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         null_ref,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="linear",
         name=f"{node.outputs[0].export_name}_op",
@@ -949,7 +989,8 @@ def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
         name_to_tensor=name_to_tensor,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="batch_normalization",
         name=f"{node.outputs[0].export_name}_op",
@@ -1745,7 +1786,8 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         axes = [pick_rank(input_node, _) for _ in axis_node.data]
     #  }
     attribs = {"axes": axes}
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=aten_op_name,
         name=f"{onode.export_name}_{aten_op_name}",
@@ -1756,7 +1798,8 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         attribs=attribs,
     )
     if not keep_dim:
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="squeeze",
             name=f"{onode.export_name}_squeeze",
@@ -2178,7 +2221,8 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
             inputs = tuple(inputs)
         if n_elements <= 0:
             raise TorchToNNEFNotImplementedError("unexpected n_elements<=0")
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="slice",
             inputs=inputs,
@@ -2375,7 +2419,8 @@ def chunk(g, node, name_to_tensor, **kwargs):
             name_to_tensor,
             prevent_variable=True,
         )
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="slice",
             inputs=inputs,
