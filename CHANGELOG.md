@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fix
+- `aten:Int` catched even if not part of a list
+
+### Added
+- `embedding` operator
+
 ## [0.7.2] - 2023-01-11
 
 ### Fix
