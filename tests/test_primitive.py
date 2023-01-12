@@ -494,6 +494,10 @@ if not tract_version_lower_than("0.19.0"):
         for qte in [2, 3]
     ]
 
+
+INPUT_AND_MODELS += [
+    (torch.LongTensor([[1, 2, 4, 5], [4, 3, 2, 9]]), nn.Embedding(10, 3))
+]
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

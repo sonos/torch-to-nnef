@@ -141,7 +141,9 @@ def add_tensor_variable_node_as_nnef_tensor(
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()
         nnef_tensor_ref.shape = tuple(node.data.shape)
-        if not prevent_variable and len(node.data.size()) > 0:
+        if not prevent_variable and (
+            len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
+        ):
             add_nnef_operation(
                 graph=g,
                 type="variable",
@@ -304,6 +306,28 @@ def mul(g, node, name_to_tensor, **kwargs):
     )
 
 
+def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
+    if not isinstance(value, bool) and isinstance(value, (int, float)):
+        if "e" in str(value):
+            # create a tensor to avoid issue with number formatting
+            # containing exp notation 'e'
+            nvalue = torch.from_numpy(np.array(value))
+            var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
+            return nnef.Identifier(
+                get_or_add_tensor_variable_in_nnef(
+                    g,
+                    TensorVariable(
+                        name=var_name,
+                        data=nvalue,
+                        shape=list(nvalue.shape),
+                        dtype=nvalue.dtype,
+                    ),
+                    name_to_tensor,
+                ).name
+            )
+    return value
+
+
 def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
     """Catch all input or attr that would still be torch_graph values into NNEF"""
     casted_inputs = []
@@ -311,7 +335,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
 
     def cast(value):
         if isinstance(value, (int, str, float, NTensor)):
-            return value
+            return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
         elif isinstance(value, TensorVariable):
             return nnef.Identifier(
                 get_or_add_tensor_variable_in_nnef(
@@ -326,7 +350,14 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             return tuple(cast(v) for v in value)
         elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
             return value
-        raise NotImplementedError(f"Wrong {value} value")
+        elif isinstance(value, torch.Tensor):
+            nvalue = value.numpy()
+            if nvalue.shape == ():
+                nvalue = nvalue.tolist()
+            return _prevent_raw_number_with_e_notation(
+                g, name_to_tensor, nvalue
+            )
+        raise NotImplementedError(f"Wrong {value} value of type: {type(value)}")
 
     if isinstance(inputs, (tuple, list)):
         for inp in inputs:
@@ -343,6 +374,17 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             casted_attrs[attr_name] = cast(attr_value)
 
     return casted_inputs, casted_attrs
+
+
+def cast_and_add_nnef_operation(name_to_tensor, **kwargs):
+    """ensure to cast parameters before adding operation to NNEF graph"""
+    kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
+        kwargs["inputs"],
+        kwargs["attribs"],
+        kwargs["graph"],
+        name_to_tensor,
+    )
+    return add_nnef_operation(**kwargs)
 
 
 def _add_single_output_op(
@@ -368,8 +410,8 @@ def _add_single_output_op(
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
-    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=nnef_op_type,
         inputs=inputs,
@@ -413,8 +455,8 @@ def _add_multi_output_op(
 
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
-    inputs, attrs = cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor)
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=nnef_op_type,
         inputs=inputs,
@@ -744,7 +786,8 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
         null_ref,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="deconv" if transposed else "conv",
         name=f"{node.outputs[0].export_name}_op",
@@ -871,7 +914,8 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         null_ref,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="linear",
         name=f"{node.outputs[0].export_name}_op",
@@ -944,7 +988,8 @@ def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
         name_to_tensor=name_to_tensor,
     )
 
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type="batch_normalization",
         name=f"{node.outputs[0].export_name}_op",
@@ -1422,68 +1467,12 @@ def pow_(g, node, name_to_tensor, **kwargs):
         elif exponent == -2:
             op_type = "rsqr"
         else:
-            # pow(x,y) := exp(x*log(y))
-            # so let's precompute log of y and apply exp(x*resy)
-            out_mul = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "log",
-                inputs=[
-                    get_or_add_tensor_variable_in_nnef(
-                        g, input_node, name_to_tensor
-                    ),
-                ],
-                output_tensor_name_suffix="log_part_pow",
-            )
-            out_log = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "mul",
-                inputs=[
-                    out_mul,
-                    get_or_add_tensor_variable_in_nnef(
-                        g,
-                        PythonConstant(
-                            name=exponent_node.export_name, data=abs(exponent)
-                        ),
-                        name_to_tensor,
-                    ),
-                ],
-                output_tensor_name_suffix="mul_part_pow",
-            )
-
-            out = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "exp",
-                inputs=[out_log],
-                output_tensor_name_suffix="exp_part_pow"
-                if exponent < 0
-                else "",
-            )
-            if exponent < 0:  # in case of neg exponent: x**-y = 1/(x**y)
-                out = _add_single_output_op(
-                    g,
-                    node,
-                    name_to_tensor,
-                    "div",
-                    inputs=[
-                        get_or_add_tensor_variable_in_nnef(
-                            g,
-                            PythonConstant(
-                                name=f"{out.name}_div_since_neg_part_pow",
-                                data=1.0,
-                            ),
-                            name_to_tensor,
-                        ),
-                        out,
-                    ],
+            op_type = "pow"
+            inputs += [
+                get_or_add_tensor_variable_in_nnef(
+                    g, exponent_node, name_to_tensor
                 )
-
-            return
+            ]
     else:
         op_type = "pow"
         inputs += [
@@ -1740,7 +1729,8 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         axes = [pick_rank(input_node, _) for _ in axis_node.data]
     #  }
     attribs = {"axes": axes}
-    add_nnef_operation(
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
         graph=g,
         type=aten_op_name,
         name=f"{onode.export_name}_{aten_op_name}",
@@ -1751,7 +1741,8 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         attribs=attribs,
     )
     if not keep_dim:
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="squeeze",
             name=f"{onode.export_name}_squeeze",
@@ -2173,7 +2164,8 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
             inputs = tuple(inputs)
         if n_elements <= 0:
             raise TorchToNNEFNotImplementedError("unexpected n_elements<=0")
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="slice",
             inputs=inputs,
@@ -2370,7 +2362,8 @@ def chunk(g, node, name_to_tensor, **kwargs):
             name_to_tensor,
             prevent_variable=True,
         )
-        add_nnef_operation(
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
             graph=g,
             type="slice",
             inputs=inputs,
@@ -2883,6 +2876,38 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
+def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        weight_node,
+        indices_node,
+        padding_idx_node,
+        scale_grad_by_freq_node,
+        sparse_node,
+    ) = node.inputs
+
+    weight_tensor = get_or_add_tensor_variable_in_nnef(
+        g, weight_node, name_to_tensor
+    )
+    indices_tensor = get_or_add_tensor_variable_in_nnef(
+        g, indices_node, name_to_tensor
+    )
+    custom_fragments = []
+    if nnef_spec_strict:
+        fragment_name = "gather"
+    else:
+        fragment_name = "tract_core_gather"
+        custom_fragments += ["tract_core"]
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        fragment_name,
+        inputs=(weight_tensor, indices_tensor),
+        attrs={"axis": 0},
+    )
+    return custom_fragments
+
+
 def aten_to_nnef_tensor_and_ops(
     g,
     node,
@@ -2913,12 +2938,16 @@ def aten_to_nnef_tensor_and_ops(
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
-    return globals()[aten_op_name](
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-        torch_graph=torch_graph,
-        nnef_spec_strict=nnef_spec_strict,
-        has_dynamic_axes=has_dynamic_axes,
-    )
+    try:
+        return globals()[aten_op_name](
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+            torch_graph=torch_graph,
+            nnef_spec_strict=nnef_spec_strict,
+            has_dynamic_axes=has_dynamic_axes,
+        )
+    except KeyError as exp:
+        torch_graph.printall()
+        raise exp

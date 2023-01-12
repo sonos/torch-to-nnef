@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fix
+- `aten:Int` catched even if not part of a list
+- In case a float or an int is too big it use exponential notation and may trunk
+  part of the number at serialization by example: `torch.finfo(self.dtype).min`
+  (from huggingface transformers lib).
+
+### Added
+- `embedding` operator
+
 ## [0.7.2] - 2023-01-11
 
 ### Fix
