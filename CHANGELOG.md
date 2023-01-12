@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## [0.7.3] - 2023-01-12
+
 ### Fix
 - `aten:Int` catched even if not part of a list
 - In case a float or an int is too big it use exponential notation and may trunk
@@ -10,6 +13,7 @@
 
 ### Added
 - `embedding` operator
+- `Albert` model is passing
 
 ## [0.7.2] - 2023-01-11
 
