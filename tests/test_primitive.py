@@ -513,6 +513,20 @@ INPUT_AND_MODELS += [
 # ]
 
 
+"""
+"""
+
+
+class MyFFT(nn.Module):
+    def forward(self, x):
+        x = torch.fft.fft(x)
+        x = torch.view_as_real(x)
+        return x
+
+
+INPUT_AND_MODELS = [(torch.FloatTensor([[1, 2, 4, 5], [4, 3, 2, 9]]), MyFFT())]
+
+
 def _test_ids(test_fixtures):
     test_names = []
     for data, module in test_fixtures:

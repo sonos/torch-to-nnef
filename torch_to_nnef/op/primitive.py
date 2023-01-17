@@ -2876,6 +2876,55 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
+def fft_fft(g, node, name_to_tensor, **kwargs):
+    # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
+    # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
+    input_node, n_node, dim_node, norm_node = node.inputs
+    if n_node.data is not None or norm_node.data is not None:
+        raise NotImplementedError("n or norm unexpected")
+
+    dim = pick_rank(input_node, dim_node.data)
+
+    nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    __import__("ipdb").set_trace()
+    out1, _ = _cast_to_if_not_dtype_and_variable(
+        g,
+        name_to_tensor,
+        node,
+        nnef_tensor=nnef_tensor,
+        cast_to=np.complex64,
+        suffix="precast_complex",
+    )
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_fft",
+        inputs=out1,
+        attrs={"axis": dim, "inverse": False},
+    )
+
+    return ["tract_core"]
+
+
+def view_as_real(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+
+    # input_node, n_node, dim_node, norm_node = node.inputs
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_complex_to_inner_dim",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, node.inputs[0], name_to_tensor
+        ),
+    )
+    return ["tract_core"]
+
+
 def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         weight_node,
