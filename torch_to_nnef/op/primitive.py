@@ -2876,9 +2876,11 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
-def fft_fft(g, node, name_to_tensor, **kwargs):
+def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
     # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
+    if nnef_spec_strict:
+        raise NotImplementedError("NNEF strict can not export FFT")
     input_node, n_node, dim_node, norm_node = node.inputs
     if n_node.data is not None or norm_node.data is not None:
         raise NotImplementedError("n or norm unexpected")
@@ -2888,15 +2890,50 @@ def fft_fft(g, node, name_to_tensor, **kwargs):
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    __import__("ipdb").set_trace()
-    out1, _ = _cast_to_if_not_dtype_and_variable(
-        g,
-        name_to_tensor,
-        node,
-        nnef_tensor=nnef_tensor,
-        cast_to=np.complex64,
-        suffix="precast_complex",
-    )
+    if input_node.dtype in [torch.float32, torch.float64]:
+        """# sadly casting is not implemented in tract so we use another way
+        out1, _ = _cast_to_if_not_dtype_and_variable(
+            g,
+            name_to_tensor,
+            node,
+            nnef_tensor=nnef_tensor,
+            cast_to=np.complex64,
+            suffix="precast_complex",
+        )
+        """
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=nnef_tensor,
+            attrs={"axes": [pick_rank(input_node, -1) + 1]},
+            pass_quantization_params=True,
+            output_tensor_name_suffix="complex_cast_unsqueze",
+        )
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="pad",
+            inputs=output_nnef_tensor,
+            attrs={
+                "padding": [(0, 0)] * input_node.rank + [(0, 1)],
+                "value": 0.0,
+            },
+            output_tensor_name_suffix="complex_cast_pad",
+        )
+        out1 = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_inner_dim_to_complex",
+            inputs=output_nnef_tensor,
+            pass_quantization_params=True,
+            output_tensor_name_suffix="complex_cast",
+        )
+    else:
+        raise NotImplementedError()
 
     _add_single_output_op(
         g,
