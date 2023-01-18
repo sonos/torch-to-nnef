@@ -2934,10 +2934,7 @@ def _fft(
             pass_quantization_params=True,
             output_tensor_name_suffix="complex_cast",
         )
-    elif input_node.dtype not in [
-        torch.complex64,  # 9
-        torch.complex128,  # 10
-    ]:
+    elif input_node.dtype not in [torch.complex64, torch.complex128]:
         raise NotImplementedError()
     else:
         casted_complex_input_tensor = nnef_tensor
@@ -3001,6 +2998,102 @@ def _fft(
             inputs=real_normed_tensor_tensor,
         )
 
+    return ["tract_core"]
+
+
+def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
+    # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
+    # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
+    (
+        input_node,  # Tensor
+        n_fft_node,  # int,
+        hop_length_node,  # Optional[int] = None
+        win_length_node,  # Optional[int] = None
+        window_node,  # Optional[Tensor] = None
+        normalized_node,  # bool = False
+        onesided_node,  # Optional[bool] = None
+        return_complex_node,  # Optional[bool] = None
+    ) = node.inputs
+    assert isinstance(n_fft_node.data, int)
+    assert isinstance(hop_length_node.data, int)
+    assert isinstance(win_length_node.data, int)
+    assert window_node.dtype == torch.float32 and window_node.shape == [
+        n_fft_node.data
+    ]
+    assert normalized_node.data is False
+    assert onesided_node.data is True
+    assert return_complex_node.data is True
+
+    nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if input_node.dtype in [torch.float32, torch.float64]:
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=nnef_tensor,
+            attrs={"axes": [pick_rank(input_node, -1) + 1]},
+            pass_quantization_params=True,
+            output_tensor_name_suffix="complex_cast_unsqueze",
+        )
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="pad",
+            inputs=output_nnef_tensor,
+            attrs={
+                "padding": [(0, 0)] * input_node.rank + [(0, 1)],
+                "value": 0.0,
+            },
+            output_tensor_name_suffix="complex_cast_pad",
+        )
+        casted_complex_input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_inner_dim_to_complex",
+            inputs=output_nnef_tensor,
+            pass_quantization_params=True,
+            output_tensor_name_suffix="complex_cast",
+        )
+    elif input_node.dtype not in [torch.complex64, torch.complex128]:
+        raise NotImplementedError()
+    else:
+        casted_complex_input_tensor = nnef_tensor
+    dim = pick_rank(input_node, -1)
+    # window_tensor = get_or_add_tensor_variable_in_nnef(
+    # g, window_node, name_to_tensor
+    # )
+    frame = win_length_node.data
+    stride = hop_length_node.data
+    # n_fft_node not exposed ?
+    output_nnef_tensor = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_stft",
+        inputs=casted_complex_input_tensor,
+        attrs={
+            "axis": dim,
+            "frame": frame,
+            "stride": stride,
+            # "window": nnef.Identifier(window_tensor),
+            "window": [1.0] * 400,  # window_node.data.numpy().tolist(),
+        },
+        output_tensor_name_suffix="pre_real_cast",
+    )
+
+    casted_complex_input_tensor = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_complex_to_inner_dim",
+        inputs=output_nnef_tensor,
+        pass_quantization_params=True,
+    )
     return ["tract_core"]
 
 
