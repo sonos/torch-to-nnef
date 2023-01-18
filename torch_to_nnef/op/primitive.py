@@ -2876,7 +2876,9 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
-def _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=False):
+def _fft(
+    node, g, name_to_tensor, nnef_spec_strict, has_dynamic_axes, inverse=False
+):
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
     # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
     if nnef_spec_strict:
@@ -2940,24 +2942,92 @@ def _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=False):
     else:
         casted_complex_input_tensor = nnef_tensor
 
-    _add_single_output_op(
+    suffix = None
+    if inverse and norm_node.data is None:
+        # backward by default means 1/n
+        suffix = "need_norm"
+        norm_node.data = "backward"
+
+    output_tensor = _add_single_output_op(
         g,
         node,
         name_to_tensor,
         "tract_core_fft",
         inputs=casted_complex_input_tensor,
         attrs={"axis": dim, "inverse": inverse},
+        output_tensor_name_suffix=suffix,
     )
+    if inverse and norm_node.data == "backward":
+        if has_dynamic_axes:
+            raise NotImplementedError("Need to use implement")
+
+        divisor_value = input_node.shape[dim]
+        divisor_tensor = get_or_add_tensor_variable_in_nnef(
+            g,
+            PythonConstant(
+                name=output_tensor.name + "_divisor",
+                data=divisor_value,
+            ),
+            name_to_tensor,
+        )
+
+        # input_node, n_node, dim_node, norm_node = node.inputs
+        input_to_real_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_complex_to_inner_dim",
+            inputs=output_tensor,
+            output_tensor_name_suffix="cast_pre_norm_div",
+        )
+
+        real_normed_tensor_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "div",
+            inputs=(
+                input_to_real_tensor,
+                divisor_tensor,
+            ),
+            output_tensor_name_suffix="norm_div",
+        )
+        # retransform to complex
+        _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_inner_dim_to_complex",
+            inputs=real_normed_tensor_tensor,
+        )
 
     return ["tract_core"]
 
 
-def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    return _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=False)
+def fft_fft(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
+    return _fft(
+        node,
+        g,
+        name_to_tensor,
+        nnef_spec_strict,
+        has_dynamic_axes,
+        inverse=False,
+    )
 
 
-def fft_ifft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    return _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=True)
+def fft_ifft(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
+    return _fft(
+        node,
+        g,
+        name_to_tensor,
+        nnef_spec_strict,
+        has_dynamic_axes,
+        inverse=True,
+    )
 
 
 def view_as_real(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
