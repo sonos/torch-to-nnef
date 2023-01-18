@@ -1,3 +1,4 @@
+import logging as log
 import typing as T
 from pathlib import Path
 
@@ -18,7 +19,6 @@ from torch_to_nnef.exceptions import (
     StrictNNEFSpecError,
     TractError,
 )
-from torch_to_nnef.log import log
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 from torch_to_nnef.utils import torch_version_within
