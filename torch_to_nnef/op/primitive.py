@@ -2876,7 +2876,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     return []
 
 
-def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=False):
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
     # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
     if nnef_spec_strict:
@@ -2892,7 +2892,7 @@ def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
     if input_node.dtype in [torch.float32, torch.float64]:
         """# sadly casting is not implemented in tract so we use another way
-        out1, _ = _cast_to_if_not_dtype_and_variable(
+        casted_complex_input_tensor, _ = _cast_to_if_not_dtype_and_variable(
             g,
             name_to_tensor,
             node,
@@ -2923,7 +2923,7 @@ def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
             },
             output_tensor_name_suffix="complex_cast_pad",
         )
-        out1 = _add_single_output_op(
+        casted_complex_input_tensor = _add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2932,19 +2932,32 @@ def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
             pass_quantization_params=True,
             output_tensor_name_suffix="complex_cast",
         )
-    else:
+    elif input_node.dtype not in [
+        torch.complex64,  # 9
+        torch.complex128,  # 10
+    ]:
         raise NotImplementedError()
+    else:
+        casted_complex_input_tensor = nnef_tensor
 
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
         "tract_core_fft",
-        inputs=out1,
-        attrs={"axis": dim, "inverse": False},
+        inputs=casted_complex_input_tensor,
+        attrs={"axis": dim, "inverse": inverse},
     )
 
     return ["tract_core"]
+
+
+def fft_fft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    return _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=False)
+
+
+def fft_ifft(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    return _fft(node, g, name_to_tensor, nnef_spec_strict, inverse=True)
 
 
 def view_as_real(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
