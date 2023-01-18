@@ -3,6 +3,12 @@
 ## Unreleased
 
 
+## [0.7.4] - 2023-01-18
+
+### Fix
+- Avoid global log config setting in export module (restrict it to test)
+
+
 ## [0.7.3] - 2023-01-12
 
 ### Fix
