@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.quantization import quantize_fx
 
-from .utils import _test_check_model_io, set_seed  # noqa: E402
+from .utils import check_model_io_test, set_seed  # noqa: E402
 
 #
 # in some case bug may happen with random at specific seed
@@ -163,4 +163,4 @@ INPUT_AND_MODELS += [
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_quantize_export(test_input, model):
     """Test simple models"""
-    _test_check_model_io(model=model, test_input=test_input)
+    check_model_io_test(model=model, test_input=test_input)

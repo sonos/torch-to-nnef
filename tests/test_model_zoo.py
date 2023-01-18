@@ -15,7 +15,7 @@ from tests.shifted_window_attention_patch import (
 from torch_to_nnef.tract import tract_version_greater_than
 
 from .utils import (  # noqa: E402
-    _test_check_model_io,
+    check_model_io_test,
     remove_weight_norm,
     set_seed,
 )
@@ -171,4 +171,4 @@ INPUT_AND_MODELS += [(tuple(inputs.values()), ALBERTModel())]
 @pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
 def test_model_export(test_input, model):
     """Test simple models"""
-    _test_check_model_io(model=model, test_input=test_input)
+    check_model_io_test(model=model, test_input=test_input)

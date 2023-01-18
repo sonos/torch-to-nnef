@@ -4,7 +4,7 @@ import torch
 from torch_to_nnef.tract import tract_version
 from torch_to_nnef.utils import SemanticVersion
 
-from .utils import _test_check_model_io
+from .utils import check_model_io_test
 
 
 # add unit test for https://github.com/{project}/issues/18
@@ -34,7 +34,7 @@ def test_issue18_export():
     Should work starting with tract 0.18.0
 
     """
-    _test_check_model_io(
+    check_model_io_test(
         model=MyModule(),
         test_input=torch.rand(1, 1000, 10),
         dynamic_axes={"input_0": {1: "S"}, "output_0": {1: "S"}},
