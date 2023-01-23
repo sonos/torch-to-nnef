@@ -166,6 +166,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 str(onnx_path),
                 input_names=input_names,
                 output_names=output_names,
+                opset_version=17,
             )
         # parametrized failure exception emission
         # pylint: disable-next=broad-except

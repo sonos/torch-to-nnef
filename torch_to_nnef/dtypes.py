@@ -14,6 +14,8 @@ NUMPY_TO_TORCH_DTYPE = {
     np.float32: torch.float32,
     np.float64: torch.float64,
     np.bool_: torch.bool,
+    np.complex64: torch.complex64,
+    np.complex128: torch.complex128,
     # np.float: torch.float,
     # np.bool: torch.bool,
     # next mapping are avoided as they map silently to builtin python type
@@ -62,6 +64,7 @@ STR_TO_NUMPY_DTYPE = {
     "Bool": np.bool_,
     "bool": np.bool_,
     "Half": np.float16,
+    "ComplexFloat": np.complex64,
 }
 NUMPY_DTYPE_TO_STR = {v: k for k, v in STR_TO_NUMPY_DTYPE.items()}
 NUMPY_DTYPE_TO_STR.update({int: "Long"})

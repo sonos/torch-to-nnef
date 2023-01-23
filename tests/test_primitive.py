@@ -15,7 +15,7 @@ from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
 from torch_to_nnef.tract import tract_assert_io, tract_version_lower_than
 
-from .utils import _test_check_model_io, set_seed  # noqa: E402
+from .utils import check_model_io_test, id_tests, set_seed  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -513,22 +513,6 @@ INPUT_AND_MODELS += [
 # ]
 
 
-def _test_ids(test_fixtures):
-    test_names = []
-    for data, module in test_fixtures:
-        data_fmt = ""
-        if isinstance(data, torch.Tensor):
-            data_fmt = f"{data.dtype}{list(data.shape)}"
-        else:
-            for d in data:
-                data_fmt += f"{d.dtype}{list(d.shape)}, "
-        if len(str(module)) > 100:
-            module = str(module.__class__.__name__) + "__" + str(module)[:100]
-        test_name = f"{module}({data_fmt})"
-        test_names.append(test_name)
-    return test_names
-
-
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
@@ -577,8 +561,8 @@ def test_should_fail_since_false_output():
 
 
 @pytest.mark.parametrize(
-    "test_input,model", INPUT_AND_MODELS, ids=_test_ids(INPUT_AND_MODELS)
+    "test_input,model", INPUT_AND_MODELS, ids=id_tests(INPUT_AND_MODELS)
 )
 def test_primitive_export(test_input, model):
     """Test simple models"""
-    _test_check_model_io(model=model, test_input=test_input)
+    check_model_io_test(model=model, test_input=test_input)

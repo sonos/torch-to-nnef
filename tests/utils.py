@@ -25,7 +25,7 @@ def set_seed(seed=0, cudnn=False, torch=True):
     random.seed(seed)
 
 
-def _test_check_model_io(model: Torch.nn.Module, test_input, dynamic_axes=None):
+def check_model_io_test(model: Torch.nn.Module, test_input, dynamic_axes=None):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -64,3 +64,19 @@ def remove_weight_norm(module):
     else:
         for mod in module_list:
             remove_weight_norm(mod)
+
+
+def id_tests(test_fixtures):
+    test_names = []
+    for data, module in test_fixtures:
+        data_fmt = ""
+        if isinstance(data, Torch.Tensor):
+            data_fmt = f"{data.dtype}{list(data.shape)}"
+        else:
+            for d in data:
+                data_fmt += f"{d.dtype}{list(d.shape)}, "
+        if len(str(module)) > 100:
+            module = str(module.__class__.__name__) + "__" + str(module)[:100]
+        test_name = f"{module}({data_fmt})"
+        test_names.append(test_name)
+    return test_names
