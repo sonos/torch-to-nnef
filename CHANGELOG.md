@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.7.5] - 2023-01-23
+
+### Added
+- `stft`, `fft`, `ifft` and basic complex number manipulations, torch now export to nnef with tract core experimental
+  implementation in 0.19.0
+
 
 ## [0.7.4] - 2023-01-18
 
