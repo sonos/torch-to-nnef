@@ -3021,23 +3021,26 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
         n_fft_node.data
     ]
     assert normalized_node.data is False
-    assert onesided_node.data is True
-    assert return_complex_node.data is True
 
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
     if input_node.dtype in [torch.float32, torch.float64]:
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "unsqueeze",
-            inputs=nnef_tensor,
-            attrs={"axes": [pick_rank(input_node, -1) + 1]},
-            pass_quantization_params=True,
-            output_tensor_name_suffix="complex_cast_unsqueze",
-        )
+
+        if input_node.shape[-1] == 1:
+            output_nnef_tensor = nnef_tensor
+        else:
+            output_nnef_tensor = _add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "unsqueeze",
+                inputs=nnef_tensor,
+                attrs={"axes": [pick_rank(input_node, -1) + 1]},
+                pass_quantization_params=True,
+                output_tensor_name_suffix="complex_cast_unsqueze",
+            )
+
         output_nnef_tensor = _add_single_output_op(
             g,
             node,
@@ -3064,9 +3067,9 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
     else:
         casted_complex_input_tensor = nnef_tensor
     dim = pick_rank(input_node, -1)
-    # window_tensor = get_or_add_tensor_variable_in_nnef(
-    # g, window_node, name_to_tensor
-    # )
+    window_tensor = get_or_add_tensor_variable_in_nnef(
+        g, window_node, name_to_tensor
+    )
     frame = win_length_node.data
     stride = hop_length_node.data
     # n_fft_node not exposed ?
@@ -3080,20 +3083,55 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
             "axis": dim,
             "frame": frame,
             "stride": stride,
-            # "window": nnef.Identifier(window_tensor),
-            "window": [1.0] * 400,  # window_node.data.numpy().tolist(),
+            "window": nnef.Identifier(window_tensor),
         },
-        output_tensor_name_suffix="pre_real_cast",
+        output_tensor_name_suffix="core_op",
     )
+    if onesided_node.data:
+        # with length == window size
+        # slice rank: dim - 1 by $onesided_max_dim
+        onesided_max_idx = (window_node.shape[0] >> 1) + 1
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=output_nnef_tensor,
+            output_tensor_name_suffix="pre_cast_back",
+            attrs={
+                "axes": [output_nnef_tensor.rank - 1],
+                "begin": [0],
+                "end": [onesided_max_idx],
+                "stride": [1],
+            },
+        )
 
-    casted_complex_input_tensor = _add_single_output_op(
+    if return_complex_node.data is False:
+        output_nnef_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_complex_to_inner_dim",
+            inputs=output_nnef_tensor,
+            output_tensor_name_suffix="cast_back_real",
+        )
+
+    transposed_axes = list(range(len(output_nnef_tensor.shape)))
+    # permute to follow numpy way of things (as well as tract)
+    transposed_axes[dim], transposed_axes[dim + 1] = (
+        transposed_axes[dim + 1],
+        transposed_axes[dim],
+    )
+    output_nnef_tensor = _add_single_output_op(
         g,
         node,
         name_to_tensor,
-        "tract_core_complex_to_inner_dim",
+        "transpose",
         inputs=output_nnef_tensor,
+        attrs={"axes": transposed_axes},
         pass_quantization_params=True,
     )
+
     return ["tract_core"]
 
 
