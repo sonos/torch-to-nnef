@@ -150,7 +150,7 @@ def export_model_to_nnef(
                 _: custom_framgnent_names
                 for _ in custom_framgnent_names
             },
-            generate_custom_fragments=len(active_custom_fragments) > 0,
+            generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
         )(nnef_graph, str(file_path_export))

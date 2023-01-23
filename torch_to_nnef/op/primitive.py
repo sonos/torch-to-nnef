@@ -3083,7 +3083,7 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
             "axis": dim,
             "frame": frame,
             "stride": stride,
-            "window": nnef.Identifier(window_tensor),
+            "window": nnef.Identifier(window_tensor.name),
         },
         output_tensor_name_suffix="core_op",
     )
