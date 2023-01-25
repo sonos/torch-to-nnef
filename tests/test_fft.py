@@ -1,11 +1,22 @@
 import pytest
 import torch
 from torch import nn
+from torchaudio import transforms
 
 from tests.utils import check_model_io_test, id_tests
 from torch_to_nnef.tract import tract_version_lower_than
 
-# from torchaudio import transforms
+
+class UnaryPrimitive(nn.Module):
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+
+    def extra_repr(self):
+        return f"op={self.op}"
+
+    def forward(self, x):
+        return self.op(x)
 
 
 class MyFFT(nn.Module):
@@ -44,12 +55,32 @@ if not tract_version_lower_than("0.19.0"):
             MySTFT(),
         )
     ]
-    # INPUT_AND_MODELS += [
-    # (
-    # torch.arange(400 * 2).float(),
-    # transforms.Spectrogram(),
-    # )
-    # ]
+    INPUT_AND_MODELS += [
+        (
+            torch.arange(4.0).reshape((2, 2)),
+            UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
+        )
+    ]
+    INPUT_AND_MODELS += [
+        (
+            torch.arange(400 * 2).float() / 200,
+            transforms.Spectrogram(),
+        )
+    ]
+    INPUT_AND_MODELS += [
+        (
+            torch.arange(400 * 2).float() / 200,
+            transforms.MelSpectrogram(),
+        )
+    ]
+    """ precision issue for now
+    INPUT_AND_MODELS += [
+        (
+            torch.arange(400 * 2).float() / 400,
+            transforms.MFCC(),
+        )
+    ]
+    """
 
 
 @pytest.mark.parametrize(

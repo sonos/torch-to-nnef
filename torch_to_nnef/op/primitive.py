@@ -54,6 +54,7 @@ REMAP_ATEN_OP_NAMES = {
     "index": "index_",
     # }
     "bmm": "matmul",  # since NNEF matmul does not care about rank
+    "amax": "reduce_max",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
@@ -73,7 +74,6 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
     "asinh",
     "acosh",
     "atanh",
-    "abs",
     "sign",
     "neg",
     "floor",
@@ -357,7 +357,9 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             return _prevent_raw_number_with_e_notation(
                 g, name_to_tensor, nvalue
             )
-        raise NotImplementedError(f"Wrong {value} value of type: {type(value)}")
+        raise TorchToNNEFNotImplementedError(
+            f"Wrong {value} value of type: {type(value)}"
+        )
 
     if isinstance(inputs, (tuple, list)):
         for inp in inputs:
@@ -2882,10 +2884,10 @@ def _fft(
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
     # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
     if nnef_spec_strict:
-        raise NotImplementedError("NNEF strict can not export FFT")
+        raise TorchToNNEFNotImplementedError("NNEF strict can not export FFT")
     input_node, n_node, dim_node, norm_node = node.inputs
     if n_node.data is not None or norm_node.data is not None:
-        raise NotImplementedError("n or norm unexpected")
+        raise TorchToNNEFNotImplementedError("n or norm unexpected")
 
     dim = pick_rank(input_node, dim_node.data)
 
@@ -2935,7 +2937,7 @@ def _fft(
             output_tensor_name_suffix="complex_cast",
         )
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError()
     else:
         casted_complex_input_tensor = nnef_tensor
 
@@ -2956,7 +2958,7 @@ def _fft(
     )
     if inverse and norm_node.data == "backward":
         if has_dynamic_axes:
-            raise NotImplementedError("Need to use implement")
+            raise TorchToNNEFNotImplementedError("Need to use implement")
 
         divisor_value = input_node.shape[dim]
         divisor_tensor = get_or_add_tensor_variable_in_nnef(
@@ -3063,7 +3065,9 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
             output_tensor_name_suffix="complex_cast",
         )
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise NotImplementedError()
+        raise TorchToNNEFNotImplementedError(
+            f"complex not supported: {input_node.dtype}"
+        )
     else:
         casted_complex_input_tensor = nnef_tensor
     dim = pick_rank(input_node, -1)
@@ -3206,6 +3210,138 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         attrs={"axis": 0},
     )
     return custom_fragments
+
+
+def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
+    if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
+        if nnef_spec_strict:
+            raise TorchToNNEFNotImplementedError(
+                "NNEF compliance does not allow complex"
+            )
+        input_tensor = get_or_add_tensor_variable_in_nnef(
+            g, node.inputs[0], name_to_tensor
+        )
+        # to real, pow(2), slice both, add 2 tensors, rsqr
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_complex_to_inner_dim",
+            inputs=input_tensor,
+            output_tensor_name_suffix="complex_abs_to_real",
+        )
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "sqr",
+            inputs=input_tensor,
+            output_tensor_name_suffix="complex_abs_sqr",
+        )
+        input_tensor_real = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [len(input_tensor.shape)],
+                "begin": [0],
+                "end": [1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="complex_abs_slice_real",
+        )
+        input_tensor_imag = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_tensor,
+            attrs={
+                "axes": [len(input_tensor.shape)],
+                "begin": [1],
+                "end": [2],
+                "stride": [1],
+            },
+            output_tensor_name_suffix="complex_abs_slice_imag",
+        )
+
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "add",
+            inputs=[input_tensor_real, input_tensor_imag],
+            output_tensor_name_suffix="complex_abs_add",
+        )
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "sqrt",
+            inputs=input_tensor,
+            output_tensor_name_suffix="complex_abs_sqrt",
+        )
+        input_tensor = _add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "squeeze",
+            inputs=input_tensor,
+            attrs={"axes": [len(input_tensor.shape)]},
+        )
+        return
+    return _unary_output_op_without_params(
+        nnef_op_type="abs",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+
+
+def log10(g, node, name_to_tensor, **kwargs):
+    """mul val may not be good enought"""
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, node.inputs[0], name_to_tensor
+    )
+    # maybe better puting this in the graph to avoid precision loss
+    mul_val = 1 / np.log(10)
+    input_tensor = _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "log",
+        inputs=input_tensor,
+        output_tensor_name_suffix="pre_log10",
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "mul",
+        inputs=[input_tensor],
+        attrs={"y": mul_val},
+    )
+
+
+def view_as_complex(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError(
+            "complex not supported in vanilla spec"
+        )
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, node.inputs[0], name_to_tensor
+    )
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_inner_dim_to_complex",
+        inputs=input_tensor,
+    )
+    return ["tract_core"]
 
 
 def aten_to_nnef_tensor_and_ops(

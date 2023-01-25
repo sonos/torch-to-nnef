@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.7.6] - 2023-01-25
+
+### Added
+- complex support for `abs`
+- `log10` ops supported
+- `torchaudio.transform.MelSpectrogram` supported out of the box
+
 ## [0.7.5] - 2023-01-23
 
 ### Added

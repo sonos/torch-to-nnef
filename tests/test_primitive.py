@@ -481,6 +481,13 @@ INPUT_AND_MODELS += [
     )
 ]
 
+INPUT_AND_MODELS += [
+    (
+        torch.arange(100).float() - 50,
+        UnaryPrimitive(torch.log10),
+    )
+]
+
 
 if not tract_version_lower_than("0.19.0"):
     # 0.18.5 should have been introducing tract fix that allow slice stride
