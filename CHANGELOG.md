@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.7.7] - 2023-02-20
+
+### Added
+- add `narrow` support
+- fix `copy` should not be used for tract
+- `tile` akka expand allow dynamic dimension as repeat
+
 ## [0.7.6] - 2023-01-25
 
 ### Added

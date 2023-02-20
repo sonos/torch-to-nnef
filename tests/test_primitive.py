@@ -505,6 +505,16 @@ if not tract_version_lower_than("0.19.0"):
 INPUT_AND_MODELS += [
     (torch.LongTensor([[1, 2, 4, 5], [4, 3, 2, 9]]), nn.Embedding(10, 3))
 ]
+
+
+INPUT_AND_MODELS += [
+    # N x L x  H
+    (
+        torch.arange(12).reshape(1, 3, 4),
+        UnaryPrimitive(lambda x: torch.narrow(x, dim=1, start=1, length=2)),
+    )
+]
+
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))

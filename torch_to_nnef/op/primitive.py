@@ -81,7 +81,6 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
     "sqrt",
     "rsqrt",
     "log2",
-    "copy",
     "rcp",
     "not",
     "eq",
@@ -1610,13 +1609,14 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
+    axis = pick_rank(input_node.data[0], dim)
     _add_single_output_op(
         g,
         node,
         name_to_tensor,
         "concat",
         inputs=inputs,
-        attrs={"axis": pick_rank(input_node, dim)},
+        attrs={"axis": axis},
         ensure_tuple=False,
     )
 
@@ -2421,7 +2421,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     return [op_name]
 
 
-def _expand_build_repeats(input_node, shape_node, shapes):
+def _expand_build_repeats(g, name_to_tensor, input_node, shape_node, shapes):
     repeats = []
     for input_dim, shape_dim in zip(
         input_node.shape, shapes[-len(input_node.shape) :]
@@ -2431,10 +2431,45 @@ def _expand_build_repeats(input_node, shape_node, shapes):
         else:
             if input_dim > 1:
                 if isinstance(shape_dim, nnef.Identifier):
-                    raise TorchToNNEFNotImplementedError(
-                        "Need for addition of div Op. Not yet implemented"
+                    output_tensor = add_tensor_variable_node_as_nnef_tensor(
+                        g,
+                        TensorVariable(
+                            name=f"{shape_dim}_expand_divided",
+                            data=None,
+                            shape=list(name_to_tensor[shape_dim].shape),
+                            dtype=NUMPY_TO_TORCH_DTYPE[
+                                name_to_tensor[shape_dim].dtype
+                            ],
+                        ),
+                        name_to_tensor,
+                        name_suffix="",
+                        prevent_variable=True,
                     )
-                repeats.append(int(shape_dim / input_dim))
+                    cast_and_add_nnef_operation(
+                        name_to_tensor=name_to_tensor,
+                        graph=g,
+                        type="div",
+                        inputs=(
+                            name_to_tensor[shape_dim],
+                            get_or_add_tensor_variable_in_nnef(
+                                g,
+                                TensorVariable(
+                                    name=f"{shape_dim}_expand_divisor",
+                                    data=torch.tensor(
+                                        input_dim, dtype=torch.int32
+                                    ),
+                                    dtype=torch.int32,
+                                    shape=[1],
+                                ),
+                                name_to_tensor,
+                            ),
+                        ),
+                        outputs=tuple([output_tensor]),
+                        attribs={},
+                    )
+                    repeats.append(nnef.Identifier(output_tensor.name))
+                else:
+                    repeats.append(int(shape_dim / input_dim))
             else:
                 # div per 1 hence shape_dim
                 repeats.append(shape_dim)
@@ -2457,6 +2492,48 @@ def _expand_build_repeats(input_node, shape_node, shapes):
                 )
         repeats.insert(0, base_mul)
     return repeats
+
+
+def narrow(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
+    """Fancy slice made in PyTorch
+
+    torch.narrow(input, dim, start, length)
+
+    example:
+
+    >>> x = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    >>> torch.narrow(x, 0, 0, 2)
+        tensor([[ 1,  2,  3],
+                [ 4,  5,  6]])
+
+    """
+    input_node, axis_node, start_node, length_node = node.inputs
+
+    assert isinstance(axis_node.data, int)
+    assert isinstance(start_node.data, int)
+    assert isinstance(length_node.data, int)
+    assert length_node.data > 0
+
+    start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
+
+    _add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={
+            "axes": [pick_rank(input_node, axis_node.data)],
+            "begin": [start_idx],
+            "end": [start_idx + length_node.data],
+            "stride": [1],
+        },
+        pass_quantization_params=True,
+    )
 
 
 def expand(
@@ -2494,7 +2571,9 @@ def expand(
                 dim = nnef.Identifier(dim.export_name)
         shapes.append(dim)
 
-    repeats = _expand_build_repeats(input_node, shape_node, shapes)
+    repeats = _expand_build_repeats(
+        g, name_to_tensor, input_node, shape_node, shapes
+    )
 
     out = _add_single_output_op(
         g,
@@ -3342,6 +3421,21 @@ def view_as_complex(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         inputs=input_tensor,
     )
     return ["tract_core"]
+
+
+def copy(
+    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
+):
+    if nnef_spec_strict:
+        # nnef spec include copy fragment
+        return _unary_output_op_without_params(
+            nnef_op_type="copy",
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+    torch_graph.remap_node(node.outputs[0], node.inputs[0])
 
 
 def aten_to_nnef_tensor_and_ops(
