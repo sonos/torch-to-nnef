@@ -117,6 +117,8 @@ In such scenario you will need to write your own graph expansion logic in
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 
 class MyCustomHandler(ModuleInfoExtractor):
+    MODULE_CLASS = MyModuleToCustomConvert
+
     def convert_to_nnef(
         self,
         g,
@@ -124,6 +126,7 @@ class MyCustomHandler(ModuleInfoExtractor):
         name_to_tensor,
         null_ref,
         torch_graph,
+        **kwargs
     ):
         # here your custom logic to implement NNEF module subgraph
         # you can take inspiration from `torch_to_nnef.op.primitive`

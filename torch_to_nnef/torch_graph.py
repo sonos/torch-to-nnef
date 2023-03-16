@@ -1050,7 +1050,6 @@ class TorchOp:
         _rerouted_parsing(node, data_nodes, module)
 
         if node.kind() in [ATEN_INT]:  # , NUMTOTENSOR_KIND
-            __import__("ipdb").set_trace()
             raise NotImplementedError(f"node: {node} should create an ops")
         (
             kind,
