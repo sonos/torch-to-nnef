@@ -62,8 +62,11 @@ def tract_version_greater_than(version: str) -> bool:
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     return subprocess.check_output(
         (
-            f"{TRACT_PATH} {onnx_path} --input-bundle {io_npz_path} "
-            f"--nnef-tract-core --nnef-tract-pulse dump --nnef {nnef_path}"
+            f"{TRACT_PATH} {onnx_path}"
+            f"--nnef-tract-core --nnef-tract-pulse "
+            "dump "
+            f"--input-from-bundle {io_npz_path} "
+            f"--nnef {nnef_path} "
         ),
         shell=True,
         stderr=subprocess.STDOUT,
@@ -76,9 +79,12 @@ def tract_assert_io(
     raise_exception=True,
 ):
     cmd = (
-        f"{TRACT_PATH} {nnef_path} --input-bundle {io_npz_path} "
+        f"{TRACT_PATH} {nnef_path} "
         f"--nnef-tract-core --nnef-tract-pulse "
-        + f"-vvv -O run --assert-output-bundle {io_npz_path}"
+        f"-vvv -O "
+        "run "
+        f"--input-from-bundle {io_npz_path} "
+        f"--assert-output-bundle {io_npz_path}"
     )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
