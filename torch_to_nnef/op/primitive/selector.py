@@ -192,3 +192,35 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         },
     )
     return custom_fragments
+
+
+def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        weight_node,
+        indices_node,
+        padding_idx_node,
+        scale_grad_by_freq_node,
+        sparse_node,
+    ) = node.inputs
+
+    weight_tensor = get_or_add_tensor_variable_in_nnef(
+        g, weight_node, name_to_tensor
+    )
+    indices_tensor = get_or_add_tensor_variable_in_nnef(
+        g, indices_node, name_to_tensor
+    )
+    custom_fragments = []
+    if nnef_spec_strict:
+        fragment_name = "gather"
+    else:
+        fragment_name = "tract_core_gather"
+        custom_fragments += ["tract_core"]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        fragment_name,
+        inputs=(weight_tensor, indices_tensor),
+        attrs={"axis": 0},
+    )
+    return custom_fragments

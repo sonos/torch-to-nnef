@@ -2,8 +2,6 @@
 import logging
 import typing as T
 
-import numpy as np
-import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
@@ -26,24 +24,41 @@ from torch_to_nnef.op.primitive.activation import (
     softmax,
     softplus,
 )
+from torch_to_nnef.op.primitive.axes_change import (
+    flatten,
+    permute,
+    reshape,
+    squeeze,
+    transpose,
+    unsqueeze,
+    view,
+)
 from torch_to_nnef.op.primitive.base import (
-    add_multi_output_op,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
-    get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
     pick_value_in_rank,
-    unary_input_output_op_with_constant,
     unary_output_op_without_params,
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.op.primitive.complex import view_as_complex, view_as_real
-from torch_to_nnef.op.primitive.div import div, floor_divide, trunc
 from torch_to_nnef.op.primitive.expand import expand
 from torch_to_nnef.op.primitive.fft import fft_fft, fft_ifft, stft
+from torch_to_nnef.op.primitive.math import (
+    abs,
+    div,
+    floor_divide,
+    log10,
+    mul,
+    pow_,
+    remainder,
+    round_,
+    rsub,
+    trunc,
+)
 from torch_to_nnef.op.primitive.norm import (
     batch_norm,
     group_norm,
@@ -72,14 +87,17 @@ from torch_to_nnef.op.primitive.reducer import (
     reduce_sum,
 )
 from torch_to_nnef.op.primitive.selector import (
+    embedding,
     index_,
     narrow,
     select,
     slice_,
     where,
 )
+from torch_to_nnef.op.primitive.split import chunk, split_with_sizes, unbind
 from torch_to_nnef.op.primitive.tensor_build import (
     arange,
+    copy,
     new_zeros,
     ones,
     zeros,
@@ -131,6 +149,7 @@ assert ones
 assert zeros_like
 assert new_zeros
 assert zeros
+assert copy
 
 assert pad
 
@@ -140,10 +159,18 @@ assert where
 assert narrow
 assert select
 assert index_
+assert embedding
 
+assert mul
 assert div
 assert floor_divide
 assert trunc
+assert pow_
+assert round_
+assert remainder
+assert rsub
+assert abs
+assert log10
 
 assert quantize_per_tensor
 assert dequantize
@@ -158,6 +185,19 @@ assert reduce_max
 assert reduce_min
 assert max_
 assert min_
+
+assert split_with_sizes
+assert unbind
+assert chunk
+
+assert view
+assert transpose
+assert permute
+assert unsqueeze
+assert squeeze
+assert flatten
+assert reshape
+
 # }
 
 
@@ -251,40 +291,6 @@ def external(
         },
     )
     return nnef_tensor_ref
-
-
-def mul(g, node, name_to_tensor, **kwargs):
-    input_node = node.inputs[0]
-    other_node = node.inputs[1]
-
-    inputs = []
-    for c_node in [input_node, other_node]:
-        if isinstance(c_node, PythonConstant):
-            # because torch.ops.aten.mul(float, tensor(float)) give complex number
-            c_node = c_node.into_tensor_variable()
-        c_node.cast_float_inplace()
-        inputs.append(
-            get_or_add_tensor_variable_in_nnef(g, c_node, name_to_tensor)
-        )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "mul",
-        inputs=inputs,
-    )
-
-
-def round_(nnef_spec_strict, **kwargs):
-    if nnef_spec_strict:
-        LOGGER.warning(
-            "round: Spec definition of round in NNEF does not follow IEEE, "
-            "so it will not be exactly same behavior"
-        )
-        unary_input_output_op_with_constant("round", **kwargs)
-        return []
-    unary_input_output_op_with_constant("tract_core_round_even", **kwargs)
-    return ["tract_core"]
 
 
 def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
@@ -427,56 +433,6 @@ def contiguous(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
-def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
-    (input_node, axis_node) = node.inputs
-    dim_data = get_list_of_int(
-        axis_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        accept_none=1,
-        has_dynamic_axes=has_dynamic_axes,
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "reshape",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"shape": dim_data},
-    )
-
-
-def flatten(g, node, name_to_tensor, **kwargs):
-    """
-    Using NNEF:
-        fragment reshape<?>(
-            input: tensor<?>,
-            shape: integer[],
-            axis_start: integer = 0,
-            axis_count: integer = -1
-        ) -> ( output: tensor<?> );
-    """
-    (input_node, _, _) = node.inputs  # start_dim_name  # end_dim_name
-    onode = node.outputs[0]
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "reshape",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "dtype": onode.np_dtype,
-            "shape": list(onode.shape),
-            "axis_start": 0,
-            "axis_count": -1,
-        },
-    )
-
-
 def einsum(g, node, name_to_tensor, **kwargs):
     raise TorchToNNEFNotImplementedError(
         "einsum operator is not supported by `NNEF` or `tract-nnef` and"
@@ -511,79 +467,6 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         },
     )
     return ["tract_core"]
-
-
-def pow_(g, node, name_to_tensor, **kwargs):
-    (input_node, exponent_node) = node.inputs
-    inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
-    if exponent_node.data:
-        exponent = exponent_node.data
-        if exponent == 2:
-            op_type = "sqr"
-        elif exponent == -2:
-            op_type = "rsqr"
-        else:
-            op_type = "pow"
-            inputs += [
-                get_or_add_tensor_variable_in_nnef(
-                    g, exponent_node, name_to_tensor
-                )
-            ]
-    else:
-        op_type = "pow"
-        inputs += [
-            get_or_add_tensor_variable_in_nnef(g, exponent_node, name_to_tensor)
-        ]
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        op_type,
-        inputs=inputs,
-    )
-
-
-def transpose(g, node, name_to_tensor, **kwargs):
-    (input_node, dim0_node, dim1_node) = node.inputs
-    dim0 = pick_rank(input_node, dim0_node.data)
-    dim1 = pick_rank(input_node, dim1_node.data)
-
-    new_dims_ranks = []
-    for _ in range(node.outputs[0].rank):
-        if _ == dim0:
-            new_dims_ranks.append(dim1)
-        elif _ == dim1:
-            new_dims_ranks.append(dim0)
-        else:
-            new_dims_ranks.append(_)
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "transpose",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axes": new_dims_ranks},
-        pass_quantization_params=True,
-    )
-
-
-def permute(g, node, name_to_tensor, **kwargs):
-    (input_node, dims_node) = node.inputs
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "transpose",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axes": [pick_rank(input_node, _) for _ in dims_node.data]},
-        pass_quantization_params=True,
-    )
 
 
 def cat(g, node, name_to_tensor, torch_graph, **kwargs):
@@ -642,55 +525,6 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
         inputs=inputs,
         attrs={"axis": pick_rank(input_node, dim)},
         ensure_tuple=False,
-    )
-
-
-def unbind(g, node, name_to_tensor, **kwargs):
-    """unbind is `unstack` in NNEF"""
-    input_node, axis_node = node.inputs
-    add_multi_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "unstack",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axis": pick_rank(input_node, axis_node.data)},
-        ensure_tuple=False,
-    )
-
-
-def unsqueeze(g, node, name_to_tensor, **kwargs):
-    (input_node, axis_node) = node.inputs
-
-    dim = axis_node.data
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "unsqueeze",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axes": [pick_rank(input_node, dim)]},
-        pass_quantization_params=True,
-    )
-
-
-def squeeze(g, node, name_to_tensor, **kwargs):
-    (input_node, axis_node) = node.inputs
-    dim = axis_node.data
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "squeeze",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axes": [pick_rank(input_node, dim)]},
-        pass_quantization_params=True,
     )
 
 
@@ -833,29 +667,6 @@ def size(
     return ["tract_core"]
 
 
-def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
-    (input_node, axis_node) = node.inputs
-
-    dim_data = get_list_of_int(
-        axis_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        accept_none=1,
-        has_dynamic_axes=has_dynamic_axes,
-        force_none_as_tensor_ref=True,
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "reshape",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"shape": dim_data},
-    )
-
-
 def matmul(g, node, name_to_tensor, **kwargs):
     (
         input_node,
@@ -876,50 +687,6 @@ def matmul(g, node, name_to_tensor, **kwargs):
             "transposeB": False,
         },
     )
-
-
-def split_with_sizes(g, node, name_to_tensor, **kwargs):
-    """We are aware that
-    split<?>(
-        value: tensor<?>,
-        axis: integer,
-        ratios: integer[]
-    ) -> ( values: tensor<?>[] )
-
-    exists but since tract does not support it, we reexpress it with slice
-    """
-    (input_node, ratio_node, axis_node) = node.inputs
-    assert isinstance(axis_node, PythonConstant)
-    assert isinstance(ratio_node, PythonConstant)
-    current_dim_elm_idx = 0
-    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    for out_node, n_elements in zip(node.outputs, ratio_node.data):
-        out = add_tensor_variable_node_as_nnef_tensor(
-            g,
-            out_node,
-            name_to_tensor,
-            prevent_variable=True,
-        )
-        if isinstance(inputs, list):
-            inputs = tuple(inputs)
-        if n_elements <= 0:
-            raise TorchToNNEFNotImplementedError("unexpected n_elements<=0")
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type="slice",
-            inputs=inputs,
-            outputs=tuple([out]),
-            attribs={
-                "axes": [pick_rank(input_node, axis_node.data)],
-                "begin": [current_dim_elm_idx],
-                "end": [current_dim_elm_idx + n_elements],
-                "stride": [1],
-            },
-        )
-        if inputs.quant:
-            out.quant = inputs.quant
-        current_dim_elm_idx += n_elements
 
 
 def masked_fill(g, node, name_to_tensor, **kwargs):
@@ -950,38 +717,6 @@ def masked_fill(g, node, name_to_tensor, **kwargs):
     )
 
 
-def chunk(g, node, name_to_tensor, **kwargs):
-    (input_node, n_chunk_node, axis_node) = node.inputs
-    assert n_chunk_node.data == len(node.outputs)
-    assert (
-        len({tuple(o.shape) for o in node.outputs}) == 1
-    ), "all chunk are not equal"
-    n_elements = node.outputs[0].shape[axis_node.data]
-    current_dim_elm_idx = 0
-    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    for out_node in node.outputs:
-        out = add_tensor_variable_node_as_nnef_tensor(
-            g,
-            out_node,
-            name_to_tensor,
-            prevent_variable=True,
-        )
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type="slice",
-            inputs=inputs,
-            outputs=tuple([out]),
-            attribs={
-                "axes": [pick_rank(input_node, axis_node.data)],
-                "begin": [current_dim_elm_idx],
-                "end": [current_dim_elm_idx + n_elements],
-                "stride": [1],
-            },
-        )
-        current_dim_elm_idx += n_elements
-
-
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     add_single_output_op(
@@ -996,63 +731,6 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["baddbmm"]
-
-
-def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
-    input_node, other_node = node.inputs
-    if all(
-        isinstance(node, PythonConstant) for node in [input_node, other_node]
-    ):
-        torch_graph.remap_node(
-            from_node=node.outputs[0],
-            to_node=PythonConstant(
-                name=node.outputs[0].export_name,
-                data=input_node.data % other_node.data,
-            ),
-        )
-        return []
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "remainder",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            for _ in [input_node, other_node]
-        ],
-    )
-    return ["remainder"]
-
-
-def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
-    input_node, other_node, alpha_node = node.inputs
-    if all(
-        isinstance(_, PythonConstant)
-        for _ in [input_node, other_node, alpha_node]
-    ):
-        LOGGER.debug("Slice is not needed since it have not effect")
-        torch_graph.remap_node(
-            from_node=node.outputs[0],
-            to_node=PythonConstant(
-                name=node.outputs[0].export_name,
-                data=int(
-                    input_node.data * -1.0 * alpha_node.data + other_node.data
-                ),
-            ),
-        )
-        return []
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "rsub",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            for _ in [input_node, other_node]
-        ],
-        attrs={"alpha": alpha_node.data},
-    )
-    return ["rsub"]
 
 
 def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
@@ -1115,178 +793,6 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             else f"roll_{i}",
         )
     return []
-
-
-def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    (
-        weight_node,
-        indices_node,
-        padding_idx_node,
-        scale_grad_by_freq_node,
-        sparse_node,
-    ) = node.inputs
-
-    weight_tensor = get_or_add_tensor_variable_in_nnef(
-        g, weight_node, name_to_tensor
-    )
-    indices_tensor = get_or_add_tensor_variable_in_nnef(
-        g, indices_node, name_to_tensor
-    )
-    custom_fragments = []
-    if nnef_spec_strict:
-        fragment_name = "gather"
-    else:
-        fragment_name = "tract_core_gather"
-        custom_fragments += ["tract_core"]
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        fragment_name,
-        inputs=(weight_tensor, indices_tensor),
-        attrs={"axis": 0},
-    )
-    return custom_fragments
-
-
-def abs(
-    g,
-    node,
-    name_to_tensor,
-    null_ref,
-    nnef_spec_strict,
-    tract_feature_flags,
-    torch_graph,
-    **kwargs,
-):
-    if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
-        if nnef_spec_strict:
-            raise TorchToNNEFNotImplementedError(
-                "NNEF compliance does not allow complex"
-            )
-        input_tensor = get_or_add_tensor_variable_in_nnef(
-            g, node.inputs[0], name_to_tensor
-        )
-        # to real, pow(2), slice both, add 2 tensors, rsqr
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            input_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_complex_to_inner_dim",
-                inputs=input_tensor,
-                output_tensor_name_suffix="complex_abs_to_real",
-            )
-
-        input_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "sqr",
-            inputs=input_tensor,
-            output_tensor_name_suffix="complex_abs_sqr",
-        )
-        input_tensor_real = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=input_tensor,
-            attrs={
-                "axes": [len(input_tensor.shape)],
-                "begin": [0],
-                "end": [1],
-                "stride": [1],
-            },
-            output_tensor_name_suffix="complex_abs_slice_real",
-        )
-        input_tensor_imag = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=input_tensor,
-            attrs={
-                "axes": [len(input_tensor.shape)],
-                "begin": [1],
-                "end": [2],
-                "stride": [1],
-            },
-            output_tensor_name_suffix="complex_abs_slice_imag",
-        )
-
-        input_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "add",
-            inputs=[input_tensor_real, input_tensor_imag],
-            output_tensor_name_suffix="complex_abs_add",
-        )
-        input_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "sqrt",
-            inputs=input_tensor,
-            output_tensor_name_suffix="complex_abs_sqrt",
-        )
-        input_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "squeeze",
-            inputs=input_tensor,
-            attrs={"axes": [len(input_tensor.shape)]},
-        )
-        return
-    return unary_output_op_without_params(
-        nnef_op_type="abs",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
-
-
-def log10(g, node, name_to_tensor, **kwargs):
-    """mul val may not be good enought"""
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, node.inputs[0], name_to_tensor
-    )
-    # maybe better puting this in the graph to avoid precision loss
-    mul_val = 1 / np.log(10)
-    input_tensor = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "log",
-        inputs=input_tensor,
-        output_tensor_name_suffix="pre_log10",
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "mul",
-        inputs=[input_tensor],
-        attrs={"y": mul_val},
-    )
-
-
-def copy(
-    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
-):
-    if nnef_spec_strict:
-        # nnef spec include copy fragment
-        return unary_output_op_without_params(
-            nnef_op_type="copy",
-            g=g,
-            node=node,
-            name_to_tensor=name_to_tensor,
-            null_ref=null_ref,
-        )
-    torch_graph.remap_node(node.outputs[0], node.inputs[0])
 
 
 def aten_to_nnef_tensor_and_ops(

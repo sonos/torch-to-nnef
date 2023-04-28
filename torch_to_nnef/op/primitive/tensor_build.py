@@ -6,6 +6,7 @@ from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.op.primitive.base import (
     add_tensor_variable_node_as_nnef_tensor,
     get_list_of_int,
+    unary_output_op_without_params,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -145,3 +146,18 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         node.outputs[0],
         name_to_tensor,
     )
+
+
+def copy(
+    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
+):
+    if nnef_spec_strict:
+        # nnef spec include copy fragment
+        return unary_output_op_without_params(
+            nnef_op_type="copy",
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+    torch_graph.remap_node(node.outputs[0], node.inputs[0])
