@@ -1700,7 +1700,6 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 
 
 def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
-
     (input_node, axis_node, keep_dim_node) = node.inputs
 
     keep_dim = keep_dim_node.data
@@ -2155,7 +2154,7 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
     assert isinstance(ratio_node, PythonConstant)
     current_dim_elm_idx = 0
     inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    for (out_node, n_elements) in zip(node.outputs, ratio_node.data):
+    for out_node, n_elements in zip(node.outputs, ratio_node.data):
         out = add_tensor_variable_node_as_nnef_tensor(
             g,
             out_node,
@@ -3082,9 +3081,21 @@ def _fft(
     return ["tract_core"]
 
 
-def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
+def stft(
+    g,
+    node,
+    name_to_tensor,
+    nnef_spec_strict,
+    has_dynamic_axes,
+    tract_feature_flags,
+    **kwargs,
+):
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError(
+            "STFT not supported by vanilla NNEF"
+        )
     (
         input_node,  # Tensor
         n_fft_node,  # int,
@@ -3107,7 +3118,6 @@ def stft(g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs):
         g, input_node, name_to_tensor
     )
     if input_node.dtype in [torch.float32, torch.float64]:
-
         if input_node.shape[-1] == 1:
             output_nnef_tensor = nnef_tensor
         else:
@@ -3244,8 +3254,23 @@ def fft_ifft(
     )
 
 
-def view_as_real(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-
+def view_as_real(
+    g,
+    node,
+    name_to_tensor,
+    nnef_spec_strict,
+    tract_feature_flags,
+    **kwargs,
+):
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError(
+            "Complex not supported by vanilla NNEF"
+        )
+    if tract_feature_flags is None or "complex" not in tract_feature_flags:
+        raise TorchToNNEFNotImplementedError(
+            "'complex' not supported without tract_feature_flags containing it."
+            " Your tract version should be compiled accordingly"
+        )
     # input_node, n_node, dim_node, norm_node = node.inputs
     _add_single_output_op(
         g,
@@ -3405,10 +3430,22 @@ def log10(g, node, name_to_tensor, **kwargs):
     )
 
 
-def view_as_complex(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def view_as_complex(
+    g,
+    node,
+    name_to_tensor,
+    nnef_spec_strict,
+    tract_feature_flags,
+    **kwargs,
+):
     if nnef_spec_strict:
         raise TorchToNNEFNotImplementedError(
-            "complex not supported in vanilla spec"
+            "Complex not supported in vanilla spec"
+        )
+    if tract_feature_flags is None or "complex" not in tract_feature_flags:
+        raise TorchToNNEFNotImplementedError(
+            "'complex' not supported without tract_feature_flags containing it."
+            " Your tract version should be compiled accordingly"
         )
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, node.inputs[0], name_to_tensor
@@ -3446,6 +3483,7 @@ def aten_to_nnef_tensor_and_ops(
     torch_graph,
     nnef_spec_strict: bool = False,
     has_dynamic_axes: bool = False,
+    tract_feature_flags: T.Optional[T.Set[str]] = None,
 ) -> T.Optional[T.List[str]]:
     """Main primitive dispatcher
 
@@ -3477,6 +3515,7 @@ def aten_to_nnef_tensor_and_ops(
             torch_graph=torch_graph,
             nnef_spec_strict=nnef_spec_strict,
             has_dynamic_axes=has_dynamic_axes,
+            tract_feature_flags=tract_feature_flags,
         )
     except KeyError as exp:
         torch_graph.printall()

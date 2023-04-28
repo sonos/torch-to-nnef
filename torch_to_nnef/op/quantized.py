@@ -67,7 +67,6 @@ def register_state_node_as_variable(
     g,
     name_to_tensor,
 ):
-
     # peculiarity of tract implementation
     if len(torch_tensor.shape) == 1:
         torch_tensor = torch_tensor.unsqueeze(0)
@@ -317,7 +316,13 @@ def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 def quantized_node_to_nnef_tensor_and_ops(
-    g, node, name_to_tensor, null_ref, torch_graph, nnef_spec_strict: bool
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    torch_graph,
+    nnef_spec_strict: bool,
+    tract_feature_flags: T.Optional[T.Set[str]] = None,
 ):
     ops_family, op_name = node.kind.split("::")
     assert ops_family == "quantized"
@@ -328,4 +333,5 @@ def quantized_node_to_nnef_tensor_and_ops(
         null_ref=null_ref,
         torch_graph=torch_graph,
         nnef_spec_strict=nnef_spec_strict,
+        tract_feature_flags=tract_feature_flags,
     )

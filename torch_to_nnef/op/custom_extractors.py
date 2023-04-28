@@ -162,6 +162,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         null_ref,
         torch_graph,
         nnef_spec_strict: bool,
+        **kwargs,
     ):
         raise TorchToNNEFNotImplementedError()
 
@@ -535,6 +536,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         null_ref,
         torch_graph,
         nnef_spec_strict: bool,
+        **kwargs,
     ):
         if nnef_spec_strict:
             raise StrictNNEFSpecError(
@@ -612,7 +614,6 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-
         suffix = str(layer_index)
         if backward:
             suffix += "_reverse"
@@ -676,6 +677,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         null_ref,
         torch_graph,
         nnef_spec_strict: bool,
+        **kwargs,
     ):
         if nnef_spec_strict:
             raise StrictNNEFSpecError(
@@ -731,7 +733,6 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-
         suffix = str(layer_index)
         if backward:
             suffix += "_reverse"
@@ -781,6 +782,7 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         null_ref,
         torch_graph,
         nnef_spec_strict: bool,
+        **kwargs,
     ):
         if nnef_spec_strict:
             raise StrictNNEFSpecError(

@@ -1,4 +1,5 @@
 import logging as log
+import os
 import typing as T
 from pathlib import Path
 
@@ -65,11 +66,14 @@ def export_model_to_nnef(
     dynamic_axes=None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    check_same_io_as_tract: bool = False,
-    debug_bundle_path: T.Optional[Path] = None,
     renaming_scheme: str = "numeric",
     check_io_names_qte_match: bool = True,
     nnef_spec_strict: bool = False,
+    # SONOS tract specific:
+    debug_bundle_path: T.Optional[Path] = None,
+    check_same_io_as_tract: bool = False,
+    use_specific_tract_binary: T.Optional[Path] = None,
+    tract_feature_flags: T.Optional[T.Set[str]] = None,
 ):
     """Main entrypoint of this library
 
@@ -89,6 +93,17 @@ def export_model_to_nnef(
             "NNEF spec does not allow dynamic_axes "
             "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )
+
+    if use_specific_tract_binary is not None:
+        assert use_specific_tract_binary.exists(), use_specific_tract_binary
+        os.environ["TRACT_PATH"] = str(use_specific_tract_binary.absolute())
+        LOGGER.info(f"use tract:{use_specific_tract_binary.absolute()}")
+
+    if tract_feature_flags is None:
+        tract_feature_flags = set()
+    else:
+        LOGGER.info(f"use tract features flags: {tract_feature_flags}")
+
     LOGGER.info(
         f"start parse Pytorch model to be exported at {file_path_export}"
     )
@@ -117,6 +132,9 @@ def export_model_to_nnef(
             # within the computational graph
             # hence NO finegrain modification per axis referenced is applied
             has_dynamic_axes=bool(dynamic_axes),
+            # specific feature flags from tract
+            # by example 'complex'
+            tract_feature_flags=tract_feature_flags,
         )
         nnef_graph = graph_extractor.parse(input_names, output_names)
 

@@ -138,7 +138,6 @@ def build_io(
     assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:
-
         kwargs = {
             key: input_arg.detach().numpy()
             for key, input_arg in zip(input_names, tup_inputs)

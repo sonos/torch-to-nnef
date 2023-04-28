@@ -312,7 +312,6 @@ class Data:
 
 @dataclass
 class TensorVariable(Data):
-
     shape: T.Optional[T.List[int]]
     dtype: T.Optional[torch.dtype]
 
