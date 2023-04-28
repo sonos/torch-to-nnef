@@ -358,3 +358,90 @@ def add_multi_output_op(
         attribs=attrs or {},
     )
     return output_tensors
+
+
+def weight_bias_and_output_tensor(
+    g,
+    node,
+    weight_node,
+    bias_node,
+    name_to_tensor,
+    null_ref,
+):
+    weight_ref = get_or_add_tensor_variable_in_nnef(
+        node=weight_node,
+        g=g,
+        name_to_tensor=name_to_tensor,
+        name_suffix="weight" if weight_node.data is not None else "",
+    )
+
+    bias_ref = null_ref
+    if bias_node.data is not None:
+        bias_ref = get_or_add_tensor_variable_in_nnef(
+            node=bias_node,
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="bias" if bias_node.data is not None else "",
+        )
+
+    out_node = node.outputs[0]
+    out_tensor_name = out_node.export_name
+    output_tensor = NTensor(
+        graph=g,
+        name=out_tensor_name,
+        dtype=weight_ref.dtype,
+        shape=tuple(out_node.shape) if out_node.shape else None,
+    )
+    name_to_tensor[out_tensor_name] = output_tensor
+    return weight_ref, bias_ref, output_tensor
+
+
+def get_list_of_int(
+    data_node,
+    torch_graph,
+    name_to_tensor,
+    accept_none: int = 0,
+    has_dynamic_axes: bool = True,
+    force_none_as_tensor_ref: bool = False,
+):
+    assert accept_none >= 0
+    accepted_none = 0
+
+    def cast_element(node, accepted_none):
+        nonlocal has_dynamic_axes
+        tensor = name_to_tensor.get(node.export_name)
+        if tensor is not None and (
+            force_none_as_tensor_ref or has_dynamic_axes
+        ):
+            return nnef.Identifier(tensor.name)
+        val = node.data
+        if val is None and accept_none > 0 and accepted_none < accept_none:
+            accepted_none += 1
+            return val
+        return int(val)
+
+    if isinstance(data_node, PythonConstant):
+        int_list = [int(_) for _ in data_node.data]
+    elif isinstance(data_node, FixedTensorList):
+        int_list = [cast_element(_, accepted_none) for _ in data_node.data]
+        if any(_ is None for _ in int_list):
+            for ax_data in data_node.data:
+                if ax_data.data is None:
+                    producer = torch_graph.find_data_node_producer(ax_data)
+                    producer.realise_output_type_and_size()
+                    if ax_data.data is not None:
+                        ax_data.data = ax_data.data.tolist()
+            int_list = [cast_element(_, accepted_none) for _ in data_node.data]
+            if len([_ for _ in int_list if _ is None]) > 1:
+                raise TorchToNNEFNotImplementedError(
+                    f"too much unknown dimensions for view {int_list}"
+                )
+    else:
+        raise TorchToNNEFNotImplementedError(
+            "Extracting int list from ", data_node
+        )
+
+    assert all(
+        isinstance(_, (nnef.Identifier, int)) for _ in int_list
+    ), int_list
+    return int_list

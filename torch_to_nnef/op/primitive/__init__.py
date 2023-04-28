@@ -10,39 +10,109 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
     NUMPY_TO_TORCH_DTYPE,
-    SCALAR_TYPE_TO_PYTORCH_TYPE,
     TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.op.primitive.activation import (
+    clamp,
+    clamp_max,
+    clamp_min,
+    elu,
+    erf,
+    gelu,
+    glu,
+    hardtanh,
+    leaky_relu,
+    log_softmax,
+    prelu,
+    selu,
+    silu,
+    softmax,
+    softplus,
+)
 from torch_to_nnef.op.primitive.base import (
     add_multi_output_op,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
+    get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
     pick_value_in_rank,
     unary_input_output_op_with_constant,
     unary_output_op_without_params,
+    weight_bias_and_output_tensor,
 )
 from torch_to_nnef.op.primitive.complex import view_as_complex, view_as_real
 from torch_to_nnef.op.primitive.fft import fft_fft, fft_ifft, stft
+from torch_to_nnef.op.primitive.norm import (
+    batch_norm,
+    group_norm,
+    layer_norm,
+    norm,
+)
+from torch_to_nnef.op.primitive.pool import (
+    adaptive_avg_pool2d,
+    avg_pool1d,
+    avg_pool2d,
+    max_pool1d,
+    max_pool2d,
+)
+from torch_to_nnef.op.primitive.tensor_build import (
+    arange,
+    new_zeros,
+    ones,
+    zeros,
+    zeros_like,
+)
 from torch_to_nnef.torch_graph import (
-    Data,
     FixedTensorList,
     PythonConstant,
     TensorVariable,
 )
 from torch_to_nnef.tract import tract_version_lower_than
 
-# silence pyflakes {}
+# silence pyflakes F401 {
 assert view_as_complex
 assert view_as_real
 assert fft_fft
 assert fft_ifft
 assert stft
+
+assert softmax
+assert softplus
+assert elu
+assert leaky_relu
+assert prelu
+assert selu
+assert silu
+assert gelu
+assert erf
+assert hardtanh
+assert log_softmax
+assert glu
+assert clamp
+assert clamp_min
+assert clamp_max
+
+assert norm
+assert batch_norm
+assert group_norm
+assert layer_norm
+
+assert max_pool1d
+assert avg_pool1d
+assert max_pool2d
+assert avg_pool2d
+assert adaptive_avg_pool2d
+
+assert arange
+assert ones
+assert zeros_like
+assert new_zeros
+assert zeros
 # }
 
 
@@ -188,190 +258,6 @@ def mul(g, node, name_to_tensor, **kwargs):
     )
 
 
-def _weight_bias_and_output_tensor(
-    g,
-    node,
-    weight_node,
-    bias_node,
-    name_to_tensor,
-    null_ref,
-):
-    weight_ref = get_or_add_tensor_variable_in_nnef(
-        node=weight_node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-        name_suffix="weight" if weight_node.data is not None else "",
-    )
-
-    bias_ref = null_ref
-    if bias_node.data is not None:
-        bias_ref = get_or_add_tensor_variable_in_nnef(
-            node=bias_node,
-            g=g,
-            name_to_tensor=name_to_tensor,
-            name_suffix="bias" if bias_node.data is not None else "",
-        )
-
-    out_node = node.outputs[0]
-    out_tensor_name = out_node.export_name
-    output_tensor = NTensor(
-        graph=g,
-        name=out_tensor_name,
-        dtype=weight_ref.dtype,
-        shape=tuple(out_node.shape) if out_node.shape else None,
-    )
-    name_to_tensor[out_tensor_name] = output_tensor
-    return weight_ref, bias_ref, output_tensor
-
-
-def softmax(**kwargs):
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    if node.inputs[2]:
-        del node.inputs[2]
-
-    # enforce use of positive rank
-    node.inputs[1].data = pick_rank(node.inputs[0], node.inputs[1].data)
-    return unary_input_output_op_with_constant("softmax", **kwargs)
-
-
-def softplus(**kwargs):
-    """
-    Note: numerical stability applied in Pytorch is not done in NNEF vanilla
-    implementation, nor case beta != 1.
-
-    Pytorch ref:
-        y = (1/beta) * log(exp(beta * x) + 1)  if ((beta * x) < thresh) else x
-    NNEF ref:
-        y = log(exp(x) + 1.0)
-
-    """
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    const = node.inputs[1]
-    if const.data != 1:
-        raise TorchToNNEFNotImplementedError(
-            "This version is not implemented and"
-            " would need use of a specific fragment"
-        )
-    node.inputs = node.inputs[:1]
-    return unary_output_op_without_params("softplus", **kwargs)
-
-
-def elu(**kwargs):
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    node.inputs = node.inputs[:2]  # remove inplace param
-    return unary_input_output_op_with_constant("elu", **kwargs)
-
-
-def leaky_relu(**kwargs):
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    node.inputs = node.inputs[:2]  # remove inplace param
-    return unary_input_output_op_with_constant("leaky_relu", **kwargs)
-
-
-def prelu(**kwargs):
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    node.inputs = node.inputs[:2]  # remove inplace param
-    return unary_input_output_op_with_constant("prelu", **kwargs)
-
-
-def selu(**kwargs):
-    unary_input_output_op_with_constant("selu", **kwargs)
-    return ["selu"]
-
-
-def silu(**kwargs):
-    unary_input_output_op_with_constant("silu", **kwargs)
-    return ["silu"]
-
-
-def gelu(g, node, name_to_tensor, null_ref, **kwargs):
-    unary_output_op_without_params(
-        "gelu",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
-    return ["erf", "gelu"]
-
-
-def erf(g, node, name_to_tensor, null_ref, **kwargs):
-    """Op should be added to tract-nnef eventualy"""
-    unary_output_op_without_params(
-        "erf",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
-    return ["erf"]
-
-
-def norm(g, node, name_to_tensor, **kwargs):
-    """
-    NOTE this is only the normed vector
-    """
-    input_node, p_node, axes_node, keep_dim_node = node.inputs
-    if p_node.data not in [1, 2]:
-        raise TorchToNNEFNotImplementedError(
-            "norm with p only supported for 1 and 2"
-        )
-
-    custom_fragment_name = f"norm_p{p_node.data}"
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        custom_fragment_name,
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"axes": [pick_rank(input_node, dim) for dim in axes_node.data]},
-        output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
-    )
-    if not keep_dim_node.data:
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "squeeze",
-            inputs=out,
-            attrs={
-                "axes": [pick_rank(input_node, dim) for dim in axes_node.data]
-            },
-            pass_quantization_params=True,
-        )
-    return [custom_fragment_name]
-
-
-def hardtanh(**kwargs):
-    node = kwargs["node"]
-    node.inputs = node.inputs[:3]  # remove inplace param
-    unary_input_output_op_with_constant("hard_tanh", **kwargs)
-    return ["hard_tanh"]
-
-
-def log_softmax(**kwargs):
-    node = kwargs["node"]
-    if node.inputs[2]:
-        del node.inputs[2]
-    input_node, axis_node = node.inputs
-    assert isinstance(axis_node.data, int)
-    axis_node.data = pick_rank(input_node, axis_node.data)
-    unary_input_output_op_with_constant("log_softmax", **kwargs)
-    return ["log_softmax"]
-
-
 def round_(nnef_spec_strict, **kwargs):
     if nnef_spec_strict:
         LOGGER.warning(
@@ -459,7 +345,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
             param_node.shape = list(param_node.data.shape)
     # }
 
-    weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
+    weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
         node,
         weight_node,
@@ -492,81 +378,6 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
-def _pooling_op(
-    nnef_op_name: str,
-    node_inputs: T.List[Data],
-    g,
-    node,
-    name_to_tensor,
-):
-    """
-    NNEF (avg|max)_pool params (not dimension specific):
-        input: tensor<scalar>,
-        size: integer[],
-        border: string = 'constant',
-        padding: (integer,integer)[] = [],
-        stride: integer[] = [],
-        dilation: integer[] = [] )
-
-    """
-    (
-        input_node,
-        kernel_size_node,
-        stride_node,
-        padding_node,
-        dilation_node,
-        ceil_mode_node,
-    ) = node_inputs
-
-    if ceil_mode_node and ceil_mode_node.data:
-        raise TorchToNNEFNotImplementedError(
-            "Use of ceil to compute output shape is not implem"
-        )
-
-    padding = padding_node.data or []
-    kernel_size = kernel_size_node.data or []
-    stride = stride_node.data or []
-    if dilation_node:
-        dilation = dilation_node.data or []
-    else:
-        dilation = [1 for _ in stride]
-
-    # peculiarity of tract implementation
-    # apparently tract does expect max_pool to be always 2d only (including
-    # input.shape)
-    onode = node.outputs[0]
-    if onode.rank > len(kernel_size):
-        missing_n_dims = onode.rank - len(kernel_size)
-        kernel_size = ([1] * missing_n_dims) + kernel_size
-        stride = ([1] * missing_n_dims) + stride
-        dilation = ([1] * missing_n_dims) + dilation
-
-        # pre 0.19.0 padding order differ
-        if tract_version_lower_than("0.19.0"):
-            padding = padding + ([0] * missing_n_dims)
-        else:
-            padding = ([0] * missing_n_dims) + padding
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_name,
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "size": list(kernel_size),
-            "padding": [
-                (pad, pad) if isinstance(pad, int) else pad for pad in padding
-            ],
-            "stride": list(stride),
-            "dilation": list(dilation),
-            "border": "constant",
-        },
-    )
-
-
 def linear(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_node,
@@ -587,7 +398,7 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
             bias_node.shape = list(bias_node.data.shape)
     # }
 
-    weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
+    weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
         node,
         weight_node,
@@ -609,212 +420,6 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         outputs=output_tensor,
         attribs={},
     )
-
-
-def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
-    """
-
-    nnef inputs:
-        input: tensor<scalar>
-        mean: tensor<scalar>
-        variance: tensor<scalar>
-        offset: tensor<scalar>
-        scale: tensor<scalar>
-        epsilon: scalar
-
-    nnef op:
-        output = offset + scale * (input - mean) / sqrt(variance + epsilon);
-    """
-    (
-        input_node,
-        weight_node,
-        bias_node,
-        running_mean_node,
-        running_var_node,
-        _,  # training
-        _,  # momentum
-        eps_node,
-        _,  # cudnn_enabled
-    ) = node.inputs
-
-    # expand in stored variables export to avoid unsqueeze guessing in graph {
-    params_nodes = [weight_node, running_mean_node, running_var_node]
-    if bias_node.data is not None:
-        params_nodes.append(bias_node)
-    for param_node in params_nodes:
-        param_node.data = param_node.data.unsqueeze(0)
-        param_node.shape = list(param_node.data.shape)
-        for _ in range(input_node.rank - param_node.rank):
-            param_node.data = param_node.data.unsqueeze(-1)
-            param_node.shape = list(param_node.data.shape)
-    # }
-
-    weight_ref, bias_ref, output_tensor = _weight_bias_and_output_tensor(
-        g,
-        node,
-        weight_node,
-        bias_node,
-        name_to_tensor,
-        null_ref,
-    )
-    running_mean_ref = add_tensor_variable_node_as_nnef_tensor(
-        name_suffix="running_mean",
-        node=running_mean_node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
-    running_var_ref = add_tensor_variable_node_as_nnef_tensor(
-        name_suffix="running_var",
-        node=running_var_node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
-
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type="batch_normalization",
-        name=f"{node.outputs[0].export_name}_op",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            running_mean_ref,
-            running_var_ref,
-            bias_ref,
-            weight_ref,
-        ),
-        outputs=output_tensor,
-        attribs={"epsilon": eps_node.data},
-    )
-
-
-def max_pool1d(g, node, name_to_tensor, **kwargs):
-    _pooling_op(
-        "max_pool",
-        node.inputs,
-        g,
-        node,
-        name_to_tensor,
-    )
-
-
-def avg_pool1d(g, node, name_to_tensor, **kwargs):
-    count_include_pad = node.inputs[-1].data
-    if not count_include_pad:
-        raise TorchToNNEFNotImplementedError(
-            "not implemented count_include_pad=False"
-        )
-    inputs_name_tuple = node.inputs[:-1]  # count_include_pad excluded
-    inputs_name_tuple.insert(4, None)  # set missing dilation
-
-    # Dilation is available
-    _pooling_op(
-        "avg_pool",
-        inputs_name_tuple,
-        g,
-        node,
-        name_to_tensor,
-    )
-
-
-def max_pool2d(g, node, name_to_tensor, **kwargs):
-    _pooling_op(
-        "max_pool",
-        node.inputs,
-        g,
-        node,
-        name_to_tensor,
-    )
-
-
-def avg_pool2d(g, node, name_to_tensor, **kwargs):
-    """
-    cpp func parameters:
-    (const Tensor& input,
-    IntArrayRef kernel_size,
-    IntArrayRef stride,
-    IntArrayRef padding,
-    bool ceil_mode,
-    bool count_include_pad,
-    c10::optional<int64_t> divisor_override
-
-    _pooling_op expect:
-
-    (input_node,
-    kernel_size_node,
-    stride_node,
-    padding_node,
-    dilation_node,
-    ceil_mode_node)
-    """
-
-    count_include_pad = node.inputs[-2].data
-    if not count_include_pad:
-        raise TorchToNNEFNotImplementedError(
-            "not implemented count_include_pad=False"
-        )
-
-    divisor_overide = node.inputs[-1].data
-    if divisor_overide:
-        raise TorchToNNEFNotImplementedError(
-            f"not implemented divisor_override={divisor_overide}"
-        )
-    inputs_tups = node.inputs[:-2]
-    inputs_tups.insert(4, None)
-    _pooling_op(
-        "avg_pool",
-        inputs_tups,
-        g,
-        node,
-        name_to_tensor,
-    )
-
-
-def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
-    (
-        input_node,
-        pool_values_node,
-    ) = node.inputs
-
-    pool_values = pool_values_node.data
-    if not all(
-        dim and dim > 0 for dim in input_node.shape[-len(pool_values) :]
-    ):
-        raise TorchToNNEFNotImplementedError(
-            "dynamic dim used in adaptive pool is not Implemented yet"
-        )
-    # fixed at export auto adaptation
-    stride = [
-        int(in_tensor_dim // pool_val)
-        for pool_val, in_tensor_dim in zip(
-            pool_values, input_node.shape[-len(pool_values) :]
-        )
-    ]
-    onode = node.outputs[0]
-    if onode.rank > len(stride):
-        missing_n_dims = onode.rank - len(stride)
-        stride = ([1] * missing_n_dims) + stride
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_name,
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "size": list(stride),
-            "padding": [(0, 0) for _ in stride],
-            "stride": list(stride),
-            "dilation": [1 for _ in stride],
-            "border": "ignore",
-        },
-    )
-
-
-def adaptive_avg_pool2d(g, node, name_to_tensor, **kwargs):
-    # WARNING will liklely only work with full defined shapes in shape
-    _adaptive_pool("avg_pool", g, node, name_to_tensor)
 
 
 def dropout(node, torch_graph, **kwargs):
@@ -844,60 +449,9 @@ def contiguous(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
-def _get_list_of_int(
-    data_node,
-    torch_graph,
-    name_to_tensor,
-    accept_none: int = 0,
-    has_dynamic_axes: bool = True,
-    force_none_as_tensor_ref: bool = False,
-):
-    assert accept_none >= 0
-    accepted_none = 0
-
-    def cast_element(node, accepted_none):
-        nonlocal has_dynamic_axes
-        tensor = name_to_tensor.get(node.export_name)
-        if tensor is not None and (
-            force_none_as_tensor_ref or has_dynamic_axes
-        ):
-            return nnef.Identifier(tensor.name)
-        val = node.data
-        if val is None and accept_none > 0 and accepted_none < accept_none:
-            accepted_none += 1
-            return val
-        return int(val)
-
-    if isinstance(data_node, PythonConstant):
-        int_list = [int(_) for _ in data_node.data]
-    elif isinstance(data_node, FixedTensorList):
-        int_list = [cast_element(_, accepted_none) for _ in data_node.data]
-        if any(_ is None for _ in int_list):
-            for ax_data in data_node.data:
-                if ax_data.data is None:
-                    producer = torch_graph.find_data_node_producer(ax_data)
-                    producer.realise_output_type_and_size()
-                    if ax_data.data is not None:
-                        ax_data.data = ax_data.data.tolist()
-            int_list = [cast_element(_, accepted_none) for _ in data_node.data]
-            if len([_ for _ in int_list if _ is None]) > 1:
-                raise TorchToNNEFNotImplementedError(
-                    f"too much unknown dimensions for view {int_list}"
-                )
-    else:
-        raise TorchToNNEFNotImplementedError(
-            "Extracting int list from ", data_node
-        )
-
-    assert all(
-        isinstance(_, (nnef.Identifier, int)) for _ in int_list
-    ), int_list
-    return int_list
-
-
 def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
-    dim_data = _get_list_of_int(
+    dim_data = get_list_of_int(
         axis_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
@@ -1648,7 +1202,7 @@ def size(
 def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
 
-    dim_data = _get_list_of_int(
+    dim_data = get_list_of_int(
         axis_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
@@ -1687,7 +1241,7 @@ def reflection_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = _get_list_of_int(
+    pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
@@ -1715,7 +1269,7 @@ def replication_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = _get_list_of_int(
+    pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
@@ -1743,7 +1297,7 @@ def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
     (input_node, pads_node, value_node) = node.inputs
-    pads = _get_list_of_int(
+    pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
@@ -1864,29 +1418,6 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
         current_dim_elm_idx += n_elements
 
 
-def arange(g, node, name_to_tensor, **kwargs):
-    """This operator can not be exactly exported to NNEF.
-
-    In general NNEF spec is against dynamism it could provide so
-
-    we implement it as a simple constant variable.
-
-    """
-    (start_node, end_node, step_node) = node.inputs
-    LOGGER.warning(
-        "aten::arange replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    node.outputs[0].data = torch.arange(
-        start_node.data, end_node.data, step=step_node.data
-    )
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-    )
-
-
 def masked_fill(g, node, name_to_tensor, **kwargs):
     input_node, mask_node, value_node = node.inputs
 
@@ -1912,119 +1443,6 @@ def masked_fill(g, node, name_to_tensor, **kwargs):
         name_to_tensor,
         nnef_op_type="select",
         inputs=inputs,
-    )
-
-
-def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
-    """This operator can not be exactly exported to NNEF.
-
-    In general NNEF spec is against dynamism it could provide so
-
-    we implement it as a simple constant variable.
-
-    """
-    (input_node, *_) = node.inputs
-    LOGGER.warning(
-        "the aten::ones replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    dtype = torch.float32
-    if len(_) > 0:
-        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
-    dim_data = _get_list_of_int(
-        input_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
-    )
-    node.outputs[0].data = torch.ones(dim_data, dtype=dtype)
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-    )
-
-
-def zeros_like(g, node, name_to_tensor, **kwargs):
-    """This operator can not be exactly exported to NNEF.
-
-    In general NNEF spec is against dynamism it could provide so
-
-    we implement it as a simple constant variable.
-
-    """
-    (input_node, *_) = node.inputs
-    LOGGER.warning(
-        "the aten::zeros_like replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    dtype = torch.float32
-    if len(_) > 0:
-        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
-
-    node.outputs[0].data = torch.zeros(
-        input_node.shape,
-        dtype=dtype,
-    )
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-    )
-
-
-def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    (
-        _,  # input_node,
-        shape_node,
-        dtype_node,
-        _,  # ? example PythonConstant(data=0, ...)
-        _,  # device_node,
-        _,  # requires_grad_node
-    ) = node.inputs
-    LOGGER.warning(
-        "the aten::new_zeros replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
-
-    assert shape_node.data
-
-    node.outputs[0].data = torch.zeros(
-        shape_node.data,
-        dtype=dtype,
-    )
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-    )
-
-
-def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    (
-        shape_node,
-        dtype_node,
-        _,  # ? example PythonConstant(data=0, ...)
-        _,  # device_node,
-        _,  # requires_grad_node
-    ) = node.inputs
-    LOGGER.warning(
-        "the aten::zeros replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
-
-    assert shape_node.data
-
-    node.outputs[0].data = torch.zeros(
-        shape_node.data,
-        dtype=dtype,
-    )
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
     )
 
 
@@ -2058,47 +1476,6 @@ def chunk(g, node, name_to_tensor, **kwargs):
             },
         )
         current_dim_elm_idx += n_elements
-
-
-def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
-    (
-        input_tensor_node,
-        normalized_shape_node,
-        weight_node,
-        bias_node,
-        eps_node,
-        elementwise_affine_node,
-    ) = node.inputs
-
-    mean_axes = sorted(
-        input_tensor_node.rank - r - 1
-        for r, _ in enumerate(normalized_shape_node.data)
-    )
-    has_affine = elementwise_affine_node.data and not (
-        # check affine as any use
-        (bias_node.data == 0).all().tolist()
-        and (weight_node.data == 1).all().tolist()
-    )
-    inputs = [input_tensor_node]
-    op_name = "layer_norm"
-    if has_affine:
-        op_name = "layer_norm_with_affine"
-        inputs += [weight_node, bias_node]
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type=op_name,
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            if _
-            else null_ref
-            for _ in inputs
-        ],
-        attrs={"mean_axes": mean_axes, "eps": eps_node.data},
-    )
-
-    return [op_name]
 
 
 def _expand_build_repeats(g, name_to_tensor, input_node, shape_node, shapes):
@@ -2274,157 +1651,6 @@ def expand(
         inputs=out,
         attrs={"shape": fill_negone_with_dim_by_rank_order(input_node, shapes)},
     )
-
-
-def glu(g, node, name_to_tensor, **kwargs):
-    input_node, axis_node = node.inputs
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="glu",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-        ],
-        attrs={
-            "axis": pick_rank(input_node, axis_node.data),
-            "half_dim_size": int(input_node.shape[axis_node.data] / 2),
-            "dim_size": input_node.shape[axis_node.data],
-        },
-    )
-    return ["glu"]
-
-
-def clamp_min(g, node, name_to_tensor, **kwargs):
-    input_node = node.inputs[0]
-    clamp_value_node = node.inputs[1]
-
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="max",
-        inputs=[
-            input_tensor,
-            get_or_add_tensor_variable_in_nnef(
-                g, clamp_value_node, name_to_tensor
-            ),
-        ],
-    )
-
-
-def clamp_max(g, node, name_to_tensor, **kwargs):
-    input_node = node.inputs[0]
-    clamp_value_node = node.inputs[1]
-
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="min",
-        inputs=[
-            input_tensor,
-            get_or_add_tensor_variable_in_nnef(
-                g, clamp_value_node, name_to_tensor
-            ),
-        ],
-    )
-
-
-def clamp(g, node, name_to_tensor, **kwargs):
-    input_node, min_clamp, max_clamp = node.inputs
-
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    if min_clamp.data:
-        output = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="max",
-            inputs=[
-                input_tensor,
-                get_or_add_tensor_variable_in_nnef(
-                    g, min_clamp, name_to_tensor
-                ),
-            ],
-            output_tensor_name_suffix="clamp_min" if max_clamp.data else "",
-        )
-        input_tensor = output
-
-    if max_clamp.data:
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="min",
-            inputs=[
-                input_tensor,
-                get_or_add_tensor_variable_in_nnef(
-                    g, max_clamp, name_to_tensor
-                ),
-            ],
-        )
-
-
-def group_norm(g, node, name_to_tensor, **kwargs):
-    """
-    It is a special case of NNEF batch_normalization
-    with variance and mean being tensor
-    """
-    (
-        input_node,
-        n_groups_node,
-        scale_node,
-        offset_node,
-        eps_node,
-        _,  # is_affine_node
-    ) = node.inputs
-    for nd in [offset_node, scale_node]:
-        for _ in range(input_node.rank - nd.rank - 1):
-            nd.data = nd.data.unsqueeze(-1)
-        nd.shape = list(nd.data.shape)
-
-    offset_ref = add_tensor_variable_node_as_nnef_tensor(
-        name_suffix="offset",
-        node=offset_node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
-    scale_ref = add_tensor_variable_node_as_nnef_tensor(
-        name_suffix="scale",
-        node=scale_node,
-        g=g,
-        name_to_tensor=name_to_tensor,
-    )
-
-    # x.reshape(3, 1* 2* 2).mean_or_std(dim=1).repeat(2, 1).t().reshape(6)
-    add_single_output_op(
-        g=g,
-        name_to_tensor=name_to_tensor,
-        node=node,
-        nnef_op_type="group_norm",
-        # name=f"{node.outputs[0].export_name}_op",
-        inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            offset_ref,
-            scale_ref,
-        ),
-        attrs={
-            "epsilon": eps_node.data,
-            "num_groups": n_groups_node.data,
-            "batch_size": input_node.shape[0],
-            "num_channels": input_node.shape[1],
-        },
-    )
-    return ["group_norm"]
 
 
 def select(g, node, name_to_tensor, **kwargs):

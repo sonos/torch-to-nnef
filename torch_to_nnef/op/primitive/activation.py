@@ -1,0 +1,217 @@
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.op.primitive.base import (
+    add_single_output_op,
+    get_or_add_tensor_variable_in_nnef,
+    pick_rank,
+    unary_input_output_op_with_constant,
+    unary_output_op_without_params,
+)
+
+
+def softmax(**kwargs):
+    # avoid unpack/pack {
+    node = kwargs["node"]
+    # }
+    if node.inputs[2]:
+        del node.inputs[2]
+
+    # enforce use of positive rank
+    node.inputs[1].data = pick_rank(node.inputs[0], node.inputs[1].data)
+    return unary_input_output_op_with_constant("softmax", **kwargs)
+
+
+def softplus(**kwargs):
+    """
+    Note: numerical stability applied in Pytorch is not done in NNEF vanilla
+    implementation, nor case beta != 1.
+
+    Pytorch ref:
+        y = (1/beta) * log(exp(beta * x) + 1)  if ((beta * x) < thresh) else x
+    NNEF ref:
+        y = log(exp(x) + 1.0)
+
+    """
+    # avoid unpack/pack {
+    node = kwargs["node"]
+    # }
+    const = node.inputs[1]
+    if const.data != 1:
+        raise TorchToNNEFNotImplementedError(
+            "This version is not implemented and"
+            " would need use of a specific fragment"
+        )
+    node.inputs = node.inputs[:1]
+    return unary_output_op_without_params("softplus", **kwargs)
+
+
+def elu(**kwargs):
+    # avoid unpack/pack {
+    node = kwargs["node"]
+    # }
+    node.inputs = node.inputs[:2]  # remove inplace param
+    return unary_input_output_op_with_constant("elu", **kwargs)
+
+
+def leaky_relu(**kwargs):
+    # avoid unpack/pack {
+    node = kwargs["node"]
+    # }
+    node.inputs = node.inputs[:2]  # remove inplace param
+    return unary_input_output_op_with_constant("leaky_relu", **kwargs)
+
+
+def prelu(**kwargs):
+    # avoid unpack/pack {
+    node = kwargs["node"]
+    # }
+    node.inputs = node.inputs[:2]  # remove inplace param
+    return unary_input_output_op_with_constant("prelu", **kwargs)
+
+
+def selu(**kwargs):
+    unary_input_output_op_with_constant("selu", **kwargs)
+    return ["selu"]
+
+
+def silu(**kwargs):
+    unary_input_output_op_with_constant("silu", **kwargs)
+    return ["silu"]
+
+
+def gelu(g, node, name_to_tensor, null_ref, **kwargs):
+    unary_output_op_without_params(
+        "gelu",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+    return ["erf", "gelu"]
+
+
+def erf(g, node, name_to_tensor, null_ref, **kwargs):
+    """Op should be added to tract-nnef eventualy"""
+    unary_output_op_without_params(
+        "erf",
+        g=g,
+        node=node,
+        name_to_tensor=name_to_tensor,
+        null_ref=null_ref,
+    )
+    return ["erf"]
+
+
+def hardtanh(**kwargs):
+    node = kwargs["node"]
+    node.inputs = node.inputs[:3]  # remove inplace param
+    unary_input_output_op_with_constant("hard_tanh", **kwargs)
+    return ["hard_tanh"]
+
+
+def log_softmax(**kwargs):
+    node = kwargs["node"]
+    if node.inputs[2]:
+        del node.inputs[2]
+    input_node, axis_node = node.inputs
+    assert isinstance(axis_node.data, int)
+    axis_node.data = pick_rank(input_node, axis_node.data)
+    unary_input_output_op_with_constant("log_softmax", **kwargs)
+    return ["log_softmax"]
+
+
+def clamp_min(g, node, name_to_tensor, **kwargs):
+    input_node = node.inputs[0]
+    clamp_value_node = node.inputs[1]
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="max",
+        inputs=[
+            input_tensor,
+            get_or_add_tensor_variable_in_nnef(
+                g, clamp_value_node, name_to_tensor
+            ),
+        ],
+    )
+
+
+def clamp_max(g, node, name_to_tensor, **kwargs):
+    input_node = node.inputs[0]
+    clamp_value_node = node.inputs[1]
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="min",
+        inputs=[
+            input_tensor,
+            get_or_add_tensor_variable_in_nnef(
+                g, clamp_value_node, name_to_tensor
+            ),
+        ],
+    )
+
+
+def clamp(g, node, name_to_tensor, **kwargs):
+    input_node, min_clamp, max_clamp = node.inputs
+
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if min_clamp.data:
+        output = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="max",
+            inputs=[
+                input_tensor,
+                get_or_add_tensor_variable_in_nnef(
+                    g, min_clamp, name_to_tensor
+                ),
+            ],
+            output_tensor_name_suffix="clamp_min" if max_clamp.data else "",
+        )
+        input_tensor = output
+
+    if max_clamp.data:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="min",
+            inputs=[
+                input_tensor,
+                get_or_add_tensor_variable_in_nnef(
+                    g, max_clamp, name_to_tensor
+                ),
+            ],
+        )
+
+
+def glu(g, node, name_to_tensor, **kwargs):
+    input_node, axis_node = node.inputs
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="glu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+        ],
+        attrs={
+            "axis": pick_rank(input_node, axis_node.data),
+            "half_dim_size": int(input_node.shape[axis_node.data] / 2),
+            "dim_size": input_node.shape[axis_node.data],
+        },
+    )
+    return ["glu"]
