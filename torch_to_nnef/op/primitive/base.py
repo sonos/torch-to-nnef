@@ -8,7 +8,7 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
+from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, numpy_dtype_to_tract_str
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
     FixedTensorList,
@@ -445,3 +445,32 @@ def get_list_of_int(
         isinstance(_, (nnef.Identifier, int)) for _ in int_list
     ), int_list
     return int_list
+
+
+def cast_to_if_not_dtype_and_variable(
+    g,
+    name_to_tensor,
+    node,
+    nnef_tensor: NTensor,
+    cast_to: np.dtype,
+    suffix: str = "",
+):
+    """Force casting not expressed in IR graph in case of div by example.
+
+    This is neccessary since tract and maybe other inference engine may not cast
+    implicitly to float during div operation by example leading to rounding
+    issues.
+
+    """
+    out = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=nnef_tensor,
+        attrs={
+            "to": numpy_dtype_to_tract_str(cast_to),
+        },
+        output_tensor_name_suffix=suffix,
+    )
+    return out, ["tract_core"]

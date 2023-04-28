@@ -2,17 +2,12 @@
 import logging
 import typing as T
 
-import nnef
 import numpy as np
 import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import (
-    NUMPY_TO_TORCH_DTYPE,
-    TORCH_DTYPE_TO_TRACT_STR,
-    numpy_dtype_to_tract_str,
-)
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.activation import (
     clamp,
@@ -46,6 +41,8 @@ from torch_to_nnef.op.primitive.base import (
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.op.primitive.complex import view_as_complex, view_as_real
+from torch_to_nnef.op.primitive.div import div, floor_divide, trunc
+from torch_to_nnef.op.primitive.expand import expand
 from torch_to_nnef.op.primitive.fft import fft_fft, fft_ifft, stft
 from torch_to_nnef.op.primitive.norm import (
     batch_norm,
@@ -53,12 +50,33 @@ from torch_to_nnef.op.primitive.norm import (
     layer_norm,
     norm,
 )
+from torch_to_nnef.op.primitive.pad import pad
 from torch_to_nnef.op.primitive.pool import (
     adaptive_avg_pool2d,
     avg_pool1d,
     avg_pool2d,
     max_pool1d,
     max_pool2d,
+)
+from torch_to_nnef.op.primitive.qops import dequantize, quantize_per_tensor
+from torch_to_nnef.op.primitive.reducer import (
+    argmax,
+    argmin,
+    max_,
+    mean,
+    min_,
+    reduce_all,
+    reduce_any,
+    reduce_max,
+    reduce_min,
+    reduce_sum,
+)
+from torch_to_nnef.op.primitive.selector import (
+    index_,
+    narrow,
+    select,
+    slice_,
+    where,
 )
 from torch_to_nnef.op.primitive.tensor_build import (
     arange,
@@ -113,6 +131,33 @@ assert ones
 assert zeros_like
 assert new_zeros
 assert zeros
+
+assert pad
+
+assert expand
+assert slice_
+assert where
+assert narrow
+assert select
+assert index_
+
+assert div
+assert floor_divide
+assert trunc
+
+assert quantize_per_tensor
+assert dequantize
+
+assert mean
+assert reduce_sum
+assert argmax
+assert argmin
+assert reduce_any
+assert reduce_all
+assert reduce_max
+assert reduce_min
+assert max_
+assert min_
 # }
 
 
@@ -208,34 +253,6 @@ def external(
     return nnef_tensor_ref
 
 
-def fill_negone_with_dim_by_rank_order(
-    input_node, shapes: T.List[int]
-) -> T.List[int]:
-    """Cast each -1 encountered in shapes to incremental rank dim in input_node
-
-    This use case was encountered in pytorch .expand operator
-
-    where by example (picked from MHA in pytorch lib):
-        # given v1.shape == (10, 1, 20, 30)
-        v1.expand([-1, 1, -1, -1])
-        # is equivalent to
-        v1.expand([10, 1, 20, 30])
-
-    We need to realise those shape at export since NNEF need concret dim value here
-    no symbolics are handled
-
-    """
-    new_shapes = []
-    for rank_id, s in enumerate(shapes):
-        if s == -1:
-            new_shapes.append(input_node.shape[rank_id])
-        elif isinstance(s, nnef.Identifier) or s > 0:
-            new_shapes.append(s)
-        else:
-            raise TorchToNNEFNotImplementedError("unexpected dim value: ", s)
-    return new_shapes
-
-
 def mul(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     other_node = node.inputs[1]
@@ -268,45 +285,6 @@ def round_(nnef_spec_strict, **kwargs):
         return []
     unary_input_output_op_with_constant("tract_core_round_even", **kwargs)
     return ["tract_core"]
-
-
-def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
-    input_node, axis_node, begin_node, end_node, stride_node = node.inputs
-
-    # we assert for now all node except first are all constant
-    dim = axis_node.data
-
-    # we use this since by default pytorch generate max int32 value for end
-    begin = pick_value_in_rank(input_node, dim, begin_node.data)
-    end = min(
-        pick_value_in_rank(input_node, dim, end_node.data),
-        input_node.shape[dim],
-    )
-    assert begin < end
-
-    if (
-        begin_node.data == 0
-        and end == input_node.shape[dim]
-        and stride_node.data == 1
-    ):
-        LOGGER.debug("Slice is not needed since it have not effect")
-        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
-        return
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "axes": [pick_rank(input_node, dim)],
-            "begin": [begin],
-            "end": [end],
-            "stride": [stride_node.data],
-        },
-    )
 
 
 def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
@@ -470,164 +448,6 @@ def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
-def _cast_to_if_not_dtype_and_variable(
-    g,
-    name_to_tensor,
-    node,
-    nnef_tensor: NTensor,
-    cast_to: np.dtype,
-    suffix: str = "",
-):
-    """Force casting not expressed in IR graph in case of div by example.
-
-    This is neccessary since tract and maybe other inference engine may not cast
-    implicitly to float during div operation by example leading to rounding
-    issues.
-
-    """
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_cast",
-        inputs=nnef_tensor,
-        attrs={
-            "to": numpy_dtype_to_tract_str(cast_to),
-        },
-        output_tensor_name_suffix=suffix,
-    )
-    return out, ["tract_core"]
-
-
-def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    input_node = node.inputs[0]
-    divisor_node = node.inputs[1]
-    suffix_div_op_output = ""
-    rounding_mode = None
-
-    used_custom_fragment = []
-
-    for c_node in [input_node, divisor_node]:
-        c_node.cast_float_inplace()
-
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    divisor_tensor = get_or_add_tensor_variable_in_nnef(
-        g, divisor_node, name_to_tensor
-    )
-    io_casting_with_dtype = None
-
-    int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
-    if hasattr(input_node, "dtype") and input_node.dtype in int_types:
-        io_casting_with_dtype = input_node.np_dtype
-        if nnef_spec_strict:
-            raise TorchToNNEFNotImplementedError(
-                "What NNEF compliance mean in such case ?"
-            )
-        input_tensor, custom_fragments = _cast_to_if_not_dtype_and_variable(
-            g=g,
-            node=node,
-            name_to_tensor=name_to_tensor,
-            nnef_tensor=input_tensor,
-            cast_to=np.float32,
-            suffix="casted",
-        )
-        used_custom_fragment += custom_fragments
-
-    if len(node.inputs) == 3:
-        rounding_mode = node.inputs[2].data
-
-    if len(node.inputs) == 3 or io_casting_with_dtype is not None:
-        suffix_div_op_output = "div"
-
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "div",
-        inputs=(
-            input_tensor,
-            divisor_tensor,
-        ),
-        output_tensor_name_suffix=suffix_div_op_output,
-    )
-
-    if rounding_mode:
-        out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            rounding_mode,
-            inputs=out,
-            output_tensor_name_suffix=""
-            if io_casting_with_dtype is None
-            else rounding_mode,
-        )
-        if rounding_mode == "trunc":
-            used_custom_fragment.append(rounding_mode)
-
-    if io_casting_with_dtype is not None:
-        if nnef_spec_strict:
-            raise TorchToNNEFNotImplementedError(
-                "What NNEF compliance mean in such case ?"
-            )
-        _, custom_fragments = _cast_to_if_not_dtype_and_variable(
-            g=g,
-            node=node,
-            name_to_tensor=name_to_tensor,
-            nnef_tensor=out,
-            cast_to=io_casting_with_dtype,
-        )
-        used_custom_fragment += custom_fragments
-    return list(set(used_custom_fragment))
-
-
-def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    input_node, divisor_node = node.inputs
-    for c_node in [input_node, divisor_node]:
-        c_node.cast_float_inplace()
-
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    divisor_tensor = get_or_add_tensor_variable_in_nnef(
-        g, divisor_node, name_to_tensor
-    )
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "div",
-        inputs=(
-            input_tensor,
-            divisor_tensor,
-        ),
-        output_tensor_name_suffix="div",
-    )
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "trunc",
-        inputs=out,
-    )
-    return ["trunc"]
-
-
-def trunc(g, node, name_to_tensor, **kwargs):
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "trunc",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, node.inputs[0], name_to_tensor
-        ),
-    )
-    return ["trunc"]
-
-
 def flatten(g, node, name_to_tensor, **kwargs):
     """
     Using NNEF:
@@ -722,66 +542,6 @@ def pow_(g, node, name_to_tensor, **kwargs):
         op_type,
         inputs=inputs,
     )
-
-
-def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    (
-        input_node,
-        scale_node,
-        zero_point_node,
-        dtype_node,
-    ) = node.inputs
-    assert dtype_node.data == 13, "is not expected quint8"
-    input_node = node.inputs[0]
-    tensor = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    quant_infos = {
-        "zero_point": zero_point_node.data,
-        "scale": scale_node.data,
-        "bits": 8,
-        "signed": False,
-        "symmetric": False,
-        "op-name": "zero_point_linear_quantize",
-    }
-    if nnef_spec_strict:
-        LOGGER.debug(
-            "quantize with nnef_spec_strict: set quant info on direct output"
-        )
-        tensor.quant = quant_infos
-        return []
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_cast",
-        inputs=tensor,
-    )
-    out.quant = quant_infos
-    return ["tract_core"]
-
-
-def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    """
-    We will only handle the case of zero_point affine quantization for now.
-    which in reverse of quantization is:
-
-       (x - zero_point) * scale
-    """
-    input_node = node.inputs[0]
-    nnef_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "What NNEF compliance mean in such case"
-        )
-    _, fragment_names = _cast_to_if_not_dtype_and_variable(
-        g,
-        name_to_tensor,
-        node,
-        nnef_tensor,
-        cast_to=np.float32,
-    )
-    return fragment_names
 
 
 def transpose(g, node, name_to_tensor, **kwargs):
@@ -931,132 +691,6 @@ def squeeze(g, node, name_to_tensor, **kwargs):
         ),
         attrs={"axes": [pick_rank(input_node, dim)]},
         pass_quantization_params=True,
-    )
-
-
-def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
-    (input_node, axis_node, keep_dim_node) = node.inputs
-
-    keep_dim = keep_dim_node.data
-
-    onode = node.outputs[output_idx]
-    out = add_tensor_variable_node_as_nnef_tensor(
-        g,
-        onode,
-        name_to_tensor,
-        prevent_variable=True,
-    )
-    op_reduce_out = None
-    if not keep_dim:
-        # apply squeeze
-        op_reduce_out_name = f"{onode.export_name}_{aten_op_name}"
-        op_reduce_out = NTensor(
-            g,
-            op_reduce_out_name,
-            dtype=onode.np_dtype,
-            shape=onode.shape,
-        )
-        name_to_tensor[op_reduce_out_name] = op_reduce_out
-
-    # can be either 1 or n axes {
-    if isinstance(axis_node.data, int):
-        axes = [pick_rank(input_node, axis_node.data)]
-    else:
-        axes = [pick_rank(input_node, _) for _ in axis_node.data]
-    #  }
-    attribs = {"axes": axes}
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type=aten_op_name,
-        name=f"{onode.export_name}_{aten_op_name}",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        outputs=out if keep_dim else op_reduce_out,
-        attribs=attribs,
-    )
-    if not keep_dim:
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type="squeeze",
-            name=f"{onode.export_name}_squeeze",
-            inputs=op_reduce_out,
-            outputs=out,
-            attribs=attribs,
-        )
-
-
-def mean(g, node, name_to_tensor, **kwargs):
-    _reducer("mean_reduce", g, node, name_to_tensor)
-
-
-def reduce_sum(g, node, name_to_tensor, **kwargs):
-    _reducer("sum_reduce", g, node, name_to_tensor)
-
-
-def argmax(g, node, name_to_tensor, **kwargs):
-    _reducer("argmax_reduce", g, node, name_to_tensor)
-
-
-def argmin(g, node, name_to_tensor, **kwargs):
-    _reducer("argmin_reduce", g, node, name_to_tensor)
-
-
-def reduce_any(g, node, name_to_tensor, **kwargs):
-    assert len(node.outputs) == 1
-    _reducer("any_reduce", g, node, name_to_tensor)
-
-
-def reduce_all(g, node, name_to_tensor, **kwargs):
-    assert len(node.outputs) == 1
-    _reducer("all_reduce", g, node, name_to_tensor)
-
-
-def reduce_max(g, node, name_to_tensor, **kwargs):
-    n_outputs = len(node.outputs)
-    if n_outputs > 2:
-        raise TorchToNNEFNotImplementedError(
-            f"unknown 'max' variant with {n_outputs} outputs used"
-        )
-    _reducer("max_reduce", g, node, name_to_tensor)
-    if n_outputs == 2:
-        _reducer("argmax_reduce", g, node, name_to_tensor, output_idx=1)
-
-
-def reduce_min(g, node, name_to_tensor, **kwargs):
-    n_outputs = len(node.outputs)
-    if n_outputs > 2:
-        raise TorchToNNEFNotImplementedError(
-            f"unknown 'min' variant with {n_outputs} outputs used"
-        )
-    _reducer("min_reduce", g, node, name_to_tensor)
-    if n_outputs == 2:
-        _reducer("argmin_reduce", g, node, name_to_tensor, output_idx=1)
-
-
-def max_(g, node, name_to_tensor, null_ref, **kwargs):
-    if isinstance(node.inputs[1], PythonConstant):
-        return reduce_max(g, node, name_to_tensor)
-    return unary_output_op_without_params(
-        nnef_op_type="max",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
-
-
-def min_(g, node, name_to_tensor, null_ref, **kwargs):
-    if isinstance(node.inputs[1], PythonConstant):
-        return reduce_min(g, node, name_to_tensor)
-    return unary_output_op_without_params(
-        nnef_op_type="min",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
     )
 
 
@@ -1222,136 +856,6 @@ def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
-def pad(node, **kwargs):
-    kind = node.inputs.pop(2)
-    if kind.data == "constant":
-        return constant_pad_nd(node=node, **kwargs)
-    if kind.data in ["reflection", "reflect"]:  # pre 1.12.0  # post 1.12.0
-        node.inputs = node.inputs[:2]
-        return reflection_padnd(node=node, **kwargs)
-    if kind.data == "replicate":
-        node.inputs = node.inputs[:2]
-        return replication_padnd(node=node, **kwargs)
-    raise TorchToNNEFNotImplementedError(
-        f"pad kind={kind.data} not implemented"
-    )
-
-
-def reflection_padnd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
-):
-    (input_node, pads_node) = node.inputs
-    pads = get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
-    )
-    assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="pad",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"padding": pads, "border": "reflect"},
-    )
-
-
-def replication_padnd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
-):
-    (input_node, pads_node) = node.inputs
-    pads = get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
-    )
-    assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="pad",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"padding": pads, "border": "replicate"},
-    )
-
-
-def constant_pad_nd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
-):
-    (input_node, pads_node, value_node) = node.inputs
-    pads = get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
-    )
-    assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
-    value = value_node.data
-    if value is None:
-        value = 0  # add default value if not set
-    # ensure cast to same dtype as output
-    value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="pad",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"padding": pads, "value": value},
-    )
-
-
-def where(g, node, name_to_tensor, **kwargs):
-    (condition_node, true_value_node, false_value_node) = node.inputs
-
-    inputs = []
-    for snode in [condition_node, true_value_node, false_value_node]:
-        name = snode.export_name
-        if name in name_to_tensor:
-            inputs.append(name_to_tensor[name])
-        else:
-            snode_ref = add_tensor_variable_node_as_nnef_tensor(
-                name_suffix=name,
-                node=snode,
-                g=g,
-                name_to_tensor=name_to_tensor,
-            )
-            inputs.append(snode_ref)
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type="select",
-        inputs=inputs,
-    )
-
-
 def matmul(g, node, name_to_tensor, **kwargs):
     (
         input_node,
@@ -1478,217 +982,6 @@ def chunk(g, node, name_to_tensor, **kwargs):
         current_dim_elm_idx += n_elements
 
 
-def _expand_build_repeats(g, name_to_tensor, input_node, shape_node, shapes):
-    repeats = []
-    for input_dim, shape_dim in zip(
-        input_node.shape, shapes[-len(input_node.shape) :]
-    ):
-        if shape_dim in [-1, input_dim]:
-            repeats.append(1)
-        else:
-            if input_dim > 1:
-                if isinstance(shape_dim, nnef.Identifier):
-                    output_tensor = add_tensor_variable_node_as_nnef_tensor(
-                        g,
-                        TensorVariable(
-                            name=f"{shape_dim}_expand_divided",
-                            data=None,
-                            shape=list(name_to_tensor[shape_dim].shape),
-                            dtype=NUMPY_TO_TORCH_DTYPE[
-                                name_to_tensor[shape_dim].dtype
-                            ],
-                        ),
-                        name_to_tensor,
-                        name_suffix="",
-                        prevent_variable=True,
-                    )
-                    cast_and_add_nnef_operation(
-                        name_to_tensor=name_to_tensor,
-                        graph=g,
-                        type="div",
-                        inputs=(
-                            name_to_tensor[shape_dim],
-                            get_or_add_tensor_variable_in_nnef(
-                                g,
-                                TensorVariable(
-                                    name=f"{shape_dim}_expand_divisor",
-                                    data=torch.tensor(
-                                        input_dim, dtype=torch.int32
-                                    ),
-                                    dtype=torch.int32,
-                                    shape=[1],
-                                ),
-                                name_to_tensor,
-                            ),
-                        ),
-                        outputs=tuple([output_tensor]),
-                        attribs={},
-                    )
-                    repeats.append(nnef.Identifier(output_tensor.name))
-                else:
-                    repeats.append(int(shape_dim / input_dim))
-            else:
-                # div per 1 hence shape_dim
-                repeats.append(shape_dim)
-
-    if len(shape_node.data) - input_node.rank > 0:
-        base_mul = 1
-        mul_to_ids = []
-        for val in shape_node.data[: -input_node.rank]:
-            if isinstance(val, TensorVariable):
-                mul_to_ids.append(val)
-            else:
-                base_mul *= val
-        if mul_to_ids:
-            if base_mul == 1 and len(mul_to_ids) == 1:
-                base_mul = nnef.Identifier(mul_to_ids[0].export_name)
-            else:
-                raise TorchToNNEFNotImplementedError(
-                    "In such case would need to apply mul chain ops "
-                    "and replace base_mul with related assigned symbol"
-                )
-        repeats.insert(0, base_mul)
-    return repeats
-
-
-def narrow(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
-    """Fancy slice made in PyTorch
-
-    torch.narrow(input, dim, start, length)
-
-    example:
-
-    >>> x = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    >>> torch.narrow(x, 0, 0, 2)
-        tensor([[ 1,  2,  3],
-                [ 4,  5,  6]])
-
-    """
-    input_node, axis_node, start_node, length_node = node.inputs
-
-    assert isinstance(axis_node.data, int)
-    assert isinstance(start_node.data, int)
-    assert isinstance(length_node.data, int)
-    assert length_node.data > 0
-
-    start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
-
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
-            "begin": [start_idx],
-            "end": [start_idx + length_node.data],
-            "stride": [1],
-        },
-        pass_quantization_params=True,
-    )
-
-
-def expand(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
-    """
-    Illustration of expand:
-        torch.arange(9).reshape(3, 3).expand(2, 3, 3)
-
-        Out[4]:
-        tensor([[[0, 1, 2],
-                 [3, 4, 5],
-                 [6, 7, 8]],
-
-                [[0, 1, 2],
-                 [3, 4, 5],
-                 [6, 7, 8]]])
-
-    which can be re-expressed as:
-        torch.arange(9).reshape(3, 3).repeat(2).reshape(2, 3, 3)
-
-    this allows us to express it as a NNEF tile followed by a reshape.
-
-    """
-    (input_node, shape_node) = node.inputs
-
-    shapes = []
-    for dim in shape_node.data:
-        if isinstance(dim, PythonConstant):
-            dim = dim.data
-        elif isinstance(dim, TensorVariable):
-            if nnef_spec_strict or not has_dynamic_axes:
-                dim = int(dim.data)
-            else:
-                dim = nnef.Identifier(dim.export_name)
-        shapes.append(dim)
-
-    repeats = _expand_build_repeats(
-        g, name_to_tensor, input_node, shape_node, shapes
-    )
-
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tile",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={"repeats": repeats},
-        output_tensor_name_suffix="repeat",
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "reshape",
-        inputs=out,
-        attrs={"shape": fill_negone_with_dim_by_rank_order(input_node, shapes)},
-    )
-
-
-def select(g, node, name_to_tensor, **kwargs):
-    input_node, axis_node, index_node = node.inputs
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
-        attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
-            "begin": [
-                pick_value_in_rank(input_node, axis_node.data, index_node.data)
-            ],
-            "end": [
-                pick_value_in_rank(
-                    input_node, axis_node.data, index_node.data + 1
-                )
-            ],
-            "stride": [1],
-        },
-        output_tensor_name_suffix="_select",
-        pass_quantization_params=True,
-    )
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "squeeze",
-        inputs=out,
-        attrs={"axes": [pick_rank(input_node, axis_node.data)]},
-        pass_quantization_params=True,
-    )
-
-
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     add_single_output_op(
@@ -1703,45 +996,6 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["baddbmm"]
-
-
-def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    """
-    fragment gather<?>(
-        input: tensor<?>,                 # the tensor to gather from
-        indices: tensor<integer>,         # the indices to gather at
-        axis: integer = 0 )               # the axis to gather at
-    -> ( output: tensor<?> )
-    """
-    # gather
-    input_node, indexes_node = node.inputs
-    # input_node = TensorVariable([?], shape=(169,4))
-    # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
-    if len(indexes_node.data) > 1:
-        raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
-
-    custom_fragments = []
-    if nnef_spec_strict:
-        op_name = "gather"
-    else:
-        op_name = "tract_core_gather"
-        custom_fragments += ["tract_core"]
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        op_name,
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            get_or_add_tensor_variable_in_nnef(
-                g, indexes_node.data[0], name_to_tensor
-            ),
-        ],
-        attrs={
-            "axis": 0,
-        },
-    )
-    return custom_fragments
 
 
 def remainder(g, node, name_to_tensor, torch_graph, **kwargs):

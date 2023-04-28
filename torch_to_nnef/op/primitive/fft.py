@@ -34,7 +34,7 @@ def _fft(
     )
     if input_node.dtype in [torch.float32, torch.float64]:
         """# sadly casting is not implemented in tract so we use another way
-        casted_complex_input_tensor, _ = _cast_to_if_not_dtype_and_variable(
+        casted_complex_input_tensor, _ = cast_to_if_not_dtype_and_variable(
             g,
             name_to_tensor,
             node,
