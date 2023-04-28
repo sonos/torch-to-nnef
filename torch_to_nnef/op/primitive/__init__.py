@@ -6,7 +6,6 @@ import nnef
 import numpy as np
 import torch
 from nnef_tools.model import Graph as NGraph
-from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
@@ -16,6 +15,20 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.op.primitive.base import (
+    add_multi_output_op,
+    add_nnef_operation,
+    add_single_output_op,
+    add_tensor_variable_node_as_nnef_tensor,
+    cast_and_add_nnef_operation,
+    get_or_add_tensor_variable_in_nnef,
+    pick_rank,
+    pick_value_in_rank,
+    unary_input_output_op_with_constant,
+    unary_output_op_without_params,
+)
+from torch_to_nnef.op.primitive.complex import view_as_complex, view_as_real
+from torch_to_nnef.op.primitive.fft import fft_fft, fft_ifft, stft
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -23,6 +36,15 @@ from torch_to_nnef.torch_graph import (
     TensorVariable,
 )
 from torch_to_nnef.tract import tract_version_lower_than
+
+# silence pyflakes {}
+assert view_as_complex
+assert view_as_real
+assert fft_fft
+assert fft_ifft
+assert stft
+# }
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,127 +118,6 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
 ]
 
 
-def add_nnef_operation(
-    graph, inputs, *args, force_consistent_inputs_shapes: bool = True, **kwargs
-):
-    if (
-        isinstance(inputs, (list, tuple))
-        and len(inputs) >= 2
-        and force_consistent_inputs_shapes
-    ):
-        inputs = maybe_unsqueeze_to_consistent_inputs_ranks(graph, inputs)
-    kwargs["graph"] = graph
-    kwargs["inputs"] = inputs
-    return NOperation(*args, **kwargs)
-
-
-def add_tensor_variable_node_as_nnef_tensor(
-    g: NGraph,
-    node: TensorVariable,
-    name_to_tensor: T.Dict[str, NTensor],
-    name_suffix: str = "",
-    prevent_variable: bool = False,
-    force_full_output_tensor_name: T.Optional[str] = None,
-):
-    """Create NNEF tensor and register in graph from torch_graph.Data node
-
-    It automatically adds variable if node is a torch tensor is associated
-    (it avoids bloating nnef graph file with matrix values)
-
-    """
-    if force_full_output_tensor_name:
-        name = force_full_output_tensor_name
-    else:
-        name = node.export_name
-        if name_suffix:
-            name += f"_{name_suffix}"
-
-    nnef_tensor_ref = NTensor(
-        g,
-        name,
-        dtype=node.np_dtype,
-        shape=node.shape,
-    )
-    if node.data is not None:
-        nnef_tensor_ref.data = node.data.detach().numpy()
-        nnef_tensor_ref.shape = tuple(node.data.shape)
-        if not prevent_variable and (
-            len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
-        ):
-            add_nnef_operation(
-                graph=g,
-                type="variable",
-                inputs=None,
-                outputs=nnef_tensor_ref,
-                attribs={
-                    "label": nnef_tensor_ref.name,
-                    "shape": list(nnef_tensor_ref.shape),
-                    "dtype": nnef_tensor_ref.dtype,
-                },
-            )
-
-    name_to_tensor[name] = nnef_tensor_ref
-    return nnef_tensor_ref
-
-
-def maybe_unsqueeze_to_consistent_inputs_ranks(g, nnef_tensors):
-    """May unsqueeze at 0 rank n time to ensure consistent rank between inputs
-
-    This is done at export time and not inference time because:
-    inference implementation may use 1 dim expansion from left to right
-    like Tract or Tensorflow
-    instead of Pytorch expansion which happen in opposite direction.
-
-    """
-    tensors_ranks = [len(_.shape) for _ in nnef_tensors]
-    if len(set(tensors_ranks)) > 1:
-        reference_rank = max(tensors_ranks)
-        new_nnef_tensors = []
-        for nnef_tensor in nnef_tensors:
-            original_rank = len(nnef_tensor.shape)
-            missing_dims = reference_rank - original_rank
-            if missing_dims > 0 and (
-                nnef_tensor.data is None or nnef_tensor.data.size != 1
-            ):
-                new_shape = list(nnef_tensor.shape)
-                new_shape = ([0] * missing_dims) + new_shape
-                unsqueeze_axes = [0] * missing_dims
-
-                output_nnef_tensor = NTensor(
-                    g,
-                    name=f"{nnef_tensor.name}_expanded",
-                    dtype=nnef_tensor.dtype,
-                    shape=tuple(new_shape),
-                )
-                NOperation(
-                    g,
-                    type="unsqueeze",
-                    attribs={"axes": unsqueeze_axes},
-                    inputs=nnef_tensor,
-                    outputs=output_nnef_tensor,
-                )
-                nnef_tensor = output_nnef_tensor
-            new_nnef_tensors.append(nnef_tensor)
-        nnef_tensors = tuple(new_nnef_tensors)
-    return nnef_tensors
-
-
-def get_or_add_tensor_variable_in_nnef(
-    g, node, name_to_tensor, name_suffix: str = ""
-) -> NTensor:
-    name = node.export_name
-    if name_suffix:
-        name += f"_{name_suffix}"
-
-    if name not in name_to_tensor:
-        if isinstance(node, PythonConstant):
-            node = node.into_tensor_variable()
-        add_tensor_variable_node_as_nnef_tensor(
-            g, node, name_to_tensor, name_suffix
-        )
-    return name_to_tensor[name]
-
-
 def external(
     g: NGraph, node: TensorVariable, name_to_tensor: T.Dict[str, NTensor]
 ):
@@ -235,24 +136,6 @@ def external(
         },
     )
     return nnef_tensor_ref
-
-
-def pick_rank(input_node, rank: int) -> int:
-    """Enforce that axis, axes ect does contains only positive values"""
-    if rank >= 0:
-        return rank
-    if isinstance(input_node, FixedTensorList):
-        base_rank = len(input_node.data)
-    else:
-        base_rank = input_node.rank
-    return base_rank + rank
-
-
-def pick_value_in_rank(input_node, rank: int, index: int) -> int:
-    """Enforce that index in axis does contains only positive values"""
-    if index >= 0:
-        return index
-    return input_node.shape[rank] + index
 
 
 def fill_negone_with_dim_by_rank_order(
@@ -296,215 +179,13 @@ def mul(g, node, name_to_tensor, **kwargs):
         inputs.append(
             get_or_add_tensor_variable_in_nnef(g, c_node, name_to_tensor)
         )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
         "mul",
         inputs=inputs,
     )
-
-
-def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
-    if not isinstance(value, bool) and isinstance(value, (int, float)):
-        if "e" in str(value):
-            # create a tensor to avoid issue with number formatting
-            # containing exp notation 'e'
-            nvalue = torch.from_numpy(np.array(value))
-            var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
-            return nnef.Identifier(
-                get_or_add_tensor_variable_in_nnef(
-                    g,
-                    TensorVariable(
-                        name=var_name,
-                        data=nvalue,
-                        shape=list(nvalue.shape),
-                        dtype=nvalue.dtype,
-                    ),
-                    name_to_tensor,
-                ).name
-            )
-    return value
-
-
-def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
-    """Catch all input or attr that would still be torch_graph values into NNEF"""
-    casted_inputs = []
-    casted_attrs = {}
-
-    def cast(value):
-        if isinstance(value, (int, str, float, NTensor)):
-            return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
-        elif isinstance(value, TensorVariable):
-            return nnef.Identifier(
-                get_or_add_tensor_variable_in_nnef(
-                    g, value, name_to_tensor
-                ).name
-            )
-        elif isinstance(value, PythonConstant):
-            return value.data
-        elif isinstance(value, list):
-            return [cast(v) for v in value]
-        elif isinstance(value, tuple):
-            return tuple(cast(v) for v in value)
-        elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
-            return value
-        elif isinstance(value, torch.Tensor):
-            nvalue = value.numpy()
-            if nvalue.shape == ():
-                nvalue = nvalue.tolist()
-            return _prevent_raw_number_with_e_notation(
-                g, name_to_tensor, nvalue
-            )
-        raise TorchToNNEFNotImplementedError(
-            f"Wrong {value} value of type: {type(value)}"
-        )
-
-    if isinstance(inputs, (tuple, list)):
-        for inp in inputs:
-            casted_inputs.append(cast(inp))
-        casted_inputs = tuple(casted_inputs)
-
-        if isinstance(inputs, list):  # some case need list of args as 1st arg
-            casted_inputs = list(inputs)
-    else:
-        casted_inputs = cast(inputs)
-
-    if attrs:
-        for attr_name, attr_value in attrs.items():
-            casted_attrs[attr_name] = cast(attr_value)
-
-    return casted_inputs, casted_attrs
-
-
-def cast_and_add_nnef_operation(name_to_tensor, **kwargs):
-    """ensure to cast parameters before adding operation to NNEF graph"""
-    kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
-        kwargs["inputs"],
-        kwargs["attribs"],
-        kwargs["graph"],
-        name_to_tensor,
-    )
-    return add_nnef_operation(**kwargs)
-
-
-def _add_single_output_op(
-    g,
-    node,
-    name_to_tensor,
-    nnef_op_type,
-    inputs,
-    attrs=None,
-    ensure_tuple=True,
-    output_tensor_name_suffix: str = "",
-    pass_quantization_params: bool = False,
-    force_full_output_tensor_name: T.Optional[str] = None,
-) -> NTensor:
-    assert len(node.outputs) == 1
-    out = add_tensor_variable_node_as_nnef_tensor(
-        g,
-        node.outputs[0],
-        name_to_tensor,
-        name_suffix=output_tensor_name_suffix,
-        prevent_variable=True,
-        force_full_output_tensor_name=force_full_output_tensor_name,
-    )
-    if isinstance(inputs, list) and ensure_tuple:
-        inputs = tuple(inputs)
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type=nnef_op_type,
-        inputs=inputs,
-        outputs=tuple([out]),
-        attribs=attrs or {},
-    )
-    if pass_quantization_params:
-        input_quants = (
-            inputs if isinstance(inputs, NTensor) else inputs[0]
-        ).quant
-        if input_quants:
-            out.quant = input_quants
-    return out
-
-
-def _add_multi_output_op(
-    g,
-    node,
-    name_to_tensor,
-    nnef_op_type,
-    inputs,
-    attrs=None,
-    ensure_tuple=True,
-    output_tensor_name_suffix: str = "",
-):
-    if len(node.outputs) == 1:
-        LOGGER.debug(
-            "Obverved multi to be single output "
-            "(which may be normal depending on graph)"
-        )
-    output_tensors = []
-    for out_node in node.outputs:
-        out = add_tensor_variable_node_as_nnef_tensor(
-            g,
-            out_node,
-            name_to_tensor,
-            name_suffix=output_tensor_name_suffix,
-            prevent_variable=True,
-        )
-        output_tensors.append(out)
-
-    if isinstance(inputs, list) and ensure_tuple:
-        inputs = tuple(inputs)
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type=nnef_op_type,
-        inputs=inputs,
-        outputs=tuple(output_tensors),
-        attribs=attrs or {},
-    )
-    return output_tensors
-
-
-def _unary_output_op_without_params(
-    nnef_op_type: str, g, node, name_to_tensor, null_ref, **kwargs
-):
-    _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        nnef_op_type=nnef_op_type,
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            if _ and not (isinstance(_.data, str) and _.data == "none")
-            else null_ref
-            for _ in node.inputs
-        ],
-    )
-
-
-def _unary_input_output_op_with_constant(nnef_op_type, **kwargs):
-    # avoid unpacking then repacking {
-    g = kwargs["g"]
-    node = kwargs["node"]
-    name_to_tensor = kwargs["name_to_tensor"]
-    # }
-    for const in node.inputs[1:]:
-        if isinstance(const, PythonConstant):
-            data = np.array(const.data)
-        else:
-            data = const.data.numpy()
-        nptype = data.dtype.type
-
-        name_to_tensor[const.export_name] = NTensor(
-            g,
-            const.export_name,
-            data=data,
-            dtype=nptype,
-            shape=data.shape,
-        )
-    return _unary_output_op_without_params(nnef_op_type, **kwargs)
 
 
 def _weight_bias_and_output_tensor(
@@ -552,7 +233,7 @@ def softmax(**kwargs):
 
     # enforce use of positive rank
     node.inputs[1].data = pick_rank(node.inputs[0], node.inputs[1].data)
-    return _unary_input_output_op_with_constant("softmax", **kwargs)
+    return unary_input_output_op_with_constant("softmax", **kwargs)
 
 
 def softplus(**kwargs):
@@ -576,7 +257,7 @@ def softplus(**kwargs):
             " would need use of a specific fragment"
         )
     node.inputs = node.inputs[:1]
-    return _unary_output_op_without_params("softplus", **kwargs)
+    return unary_output_op_without_params("softplus", **kwargs)
 
 
 def elu(**kwargs):
@@ -584,7 +265,7 @@ def elu(**kwargs):
     node = kwargs["node"]
     # }
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_input_output_op_with_constant("elu", **kwargs)
+    return unary_input_output_op_with_constant("elu", **kwargs)
 
 
 def leaky_relu(**kwargs):
@@ -592,7 +273,7 @@ def leaky_relu(**kwargs):
     node = kwargs["node"]
     # }
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_input_output_op_with_constant("leaky_relu", **kwargs)
+    return unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
 def prelu(**kwargs):
@@ -600,21 +281,21 @@ def prelu(**kwargs):
     node = kwargs["node"]
     # }
     node.inputs = node.inputs[:2]  # remove inplace param
-    return _unary_input_output_op_with_constant("prelu", **kwargs)
+    return unary_input_output_op_with_constant("prelu", **kwargs)
 
 
 def selu(**kwargs):
-    _unary_input_output_op_with_constant("selu", **kwargs)
+    unary_input_output_op_with_constant("selu", **kwargs)
     return ["selu"]
 
 
 def silu(**kwargs):
-    _unary_input_output_op_with_constant("silu", **kwargs)
+    unary_input_output_op_with_constant("silu", **kwargs)
     return ["silu"]
 
 
 def gelu(g, node, name_to_tensor, null_ref, **kwargs):
-    _unary_output_op_without_params(
+    unary_output_op_without_params(
         "gelu",
         g=g,
         node=node,
@@ -626,7 +307,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 
 def erf(g, node, name_to_tensor, null_ref, **kwargs):
     """Op should be added to tract-nnef eventualy"""
-    _unary_output_op_without_params(
+    unary_output_op_without_params(
         "erf",
         g=g,
         node=node,
@@ -647,7 +328,7 @@ def norm(g, node, name_to_tensor, **kwargs):
         )
 
     custom_fragment_name = f"norm_p{p_node.data}"
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -659,7 +340,7 @@ def norm(g, node, name_to_tensor, **kwargs):
         output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
     )
     if not keep_dim_node.data:
-        _add_single_output_op(
+        add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -676,7 +357,7 @@ def norm(g, node, name_to_tensor, **kwargs):
 def hardtanh(**kwargs):
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # remove inplace param
-    _unary_input_output_op_with_constant("hard_tanh", **kwargs)
+    unary_input_output_op_with_constant("hard_tanh", **kwargs)
     return ["hard_tanh"]
 
 
@@ -687,7 +368,7 @@ def log_softmax(**kwargs):
     input_node, axis_node = node.inputs
     assert isinstance(axis_node.data, int)
     axis_node.data = pick_rank(input_node, axis_node.data)
-    _unary_input_output_op_with_constant("log_softmax", **kwargs)
+    unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
 
 
@@ -697,9 +378,9 @@ def round_(nnef_spec_strict, **kwargs):
             "round: Spec definition of round in NNEF does not follow IEEE, "
             "so it will not be exactly same behavior"
         )
-        _unary_input_output_op_with_constant("round", **kwargs)
+        unary_input_output_op_with_constant("round", **kwargs)
         return []
-    _unary_input_output_op_with_constant("tract_core_round_even", **kwargs)
+    unary_input_output_op_with_constant("tract_core_round_even", **kwargs)
     return ["tract_core"]
 
 
@@ -725,7 +406,7 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -866,7 +547,7 @@ def _pooling_op(
         else:
             padding = ([0] * missing_n_dims) + padding
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1113,7 +794,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
         missing_n_dims = onode.rank - len(stride)
         stride = ([1] * missing_n_dims) + stride
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1223,7 +904,7 @@ def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         accept_none=1,
         has_dynamic_axes=has_dynamic_axes,
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1250,7 +931,7 @@ def _cast_to_if_not_dtype_and_variable(
     issues.
 
     """
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1306,7 +987,7 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     if len(node.inputs) == 3 or io_casting_with_dtype is not None:
         suffix_div_op_output = "div"
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1319,7 +1000,7 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
     if rounding_mode:
-        out = _add_single_output_op(
+        out = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -1359,7 +1040,7 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     divisor_tensor = get_or_add_tensor_variable_in_nnef(
         g, divisor_node, name_to_tensor
     )
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1370,7 +1051,7 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         ),
         output_tensor_name_suffix="div",
     )
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1381,7 +1062,7 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 def trunc(g, node, name_to_tensor, **kwargs):
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1405,7 +1086,7 @@ def flatten(g, node, name_to_tensor, **kwargs):
     """
     (input_node, _, _) = node.inputs  # start_dim_name  # end_dim_name
     onode = node.outputs[0]
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1442,7 +1123,7 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
     if nnef_spec_strict:
         raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1480,7 +1161,7 @@ def pow_(g, node, name_to_tensor, **kwargs):
             get_or_add_tensor_variable_in_nnef(g, exponent_node, name_to_tensor)
         ]
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1513,7 +1194,7 @@ def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         )
         tensor.quant = quant_infos
         return []
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1563,7 +1244,7 @@ def transpose(g, node, name_to_tensor, **kwargs):
         else:
             new_dims_ranks.append(_)
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1578,7 +1259,7 @@ def transpose(g, node, name_to_tensor, **kwargs):
 
 def permute(g, node, name_to_tensor, **kwargs):
     (input_node, dims_node) = node.inputs
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1610,7 +1291,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
         )
         inputs.append(tensor_ref)
     axis = pick_rank(input_node.data[0], dim)
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1639,7 +1320,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1653,7 +1334,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
 def unbind(g, node, name_to_tensor, **kwargs):
     """unbind is `unstack` in NNEF"""
     input_node, axis_node = node.inputs
-    _add_multi_output_op(
+    add_multi_output_op(
         g,
         node,
         name_to_tensor,
@@ -1670,7 +1351,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
 
     dim = axis_node.data
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1686,7 +1367,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
 def squeeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1804,7 +1485,7 @@ def reduce_min(g, node, name_to_tensor, **kwargs):
 def max_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_max(g, node, name_to_tensor)
-    return _unary_output_op_without_params(
+    return unary_output_op_without_params(
         nnef_op_type="max",
         g=g,
         node=node,
@@ -1816,7 +1497,7 @@ def max_(g, node, name_to_tensor, null_ref, **kwargs):
 def min_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_min(g, node, name_to_tensor)
-    return _unary_output_op_without_params(
+    return unary_output_op_without_params(
         nnef_op_type="min",
         g=g,
         node=node,
@@ -1827,7 +1508,7 @@ def min_(g, node, name_to_tensor, null_ref, **kwargs):
 
 def repeat(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -1920,7 +1601,7 @@ def size(
     if shape_tensor_name in name_to_tensor:
         out = name_to_tensor[shape_tensor_name]
     else:
-        out = _add_single_output_op(
+        out = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -1933,7 +1614,7 @@ def size(
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:
-        _add_single_output_op(
+        add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -1975,7 +1656,7 @@ def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         has_dynamic_axes=has_dynamic_axes,
         force_none_as_tensor_ref=True,
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2018,7 +1699,7 @@ def reflection_padnd(
     onode = node.outputs[0]
     if len(pads) < onode.rank:
         pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2046,7 +1727,7 @@ def replication_padnd(
     onode = node.outputs[0]
     if len(pads) < onode.rank:
         pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2079,7 +1760,7 @@ def constant_pad_nd(
     onode = node.outputs[0]
     if len(pads) < onode.rank:
         pads = [[0, 0]] * (onode.rank - len(pads)) + pads
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2108,7 +1789,7 @@ def where(g, node, name_to_tensor, **kwargs):
             )
             inputs.append(snode_ref)
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2123,7 +1804,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
         other_node,
     ) = node.inputs
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2225,7 +1906,7 @@ def masked_fill(g, node, name_to_tensor, **kwargs):
         get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
         for _ in [condition_node, true_value_node, false_value_node]
     ]
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2403,7 +2084,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     if has_affine:
         op_name = "layer_norm_with_affine"
         inputs += [weight_node, bias_node]
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2517,7 +2198,7 @@ def narrow(
 
     start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
 
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2574,7 +2255,7 @@ def expand(
         g, name_to_tensor, input_node, shape_node, shapes
     )
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2585,7 +2266,7 @@ def expand(
         attrs={"repeats": repeats},
         output_tensor_name_suffix="repeat",
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2597,7 +2278,7 @@ def expand(
 
 def glu(g, node, name_to_tensor, **kwargs):
     input_node, axis_node = node.inputs
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2621,7 +2302,7 @@ def clamp_min(g, node, name_to_tensor, **kwargs):
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2642,7 +2323,7 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2663,7 +2344,7 @@ def clamp(g, node, name_to_tensor, **kwargs):
         g, input_node, name_to_tensor
     )
     if min_clamp.data:
-        output = _add_single_output_op(
+        output = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2679,7 +2360,7 @@ def clamp(g, node, name_to_tensor, **kwargs):
         input_tensor = output
 
     if max_clamp.data:
-        _add_single_output_op(
+        add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2725,7 +2406,7 @@ def group_norm(g, node, name_to_tensor, **kwargs):
     )
 
     # x.reshape(3, 1* 2* 2).mean_or_std(dim=1).repeat(2, 1).t().reshape(6)
-    _add_single_output_op(
+    add_single_output_op(
         g=g,
         name_to_tensor=name_to_tensor,
         node=node,
@@ -2748,7 +2429,7 @@ def group_norm(g, node, name_to_tensor, **kwargs):
 
 def select(g, node, name_to_tensor, **kwargs):
     input_node, axis_node, index_node = node.inputs
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2771,7 +2452,7 @@ def select(g, node, name_to_tensor, **kwargs):
         output_tensor_name_suffix="_select",
         pass_quantization_params=True,
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2784,7 +2465,7 @@ def select(g, node, name_to_tensor, **kwargs):
 
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2819,7 +2500,7 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     else:
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2850,7 +2531,7 @@ def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
             ),
         )
         return []
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2880,7 +2561,7 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
             ),
         )
         return []
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -2910,7 +2591,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             maxsize = input_node.shape[dim]
         else:
             raise TorchToNNEFNotImplementedError("Should use shape_of")
-        shape_out = _add_single_output_op(
+        shape_out = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2925,7 +2606,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             output_tensor_name_suffix=f"roll_l{i}_p1",
         )
         tensor_chunks.append(shape_out)
-        shape_out = _add_single_output_op(
+        shape_out = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2941,7 +2622,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
         )
         tensor_chunks.append(shape_out)
         # result = g.op("Concat", *shapes, axis_i=dims[i])
-        input_tensor = _add_single_output_op(
+        input_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -2954,334 +2635,6 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             else f"roll_{i}",
         )
     return []
-
-
-def _fft(
-    node, g, name_to_tensor, nnef_spec_strict, has_dynamic_axes, inverse=False
-):
-    # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
-    # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("NNEF strict can not export FFT")
-    input_node, n_node, dim_node, norm_node = node.inputs
-    if n_node.data is not None or norm_node.data is not None:
-        raise TorchToNNEFNotImplementedError("n or norm unexpected")
-
-    dim = pick_rank(input_node, dim_node.data)
-
-    nnef_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    if input_node.dtype in [torch.float32, torch.float64]:
-        """# sadly casting is not implemented in tract so we use another way
-        casted_complex_input_tensor, _ = _cast_to_if_not_dtype_and_variable(
-            g,
-            name_to_tensor,
-            node,
-            nnef_tensor=nnef_tensor,
-            cast_to=np.complex64,
-            suffix="precast_complex",
-        )
-        """
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "unsqueeze",
-            inputs=nnef_tensor,
-            attrs={"axes": [pick_rank(input_node, -1) + 1]},
-            pass_quantization_params=True,
-            output_tensor_name_suffix="complex_cast_unsqueze",
-        )
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="pad",
-            inputs=output_nnef_tensor,
-            attrs={
-                "padding": [(0, 0)] * input_node.rank + [(0, 1)],
-                "value": 0.0,
-            },
-            output_tensor_name_suffix="complex_cast_pad",
-        )
-        casted_complex_input_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_inner_dim_to_complex",
-            inputs=output_nnef_tensor,
-            pass_quantization_params=True,
-            output_tensor_name_suffix="complex_cast",
-        )
-    elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise TorchToNNEFNotImplementedError()
-    else:
-        casted_complex_input_tensor = nnef_tensor
-
-    suffix = None
-    if inverse and norm_node.data is None:
-        # backward by default means 1/n
-        suffix = "need_norm"
-        norm_node.data = "backward"
-
-    output_tensor = _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_fft",
-        inputs=casted_complex_input_tensor,
-        attrs={"axis": dim, "inverse": inverse},
-        output_tensor_name_suffix=suffix,
-    )
-    if inverse and norm_node.data == "backward":
-        if has_dynamic_axes:
-            raise TorchToNNEFNotImplementedError("Need to use implement")
-
-        divisor_value = input_node.shape[dim]
-        divisor_tensor = get_or_add_tensor_variable_in_nnef(
-            g,
-            PythonConstant(
-                name=output_tensor.name + "_divisor",
-                data=divisor_value,
-            ),
-            name_to_tensor,
-        )
-
-        # input_node, n_node, dim_node, norm_node = node.inputs
-        input_to_real_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_complex_to_inner_dim",
-            inputs=output_tensor,
-            output_tensor_name_suffix="cast_pre_norm_div",
-        )
-
-        real_normed_tensor_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "div",
-            inputs=(
-                input_to_real_tensor,
-                divisor_tensor,
-            ),
-            output_tensor_name_suffix="norm_div",
-        )
-        # retransform to complex
-        _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_inner_dim_to_complex",
-            inputs=real_normed_tensor_tensor,
-        )
-
-    return ["tract_core"]
-
-
-def stft(
-    g,
-    node,
-    name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
-    tract_feature_flags,
-    **kwargs,
-):
-    # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
-    # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "STFT not supported by vanilla NNEF"
-        )
-    (
-        input_node,  # Tensor
-        n_fft_node,  # int,
-        hop_length_node,  # Optional[int] = None
-        win_length_node,  # Optional[int] = None
-        window_node,  # Optional[Tensor] = None
-        normalized_node,  # bool = False
-        onesided_node,  # Optional[bool] = None
-        return_complex_node,  # Optional[bool] = None
-    ) = node.inputs
-    assert isinstance(n_fft_node.data, int)
-    assert isinstance(hop_length_node.data, int)
-    assert isinstance(win_length_node.data, int)
-    assert window_node.dtype == torch.float32 and window_node.shape == [
-        n_fft_node.data
-    ]
-    assert normalized_node.data is False
-
-    nnef_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    if input_node.dtype in [torch.float32, torch.float64]:
-        if input_node.shape[-1] == 1:
-            output_nnef_tensor = nnef_tensor
-        else:
-            output_nnef_tensor = _add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "unsqueeze",
-                inputs=nnef_tensor,
-                attrs={"axes": [pick_rank(input_node, -1) + 1]},
-                pass_quantization_params=True,
-                output_tensor_name_suffix="complex_cast_unsqueze",
-            )
-
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            nnef_op_type="pad",
-            inputs=output_nnef_tensor,
-            attrs={
-                "padding": [(0, 0)] * input_node.rank + [(0, 1)],
-                "value": 0.0,
-            },
-            output_tensor_name_suffix="complex_cast_pad",
-        )
-        casted_complex_input_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_inner_dim_to_complex",
-            inputs=output_nnef_tensor,
-            pass_quantization_params=True,
-            output_tensor_name_suffix="complex_cast",
-        )
-    elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise TorchToNNEFNotImplementedError(
-            f"complex not supported: {input_node.dtype}"
-        )
-    else:
-        casted_complex_input_tensor = nnef_tensor
-    dim = pick_rank(input_node, -1)
-    window_tensor = get_or_add_tensor_variable_in_nnef(
-        g, window_node, name_to_tensor
-    )
-    frame = win_length_node.data
-    stride = hop_length_node.data
-    # n_fft_node not exposed ?
-    output_nnef_tensor = _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_stft",
-        inputs=casted_complex_input_tensor,
-        attrs={
-            "axis": dim,
-            "frame": frame,
-            "stride": stride,
-            "window": nnef.Identifier(window_tensor.name),
-        },
-        output_tensor_name_suffix="core_op",
-    )
-    if onesided_node.data:
-        # with length == window size
-        # slice rank: dim - 1 by $onesided_max_dim
-        onesided_max_idx = (window_node.shape[0] >> 1) + 1
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=output_nnef_tensor,
-            output_tensor_name_suffix="pre_cast_back",
-            attrs={
-                "axes": [output_nnef_tensor.rank - 1],
-                "begin": [0],
-                "end": [onesided_max_idx],
-                "stride": [1],
-            },
-        )
-
-    if return_complex_node.data is False:
-        output_nnef_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_complex_to_inner_dim",
-            inputs=output_nnef_tensor,
-            output_tensor_name_suffix="cast_back_real",
-        )
-
-    transposed_axes = list(range(len(output_nnef_tensor.shape)))
-    # permute to follow numpy way of things (as well as tract)
-    transposed_axes[dim], transposed_axes[dim + 1] = (
-        transposed_axes[dim + 1],
-        transposed_axes[dim],
-    )
-    output_nnef_tensor = _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "transpose",
-        inputs=output_nnef_tensor,
-        attrs={"axes": transposed_axes},
-        pass_quantization_params=True,
-    )
-
-    return ["tract_core"]
-
-
-def fft_fft(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
-    return _fft(
-        node,
-        g,
-        name_to_tensor,
-        nnef_spec_strict,
-        has_dynamic_axes,
-        inverse=False,
-    )
-
-
-def fft_ifft(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
-    return _fft(
-        node,
-        g,
-        name_to_tensor,
-        nnef_spec_strict,
-        has_dynamic_axes,
-        inverse=True,
-    )
-
-
-def view_as_real(
-    g,
-    node,
-    name_to_tensor,
-    nnef_spec_strict,
-    tract_feature_flags,
-    **kwargs,
-):
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "Complex not supported by vanilla NNEF"
-        )
-    if tract_feature_flags is None or "complex" not in tract_feature_flags:
-        raise TorchToNNEFNotImplementedError(
-            "'complex' not supported without tract_feature_flags containing it."
-            " Your tract version should be compiled accordingly"
-        )
-    # input_node, n_node, dim_node, norm_node = node.inputs
-    _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_complex_to_inner_dim",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, node.inputs[0], name_to_tensor
-        ),
-    )
-    return ["tract_core"]
 
 
 def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
@@ -3305,7 +2658,7 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     else:
         fragment_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -3316,7 +2669,16 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return custom_fragments
 
 
-def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
+def abs(
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    nnef_spec_strict,
+    tract_feature_flags,
+    torch_graph,
+    **kwargs,
+):
     if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
         if nnef_spec_strict:
             raise TorchToNNEFNotImplementedError(
@@ -3326,15 +2688,17 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             g, node.inputs[0], name_to_tensor
         )
         # to real, pow(2), slice both, add 2 tensors, rsqr
-        input_tensor = _add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_complex_to_inner_dim",
-            inputs=input_tensor,
-            output_tensor_name_suffix="complex_abs_to_real",
-        )
-        input_tensor = _add_single_output_op(
+        if tract_feature_flags is not None and "complex" in tract_feature_flags:
+            input_tensor = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_complex_to_inner_dim",
+                inputs=input_tensor,
+                output_tensor_name_suffix="complex_abs_to_real",
+            )
+
+        input_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3342,7 +2706,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             inputs=input_tensor,
             output_tensor_name_suffix="complex_abs_sqr",
         )
-        input_tensor_real = _add_single_output_op(
+        input_tensor_real = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3356,7 +2720,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             },
             output_tensor_name_suffix="complex_abs_slice_real",
         )
-        input_tensor_imag = _add_single_output_op(
+        input_tensor_imag = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3371,7 +2735,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             output_tensor_name_suffix="complex_abs_slice_imag",
         )
 
-        input_tensor = _add_single_output_op(
+        input_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3379,7 +2743,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             inputs=[input_tensor_real, input_tensor_imag],
             output_tensor_name_suffix="complex_abs_add",
         )
-        input_tensor = _add_single_output_op(
+        input_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3387,7 +2751,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             inputs=input_tensor,
             output_tensor_name_suffix="complex_abs_sqrt",
         )
-        input_tensor = _add_single_output_op(
+        input_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -3396,7 +2760,7 @@ def abs(g, node, name_to_tensor, null_ref, nnef_spec_strict, **kwargs):
             attrs={"axes": [len(input_tensor.shape)]},
         )
         return
-    return _unary_output_op_without_params(
+    return unary_output_op_without_params(
         nnef_op_type="abs",
         g=g,
         node=node,
@@ -3412,7 +2776,7 @@ def log10(g, node, name_to_tensor, **kwargs):
     )
     # maybe better puting this in the graph to avoid precision loss
     mul_val = 1 / np.log(10)
-    input_tensor = _add_single_output_op(
+    input_tensor = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -3420,7 +2784,7 @@ def log10(g, node, name_to_tensor, **kwargs):
         inputs=input_tensor,
         output_tensor_name_suffix="pre_log10",
     )
-    _add_single_output_op(
+    add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -3430,42 +2794,12 @@ def log10(g, node, name_to_tensor, **kwargs):
     )
 
 
-def view_as_complex(
-    g,
-    node,
-    name_to_tensor,
-    nnef_spec_strict,
-    tract_feature_flags,
-    **kwargs,
-):
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "Complex not supported in vanilla spec"
-        )
-    if tract_feature_flags is None or "complex" not in tract_feature_flags:
-        raise TorchToNNEFNotImplementedError(
-            "'complex' not supported without tract_feature_flags containing it."
-            " Your tract version should be compiled accordingly"
-        )
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, node.inputs[0], name_to_tensor
-    )
-    _add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_inner_dim_to_complex",
-        inputs=input_tensor,
-    )
-    return ["tract_core"]
-
-
 def copy(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):
     if nnef_spec_strict:
         # nnef spec include copy fragment
-        return _unary_output_op_without_params(
+        return unary_output_op_without_params(
             nnef_op_type="copy",
             g=g,
             node=node,
@@ -3499,7 +2833,7 @@ def aten_to_nnef_tensor_and_ops(
     aten_op_name = REMAP_ATEN_OP_NAMES.get(aten_op_name, aten_op_name)
 
     if aten_op_name in GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES:
-        return _unary_output_op_without_params(
+        return unary_output_op_without_params(
             nnef_op_type=aten_op_name,
             g=g,
             node=node,

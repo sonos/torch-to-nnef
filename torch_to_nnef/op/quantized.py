@@ -12,7 +12,7 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive import _add_single_output_op
+from torch_to_nnef.op.primitive.base import add_single_output_op
 from torch_to_nnef.tract import tract_version_lower_than
 
 
@@ -263,7 +263,7 @@ def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
         node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
     )
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
     out.quant = conv_output_tensor.quant
@@ -281,7 +281,7 @@ def linear_relu(g, node, name_to_tensor, **kwargs):
     linear_output_tensor = _linear(
         node, g, name_to_tensor, suffix_output_tensor="_linear"
     )
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -305,7 +305,7 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
         conv_rank=2,
     )
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
     out.quant = conv_output_tensor.quant
