@@ -28,6 +28,7 @@ def pad(node, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def reflection_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
@@ -56,6 +57,7 @@ def reflection_padnd(
     )
 
 
+@OP_REGISTRY.register()
 def replication_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
@@ -84,6 +86,7 @@ def replication_padnd(
     )
 
 
+@OP_REGISTRY.register()
 def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
