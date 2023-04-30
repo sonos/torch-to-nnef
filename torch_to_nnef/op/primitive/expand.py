@@ -175,3 +175,17 @@ def _fill_negone_with_dim_by_rank_order(
         else:
             raise TorchToNNEFNotImplementedError("unexpected dim value: ", s)
     return new_shapes
+
+
+def repeat(g, node, name_to_tensor, **kwargs):
+    (input_node, axis_node) = node.inputs
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"repeats": axis_node.data},
+    )

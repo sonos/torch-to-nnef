@@ -224,3 +224,31 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         attrs={"axis": 0},
     )
     return custom_fragments
+
+
+def masked_fill(g, node, name_to_tensor, **kwargs):
+    input_node, mask_node, value_node = node.inputs
+
+    false_value_node = input_node
+    true_value_node = value_node.into_tensor_variable()
+    true_value_node.data = true_value_node.data.to(
+        false_value_node.dtype
+    ).repeat(false_value_node.shape)
+    true_value_node.dtype = false_value_node.dtype
+
+    # tract need float where ?
+    # mask_node.data = mask_node.data.float()
+    # mask_node.dtype = mask_node.data.dtype
+    condition_node = mask_node
+
+    inputs = [
+        get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+        for _ in [condition_node, true_value_node, false_value_node]
+    ]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="select",
+        inputs=inputs,
+    )
