@@ -3,12 +3,16 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
 )
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def pad(node, **kwargs):
     kind = node.inputs.pop(2)
     if kind.data == "constant":

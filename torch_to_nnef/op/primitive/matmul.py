@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
@@ -7,7 +8,10 @@ from torch_to_nnef.op.primitive.base import (
 )
 from torch_to_nnef.tract import tract_version_lower_than
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_node,
@@ -77,6 +81,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_node,
@@ -121,6 +126,7 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def einsum(g, node, name_to_tensor, **kwargs):
     raise TorchToNNEFNotImplementedError(
         "einsum operator is not supported by `NNEF` or `tract-nnef` and"
@@ -128,6 +134,7 @@ def einsum(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def matmul(g, node, name_to_tensor, **kwargs):
     (
         input_node,
@@ -150,6 +157,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     add_single_output_op(

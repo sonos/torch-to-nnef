@@ -4,6 +4,7 @@ import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,
     get_or_add_tensor_variable_in_nnef,
@@ -11,7 +12,10 @@ from torch_to_nnef.op.primitive.base import (
 
 LOGGER = logging.getLogger(__name__)
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         input_node,
@@ -47,6 +51,7 @@ def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return ["tract_core"]
 
 
+@OP_REGISTRY.register()
 def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     We will only handle the case of zero_point affine quantization for now.

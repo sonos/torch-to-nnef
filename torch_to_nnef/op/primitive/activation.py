@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
@@ -7,7 +8,10 @@ from torch_to_nnef.op.primitive.base import (
     unary_output_op_without_params,
 )
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def softmax(**kwargs):
     # avoid unpack/pack {
     node = kwargs["node"]
@@ -20,6 +24,7 @@ def softmax(**kwargs):
     return unary_input_output_op_with_constant("softmax", **kwargs)
 
 
+@OP_REGISTRY.register()
 def softplus(**kwargs):
     """
     Note: numerical stability applied in Pytorch is not done in NNEF vanilla
@@ -44,6 +49,7 @@ def softplus(**kwargs):
     return unary_output_op_without_params("softplus", **kwargs)
 
 
+@OP_REGISTRY.register()
 def elu(**kwargs):
     # avoid unpack/pack {
     node = kwargs["node"]
@@ -52,6 +58,7 @@ def elu(**kwargs):
     return unary_input_output_op_with_constant("elu", **kwargs)
 
 
+@OP_REGISTRY.register()
 def leaky_relu(**kwargs):
     # avoid unpack/pack {
     node = kwargs["node"]
@@ -60,6 +67,7 @@ def leaky_relu(**kwargs):
     return unary_input_output_op_with_constant("leaky_relu", **kwargs)
 
 
+@OP_REGISTRY.register()
 def prelu(**kwargs):
     # avoid unpack/pack {
     node = kwargs["node"]
@@ -68,16 +76,19 @@ def prelu(**kwargs):
     return unary_input_output_op_with_constant("prelu", **kwargs)
 
 
+@OP_REGISTRY.register()
 def selu(**kwargs):
     unary_input_output_op_with_constant("selu", **kwargs)
     return ["selu"]
 
 
+@OP_REGISTRY.register()
 def silu(**kwargs):
     unary_input_output_op_with_constant("silu", **kwargs)
     return ["silu"]
 
 
+@OP_REGISTRY.register()
 def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     unary_output_op_without_params(
         "gelu",
@@ -89,6 +100,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     return ["erf", "gelu"]
 
 
+@OP_REGISTRY.register()
 def erf(g, node, name_to_tensor, null_ref, **kwargs):
     """Op should be added to tract-nnef eventualy"""
     unary_output_op_without_params(
@@ -101,6 +113,7 @@ def erf(g, node, name_to_tensor, null_ref, **kwargs):
     return ["erf"]
 
 
+@OP_REGISTRY.register()
 def hardtanh(**kwargs):
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # remove inplace param
@@ -108,6 +121,7 @@ def hardtanh(**kwargs):
     return ["hard_tanh"]
 
 
+@OP_REGISTRY.register()
 def log_softmax(**kwargs):
     node = kwargs["node"]
     if node.inputs[2]:
@@ -119,6 +133,7 @@ def log_softmax(**kwargs):
     return ["log_softmax"]
 
 
+@OP_REGISTRY.register()
 def clamp_min(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
@@ -140,6 +155,7 @@ def clamp_min(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def clamp_max(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
@@ -161,6 +177,7 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def clamp(g, node, name_to_tensor, **kwargs):
     input_node, min_clamp, max_clamp = node.inputs
 
@@ -198,6 +215,7 @@ def clamp(g, node, name_to_tensor, **kwargs):
         )
 
 
+@OP_REGISTRY.register()
 def glu(g, node, name_to_tensor, **kwargs):
     input_node, axis_node = node.inputs
     add_single_output_op(

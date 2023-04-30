@@ -3,11 +3,14 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
 )
 from torch_to_nnef.torch_graph import PythonConstant
+
+OP_REGISTRY = OpRegistry()
 
 
 def _fft(
@@ -160,6 +163,7 @@ def _fft(
     return ["tract_core"]
 
 
+@OP_REGISTRY.register()
 def stft(
     g,
     node,
@@ -311,6 +315,7 @@ def stft(
     return ["tract_core"]
 
 
+@OP_REGISTRY.register()
 def fft_fft(
     g,
     node,
@@ -331,6 +336,7 @@ def fft_fft(
     )
 
 
+@OP_REGISTRY.register()
 def fft_ifft(
     g,
     node,

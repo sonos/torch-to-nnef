@@ -2,6 +2,7 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
@@ -9,6 +10,8 @@ from torch_to_nnef.op.primitive.base import (
     unary_output_op_without_params,
 )
 from torch_to_nnef.torch_graph import PythonConstant
+
+OP_REGISTRY = OpRegistry()
 
 
 def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
@@ -65,32 +68,39 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         )
 
 
+@OP_REGISTRY.register()
 def mean(g, node, name_to_tensor, **kwargs):
     _reducer("mean_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def reduce_sum(g, node, name_to_tensor, **kwargs):
     _reducer("sum_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def argmax(g, node, name_to_tensor, **kwargs):
     _reducer("argmax_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def argmin(g, node, name_to_tensor, **kwargs):
     _reducer("argmin_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def reduce_any(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
     _reducer("any_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def reduce_all(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
     _reducer("all_reduce", g, node, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def reduce_max(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
@@ -102,6 +112,7 @@ def reduce_max(g, node, name_to_tensor, **kwargs):
         _reducer("argmax_reduce", g, node, name_to_tensor, output_idx=1)
 
 
+@OP_REGISTRY.register()
 def reduce_min(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
@@ -113,6 +124,7 @@ def reduce_min(g, node, name_to_tensor, **kwargs):
         _reducer("argmin_reduce", g, node, name_to_tensor, output_idx=1)
 
 
+@OP_REGISTRY.register()
 def max_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_max(g, node, name_to_tensor)
@@ -125,6 +137,7 @@ def max_(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def min_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_min(g, node, name_to_tensor)

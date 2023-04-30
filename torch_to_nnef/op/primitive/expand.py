@@ -6,6 +6,7 @@ import torch
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
@@ -13,7 +14,10 @@ from torch_to_nnef.op.primitive.base import (
 )
 from torch_to_nnef.torch_graph import PythonConstant, TensorVariable
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def expand(
     g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
 ):
@@ -177,6 +181,7 @@ def _fill_negone_with_dim_by_rank_order(
     return new_shapes
 
 
+@OP_REGISTRY.register()
 def repeat(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
     add_single_output_op(

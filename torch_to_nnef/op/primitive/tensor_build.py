@@ -4,6 +4,7 @@ import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_tensor_variable_node_as_nnef_tensor,
     get_list_of_int,
     unary_output_op_without_params,
@@ -11,7 +12,10 @@ from torch_to_nnef.op.primitive.base import (
 
 LOGGER = logging.getLogger(__name__)
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def arange(g, node, name_to_tensor, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
@@ -35,6 +39,7 @@ def arange(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
@@ -65,6 +70,7 @@ def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def zeros_like(g, node, name_to_tensor, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
@@ -93,6 +99,7 @@ def zeros_like(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         _,  # input_node,
@@ -121,6 +128,7 @@ def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         shape_node,
@@ -148,6 +156,7 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def copy(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):

@@ -1,221 +1,54 @@
-# pylint: disable=too-many-lines
 import logging
+import operator
 import typing as T
+from functools import reduce
 
-from torch_to_nnef.op.primitive.activation import (
-    clamp,
-    clamp_max,
-    clamp_min,
-    elu,
-    erf,
-    gelu,
-    glu,
-    hardtanh,
-    leaky_relu,
-    log_softmax,
-    prelu,
-    selu,
-    silu,
-    softmax,
-    softplus,
-)
-from torch_to_nnef.op.primitive.axes_change import (
-    flatten,
-    permute,
-    reshape,
-    squeeze,
-    transpose,
-    unsqueeze,
-    view,
-)
-from torch_to_nnef.op.primitive.base import unary_output_op_without_params
-from torch_to_nnef.op.primitive.complex import view_as_complex, view_as_real
-from torch_to_nnef.op.primitive.concat import cat, roll, stack
-from torch_to_nnef.op.primitive.expand import expand, repeat
-from torch_to_nnef.op.primitive.fft import fft_fft, fft_ifft, stft
-from torch_to_nnef.op.primitive.math import (
-    abs,
-    div,
-    floor_divide,
-    log10,
-    mul,
-    pow_,
-    remainder,
-    round_,
-    rsub,
-    trunc,
-)
-from torch_to_nnef.op.primitive.matmul import (
-    _convolution,
-    baddbmm,
-    einsum,
-    linear,
+from torch_to_nnef.op.primitive import (
+    activation,
+    axes_change,
+    base,
+    complex,
+    concat,
+    expand,
+    fft,
+    math,
     matmul,
-)
-from torch_to_nnef.op.primitive.norm import (
-    batch_norm,
-    group_norm,
-    layer_norm,
     norm,
-)
-from torch_to_nnef.op.primitive.other import (
-    contiguous,
-    detach,
-    dropout,
-    external,
-    size,
-    to,
-)
-from torch_to_nnef.op.primitive.pad import pad
-from torch_to_nnef.op.primitive.pool import (
-    adaptive_avg_pool2d,
-    avg_pool1d,
-    avg_pool2d,
-    max_pool1d,
-    max_pool2d,
-)
-from torch_to_nnef.op.primitive.qops import dequantize, quantize_per_tensor
-from torch_to_nnef.op.primitive.reducer import (
-    argmax,
-    argmin,
-    max_,
-    mean,
-    min_,
-    reduce_all,
-    reduce_any,
-    reduce_max,
-    reduce_min,
-    reduce_sum,
-)
-from torch_to_nnef.op.primitive.selector import (
-    embedding,
-    index_,
-    masked_fill,
-    narrow,
-    select,
-    slice_,
-    where,
-)
-from torch_to_nnef.op.primitive.split import chunk, split_with_sizes, unbind
-from torch_to_nnef.op.primitive.tensor_build import (
-    arange,
-    copy,
-    new_zeros,
-    ones,
-    zeros,
-    zeros_like,
+    other,
+    pad,
+    pool,
+    qops,
+    reducer,
+    selector,
+    split,
+    tensor_build,
 )
 
-# silence pyflakes F401 {
-assert view_as_complex
-assert view_as_real
-assert fft_fft
-assert fft_ifft
-assert stft
-
-assert softmax
-assert softplus
-assert elu
-assert leaky_relu
-assert prelu
-assert selu
-assert silu
-assert gelu
-assert erf
-assert hardtanh
-assert log_softmax
-assert glu
-assert clamp
-assert clamp_min
-assert clamp_max
-
-assert norm
-assert batch_norm
-assert group_norm
-assert layer_norm
-
-assert max_pool1d
-assert avg_pool1d
-assert max_pool2d
-assert avg_pool2d
-assert adaptive_avg_pool2d
-
-assert arange
-assert ones
-assert zeros_like
-assert new_zeros
-assert zeros
-assert copy
-
-assert pad
-
-assert expand
-assert repeat
-
-assert slice_
-assert where
-assert narrow
-assert select
-assert index_
-assert embedding
-assert masked_fill
-
-assert mul
-assert div
-assert floor_divide
-assert trunc
-assert pow_
-assert round_
-assert remainder
-assert rsub
-assert abs
-assert log10
-
-assert quantize_per_tensor
-assert dequantize
-
-assert mean
-assert reduce_sum
-assert argmax
-assert argmin
-assert reduce_any
-assert reduce_all
-assert reduce_max
-assert reduce_min
-assert max_
-assert min_
-
-assert split_with_sizes
-assert unbind
-assert chunk
-
-assert view
-assert transpose
-assert permute
-assert unsqueeze
-assert squeeze
-assert flatten
-assert reshape
-
-assert _convolution
-assert linear
-assert einsum
-assert matmul
-assert baddbmm
-
-assert external
-assert dropout
-assert detach
-assert contiguous
-assert to
-assert size
-
-assert cat
-assert stack
-assert roll
-
-# }
-
+primitive_ops_registry = reduce(
+    operator.add,
+    [
+        mod.OP_REGISTRY
+        for mod in [
+            activation,
+            axes_change,
+            complex,
+            concat,
+            expand,
+            fft,
+            math,
+            matmul,
+            norm,
+            other,
+            pad,
+            pool,
+            qops,
+            reducer,
+            selector,
+            split,
+            tensor_build,
+        ]
+    ],
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -313,7 +146,7 @@ def aten_to_nnef_tensor_and_ops(
     aten_op_name = REMAP_ATEN_OP_NAMES.get(aten_op_name, aten_op_name)
 
     if aten_op_name in GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES:
-        return unary_output_op_without_params(
+        return base.unary_output_op_without_params(
             nnef_op_type=aten_op_name,
             g=g,
             node=node,
@@ -321,7 +154,7 @@ def aten_to_nnef_tensor_and_ops(
             null_ref=null_ref,
         )
     try:
-        return globals()[aten_op_name](
+        return primitive_ops_registry.get(aten_op_name)(
             g=g,
             node=node,
             name_to_tensor=name_to_tensor,

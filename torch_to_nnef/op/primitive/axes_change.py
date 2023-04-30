@@ -1,11 +1,15 @@
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
 )
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
     dim_data = get_list_of_int(
@@ -27,6 +31,7 @@ def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def transpose(g, node, name_to_tensor, **kwargs):
     (input_node, dim0_node, dim1_node) = node.inputs
     dim0 = pick_rank(input_node, dim0_node.data)
@@ -54,6 +59,7 @@ def transpose(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def permute(g, node, name_to_tensor, **kwargs):
     (input_node, dims_node) = node.inputs
     add_single_output_op(
@@ -69,6 +75,7 @@ def permute(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def unsqueeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
 
@@ -86,6 +93,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def squeeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
@@ -102,6 +110,7 @@ def squeeze(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def flatten(g, node, name_to_tensor, **kwargs):
     """
     Using NNEF:
@@ -131,6 +140,7 @@ def flatten(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (input_node, axis_node) = node.inputs
 

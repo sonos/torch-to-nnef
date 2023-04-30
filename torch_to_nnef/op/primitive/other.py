@@ -7,6 +7,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -21,7 +22,10 @@ from torch_to_nnef.torch_graph import (
 
 LOGGER = logging.getLogger(__name__)
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def external(
     g: NGraph, node: TensorVariable, name_to_tensor: T.Dict[str, NTensor]
 ):
@@ -42,6 +46,7 @@ def external(
     return nnef_tensor_ref
 
 
+@OP_REGISTRY.register()
 def dropout(node, torch_graph, **kwargs):
     (
         input_node,
@@ -57,18 +62,21 @@ def dropout(node, torch_graph, **kwargs):
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
+@OP_REGISTRY.register()
 def detach(node, torch_graph, **kwargs):
     """This does not translate to any operation"""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
+@OP_REGISTRY.register()
 def contiguous(node, torch_graph, **kwargs):
     """This does not translate to any operation"""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
+@OP_REGISTRY.register()
 def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         input_node,
@@ -98,6 +106,7 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return ["tract_core"]
 
 
+@OP_REGISTRY.register()
 def size(
     g,
     node,

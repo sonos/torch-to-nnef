@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_multi_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
@@ -8,7 +9,10 @@ from torch_to_nnef.op.primitive.base import (
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def split_with_sizes(g, node, name_to_tensor, **kwargs):
     """We are aware that
     split<?>(
@@ -53,6 +57,7 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
         current_dim_elm_idx += n_elements
 
 
+@OP_REGISTRY.register()
 def unbind(g, node, name_to_tensor, **kwargs):
     """unbind is `unstack` in NNEF"""
     input_node, axis_node = node.inputs
@@ -69,6 +74,7 @@ def unbind(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def chunk(g, node, name_to_tensor, **kwargs):
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)

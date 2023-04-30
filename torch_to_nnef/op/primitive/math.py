@@ -5,6 +5,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,
     get_or_add_tensor_variable_in_nnef,
@@ -15,7 +16,10 @@ from torch_to_nnef.torch_graph import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
@@ -100,6 +104,7 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return list(set(used_custom_fragment))
 
 
+@OP_REGISTRY.register()
 def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     input_node, divisor_node = node.inputs
     for c_node in [input_node, divisor_node]:
@@ -132,6 +137,7 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return ["trunc"]
 
 
+@OP_REGISTRY.register()
 def trunc(g, node, name_to_tensor, **kwargs):
     add_single_output_op(
         g,
@@ -145,6 +151,7 @@ def trunc(g, node, name_to_tensor, **kwargs):
     return ["trunc"]
 
 
+@OP_REGISTRY.register()
 def pow_(g, node, name_to_tensor, **kwargs):
     (input_node, exponent_node) = node.inputs
     inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
@@ -176,6 +183,7 @@ def pow_(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def round_(nnef_spec_strict, **kwargs):
     if nnef_spec_strict:
         LOGGER.warning(
@@ -188,6 +196,7 @@ def round_(nnef_spec_strict, **kwargs):
     return ["tract_core"]
 
 
+@OP_REGISTRY.register()
 def mul(g, node, name_to_tensor, **kwargs):
     input_node = node.inputs[0]
     other_node = node.inputs[1]
@@ -210,6 +219,7 @@ def mul(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, other_node = node.inputs
     if all(
@@ -236,6 +246,7 @@ def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
     return ["remainder"]
 
 
+@OP_REGISTRY.register()
 def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, other_node, alpha_node = node.inputs
     if all(
@@ -267,6 +278,7 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     return ["rsub"]
 
 
+@OP_REGISTRY.register()
 def abs(
     g,
     node,
@@ -367,6 +379,7 @@ def abs(
     )
 
 
+@OP_REGISTRY.register()
 def log10(g, node, name_to_tensor, **kwargs):
     """mul val may not be good enough"""
     input_tensor = get_or_add_tensor_variable_in_nnef(

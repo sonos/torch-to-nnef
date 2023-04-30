@@ -10,7 +10,10 @@ from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops, external
+from torch_to_nnef.op.primitive import (
+    aten_to_nnef_tensor_and_ops,
+    primitive_ops_registry,
+)
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
@@ -144,7 +147,7 @@ class TorchToNGraphExtractor:
         ginputs = []
         for node in self._torch_ir_graph.inputs:
             ginputs.append(
-                external(
+                primitive_ops_registry.get("external")(
                     self.g,
                     node,
                     name_to_tensor,

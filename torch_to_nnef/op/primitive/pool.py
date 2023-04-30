@@ -2,11 +2,14 @@ import typing as T
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
 )
 from torch_to_nnef.torch_graph import Data
 from torch_to_nnef.tract import tract_version_lower_than
+
+OP_REGISTRY = OpRegistry()
 
 
 def _pooling_op(
@@ -84,6 +87,7 @@ def _pooling_op(
     )
 
 
+@OP_REGISTRY.register()
 def max_pool1d(g, node, name_to_tensor, **kwargs):
     _pooling_op(
         "max_pool",
@@ -94,6 +98,7 @@ def max_pool1d(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def avg_pool1d(g, node, name_to_tensor, **kwargs):
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
@@ -113,6 +118,7 @@ def avg_pool1d(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def max_pool2d(g, node, name_to_tensor, **kwargs):
     _pooling_op(
         "max_pool",
@@ -123,6 +129,7 @@ def max_pool2d(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def avg_pool2d(g, node, name_to_tensor, **kwargs):
     """
     cpp func parameters:
@@ -209,6 +216,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     )
 
 
+@OP_REGISTRY.register()
 def adaptive_avg_pool2d(g, node, name_to_tensor, **kwargs):
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("avg_pool", g, node, name_to_tensor)

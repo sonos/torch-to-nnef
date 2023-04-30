@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
@@ -7,7 +8,10 @@ from torch_to_nnef.op.primitive.base import (
 )
 from torch_to_nnef.torch_graph import FixedTensorList
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def cat(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
@@ -38,6 +42,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def stack(g, node, name_to_tensor, torch_graph, **kwargs):
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
@@ -67,6 +72,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     input_node, shifts_node, dims_node = node.inputs
     shifts = shifts_node.data

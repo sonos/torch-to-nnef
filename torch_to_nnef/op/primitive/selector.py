@@ -2,6 +2,7 @@ import logging
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
@@ -11,7 +12,10 @@ from torch_to_nnef.op.primitive.base import (
 
 LOGGER = logging.getLogger(__name__)
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
@@ -51,6 +55,7 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def where(g, node, name_to_tensor, **kwargs):
     (condition_node, true_value_node, false_value_node) = node.inputs
 
@@ -77,6 +82,7 @@ def where(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def narrow(
     g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
 ):
@@ -119,6 +125,7 @@ def narrow(
     )
 
 
+@OP_REGISTRY.register()
 def select(g, node, name_to_tensor, **kwargs):
     input_node, axis_node, index_node = node.inputs
     out = add_single_output_op(
@@ -155,6 +162,7 @@ def select(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     fragment gather<?>(
@@ -194,6 +202,7 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return custom_fragments
 
 
+@OP_REGISTRY.register()
 def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         weight_node,
@@ -226,6 +235,7 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     return custom_fragments
 
 
+@OP_REGISTRY.register()
 def masked_fill(g, node, name_to_tensor, **kwargs):
     input_node, mask_node, value_node = node.inputs
 

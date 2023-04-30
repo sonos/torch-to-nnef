@@ -19,6 +19,33 @@ from torch_to_nnef.torch_graph import (
 LOGGER = logging.getLogger(__name__)
 
 
+class OpRegistry:
+    def __init__(self):
+        self._registry = {}
+
+    def register(self, name: T.Optional[str] = None):
+        def wrapper(decorated):
+            key = name or decorated.__name__
+            assert key not in self._registry, f"'{key}' already in registry"
+            self._registry[key] = decorated
+            return decorated
+
+        return wrapper
+
+    def get(self, name: str):
+        return self._registry[name]
+
+    def __add__(self, other: "OpRegistry"):
+        new = OpRegistry()
+        new._registry = self._registry.copy()
+        common_keys = set(new._registry.keys()).intersection(
+            other._registry.keys()
+        )
+        assert len(common_keys) == 0, common_keys
+        new._registry.update(other._registry.copy())
+        return new
+
+
 def add_nnef_operation(
     graph, inputs, *args, force_consistent_inputs_shapes: bool = True, **kwargs
 ):

@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
+    OpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
@@ -8,7 +9,10 @@ from torch_to_nnef.op.primitive.base import (
     weight_bias_and_output_tensor,
 )
 
+OP_REGISTRY = OpRegistry()
 
+
+@OP_REGISTRY.register()
 def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
     """
 
@@ -85,6 +89,7 @@ def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
 def norm(g, node, name_to_tensor, **kwargs):
     """
     NOTE this is only the normed vector
@@ -122,6 +127,7 @@ def norm(g, node, name_to_tensor, **kwargs):
     return [custom_fragment_name]
 
 
+@OP_REGISTRY.register()
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_tensor_node,
@@ -163,6 +169,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     return [op_name]
 
 
+@OP_REGISTRY.register()
 def group_norm(g, node, name_to_tensor, **kwargs):
     """
     It is a special case of NNEF batch_normalization
