@@ -1,0 +1,5 @@
+# This is an approximation of GELU using approximate of ERF
+fragment relu6( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = min(max(x, 0.0), 6.0);
+}

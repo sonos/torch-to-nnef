@@ -12,8 +12,13 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive import _add_single_output_op
+from torch_to_nnef.op.primitive.base import (
+    QuantizedOpRegistry,
+    add_single_output_op,
+)
 from torch_to_nnef.tract import tract_version_lower_than
+
+OP_REGISTRY = QuantizedOpRegistry()
 
 
 def _torch_qtensor_to_ntensor(g, tensor, name):
@@ -28,7 +33,7 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         qzerop = tensor.q_zero_point()
     else:
         raise TorchToNNEFNotImplementedError(
-            f"not suported quantization scheme {qscheme }"
+            f"not suported quantization scheme {qscheme}"
         )
     return NTensor(
         g,
@@ -67,7 +72,6 @@ def register_state_node_as_variable(
     g,
     name_to_tensor,
 ):
-
     # peculiarity of tract implementation
     if len(torch_tensor.shape) == 1:
         torch_tensor = torch_tensor.unsqueeze(0)
@@ -259,30 +263,34 @@ def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
     return output_tensor
 
 
+@OP_REGISTRY.register()
 def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
     conv_output_tensor = _conv(
         node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
     )
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
     out.quant = conv_output_tensor.quant
 
 
+@OP_REGISTRY.register()
 def conv1d(g, node, name_to_tensor, null_ref, **kwargs):
     _conv(node, g, name_to_tensor, null_ref)
 
 
+@OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, **kwargs):
     _linear(node, g, name_to_tensor)
 
 
+@OP_REGISTRY.register()
 def linear_relu(g, node, name_to_tensor, **kwargs):
     linear_output_tensor = _linear(
         node, g, name_to_tensor, suffix_output_tensor="_linear"
     )
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g,
         node,
         name_to_tensor,
@@ -292,10 +300,12 @@ def linear_relu(g, node, name_to_tensor, **kwargs):
     out.quant = linear_output_tensor.quant
 
 
+@OP_REGISTRY.register()
 def conv2d(g, node, name_to_tensor, null_ref, **kwargs):
     _conv(node, g, name_to_tensor, null_ref, conv_rank=2)
 
 
+@OP_REGISTRY.register()
 def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
     conv_output_tensor = _conv(
         node,
@@ -306,26 +316,34 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
         conv_rank=2,
     )
 
-    out = _add_single_output_op(
+    out = add_single_output_op(
         g, node, name_to_tensor, nnef_op_type="relu", inputs=conv_output_tensor
     )
     out.quant = conv_output_tensor.quant
 
 
+@OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
     raise TorchToNNEFNotImplementedError()
 
 
 def quantized_node_to_nnef_tensor_and_ops(
-    g, node, name_to_tensor, null_ref, torch_graph, nnef_spec_strict: bool
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    torch_graph,
+    nnef_spec_strict: bool,
+    tract_feature_flags: T.Optional[T.Set[str]] = None,
 ):
     ops_family, op_name = node.kind.split("::")
     assert ops_family == "quantized"
-    globals()[op_name](
+    OP_REGISTRY.get(op_name)(
         g=g,
         node=node,
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
         torch_graph=torch_graph,
         nnef_spec_strict=nnef_spec_strict,
+        tract_feature_flags=tract_feature_flags,
     )

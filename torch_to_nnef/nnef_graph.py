@@ -10,7 +10,10 @@ from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.primitive import aten_to_nnef_tensor_and_ops, external
+from torch_to_nnef.op.primitive import (
+    aten_to_nnef_tensor_and_ops,
+    primitive_ops_registry,
+)
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
@@ -33,6 +36,7 @@ class TorchToNGraphExtractor:
         check_io_names_qte_match: bool = True,
         nnef_spec_strict: bool = False,
         has_dynamic_axes: bool = False,
+        tract_feature_flags: T.Optional[T.Set[str]] = None,
     ):
         self.model = model
         self._torch_ir_graph = TorchModuleTracer(
@@ -42,6 +46,7 @@ class TorchToNGraphExtractor:
         self._check_io_names_qte_match = check_io_names_qte_match
         self._nnef_spec_strict = nnef_spec_strict
         self._has_dynamic_axes = has_dynamic_axes
+        self._tract_feature_flags = tract_feature_flags
         datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         self.g = NGraph(f"net_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
@@ -56,6 +61,7 @@ class TorchToNGraphExtractor:
                 torch_graph=self._torch_ir_graph,
                 nnef_spec_strict=self._nnef_spec_strict,
                 has_dynamic_axes=self._has_dynamic_axes,
+                tract_feature_flags=self._tract_feature_flags,
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:
@@ -71,6 +77,7 @@ class TorchToNGraphExtractor:
                 null_ref,
                 torch_graph=self._torch_ir_graph,
                 nnef_spec_strict=self._nnef_spec_strict,
+                tract_feature_flags=self._tract_feature_flags,
             )
         if node.kind.startswith(CUSTOMOP_KIND):
             return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
@@ -80,6 +87,7 @@ class TorchToNGraphExtractor:
                 null_ref,
                 torch_graph=self._torch_ir_graph,
                 nnef_spec_strict=self._nnef_spec_strict,
+                tract_feature_flags=self._tract_feature_flags,
             )
 
         raise TorchToNNEFNotImplementedError(
@@ -139,7 +147,7 @@ class TorchToNGraphExtractor:
         ginputs = []
         for node in self._torch_ir_graph.inputs:
             ginputs.append(
-                external(
+                primitive_ops_registry.get("external")(
                     self.g,
                     node,
                     name_to_tensor,
