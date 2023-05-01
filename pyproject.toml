@@ -29,11 +29,11 @@ python = ">=3.7.0,<4.0"
 # limited by NNEF-tools (sadly the orginal package does not keep track of it's deps)
 numpy = ">=1.20.0,<1.24.0"
 torch = "^1.8.0"
-nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev="99d466e9bc6377a72bac092075ad16e1190d93eb"}
+nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev="e6733b055cebd0f5a6ab60f883f6714763ce9ec1"}
 
 # need poetry 1.2 or later to support subdirectory for now use pip to install this as ad-oc deps
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@e6733b055cebd0f5a6ab60f883f6714763ce9ec1#egg=nnef&subdirectory=./parser/python"
-nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory="parser/python", rev="99d466e9bc6377a72bac092075ad16e1190d93eb"}
+nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory="parser/python", rev="e6733b055cebd0f5a6ab60f883f6714763ce9ec1"}
 # }
 
 
