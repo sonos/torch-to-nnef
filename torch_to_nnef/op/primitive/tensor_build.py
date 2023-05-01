@@ -4,7 +4,7 @@ import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_tensor_variable_node_as_nnef_tensor,
     get_list_of_int,
     unary_output_op_without_params,
@@ -12,7 +12,7 @@ from torch_to_nnef.op.primitive.base import (
 
 LOGGER = logging.getLogger(__name__)
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
@@ -156,7 +156,7 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["copy", "clone"])
 def copy(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):

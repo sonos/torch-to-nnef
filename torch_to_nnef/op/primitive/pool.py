@@ -2,14 +2,14 @@ import typing as T
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
 )
 from torch_to_nnef.torch_graph import Data
 from torch_to_nnef.tract import tract_version_lower_than
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 def _pooling_op(

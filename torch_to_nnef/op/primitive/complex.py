@@ -2,12 +2,12 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
 )
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()

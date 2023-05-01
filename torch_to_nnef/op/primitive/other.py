@@ -7,7 +7,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -22,7 +22,7 @@ from torch_to_nnef.torch_graph import (
 
 LOGGER = logging.getLogger(__name__)
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()

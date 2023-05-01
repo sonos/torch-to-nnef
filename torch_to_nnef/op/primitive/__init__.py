@@ -55,7 +55,6 @@ LOGGER = logging.getLogger(__name__)
 REMAP_ATEN_OP_NAMES = {
     "_relu": "relu",
     "reciprocal": "rcp",
-    "clone": "copy",
     "bitwise_not": "not",
     "bitwise_not_cpu": "not",
     "bitwise_cpu": "and",
@@ -65,22 +64,6 @@ REMAP_ATEN_OP_NAMES = {
     "greater": "gt",
     "less_equal": "le",
     "greater_equal": "ge",
-    "reflection_pad1d": "reflection_padnd",
-    "replication_pad1d": "replication_padnd",
-    "constant_pad1d": "constant_padnd",
-    # avoid to ovewrite python builtin {
-    "any": "reduce_any",
-    "all": "reduce_all",
-    "sum": "reduce_sum",
-    "pow": "pow_",
-    "max": "max_",
-    "min": "min_",
-    "slice": "slice_",
-    "round": "round_",
-    "index": "index_",
-    # }
-    "bmm": "matmul",  # since NNEF matmul does not care about rank
-    "amax": "reduce_max",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [

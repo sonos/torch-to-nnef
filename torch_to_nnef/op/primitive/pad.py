@@ -3,13 +3,13 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
 )
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
@@ -28,7 +28,7 @@ def pad(node, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["reflection_pad1d", "reflection_padnd"])
 def reflection_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
@@ -57,7 +57,7 @@ def reflection_padnd(
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["replication_pad1d", "replication_padnd"])
 def replication_padnd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):
@@ -86,7 +86,7 @@ def replication_padnd(
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["constant_pad1d", "constant_pad_nd"])
 def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
 ):

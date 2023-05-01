@@ -2,7 +2,7 @@ import logging
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
@@ -12,10 +12,10 @@ from torch_to_nnef.op.primitive.base import (
 
 LOGGER = logging.getLogger(__name__)
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["slice"])
 def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
@@ -162,7 +162,7 @@ def select(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["index"])
 def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     fragment gather<?>(

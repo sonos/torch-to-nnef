@@ -1,12 +1,12 @@
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_rank,
 )
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()

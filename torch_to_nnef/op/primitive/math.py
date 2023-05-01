@@ -5,7 +5,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
-    OpRegistry,
+    AtenOpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,
     get_or_add_tensor_variable_in_nnef,
@@ -16,7 +16,7 @@ from torch_to_nnef.torch_graph import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
 
-OP_REGISTRY = OpRegistry()
+OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
@@ -151,7 +151,7 @@ def trunc(g, node, name_to_tensor, **kwargs):
     return ["trunc"]
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["pow"])
 def pow_(g, node, name_to_tensor, **kwargs):
     (input_node, exponent_node) = node.inputs
     inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
@@ -183,7 +183,7 @@ def pow_(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_ids=["round"])
 def round_(nnef_spec_strict, **kwargs):
     if nnef_spec_strict:
         LOGGER.warning(

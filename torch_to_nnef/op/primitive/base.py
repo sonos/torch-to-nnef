@@ -20,14 +20,24 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OpRegistry:
-    def __init__(self):
-        self._registry = {}
+    def __init__(self, torch_mod_id: str):
+        self.torch_mod_id = torch_mod_id
+        self._registry: T.Dict[
+            str, T.Callable[..., T.Optional[T.List[str]]]
+        ] = {}
 
-    def register(self, name: T.Optional[str] = None):
+    def register(self, torch_ids: T.Optional[T.List[str]] = None):
+        """by default we take the name of the function if not specified"""
+
         def wrapper(decorated):
-            key = name or decorated.__name__
-            assert key not in self._registry, f"'{key}' already in registry"
-            self._registry[key] = decorated
+            nonlocal torch_ids
+            if torch_ids is None:
+                torch_ids = [decorated.__name__]
+            for torch_id in torch_ids:
+                assert (
+                    torch_id not in self._registry
+                ), f"'{torch_id}' already in registry"
+                self._registry[torch_id] = decorated
             return decorated
 
         return wrapper
@@ -36,7 +46,12 @@ class OpRegistry:
         return self._registry[name]
 
     def __add__(self, other: "OpRegistry"):
-        new = OpRegistry()
+        new = OpRegistry(self.torch_mod_id)
+        if self.torch_mod_id != other.torch_mod_id:
+            raise ValueError(
+                "try to group different torch_mod:"
+                f"{self.torch_mod_id} != {other.torch_mod_id}"
+            )
         new._registry = self._registry.copy()
         common_keys = set(new._registry.keys()).intersection(
             other._registry.keys()
@@ -44,6 +59,16 @@ class OpRegistry:
         assert len(common_keys) == 0, common_keys
         new._registry.update(other._registry.copy())
         return new
+
+
+class AtenOpRegistry(OpRegistry):
+    def __init__(self):
+        super().__init__(torch_mod_id="aten")
+
+
+class QuantizedOpRegistry(OpRegistry):
+    def __init__(self):
+        super().__init__(torch_mod_id="quantized")
 
 
 def add_nnef_operation(
