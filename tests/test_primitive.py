@@ -329,6 +329,8 @@ INPUT_AND_MODELS += [
         nn.Hardtanh(-1, 10),
         nn.LogSoftmax(1),
         nn.LogSoftmax(dim=-1),
+        nn.ReLU6(),
+        nn.Hardswish(),
     ]
 ]
 

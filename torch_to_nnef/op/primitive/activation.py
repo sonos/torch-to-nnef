@@ -89,6 +89,18 @@ def silu(**kwargs):
 
 
 @OP_REGISTRY.register()
+def relu6(**kwargs):
+    unary_input_output_op_with_constant("relu6", **kwargs)
+    return ["relu6"]
+
+
+@OP_REGISTRY.register()
+def hardswish(**kwargs):
+    unary_input_output_op_with_constant("hardswish", **kwargs)
+    return ["relu6", "hardswish"]
+
+
+@OP_REGISTRY.register()
 def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     unary_output_op_without_params(
         "gelu",
