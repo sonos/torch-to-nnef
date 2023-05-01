@@ -156,7 +156,7 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
 
-@OP_REGISTRY.register(torch_ids=["copy", "clone"])
+@OP_REGISTRY.register(torch_op_ids=["copy", "clone"])
 def copy(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):

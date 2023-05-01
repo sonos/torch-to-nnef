@@ -73,7 +73,7 @@ def mean(g, node, name_to_tensor, **kwargs):
     _reducer("mean_reduce", g, node, name_to_tensor)
 
 
-@OP_REGISTRY.register(torch_ids=["reduce_sum", "sum"])
+@OP_REGISTRY.register(torch_op_ids=["reduce_sum", "sum"])
 def reduce_sum(g, node, name_to_tensor, **kwargs):
     _reducer("sum_reduce", g, node, name_to_tensor)
 
@@ -88,19 +88,19 @@ def argmin(g, node, name_to_tensor, **kwargs):
     _reducer("argmin_reduce", g, node, name_to_tensor)
 
 
-@OP_REGISTRY.register(torch_ids=["reduce_any", "any"])
+@OP_REGISTRY.register(torch_op_ids=["reduce_any", "any"])
 def reduce_any(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
     _reducer("any_reduce", g, node, name_to_tensor)
 
 
-@OP_REGISTRY.register(torch_ids=["reduce_all", "all"])
+@OP_REGISTRY.register(torch_op_ids=["reduce_all", "all"])
 def reduce_all(g, node, name_to_tensor, **kwargs):
     assert len(node.outputs) == 1
     _reducer("all_reduce", g, node, name_to_tensor)
 
 
-@OP_REGISTRY.register(torch_ids=["reduce_max", "amax"])
+@OP_REGISTRY.register(torch_op_ids=["reduce_max", "amax"])
 def reduce_max(g, node, name_to_tensor, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
@@ -124,7 +124,7 @@ def reduce_min(g, node, name_to_tensor, **kwargs):
         _reducer("argmin_reduce", g, node, name_to_tensor, output_idx=1)
 
 
-@OP_REGISTRY.register(torch_ids=["max"])
+@OP_REGISTRY.register(torch_op_ids=["max"])
 def max_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_max(g, node, name_to_tensor)
@@ -137,7 +137,7 @@ def max_(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
-@OP_REGISTRY.register(torch_ids=["min"])
+@OP_REGISTRY.register(torch_op_ids=["min"])
 def min_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_min(g, node, name_to_tensor)

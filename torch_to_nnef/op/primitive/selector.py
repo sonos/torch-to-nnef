@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register(torch_ids=["slice"])
+@OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
@@ -162,7 +162,7 @@ def select(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register(torch_ids=["index"])
+@OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     """
     fragment gather<?>(

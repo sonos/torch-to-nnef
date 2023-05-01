@@ -26,14 +26,14 @@ class OpRegistry:
             str, T.Callable[..., T.Optional[T.List[str]]]
         ] = {}
 
-    def register(self, torch_ids: T.Optional[T.List[str]] = None):
+    def register(self, torch_op_ids: T.Optional[T.List[str]] = None):
         """by default we take the name of the function if not specified"""
 
         def wrapper(decorated):
-            nonlocal torch_ids
-            if torch_ids is None:
-                torch_ids = [decorated.__name__]
-            for torch_id in torch_ids:
+            nonlocal torch_op_ids
+            if torch_op_ids is None:
+                torch_op_ids = [decorated.__name__]
+            for torch_id in torch_op_ids:
                 assert (
                     torch_id not in self._registry
                 ), f"'{torch_id}' already in registry"

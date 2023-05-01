@@ -151,7 +151,7 @@ def trunc(g, node, name_to_tensor, **kwargs):
     return ["trunc"]
 
 
-@OP_REGISTRY.register(torch_ids=["pow"])
+@OP_REGISTRY.register(torch_op_ids=["pow"])
 def pow_(g, node, name_to_tensor, **kwargs):
     (input_node, exponent_node) = node.inputs
     inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
@@ -183,7 +183,7 @@ def pow_(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register(torch_ids=["round"])
+@OP_REGISTRY.register(torch_op_ids=["round"])
 def round_(nnef_spec_strict, **kwargs):
     if nnef_spec_strict:
         LOGGER.warning(

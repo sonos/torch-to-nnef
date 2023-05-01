@@ -135,7 +135,7 @@ def einsum(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(
-    torch_ids=["matmul", "bmm"]
+    torch_op_ids=["matmul", "bmm"]
 )  # since NNEF matmul does not care about rank
 def matmul(g, node, name_to_tensor, **kwargs):
     (
