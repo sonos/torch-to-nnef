@@ -7,6 +7,7 @@
 
 ### Added
 - Refactored internals in primitive/quantized with submodule and registries
+- `relu6`, `hardswish` activations
 
 ### Fix
 - Support tract 0.19.15
