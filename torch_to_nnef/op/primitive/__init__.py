@@ -70,10 +70,11 @@ def aten_to_nnef_tensor_and_ops(
     node attribute.
 
     """
-    aten_op_id = node.kind.split("::")[1]
+    ops_family, aten_op_id = node.kind.split("::")
+    assert ops_family == "aten"
 
     # remap
-    if aten_op_id.endswith("_"):
+    if aten_op_id.endswith("_") and not aten_op_id.endswith("__"):
         aten_op_id = aten_op_id[:-1]
 
     try:
