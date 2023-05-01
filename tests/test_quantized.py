@@ -7,6 +7,11 @@ import torch
 from torch import nn
 from torch.quantization import quantize_fx
 
+from torch_to_nnef.tract import (
+    tract_version_greater_than,
+    tract_version_lower_than,
+)
+
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
 #
@@ -127,14 +132,17 @@ INPUT_AND_MODELS += [
 ]
 
 
-INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 2))
-    for mod in [
-        nn.Linear(2, 1, bias=False),
-        nn.Linear(2, 1, bias=True),
-        nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+if tract_version_lower_than("0.20.0") or tract_version_greater_than(
+    "0.20.5"
+):  # tract regression
+    INPUT_AND_MODELS += [
+        build_test_tup(mod, shape=(1, 2))
+        for mod in [
+            nn.Linear(2, 1, bias=False),
+            nn.Linear(2, 1, bias=True),
+            nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+        ]
     ]
-]
 
 INPUT_AND_MODELS += [
     build_test_tup(mod, shape=(1, 2, 3, 4))

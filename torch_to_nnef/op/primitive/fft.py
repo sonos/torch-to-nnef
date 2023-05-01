@@ -68,18 +68,7 @@ def _fft(
             },
             output_tensor_name_suffix="complex_cast_pad",
         )
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            casted_complex_input_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_inner_dim_to_complex",
-                inputs=output_nnef_tensor,
-                pass_quantization_params=True,
-                output_tensor_name_suffix="complex_cast",
-            )
-        else:
-            casted_complex_input_tensor = output_nnef_tensor
+        casted_complex_input_tensor = output_nnef_tensor
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
         raise TorchToNNEFNotImplementedError()
     else:
@@ -115,50 +104,19 @@ def _fft(
         )
 
         # input_node, n_node, dim_node, norm_node = node.inputs
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            input_to_real_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_complex_to_inner_dim",
-                inputs=output_tensor,
-                output_tensor_name_suffix="cast_pre_norm_div",
-            )
-        else:
-            input_to_real_tensor = output_tensor
+        input_to_real_tensor = output_tensor
 
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            real_normed_tensor_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "div",
-                inputs=(
-                    input_to_real_tensor,
-                    divisor_tensor,
-                ),
-                output_tensor_name_suffix="norm_div",
-            )
-            # retransform to complex
-            add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_inner_dim_to_complex",
-                inputs=real_normed_tensor_tensor,
-            )
-        else:
-            node.outputs[0].dtype = torch.complex64
-            add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "div",
-                inputs=(
-                    input_to_real_tensor,
-                    divisor_tensor,
-                ),
-            )
+        node.outputs[0].dtype = torch.complex64
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "div",
+            inputs=(
+                input_to_real_tensor,
+                divisor_tensor,
+            ),
+        )
 
     return ["tract_core"]
 
@@ -227,18 +185,7 @@ def stft(
             },
             output_tensor_name_suffix="complex_cast_pad",
         )
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            casted_complex_input_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_inner_dim_to_complex",
-                inputs=output_nnef_tensor,
-                pass_quantization_params=True,
-                output_tensor_name_suffix="complex_cast",
-            )
-        else:
-            casted_complex_input_tensor = output_nnef_tensor
+        casted_complex_input_tensor = output_nnef_tensor
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
         raise TorchToNNEFNotImplementedError(
             f"complex type not supported: {input_node.dtype}"
@@ -284,17 +231,6 @@ def stft(
                 "stride": [1],
             },
         )
-
-    if return_complex_node.data is False:
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
-            output_nnef_tensor = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_complex_to_inner_dim",
-                inputs=output_nnef_tensor,
-                output_tensor_name_suffix="cast_back_real",
-            )
 
     transposed_axes = list(range(len(output_nnef_tensor.shape)))
     # permute to follow numpy way of things (as well as tract)

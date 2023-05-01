@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+
+## [0.8.0] - 2023-05-01
+
+### Added
+- Refactored internals in primitive/quantized with submodule and registries
+
+### Fix
+- Support tract 0.19.15
+- Support tract 0.20.4
+
+### Removed
+- deprecated support tract 0.17 (we support only last 3 majors)
+- deprecated support of fft's ops prior to tract 0.20.0
+
 ## [0.7.7] - 2023-02-20
 
 ### Added

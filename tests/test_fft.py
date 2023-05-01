@@ -47,7 +47,7 @@ class MySTFT(nn.Module):
 
 INPUT_AND_MODELS = []
 
-if not tract_version_lower_than("0.19.0"):
+if not tract_version_lower_than("0.20.0"):
     INPUT_AND_MODELS += [(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())]
     INPUT_AND_MODELS += [
         (

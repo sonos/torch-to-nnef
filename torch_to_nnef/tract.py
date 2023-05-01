@@ -51,10 +51,13 @@ def tract_version_lower_than(version: str) -> bool:
         return False
 
 
-def tract_version_greater_than(version: str) -> bool:
+def tract_version_greater_than(version: str, inclusive: bool = False) -> bool:
     """In case tract is not installed on  machine return default"""
     try:
-        return tract_version() > SemanticVersion.from_str(version)
+        if inclusive:
+            return tract_version() >= SemanticVersion.from_str(version)
+        else:
+            return tract_version() > SemanticVersion.from_str(version)
     except (subprocess.SubprocessError, FileNotFoundError):
         return False
 
