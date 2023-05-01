@@ -1,3 +1,6 @@
+import torch
+
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -10,7 +13,15 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def view(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    tract_feature_flags,
+    **kwargs,
+):
     (input_node, axis_node) = node.inputs
     dim_data = get_list_of_int(
         axis_node,
@@ -19,6 +30,10 @@ def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         accept_none=1,
         has_dynamic_axes=has_dynamic_axes,
     )
+    if input_node.dtype in [torch.complex64, torch.complex128] and (
+        tract_feature_flags is None or "complex" not in tract_feature_flags
+    ):
+        dim_data.append(2)
     add_single_output_op(
         g,
         node,
@@ -32,10 +47,17 @@ def view(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
 
 
 @OP_REGISTRY.register()
-def transpose(g, node, name_to_tensor, **kwargs):
+def transpose(g, node, name_to_tensor, tract_feature_flags, **kwargs):
     (input_node, dim0_node, dim1_node) = node.inputs
     dim0 = pick_rank(input_node, dim0_node.data)
     dim1 = pick_rank(input_node, dim1_node.data)
+
+    if input_node.dtype in [torch.complex64, torch.complex128] and (
+        tract_feature_flags is None or "complex" not in tract_feature_flags
+    ):
+        raise TorchToNNEFNotImplementedError(
+            "complex transpose without tract complex feature flag"
+        )
 
     new_dims_ranks = []
     for _ in range(node.outputs[0].rank):
@@ -111,7 +133,7 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def flatten(g, node, name_to_tensor, **kwargs):
+def flatten(g, node, name_to_tensor, tract_feature_flags, **kwargs):
     """
     Using NNEF:
         fragment reshape<?>(
@@ -123,6 +145,12 @@ def flatten(g, node, name_to_tensor, **kwargs):
     """
     (input_node, _, _) = node.inputs  # start_dim_name  # end_dim_name
     onode = node.outputs[0]
+    if input_node.dtype in [torch.complex64, torch.complex128] and (
+        tract_feature_flags is None or "complex" not in tract_feature_flags
+    ):
+        raise TorchToNNEFNotImplementedError(
+            "complex flatten without tract complex feature flag"
+        )
     add_single_output_op(
         g,
         node,
@@ -141,7 +169,15 @@ def flatten(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def reshape(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    tract_feature_flags,
+    **kwargs,
+):
     (input_node, axis_node) = node.inputs
 
     dim_data = get_list_of_int(
@@ -152,6 +188,10 @@ def reshape(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         has_dynamic_axes=has_dynamic_axes,
         force_none_as_tensor_ref=True,
     )
+    if input_node.dtype in [torch.complex64, torch.complex128] and (
+        tract_feature_flags is None or "complex" not in tract_feature_flags
+    ):
+        dim_data.append(2)
     add_single_output_op(
         g,
         node,
