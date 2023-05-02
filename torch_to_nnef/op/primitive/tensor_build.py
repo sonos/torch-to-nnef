@@ -116,9 +116,10 @@ def new_zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
 
     assert shape_node.data
+    assert all(isinstance(v, int) for v in shape_node.data), shape_node.data
 
     node.outputs[0].data = torch.zeros(
-        shape_node.data,
+        *shape_node.data,
         dtype=dtype,
     )
     add_tensor_variable_node_as_nnef_tensor(
@@ -144,9 +145,10 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
 
     assert shape_node.data
+    assert all(isinstance(v, int) for v in shape_node.data), shape_node.data
 
     node.outputs[0].data = torch.zeros(
-        shape_node.data,
+        *shape_node.data,
         dtype=dtype,
     )
     add_tensor_variable_node_as_nnef_tensor(
