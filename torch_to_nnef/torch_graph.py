@@ -73,6 +73,10 @@ ATEN_ZERO_LIKE = "aten::zeros_like"
 ATEN_ZEROS = "aten::zeros"
 ATEN_EMPTY = "aten::empty"
 ATEN_GELU = "aten::gelu"
+ATEN_FULL = "aten::full"
+ATEN_CUMSUM = "aten::cumsum"
+ATEN_NEW_ONES = "aten::new_ones"
+ATEN_PROD = "aten::prod"
 
 
 CLASSTYPE_KIND = "ClassType"
@@ -688,14 +692,13 @@ def _parse_list_construct(node, data_nodes):
     if contains_tensors:
         tensor_values = []
         for value in values:
-            if isinstance(value, TensorVariable):
+            if isinstance(value, (TensorVariable, PythonConstant)):
                 if not any(_.name == value.name for _ in data_nodes):
                     data_nodes.append(value)
-            elif isinstance(value, PythonConstant):
-                pass
             else:
                 raise TorchToNNEFNotImplementedError()
             tensor_values.append(value)
+
         data_node = FixedTensorList(
             name=node.output().debugName(), data=tensor_values
         )
@@ -1123,6 +1126,26 @@ class TorchOp:
                     args = args[:2]
             if self.kind == ATEN_GELU:
                 args = args[:1]  # skip the 'none' param starting torch 1.12.0
+            if self.kind == ATEN_ARANGE:
+                # ensure there is no args as tesnsor
+                args = [
+                    a.tolist() if isinstance(a, torch.Tensor) else a
+                    for a in args
+                ]
+            if self.kind == ATEN_FULL:
+                args = list(args[:2])
+                args[0] = [
+                    a.tolist() if isinstance(a, torch.Tensor) else a
+                    for a in args[0]
+                ]
+                args[-1] = args[-1].tolist()
+            if self.kind == ATEN_CUMSUM:
+                args = list(args[:2])
+            if self.kind == ATEN_NEW_ONES:
+                args = list(args[:2])
+            if self.kind == ATEN_PROD:
+                args = list(args[:3])
+
             return self.op_ref(*args, **kwargs)
         raise TorchToNNEFNotImplementedError(self)
 
@@ -1270,7 +1293,7 @@ class TorchModuleIRGraph:
             if _is_container(dnode):
                 for subdnode in dnode.data:
                     assert any(
-                        subdnode is _ for _ in self.data_nodes
+                        subdnode == _ for _ in self.data_nodes
                     ), f"not referenced correctly sub item: {subdnode}"
 
     def _check_io_rely_on_data_nodes(self):
@@ -1539,21 +1562,7 @@ class TorchModuleIRGraph:
                 )
             )
             for node, ref_node in zip(nodes, ref_nodes):
-                for op_node in submodule_graph.op_nodes:
-                    datas = []
-                    for dnode in getattr(op_node, datas_attr):
-                        ref = dnode
-                        if dnode.name == node.name:
-                            ref = ref_node
-                        datas.append(ref)
-                    setattr(op_node, datas_attr, datas)
-
-                for data_node in submodule_graph.data_nodes:
-                    if _is_container(data_node):  # update ref
-                        data_node.data = [
-                            ref_node if dnode.name == node.name else dnode
-                            for dnode in data_node.data
-                        ]
+                submodule_graph.remap_node(from_node=node, to_node=ref_node)
 
         search_and_replace_data_nodes(
             submodule_graph.inputs, callmethod_node.inputs, "inputs"
@@ -1582,7 +1591,9 @@ class TorchModuleIRGraph:
 
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
         self.op_nodes += submodule_graph.op_nodes
-        self.data_nodes += submodule_graph.data_nodes
+        self.data_nodes += [
+            dn for dn in submodule_graph.data_nodes if dn not in self.data_nodes
+        ]
 
     def _recursive_call_method(self, renaming_scheme: str):
         """In case prim::CallMethod is encountered it tries to trace it

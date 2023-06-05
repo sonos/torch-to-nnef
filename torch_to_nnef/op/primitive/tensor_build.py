@@ -9,6 +9,7 @@ from torch_to_nnef.op.primitive.base import (
     get_list_of_int,
     unary_output_op_without_params,
 )
+from torch_to_nnef.torch_graph import MAP_TO_NOP
 
 LOGGER = logging.getLogger(__name__)
 
@@ -158,6 +159,26 @@ def zeros(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
+def full(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (shape_node, val_node, _, _, _, _) = node.inputs  # device_node,  # False
+    LOGGER.warning(
+        "the aten::zeros replaced by constant traced values (follows NNEF spec)."
+        "Keeping dynamism would require custom operator in tract internals."
+    )
+    assert shape_node.data
+    assert all(isinstance(v, int) for v in shape_node.data), shape_node.data
+
+    node.outputs[0].data = (
+        torch.ones(*shape_node.data, dtype=val_node.dtype) * val_node.data
+    )
+    add_tensor_variable_node_as_nnef_tensor(
+        g,
+        node.outputs[0],
+        name_to_tensor,
+    )
+
+
 @OP_REGISTRY.register(torch_op_ids=["copy", "clone"])
 def copy(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
@@ -171,4 +192,13 @@ def copy(
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
         )
+    torch_graph.remap_node(node.outputs[0], node.inputs[0])
+
+
+@OP_REGISTRY.register(
+    torch_op_ids=[_.replace("aten::", "") for _ in MAP_TO_NOP]
+)
+def _post_graph_creation_remap(
+    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
+):
     torch_graph.remap_node(node.outputs[0], node.inputs[0])

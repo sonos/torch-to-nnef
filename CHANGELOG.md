@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+### Fix
+- `Llama` export
 
 ## [0.8.0] - 2023-05-01
 
