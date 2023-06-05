@@ -12,7 +12,7 @@ def cache(func: Callable[..., T]) -> T:
     return functools.lru_cache()(func)  # type: ignore
 
 
-def fullname(o):
+def fullname(o) -> str:
     """Full class name with module path from an object"""
     klass = o.__class__
     module = klass.__module__
@@ -21,7 +21,7 @@ def fullname(o):
     return module + "." + klass.__qualname__
 
 
-def torch_version_within(lower: str, upper: str):
+def torch_version_within(lower: str, upper: str) -> bool:
     """lower included but upper not included"""
     torch_version = SemanticVersion.from_str(torch.__version__.split("+")[0])
     lower_version = SemanticVersion.from_str(lower)
