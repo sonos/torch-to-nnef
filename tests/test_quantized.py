@@ -133,7 +133,7 @@ INPUT_AND_MODELS += [
 
 
 if tract_version_lower_than("0.20.0") or tract_version_greater_than(
-    "0.20.5"
+    "0.21.0"
 ):  # tract regression
     INPUT_AND_MODELS += [
         build_test_tup(mod, shape=(1, 2))
