@@ -23,6 +23,7 @@ from torch_to_nnef.collect_env import dump_environment_versions
 from torch_to_nnef.exceptions import (
     IOPytorchTractNotISOError,
     OnnxExportError,
+    TractError,
     TractOnnxToNNEFError,
 )
 from torch_to_nnef.utils import SemanticVersion
@@ -95,11 +96,13 @@ def tract_assert_io(
         _, err = proc.communicate()
         if err:
             serr = err.decode("utf8")
-            if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
-                if raise_exception:
+            if raise_exception:
+                if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                     raise IOPytorchTractNotISOError(serr)
-                return False
-            LOGGER.debug(err)
+                else:
+                    raise TractError(serr)
+            LOGGER.debug(serr)
+            return False
     return True
 
 
