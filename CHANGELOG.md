@@ -4,7 +4,10 @@
 
 ### Fix
 - fail if `tract` binary not found but `check_same_io_as_tract=True`
-- `Llama` export
+
+### Added
+- `Llama` partial export
+- `_convolution_mode` aten operator (padding same and valid)
 
 ## [0.8.0] - 2023-05-01
 
