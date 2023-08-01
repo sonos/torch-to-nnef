@@ -86,10 +86,21 @@ def tract_assert_io(
         f"{TRACT_PATH} {nnef_path} "
         f"--nnef-tract-core --nnef-tract-pulse "
         f"-O "
-        "run "
-        f"--input-from-bundle {io_npz_path} "
-        f"--assert-output-bundle {io_npz_path}"
     )
+    if tract_version_lower_than("0.18.0"):
+        cmd += (
+            f"--input-bundle {io_npz_path} "
+            # NOTE: resolution of streaming pre 0.18 not handled
+            "run "
+            f"--assert-output-bundle {io_npz_path}"
+        )
+    else:
+        cmd += (
+            f"--input-facts-from-bundle {io_npz_path} "
+            "run "
+            f"--input-from-bundle {io_npz_path} "
+            f"--assert-output-bundle {io_npz_path}"
+        )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:
@@ -108,6 +119,17 @@ def tract_assert_io(
                             _ in serrline for _ in ["Ignore unknown extension"]
                         ):
                             continue
+
+                        if all(  # NOTE: discuss with @kali about migration
+                            _ in serrline
+                            for _ in [
+                                "tract_pulse_streaming_symbol",
+                                "deprecated",
+                                "WARN",
+                            ]
+                        ):
+                            continue
+
                         err_filtered += f"{serrline}\n".strip()
                     if len(err_filtered) > 0:
                         raise TractError(err_filtered)
