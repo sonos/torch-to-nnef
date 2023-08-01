@@ -43,7 +43,13 @@ class OpRegistry:
         return wrapper
 
     def get(self, name: str):
-        return self._registry[name]
+        try:
+            return self._registry[name]
+        except KeyError:
+            raise TorchToNNEFNotImplementedError(
+                f"'{name}' operator as not yet been translated "
+                "to NNEF or registred"
+            )
 
     def __add__(self, other: "OpRegistry"):
         new = OpRegistry(self.torch_mod_id)

@@ -85,11 +85,22 @@ def tract_assert_io(
     cmd = (
         f"{TRACT_PATH} {nnef_path} "
         f"--nnef-tract-core --nnef-tract-pulse "
-        f"-vvv -O "
-        "run "
-        f"--input-from-bundle {io_npz_path} "
-        f"--assert-output-bundle {io_npz_path}"
+        f"-O "
     )
+    if tract_version_lower_than("0.18.0"):
+        cmd += (
+            f"--input-bundle {io_npz_path} "
+            # NOTE: resolution of streaming pre 0.18 not handled
+            "run "
+            f"--assert-output-bundle {io_npz_path}"
+        )
+    else:
+        cmd += (
+            f"--input-facts-from-bundle {io_npz_path} "
+            "run "
+            f"--input-from-bundle {io_npz_path} "
+            f"--assert-output-bundle {io_npz_path}"
+        )
     with subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ) as proc:
@@ -100,7 +111,30 @@ def tract_assert_io(
                 if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                     raise IOPytorchTractNotISOError(serr)
                 else:
-                    raise TractError(serr)
+                    # NOTE: tract up to at least 0.20.7 stderr info and trace messages
+                    # we filter those to check if any other messages remain
+                    err_filtered = ""
+                    for serrline in serr.split("\n"):
+                        if any(
+                            _ in serrline for _ in ["Ignore unknown extension"]
+                        ):
+                            continue
+
+                        if all(  # NOTE: discuss with @kali about migration
+                            _ in serrline
+                            for _ in [
+                                "tract_pulse_streaming_symbol",
+                                "deprecated",
+                                "WARN",
+                            ]
+                        ):
+                            continue
+
+                        err_filtered += f"{serrline}\n".strip()
+                    if len(err_filtered) > 0:
+                        raise TractError(err_filtered)
+                    else:
+                        return True
             LOGGER.debug(serr)
             return False
     return True

@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+## [0.8.1] - 2023-08-01
+
 ### Fix
 - fail if `tract` binary not found but `check_same_io_as_tract=True`
-- `Llama` export
+- better tract handling when `check_same_io_as_tract`
+- disable fft's tests for now
+
+### Added
+- `Llama` partial export
+- `_convolution_mode` aten operator (padding same and valid)
+
 
 ## [0.8.0] - 2023-05-01
 

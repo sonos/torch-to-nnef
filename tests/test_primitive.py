@@ -283,6 +283,7 @@ INPUT_AND_MODELS += [
             64,
             (3, 7),
         ),
+        nn.Conv2d(3, 64, (3, 7), padding="same"),
         nn.Flatten(start_dim=1, end_dim=2),
         nn.MaxPool2d(
             kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False
@@ -302,6 +303,8 @@ INPUT_AND_MODELS += [
         nn.Conv1d(10, 20, 3, groups=10),
         nn.Conv1d(10, 20, 3, bias=False),
         nn.Conv1d(10, 20, 3, padding=3),
+        nn.Conv1d(10, 20, 3, padding="valid"),
+        nn.Conv1d(10, 20, 3, padding="same"),
         nn.BatchNorm1d(10, eps=0, momentum=0.1),
         nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
         nn.AvgPool1d(10),

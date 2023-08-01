@@ -24,7 +24,7 @@ jobs:
         os: [ubuntu-latest] # , macos-latest disabled since we have limited use
         # we check at max 5 tract versions
         # with only latest patch version maintained
-        tract-versions: [0.18.5, 0.19.15, 0.20.4]
+        tract-versions: [0.18.5, 0.19.15, 0.20.7]
     runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job

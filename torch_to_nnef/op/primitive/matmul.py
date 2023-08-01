@@ -1,3 +1,5 @@
+import typing as T
+
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
@@ -9,6 +11,110 @@ from torch_to_nnef.op.primitive.base import (
 from torch_to_nnef.tract import tract_version_lower_than
 
 OP_REGISTRY = AtenOpRegistry()
+
+
+def _get_padding_same_symetric(
+    L_in: int, stride: int, kernel_size: int, dilation: int
+) -> T.Tuple[int, int]:
+    """This function computes the number of elements to add for zero-padding."""
+    if stride > 1:
+        raise TorchToNNEFNotImplementedError("stride > 1 not implemented")
+    else:
+        offset = -dilation * (kernel_size - 1) - 1 + 1
+        L_out = L_in + offset
+        qte_pad = L_in - L_out
+        side_pad = qte_pad // 2
+        padding = (side_pad, qte_pad - side_pad)
+    return padding
+
+
+@OP_REGISTRY.register()
+def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
+    (
+        input_node,
+        weight_node,
+        bias_node,
+        stride_node,
+        padding_node,
+        dilation_node,
+        groups_node,
+    ) = node.inputs
+
+    stride = stride_node.data
+    dilation = dilation_node.data
+    padding = padding_node.data
+    groups = groups_node.data
+
+    assert isinstance(padding, str), padding
+    if padding == "valid":
+        padding = [0] * len(stride)
+    elif padding == "same":
+        # ref: https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+        # """
+        # NOTES: pads the input so the output has the shape as the input.
+        # However, this mode doesn’t support any stride values other than 1.
+        # """
+        # also:
+        # """
+        # tries to pad evenly left and right, but if the amount of columns to
+        # be added is odd, it will add the extra column to the right.
+        # (the same logic applies vertically: there may be an extra row of zeros at the bottom).
+        # """
+        # NOTE: This implementation have little test coverage
+        padding = []
+        for idx, _ in enumerate(stride):
+            padding.append(
+                _get_padding_same_symetric(
+                    L_in=input_node.shape[-(idx + 1)],
+                    stride=1,
+                    kernel_size=weight_node.shape[2:][idx],
+                    dilation=dilation[idx],
+                )
+            )
+    else:
+        raise TorchToNNEFNotImplementedError(padding)
+
+    # expand in stored variables export to avoid unsqueeze guessing in graph {
+    params_nodes = [weight_node]
+    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
+        params_nodes.append(bias_node)
+    for param_node in params_nodes:
+        for _ in range(input_node.rank - param_node.rank):
+            param_node.data = param_node.data.unsqueeze(0)
+            param_node.shape = list(param_node.data.shape)
+    # }
+
+    weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
+        g,
+        node,
+        weight_node,
+        bias_node,
+        name_to_tensor,
+        null_ref,
+    )
+
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="conv",
+        name=f"{node.outputs[0].export_name}_op",
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            weight_ref,
+            bias_ref,
+        ),
+        outputs=output_tensor,
+        attribs={
+            "dilation": list(dilation),
+            "padding": [
+                (pad, pad) if isinstance(pad, int) else pad for pad in padding
+            ],
+            "stride": list(stride),
+            "groups": groups,
+            "border": "constant",
+        },
+        force_consistent_inputs_shapes=False,
+    )
 
 
 @OP_REGISTRY.register()
