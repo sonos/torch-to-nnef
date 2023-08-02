@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.8.2] - 2023-08-02
+
+### Fix
+- slice with end being dynamic (akka max dimension size) given tract export target and dynamic_axes enabled
+
+
 ## [0.8.1] - 2023-08-01
 
 ### Fix
