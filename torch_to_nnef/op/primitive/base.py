@@ -251,6 +251,11 @@ def pick_rank(input_node, rank: int) -> int:
 
 def pick_value_in_rank(input_node, rank: int, index: int) -> int:
     """Enforce that index in axis does contains only positive values"""
+    if not isinstance(index, int):
+        if isinstance(index, torch.Tensor):
+            index = index.tolist()
+        else:
+            raise TorchToNNEFNotImplementedError(type(index))
     if index >= 0:
         return index
     return input_node.shape[rank] + index
