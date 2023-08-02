@@ -1,5 +1,7 @@
 import logging
 
+import nnef
+
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
@@ -16,7 +18,15 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register(torch_op_ids=["slice"])
-def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
+def slice_(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    nnef_spec_strict,
+    has_dynamic_axes,
+    **kwargs,
+):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
     # we assert for now all node except first are all constant
@@ -24,11 +34,48 @@ def slice_(g, node, name_to_tensor, torch_graph, **kwargs):
 
     # we use this since by default pytorch generate max int32 value for end
     begin = pick_value_in_rank(input_node, dim, begin_node.data)
-    end = min(
-        pick_value_in_rank(input_node, dim, end_node.data),
-        input_node.shape[dim],
-    )
+    end = pick_value_in_rank(input_node, dim, end_node.data)
     assert begin < end
+    if (
+        not nnef_spec_strict
+        and has_dynamic_axes
+        and end >= input_node.shape[dim]
+    ):
+        # NOTE: since we can't ensure used dimenssion is not symbolic
+        # we use `tract_core_shape_of`
+        input_tensor = get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        )
+        shape_tensor_name = f"{input_tensor.name}_shape"
+        index_tensor_name = f"{shape_tensor_name}_{dim}"
+        out = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=input_tensor,
+            force_full_output_tensor_name=shape_tensor_name,
+        )
+        out = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=out,
+            attrs={
+                "axes": [0],
+                "begin": [dim],
+                "end": [dim + 1],
+                "stride": [1],
+            },
+            force_full_output_tensor_name=index_tensor_name,
+        )
+        end = nnef.Identifier(out.name)
+    else:
+        end = min(
+            end,
+            input_node.shape[dim],
+        )
 
     if (
         begin_node.data == 0
