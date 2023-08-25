@@ -108,6 +108,10 @@ class TorchModuleIRGraph:
         self._tracer = torch_module_tracer
 
     @property
+    def tracer(self):
+        return self._tracer
+
+    @property
     def data_nodes(self):
         return self._data_nodes
 
