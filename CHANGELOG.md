@@ -4,6 +4,7 @@
 
 ### Fix
 - In case of `RNN`,`GRU`,`LSTM` we expand explicitly state initializers to batch dimensions (helping tract in case of some `dynamic_axes` graph formulation)
+- Refactor of `torch_graph` module in sub-modules
 
 ## [0.8.2] - 2023-08-02
 
