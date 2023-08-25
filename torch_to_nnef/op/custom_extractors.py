@@ -99,6 +99,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         from torch_to_nnef import torch_graph as tg
 
         inputs = []
+        # pylint: disable-next=protected-access
         for idx, arg in enumerate(torch_graph._tracer._args):
             if provided_inputs:
                 tensor_variable = provided_inputs[idx]
@@ -113,6 +114,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                     data=None,
                 )
             inputs.append(tensor_variable)
+        # pylint: disable-next=protected-access
         results = torch_graph._tracer.mod(*torch_graph._tracer._args)
         if isinstance(results, torch.Tensor):
             results = (results,)
@@ -147,6 +149,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                 kind=f"{CUSTOMOP_KIND}{self._cname_slug}",
                 inputs=inputs,
                 outputs=outputs,
+                # pylint: disable-next=protected-access
                 op_ref=torch_graph._tracer.mod,
                 call_name=self._cname_slug,
                 module_path="",
@@ -614,7 +617,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
+        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
         # module weight packed in order (W_ir|W_iz|W_in)
         w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))

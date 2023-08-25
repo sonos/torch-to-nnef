@@ -49,6 +49,10 @@ fragment gru(
   xt_Wz = matmul(input, W_iz, transposeB = true) + b_z;
   xt_Wn = matmul(input, W_in, transposeB = true) + b_in;
 
+  input_shape = tract_core_shape_of(input);
+  batch_size = slice(input_shape, axes=[0], begin=[1], end=[2], stride=[1]);
+  h_expanded_0 = tile(h_0, repeats=[1, batch_size, 1]);
+
   (h_n , h_t) = tract_core_scan(
       body = "gru_scan_loop",
       scan = [
@@ -63,7 +67,7 @@ fragment gru(
           ("b_hn", b_hn)
       ],
       state = [
-          ("h_t_prev", h_0, "h_t")
+          ("h_t_prev", h_expanded_0, "h_t")
       ],
       output = [
           ("h_t", "full", 0, scan_pace),
