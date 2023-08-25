@@ -2,12 +2,9 @@
 import torch
 from torch import nn
 
-from torch_to_nnef.torch_graph import (
-    PythonConstant,
-    TensorVariable,
-    TorchModuleIRGraph,
-    TorchOp,
-)
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
+from torch_to_nnef.torch_graph.ir_graph import TorchModuleIRGraph
+from torch_to_nnef.torch_graph.ir_op import TorchOp
 
 
 def test_filter_out_useless_nodes():

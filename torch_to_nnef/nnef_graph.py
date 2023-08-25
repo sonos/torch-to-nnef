@@ -21,6 +21,7 @@ from torch_to_nnef.torch_graph import (
     TensorVariable,
     TorchModuleTracer,
     _is_container,
+    module_tracer_into_ir_graph,
 )
 
 
@@ -39,10 +40,13 @@ class TorchToNGraphExtractor:
         tract_feature_flags: T.Optional[T.Set[str]] = None,
     ):
         self.model = model
-        self._torch_ir_graph = TorchModuleTracer(
-            model,
-            args=args,
-        ).into_ir_graph(renaming_scheme=renaming_scheme)
+        self._torch_ir_graph = module_tracer_into_ir_graph(
+            TorchModuleTracer(
+                model,
+                args=args,
+            ),
+            renaming_scheme=renaming_scheme,
+        )
         self._check_io_names_qte_match = check_io_names_qte_match
         self._nnef_spec_strict = nnef_spec_strict
         self._has_dynamic_axes = has_dynamic_axes
