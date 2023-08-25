@@ -540,6 +540,26 @@ INPUT_AND_MODELS = [
         torch.arange(9).reshape(3, 3),
         UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
     ),
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ij", arg)),
+    ),
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ji", arg)),
+    ),
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ii", arg)),
+    ),
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ii->", arg)),
+    ),
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
+    ),
     # (
     #     torch.arange(3).float(),
     #     EinSTestM1(),
