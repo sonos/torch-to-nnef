@@ -462,8 +462,8 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
-        c_0_layer = c_0.split(1)[layer_index].squeeze(0)
+        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
+        c_0_layer = c_0.split(1)[layer_index][:, 0, :]  # to be tiled
 
         suffix = str(layer_index)
         if backward:
