@@ -68,6 +68,11 @@ fragment lstm_with_projection(
   xt_Wg = matmul(input, W_ig, transposeB = true) + b_g;
   xt_Wo = matmul(input, W_io, transposeB = true) + b_o;
 
+  input_shape = tract_core_shape_of(input);
+  batch_size = slice(input_shape, axes=[0], begin=[1], end=[2], stride=[1]);
+  batch_expanded_c0 = tile(c_0, repeats=[1, batch_size, 1]);
+  batch_expanded_h0 = tile(h_0, repeats=[1, batch_size, 1]);
+
   (h_n , h_t, c_t) = tract_core_scan(
       body = "lstm_with_projection_scan_loop",
       scan = [
@@ -84,8 +89,8 @@ fragment lstm_with_projection(
           ("W_hr", W_hr)
       ],
       state = [
-          ("c_t_prev", c_0, "c_t"),
-          ("h_t_prev", h_0, "h_t")
+          ("c_t_prev", batch_expanded_c0, "c_t"),
+          ("h_t_prev", batch_expanded_h0, "h_t")
       ],
       output = [
           ("h_t", "full", 0, scan_pace),

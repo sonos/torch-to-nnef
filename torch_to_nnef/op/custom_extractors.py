@@ -114,6 +114,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                 )
             inputs.append(tensor_variable)
         results = torch_graph.tracer.mod(*torch_graph.tracer.args)
+
         if isinstance(results, torch.Tensor):
             results = (results,)
 
@@ -459,8 +460,8 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
-        c_0_layer = c_0.split(1)[layer_index].squeeze(0)
+        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
+        c_0_layer = c_0.split(1)[layer_index][:, 0, :]  # to be tiled
 
         suffix = str(layer_index)
         if backward:
@@ -614,7 +615,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
+        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
         # module weight packed in order (W_ir|W_iz|W_in)
         w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
@@ -733,7 +734,7 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index].squeeze(0)
+        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
 
         w_ih = getattr(module, f"weight_ih_l{suffix}")
         w_hh = getattr(module, f"weight_hh_l{suffix}")
