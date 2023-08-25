@@ -1,5 +1,6 @@
 import typing as T
 
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
@@ -19,12 +20,11 @@ def _get_padding_same_symetric(
     """This function computes the number of elements to add for zero-padding."""
     if stride > 1:
         raise TorchToNNEFNotImplementedError("stride > 1 not implemented")
-    else:
-        offset = -dilation * (kernel_size - 1) - 1 + 1
-        L_out = L_in + offset
-        qte_pad = L_in - L_out
-        side_pad = qte_pad // 2
-        padding = (side_pad, qte_pad - side_pad)
+    offset = -dilation * (kernel_size - 1) - 1 + 1
+    L_out = L_in + offset
+    qte_pad = L_in - L_out
+    side_pad = qte_pad // 2
+    padding = (side_pad, qte_pad - side_pad)
     return padding
 
 
@@ -233,11 +233,30 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def einsum(g, node, name_to_tensor, **kwargs):
-    raise TorchToNNEFNotImplementedError(
-        "einsum operator is not supported by `NNEF` or `tract-nnef` and"
-        "breaking it down to primite ops may be tricky"
+def einsum(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError(
+            "einsum operator is not supported by `NNEF` and "
+            "breaking it down to primite ops would be a siginficant work"
+        )
+
+    expr_node, args_node, _ = node.inputs
+    inps_dtypes = {_.dtype for _ in args_node.data}
+    assert inps_dtypes, inps_dtypes
+    dtype_str = TORCH_DTYPE_TO_TRACT_STR[inps_dtypes.pop()]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_einsum",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, dnode, name_to_tensor)
+            for dnode in args_node.data
+        ],
+        ensure_tuple=False,
+        attrs={"expr": expr_node.data, "acc": dtype_str, "output": ""},
     )
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register(

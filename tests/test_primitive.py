@@ -520,6 +520,7 @@ INPUT_AND_MODELS += [
     )
 ]
 
+
 # Next primitive to implement
 # INPUT_AND_MODELS += [
 # (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
@@ -527,12 +528,23 @@ INPUT_AND_MODELS += [
 # TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
 # ]
 # ]
-# INPUT_AND_MODELS += [
-# (
-# torch.arange(9).reshape(3, 3),
-# UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
-# )
-# ]
+# class EinSTestM1(nn.Module):
+#   def forward(self, a):
+#       return torch.einsum(
+#           "i,ij->i", a, torch.arange(12).reshape(3, 4).float()
+#       )
+
+
+INPUT_AND_MODELS = [
+    (
+        torch.arange(9).reshape(3, 3),
+        UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
+    ),
+    # (
+    #     torch.arange(3).float(),
+    #     EinSTestM1(),
+    # ),
+]
 
 
 def test_should_fail_since_no_input():
