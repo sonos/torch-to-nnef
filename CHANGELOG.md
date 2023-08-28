@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+
+## 0.8.3 - 2023-08-28
+
 ### Fix
 - In case of `RNN`,`GRU`,`LSTM` we expand explicitly state initializers to batch dimensions (helping tract in case of some `dynamic_axes` graph formulation)
 - Refactor of `torch_graph` module in sub-modules
+
+### Added
+- `hstack` and `vstack` support
+- `unflatten` support
+- `einsum` support
 
 ## [0.8.2] - 2023-08-02
 
