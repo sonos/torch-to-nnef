@@ -550,7 +550,7 @@ def _eintest_gen(expr: str, tensors):
 
 
 if not tract_version_lower_than("0.20.0"):
-    INPUT_AND_MODELS = [
+    INPUT_AND_MODELS += [
         (
             torch.arange(9).reshape(3, 3),
             UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
