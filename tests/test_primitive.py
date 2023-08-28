@@ -534,37 +534,37 @@ INPUT_AND_MODELS += [
 #           "i,ij->i", a, torch.arange(12).reshape(3, 4).float()
 #       )
 
-
-INPUT_AND_MODELS = [
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
-    ),
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ij", arg)),
-    ),
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ji", arg)),
-    ),
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ii", arg)),
-    ),
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ii->", arg)),
-    ),
-    (
-        torch.arange(9).reshape(3, 3),
-        UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
-    ),
-    # (
-    #     torch.arange(3).float(),
-    #     EinSTestM1(),
-    # ),
-]
+if not tract_version_lower_than("0.20.0"):
+    INPUT_AND_MODELS = [
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ij", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ji", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii->", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
+        ),
+        # (
+        #     torch.arange(3).float(),
+        #     EinSTestM1(),
+        # ),
+    ]
 
 
 def test_should_fail_since_no_input():
