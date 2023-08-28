@@ -244,6 +244,7 @@ def einsum(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     inps_dtypes = {_.dtype for _ in args_node.data}
     assert inps_dtypes, inps_dtypes
     dtype_str = TORCH_DTYPE_TO_TRACT_STR[inps_dtypes.pop()]
+
     add_single_output_op(
         g,
         node,
@@ -254,6 +255,7 @@ def einsum(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
             for dnode in args_node.data
         ],
         ensure_tuple=False,
+        force_consistent_inputs_shapes=False,
         attrs={"expr": expr_node.data, "acc": dtype_str, "output": ""},
     )
     return ["tract_core"]

@@ -213,6 +213,7 @@ def add_single_output_op(
     output_tensor_name_suffix: str = "",
     pass_quantization_params: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
+    force_consistent_inputs_shapes: bool = True,
 ) -> NTensor:
     assert len(node.outputs) == 1
     out = add_tensor_variable_node_as_nnef_tensor(
@@ -232,6 +233,7 @@ def add_single_output_op(
         inputs=inputs,
         outputs=tuple([out]),
         attribs=attrs or {},
+        force_consistent_inputs_shapes=force_consistent_inputs_shapes,
     )
     if pass_quantization_params:
         input_quants = (

@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import typing as T
 from functools import partial
 from pathlib import Path
 
@@ -528,11 +529,25 @@ INPUT_AND_MODELS += [
 # TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
 # ]
 # ]
-# class EinSTestM1(nn.Module):
-#   def forward(self, a):
-#       return torch.einsum(
-#           "i,ij->i", a, torch.arange(12).reshape(3, 4).float()
-#       )
+#
+class _EinSTest(nn.Module):
+    def __init__(self, expr: str, tensors: T.List[torch.Tensor]):
+        super().__init__()
+        self.expr = expr
+        self.tensors = tensors
+
+    def forward(self, a):
+        return torch.einsum(self.expr, a, *self.tensors)
+
+
+def _eintest_gen(expr: str, tensors):
+    a = tensors[0]
+    others = tensors[1:]
+    return (
+        a,
+        _EinSTest(expr, others),
+    )
+
 
 if not tract_version_lower_than("0.20.0"):
     INPUT_AND_MODELS = [
@@ -560,10 +575,34 @@ if not tract_version_lower_than("0.20.0"):
             torch.arange(9).reshape(3, 3),
             UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
         ),
-        # (
-        #     torch.arange(3).float(),
-        #     EinSTestM1(),
-        # ),
+        _eintest_gen(
+            "i,ij->i",
+            [
+                torch.arange(3).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+        _eintest_gen(
+            "ij,ij->ij",
+            [
+                torch.arange(12).reshape(3, 4).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+        _eintest_gen(
+            "ij,jk->ijk",
+            [
+                torch.arange(6).reshape(2, 3).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+        _eintest_gen(
+            "ij,kl->ijkl",
+            [
+                torch.arange(6).reshape(2, 3).float(),
+                torch.arange(20).reshape(4, 5).float(),
+            ],
+        ),
     ]
 
 
