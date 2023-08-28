@@ -45,11 +45,11 @@ class OpRegistry:
     def get(self, name: str):
         try:
             return self._registry[name]
-        except KeyError:
+        except KeyError as exp:
             raise TorchToNNEFNotImplementedError(
                 f"'{name}' operator as not yet been translated "
                 "to NNEF or registred"
-            )
+            ) from exp
 
     def __add__(self, other: "OpRegistry"):
         new = OpRegistry(self.torch_mod_id)
@@ -178,7 +178,11 @@ def maybe_unsqueeze_to_consistent_inputs_ranks(g, nnef_tensors):
                 )
                 nnef_tensor = output_nnef_tensor
             new_nnef_tensors.append(nnef_tensor)
-        nnef_tensors = tuple(new_nnef_tensors)
+
+        if isinstance(nnef_tensors, list):
+            nnef_tensors = new_nnef_tensors
+        else:
+            nnef_tensors = tuple(new_nnef_tensors)
     return nnef_tensors
 
 
@@ -209,6 +213,7 @@ def add_single_output_op(
     output_tensor_name_suffix: str = "",
     pass_quantization_params: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
+    force_consistent_inputs_shapes: bool = True,
 ) -> NTensor:
     assert len(node.outputs) == 1
     out = add_tensor_variable_node_as_nnef_tensor(
@@ -228,6 +233,7 @@ def add_single_output_op(
         inputs=inputs,
         outputs=tuple([out]),
         attribs=attrs or {},
+        force_consistent_inputs_shapes=force_consistent_inputs_shapes,
     )
     if pass_quantization_params:
         input_quants = (
@@ -331,21 +337,21 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
     def cast(value):
         if isinstance(value, (int, str, float, NTensor)):
             return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
-        elif isinstance(value, TensorVariable):
+        if isinstance(value, TensorVariable):
             return nnef.Identifier(
                 get_or_add_tensor_variable_in_nnef(
                     g, value, name_to_tensor
                 ).name
             )
-        elif isinstance(value, PythonConstant):
+        if isinstance(value, PythonConstant):
             return value.data
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return [cast(v) for v in value]
-        elif isinstance(value, tuple):
+        if isinstance(value, tuple):
             return tuple(cast(v) for v in value)
-        elif value in list(NUMPY_TO_TORCH_DTYPE.keys()):
+        if value in list(NUMPY_TO_TORCH_DTYPE.keys()):
             return value
-        elif isinstance(value, torch.Tensor):
+        if isinstance(value, torch.Tensor):
             nvalue = value.numpy()
             if nvalue.shape == ():
                 nvalue = nvalue.tolist()

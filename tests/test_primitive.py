@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import typing as T
 from functools import partial
 from pathlib import Path
 
@@ -520,19 +521,114 @@ INPUT_AND_MODELS += [
     )
 ]
 
-# Next primitive to implement
-# INPUT_AND_MODELS += [
-# (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
-# for op in [
-# TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
-# ]
-# ]
-# INPUT_AND_MODELS += [
-# (
-# torch.arange(9).reshape(3, 3),
-# UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
-# )
-# ]
+
+class _EinSTest(nn.Module):
+    def __init__(self, expr: str, tensors: T.List[torch.Tensor]):
+        super().__init__()
+        self.expr = expr
+        self.tensors = tensors
+
+    def forward(self, a):
+        return torch.einsum(self.expr, a, *self.tensors)
+
+
+def _eintest_gen(expr: str, tensors):
+    a = tensors[0]
+    others = tensors[1:]
+    return (
+        a,
+        _EinSTest(expr, others),
+    )
+
+
+if not tract_version_lower_than("0.20.0"):
+    INPUT_AND_MODELS += [
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii->i", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ij", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ji", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ii->", arg)),
+        ),
+        (
+            torch.arange(9).reshape(3, 3),
+            UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
+        ),
+        # NOTE: disable next test as it hangs tract
+        # _eintest_gen(
+        #     "i,ij->i",
+        #     [
+        #         torch.arange(3).float(),
+        #         torch.arange(12).reshape(3, 4).float(),
+        #     ],
+        # ),
+        _eintest_gen(
+            "ij,ij->ij",
+            [
+                torch.arange(12).reshape(3, 4).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+        _eintest_gen(
+            "ij,jk->ijk",
+            [
+                torch.arange(6).reshape(2, 3).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+        _eintest_gen(
+            "ij,kl->ijkl",
+            [
+                torch.arange(2).reshape(1, 2).float(),
+                torch.arange(12).reshape(3, 4).float(),
+            ],
+        ),
+    ]
+
+
+INPUT_AND_MODELS += [
+    (
+        (
+            torch.arange(6).reshape(2, 3).float(),
+            torch.arange(12).reshape(4, 3).float(),
+        ),
+        BinaryPrimitive(lambda x, y: torch.vstack([x, y])),
+    ),
+    (
+        (
+            torch.arange(24).reshape(2, 3, 4).float(),
+            torch.arange(8).reshape(2, 1, 4).float(),
+        ),
+        BinaryPrimitive(lambda x, y: torch.hstack([x, y])),
+    ),
+]
+
+INPUT_AND_MODELS += [
+    (torch.arange(24).reshape(2, 3, 4), UnaryPrimitive(op))
+    for op in [
+        TensorFnPrimitive("flatten"),
+    ]
+]
+
+INPUT_AND_MODELS += [
+    (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
+    for op in [
+        TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
+    ]
+]
 
 
 def test_should_fail_since_no_input():
