@@ -567,13 +567,14 @@ if not tract_version_lower_than("0.20.0"):
             torch.arange(9).reshape(3, 3),
             UnaryPrimitive(lambda arg: torch.einsum("ij->i", arg)),
         ),
-        _eintest_gen(
-            "i,ij->i",
-            [
-                torch.arange(3).float(),
-                torch.arange(12).reshape(3, 4).float(),
-            ],
-        ),
+        # NOTE: disable next test as it hangs tract
+        # _eintest_gen(
+        #     "i,ij->i",
+        #     [
+        #         torch.arange(3).float(),
+        #         torch.arange(12).reshape(3, 4).float(),
+        #     ],
+        # ),
         _eintest_gen(
             "ij,ij->ij",
             [
