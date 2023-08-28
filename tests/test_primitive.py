@@ -606,6 +606,24 @@ if not tract_version_lower_than("0.20.0"):
     ]
 
 
+INPUT_AND_MODELS += [
+    (
+        (
+            torch.arange(6).reshape(2, 3).float(),
+            torch.arange(12).reshape(4, 3).float(),
+        ),
+        BinaryPrimitive(lambda x, y: torch.vstack([x, y])),
+    ),
+    (
+        (
+            torch.arange(24).reshape(2, 3, 4).float(),
+            torch.arange(8).reshape(2, 1, 4).float(),
+        ),
+        BinaryPrimitive(lambda x, y: torch.hstack([x, y])),
+    ),
+]
+
+
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
