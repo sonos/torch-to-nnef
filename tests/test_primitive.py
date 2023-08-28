@@ -522,14 +522,6 @@ INPUT_AND_MODELS += [
 ]
 
 
-# Next primitive to implement
-# INPUT_AND_MODELS += [
-# (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
-# for op in [
-# TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
-# ]
-# ]
-#
 class _EinSTest(nn.Module):
     def __init__(self, expr: str, tensors: T.List[torch.Tensor]):
         super().__init__()
@@ -621,6 +613,20 @@ INPUT_AND_MODELS += [
         ),
         BinaryPrimitive(lambda x, y: torch.hstack([x, y])),
     ),
+]
+
+INPUT_AND_MODELS += [
+    (torch.arange(24).reshape(2, 3, 4), UnaryPrimitive(op))
+    for op in [
+        TensorFnPrimitive("flatten"),
+    ]
+]
+
+INPUT_AND_MODELS += [
+    (torch.arange(4).reshape(1, 1, 4), UnaryPrimitive(op))
+    for op in [
+        TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
+    ]
 ]
 
 

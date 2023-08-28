@@ -9,6 +9,7 @@ from torch_to_nnef.op.primitive.base import (
 from torch_to_nnef.op.primitive.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -35,6 +36,54 @@ def view(
         input_node.dtype, tract_feature_flags
     ):
         dim_data.append(2)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"shape": dim_data},
+    )
+
+
+@OP_REGISTRY.register()
+def unflatten(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    tract_feature_flags,
+    **kwargs,
+):
+    (input_node, axis_node, new_shape_chunk_node) = node.inputs
+    assert isinstance(
+        axis_node, PythonConstant
+    ), "axis is supposed to be static"
+
+    rank_data = pick_rank(input_node, axis_node.data)
+
+    partial_dim_data = get_list_of_int(
+        new_shape_chunk_node,
+        torch_graph,
+        name_to_tensor=name_to_tensor,
+        accept_none=1,
+        has_dynamic_axes=has_dynamic_axes,
+    )
+
+    dim_data = (
+        input_node.shape[:rank_data]
+        + partial_dim_data
+        + input_node.shape[rank_data + 1 :]
+    )
+
+    if is_complex_dtype_and_complex_only_supported_as_lastdim(
+        input_node.dtype, tract_feature_flags
+    ):
+        dim_data.append(2)
+
     add_single_output_op(
         g,
         node,
