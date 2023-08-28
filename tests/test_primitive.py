@@ -591,8 +591,8 @@ if not tract_version_lower_than("0.20.0"):
         _eintest_gen(
             "ij,kl->ijkl",
             [
-                torch.arange(6).reshape(2, 3).float(),
-                torch.arange(20).reshape(4, 5).float(),
+                torch.arange(2).reshape(1, 2).float(),
+                torch.arange(12).reshape(3, 4).float(),
             ],
         ),
     ]
