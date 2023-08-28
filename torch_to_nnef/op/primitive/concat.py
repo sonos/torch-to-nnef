@@ -73,6 +73,64 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
+def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
+    input_node = node.inputs[0]
+    assert isinstance(input_node, FixedTensorList)
+    inputs = []
+    for input_item in input_node.data:
+        if (
+            input_item.export_name not in name_to_tensor
+            and input_item.data is None
+        ):
+            torch_graph.printall()
+            raise TorchToNNEFNotImplementedError(
+                f"vstack with input_item: {input_item}"
+            )
+        tensor_ref = get_or_add_tensor_variable_in_nnef(
+            g, input_item, name_to_tensor
+        )
+        inputs.append(tensor_ref)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "concat",
+        inputs=inputs,
+        attrs={"axis": 0},
+        ensure_tuple=False,
+    )
+
+
+@OP_REGISTRY.register()
+def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
+    input_node = node.inputs[0]
+    assert isinstance(input_node, FixedTensorList)
+    inputs = []
+    for input_item in input_node.data:
+        if (
+            input_item.export_name not in name_to_tensor
+            and input_item.data is None
+        ):
+            torch_graph.printall()
+            raise TorchToNNEFNotImplementedError(
+                f"vstack with input_item: {input_item}"
+            )
+        tensor_ref = get_or_add_tensor_variable_in_nnef(
+            g, input_item, name_to_tensor
+        )
+        inputs.append(tensor_ref)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "concat",
+        inputs=inputs,
+        attrs={"axis": 1},
+        ensure_tuple=False,
+    )
+
+
+@OP_REGISTRY.register()
 def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
     input_node, shifts_node, dims_node = node.inputs
     shifts = shifts_node.data
