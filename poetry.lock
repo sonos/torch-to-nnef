@@ -1032,18 +1032,21 @@ test = ["codecov (>=2.1)", "pytest (>=7.2)", "pytest-cov (>=4.0)"]
 
 [[package]]
 name = "nnef"
-version = "0.3"
-description = "A package for parsing NNEF files"
+version = "1.0"
+description = ""
 optional = false
 python-versions = "*"
 files = []
 develop = false
 
+[package.dependencies]
+numpy = ">=1.13,<2.0"
+
 [package.source]
 type = "git"
 url = "https://github.com/KhronosGroup/NNEF-Tools.git"
-reference = "e6733b055cebd0f5a6ab60f883f6714763ce9ec1"
-resolved_reference = "e6733b055cebd0f5a6ab60f883f6714763ce9ec1"
+reference = "47b496168bd83736ad2fdf40a1193f26a4987c98"
+resolved_reference = "47b496168bd83736ad2fdf40a1193f26a4987c98"
 subdirectory = "parser/python"
 
 [[package]]
@@ -1058,8 +1061,8 @@ develop = false
 [package.source]
 type = "git"
 url = "https://github.com/KhronosGroup/NNEF-Tools.git"
-reference = "e6733b055cebd0f5a6ab60f883f6714763ce9ec1"
-resolved_reference = "e6733b055cebd0f5a6ab60f883f6714763ce9ec1"
+reference = "47b496168bd83736ad2fdf40a1193f26a4987c98"
+resolved_reference = "47b496168bd83736ad2fdf40a1193f26a4987c98"
 
 [[package]]
 name = "nodeenv"
@@ -2356,4 +2359,4 @@ test = ["black", "flake8", "flake8-docstrings", "isort", "mypy", "pytest", "pyte
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.0,<4.0"
-content-hash = "15b2bd71b562885d4395e65f6d7dc750604cec262be30e9f56be0f71b7c8d333"
+content-hash = "973392c518978cd1074778abb27bbd81dd268688fc46cdb1139688f6a8961e55"
