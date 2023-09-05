@@ -3,8 +3,10 @@ import operator
 import typing as T
 from functools import reduce
 
+# pylint: disable-next=redefined-builtin
 from torch_to_nnef.op.primitive import (
     activation,
+    attn,
     axes_change,
     complex,
     concat,
@@ -47,6 +49,7 @@ primitive_ops_registry = reduce(
             split,
             tensor_build,
             unary,
+            attn,
         ]
     ],
 )
