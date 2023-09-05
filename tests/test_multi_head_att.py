@@ -77,11 +77,10 @@ INPUT_AND_MODELS = [
             )
         ),
     ),
-    # NOTE: failing
-    # (
-    #     torch.randint(high=5, size=(3, 1, 4)).float(),
-    #     SelfAttn(size=4, batch_size=3, need_weights=False),
-    # ),
+    (
+        torch.randint(high=5, size=(3, 1, 4)).float(),
+        SelfAttn(size=4, batch_size=3, need_weights=False),
+    ),
 ]
 
 

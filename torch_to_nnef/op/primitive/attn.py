@@ -46,6 +46,15 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     value_tensor = get_or_add_tensor_variable_in_nnef(
         g, value_node, name_to_tensor
     )
+    fragment_name = ""
+    if key_node.rank == 3:
+        fragment_name = "scaled_dot_product_attention_3d"
+    elif key_node.rank == 4:
+        fragment_name = "scaled_dot_product_attention_4d"
+    else:
+        raise TorchToNNEFNotImplementedError(
+            "shape unexpected for scaled_dot_product_attention"
+        )
 
     attn_mask_tensor = get_or_add_tensor_variable_in_nnef(
         g, attn_mask_node, name_to_tensor
@@ -55,9 +64,9 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         g,
         node,
         name_to_tensor,
-        "scaled_dot_product_attention",
+        fragment_name,
         inputs=(query_tensor, key_tensor, value_tensor, attn_mask_tensor),
         # attrs={"axes": [pick_rank(input_node, dim) for dim in axes_node.data]},
     )
 
-    return ["scaled_dot_product_attention"]
+    return [fragment_name]
