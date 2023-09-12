@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [0.8.5] - 2023-09-12
+
+### Added
+- `PyTorch` v2 support
+- Python `3.7` no more tested/supported as it is deprecated
+- Support Python `3.8` to `3.11` tested/supported
 
 ## [0.8.4] - 2023-08-28
 
