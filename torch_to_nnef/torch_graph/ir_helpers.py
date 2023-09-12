@@ -43,6 +43,16 @@ from torch_to_nnef.tract import nop
 LOGGER = logging.getLogger(__name__)
 
 
+def _node_get(node: torch._C.Node, key: str):
+    """Gets attributes of a node which is polymorphic over return type."""
+    sel = node.kindOf(key)
+    return getattr(node, sel)(key)
+
+
+# pylint: disable-next=protected-access
+torch._C.Node.__getitem__ = _node_get
+
+
 def aten_name_to_torch_fn(
     aten_name: str,
 ):

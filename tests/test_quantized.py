@@ -112,49 +112,52 @@ def build_test_tup(
     )
 
 
-# SEED selected so that it works.
-INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 2, 1))
-    for mod in [
-        nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
-    ]
-]
+if not tract_version_lower_than(
+    "0.19.0"
+):  # with tract 0.18 quantization work only for PyTorch 1.X
+    # we do not test PyTorch 1.X anymore (only 2.X)
 
-INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 3, 4))
-    for mod in [
-        nn.intrinsic.ConvBnReLU1d(
-            nn.Conv1d(3, 1, kernel_size=3),
-            nn.BatchNorm1d(1),
-            nn.ReLU(),
-        ),
-    ]
-]
-
-
-if tract_version_lower_than("0.20.0") or tract_version_greater_than(
-    "0.21.0"
-):  # tract regression
+    # SEED selected so that it works.
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 2))
+        build_test_tup(mod, shape=(1, 2, 1))
         for mod in [
-            nn.Linear(2, 1, bias=False),
-            nn.Linear(2, 1, bias=True),
-            nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+            nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
         ]
     ]
 
-INPUT_AND_MODELS += [
-    build_test_tup(mod, shape=(1, 2, 3, 4))
-    for mod in [
-        nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
-        # nn.intrinsic.ConvBnReLU2d(
-        # nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
-        # nn.BatchNorm2d(2),
-        # nn.ReLU(),
-        # ),
+    INPUT_AND_MODELS += [
+        build_test_tup(mod, shape=(1, 3, 4))
+        for mod in [
+            nn.intrinsic.ConvBnReLU1d(
+                nn.Conv1d(3, 1, kernel_size=3),
+                nn.BatchNorm1d(1),
+                nn.ReLU(),
+            ),
+        ]
     ]
-]
+    if tract_version_lower_than("0.20.0") or tract_version_greater_than(
+        "0.20.7"
+    ):  # tract regression
+        INPUT_AND_MODELS += [
+            build_test_tup(mod, shape=(1, 2))
+            for mod in [
+                nn.Linear(2, 1, bias=False),
+                nn.Linear(2, 1, bias=True),
+                nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+            ]
+        ]
+
+    INPUT_AND_MODELS += [
+        build_test_tup(mod, shape=(1, 2, 3, 4))
+        for mod in [
+            nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+            # nn.intrinsic.ConvBnReLU2d(
+            # nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+            # nn.BatchNorm2d(2),
+            # nn.ReLU(),
+            # ),
+        ]
+    ]
 
 # Need Monitoring !
 # With pytorch v1.11.0 MultiheadAttention and LSTM are supported via dynamic Quantization only

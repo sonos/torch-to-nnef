@@ -1,0 +1,19 @@
+extension tract_registry tract_core;
+
+fragment scaled_dot_product_attention_3d(
+    query: tensor<scalar>,
+    key: tensor<scalar>,
+    value: tensor<scalar>,
+    attn_mask: tensor<scalar>
+) -> ( out : tensor<scalar>) {
+  # https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+  transposed_key = transpose(key, axes = [0, 2, 1]);
+  dot_qk = matmul(query, transposed_key, transposeA = false, transposeB = false);
+  qshape = tract_core_shape_of(query);
+  qsize = tract_core_cast(slice(qshape, axes=[0], begin=[2], end=[3], stride=[1]), to="f32");
+  divisor = sqrt(qsize);
+  scaled_dot_qk = div(dot_qk, divisor);
+  scaled_dot_qk_with_attn_mask = add(scaled_dot_qk, attn_mask);
+  attn_weight = softmax(scaled_dot_qk_with_attn_mask,  axes=[2]);
+  out = matmul(attn_weight, value, transposeA = false, transposeB = false);
+}

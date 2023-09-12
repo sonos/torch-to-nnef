@@ -89,12 +89,16 @@ def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(["norm", "linalg_vector_norm"])
 def norm(g, node, name_to_tensor, **kwargs):
     """
     NOTE this is only the normed vector
     """
-    input_node, p_node, axes_node, keep_dim_node = node.inputs
+    if node.kind == "aten::linalg_vector_norm":
+        # new in PyTorch 2.0
+        input_node, p_node, axes_node, keep_dim_node, _ = node.inputs
+    else:
+        input_node, p_node, axes_node, keep_dim_node = node.inputs
     if p_node.data not in [1, 2]:
         raise TorchToNNEFNotImplementedError(
             "norm with p only supported for 1 and 2"
