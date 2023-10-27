@@ -57,8 +57,7 @@ def tract_version_greater_than(version: str, inclusive: bool = False) -> bool:
     try:
         if inclusive:
             return tract_version() >= SemanticVersion.from_str(version)
-        else:
-            return tract_version() > SemanticVersion.from_str(version)
+        return tract_version() > SemanticVersion.from_str(version)
     except (subprocess.SubprocessError, FileNotFoundError):
         return False
 
@@ -110,31 +109,27 @@ def tract_assert_io(
             if raise_exception:
                 if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                     raise IOPytorchTractNotISOError(serr)
-                else:
-                    # NOTE: tract up to at least 0.20.7 stderr info and trace messages
-                    # we filter those to check if any other messages remain
-                    err_filtered = ""
-                    for serrline in serr.split("\n"):
-                        if any(
-                            _ in serrline for _ in ["Ignore unknown extension"]
-                        ):
-                            continue
+                # NOTE: tract up to at least 0.20.7 stderr info and trace messages
+                # we filter those to check if any other messages remain
+                err_filtered = ""
+                for serrline in serr.split("\n"):
+                    if any(_ in serrline for _ in ["Ignore unknown extension"]):
+                        continue
 
-                        if all(  # NOTE: discuss with @kali about migration
-                            _ in serrline
-                            for _ in [
-                                "tract_pulse_streaming_symbol",
-                                "deprecated",
-                                "WARN",
-                            ]
-                        ):
-                            continue
+                    if all(  # NOTE: discuss with @kali about migration
+                        _ in serrline
+                        for _ in [
+                            "tract_pulse_streaming_symbol",
+                            "deprecated",
+                            "WARN",
+                        ]
+                    ):
+                        continue
 
-                        err_filtered += f"{serrline}\n".strip()
-                    if len(err_filtered) > 0:
-                        raise TractError(err_filtered)
-                    else:
-                        return True
+                    err_filtered += f"{serrline}\n".strip()
+                if len(err_filtered) > 0:
+                    raise TractError(err_filtered)
+                return True
             LOGGER.debug(serr)
             return False
     return True
