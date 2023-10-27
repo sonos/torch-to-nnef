@@ -81,10 +81,15 @@ def tract_assert_io(
     io_npz_path: Path,
     raise_exception=True,
 ):
+    extra_param = (
+        "--nnef-tract-extra "
+        if tract_version_greater_than("0.20.0", inclusive=True)
+        else ""
+    )
     cmd = (
         f"{TRACT_PATH} {nnef_path} "
-        f"--nnef-tract-core --nnef-tract-pulse "
-        f"-O "
+        "--nnef-tract-core --nnef-tract-pulse "
+        f"{extra_param} -O "
     )
     if tract_version_lower_than("0.18.0"):
         cmd += (
