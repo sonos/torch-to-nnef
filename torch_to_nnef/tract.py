@@ -83,7 +83,7 @@ def tract_assert_io(
 ):
     extra_param = (
         "--nnef-tract-extra "
-        if tract_version_greater_than("0.20.0", inclusive=True)
+        if tract_version_greater_than("0.20.20", inclusive=True)
         else ""
     )
     cmd = (
