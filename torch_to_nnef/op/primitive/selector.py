@@ -84,7 +84,7 @@ def slice_(
     ):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
-        return
+        return []
     add_single_output_op(
         g,
         node,
@@ -100,6 +100,7 @@ def slice_(
             "stride": [stride_node.data],
         },
     )
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -254,9 +255,9 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     (
         weight_node,
         indices_node,
-        padding_idx_node,
-        scale_grad_by_freq_node,
-        sparse_node,
+        _,  # padding_idx_node
+        _,  # scale_grad_by_freq_node
+        _,  # sparse_node
     ) = node.inputs
 
     weight_tensor = get_or_add_tensor_variable_in_nnef(
