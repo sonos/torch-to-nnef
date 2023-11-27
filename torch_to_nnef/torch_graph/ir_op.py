@@ -182,7 +182,7 @@ class TorchOp:
                 args = args[:1]
             if self.kind == ATEN_TO:
                 if isinstance(args[2], int):
-                    LOGGER.warning("wrongly `ordered` to parameters")
+                    LOGGER.debug("wrongly `ordered` to parameters")
                     args = args[:2]
             if self.kind == ATEN_GELU:
                 args = args[:1]  # skip the 'none' param starting torch 1.12.0
@@ -198,7 +198,8 @@ class TorchOp:
                     a.tolist() if isinstance(a, torch.Tensor) else a
                     for a in args[0]
                 ]
-                args[-1] = args[-1].tolist()
+                if not isinstance(args[-1], float):
+                    args[-1] = args[-1].tolist()
             if self.kind == ATEN_CUMSUM:
                 args = list(args[:2])
             if self.kind == ATEN_NEW_ONES:

@@ -84,7 +84,7 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     ) = node.inputs
 
     onode = node.outputs[0]
-    LOGGER.warning(
+    LOGGER.debug(
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
