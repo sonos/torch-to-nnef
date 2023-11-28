@@ -146,7 +146,11 @@ def zeros_like(
     (input_node, *_) = node.inputs
     dtype = torch.float32
     if len(_) > 0:
-        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[_[0].data]
+        dtype_node = _[0]
+        if dtype_node.data:
+            dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+        else:
+            dtype = input_node.dtype
 
     shape_node = input_node.shape
     if has_dynamic_axes:
@@ -205,7 +209,7 @@ def zeros_like(
 @OP_REGISTRY.register()
 def new_zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     (
-        _,  # input_node,
+        input_node,  # input_node,
         shape_node,
         dtype_node,
         _,  # ? example PythonConstant(data=0, ...)
@@ -213,7 +217,10 @@ def new_zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         _,  # requires_grad_node
     ) = node.inputs
 
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+    if dtype_node.data:
+        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+    else:
+        dtype = input_node.dtype
 
     assert shape_node.data
 
