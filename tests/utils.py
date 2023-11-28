@@ -25,7 +25,13 @@ def set_seed(seed=0, cudnn=False, torch=True):
     random.seed(seed)
 
 
-def check_model_io_test(model: Torch.nn.Module, test_input, dynamic_axes=None):
+def check_model_io_test(
+    model: Torch.nn.Module,
+    test_input,
+    dynamic_axes=None,
+    input_names=None,
+    output_names=None,
+):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -33,7 +39,11 @@ def check_model_io_test(model: Torch.nn.Module, test_input, dynamic_axes=None):
         model = model.eval()
 
         input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
+            model,
+            test_input,
+            io_npz_path=io_npz_path,
+            input_names=input_names,
+            output_names=output_names,
         )
         export_model_to_nnef(
             model=model,
