@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.8.8] - 2023-11-29
+
+### Fix
+
+- `rnn` states can now be manipulated in graph even in `multi-layers`
+
 ## [0.8.7] - 2023-11-29
 
 ### Fix
