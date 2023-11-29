@@ -290,7 +290,7 @@ class _RNNMixin:
 
         ie:
         @code nnef
-            h_0 = gru_output_0_l0_h_0_store = variable<scalar>(label = 'gru_output_0_l0_h_0_store', shape = [1, 1, 5]);
+            h_0 = variable<scalar>(label = 'gru_output_0_l0_h_0_store', shape = [1, 1, 5]);
             input_shape = tract_core_shape_of(input);
             batch_size = slice(input_shape, axes=[0], begin=[1], end=[2], stride=[1]);
             h_batch_expanded_0 = tile(h_0, repeats=[1, batch_size, 1]);
@@ -403,6 +403,9 @@ class _RNNMixin:
         input_tensor: NTensor,
     ) -> T.Dict[str, NTensor]:
         # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef import torch_graph as tg
+
+        # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op.primitive import base
 
         name_to_nnef_variable = {}
@@ -432,9 +435,37 @@ class _RNNMixin:
                 tensor_variable, torch_tensor = item
                 if torch_tensor is None:
                     # variable is manipulated by user
-                    name_to_nnef_variable[var_name] = name_to_tensor[
+                    reference_state_nnef_tensor = name_to_tensor[
                         tensor_variable.export_name
                     ]
+                    input_layer_states_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+                        g=g,
+                        node=tg.TensorVariable(
+                            name=node.outputs[0].name,
+                            shape=[1]
+                            + list(reference_state_nnef_tensor.shape[1:]),
+                            dtype=node.inputs[0].dtype,
+                            quant=None,  # would probably need better handling
+                            data=None,
+                        ),
+                        name_to_tensor=name_to_tensor,
+                        name_suffix=var_name,
+                        prevent_variable=True,
+                        force_full_output_tensor_name=var_name,
+                    )
+                    NOperation(
+                        g,
+                        type="slice",
+                        inputs=reference_state_nnef_tensor,
+                        outputs=input_layer_states_tensor,
+                        attribs={
+                            "axes": [0],
+                            "begin": [layer_index],
+                            "end": [layer_index + 1],
+                            "stride": [1],
+                        },
+                    )
+                    name_to_nnef_variable[var_name] = input_layer_states_tensor
                 else:
                     name_to_nnef_variable[
                         var_name
