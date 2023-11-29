@@ -12,6 +12,7 @@ This may be for two main reasons:
 """
 import typing as T
 
+import nnef
 import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
@@ -92,6 +93,16 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             return self.MODULE_CLASS.__name__
         return "NotSetted"
 
+    @staticmethod
+    def _call_original_mod_with_args(mod, *args):
+        """Allow to reformat args in sub class.
+
+        ie: in LSTM there is a difference between
+            - jit lstm with flat arguments tensors
+            - LSTM python interface with states tensors in a tuple
+        """
+        return mod(*args)
+
     def _generate_in_torch_graph(
         self, torch_graph, provided_inputs, provided_outputs
     ):
@@ -113,7 +124,10 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                     data=None,
                 )
             inputs.append(tensor_variable)
-        results = torch_graph.tracer.mod(*torch_graph.tracer.args)
+        # in case of rnn 2nd parameter is a tuple of states
+        results = self._call_original_mod_with_args(
+            torch_graph.tracer.mod, *torch_graph.tracer.args
+        )
 
         if isinstance(results, torch.Tensor):
             results = (results,)
@@ -127,6 +141,16 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                 expanded_results.append(result)
 
         outputs = []
+        # ugly hack in case provided multi output operators with TupleTensors packing
+        if (
+            provided_outputs is not None
+            and isinstance(
+                provided_outputs[0],
+                tg.ir_data.TupleTensors,
+            )
+            and len(provided_outputs) == 1
+        ):
+            provided_outputs = provided_outputs[0].data
         for idx, result in enumerate(expanded_results):
             if provided_outputs and idx < len(provided_outputs):
                 tensor_variable = provided_outputs[idx]
@@ -139,7 +163,6 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                     data=None,
                 )
             outputs.append(tensor_variable)
-
         torch_graph.inputs = inputs
         torch_graph.outputs = outputs
         torch_graph.data_nodes = inputs + outputs
@@ -187,6 +210,18 @@ class _RNNMixin:
             f"should be dim=1 for rank={batch_rank} since batch_size beyond are "
             f"not supported but provided shape is {node.inputs[0].shape}"
         )
+
+    @staticmethod
+    def _prep_states(states_0, layer_index: int):
+        if isinstance(states_0[1], torch.Tensor):
+            states_0_tensor_variable, states_0_torch = states_0
+            states_0_layer = (
+                states_0_tensor_variable,
+                states_0_torch.split(1)[layer_index][:, :1, :],
+            )  # to be tiled
+        else:
+            states_0_layer = states_0
+        return states_0_layer
 
     def _pre_batch_first(self, g, input_tensor, node, name_to_tensor):
         # pylint: disable-next=import-outside-toplevel
@@ -241,6 +276,121 @@ class _RNNMixin:
                 attribs={"axis": 0},
             )
 
+    def _translate_state_variable_load_and_prep(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        var_name: str,
+        tensor_variable,
+        torch_tensor,
+        input_tensor,
+    ):
+        """reproduce initial states preparations before rnn layer call
+
+        ie:
+        @code nnef
+            h_0 = gru_output_0_l0_h_0_store = variable<scalar>(label = 'gru_output_0_l0_h_0_store', shape = [1, 1, 5]);
+            input_shape = tract_core_shape_of(input);
+            batch_size = slice(input_shape, axes=[0], begin=[1], end=[2], stride=[1]);
+            h_batch_expanded_0 = tile(h_0, repeats=[1, batch_size, 1]);
+        @end
+
+        """
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op.primitive import base
+
+        assert tensor_variable is None, tensor_variable
+        variable_storage_id = f"{var_name}_store"
+        store_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            name_suffix=variable_storage_id,
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=node.outputs[0].name,
+                data=torch_tensor,
+                shape=list(torch_tensor.shape),
+                dtype=torch_tensor.dtype,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+        )
+
+        # NOTE: here we create a fake node so that even if rnn is 'batch_first'
+        # we reference the right rnn input 'name'
+        reference_rnn_input = base.TensorVariable(
+            name=input_tensor.name,
+            data=None,
+            shape=list(input_tensor.shape),
+            dtype=node.inputs[0].dtype,
+        )
+
+        batch_size_tensor_id = f"{reference_rnn_input.export_name}_batch_size"
+        if batch_size_tensor_id in name_to_tensor:
+            input_batch_size_tensor = name_to_tensor[batch_size_tensor_id]
+        else:
+            input_shape_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+                g,
+                reference_rnn_input,
+                name_to_tensor,
+                name_suffix="shape",
+                prevent_variable=True,
+            )
+            NOperation(
+                g,
+                type="tract_core_shape_of",
+                inputs=name_to_tensor[reference_rnn_input.export_name],
+                outputs=input_shape_tensor,
+            )
+            input_batch_size_tensor = (
+                base.add_tensor_variable_node_as_nnef_tensor(
+                    g,
+                    reference_rnn_input,
+                    name_to_tensor,
+                    name_suffix="batch_size",
+                    prevent_variable=True,
+                )
+            )
+            NOperation(
+                g,
+                type="slice",
+                inputs=input_shape_tensor,
+                outputs=input_batch_size_tensor,
+                attribs={
+                    "axes": [0],
+                    "begin": [1],
+                    "end": [2],
+                    "stride": [1],
+                },
+            )
+
+        initial_state_ready_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            name_suffix=var_name,
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=node.outputs[0].name,
+                data=torch_tensor,
+                shape=list(torch_tensor.shape),
+                dtype=torch_tensor.dtype,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            prevent_variable=True,
+        )
+        NOperation(
+            g,
+            type="tile",
+            inputs=store_tensor,
+            outputs=initial_state_ready_tensor,
+            attribs={
+                "repeats": [
+                    1,
+                    nnef.Identifier(input_batch_size_tensor.name),
+                    1,
+                ]
+            },
+        )
+        return initial_state_ready_tensor
+
     def _translate_to_nnef_variable(
         self,
         module: T_RNNS,
@@ -250,31 +400,56 @@ class _RNNMixin:
         g,
         name_to_tensor,
         is_backward: bool,
+        input_tensor: NTensor,
     ) -> T.Dict[str, NTensor]:
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op.primitive import base
 
         name_to_nnef_variable = {}
-        for var_name, torch_tensor in self.tensor_params(
+        for var_name, item in self.tensor_params(
             module,
             layer_index=layer_index,
             backward=is_backward,
             **tensor_params_kwargs,
         ).items():
-            name_to_nnef_variable[
-                var_name
-            ] = base.add_tensor_variable_node_as_nnef_tensor(
-                name_suffix=var_name,
-                # build imaginary node to fill data correctly
-                node=base.TensorVariable(
-                    name=node.outputs[0].name,
-                    data=torch_tensor,
-                    shape=list(torch_tensor.shape),
-                    dtype=torch_tensor.dtype,
-                ),
-                g=g,
-                name_to_tensor=name_to_tensor,
-            )
+            if isinstance(item, torch.Tensor):
+                name_to_nnef_variable[
+                    var_name
+                ] = base.add_tensor_variable_node_as_nnef_tensor(
+                    name_suffix=var_name,
+                    # build imaginary node to fill data correctly
+                    node=base.TensorVariable(
+                        name=node.outputs[0].name,
+                        data=item,
+                        shape=list(item.shape),
+                        dtype=item.dtype,
+                    ),
+                    g=g,
+                    name_to_tensor=name_to_tensor,
+                )
+            elif isinstance(item, tuple):
+                assert len(item) == 2, item
+                tensor_variable, torch_tensor = item
+                if torch_tensor is None:
+                    # variable is manipulated by user
+                    name_to_nnef_variable[var_name] = name_to_tensor[
+                        tensor_variable.export_name
+                    ]
+                else:
+                    name_to_nnef_variable[
+                        var_name
+                    ] = self._translate_state_variable_load_and_prep(
+                        g,
+                        node,
+                        name_to_tensor,
+                        var_name,
+                        tensor_variable,
+                        torch_tensor,
+                        input_tensor,
+                    )
+            else:
+                raise NotImplementedError(item)
+
         return name_to_nnef_variable
 
     def _translate_to_nnef_outputs(
@@ -375,6 +550,7 @@ class _RNNMixin:
                     g,
                     name_to_tensor,
                     is_backward,
+                    input_tensor=input_tensor,
                 )
 
                 if is_backward:
@@ -434,10 +610,11 @@ class _RNNMixin:
         self, params, layer_index: int, backward: bool = False
     ):
         for k, v in params.items():
-            v = v.detach()
-            if k.startswith("b_"):
-                v = v.unsqueeze(0)
-            params[k] = v.unsqueeze(0)
+            if isinstance(v, torch.Tensor):
+                v = v.detach()
+                if k.startswith("b_"):
+                    v = v.unsqueeze(0)
+                params[k] = v.unsqueeze(0)
 
         linfo = str(layer_index)
         if backward:
@@ -460,8 +637,8 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         h_0: torch.Tensor,
         **kwargs,
     ):
-        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
-        c_0_layer = c_0.split(1)[layer_index][:, 0, :]  # to be tiled
+        h_0_layer = self._prep_states(h_0, layer_index)
+        c_0_layer = self._prep_states(c_0, layer_index)
 
         suffix = str(layer_index)
         if backward:
@@ -535,6 +712,8 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         nnef_spec_strict: bool,
         **kwargs,
     ):
+        assert len(node.inputs) <= 3, node.inputs
+        assert len(node.outputs) <= 3, node.outputs
         if nnef_spec_strict:
             raise StrictNNEFSpecError(
                 "Impossible to export LSTM with NNEF spec compliance activated"
@@ -552,22 +731,31 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         batch_rank = 0 if lstm.batch_first else 1
         batch_dim = node.inputs[0].shape[batch_rank]
         if len(node.inputs) < 2:
-            h_0 = torch.zeros(
+            h_0_tensor_variable = None
+            h_0_torch = torch.zeros(
                 lstm.num_layers * D,
                 batch_dim,
                 lstm.proj_size or lstm.hidden_size,
             )
         else:
-            # might be a TensorVariable with data NOT already setted
-            h_0 = node.inputs[1].data
+            # parameter is manipulated by user
+            h_0_tensor_variable = node.inputs[1]
+            h_0_torch = None
 
         if len(node.inputs) < 3:
-            c_0 = torch.zeros(lstm.num_layers * D, batch_dim, lstm.hidden_size)
+            c_0_tensor_variable = None
+            c_0_torch = torch.zeros(
+                lstm.num_layers * D, batch_dim, lstm.hidden_size
+            )
         else:
-            # might be a TensorVariable with data NOT already setted
-            c_0 = node.inputs[2].data
+            # parameter is manipulated by user
+            c_0_tensor_variable = node.inputs[2]
+            c_0_torch = None
 
-        tensor_params_kwargs = {"h_0": h_0, "c_0": c_0}
+        tensor_params_kwargs = {
+            "h_0": (h_0_tensor_variable, h_0_torch),
+            "c_0": (c_0_tensor_variable, c_0_torch),
+        }
 
         argument_names_order = [
             "c_0",
@@ -598,6 +786,18 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
             **tensor_params_kwargs,
         )
 
+    @staticmethod
+    def _call_original_mod_with_args(mod, *args):
+        """Allow to reformat args.
+
+        In LSTM there is a difference between
+            - jit lstm with flat arguments tensors
+            - LSTM python interface with states tensors in a tuple
+        """
+        if len(args) > 1:
+            args = (args[0], tuple(args[1:]))
+        return mod(*args)
+
 
 class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
     MODULE_CLASS = nn.GRU
@@ -615,7 +815,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
+        h_0_layer = self._prep_states(h_0, layer_index)
         # module weight packed in order (W_ir|W_iz|W_in)
         w_var = getattr(module, f"weight_ih_l{suffix}")
         W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
@@ -689,11 +889,15 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         if len(node.inputs) < 2:
             batch_rank = 0 if gru.batch_first else 1
             batch_dim = node.inputs[0].shape[batch_rank]
-            h_0 = torch.zeros(gru.num_layers * D, batch_dim, gru.hidden_size)
+            h_0_torch = torch.zeros(
+                gru.num_layers * D, batch_dim, gru.hidden_size
+            )
+            h_0_tensor_variable = None
         else:
-            # might be a TensorVariable with data NOT already setted
-            h_0 = node.inputs[1].data
-        tensor_params_kwargs = {"h_0": h_0}
+            # parameter is manipulated by user
+            h_0_tensor_variable = node.inputs[1]
+            h_0_torch = None
+        tensor_params_kwargs = {"h_0": (h_0_tensor_variable, h_0_torch)}
         return self._core_convert_to_nnef(
             module=gru,
             node=node,
@@ -727,14 +931,14 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         module: T_RNNS,
         layer_index: int,
         backward: bool,
-        h_0: torch.Tensor,
+        h_0: T.Union[torch.Tensor, str],
         **kwargs,
     ):
         suffix = str(layer_index)
         if backward:
             suffix += "_reverse"
 
-        h_0_layer = h_0.split(1)[layer_index][:, 0, :]  # to be tiled
+        h_0_layer = self._prep_states(h_0, layer_index)
 
         w_ih = getattr(module, f"weight_ih_l{suffix}")
         w_hh = getattr(module, f"weight_hh_l{suffix}")
@@ -798,11 +1002,16 @@ class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
         if len(node.inputs) < 2:
             batch_rank = 0 if rnn.batch_first else 1
             batch_dim = node.inputs[0].shape[batch_rank]
-            h_0 = torch.zeros(rnn.num_layers * D, batch_dim, rnn.hidden_size)
+            h_0_torch = torch.zeros(
+                rnn.num_layers * D, batch_dim, rnn.hidden_size
+            )
+            h_0_tensor_variable = None
         else:
-            # might be a TensorVariable with data NOT already setted
-            h_0 = node.inputs[1].data
-        tensor_params_kwargs = {"h_0": h_0}
+            # parameter is manipulated by user
+            h_0_tensor_variable = node.inputs[1]
+            h_0_torch = None
+        tensor_params_kwargs = {"h_0": (h_0_tensor_variable, h_0_torch)}
+
         return self._core_convert_to_nnef(
             module=rnn,
             node=node,

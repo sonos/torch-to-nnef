@@ -78,14 +78,18 @@ class QuantizedOpRegistry(OpRegistry):
 
 
 def add_nnef_operation(
-    graph, inputs, *args, force_consistent_inputs_shapes: bool = True, **kwargs
+    graph: NGraph,
+    inputs: T.Optional[T.Tuple[NTensor]],
+    *args,
+    force_consistent_inputs_shapes: bool = True,
+    **kwargs,
 ):
     if (
         isinstance(inputs, (list, tuple))
         and len(inputs) >= 2
         and force_consistent_inputs_shapes
     ):
-        inputs = maybe_unsqueeze_to_consistent_inputs_ranks(graph, inputs)
+        inputs = maybe_unsqueeze_to_consistent_inputs_ranks(graph, inputs)  # type: ignore
     kwargs["graph"] = graph
     kwargs["inputs"] = inputs
     return NOperation(*args, **kwargs)
@@ -140,7 +144,9 @@ def add_tensor_variable_node_as_nnef_tensor(
     return nnef_tensor_ref
 
 
-def maybe_unsqueeze_to_consistent_inputs_ranks(g, nnef_tensors):
+def maybe_unsqueeze_to_consistent_inputs_ranks(
+    g: NGraph, nnef_tensors: T.Sequence[NTensor]
+) -> T.Sequence[NTensor]:
     """May unsqueeze at 0 rank n time to ensure consistent rank between inputs
 
     This is done at export time and not inference time because:
@@ -203,13 +209,13 @@ def get_or_add_tensor_variable_in_nnef(
 
 
 def add_single_output_op(
-    g,
+    g: NGraph,
     node,
     name_to_tensor,
-    nnef_op_type,
-    inputs,
-    attrs=None,
-    ensure_tuple=True,
+    nnef_op_type: str,
+    inputs: T.Sequence[NTensor],
+    attrs: T.Optional[T.Dict[str, T.Any]] = None,
+    ensure_tuple: bool = True,
     output_tensor_name_suffix: str = "",
     pass_quantization_params: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
@@ -379,7 +385,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
     return casted_inputs, casted_attrs
 
 
-def cast_and_add_nnef_operation(name_to_tensor, **kwargs):
+def cast_and_add_nnef_operation(name_to_tensor: str, **kwargs):
     """ensure to cast parameters before adding operation to NNEF graph"""
     kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
         kwargs["inputs"],
@@ -391,11 +397,11 @@ def cast_and_add_nnef_operation(name_to_tensor, **kwargs):
 
 
 def add_multi_output_op(
-    g,
+    g: NGraph,
     node,
     name_to_tensor,
     nnef_op_type,
-    inputs,
+    inputs: T.Sequence[NTensor],
     attrs=None,
     ensure_tuple=True,
     output_tensor_name_suffix: str = "",
