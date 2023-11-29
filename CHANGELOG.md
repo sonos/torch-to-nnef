@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.8.7] - 2023-11-29
+
+### Fix
+
+- `rnn` states can now be manipulated in graph
+- `dynamic_axes` with tensor construction such as `zeros`, `ones` (and all related variants) now produce correct dynamic matrix
+
 ## [0.8.6] - 2023-10-27
 
 ### Fix
