@@ -106,7 +106,7 @@ INPUT_AND_MODELS = [
 # Base unary operations
 _condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS += [
     (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
     for op in [
         torch.sin,
@@ -133,6 +133,7 @@ INPUT_AND_MODELS = [
         torch.acosh,
         torch.atanh,
         torch.zeros_like,
+        torch.ones_like,
         # unimplemented tract {
         # torch.reciprocal,
         # torch.clone,

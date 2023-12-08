@@ -182,17 +182,15 @@ def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
-def zeros_like(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+def _x_like(
+    g,
+    torch_graph,
+    name_to_tensor,
+    node,
+    has_dynamic_axes,
+    tensor_build_fn,
+    **kwargs,
 ):
-    """This operator can not be exactly exported to NNEF.
-
-    In general NNEF spec is against dynamism it could provide so
-
-    we implement it as a simple constant variable.
-
-    """
     (input_node, *_) = node.inputs
     dtype = torch.float32
     if len(_) > 0:
@@ -252,8 +250,28 @@ def zeros_like(
         name_to_tensor,
         has_dynamic_axes=has_dynamic_axes,
         dtype=dtype,
-        tensor_build_fn=torch.zeros,
+        tensor_build_fn=tensor_build_fn,
     )
+
+
+@OP_REGISTRY.register()
+def zeros_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
+def ones_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.ones, **kwargs)
 
 
 @OP_REGISTRY.register()
