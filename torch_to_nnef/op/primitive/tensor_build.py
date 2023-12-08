@@ -37,7 +37,9 @@ def arange(
     """
     if len(node.inputs) == 3:
         (start_node, end_node, dtype_node) = node.inputs
-        step_node = PythonConstant(name=f"step_node_{node.export_name}", data=1)
+        step_node = PythonConstant(
+            name=f"step_node_{node.outputs[0].export_name}", data=1
+        )
     elif len(node.inputs) == 4:
         (start_node, end_node, dtype_node, step_node) = node.inputs
     else:
