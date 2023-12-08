@@ -16,6 +16,8 @@ from torch_to_nnef.torch_graph import (
     FixedTensorList,
     TensorVariable,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.tract import tract_version_lower_than
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +25,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def arange(g, node, name_to_tensor, **kwargs):
+def arange(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes: bool, **kwargs
+):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -31,11 +35,55 @@ def arange(g, node, name_to_tensor, **kwargs):
     we implement it as a simple constant variable.
 
     """
-    (start_node, end_node, step_node) = node.inputs
-    LOGGER.warning(
-        "aten::arange replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
+    if len(node.inputs) == 3:
+        (start_node, end_node, dtype_node) = node.inputs
+        step_node = PythonConstant(name=f"step_node_{node.export_name}", data=1)
+    elif len(node.inputs) == 4:
+        (start_node, end_node, dtype_node, step_node) = node.inputs
+    else:
+        raise NotImplementedError(f"arange with {len(node.inputs)} inputs")
+
+    if dtype_node.data != 1:
+        raise NotImplementedError(
+            f"dtype {dtype_node} not implemented for arange"
+        )
+
+    if not nnef_spec_strict or has_dynamic_axes:
+        if tract_version_lower_than("0.20.0"):
+            raise NotImplementedError(
+                "please update to latest tract to use 'tract_core_range'"
+            )
+
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_range",
+            inputs=[
+                get_or_add_tensor_variable_in_nnef(
+                    g, start_node, name_to_tensor
+                ),
+                get_or_add_tensor_variable_in_nnef(g, end_node, name_to_tensor),
+            ]
+            + (
+                []
+                if isinstance(step_node, PythonConstant)
+                else [
+                    get_or_add_tensor_variable_in_nnef(
+                        g, step_node, name_to_tensor
+                    ),
+                ]
+            ),
+            attrs={"step": step_node.data}
+            if isinstance(step_node, PythonConstant)
+            else {},
+        )
+        return ["tract_core"]
+    if start_node.data is None or end_node.data is None:
+        raise NotImplementedError(
+            "Dynamic arange not handled in strict NNEF For now"
+        )
+
     node.outputs[0].data = torch.arange(
         start_node.data, end_node.data, step=step_node.data
     )

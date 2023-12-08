@@ -71,6 +71,18 @@ class TensorFnPrimitive(nn.Module):
         return getattr(x, self.op)(*self.args, **self.kwargs)
 
 
+class TorchFnPrimitive(nn.Module):
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+
+    def extra_repr(self):
+        return f"torch.op={self.op}"
+
+    def forward(self, *args, **kwargs):
+        return getattr(torch, self.op)(*args, **kwargs)
+
+
 class ListInputPrim(nn.Module):
     def __init__(self, op, y):
         super().__init__()
@@ -628,6 +640,13 @@ INPUT_AND_MODELS += [
     for op in [
         TensorFnPrimitive("unflatten", args=(-1, (2, 2))),
     ]
+]
+
+INPUT_AND_MODELS += [
+    (
+        (torch.tensor(1), torch.tensor(6), torch.tensor(3)),
+        TorchFnPrimitive("arange"),
+    ),
 ]
 
 
