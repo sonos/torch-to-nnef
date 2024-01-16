@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.8.9] - 2024-01-16
+
+### Added
+
+- `tract_core_external` in case of graph input being not i64, nor f32
+
 ## [0.8.8] - 2023-11-29
 
 ### Fix
