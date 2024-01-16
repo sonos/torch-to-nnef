@@ -1,10 +1,14 @@
 import logging
 import typing as T
 
+import numpy as np
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
+from torch_to_nnef.dtypes import (
+    TORCH_DTYPE_TO_TRACT_STR,
+    numpy_dtype_to_tract_str,
+)
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
@@ -24,26 +28,50 @@ LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
 
+_EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT = {np.float32, np.int64}
+
 
 @OP_REGISTRY.register()
 def external(
-    g: NGraph, node: TensorVariable, name_to_tensor: T.Dict[str, NTensor]
+    g: NGraph,
+    node: TensorVariable,
+    name_to_tensor: T.Dict[str, NTensor],
+    nnef_spec_strict: bool,
 ):
     """Add External NNEF Operation in graph"""
     nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
         g, node, name_to_tensor, prevent_variable=True
     )
-    add_nnef_operation(
-        graph=g,
-        type="external",
-        inputs=None,
-        outputs=nnef_tensor_ref,
-        attribs={
-            "shape": list(nnef_tensor_ref.shape),
-            "dtype": nnef_tensor_ref.dtype,
-        },
-    )
-    return nnef_tensor_ref
+    custom_fragments = []
+    if nnef_tensor_ref.dtype in _EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT:
+        add_nnef_operation(
+            graph=g,
+            type="external",
+            inputs=None,
+            outputs=nnef_tensor_ref,
+            attribs={
+                "shape": list(nnef_tensor_ref.shape),
+                "dtype": nnef_tensor_ref.dtype,
+            },
+        )
+    else:
+        if nnef_spec_strict:
+            raise ValueError(
+                "NNEF Spec is not precise enough "
+                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+            )
+        add_nnef_operation(
+            graph=g,
+            type="tract_core_external",
+            inputs=None,
+            outputs=nnef_tensor_ref,
+            attribs={
+                "shape": list(nnef_tensor_ref.shape),
+                "datum_type": numpy_dtype_to_tract_str(nnef_tensor_ref.dtype),
+            },
+        )
+        custom_fragments.append("tract_core")
+    return nnef_tensor_ref, custom_fragments
 
 
 @OP_REGISTRY.register()

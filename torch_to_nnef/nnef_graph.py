@@ -150,13 +150,15 @@ class TorchToNGraphExtractor:
         name_to_tensor: T.Dict[str, NTensor] = {}
         ginputs = []
         for node in self._torch_ir_graph.inputs:
-            ginputs.append(
-                primitive_ops_registry.get("external")(
-                    self.g,
-                    node,
-                    name_to_tensor,
-                )
+            op, custom_fragments = primitive_ops_registry.get("external")(
+                self.g,
+                node,
+                name_to_tensor,
+                nnef_spec_strict=self._nnef_spec_strict,
             )
+            ginputs.append(op)
+            if custom_fragments:
+                self.activated_custom_fragment_keys.update(custom_fragments)
 
         self._add_operators(name_to_tensor, null_ref=null)
 

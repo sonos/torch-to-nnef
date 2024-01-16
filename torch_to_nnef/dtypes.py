@@ -59,6 +59,8 @@ STR_TO_NUMPY_DTYPE = {
     "Long": np.int64,
     "Float": np.float32,
     "float": np.float32,
+    "Double": np.float64,
+    "double": np.float64,
     "int": np.int32,
     "Int": np.int32,
     "Bool": np.bool_,
