@@ -1,4 +1,4 @@
-"""Tests case where shape is defined by operations within graph."""
+"""Tests case where input of graph are of specific dtypes."""
 
 import os
 
@@ -20,7 +20,6 @@ class Mul(nn.Module):
 
 
 INPUT_AND_MODELS = [
-    # To solve this we will need to expand fully graph constant at torch_graph module level
     (torch.randint(0, 4, (2, 4), dtype=torch.int32), Mul()),
     (torch.rand((2, 4), dtype=torch.float64), Mul()),
     # (torch.rand((2, 4), dtype=torch.float16), Mul()), # tract strange error with npz format
