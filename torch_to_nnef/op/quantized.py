@@ -16,6 +16,8 @@ from torch_to_nnef.op.primitive.base import (
     QuantizedOpRegistry,
     add_single_output_op,
 )
+from torch_to_nnef.op.primitive.math import mul as fp_mul
+from torch_to_nnef.op.primitive.unary import generic_unary
 from torch_to_nnef.tract import tract_version_lower_than
 
 OP_REGISTRY = QuantizedOpRegistry()
@@ -149,6 +151,7 @@ def _output_tensor_from_s_and_zp(
         graph=g,
         name=out_tensor_name,
         dtype=np.uint8,
+        shape=onode.shape,
         quant={
             "scale": scale_node.data,
             "zero_point": zero_point_node.data,
@@ -325,6 +328,18 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
 @OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
     raise TorchToNNEFNotImplementedError()
+
+
+@OP_REGISTRY.register()
+def mul(**kwargs):
+    """NNEF spec does not use specifics format for mul"""
+    return fp_mul(**kwargs)
+
+
+@OP_REGISTRY.register()
+def add(**kwargs):
+    """NNEF spec does not use specifics format for add"""
+    return generic_unary(aten_op_id="add", **kwargs)
 
 
 def quantized_node_to_nnef_tensor_and_ops(
