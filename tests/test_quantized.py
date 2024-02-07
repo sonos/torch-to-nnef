@@ -4,6 +4,7 @@ import typing as T
 
 import pytest
 import torch
+import torch.nn.quantized as nnq
 from torch import nn
 from torch.quantization import quantize_fx
 
@@ -158,6 +159,43 @@ if not tract_version_lower_than(
             # ),
         ]
     ]
+if not tract_version_lower_than("0.20.7"):
+
+    class DummyMulExample(nn.Module):
+        def __init__(self, math_op: str):
+            super().__init__()
+            self.math_op = math_op
+            self.op_f = nnq.FloatFunctional()
+
+        def forward(self, x):
+            return getattr(self.op_f, self.math_op)(x, x)
+
+    def math_binary_test(math_op):
+        model = torch.quantization.QuantWrapper(
+            DummyMulExample(math_op=math_op)
+        )
+        qconfig = torch.quantization.get_default_qconfig("qnnpack")
+        torch.backends.quantized.engine = "qnnpack"
+        model.qconfig = qconfig
+        model = torch.quantization.prepare(model)
+        # input selected to avoid issue
+        inp = torch.tensor([0, 2, 4, 8, 16, 8]).reshape(2, 3).float()
+        model(inp)
+        model(inp)
+        model(inp)
+        # model(torch.arange(6).reshape(2, 3).float() * 2)
+        model_int8 = torch.quantization.convert(model).eval()
+        check_model_io_test(
+            model=model_int8,
+            test_input=(inp,),
+        )
+
+    def test_quantize_dummy_add():
+        math_binary_test("add")
+
+    def test_quantize_dummy_mul():
+        math_binary_test("mul")
+
 
 # Need Monitoring !
 # With pytorch v1.11.0 MultiheadAttention and LSTM are supported via dynamic Quantization only

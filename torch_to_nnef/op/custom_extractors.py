@@ -1,5 +1,5 @@
 """
-`ops.custom_extractors` provide mechanism to extract to NNEF while bypassing full expension
+`op.custom_extractors` provide mechanism to extract to NNEF while bypassing full expension
 of `torch.Module` within `torch_graph` which by default use torch.jit.trace .
 
 This may be for two main reasons:
