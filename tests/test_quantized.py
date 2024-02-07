@@ -91,6 +91,7 @@ INPUT_AND_MODELS = []
 
 
 def build_test_tup(
+    test_name: str,
     mod: nn.Module,
     shape: T.Tuple[int, ...] = (1, 2, 1),
     safe_margin_percents: int = 200,
@@ -101,6 +102,7 @@ def build_test_tup(
     for si in shape:
         reduce_r *= si
     return (
+        test_name,
         torch.arange(reduce_r).reshape(*shape).float(),
         WithQuantDeQuant.quantize_model_and_stub(
             mod,
@@ -120,19 +122,25 @@ if not tract_version_lower_than(
 
     # SEED selected so that it works.
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 2, 1))
-        for mod in [
-            nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+        build_test_tup(test_name, mod, shape=(1, 2, 1))
+        for test_name, mod in [
+            (
+                "single_conv1d_with_kernel_1_no_bias",
+                nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+            ),
         ]
     ]
 
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 3, 4))
-        for mod in [
-            nn.intrinsic.ConvBnReLU1d(
-                nn.Conv1d(3, 1, kernel_size=3),
-                nn.BatchNorm1d(1),
-                nn.ReLU(),
+        build_test_tup(test_name, mod, shape=(1, 3, 4))
+        for test_name, mod in [
+            (
+                "fused_conv1d_bn_relu_with_kernel3",
+                nn.intrinsic.ConvBnReLU1d(
+                    nn.Conv1d(3, 1, kernel_size=3),
+                    nn.BatchNorm1d(1),
+                    nn.ReLU(),
+                ),
             ),
         ]
     ]
@@ -140,18 +148,26 @@ if not tract_version_lower_than(
         "0.20.7"
     ):  # tract regression
         INPUT_AND_MODELS += [
-            build_test_tup(mod, shape=(1, 2))
-            for mod in [
-                nn.Linear(2, 1, bias=False),
-                nn.Linear(2, 1, bias=True),
-                nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+            build_test_tup(test_name, mod, shape=(1, 2))
+            for test_name, mod in [
+                ("single_linear_with_bias", nn.Linear(2, 1, bias=True)),
+                ("single_linear_no_bias", nn.Linear(2, 1, bias=False)),
+                (
+                    "linear_with_bias_and_relu",
+                    nn.intrinsic.LinearReLU(
+                        nn.Linear(2, 2, bias=True), nn.ReLU()
+                    ),
+                ),
             ]
         ]
 
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 2, 3, 4))
-        for mod in [
-            nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+        build_test_tup(test_name, mod, shape=(1, 2, 3, 4))
+        for test_name, mod in [
+            (
+                "single_conv2d_kernel_2_3_no_bias",
+                nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+            ),
             # nn.intrinsic.ConvBnReLU2d(
             # nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
             # nn.BatchNorm2d(2),
@@ -209,7 +225,11 @@ if not tract_version_lower_than("0.20.7"):
 # ]
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_quantize_export(test_input, model):
+@pytest.mark.parametrize(
+    "test_name,test_input,model",
+    INPUT_AND_MODELS,
+    ids=[i[0] for i in INPUT_AND_MODELS],
+)
+def test_quantize_export(test_name, test_input, model):
     """Test simple models"""
     check_model_io_test(model=model, test_input=test_input)
