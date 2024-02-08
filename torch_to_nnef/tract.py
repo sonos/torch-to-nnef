@@ -65,7 +65,7 @@ def tract_version_greater_than(version: str, inclusive: bool = False) -> bool:
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     return subprocess.check_output(
         (
-            f"{TRACT_PATH} {onnx_path}"
+            f"{TRACT_PATH} {onnx_path} "
             f"--nnef-tract-core --nnef-tract-pulse "
             "dump "
             f"--input-from-bundle {io_npz_path} "
