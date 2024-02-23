@@ -142,6 +142,23 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     transposed = transposed_node.data
 
     if transposed:
+        if groups is not None:
+            # torch weight shape:
+            # (in_channels, out_channels/ groups, kernel_size[0],kernel_size[1])
+            # expected formulation for NNEF: O, I/G, H, W
+            i = weight_node.data.shape[0]
+            o = weight_node.data.shape[1]
+            remaining_shape = list(weight_node.data.shape)[2:]
+            expose_group_shape = [groups, int(i / groups), o] + remaining_shape
+            final_expected_shape = [
+                int(i / groups),
+                int(o * groups),
+            ] + remaining_shape
+            weight_node.data = (
+                weight_node.data.reshape(expose_group_shape)
+                .transpose(0, 1)
+                .reshape(final_expected_shape)
+            )
         weight_node.data = weight_node.data.transpose(1, 0)
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
