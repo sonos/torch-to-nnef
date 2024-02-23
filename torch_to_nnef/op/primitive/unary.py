@@ -60,9 +60,8 @@ OP_REGISTRY = base.AtenOpRegistry()
     torch_op_ids=GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES
     + list(REMAP_ATEN_OP_NAMES.keys())
 )
-def _(aten_op_id, g, node, name_to_tensor, null_ref, **kwargs):
-    if aten_op_id in REMAP_ATEN_OP_NAMES:
-        aten_op_id = REMAP_ATEN_OP_NAMES[aten_op_id]
+def generic_unary(aten_op_id, g, node, name_to_tensor, null_ref, **kwargs):
+    aten_op_id = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
     return base.unary_output_op_without_params(
         nnef_op_type=aten_op_id,
         g=g,

@@ -1,7 +1,8 @@
 # Torch to NNEF
+
 [![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml)
 
-Any Pytorch Model to NNEF file format.
+Any PyTorch Model to NNEF file format.
 
 > warning ! This project is still in it's early stage, if you encounter any bug please follow `Bug report` section instructions
 
@@ -13,28 +14,31 @@ We intend to export any model formulated with vanilla Torch whatever tensor type
 When NNEF spec is insufficient to express computational graph, we use extensions from
 [tract inference engine](github.com/sonos/tract) seamlessly (that you can opt-out with `nnef_spec_strict`).
 For example, we use special tract components to express:
-- recurrent layers (LSTM, GRU,...)
+
+- recurrent layers (LSTM, GRU, ...)
 - dynamic streamable input dimensions
 - casting (since NNEF spec is too vague in this regard)
 
 This package strives to have minimum dependencies (to allow easy integration in other project).
 
-We aim to support Pytorch > 1.8.0 with tract > 1.17.7 over Linux and MacOS systems.
+We aim to support PyTorch > 1.8.0 with tract last 3 minor releases (>= 1.19.16 to date) over Linux and MacOS systems.
 
 ## Install
 
 For now you can either use internal Snips Nexus repository:
-```
+
+```bash
 $ pip install torch_to_nnef
 $ # or
 $ poetry add torch_to_nnef
 ```
 
-or reference this github project via your prefered package manager.
+Or reference this GitHub project via your preferred package manager.
 
 ## Features
 
-Allow to export any pytorch model by providing input and model.
+Allow to export any PyTorch model by providing input and model.
+
 ```python3
 import logging
 from pathlib import Path
@@ -85,7 +89,7 @@ Torch Model need to be serializable to `torch.jit` (fancy python dict routing
 or others might prevent proper tracing of it).
 
 This applies for `nn.Module` with forward containing default None parameters which
-will crash as no work arround have been found yet.
+will crash as no work around have been found yet.
 
 Also, we follow to some extent limitation of NNEF specification, in particular:
 We concretize dynamic shape at export for some operators such as (zeros_like/ones/arange ...).
@@ -96,7 +100,8 @@ Only *Static* Quantization is supported and for now only with scheme `torch.per_
 
 We build on top of `torch.jit.trace` Graph representation (API exposed since `1.0`).
 
-Compared to the 2 other possible Graph API for pytorch we chose it because:
+Compared to the 2 other possible Graph API for PyTorch we chose it because:
+
 - `torch.fx`: is limited in the shape and type inference it provides. It seems more
   aimed at AST graph manipulation than export. Moreover this API was introduced very
   recently as stable (torch==1.10.0).
@@ -108,7 +113,7 @@ Compared to the 2 other possible Graph API for pytorch we chose it because:
 
 In case you want control specific `torch.nn.Module` expansion to NNEF you can
 register a new `torch_to_nnef.op.custom_extractors.ModuleInfoExtractor` by
-subclassing it and defining it's `MODULE_CLASS` attribute.
+sub-classing it and defining it's `MODULE_CLASS` attribute.
 
 In such scenario you will need to write your own graph expansion logic in
 `convert_to_nnef` as follows:

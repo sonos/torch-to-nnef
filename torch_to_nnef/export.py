@@ -35,7 +35,10 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                 LOGGER.debug("found matching node element")
                 assert len(inp_tensor.producers) == 1
                 external_op = inp_tensor.producers[0]
-                assert external_op.type == "external"
+                assert external_op.type in [
+                    "external",
+                    "tract_core_external",
+                ], external_op.type
                 for axis, axis_name in named_dims.items():
                     if len(axis_name) != 1:
                         raise DynamicShapeValue(

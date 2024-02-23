@@ -1,13 +1,13 @@
 [tool]
 [tool.poetry]
 name = "torch_to_nnef"
-version = "0.8.8"
+version = "0.8.9"
 homepage = "https://github.com/sonos/torch-to-nnef"
 description = "Any Pytorch Model to NNEF file format."
 authors = ["Julien Balian <julien.balian@sonos.com>"]
 readme = "README.md"
 classifiers = [
-    'Development Status :: 2 - Pre-Alpha',
+    'Development Status :: 2 - Beta',
     'Intended Audience :: Developers',
     'Natural Language :: English',
     'Programming Language :: Python :: 3',
@@ -36,6 +36,7 @@ nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev = "47
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"
 nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "parser/python", rev = "47b496168bd83736ad2fdf40a1193f26a4987c98" }
 # }
+six = "^1.16.0" # needed for nnef_tools but deps not correctly declared
 
 
 black = { version = "^22.3.0", optional = true }
@@ -50,7 +51,6 @@ pre-commit = { version = "^2.12.0", optional = true }
 pytest = { version = "^6.2.4", optional = true }
 pytest-cov = { version = "^2.12.0", optional = true }
 sentencepiece = { version = "^0.1.97", optional = true }
-six = "^1.16.0"
 toml = { version = "^0.10.2", optional = true }
 torchaudio = { version = "^2.0.0", optional = true }
 torchvision = { version = "^0.15.0", optional = true }
