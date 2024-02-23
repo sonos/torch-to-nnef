@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 import pytest
 import torch
@@ -35,7 +36,7 @@ class StripedModel(torch.nn.Module):
             use_cache=False,
             output_attentions=None,
             output_hidden_states=None,
-            return_dict=None,
+            return_dict=False,
         )
         return transformers_outputs
         # transformers_outputs contains 'logits', 'past_key_values'
@@ -67,17 +68,23 @@ class StripedDecodingLayer(torch.nn.Module):
         )
 
 
-tokenizer = AutoTokenizer.from_pretrained("PY007/TinyLlama-1.1B-step-50K-105b")
-causal_llama = AutoModelForCausalLM.from_pretrained(
-    "PY007/TinyLlama-1.1B-step-50K-105b"
-)
+class Llama2SLugs(str, Enum):
+    DUMMY = "yujiepan/llama-2-tiny-random"
+    TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
+
+# working exports
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", Llama2SLugs.DUMMY.value)
+tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
+causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
 striped_model = StripedModel(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 if tract_version_greater_than("0.19.0"):
     INPUT_AND_MODELS += [
         (
             tuple(
-                inputs.input_ids,
+                inputs.input_ids.unsqueeze(0),
             ),
             striped_model,
         )

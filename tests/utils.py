@@ -2,6 +2,7 @@
 
 import os
 import random
+import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -62,6 +63,9 @@ def check_model_io_test(
             else None,
             dynamic_axes=dynamic_axes,
         )
+        dump_filepath = os.environ.get("DUMP_FILEPATH", False)
+        if dump_filepath:
+            shutil.copy(export_path.with_suffix(".nnef.tgz"), dump_filepath)
 
 
 def remove_weight_norm(module):
