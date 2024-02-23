@@ -4,6 +4,7 @@ import typing as T
 
 import pytest
 import torch
+import torch.nn.quantized as nnq
 from torch import nn
 from torch.quantization import quantize_fx
 
@@ -90,6 +91,7 @@ INPUT_AND_MODELS = []
 
 
 def build_test_tup(
+    test_name: str,
     mod: nn.Module,
     shape: T.Tuple[int, ...] = (1, 2, 1),
     safe_margin_percents: int = 200,
@@ -100,6 +102,7 @@ def build_test_tup(
     for si in shape:
         reduce_r *= si
     return (
+        test_name,
         torch.arange(reduce_r).reshape(*shape).float(),
         WithQuantDeQuant.quantize_model_and_stub(
             mod,
@@ -119,19 +122,25 @@ if not tract_version_lower_than(
 
     # SEED selected so that it works.
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 2, 1))
-        for mod in [
-            nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+        build_test_tup(test_name, mod, shape=(1, 2, 1))
+        for test_name, mod in [
+            (
+                "single_conv1d_with_kernel_1_no_bias",
+                nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+            ),
         ]
     ]
 
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 3, 4))
-        for mod in [
-            nn.intrinsic.ConvBnReLU1d(
-                nn.Conv1d(3, 1, kernel_size=3),
-                nn.BatchNorm1d(1),
-                nn.ReLU(),
+        build_test_tup(test_name, mod, shape=(1, 3, 4))
+        for test_name, mod in [
+            (
+                "fused_conv1d_bn_relu_with_kernel3",
+                nn.intrinsic.ConvBnReLU1d(
+                    nn.Conv1d(3, 1, kernel_size=3),
+                    nn.BatchNorm1d(1),
+                    nn.ReLU(),
+                ),
             ),
         ]
     ]
@@ -139,18 +148,26 @@ if not tract_version_lower_than(
         "0.20.7"
     ):  # tract regression
         INPUT_AND_MODELS += [
-            build_test_tup(mod, shape=(1, 2))
-            for mod in [
-                nn.Linear(2, 1, bias=False),
-                nn.Linear(2, 1, bias=True),
-                nn.intrinsic.LinearReLU(nn.Linear(2, 2, bias=True), nn.ReLU()),
+            build_test_tup(test_name, mod, shape=(1, 2))
+            for test_name, mod in [
+                ("single_linear_with_bias", nn.Linear(2, 1, bias=True)),
+                ("single_linear_no_bias", nn.Linear(2, 1, bias=False)),
+                (
+                    "linear_with_bias_and_relu",
+                    nn.intrinsic.LinearReLU(
+                        nn.Linear(2, 2, bias=True), nn.ReLU()
+                    ),
+                ),
             ]
         ]
 
     INPUT_AND_MODELS += [
-        build_test_tup(mod, shape=(1, 2, 3, 4))
-        for mod in [
-            nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+        build_test_tup(test_name, mod, shape=(1, 2, 3, 4))
+        for test_name, mod in [
+            (
+                "single_conv2d_kernel_2_3_no_bias",
+                nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
+            ),
             # nn.intrinsic.ConvBnReLU2d(
             # nn.Conv2d(2, 2, kernel_size=(2, 3), bias=False),
             # nn.BatchNorm2d(2),
@@ -158,6 +175,80 @@ if not tract_version_lower_than(
             # ),
         ]
     ]
+if not tract_version_lower_than("0.22.0"):
+
+    class DummyMathExample(nn.Module):
+        def __init__(self, math_op: str):
+            super().__init__()
+            self.math_op = math_op
+            self.op_f = nnq.FloatFunctional()
+
+        def forward(self, x):
+            return getattr(self.op_f, self.math_op)(x, x)
+
+    def math_binary_test(math_op, tensors):
+        model = torch.quantization.QuantWrapper(
+            DummyMathExample(math_op=math_op)
+        )
+        qconfig = torch.quantization.get_default_qconfig("qnnpack")
+        torch.backends.quantized.engine = "qnnpack"
+        model.qconfig = qconfig
+        model = torch.quantization.prepare(model)
+        # input selected to avoid issue
+        inp = torch.tensor(tensors).reshape(2, 3).float()
+        model(inp)
+        model(inp)
+        model(inp)
+        # model(torch.arange(6).reshape(2, 3).float() * 2)
+        model_int8 = torch.quantization.convert(model).eval()
+        # true optimal formulation is:
+        #
+        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
+        check_model_io_test(
+            model=model_int8,
+            test_input=(inp,),
+        )
+
+    def test_quantize_dummy_add():
+        math_binary_test("add", [0, 2, 4, 8, 16, 8])
+
+    # work in tract v0.21.0-post
+    def test_quantize_dummy_mul():
+        math_binary_test("mul", [0, 2, 4, 8, 16, 8])
+
+    # work in tract v0.21.0-post
+    def test_quantize_dummy_mul_1():
+        math_binary_test("mul", [0, 1.51, 4, 8, 34.3, 8])
+
+    def test_quantize_dummy_max_relu():
+        class DummyReLU(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.act = torch.nn.ReLU()
+
+            def forward(self, x):
+                return self.act(x)
+
+        model = torch.quantization.QuantWrapper(DummyReLU())
+        qconfig = torch.quantization.get_default_qconfig("qnnpack")
+        torch.backends.quantized.engine = "qnnpack"
+        model.qconfig = qconfig
+        model = torch.quantization.prepare(model)
+        # input selected to avoid issue
+        inp = torch.tensor([-1, -0.5, -0.3, -0.2, 0, 1]).reshape(2, 3).float()
+        model(inp)
+        model(inp)
+        model(inp)
+        # model(torch.arange(6).reshape(2, 3).float() * 2)
+        model_int8 = torch.quantization.convert(model).eval()
+        # true optimal formulation is:
+        #
+        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
+        check_model_io_test(
+            model=model_int8,
+            test_input=(inp,),
+        )
+
 
 # Need Monitoring !
 # With pytorch v1.11.0 MultiheadAttention and LSTM are supported via dynamic Quantization only
@@ -171,7 +262,11 @@ if not tract_version_lower_than(
 # ]
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_quantize_export(test_input, model):
+@pytest.mark.parametrize(
+    "test_name,test_input,model",
+    INPUT_AND_MODELS,
+    ids=[i[0] for i in INPUT_AND_MODELS],
+)
+def test_quantize_export(test_name, test_input, model):
     """Test simple models"""
     check_model_io_test(model=model, test_input=test_input)

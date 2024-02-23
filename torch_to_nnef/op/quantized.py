@@ -56,10 +56,12 @@ def add_quantized_tensor_to_ngraph(
     g,
     node,
     qtensor: torch.Tensor,
-    tensor_name: str,
     name_to_tensor: T.Dict[str, NTensor],
+    tensor_name: T.Optional[str] = None,
 ):
-    name = f"{node.export_name}_{tensor_name}"
+    name = (
+        f"{node.export_name}_{tensor_name}" if tensor_name else node.export_name
+    )
     ntensor = _torch_qtensor_to_ntensor(g, qtensor, name)
     name_to_tensor[name] = ntensor
     return ntensor
@@ -73,10 +75,10 @@ def register_state_node_as_variable(
     name_to_tensor,
 ):
     # peculiarity of tract implementation
-    if len(torch_tensor.shape) == 1:
+    if len(torch_tensor.shape) == 1 and tract_version_lower_than("0.18.1"):
         torch_tensor = torch_tensor.unsqueeze(0)
     nnef_tensor_ref = add_quantized_tensor_to_ngraph(
-        g, node, torch_tensor, slug_name, name_to_tensor
+        g, node, torch_tensor, name_to_tensor, slug_name
     )
     var = NOperation(
         graph=g,
@@ -149,6 +151,7 @@ def _output_tensor_from_s_and_zp(
         graph=g,
         name=out_tensor_name,
         dtype=np.uint8,
+        shape=onode.shape,
         quant={
             "scale": scale_node.data,
             "zero_point": zero_point_node.data,
@@ -210,6 +213,7 @@ def _conv(
     if bias_ref is not None:
         inputs.append(bias_ref)
 
+    # original
     NOperation(
         graph=g,
         type="conv",
@@ -225,6 +229,35 @@ def _conv(
             "border": "constant",
         },
     )
+
+    # NOTE: Shall I use qconv instead ?
+    # does not seems to work better on unit tests, nor full model export --> fail compaction
+    #
+    # but add zp and scale for all IO see: /home/epi/SONOS/src/tract/nnef/src/ops/core/qconv.rs
+    #
+    # NOperation(
+    #     graph=g,
+    #     type="tract_core_qconv",
+    #     inputs=tuple(inputs),
+    #     outputs=output_tensor,
+    #     attribs={
+    #         "dilation": list(dilation),
+    #         "padding": [
+    #             (pad, pad) if isinstance(pad, int) else pad for pad in padding
+    #         ],
+    #         "stride": list(stride),
+    #         "groups": groups,
+    #         "border": "constant",
+    #         # specific to qconv
+    #         "a0": input_node.quant["zero_point"],
+    #         "a_scale": input_node.quant["scale"],
+    #         "b0": conv_weight.q_zero_point(),
+    #         "b_scale": conv_weight.q_scale(),
+    #         "c0": node.outputs[0].quant["zero_point"],
+    #         "c_scale": node.outputs[0].quant["scale"],
+    #     },
+    # )
+
     return output_tensor
 
 
@@ -325,6 +358,87 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
 @OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
     raise TorchToNNEFNotImplementedError()
+
+
+def math_op_binary(
+    op_type: str, g, node, name_to_tensor, nnef_spec_strict, **kwargs
+):
+    (
+        x1_node,
+        x2_node,
+        _,
+        _,
+    ) = node.inputs  # _, _ are c_scale_node, c_offset_node
+    out_node = node.outputs[0]
+    out_nnef_tensor_ref = add_quantized_tensor_to_ngraph(
+        g, out_node, out_node.tracing_data, name_to_tensor
+    )
+
+    x1_tensor = name_to_tensor[x1_node.export_name]
+    x2_tensor = name_to_tensor[x2_node.export_name]
+    if not nnef_spec_strict and op_type not in ["mul", "add", "div"]:
+        # assume tract target
+        # Tract is not assuming any alignment to do when applying
+        # mul, add, div ...
+        x1_out_nnef_tensor_ref = add_quantized_tensor_to_ngraph(
+            g,
+            x1_node,
+            out_node.tracing_data,
+            name_to_tensor,
+            tensor_name="casted_aligned",
+        )
+        NOperation(
+            graph=g,
+            type="tract_core_cast",
+            name=f"{x1_node.export_name}_cast_align",
+            inputs=(x1_tensor),
+            outputs=tuple([x1_out_nnef_tensor_ref]),
+        )
+        x1_tensor = x1_out_nnef_tensor_ref
+        if x1_node.export_name == x2_node.export_name:
+            x2_tensor = x1_out_nnef_tensor_ref
+        else:
+            x2_out_nnef_tensor_ref = add_quantized_tensor_to_ngraph(
+                g,
+                x2_node,
+                out_node.tracing_data,
+                name_to_tensor,
+                tensor_name="casted_aligned",
+            )
+            NOperation(
+                graph=g,
+                type="tract_core_cast",
+                name=f"{x2_node.export_name}_cast_align",
+                inputs=(x2_tensor),
+                outputs=tuple([x2_out_nnef_tensor_ref]),
+            )
+            x2_tensor = x2_out_nnef_tensor_ref
+
+    NOperation(
+        graph=g,
+        type=op_type,
+        name=f"{out_node.export_name}_{op_type}",
+        inputs=(x1_tensor, x2_tensor),
+        outputs=tuple([out_nnef_tensor_ref]),
+    )
+
+
+@OP_REGISTRY.register()
+def mul(**kwargs):
+    math_op_binary(op_type="mul", **kwargs)
+    return []
+
+
+@OP_REGISTRY.register()
+def add(**kwargs):
+    math_op_binary(op_type="add", **kwargs)
+    return []
+
+
+@OP_REGISTRY.register()
+def div(**kwargs):
+    math_op_binary(op_type="div", **kwargs)
+    return []
 
 
 def quantized_node_to_nnef_tensor_and_ops(
