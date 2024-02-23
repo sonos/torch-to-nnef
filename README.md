@@ -21,7 +21,7 @@ For example, we use special tract components to express:
 
 This package strives to have minimum dependencies (to allow easy integration in other project).
 
-We aim to support PyTorch > 1.8.0 with tract > 1.17.7 over Linux and MacOS systems.
+We aim to support PyTorch > 1.8.0 with tract last 3 minor releases (>= 1.19.16 to date) over Linux and MacOS systems.
 
 ## Install
 
