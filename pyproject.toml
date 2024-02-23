@@ -36,6 +36,7 @@ nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev = "47
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"
 nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "parser/python", rev = "47b496168bd83736ad2fdf40a1193f26a4987c98" }
 # }
+six = "^1.16.0" # needed for nnef_tools but deps not correctly declared
 
 
 black = { version = "^22.3.0", optional = true }
