@@ -636,6 +636,7 @@ INPUT_AND_MODELS += [
     for layer in [
         nn.ConvTranspose2d(128, 64, kernel_size=(4, 1), groups=32),
         nn.ConvTranspose2d(128, 64, kernel_size=(4, 1), groups=64),
+        nn.Conv2d(128, 64, kernel_size=(4, 1), groups=32),
     ]
 ]
 
