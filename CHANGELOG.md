@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.8.10] - 2024-02-23
+
+### Added
+
+- `add`, `mul`, `div` element wise operators for quantized elements
+
+### Fix
+
+- `deconv` with group now export correctly to tract
+
 ## [0.8.9] - 2024-01-16
 
 ### Added
