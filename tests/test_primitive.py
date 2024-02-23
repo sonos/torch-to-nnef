@@ -631,6 +631,15 @@ INPUT_AND_MODELS += [
 ]
 
 
+INPUT_AND_MODELS += [
+    (torch.rand(1, 128, 8, 3), layer)
+    for layer in [
+        nn.ConvTranspose2d(128, 64, kernel_size=(4, 1), groups=32),
+        nn.ConvTranspose2d(128, 64, kernel_size=(4, 1), groups=64),
+    ]
+]
+
+
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
