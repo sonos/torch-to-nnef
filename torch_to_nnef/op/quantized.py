@@ -376,7 +376,7 @@ def math_op_binary(
 
     x1_tensor = name_to_tensor[x1_node.export_name]
     x2_tensor = name_to_tensor[x2_node.export_name]
-    if not nnef_spec_strict:
+    if not nnef_spec_strict and op_type not in ["mul", "add", "div"]:
         # assume tract target
         # Tract is not assuming any alignment to do when applying
         # mul, add, div ...

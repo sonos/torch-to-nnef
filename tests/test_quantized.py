@@ -175,9 +175,9 @@ if not tract_version_lower_than(
             # ),
         ]
     ]
-if not tract_version_lower_than("0.20.7"):
+if not tract_version_lower_than("0.22.0"):
 
-    class DummyMulExample(nn.Module):
+    class DummyMathExample(nn.Module):
         def __init__(self, math_op: str):
             super().__init__()
             self.math_op = math_op
@@ -186,31 +186,68 @@ if not tract_version_lower_than("0.20.7"):
         def forward(self, x):
             return getattr(self.op_f, self.math_op)(x, x)
 
-    def math_binary_test(math_op):
+    def math_binary_test(math_op, tensors):
         model = torch.quantization.QuantWrapper(
-            DummyMulExample(math_op=math_op)
+            DummyMathExample(math_op=math_op)
         )
         qconfig = torch.quantization.get_default_qconfig("qnnpack")
         torch.backends.quantized.engine = "qnnpack"
         model.qconfig = qconfig
         model = torch.quantization.prepare(model)
         # input selected to avoid issue
-        inp = torch.tensor([0, 2, 4, 8, 16, 8]).reshape(2, 3).float()
+        inp = torch.tensor(tensors).reshape(2, 3).float()
         model(inp)
         model(inp)
         model(inp)
         # model(torch.arange(6).reshape(2, 3).float() * 2)
         model_int8 = torch.quantization.convert(model).eval()
+        # true optimal formulation is:
+        #
+        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
         check_model_io_test(
             model=model_int8,
             test_input=(inp,),
         )
 
     def test_quantize_dummy_add():
-        math_binary_test("add")
+        math_binary_test("add", [0, 2, 4, 8, 16, 8])
 
+    # work in tract v0.21.0-post
     def test_quantize_dummy_mul():
-        math_binary_test("mul")
+        math_binary_test("mul", [0, 2, 4, 8, 16, 8])
+
+    # work in tract v0.21.0-post
+    def test_quantize_dummy_mul_1():
+        math_binary_test("mul", [0, 1.51, 4, 8, 34.3, 8])
+
+    def test_quantize_dummy_max_relu():
+        class DummyReLU(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.act = torch.nn.ReLU()
+
+            def forward(self, x):
+                return self.act(x)
+
+        model = torch.quantization.QuantWrapper(DummyReLU())
+        qconfig = torch.quantization.get_default_qconfig("qnnpack")
+        torch.backends.quantized.engine = "qnnpack"
+        model.qconfig = qconfig
+        model = torch.quantization.prepare(model)
+        # input selected to avoid issue
+        inp = torch.tensor([-1, -0.5, -0.3, -0.2, 0, 1]).reshape(2, 3).float()
+        model(inp)
+        model(inp)
+        model(inp)
+        # model(torch.arange(6).reshape(2, 3).float() * 2)
+        model_int8 = torch.quantization.convert(model).eval()
+        # true optimal formulation is:
+        #
+        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
+        check_model_io_test(
+            model=model_int8,
+            test_input=(inp,),
+        )
 
 
 # Need Monitoring !
