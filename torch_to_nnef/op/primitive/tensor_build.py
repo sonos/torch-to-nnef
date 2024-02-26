@@ -94,6 +94,7 @@ def arange(
         node.outputs[0],
         name_to_tensor,
     )
+    return []
 
 
 def _generic_auto_tensor_expansion(
@@ -129,8 +130,6 @@ def _generic_auto_tensor_expansion(
             fixed_dim.append(dim_any)
 
     base_tensor_node = node.outputs[0]
-    if to_expand_dim and has_dynamic_axes:
-        base_tensor_node.name += "_to_be_expanded"
     node.outputs[0].data = tensor_build_fn(fixed_dim, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
         g,
@@ -142,6 +141,9 @@ def _generic_auto_tensor_expansion(
             "the aten::ones replaced by constant traced values"
             " with additional expansion (follows NNEF spec)."
         )
+        cached_input = get_or_add_tensor_variable_in_nnef(
+            g, base_tensor_node, name_to_tensor, name_suffix="to_be_expanded"
+        )
         repeats = [1 for _ in range(len(fixed_dim))]
         for k, v in to_expand_dim.items():
             repeats[k] = v
@@ -150,9 +152,7 @@ def _generic_auto_tensor_expansion(
             node,
             name_to_tensor,
             "tile",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, base_tensor_node, name_to_tensor
-            ),
+            inputs=cached_input,
             attrs={"repeats": repeats},
         )
 
