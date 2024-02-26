@@ -643,9 +643,13 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-INPUT_AND_MODELS += [
+INPUT_AND_MODELS = [
     (
         (torch.tensor(1), torch.tensor(6), torch.tensor(3)),
+        TorchFnPrimitive("arange"),
+    ),
+    (  # inverse
+        (torch.tensor(10), torch.tensor(-1), torch.tensor(-1)),
         TorchFnPrimitive("arange"),
     ),
 ]
