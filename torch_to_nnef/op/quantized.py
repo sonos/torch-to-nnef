@@ -14,6 +14,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     QuantizedOpRegistry,
+    add_nnef_operation,
     add_single_output_op,
 )
 from torch_to_nnef.tract import tract_version_lower_than
@@ -106,33 +107,28 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
         name_to_tensor=name_to_tensor,
     )
     bias_ref = None
-    if bias is not None:
-        qscheme = weight.qscheme()
-        if qscheme == torch.per_channel_affine:
-            raise TorchToNNEFNotImplementedError(
-                "tract does not support qscheme=per_channel_affine just yet"
-            )
-        if qscheme == torch.per_tensor_affine:
-            input_quant_infos = name_to_tensor[node.inputs[0].export_name].quant
-            if not input_quant_infos:
-                input_quant_infos = node.inputs[0].quant
-            bias_tensor = torch.quantize_per_tensor(
-                bias.data,
-                scale=weight.q_scale() * input_quant_infos["scale"],
-                zero_point=weight.q_zero_point()
-                + input_quant_infos["zero_point"],
-                dtype=torch.qint32,
-            )
-        else:
-            raise TorchToNNEFNotImplementedError(
-                f"not suported quantization scheme {qscheme }"
-            )
-        bias_ref = register_state_node_as_variable(
-            bias_tensor,
-            slug_name="bias",
-            node=onode,
-            g=g,
-            name_to_tensor=name_to_tensor,
+    if bias is not None and not (bias == 0).all():
+        # we assume whatever qsheme is bias will always be float
+        name = onode.export_name + "_bias"
+        input_quant_infos = node.inputs[0].quant
+        bias_ref = NTensor(
+            g,
+            name,
+            data=bias.data / (weight.q_scale() * input_quant_infos["scale"])
+            + weight.q_zero_point(),
+            dtype=np.float32,
+            shape=tuple(bias.shape),
+        )
+        add_nnef_operation(
+            graph=g,
+            type="variable",
+            inputs=None,
+            outputs=bias_ref,
+            attribs={
+                "label": bias_ref.name,
+                "shape": list(bias_ref.shape),
+                "dtype": bias_ref.dtype,
+            },
         )
 
     return weight_ref, bias_ref

@@ -8,7 +8,11 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, numpy_dtype_to_tract_str
+from torch_to_nnef.dtypes import (
+    NUMPY_TO_TORCH_DTYPE,
+    TORCH_TO_NUMPY_DTYPE,
+    numpy_dtype_to_tract_str,
+)
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
     FixedTensorList,
@@ -95,6 +99,21 @@ def add_nnef_operation(
     return NOperation(*args, **kwargs)
 
 
+def nnef_tensor_from_tv(g: NGraph, name: str, node: TensorVariable):
+    quant = None
+    if node.quant and "shape" not in name:
+        np_dtype = TORCH_TO_NUMPY_DTYPE[node.dtype]
+        quant = {
+            "scale": node.quant["scale"],
+            "zero_point": node.quant["zero_point"],
+            "bits": np_dtype().nbytes * 8,
+            "signed": np.issubdtype(np_dtype, np.signedinteger),
+            "symmetric": False,
+            "op-name": "zero_point_linear_quantize",
+        }
+    return NTensor(g, name, dtype=node.np_dtype, shape=node.shape, quant=quant)
+
+
 def add_tensor_variable_node_as_nnef_tensor(
     g: NGraph,
     node: TensorVariable,
@@ -116,12 +135,7 @@ def add_tensor_variable_node_as_nnef_tensor(
         if name_suffix:
             name += f"_{name_suffix}"
 
-    nnef_tensor_ref = NTensor(
-        g,
-        name,
-        dtype=node.np_dtype,
-        shape=node.shape,
-    )
+    nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()
         nnef_tensor_ref.shape = tuple(node.data.shape)

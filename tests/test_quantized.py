@@ -175,7 +175,33 @@ if not tract_version_lower_than(
             # ),
         ]
     ]
-if not tract_version_lower_than("0.22.0"):
+
+
+def qcheck(module: nn.Module, inp: torch.Tensor):
+    """Check basic ptq export align with tract"""
+    model = torch.quantization.QuantWrapper(module)
+    qconfig = torch.quantization.get_default_qconfig("qnnpack")
+    torch.backends.quantized.engine = "qnnpack"
+    model.qconfig = qconfig
+    model = torch.quantization.prepare(model)
+    # input selected to avoid issue
+    model(inp)
+    model(inp)
+    model(inp)
+    # model(torch.arange(6).reshape(2, 3).float() * 2)
+    model_int8 = torch.quantization.convert(model).eval()
+    # true optimal formulation is:
+    #
+    # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
+    check_model_io_test(
+        model=model_int8,
+        test_input=(inp,),
+    )
+
+
+if (
+    not tract_version_lower_than("0.22.0") and False
+):  # wait WIP tract PR to be merged
 
     class DummyMathExample(nn.Module):
         def __init__(self, math_op: str):
@@ -186,67 +212,47 @@ if not tract_version_lower_than("0.22.0"):
         def forward(self, x):
             return getattr(self.op_f, self.math_op)(x, x)
 
-    def math_binary_test(math_op, tensors):
-        model = torch.quantization.QuantWrapper(
-            DummyMathExample(math_op=math_op)
-        )
-        qconfig = torch.quantization.get_default_qconfig("qnnpack")
-        torch.backends.quantized.engine = "qnnpack"
-        model.qconfig = qconfig
-        model = torch.quantization.prepare(model)
-        # input selected to avoid issue
-        inp = torch.tensor(tensors).reshape(2, 3).float()
-        model(inp)
-        model(inp)
-        model(inp)
-        # model(torch.arange(6).reshape(2, 3).float() * 2)
-        model_int8 = torch.quantization.convert(model).eval()
-        # true optimal formulation is:
-        #
-        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
-        check_model_io_test(
-            model=model_int8,
-            test_input=(inp,),
-        )
+    def _test_math_binary(op_name: str, values: T.List[float]):
+        inp = torch.tensor(values).reshape(2, 3).float()
+        qcheck(DummyMathExample(op_name), inp)
 
     def test_quantize_dummy_add():
-        math_binary_test("add", [0, 2, 4, 8, 16, 8])
+        _test_math_binary("add", [0, 2, 4, 8, 16, 8])
 
     # work in tract v0.21.0-post
     def test_quantize_dummy_mul():
-        math_binary_test("mul", [0, 2, 4, 8, 16, 8])
+        _test_math_binary("mul", [0, 2, 4, 8, 16, 8])
 
     # work in tract v0.21.0-post
     def test_quantize_dummy_mul_1():
-        math_binary_test("mul", [0, 1.51, 4, 8, 34.3, 8])
+        _test_math_binary("mul", [0, 1.51, 4, 8, 34.3, 8])
 
     def test_quantize_dummy_max_relu():
-        class DummyReLU(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.act = torch.nn.ReLU()
+        qcheck(
+            torch.nn.ReLU(),
+            torch.tensor([-1, -0.5, -0.3, -0.2, 0, 1]).reshape(2, 3).float(),
+        )
 
-            def forward(self, x):
-                return self.act(x)
 
-        model = torch.quantization.QuantWrapper(DummyReLU())
-        qconfig = torch.quantization.get_default_qconfig("qnnpack")
-        torch.backends.quantized.engine = "qnnpack"
-        model.qconfig = qconfig
-        model = torch.quantization.prepare(model)
-        # input selected to avoid issue
-        inp = torch.tensor([-1, -0.5, -0.3, -0.2, 0, 1]).reshape(2, 3).float()
-        model(inp)
-        model(inp)
-        model(inp)
-        # model(torch.arange(6).reshape(2, 3).float() * 2)
-        model_int8 = torch.quantization.convert(model).eval()
-        # true optimal formulation is:
-        #
-        # https://github.com/pytorch/pytorch/blob/8182fce76913f70822158f1c394be217122e66f6/aten/src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp#L1410
-        check_model_io_test(
-            model=model_int8,
-            test_input=(inp,),
+if True:  # not tract_version_lower_than("0.22.0")
+    INPUT_AND_MODELS = []
+
+    def test_quantize_deq_req_sigmoid():
+        qcheck(
+            torch.nn.Sequential(
+                torch.quantization.DeQuantStub(),
+                torch.nn.Sigmoid(),
+                torch.quantization.QuantStub(),
+            ),
+            torch.tensor([-5.0, -4, -3.0, 0, -3, 5, 1]).float(),
+        )
+
+    def test_quantize_deq_req_real_sigmoid():
+        qcheck(
+            torch.nn.Sequential(
+                torch.nn.Sigmoid(),
+            ),
+            torch.tensor([-5.0, -4, -3.0, 0, -3, 5, 1]).float(),
         )
 
 
