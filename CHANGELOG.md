@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.8.11] - 2024-03-04
+
+### Fix
+
+- `linear`, `conv`, quantized operators accurately export bias to tract
+- `activations`, quantized operators export output tensor scale / offset
+
 ## [0.8.10] - 2024-02-23
 
 ### Added
