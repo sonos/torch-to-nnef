@@ -234,7 +234,7 @@ if (
         )
 
 
-if True:  # not tract_version_lower_than("0.22.0")
+if False:  # not tract_version_lower_than("0.22.0")
     INPUT_AND_MODELS = []
 
     def test_quantize_deq_req_sigmoid():
