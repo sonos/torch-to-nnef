@@ -125,19 +125,19 @@ class TensorB4(BitPackedTensorU8):
 
     @staticmethod
     def _pack(tensor):  # uint8 > uint8/2
-        _step = int(len(tensor) / 2)
-        return (tensor[:_step] << 4) | tensor[_step:]
+        step = int(len(tensor) / 2)
+        return (tensor[:step] << 4) | tensor[step:]
 
     def unpack(self):  # uint8/2 > uint8
-        _step = self._tensor.shape[0]
-        tmp = torch.empty(
-            [2 * _step] + list(self._tensor.shape[1:]),
+        step = self._tensor.shape[0]
+        out = torch.empty(
+            [2 * step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
-        tmp[:_step] = (self._tensor & 0b11110000) >> 4
-        tmp[_step:] = self._tensor & 0b00001111
-        return tmp
+        out[:step] = (self._tensor & 0b11110000) >> 4
+        out[step:] = self._tensor & 0b00001111
+        return out
 
 
 class TensorB2(BitPackedTensorU8):
@@ -149,26 +149,26 @@ class TensorB2(BitPackedTensorU8):
 
     @staticmethod
     def _pack(tensor):  # uint8 > uint8/4
-        _step = int(len(tensor) / 4)
+        step = int(len(tensor) / 4)
         return (
-            tensor[:_step] << 6
-            | tensor[_step : 2 * _step] << 4
-            | tensor[2 * _step : 3 * _step] << 2
-            | tensor[3 * _step :]
+            tensor[:step] << 6
+            | tensor[step : 2 * step] << 4
+            | tensor[2 * step : 3 * step] << 2
+            | tensor[3 * step :]
         )
 
     def unpack(self):
-        _step = self._tensor.shape[0]
-        tmp = torch.empty(
-            [4 * _step] + list(self._tensor.shape[1:]),
+        step = self._tensor.shape[0]
+        out = torch.empty(
+            [4 * step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
-        tmp[:_step] = (self._tensor & 0b11000000) >> 6
-        tmp[_step : 2 * _step] = (self._tensor & 0b00110000) >> 4
-        tmp[2 * _step : 3 * _step] = (self._tensor & 0b00001100) >> 2
-        tmp[3 * _step :] = self._tensor & 0b00000011
-        return tmp
+        out[:step] = (self._tensor & 0b11000000) >> 6
+        out[step : 2 * step] = (self._tensor & 0b00110000) >> 4
+        out[2 * step : 3 * step] = (self._tensor & 0b00001100) >> 2
+        out[3 * step :] = self._tensor & 0b00000011
+        return out
 
 
 class TensorB1(BitPackedTensorU8):
@@ -181,34 +181,34 @@ class TensorB1(BitPackedTensorU8):
     @staticmethod
     def _pack(tensor):  # uint8 > uint8/4
         tensor = tensor.to(torch.uint8)
-        _step = int(len(tensor) / 8)
+        step = int(len(tensor) / 8)
         return (
-            tensor[:_step] << 7
-            | tensor[_step : 2 * _step] << 6
-            | tensor[2 * _step : 3 * _step] << 5
-            | tensor[3 * _step : 4 * _step] << 4
-            | tensor[4 * _step : 5 * _step] << 3
-            | tensor[5 * _step : 6 * _step] << 2
-            | tensor[6 * _step : 7 * _step] << 1
-            | tensor[7 * _step :]
+            tensor[:step] << 7
+            | tensor[step : 2 * step] << 6
+            | tensor[2 * step : 3 * step] << 5
+            | tensor[3 * step : 4 * step] << 4
+            | tensor[4 * step : 5 * step] << 3
+            | tensor[5 * step : 6 * step] << 2
+            | tensor[6 * step : 7 * step] << 1
+            | tensor[7 * step :]
         )
 
     def unpack(self):
-        _step = self._tensor.shape[0]
-        tmp = torch.empty(
-            [8 * _step] + list(self._tensor.shape[1:]),
+        step = self._tensor.shape[0]
+        out = torch.empty(
+            [8 * step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
-        tmp[:_step] = (self._tensor & 0b10000000) >> 7
-        tmp[1 * _step : 2 * _step] = (self._tensor & 0b01000000) >> 6
-        tmp[2 * _step : 3 * _step] = (self._tensor & 0b00100000) >> 5
-        tmp[3 * _step : 4 * _step] = (self._tensor & 0b00010000) >> 4
-        tmp[4 * _step : 5 * _step] = (self._tensor & 0b00001000) >> 3
-        tmp[5 * _step : 6 * _step] = (self._tensor & 0b00000100) >> 2
-        tmp[6 * _step : 7 * _step] = (self._tensor & 0b00000010) >> 1
-        tmp[7 * _step : 8 * _step] = self._tensor & 0b00000001
-        return tmp
+        out[:step] = (self._tensor & 0b10000000) >> 7
+        out[1 * step : 2 * step] = (self._tensor & 0b01000000) >> 6
+        out[2 * step : 3 * step] = (self._tensor & 0b00100000) >> 5
+        out[3 * step : 4 * step] = (self._tensor & 0b00010000) >> 4
+        out[4 * step : 5 * step] = (self._tensor & 0b00001000) >> 3
+        out[5 * step : 6 * step] = (self._tensor & 0b00000100) >> 2
+        out[6 * step : 7 * step] = (self._tensor & 0b00000010) >> 1
+        out[7 * step : 8 * step] = self._tensor & 0b00000001
+        return out
 
 
 class TensorB3(BitPackedTensorI32):
@@ -230,55 +230,55 @@ class TensorB3(BitPackedTensorI32):
             dtype=torch.int32,
         )
         out[: len(tensor)] = tensor
-        _step = int(len(out) / 10)
+        step = int(len(out) / 10)
         out = (
-            (out[:_step] << 27)
-            | (out[_step : _step * 2] << 24)
-            | (out[_step * 2 : _step * 3] << 21)
-            | (out[_step * 3 : _step * 4] << 18)
-            | (out[_step * 4 : _step * 5] << 15)
-            | (out[_step * 5 : _step * 6] << 12)
-            | (out[_step * 6 : _step * 7] << 9)
-            | (out[7 * _step : _step * 8] << 6)
-            | (out[_step * 8 : _step * 9] << 3)
-            | (out[_step * 9 :])
+            (out[:step] << 27)
+            | (out[step : step * 2] << 24)
+            | (out[step * 2 : step * 3] << 21)
+            | (out[step * 3 : step * 4] << 18)
+            | (out[step * 4 : step * 5] << 15)
+            | (out[step * 5 : step * 6] << 12)
+            | (out[step * 6 : step * 7] << 9)
+            | (out[7 * step : step * 8] << 6)
+            | (out[step * 8 : step * 9] << 3)
+            | (out[step * 9 :])
         )
         return out
 
     def unpack(self):
-        _step = self._tensor.shape[0]
-        tmp = torch.empty(
-            [10 * _step] + list(self._tensor.shape[1:]),
+        step = self._tensor.shape[0]
+        out = torch.empty(
+            [10 * step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
-        tmp[:_step] = (self._tensor & 0b00111000000000000000000000000000) >> 27
-        tmp[1 * _step : 2 * _step] = (
+        out[:step] = (self._tensor & 0b00111000000000000000000000000000) >> 27
+        out[1 * step : 2 * step] = (
             self._tensor & 0b00000111000000000000000000000000
         ) >> 24
-        tmp[2 * _step : 3 * _step] = (
+        out[2 * step : 3 * step] = (
             self._tensor & 0b00000000111000000000000000000000
         ) >> 21
-        tmp[3 * _step : 4 * _step] = (
+        out[3 * step : 4 * step] = (
             self._tensor & 0b00000000000111000000000000000000
         ) >> 18
-        tmp[4 * _step : 5 * _step] = (
+        out[4 * step : 5 * step] = (
             self._tensor & 0b00000000000000111000000000000000
         ) >> 15
-        tmp[5 * _step : 6 * _step] = (
+        out[5 * step : 6 * step] = (
             self._tensor & 0b00000000000000000111000000000000
         ) >> 12
-        tmp[6 * _step : 7 * _step] = (
+        out[6 * step : 7 * step] = (
             self._tensor & 0b00000000000000000000111000000000
         ) >> 9
-        tmp[7 * _step : 8 * _step] = (
+        out[7 * step : 8 * step] = (
             self._tensor & 0b00000000000000000000000111000000
         ) >> 6
-        tmp[8 * _step : 9 * _step] = (
+        out[8 * step : 9 * step] = (
             self._tensor & 0b00000000000000000000000000111000
         ) >> 3
-        tmp[9 * _step :] = self._tensor & 0b00000000000000000000000000000111
-        return tmp
+        out[9 * step :] = self._tensor & 0b00000000000000000000000000000111
+        return out
 
 
 class TensorB3InU8(BitPackedTensorU8):
@@ -302,17 +302,17 @@ class TensorB3InU8(BitPackedTensorU8):
             dtype=torch.uint8,
         )
         out[: len(tensor)] = tensor
-        _step = int(len(tensor) / 2)
-        out = out[:_step] << 5 | out[1 * _step : 2 * _step] << 2
+        step = int(len(tensor) / 2)
+        out = out[:step] << 5 | out[1 * step : 2 * step] << 2
         return out
 
     def unpack(self):
-        _step = self._tensor.shape[0]
-        tmp = torch.empty(
-            [2 * _step] + list(self._tensor.shape[1:]),
+        step = self._tensor.shape[0]
+        out = torch.empty(
+            [2 * step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
-        tmp[:_step] = (self._tensor & 0b11100000) >> 5
-        tmp[1 * _step : 2 * _step] = (self._tensor & 0b00011100) >> 2
-        return tmp
+        out[:step] = (self._tensor & 0b11100000) >> 5
+        out[1 * step : 2 * step] = (self._tensor & 0b00011100) >> 2
+        return out
