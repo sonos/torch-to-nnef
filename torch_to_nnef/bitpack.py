@@ -16,12 +16,17 @@ import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import BitPackingError
+
 
 class BitPackedTensor(nn.Module, abc.ABC):
     def __init__(self, storage_tensor, shape: T.Tuple[int, ...]):
         super().__init__()
         self._shape = shape
-        assert storage_tensor.dtype == self.storage_dtype(), storage_tensor
+        if storage_tensor.dtype == self.storage_dtype():
+            raise BitPackingError(
+                f"got {storage_tensor.dtype} but expected {self.storage_dtype()}"
+            )
         self._tensor = storage_tensor
 
     @property
@@ -45,17 +50,17 @@ class BitPackedTensor(nn.Module, abc.ABC):
     @classmethod
     def pack(cls, tensor):
         if tensor.dtype != cls.storage_dtype():
-            raise ValueError(
+            raise BitPackingError(
                 f"Expected dtype:{cls.storage_dtype()} but provided:{tensor.dtype}"
             )
 
         divisor = int(cls.storage_dtype().itemsize * 8 / cls.n_bits())
         if not len(tensor) % divisor == 0:
-            raise ValueError(
+            raise BitPackingError(
                 f"tensor must have shape[0] divisible by {divisor} to use bit packing but got {tensor.shape[0]}"
             )
         if (tensor > cls.max_val()).any():
-            raise ValueError(
+            raise BitPackingError(
                 f"all values must be bellow or equal {cls.max_val()} to use {cls}"
             )
         return cls(cls._pack(tensor), tensor.shape)
