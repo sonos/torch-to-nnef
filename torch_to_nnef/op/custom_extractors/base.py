@@ -66,7 +66,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         assert torch_graph.outputs == []
         self._generate_in_torch_graph(torch_graph, *args, **kwargs)
         # ensure correctly populated graph
-        assert torch_graph.inputs
+        # assert torch_graph.inputs <== exception for QTensor
         assert torch_graph.data_nodes
         assert torch_graph.op_nodes
         assert torch_graph.outputs
