@@ -27,8 +27,8 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
     np_dtype = np_int_tensor.dtype.type
     qscheme = tensor.qscheme()
     if qscheme == torch.per_channel_affine:
-        qscale = tensor.q_per_channel_scales()
-        qzerop = tensor.q_per_channel_zero_points()
+        qscale = tensor.q_per_channel_scales().numpy()
+        qzerop = tensor.q_per_channel_zero_points().numpy()
     elif qscheme == torch.per_tensor_affine:
         qscale = tensor.q_scale()
         qzerop = tensor.q_zero_point()
@@ -36,6 +36,12 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         raise TorchToNNEFNotImplementedError(
             f"not suported quantization scheme {qscheme}"
         )
+    n_bits = np_dtype().nbytes * 8
+    if tensor.dtype == torch.quint2x4:
+        n_bits = 2
+    elif tensor.dtype == torch.quint4x2:
+        n_bits = 4
+
     return NTensor(
         g,
         name=name,
@@ -45,7 +51,7 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         quant={
             "scale": qscale,
             "zero_point": qzerop,
-            "bits": np_dtype().nbytes * 8,
+            "bits": n_bits,
             "signed": np.issubdtype(np_dtype, np.signedinteger),
             "symmetric": False,
             "op-name": "zero_point_linear_quantize",
@@ -111,12 +117,26 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
         # we assume whatever qsheme is bias will always be float
         name = onode.export_name + "_bias"
         input_quant_infos = node.inputs[0].quant
+        qscheme = weight.qscheme()
+        if qscheme == torch.per_channel_affine:
+            qscale = weight.q_per_channel_scales()
+            qzerop = weight.q_per_channel_zero_points()
+        elif qscheme == torch.per_tensor_affine:
+            qscale = weight.q_scale()
+            qzerop = weight.q_zero_point()
+        else:
+            raise TorchToNNEFNotImplementedError(
+                f"not suported quantization scheme {qscheme }"
+            )
+
         bias_ref = NTensor(
             g,
             name,
-            data=bias.data / (weight.q_scale() * input_quant_infos["scale"])
-            + weight.q_zero_point(),
-            dtype=np.float32,
+            data=(bias.data / (qscale * input_quant_infos["scale"]) + qzerop)
+            .round()
+            .numpy()
+            .astype(np.int32),
+            dtype=np.int32,
             shape=tuple(bias.shape),
         )
         add_nnef_operation(

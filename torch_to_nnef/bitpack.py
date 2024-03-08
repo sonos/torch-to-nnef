@@ -14,16 +14,14 @@ import typing as T
 
 import numpy as np
 import torch
-from torch import nn
 
 from torch_to_nnef.exceptions import BitPackingError
 
 
-class BitPackedTensor(nn.Module, abc.ABC):
+class BitPackedTensor(abc.ABC):
     def __init__(self, storage_tensor, shape: T.Tuple[int, ...]):
-        super().__init__()
         self._shape = shape
-        if storage_tensor.dtype == self.storage_dtype():
+        if storage_tensor.dtype != self.storage_dtype():
             raise BitPackingError(
                 f"got {storage_tensor.dtype} but expected {self.storage_dtype()}"
             )
