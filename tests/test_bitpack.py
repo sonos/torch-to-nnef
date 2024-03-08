@@ -93,3 +93,24 @@ def test_pack_unpack_3bits_stored_in_u8():
     packed = TensorB3InU8.pack(x)
     unpacked = packed.unpack()
     assert (unpacked == x).all()
+
+
+def test_pack_unpack_1bits_stored_in_3d_tensor():
+    x = torch.rand(8, 5, 3).to(torch.uint8)
+    packed = TensorB1.pack(x)
+    unpacked = packed.unpack()
+    assert (unpacked == x).all()
+
+
+def test_pack_unpack_1bits_stored_in_4d_tensor():
+    x = torch.rand(8, 5, 3, 2).to(torch.uint8)
+    packed = TensorB1.pack(x)
+    unpacked = packed.unpack()
+    assert (unpacked == x).all()
+
+
+def test_pack_unpack_1bits_stored_in_1d_tensor():
+    x = torch.rand(8).to(torch.uint8)
+    packed = TensorB1.pack(x)
+    unpacked = packed.unpack()
+    assert (unpacked == x).all()

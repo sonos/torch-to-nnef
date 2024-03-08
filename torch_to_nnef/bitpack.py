@@ -48,10 +48,6 @@ class BitPackedTensor(nn.Module, abc.ABC):
             raise ValueError(
                 f"Expected dtype:{cls.storage_dtype()} but provided:{tensor.dtype}"
             )
-        if len(tensor.shape) != 2:
-            raise ValueError(
-                f"only 2d tensor supported for BitPackedTensor but provided shape:{tensor.shape}"
-            )
 
         divisor = int(cls.storage_dtype().itemsize * 8 / cls.n_bits())
         if not len(tensor) % divisor == 0:
@@ -135,7 +131,7 @@ class TensorB4(BitPackedTensorU8):
     def unpack(self):  # uint8/2 > uint8
         _step = self._tensor.shape[0]
         tmp = torch.empty(
-            [2 * _step, self._tensor.shape[1]],
+            [2 * _step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
@@ -164,7 +160,7 @@ class TensorB2(BitPackedTensorU8):
     def unpack(self):
         _step = self._tensor.shape[0]
         tmp = torch.empty(
-            [4 * _step, self._tensor.shape[1]],
+            [4 * _step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
@@ -200,7 +196,7 @@ class TensorB1(BitPackedTensorU8):
     def unpack(self):
         _step = self._tensor.shape[0]
         tmp = torch.empty(
-            [8 * _step, self._tensor.shape[1]],
+            [8 * _step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
@@ -228,7 +224,8 @@ class TensorB3(BitPackedTensorI32):
     @staticmethod
     def _pack(tensor):
         out = torch.zeros(
-            [int(10 * np.ceil(tensor.shape[0] / 10.0)), tensor.shape[1]],
+            [int(10 * np.ceil(tensor.shape[0] / 10.0))]
+            + list(tensor.shape[1:]),
             device=tensor.device,
             dtype=torch.int32,
         )
@@ -251,7 +248,7 @@ class TensorB3(BitPackedTensorI32):
     def unpack(self):
         _step = self._tensor.shape[0]
         tmp = torch.empty(
-            [10 * _step, self._tensor.shape[1]],
+            [10 * _step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
@@ -300,7 +297,7 @@ class TensorB3InU8(BitPackedTensorU8):
     @staticmethod
     def _pack(tensor):
         out = torch.zeros(
-            [int(2 * np.ceil(tensor.shape[0] / 2.0)), tensor.shape[1]],
+            [int(2 * np.ceil(tensor.shape[0] / 2.0))] + list(tensor.shape[1:]),
             device=tensor.device,
             dtype=torch.uint8,
         )
@@ -312,7 +309,7 @@ class TensorB3InU8(BitPackedTensorU8):
     def unpack(self):
         _step = self._tensor.shape[0]
         tmp = torch.empty(
-            [2 * _step, self._tensor.shape[1]],
+            [2 * _step] + list(self._tensor.shape[1:]),
             dtype=torch.uint8,
             device=self._tensor.device,
         )
