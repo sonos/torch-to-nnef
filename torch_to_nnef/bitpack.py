@@ -1,7 +1,10 @@
-""" Base tensor to pack and unpack values in Q tensor lower than 8.
+""" Base tensor bit-packing and unpack of values in  tensor lower than 8 bit.
 
 For now there is no residual handling enhence packing is only possible
 if divisibility match
+
+Use packing by tile this means that internal colocated values are not
+neccessary close to each other in reality, this allow for fast un/packing.
 
 These base tensors are supported for NNEF export.
 
@@ -14,7 +17,7 @@ import torch
 from torch import nn
 
 
-class QTensorPacked(nn.Module, abc.ABC):
+class BitPackedTensor(nn.Module, abc.ABC):
     def __init__(self, storage_tensor, shape: T.Tuple[int, ...]):
         super().__init__()
         self._shape = shape
@@ -47,7 +50,7 @@ class QTensorPacked(nn.Module, abc.ABC):
             )
         if len(tensor.shape) != 2:
             raise ValueError(
-                f"only 2d tensor supported for QTensorPacked but provided shape:{tensor.shape}"
+                f"only 2d tensor supported for BitPackedTensor but provided shape:{tensor.shape}"
             )
 
         divisor = int(cls.storage_dtype().itemsize * 8 / cls.n_bits())
@@ -90,19 +93,19 @@ class QTensorPacked(nn.Module, abc.ABC):
         print(txt)
 
 
-class QTensorPackedU8(QTensorPacked):
+class BitPackedTensorU8(BitPackedTensor):
     @staticmethod
     def storage_dtype():
         return torch.uint8
 
 
-class QTensorPackedI32(QTensorPacked):
+class BitPackedTensorI32(BitPackedTensor):
     @staticmethod
     def storage_dtype():
         return torch.int32
 
 
-class Q8Tensor(QTensorPackedU8):
+class TensorB8(BitPackedTensorU8):
     """store 1 values for each u8"""
 
     @staticmethod
@@ -117,7 +120,7 @@ class Q8Tensor(QTensorPackedU8):
         return self._tensor
 
 
-class Q4Tensor(QTensorPackedU8):
+class TensorB4(BitPackedTensorU8):
     """store 2 values for each u8"""
 
     @staticmethod
@@ -141,7 +144,7 @@ class Q4Tensor(QTensorPackedU8):
         return tmp
 
 
-class Q2Tensor(QTensorPackedU8):
+class TensorB2(BitPackedTensorU8):
     """store 4 values for each u8"""
 
     @staticmethod
@@ -172,7 +175,7 @@ class Q2Tensor(QTensorPackedU8):
         return tmp
 
 
-class Q1Tensor(QTensorPackedU8):
+class TensorB1(BitPackedTensorU8):
     """store 8 values for each u8"""
 
     @staticmethod
@@ -212,7 +215,7 @@ class Q1Tensor(QTensorPackedU8):
         return tmp
 
 
-class Q3Tensor(QTensorPackedI32):
+class TensorB3(BitPackedTensorI32):
     """store 10 values for each i32
 
     loose 2 bits per i32 (6.25% useless store)
@@ -281,7 +284,7 @@ class Q3Tensor(QTensorPackedI32):
         return tmp
 
 
-class Q3TensorInU8(QTensorPackedU8):
+class TensorB3InU8(BitPackedTensorU8):
     """store 2 values for each u8
 
     Easier to use compared to i32 version, as it accept any divisible 2 tensor.shape[0]
