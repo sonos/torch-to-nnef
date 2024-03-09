@@ -28,6 +28,10 @@ class BitPackedTensor(abc.ABC):
         self._tensor = storage_tensor
 
     @property
+    def raw_tensor(self):
+        return self._tensor
+
+    @property
     def shape(self):
         return self._shape
 

@@ -80,7 +80,7 @@ class QZPScalePerChunk(QScheme):
         assert zero_point.shape == scale.shape
         assert (-129 < zero_point & zero_point < 128).all(), zero_point
         assert (scale != 0).all(), scale
-        self.chunk_size = chunk_size
+        self.chunk_size: int = chunk_size
         self.zero_point = zero_point
         self.scale = scale
 
@@ -157,28 +157,28 @@ class QTensor(nn.Module):
 
     Example 1: (unquant dynamically weight at each graph run with rest of the graph quantized )
         x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_unpack(bit_width=4, layout='tiled')
+        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
         y = tract_core_cast(x_dyn) # with graph.quant containing =>  zero_point=0, scale=0.5
 
     Example 2: (unquant dynamically weight at each graph run with rest of the graph fp)
         x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_unpack(bit_width=4, layout='tiled')
+        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
         y = tract_core_cast(x_dyn) # with graph.quant containing =>  zero_point=0, scale=0.5
         z = tract_core_cast(y, to='f32')
 
     Example 3: (per channel quantization targeting f16)
         x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_unpack(bit_width=4, layout='tiled')
+        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
         zero_point_x = tract_core_external(shape=(b,), datum_type='i32')
         scale_x = tract_core_external(shape=(b,), datum_type='f32')
-        y = tract_core_zpscale_per_channel(x_dyn, zero_point=zero_point_x, scale=scale_x, target_dtype='f16')
+        y = tract_core_zpscale_per_channel(x_dyn, zero_point=zero_point_x, scale=scale_x, to='f16')
 
     Example 4: (per chunk quantization targeting f16)
         x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_unpack(bit_width=4, layout='tiled')
+        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
         zero_point_x = tract_core_external(shape=(a * b / 128,), datum_type='i32')
         scale_x = tract_core_external(shape=(a * b / 128,), datum_type='f32')
-        y = tract_core_zpscale_per_chunk(x_dyn, zero_point=zero_point_x, scale=scale_x, target_dtype='f16')
+        y = tract_core_zpscale_per_chunk(x_dyn, zero_point=zero_point_x, scale=scale_x, to='f16')
 
     Drawback:
         -> per channel quantization targeting Q8 not handled (think quantized matmul)
@@ -188,7 +188,7 @@ class QTensor(nn.Module):
 
     NOTE:
         there is 3 main components it export to:
-        - tract_core_dyn_unpack : that allow to unpack in u8 tensor
+        - tract_core_dyn_bit_unpack: that allow to unpack in u8 tensor
         - tract_core_zpscale_per_channel: that allows casting into specific float
         - tract_core_zpscale_per_chunk: that allows casting into specific float
 
