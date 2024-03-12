@@ -145,7 +145,6 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     # since these params can now be dynamic
     # >> all following code need to happen in the graph
     # >> TODAY THIS IS THE CASE for all OPS of THIS KIND
-    __import__("ipdb").set_trace()
     if transposed:
         if groups is not None:
             # torch weight shape:

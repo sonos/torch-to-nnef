@@ -1,5 +1,6 @@
 import typing as T
 
+import torch
 from nnef_tools.model import Operation as NOperation
 
 from torch_to_nnef.exceptions import StrictNNEFSpecError
@@ -10,6 +11,150 @@ from torch_to_nnef.qtensor import (
     QZPScalePerChunk,
     QZPScaleScalar,
 )
+
+
+def _build_nnef_zp_scale_tensors(g, name_to_tensor, node, qtensor):
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.op.primitive import base
+
+    torch_zero_point = qtensor.qscheme.zero_point
+    nnef_zero_point_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+        # build imaginary node to fill data correctly
+        node=base.TensorVariable(
+            name=node.outputs[0].name,
+            data=torch_zero_point,
+            shape=list(torch_zero_point.shape),
+            dtype=torch_zero_point.dtype,
+        ),
+        g=g,
+        name_to_tensor=name_to_tensor,
+        name_suffix="zero_points",
+    )
+
+    torch_scale = qtensor.qscheme.scale
+    nnef_scale_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+        # build imaginary node to fill data correctly
+        node=base.TensorVariable(
+            name=node.outputs[0].name,
+            data=torch_scale,
+            shape=list(torch_scale.shape),
+            dtype=torch_scale.dtype,
+        ),
+        g=g,
+        name_to_tensor=name_to_tensor,
+        name_suffix="scales",
+    )
+    return nnef_zero_point_tensor, nnef_scale_tensor
+
+
+def outer_per_channel_dequantization(
+    g,
+    nnef_unpacked_tensor,
+    nnef_zero_point_tensor,
+    nnef_scale_tensor,
+    nnef_output_tensor,
+    attribs,
+    name_to_tensor,
+    tract_custom_operator: bool = False,
+):
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.op.primitive import base
+
+    if tract_custom_operator:
+        # Implementation with dedicated operator
+        NOperation(
+            g,
+            type="tract_core_zpscale_per_channel",
+            inputs=(
+                nnef_unpacked_tensor,
+                nnef_zero_point_tensor,
+                nnef_scale_tensor,
+            ),
+            outputs=nnef_output_tensor,
+            attribs=attribs,
+        )
+    else:
+        # Implementation without any special operators
+        nnef_sub_zp_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_unpacked_tensor.name,
+                data=None,
+                shape=list(nnef_unpacked_tensor.shape),
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="sub_zp",
+        )
+        NOperation(
+            g,
+            type="sub",
+            inputs=(
+                nnef_unpacked_tensor,
+                nnef_zero_point_tensor,
+            ),
+            outputs=nnef_sub_zp_tensor,
+            attribs=attribs,
+        )
+        nnef_float_out_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_output_tensor.name,
+                data=None,
+                shape=list(nnef_output_tensor.shape),
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="out_float",
+        )
+        NOperation(
+            g,
+            type="mul",
+            inputs=(
+                nnef_sub_zp_tensor,
+                nnef_scale_tensor,
+            ),
+            outputs=nnef_float_out_tensor,
+            attribs=attribs,
+        )
+        NOperation(
+            g,
+            type="tract_core_cast",
+            inputs=nnef_float_out_tensor,
+            outputs=nnef_output_tensor,
+            attribs={"to": attribs["to"]},
+        )
+
+
+def outer_per_group_dequantization(
+    g,
+    nnef_unpacked_tensor,
+    nnef_zero_point_tensor,
+    nnef_scale_tensor,
+    nnef_output_tensor,
+    attribs,
+    tract_custom_operator: bool = False,
+):
+    if tract_custom_operator:
+        # Implementation with dedicated operator
+        NOperation(
+            g,
+            type="tract_core_zpscale_per_chunk",
+            inputs=(
+                nnef_unpacked_tensor,
+                nnef_zero_point_tensor,
+                nnef_scale_tensor,
+            ),
+            outputs=nnef_output_tensor,
+            attribs=attribs,
+        )
+    else:
+        # Implementation without any special operators
+        raise NotImplementedError(
+            "will need a reshape on 1 dim then apply as per channel"
+        )
 
 
 class QTensorExtractor(ModuleInfoExtractor):
@@ -41,9 +186,10 @@ class QTensorExtractor(ModuleInfoExtractor):
 
         qtensor = node.op_ref
 
+        is_8bit = qtensor.packed_torch_tensor.n_bits() == 8
         packed_tensor = qtensor.packed_torch_tensor.raw_tensor
         nnef_packed_tensor = base.add_tensor_variable_node_as_nnef_tensor(
-            name_suffix="raw_bit_packed",
+            name_suffix="raw_bit_packed" if not is_8bit else "u8_unpacked",
             # build imaginary node to fill data correctly
             node=base.TensorVariable(
                 name=node.outputs[0].name,
@@ -55,29 +201,32 @@ class QTensorExtractor(ModuleInfoExtractor):
             name_to_tensor=name_to_tensor,
         )
 
-        nnef_unpacked_tensor = base.add_tensor_variable_node_as_nnef_tensor(
-            name_suffix="_u8_unpacked",
-            # build imaginary node to fill data correctly
-            node=base.TensorVariable(
-                name=node.outputs[0].name,
-                data=None,
-                shape=list(qtensor.packed_torch_tensor.shape),
-                dtype=packed_tensor.dtype,
-            ),
-            g=g,
-            name_to_tensor=name_to_tensor,
-        )
+        if qtensor.packed_torch_tensor.n_bits() == 8:
+            nnef_unpacked_tensor = nnef_packed_tensor
+        else:
+            nnef_unpacked_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+                name_suffix="_u8_unpacked",
+                # build imaginary node to fill data correctly
+                node=base.TensorVariable(
+                    name=node.outputs[0].name,
+                    data=None,
+                    shape=list(qtensor.packed_torch_tensor.shape),
+                    dtype=packed_tensor.dtype,
+                ),
+                g=g,
+                name_to_tensor=name_to_tensor,
+            )
 
-        NOperation(
-            g,
-            type="tract_core_dyn_bit_unpack",
-            inputs=nnef_packed_tensor,
-            outputs=nnef_unpacked_tensor,
-            attribs={
-                "bit_width": qtensor.packed_torch_tensor.n_bits(),
-                "layout": "tiled",
-            },
-        )
+            NOperation(
+                g,
+                type="tract_core_dyn_bit_unpack",
+                inputs=nnef_packed_tensor,
+                outputs=nnef_unpacked_tensor,
+                attribs={
+                    "bit_width": qtensor.packed_torch_tensor.n_bits(),
+                    "layout": "tiled",
+                },
+            )
 
         real_output = qtensor.to_torch_tensor()
         if real_output.is_quantized:
@@ -139,9 +288,11 @@ class QTensorExtractor(ModuleInfoExtractor):
             attribs = {
                 "to": TORCH_DTYPE_TO_TRACT_STR[real_output.dtype],
             }
-        if (
-            isinstance(qtensor.target_dtype.qscheme, QZPScaleScalar)
-            or qtensor.target_dtype.qscheme is None
+        if isinstance(
+            qtensor.target_dtype.qscheme, QZPScaleScalar
+        ) or isinstance(
+            qtensor.qscheme,
+            QZPScaleScalar,
         ):
             NOperation(
                 g,
@@ -151,57 +302,29 @@ class QTensorExtractor(ModuleInfoExtractor):
                 attribs=attribs,
             )
         else:
-            torch_zero_point = qtensor.qscheme.zero_point
-            nnef_zero_point_tensor = base.add_tensor_variable_node_as_nnef_tensor(
-                # build imaginary node to fill data correctly
-                node=base.TensorVariable(
-                    name=node.outputs[0].name,
-                    data=torch_zero_point,
-                    shape=list(torch_zero_point.shape),
-                    dtype=torch_zero_point.dtype,
-                ),
-                g=g,
-                name_to_tensor=name_to_tensor,
-                name_suffix="zero_points",
-            )
-
-            torch_scale = qtensor.qscheme.scale
-            nnef_scale_tensor = base.add_tensor_variable_node_as_nnef_tensor(
-                # build imaginary node to fill data correctly
-                node=base.TensorVariable(
-                    name=node.outputs[0].name,
-                    data=torch_scale,
-                    shape=list(torch_scale.shape),
-                    dtype=torch_scale.dtype,
-                ),
-                g=g,
-                name_to_tensor=name_to_tensor,
-                name_suffix="scales",
-            )
+            (
+                nnef_zero_point_tensor,
+                nnef_scale_tensor,
+            ) = _build_nnef_zp_scale_tensors(g, name_to_tensor, node, qtensor)
             if isinstance(qtensor.qscheme, QZPScalePerChannel):
-                NOperation(
+                outer_per_channel_dequantization(
                     g,
-                    type="tract_core_zpscale_per_channel",
-                    inputs=(
-                        nnef_unpacked_tensor,
-                        nnef_zero_point_tensor,
-                        nnef_scale_tensor,
-                    ),
-                    outputs=nnef_output_tensor,
-                    attribs=attribs,
+                    nnef_unpacked_tensor,
+                    nnef_zero_point_tensor,
+                    nnef_scale_tensor,
+                    nnef_output_tensor,
+                    attribs,
+                    name_to_tensor,
                 )
             elif isinstance(qtensor.qscheme, QZPScalePerChunk):
                 attribs["chunk_size"] = int(qtensor.qscheme.chunk_size)
-                NOperation(
+                outer_per_group_dequantization(
                     g,
-                    type="tract_core_zpscale_per_chunk",
-                    inputs=(
-                        nnef_unpacked_tensor,
-                        nnef_zero_point_tensor,
-                        nnef_scale_tensor,
-                    ),
-                    outputs=nnef_output_tensor,
-                    attribs=attribs,
+                    nnef_unpacked_tensor,
+                    nnef_zero_point_tensor,
+                    nnef_scale_tensor,
+                    nnef_output_tensor,
+                    attribs,
                 )
             else:
                 raise NotImplementedError(f"not handled: {qtensor.qscheme}")

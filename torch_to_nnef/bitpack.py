@@ -50,13 +50,17 @@ class BitPackedTensor(abc.ABC):
         return 2 ** cls.n_bits() - 1
 
     @classmethod
+    def storage_bit_size_per_element(cls):
+        return torch.tensor([], dtype=cls.storage_dtype()).element_size() * 8
+
+    @classmethod
     def pack(cls, tensor):
         if tensor.dtype != cls.storage_dtype():
             raise BitPackingError(
                 f"Expected dtype:{cls.storage_dtype()} but provided:{tensor.dtype}"
             )
 
-        divisor = int(cls.storage_dtype().itemsize * 8 / cls.n_bits())
+        divisor = int(cls.storage_bit_size_per_element() / cls.n_bits())
         if not len(tensor) % divisor == 0:
             raise BitPackingError(
                 f"tensor must have shape[0] divisible by {divisor} to use bit packing but got {tensor.shape[0]}"

@@ -5,6 +5,7 @@ from enum import Enum
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from torch_to_nnef import bitpack
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
@@ -36,6 +37,15 @@ class QZPScaleScalar(QScheme):
             dtype=torch.quint8,
         )
 
+    def to_zpscale_per_channel(self, tensor: torch.Tensor, dim: int = -1):
+        return QZPScalePerChannel(
+            zero_point=(torch.zeros(tensor.shape[dim]) + self.zero_point).to(
+                torch.int32
+            ),
+            scale=torch.ones(tensor.shape[dim]) + self.scale,
+            dim=dim,
+        )
+
     def dequantize(self, u8_tensor):
         return (u8_tensor.to(torch.float32) - self.zero_point) * self.scale
 
@@ -44,15 +54,25 @@ class QZPScaleScalar(QScheme):
 
 
 class QZPScalePerChannel(QScheme):
-    def __init__(self, zero_point: torch.Tensor, scale: torch.Tensor):
-        assert zero_point.dtype == torch.int32
+    def __init__(
+        self, zero_point: torch.Tensor, scale: torch.Tensor, dim: int = -1
+    ):
+        if (
+            zero_point.dtype == torch.int64
+            and zero_point.abs().max() < torch.iinfo(torch.int64).max
+        ):
+            zero_point = zero_point.to(torch.int32)
+        assert zero_point.dtype == torch.int32, zero_point.dtype
+        if scale.dtype == torch.float64:
+            scale = scale.to(torch.float32)
         assert scale.dtype == torch.float32
-        assert len(zero_point.shape) == 1
-        assert len(scale.shape) == 1
+        # assert len(zero_point.shape) == 1 # TODO replace by check only 1 dim > 1
+        # assert len(scale.shape) == 1
         assert zero_point.shape == scale.shape
         assert (scale != 0).all(), scale
         self.zero_point = zero_point
         self.scale = scale
+        self.dim = dim
 
     def quantize_as_torch(self, fp_tensor):
         return torch.quantize_per_channel(
@@ -148,6 +168,9 @@ class TargetDType:
         if self.qscheme is None:
             return fp_tensor.to(self.torch_dtype)
         return self.qscheme.quantize_as_torch(fp_tensor)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(torch_dtype={self.torch_dtype}, qscheme={self.qscheme})"
 
 
 class QTensor(nn.Module):
@@ -255,7 +278,15 @@ class QTensor(nn.Module):
         if torch_qscheme == torch.per_channel_affine:
             qscale = tensor.q_per_channel_scales()
             qzerop = tensor.q_per_channel_zero_points() + offset_zp
-            qscheme = QZPScalePerChannel(qzerop, qscale)
+            dim = tensor.q_per_channel_axis()
+
+            # reshapes to allow torch jit works
+            qshape = [1] * len(tensor.shape)
+            qshape[dim] = qscale.shape[0]
+            qscale = qscale.reshape(qshape)
+            qzerop = qzerop.reshape(qshape)
+
+            qscheme = QZPScalePerChannel(qzerop, qscale, dim=dim)
         elif torch_qscheme == torch.per_tensor_affine:
             qscale = tensor.q_scale()
             qzerop = tensor.q_zero_point() + offset_zp
@@ -281,3 +312,84 @@ class QTensor(nn.Module):
             return f"{self.__class__.__name__}({self.packed_torch_tensor}, {self.qscheme})"
         except AttributeError:
             return f"{self.__class__.__name__}(?)"
+
+
+class WeightInputedConv1d(nn.Module):
+    CP_ATTRS = [
+        "bias",
+        "padding_mode",
+        "stride",
+        "dilation",
+        "padding",
+        "groups",
+        "_reversed_padding_repeated_twice",
+    ]
+
+    def __init__(self, conv_nn: nn.Conv1d):
+        super().__init__()
+        for attr in self.CP_ATTRS:
+            setattr(self, attr, getattr(conv_nn, attr))
+
+    def _conv_forward(
+        self,
+        inp: torch.Tensor,
+        weight: torch.Tensor,
+        bias: T.Optional[torch.Tensor],
+    ):
+        if self.padding_mode != "zeros":
+            return F.conv1d(
+                F.pad(
+                    inp,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                weight,
+                bias,
+                self.stride,
+                (0,),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv1d(
+            inp,
+            weight,
+            bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+
+    def forward(self, inp: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+        return self._conv_forward(inp, weight, self.bias)
+
+
+class QWeightedOp(nn.Module):
+    def __init__(self, mod: nn.Module, weight_mod: QTensor):
+        super().__init__()
+        self.mod = mod
+        self.weight_mod = weight_mod
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.mod(x, self.weight_mod())
+
+    def __getattr__(self, name):
+        mod_dic = self.__dict__
+        if name in mod_dic:
+            return mod_dic[name]
+        mod_dic = mod_dic["_modules"]
+        if name in mod_dic:
+            return mod_dic[name]
+        mod_dic = mod_dic["mod"].__dict__
+        if name in mod_dic:
+            return mod_dic[name]
+        raise AttributeError(f"{name} not found")
+
+    #
+
+
+def replace_nn_ops(module, q_weight):
+    if isinstance(module, nn.Conv1d):
+        assert module.weight.shape == q_weight.packed_torch_tensor.shape
+        return QWeightedOp(WeightInputedConv1d(module), q_weight)
+    raise NotImplementedError(module)
