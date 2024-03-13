@@ -20,6 +20,10 @@ class QScheme(abc.ABC):
     def dequantize(self, u8_tensor):
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def clone_with_scale_factor(self, scale_factor):
+        raise NotImplementedError()
+
 
 class QZPScaleScalar(QScheme):
     def __init__(self, zero_point: int, scale: float):
@@ -35,6 +39,14 @@ class QZPScaleScalar(QScheme):
             scale=self.scale,
             zero_point=self.zero_point,
             dtype=torch.quint8,
+        )
+
+    def clone_with_scale_factor(self, scale_factor):
+        return self.__class__(
+            zero_point=(self.zero_point / scale_factor).to(
+                dtype=self.zero_point.dtype
+            ),
+            scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
         )
 
     def to_zpscale_per_channel(self, tensor: torch.Tensor, dim: int = -1):
@@ -82,6 +94,15 @@ class QZPScalePerChannel(QScheme):
             dtype=torch.quint8,
         )
 
+    def clone_with_scale_factor(self, scale_factor):
+        return self.__class__(
+            zero_point=(self.zero_point / scale_factor).to(
+                dtype=self.zero_point.dtype
+            ),
+            scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
+            dim=self.dim,
+        )
+
     def dequantize(self, u8_tensor):
         return (u8_tensor.to(torch.float32) - self.zero_point) * self.scale
 
@@ -107,6 +128,15 @@ class QZPScalePerChunk(QScheme):
     def quantize_as_torch(self, fp_tensor):
         raise TorchToNNEFNotImplementedError(
             "native torch does not suport per chunk"
+        )
+
+    def clone_with_scale_factor(self, scale_factor):
+        return self.__class__(
+            zero_point=(self.zero_point / scale_factor).to(
+                dtype=self.zero_point.dtype
+            ),
+            scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
+            chunk_size=self.chunk_size,
         )
 
     def dequantize(self, u8_tensor):
@@ -251,6 +281,23 @@ class QTensor(nn.Module):
 
     def to(self, *args, **kwargs):
         raise NotImplementedError()
+
+    def cast_into_n_bits(self, n_bits: int):
+        current_n_bits_per_elm = self.packed_torch_tensor.n_bits()
+        if n_bits == current_n_bits_per_elm:
+            return self
+        tt = self.packed_torch_tensor.unpack()
+        # tmin, tmax = tt.min(), tt.max()
+        # max_upper_bound = self.packed_torch_tensor.max_val()
+        # assert tmax == max_upper_bound
+        # assert tmin == 0
+        scale_factor = 2**current_n_bits_per_elm / 2**n_bits
+        new_u8_tensor = (tt.to(torch.float32) / scale_factor).to(torch.uint8)
+        return QTensor(
+            packed_tensor=PackingStrategy(bit_width=n_bits).pack(new_u8_tensor),
+            qscheme=self.qscheme.clone_with_scale_factor(scale_factor),
+            target_dtype=self.target_dtype,
+        )
 
     @classmethod
     def from_torch_qtensor(
