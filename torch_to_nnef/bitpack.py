@@ -63,7 +63,8 @@ class BitPackedTensor(abc.ABC):
         divisor = int(cls.storage_bit_size_per_element() / cls.n_bits())
         if not len(tensor) % divisor == 0:
             raise BitPackingError(
-                f"tensor must have shape[0] divisible by {divisor} to use bit packing but got {tensor.shape[0]}"
+                f"tensor must have shape[0] divisible by {divisor} to "
+                f"use bit packing but got {tensor.shape[0]} in full shape {tensor.shape}"
             )
         if (tensor > cls.max_val()).any():
             raise BitPackingError(

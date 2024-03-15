@@ -54,7 +54,7 @@ class QZPScaleScalar(QScheme):
             zero_point=(torch.zeros(tensor.shape[dim]) + self.zero_point).to(
                 torch.int32
             ),
-            scale=torch.ones(tensor.shape[dim]) + self.scale,
+            scale=torch.zeros(tensor.shape[dim]) + self.scale,
             dim=dim,
         )
 
@@ -110,20 +110,56 @@ class QZPScalePerChannel(QScheme):
         return f"{self.__class__.__name__}(zero_point={self.zero_point}, scale={self.scale})"
 
 
-class QZPScalePerChunk(QScheme):
+class QZPScalePerGroup(QScheme):
     def __init__(
-        self, chunk_size: int, zero_point: torch.Tensor, scale: torch.Tensor
+        self, group_size: int, zero_point: torch.Tensor, scale: torch.Tensor
     ):
         assert zero_point.dtype == torch.int32
         assert scale.dtype == torch.float32
-        assert len(zero_point.shape) == 1
-        assert len(scale.shape) == 1
         assert zero_point.shape == scale.shape
-        assert (-129 < zero_point & zero_point < 128).all(), zero_point
         assert (scale != 0).all(), scale
-        self.chunk_size: int = chunk_size
+        self.group_size: int = group_size
         self.zero_point = zero_point
         self.scale = scale
+
+    @classmethod
+    def min_max_quantize_float_tensor(
+        cls, fp_tensor, group_size: int, n_bits: int
+    ) -> T.Tuple[QScheme, torch.Tensor]:
+        fp_tensor_per_group = fp_tensor.flatten().reshape(group_size, -1)
+        min_per_group = fp_tensor_per_group.min(dim=0).values
+        max_per_group = fp_tensor_per_group.max(dim=0).values
+
+        scale = (max_per_group - min_per_group) / ((2**n_bits) - 1)
+        zero_point = (-(min_per_group / scale).round()).to(torch.int32)
+        qshape = [1] + [scale.shape[0]]
+        qscheme = cls(
+            group_size=group_size,
+            zero_point=zero_point.reshape(qshape),
+            scale=scale.reshape(qshape),
+        )
+        return (
+            qscheme,
+            qscheme._quantize_as_u8(fp_tensor_per_group)
+            .reshape(fp_tensor.shape)
+            .to(torch.uint8),
+        )
+
+    def _quantize_as_u8(self, fp_tensor):
+        assert (
+            len(fp_tensor.shape) == 2 and fp_tensor.shape[0] == self.group_size
+        )
+        u8_tensor_per_group = (
+            (fp_tensor / self.scale) + self.zero_point
+        ).round()
+        return u8_tensor_per_group
+
+    def dequantize(self, u8_tensor):
+        u8_tensor_per_group = u8_tensor.flatten().reshape(self.group_size, -1)
+        fp_tensor_per_group = (
+            u8_tensor_per_group.float() - self.zero_point
+        ).round() * self.scale
+        return fp_tensor_per_group.reshape(u8_tensor.shape)
 
     def quantize_as_torch(self, fp_tensor):
         raise TorchToNNEFNotImplementedError(
@@ -136,16 +172,16 @@ class QZPScalePerChunk(QScheme):
                 dtype=self.zero_point.dtype
             ),
             scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
-            chunk_size=self.chunk_size,
-        )
-
-    def dequantize(self, u8_tensor):
-        raise TorchToNNEFNotImplementedError(
-            "not enough knowledge on chunk structure at this stage"
+            group_size=self.group_size,
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(chunk={self.chunk_size}, zero_point={self.zero_point}, scale={self.scale})"
+        return (
+            f"{self.__class__.__name__}"
+            f"(group_size={self.group_size}, "
+            f"zero_point={self.zero_point}, "
+            f"scale={self.scale})"
+        )
 
 
 class PackingLayout(str, Enum):
@@ -345,7 +381,7 @@ class QTensor(nn.Module):
 
         if target_dtype is None:
             target_dtype = TargetDType(tensor.dtype)
-        return QTensor(
+        return cls(
             packing_strategy.pack(itensor),
             qscheme=qscheme,
             target_dtype=target_dtype,
@@ -437,6 +473,8 @@ class QWeightedOp(nn.Module):
 
 def replace_nn_ops(module, q_weight):
     if isinstance(module, nn.Conv1d):
-        assert module.weight.shape == q_weight.packed_torch_tensor.shape
+        assert (
+            module.weight.shape == q_weight.packed_torch_tensor.shape
+        ), f"{module.weight.shape} == {q_weight.packed_torch_tensor.shape}"
         return QWeightedOp(WeightInputedConv1d(module), q_weight)
     raise NotImplementedError(module)

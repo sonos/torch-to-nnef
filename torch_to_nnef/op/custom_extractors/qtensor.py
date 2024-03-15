@@ -8,7 +8,7 @@ from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.qtensor import (
     QTensor,
     QZPScalePerChannel,
-    QZPScalePerChunk,
+    QZPScalePerGroup,
     QZPScaleScalar,
 )
 
@@ -135,6 +135,7 @@ def outer_per_group_dequantization(
     nnef_scale_tensor,
     nnef_output_tensor,
     attribs,
+    name_to_tensor,
     tract_custom_operator: bool = False,
 ):
     if tract_custom_operator:
@@ -151,9 +152,108 @@ def outer_per_group_dequantization(
             attribs=attribs,
         )
     else:
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op.primitive import base
+
+        group_size = attribs.pop("group_size")
         # Implementation without any special operators
-        raise NotImplementedError(
-            "will need a reshape on 1 dim then apply as per channel"
+        original_shape = nnef_unpacked_tensor.shape
+        total_n_elements = 1
+        for _ in original_shape:
+            total_n_elements *= _
+        assert total_n_elements % group_size == 0
+        n_groups = int(total_n_elements / group_size)
+        per_group_shape = [group_size, n_groups]
+
+        nnef_reshaped_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_unpacked_tensor.name,
+                data=None,
+                shape=list(per_group_shape),
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="reshaped_per_group",
+        )
+        NOperation(
+            g,
+            type="reshape",
+            inputs=nnef_unpacked_tensor,
+            outputs=nnef_reshaped_tensor,
+            attribs={"shape": per_group_shape},
+        )
+        nnef_sub_zp_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_unpacked_tensor.name,
+                data=None,
+                shape=list(per_group_shape),
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="sub_zp",
+        )
+        NOperation(
+            g,
+            type="sub",
+            inputs=(
+                nnef_reshaped_tensor,
+                nnef_zero_point_tensor,
+            ),
+            outputs=nnef_sub_zp_tensor,
+            attribs=attribs,
+        )
+        nnef_float_out_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_output_tensor.name,
+                data=None,
+                shape=list(per_group_shape),
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="out_float",
+        )
+        NOperation(
+            g,
+            type="mul",
+            inputs=(
+                nnef_sub_zp_tensor,
+                nnef_scale_tensor,
+            ),
+            outputs=nnef_float_out_tensor,
+            attribs=attribs,
+        )
+        nnef_fp_per_group_tensor = base.add_tensor_variable_node_as_nnef_tensor(
+            # build imaginary node to fill data correctly
+            node=base.TensorVariable(
+                name=nnef_output_tensor.name,
+                data=None,
+                shape=per_group_shape,
+                dtype=torch.float32,
+            ),
+            g=g,
+            name_to_tensor=name_to_tensor,
+            name_suffix="_fp_shaped_per_group",
+        )
+        NOperation(
+            g,
+            type="tract_core_cast",
+            inputs=nnef_float_out_tensor,
+            outputs=nnef_fp_per_group_tensor,
+            attribs={"to": attribs["to"]},
+        )
+
+        NOperation(
+            g,
+            type="reshape",
+            inputs=nnef_fp_per_group_tensor,
+            outputs=nnef_output_tensor,
+            attribs={"shape": original_shape},
         )
 
 
@@ -316,8 +416,8 @@ class QTensorExtractor(ModuleInfoExtractor):
                     attribs,
                     name_to_tensor,
                 )
-            elif isinstance(qtensor.qscheme, QZPScalePerChunk):
-                attribs["chunk_size"] = int(qtensor.qscheme.chunk_size)
+            elif isinstance(qtensor.qscheme, QZPScalePerGroup):
+                attribs["group_size"] = int(qtensor.qscheme.group_size)
                 outer_per_group_dequantization(
                     g,
                     nnef_unpacked_tensor,
@@ -325,6 +425,7 @@ class QTensorExtractor(ModuleInfoExtractor):
                     nnef_scale_tensor,
                     nnef_output_tensor,
                     attribs,
+                    name_to_tensor,
                 )
             else:
                 raise NotImplementedError(f"not handled: {qtensor.qscheme}")
