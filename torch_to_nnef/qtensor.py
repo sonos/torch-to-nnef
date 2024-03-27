@@ -1,4 +1,5 @@
-""" Advanced QTensor (<= 8bits) with complex quant scheme non torch native """
+"""Advanced QTensor (<= 8bits) with complex quant scheme non torch native"""
+
 import abc
 import typing as T
 from enum import Enum
@@ -447,6 +448,19 @@ class WeightInputedConv1d(nn.Module):
         return self._conv_forward(inp, weight, self.bias)
 
 
+class WeightInputedLinear(nn.Module):
+    __constants__ = ["in_features", "out_features"]
+    CP_ATTRS = ["bias", "in_features", "out_features"]
+
+    def __init__(self, linear: nn.Linear):
+        super().__init__()
+        for attr in self.CP_ATTRS:
+            setattr(self, attr, getattr(linear, attr))
+
+    def forward(self, inp: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+        return F.linear(inp, weight, self.bias)
+
+
 class QWeightedOp(nn.Module):
     def __init__(self, mod: nn.Module, weight_mod: QTensor):
         super().__init__()
@@ -468,8 +482,6 @@ class QWeightedOp(nn.Module):
             return mod_dic[name]
         raise AttributeError(f"{name} not found")
 
-    #
-
 
 def replace_nn_ops(module, q_weight):
     if isinstance(module, nn.Conv1d):
@@ -477,4 +489,9 @@ def replace_nn_ops(module, q_weight):
             module.weight.shape == q_weight.packed_torch_tensor.shape
         ), f"{module.weight.shape} == {q_weight.packed_torch_tensor.shape}"
         return QWeightedOp(WeightInputedConv1d(module), q_weight)
+    if isinstance(module, nn.Linear):
+        assert (
+            module.weight.shape == q_weight.packed_torch_tensor.shape
+        ), f"{module.weight.shape} == {q_weight.packed_torch_tensor.shape}"
+        return QWeightedOp(WeightInputedLinear(module), q_weight)
     raise NotImplementedError(module)
