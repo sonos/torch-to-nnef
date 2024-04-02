@@ -6,7 +6,9 @@ from nnef_tools.model import Operation as NOperation
 from torch_to_nnef.exceptions import StrictNNEFSpecError
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.qtensor import (
-    QTensor,
+    QTensorBasic,
+    QTensorGGUF,
+    QTensorSepParamsWithPack,
     QZPScalePerChannel,
     QZPScalePerGroup,
     QZPScaleScalar,
@@ -257,8 +259,8 @@ def outer_per_group_dequantization(
         )
 
 
-class QTensorExtractor(ModuleInfoExtractor):
-    MODULE_CLASS = QTensor
+class QTensorSepParamsWithPackExtractor(ModuleInfoExtractor):
+    MODULE_CLASS = QTensorSepParamsWithPack
 
     def convert_to_nnef(
         self,
@@ -430,3 +432,45 @@ class QTensorExtractor(ModuleInfoExtractor):
             else:
                 raise NotImplementedError(f"not handled: {qtensor.qscheme}")
         return ["tract_core"]
+
+
+class QTensorBasicExtractor(ModuleInfoExtractor):
+    MODULE_CLASS = QTensorBasic
+
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+        nnef_spec_strict: bool,
+        **kwargs,
+    ):
+        raise NotImplementedError(
+            "QTensorBasic are not meant to be exported."
+            " please re-consider your quantization tensor type if you wish to export"
+            " with (QTensorSepParamsWithPack | QTensorGGUF)"
+        )
+
+
+try:
+
+    class QTensorGGUFExtractor(ModuleInfoExtractor):
+        MODULE_CLASS = QTensorGGUF
+
+        def convert_to_nnef(
+            self,
+            g,
+            node,
+            name_to_tensor,
+            null_ref,
+            torch_graph,
+            nnef_spec_strict: bool,
+            **kwargs,
+        ):
+            """TODO: implementation with storage"""
+
+except ImportError as exp:
+    # feature gate: gguf_dtype
+    print(exp)

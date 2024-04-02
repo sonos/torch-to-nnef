@@ -1,9 +1,12 @@
 """Advanced QTensor (<= 8bits) with complex quant scheme non torch native"""
 
 import abc
+import tempfile
 import typing as T
 from enum import Enum
+from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -247,7 +250,9 @@ class QTensor(nn.Module):
         raise NotImplementedError()
 
     def forward(self):
-        return self.to_torch_float_tensor()
+        return (
+            self.to_torch_float_tensor() * 1.0
+        )  # dummy  mul by 1 necessary to avoid torch agressive trace simplification
 
 
 class QTensorBasic(QTensor):
@@ -266,124 +271,190 @@ class QTensorBasic(QTensor):
 
     As an example:
         -> GGUF only implement per groups quantization specific variants (see: QTensorGGUF)
-        -> QTensorDissociatedWithPack: is limited to some specific divisibility for float tensor provided 1st dim
+        -> QTensorSepParamsWithPack: is limited to some specific divisibility for float tensor provided 1st dim
     """
 
 
-class QTensorGGUF(QTensor):
-    """GGUF tensor storage
+try:
+    import gguf
 
-    we define:
-        bpw = bit per weight
+    class QTensorGGUF(QTensor):
+        """GGUF tensor storage
 
-    ./ggml/src/ggml-common.h
-    ./ggml/src/ggml-quants.c
+        Aka tensor format used in Llama.cpp & GGML
+        (2024-04-02)
 
-    This storage is heavily tweaked/optimal for LLM so,
-    no guaranty it will perform best on other NN arch / ML tasks
+        we define:
+            bpw = bit per weight
 
-    To our knowedge there is 3 kinds of formats:
-    - old legacy formats (still in use in many models):
-        (tensor shape need to be divisible by 32)
-        Q{X}_0 -> symetric quant with per group quantization of 32 elements
-            Q8_0 -> [f16 scale, 32x(8bits element)] -> 34 bytes per group -> 8,5 bpw
-            Q4_0 -> [f16 scale, 32x(4bits element)] -> 18 bytes per group -> 4.5 bpw
-            Q5_0 -> [f16 scale, 32x(5th bit of each element), 32x(4 first bits of each element)]
-                        -> 22 bytes per group
-                        -> 5.5 bpw
+        ./ggml/src/ggml-common.h
+        ./ggml/src/ggml-quants.c
 
-        Q{X}_1 -> asymetric quant with per group quantization of 32 elements
-            Q8_1 -> [f16 scale, f16 min, 32x(8bits element)] -> 36 bytes per group -> 9 bpw
-            Q4_1 -> [f16 scale, f16 min, 32x(4bits element)] -> 20 bytes per group -> 5 bpw
-            Q5_1 -> [f16 scale, f16 min, 32x(5th bit of each element), 32x(4 first bit of each elements)]
-                        -> 24 bytes per group
-                        -> 6 bpw
+        This storage is heavily tweaked/optimal for LLM so,
+        no guaranty it will perform best on other NN arch / ML tasks
 
-    - new formats: With double quantization formats where qparams are quantized themselves,
-            macro quantization parameters are used to dequantize qparams
+        To our knowedge there is 3 kinds of formats:
+        - old legacy formats (still in use in many models):
+            (tensor shape need to be divisible by 32)
+            Q{X}_0 -> symetric quant with per group quantization of 32 elements
+                Q8_0 -> [f16 scale, 32x(8bits element)] -> 34 bytes per group -> 8,5 bpw
+                Q4_0 -> [f16 scale, 32x(4bits element)] -> 18 bytes per group -> 4.5 bpw
+                Q5_0 -> [f16 scale, 32x(5th bit of each element), 32x(4 first bits of each element)]
+                            -> 22 bytes per group
+                            -> 5.5 bpw
 
-        Format group elements by 256 (so tensor shape need to be divisible by 256)
+            Q{X}_1 -> asymetric quant with per group quantization of 32 elements
+                Q8_1 -> [f16 scale, f16 min, 32x(8bits element)] -> 36 bytes per group -> 9 bpw
+                Q4_1 -> [f16 scale, f16 min, 32x(4bits element)] -> 20 bytes per group -> 5 bpw
+                Q5_1 -> [f16 scale, f16 min, 32x(5th bit of each element), 32x(4 first bit of each elements)]
+                            -> 24 bytes per group
+                            -> 6 bpw
 
-        Q{X}_K:
-            Q2_K -> [16x(4bits min, 4bits scale), 256x(2bits element), f16 macro scale, f16 macro min]
-                        -> 84 bytes per group
-                        -> 2,625 bpw
+        - new formats: With double quantization formats where qparams are quantized themselves,
+                macro quantization parameters are used to dequantize qparams
 
-            Q3_K -> [
-                     256x(3rd bit per element),
-                     256x(2 first bits bit per element),
-                     16x(6bits quantized scales),
-                     f16 macro scale
-                    ]
-                        -> 110 bytes per group
-                        -> 3,4375 bpw
-            Q4_K -> [f16 macro scale, f16 macro min, 8x(6bits min, 6bits scale), 128x(4bits element)]
-                        -> 80 bytes per group
-                        -> 5 bpw
-            Q5_K -> [
-                     f16 macro scale,
-                     f16 macro min,
-                     8x(6bits min, 6bits scale),
-                     256x(5th bit per element),
-                     256x(4 first bits per element)
-                    ]
-                        -> 176 bytes per group
-                        -> 5,5 bpw
-            Q6_K -> ..
-            Q8_K -> ..
+            Format group elements by 256 (so tensor shape need to be divisible by 256)
 
-    - new formats: with non-linearity or very low bit-width
-        IQ{X}_{SIZE}:
-            where SIZE can be:
-                XXS, XS, S, M
-            and X can be 1, 2, 3
+            Q{X}_K:
+                Q2_K -> [16x(4bits min, 4bits scale), 256x(2bits element), f16 macro scale, f16 macro min]
+                            -> 84 bytes per group
+                            -> 2,625 bpw
 
-            format not studied but:
-                iq1_s --> ... --> 1.56 bpw
-                iq1_m -> ... --> 1.75 bpw
-                iq2_xxs --> [f16 scale, 256x(2bits element)] -> 2.0625 bpw
-                iq2_xs --> [f16 macro scale, 256x(2bits element), ~n x qscale~] -> 2.3125 bpw
-                iq2_xs --> ... -> 2.5625 bpw
-                iq3_xxs --> ... -> 3.0625 bpw
+                Q3_K -> [
+                        256x(3rd bit per element),
+                        256x(2 first bits bit per element),
+                        16x(6bits quantized scales),
+                        f16 macro scale
+                        ]
+                            -> 110 bytes per group
+                            -> 3,4375 bpw
+                Q4_K -> [f16 macro scale, f16 macro min, 8x(6bits min, 6bits scale), 128x(4bits element)]
+                            -> 80 bytes per group
+                            -> 5 bpw
+                Q5_K -> [
+                        f16 macro scale,
+                        f16 macro min,
+                        8x(6bits min, 6bits scale),
+                        256x(5th bit per element),
+                        256x(4 first bits per element)
+                        ]
+                            -> 176 bytes per group
+                            -> 5,5 bpw
+                Q6_K -> ..
+                Q8_K -> ..
 
-            i-quants familly is also providing in some case non linear quantization, ending with "_nl" notation
-            see: https://github.com/ggerganov/llama.cpp/discussions/5063#discussioncomment-8383732
-            for performance
+        - new formats: with non-linearity or very low bit-width
+            IQ{X}_{SIZE}:
+                where SIZE can be:
+                    XXS, XS, S, M
+                and X can be 1, 2, 3
 
-    However to date gguf 0.6.0 only reference familly Q_{X}_0, Q_{X}_1 and Q_{X}_K
-        other are on main but not yet released
+                format not studied but:
+                    iq1_s --> ... --> 1.56 bpw
+                    iq1_m -> ... --> 1.75 bpw
+                    iq2_xxs --> [f16 scale, 256x(2bits element)] -> 2.0625 bpw
+                    iq2_xs --> [f16 macro scale, 256x(2bits element), ~n x qscale~] -> 2.3125 bpw
+                    iq2_xs --> ... -> 2.5625 bpw
+                    iq3_xxs --> ... -> 3.0625 bpw
 
-    warning!: elements order is not maintained packing is applied in tile
-        in 4 bit by example on 32 element stored index would be in store:
-            [0, 16, 1, 17, ..., 15, 31]
+                i-quants familly is also providing in some case non linear quantization, ending with "_nl" notation
+                see: https://github.com/ggerganov/llama.cpp/discussions/5063#discussioncomment-8383732
+                for performance
 
-    """
+        However to date gguf 0.6.0 only reference familly Q_{X}_0, Q_{X}_1 and Q_{X}_K
+            other are on main but not yet released
 
-    def __init__(
-        self,
-        packed_torch_tensor: torch.Tensor,
-        gguf_data_type,  # : "GGUFDataType"
-    ):
-        # import gguf
+        warning!: elements order is not maintained packing is applied in tile
+            in 4 bit by example on 32 element stored index would be in store:
+                [0, 16, 1, 17, ..., 15, 31]
 
-        # in theory architecture allowed imply:
-        #   llama
-        #   mpt
-        #   gptneox
-        #   gptj
-        #   gpt2
-        #   bloom
-        #   falcon
-        #   mamba
-        #   rwkv
-        self.packed_torch_tensor = packed_torch_tensor
-        self.gguf_data_type = gguf_data_type
+        Implementation details:
+            As of 2024-04-02 we only rely on gguf python library,
 
-    def into_default(self):
-        raise NotImplementedError()
+            ggml modified: https://github.com/JulienBalianSonos/ggml.git
+            is only meant for tract unittest generation purpose
+
+            This limit us to only quantization but not dequantization implementation
+            for production export, we do this because:
+            GGML python library (on mainstream), is not well supported (more a POC)
+            and it needs you to provide specific .so library to link against library via
+            env variable.
+
+        """
+
+        def __init__(
+            self,
+            float_torch_tensor: torch.Tensor,
+            gguf_data_type: int,  # : "GGUFDataType"
+        ):
+            super().__init__()
+            if isinstance(float_torch_tensor, nn.Parameter):
+                float_torch_tensor = float_torch_tensor.data
+            self._float_torch_tensor = float_torch_tensor
+            self.gguf_data_type = gguf_data_type
+
+        def _write_tensor_in_gguf_file(
+            self,
+            dirpath: Path,
+            variable_name: str,
+            np_float_tensor: np.ndarray,
+            dtype: int,
+        ):
+            filepath = dirpath / f"{variable_name}.gguf"
+            # Example usage with a file
+            gguf_writer = gguf.GGUFWriter(filepath, "tract_custom")
+            # gguf_writer.add_block_count(1)
+            gguf_writer.add_tensor(
+                variable_name, np_float_tensor, raw_dtype=dtype
+            )
+
+            gguf_writer.write_header_to_file()
+            gguf_writer.write_kv_data_to_file()
+            gguf_writer.write_tensors_to_file()
+            gguf_writer.close()
+            return filepath
+
+        def _get_tensor_data_from_gguf_file(
+            self, gguf_file_path: str, variable_name: str
+        ):
+            reader = gguf.GGUFReader(gguf_file_path)
+            for tensor in reader.tensors:
+                if tensor.name == variable_name:
+                    return tensor.data
+            raise ValueError(
+                f"not found tensor '{variable_name}' in gguf file: {gguf_file_path}"
+            )
+
+        @property
+        def ggml_data_np_tensor(self) -> np.ndarray:
+            with tempfile.TemporaryDirectory() as dir_path:
+                filepath = self._write_tensor_in_gguf_file(
+                    Path(dir_path),
+                    "a",
+                    self._float_torch_tensor.numpy(),
+                    self.gguf_data_type,
+                )
+                qdata = self._get_tensor_data_from_gguf_file(filepath, "a")
+            return qdata
+
+        def to_torch_float_tensor(self):
+            return self._float_torch_tensor
+
+        def __repr__(self) -> str:
+            try:
+                return (
+                    f"{self.__class__.__name__}(shape={tuple(self.float_torch_tensor.shape)},"
+                    f" gguf_target_dtype={self.gguf_data_type})"
+                )
+            except AttributeError:
+                return f"{self.__class__.__name__}(?)"
+
+except ImportError as exp:
+    # feature gate: gguf_dtype
+    print(exp)
 
 
-class QTensorDissociatedWithPack(QTensor):
+class QTensorSepParamsWithPack(QTensor):
     """Quantized Tensor
 
     This format is usefull to store directly in RAM as torch tensor as there
@@ -391,9 +462,14 @@ class QTensorDissociatedWithPack(QTensor):
     this make it faster than the others format against all hardware achitecture
     while saving RAM significantly without dedicated C/CPP code.
 
+    Pro:
+        1. lot of variants supported (all group size / per chan ...)
+
     Limitation:
-        Your initial float tensor first dimension need to be divisible by
+        1. Your initial float tensor first dimension need to be divisible by
         number of element packable in a byte
+        2. No implementation in tract
+
     """
 
     def __init__(
@@ -440,8 +516,7 @@ class QTensorDissociatedWithPack(QTensor):
         # assert tmin == 0
         scale_factor = 2**current_n_bits_per_elm / 2**n_bits
         new_u8_tensor = (tt.to(torch.float32) / scale_factor).to(torch.uint8)
-
-        return QTensorDissociatedWithPack(
+        return QTensorSepParamsWithPack(
             packed_tensor=PackingStrategy(bit_width=n_bits).pack(new_u8_tensor),
             qscheme=self.qscheme.clone_with_scale_factor(scale_factor),
             target_dtype=self.target_dtype,
@@ -594,15 +669,15 @@ class QWeightedOp(nn.Module):
         raise AttributeError(f"{name} not found")
 
 
-def replace_nn_ops(module, q_weight):
+def replace_nn_ops(module: nn.Module, q_weight: QTensor) -> nn.Module:
     if isinstance(module, nn.Conv1d):
         assert (
-            module.weight.shape == q_weight.packed_torch_tensor.shape
-        ), f"{module.weight.shape} == {q_weight.packed_torch_tensor.shape}"
+            module.weight.shape == q_weight().shape
+        ), f"{module.weight.shape} == {q_weight().shape}"
         return QWeightedOp(WeightInputedConv1d(module), q_weight)
     if isinstance(module, nn.Linear):
         assert (
-            module.weight.shape == q_weight.packed_torch_tensor.shape
-        ), f"{module.weight.shape} == {q_weight.packed_torch_tensor.shape}"
+            module.weight.shape == q_weight().shape
+        ), f"{module.weight.shape} == {q_weight().shape}"
         return QWeightedOp(WeightInputedLinear(module), q_weight)
     raise NotImplementedError(module)

@@ -110,9 +110,9 @@ def export_model_to_nnef(
     LOGGER.info(
         f"start parse Pytorch model to be exported at {file_path_export}"
     )
-    assert file_path_export.with_suffix(
-        ".nnef"
-    ), "export filepath should end with '.nnef'"
+    assert any(
+        s == ".nnef" for s in file_path_export.suffixes
+    ), f"export filepath should end with '.nnef' or '.nnef.tgz', but found: {file_path_export.suffixes}"
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         if torch_version_within(lower="1.8.0", upper="1.12.0"):
             # change starting in 1.12.0 for recurent layers make it unsuitable
@@ -163,6 +163,12 @@ def export_model_to_nnef(
                 "to use an inference engine that support them"
             )
         custom_framgnent_names = list(active_custom_fragments.keys())
+        nnef_exp_file_path = file_path_export
+        if compression_level is not None:
+            nnef_exp_file_path = Path(nnef_exp_file_path)
+            if nnef_exp_file_path.suffix == ".tgz":
+                nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
+
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
@@ -174,9 +180,9 @@ def export_model_to_nnef(
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
-        )(nnef_graph, str(file_path_export))
+        )(nnef_graph, str(nnef_exp_file_path))
         LOGGER.info(
-            f"model exported successfully as NNEF at: {file_path_export}"
+            f"model exported successfully as NNEF at: {nnef_exp_file_path}"
         )
     if check_same_io_as_tract:
         # CHECK input and output are different

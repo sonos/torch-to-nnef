@@ -54,13 +54,11 @@ transformers = { version = "^4.25.1", optional = true }
 # llama.cpp commit reference: 28cb9a09c4d10a489be1238abe7a858dcd4d65f2 {
 # be sure that referenced export GGML_LIBRARY=.../libggml_shared.so use same lib
 gguf = { git = "https://github.com/ggerganov/llama.cpp.git", subdirectory = "gguf-py/", rev = "28cb9a09c4d10a489be1238abe7a858dcd4d65f2", optional = true }
-ggml = { git = "https://github.com/JulienBalianSonos/ggml.git", subdirectory = "examples/python", rev = "cd2cb6364f29693937ae5767f14d6f6f1f5dc89a", optional = true }
-# }
-# pip install -e "git+https://github.com/JulienBalianSonos/ggml.git@cd2cb6364f29693937ae5767f14d6f6f1f5dc89a#egg=ggml&subdirectory=examples/python"
 
+# }
 
 [tool.poetry.extras]
-ggml_qtypes = ["gguf", "ggml"]
+gguf = ["gguf"]
 test = [
     "pytest",
     "black",
@@ -80,10 +78,12 @@ tox = "^3.20.1"
 pre-commit = "^2.12.0"
 virtualenv = "^20.2.2"
 pip = "^22.3"
-twine = "^3.3.0"        # ?
+twine = "^3.3.0"                                                                                                                                     # ?
 toml = "^0.10.2"
 bump2version = "^1.0.1"
 ipdb = "^0.13.9"
+ggml = { git = "https://github.com/JulienBalianSonos/ggml.git", subdirectory = "examples/python", rev = "cd2cb6364f29693937ae5767f14d6f6f1f5dc89a" }
+# pip install -e "git+https://github.com/JulienBalianSonos/ggml.git@cd2cb6364f29693937ae5767f14d6f6f1f5dc89a#egg=ggml&subdirectory=examples/python"
 
 
 [tool.black]
