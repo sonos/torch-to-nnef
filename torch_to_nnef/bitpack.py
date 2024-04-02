@@ -1,4 +1,4 @@
-""" Base tensor bit-packing and unpack of values in  tensor lower than 8 bit.
+"""Base tensor bit-packing and unpack of values in  tensor lower than 8 bit.
 
 For now there is no residual handling enhence packing is only possible
 if divisibility match
@@ -9,6 +9,7 @@ neccessary close to each other in reality, this allow for fast un/packing.
 These base tensors are supported for NNEF export.
 
 """
+
 import abc
 import typing as T
 
@@ -54,7 +55,7 @@ class BitPackedTensor(abc.ABC):
         return torch.tensor([], dtype=cls.storage_dtype()).element_size() * 8
 
     @classmethod
-    def pack(cls, tensor):
+    def pack(cls, tensor) -> "BitPackedTensor":
         if tensor.dtype != cls.storage_dtype():
             raise BitPackingError(
                 f"Expected dtype:{cls.storage_dtype()} but provided:{tensor.dtype}"

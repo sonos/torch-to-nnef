@@ -241,49 +241,159 @@ class TargetDType:
 
 
 class QTensor(nn.Module):
+    """Common interface for all Quantized storage"""
+
+    def to_torch_float_tensor(self) -> torch.Tensor:
+        raise NotImplementedError()
+
+    def forward(self):
+        return self.to_torch_float_tensor()
+
+
+class QTensorBasic(QTensor):
+    """Dissociated QParams and quantized values with basic 1 element per uint8.
+
+    Whathever the bit-width size, 1 element per uint8 is maintained in memory
+    While very wastefull this allows to handle ALL tensor shape and QScheme without
+    any problem contrary to all other QTensor implementation.
+
+    This QTensorBasic IS NOT meant to be exported in production to tract
+    because export will happen statically & there is no bit-packing thus no memory benefit will be hold.
+    However it is possible to export it to tract to evaluate accuracy of such model
+    with tract math lib manipulations.
+
+    Main Goal/Benefit: Ability to explore quant scheme not optimized but promissing and validate those in tract.
+
+    As an example:
+        -> GGUF only implement per groups quantization specific variants (see: QTensorGGUF)
+        -> QTensorDissociatedWithPack: is limited to some specific divisibility for float tensor provided 1st dim
+    """
+
+
+class QTensorGGUF(QTensor):
+    """GGUF tensor storage
+
+    we define:
+        bpw = bit per weight
+
+    ./ggml/src/ggml-common.h
+    ./ggml/src/ggml-quants.c
+
+    This storage is heavily tweaked/optimal for LLM so,
+    no guaranty it will perform best on other NN arch / ML tasks
+
+    To our knowedge there is 3 kinds of formats:
+    - old legacy formats (still in use in many models):
+        (tensor shape need to be divisible by 32)
+        Q{X}_0 -> symetric quant with per group quantization of 32 elements
+            Q8_0 -> [f16 scale, 32x(8bits element)] -> 34 bytes per group -> 8,5 bpw
+            Q4_0 -> [f16 scale, 32x(4bits element)] -> 18 bytes per group -> 4.5 bpw
+            Q5_0 -> [f16 scale, 32x(5th bit of each element), 32x(4 first bits of each element)]
+                        -> 22 bytes per group
+                        -> 5.5 bpw
+
+        Q{X}_1 -> asymetric quant with per group quantization of 32 elements
+            Q8_1 -> [f16 scale, f16 min, 32x(8bits element)] -> 36 bytes per group -> 9 bpw
+            Q4_1 -> [f16 scale, f16 min, 32x(4bits element)] -> 20 bytes per group -> 5 bpw
+            Q5_1 -> [f16 scale, f16 min, 32x(5th bit of each element), 32x(4 first bit of each elements)]
+                        -> 24 bytes per group
+                        -> 6 bpw
+
+    - new formats: With double quantization formats where qparams are quantized themselves,
+            macro quantization parameters are used to dequantize qparams
+
+        Format group elements by 256 (so tensor shape need to be divisible by 256)
+
+        Q{X}_K:
+            Q2_K -> [16x(4bits min, 4bits scale), 256x(2bits element), f16 macro scale, f16 macro min]
+                        -> 84 bytes per group
+                        -> 2,625 bpw
+
+            Q3_K -> [
+                     256x(3rd bit per element),
+                     256x(2 first bits bit per element),
+                     16x(6bits quantized scales),
+                     f16 macro scale
+                    ]
+                        -> 110 bytes per group
+                        -> 3,4375 bpw
+            Q4_K -> [f16 macro scale, f16 macro min, 8x(6bits min, 6bits scale), 128x(4bits element)]
+                        -> 80 bytes per group
+                        -> 5 bpw
+            Q5_K -> [
+                     f16 macro scale,
+                     f16 macro min,
+                     8x(6bits min, 6bits scale),
+                     256x(5th bit per element),
+                     256x(4 first bits per element)
+                    ]
+                        -> 176 bytes per group
+                        -> 5,5 bpw
+            Q6_K -> ..
+            Q8_K -> ..
+
+    - new formats: with non-linearity or very low bit-width
+        IQ{X}_{SIZE}:
+            where SIZE can be:
+                XXS, XS, S, M
+            and X can be 1, 2, 3
+
+            format not studied but:
+                iq1_s --> ... --> 1.56 bpw
+                iq1_m -> ... --> 1.75 bpw
+                iq2_xxs --> [f16 scale, 256x(2bits element)] -> 2.0625 bpw
+                iq2_xs --> [f16 macro scale, 256x(2bits element), ~n x qscale~] -> 2.3125 bpw
+                iq2_xs --> ... -> 2.5625 bpw
+                iq3_xxs --> ... -> 3.0625 bpw
+
+            i-quants familly is also providing in some case non linear quantization, ending with "_nl" notation
+            see: https://github.com/ggerganov/llama.cpp/discussions/5063#discussioncomment-8383732
+            for performance
+
+    However to date gguf 0.6.0 only reference familly Q_{X}_0, Q_{X}_1 and Q_{X}_K
+        other are on main but not yet released
+
+    warning!: elements order is not maintained packing is applied in tile
+        in 4 bit by example on 32 element stored index would be in store:
+            [0, 16, 1, 17, ..., 15, 31]
+
+    """
+
+    def __init__(
+        self,
+        packed_torch_tensor: torch.Tensor,
+        gguf_data_type,  # : "GGUFDataType"
+    ):
+        # import gguf
+
+        # in theory architecture allowed imply:
+        #   llama
+        #   mpt
+        #   gptneox
+        #   gptj
+        #   gpt2
+        #   bloom
+        #   falcon
+        #   mamba
+        #   rwkv
+        self.packed_torch_tensor = packed_torch_tensor
+        self.gguf_data_type = gguf_data_type
+
+    def into_default(self):
+        raise NotImplementedError()
+
+
+class QTensorDissociatedWithPack(QTensor):
     """Quantized Tensor
 
-    Proposed export layout for this tensor:
+    This format is usefull to store directly in RAM as torch tensor as there
+    is very few manipulations to restore float tensor whatever PyTorch backend
+    this make it faster than the others format against all hardware achitecture
+    while saving RAM significantly without dedicated C/CPP code.
 
-    Example 1: (unquant dynamically weight at each graph run with rest of the graph quantized )
-        x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
-        y = tract_core_cast(x_dyn) # with graph.quant containing =>  zero_point=0, scale=0.5
-
-    Example 2: (unquant dynamically weight at each graph run with rest of the graph fp)
-        x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
-        y = tract_core_cast(x_dyn) # with graph.quant containing =>  zero_point=0, scale=0.5
-        z = tract_core_cast(y, to='f32')
-
-    Example 3: (per channel quantization targeting f16)
-        x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
-        zero_point_x = tract_core_external(shape=(b,), datum_type='i32')
-        scale_x = tract_core_external(shape=(b,), datum_type='f32')
-        y = tract_core_zpscale_per_channel(x_dyn, zero_point=zero_point_x, scale=scale_x, to='f16')
-
-    Example 4: (per chunk quantization targeting f16)
-        x = tract_core_external(shape=(a, b), datum_type='u8')
-        x_dyn = tract_core_dyn_bit_unpack(bit_width=4, layout='tiled')
-        zero_point_x = tract_core_external(shape=(a * b / 128,), datum_type='i32')
-        scale_x = tract_core_external(shape=(a * b / 128,), datum_type='f32')
-        y = tract_core_zpscale_per_chunk(x_dyn, zero_point=zero_point_x, scale=scale_x, to='f16')
-
-    Drawback:
-        -> per channel quantization targeting Q8 not handled (think quantized matmul)
-        -> per chunk quantization targeting Q8 not handled
-        This is because we would need to propagate these as tract tensor types instead of tract operators
-        The handle those peculiar datum_type whould likely leads to heavy tract binary size
-
-    NOTE:
-        there is 3 main components it export to:
-        - tract_core_dyn_bit_unpack: that allow to unpack in u8 tensor
-        - tract_core_zpscale_per_channel: that allows casting into specific float
-        - tract_core_zpscale_per_chunk: that allows casting into specific float
-
-    WARNING:
-        This tensor is only meant for storage and export DO not use for other torch operation
+    Limitation:
+        Your initial float tensor first dimension need to be divisible by
+        number of element packable in a byte
     """
 
     def __init__(
@@ -330,7 +440,8 @@ class QTensor(nn.Module):
         # assert tmin == 0
         scale_factor = 2**current_n_bits_per_elm / 2**n_bits
         new_u8_tensor = (tt.to(torch.float32) / scale_factor).to(torch.uint8)
-        return QTensor(
+
+        return QTensorDissociatedWithPack(
             packed_tensor=PackingStrategy(bit_width=n_bits).pack(new_u8_tensor),
             qscheme=self.qscheme.clone_with_scale_factor(scale_factor),
             target_dtype=self.target_dtype,
