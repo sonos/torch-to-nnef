@@ -2,8 +2,6 @@
 
 from torch_to_nnef.qtensor.base import (
     QTensor,
-    QTensorBasic,
-    QTensorBasicExtractor,
     QZPScalePerChannel,
     QZPScalePerGroup,
     QZPScaleScalar,
@@ -13,8 +11,6 @@ from torch_to_nnef.qtensor.qsep import QTensorSepParamsWithPack
 
 __all__ = [
     "QTensor",
-    "QTensorBasic",
-    "QTensorBasicExtractor",
     "QTensorSepParamsWithPack",
     "QZPScalePerChannel",
     "QZPScalePerGroup",

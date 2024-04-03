@@ -1,11 +1,13 @@
 import abc
+import logging
 import typing as T
 
 import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
+
+LOGGER = logging.getLogger(__name__)
 
 
 class QScheme(abc.ABC):
@@ -193,43 +195,3 @@ class QTensor(nn.Module):
         return (
             self.to_torch_float_tensor() * 1.0
         )  # dummy  mul by 1 necessary to avoid torch agressive trace simplification
-
-
-class QTensorBasic(QTensor):
-    """Dissociated QParams and quantized values with basic 1 element per uint8.
-
-    Whathever the bit-width size, 1 element per uint8 is maintained in memory
-    While very wastefull this allows to handle ALL tensor shape and QScheme without
-    any problem contrary to all other QTensor implementation.
-
-    This QTensorBasic IS NOT meant to be exported in production to tract
-    because export will happen statically & there is no bit-packing thus no memory benefit will be hold.
-    However it is possible to export it to tract to evaluate accuracy of such model
-    with tract math lib manipulations.
-
-    Main Goal/Benefit: Ability to explore quant scheme not optimized but promissing and validate those in tract.
-
-    As an example:
-        -> GGUF only implement per groups quantization specific variants (see: QTensorGGUF)
-        -> QTensorSepParamsWithPack: is limited to some specific divisibility for float tensor provided 1st dim
-    """
-
-
-class QTensorBasicExtractor(ModuleInfoExtractor):
-    MODULE_CLASS = QTensorBasic
-
-    def convert_to_nnef(
-        self,
-        g,
-        node,
-        name_to_tensor,
-        null_ref,
-        torch_graph,
-        nnef_spec_strict: bool,
-        **kwargs,
-    ):
-        raise NotImplementedError(
-            "QTensorBasic are not meant to be exported."
-            " please re-consider your quantization tensor type if you wish to export"
-            " with (QTensorSepParamsWithPack | QTensorGGUF)"
-        )
