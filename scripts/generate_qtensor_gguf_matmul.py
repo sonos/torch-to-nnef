@@ -75,8 +75,8 @@ def main():
     assert dirpath.exists()
     for q_type in QUANTS:
         lin = linear()
-        slug = f"tract_gguf_linear_{q_type}"
         q_weight = QTensorGGUF(lin.weight, q_type)
+        slug = f"tract_gguf_linear_{q_weight.gguf_data_type_name}"
         qlin = replace_nn_ops(lin, q_weight)
         args = torch.arange(10).reshape(2, 5).float()
         export_model_to_nnef(

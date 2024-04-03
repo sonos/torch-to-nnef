@@ -5,7 +5,6 @@ from pathlib import Path
 
 import nnef
 import torch
-from nnef_tools.io.nnef.writer import Writer as NNEFWriter
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import (  # type: ignore
     _decide_input_format,
@@ -15,6 +14,7 @@ from torch.onnx.utils import (  # type: ignore
 
 # from . import __version__
 from torch_to_nnef import tract
+from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
 from torch_to_nnef.exceptions import (
     DynamicShapeValue,
     StrictNNEFSpecError,

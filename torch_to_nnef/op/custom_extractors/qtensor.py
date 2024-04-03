@@ -469,7 +469,40 @@ try:
             nnef_spec_strict: bool,
             **kwargs,
         ):
-            """TODO: implementation with storage"""
+            """implementation with storage"""
+            # pylint: disable-next=import-outside-toplevel
+            from torch_to_nnef.dtypes import numpy_dtype_to_tract_str
+
+            # pylint: disable-next=import-outside-toplevel
+            from torch_to_nnef.op.primitive import base
+
+            # pylint: disable-next=import-outside-toplevel
+            from torch_to_nnef.op.primitive.base import add_nnef_operation
+
+            q_tensor = node.op_ref
+            out_node = node.outputs[0]
+            nnef_tensor_ref = base.add_tensor_variable_node_as_nnef_tensor(
+                g, out_node, name_to_tensor, prevent_variable=True
+            )
+            nnef_tensor_ref.qtensor = (
+                q_tensor  # main assign to allow corect dump
+            )
+            add_nnef_operation(
+                graph=g,
+                type="tract_core_gguf_variable",
+                inputs=None,
+                outputs=nnef_tensor_ref,
+                attribs={
+                    "gguf_filename": f"{out_node.export_name}.gguf",
+                    "gguf_tensor_name": out_node.export_name,
+                    "gguf_dtype": q_tensor.gguf_data_type_name,
+                    "shape": list(nnef_tensor_ref.shape),
+                    "output_datum_type": numpy_dtype_to_tract_str(
+                        nnef_tensor_ref.dtype
+                    ),
+                },
+            )
+            return ["tract_core"]
 
 except ImportError as exp:
     # feature gate: gguf_dtype
