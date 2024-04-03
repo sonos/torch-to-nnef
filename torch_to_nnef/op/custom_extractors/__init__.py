@@ -15,10 +15,6 @@ from torch_to_nnef.op.custom_extractors.base import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.custom_extractors.qtensor import (
-    QTensorBasicExtractor,
-    QTensorSepParamsWithPackExtractor,
-)
 
 # load default custom registries
 from torch_to_nnef.op.custom_extractors.rnn import (
@@ -33,14 +29,4 @@ __all__ = [
     "RNNExtractor",
     "LSTMExtractor",
     "GRUExtractor",
-    "QTensorSepParamsWithPackExtractor",
-    "QTensorBasicExtractor",
 ]
-
-try:
-    from torch_to_nnef.op.custom_extractors.qtensor import QTensorGGUFExtractor
-
-    __all__ += ["QTensorGGUFExtractor"]
-except ImportError as exp:
-    # feature gate: gguf_dtype
-    print(exp)

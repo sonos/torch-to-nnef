@@ -162,7 +162,7 @@ disable = [
 max-attributes = 15
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.8"
 
 [[tool.mypy.overrides]]
 module = "torch"
