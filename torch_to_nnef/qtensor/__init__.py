@@ -8,6 +8,7 @@ from torch_to_nnef.qtensor.base import (
     QZPScalePerGroup,
     QZPScaleScalar,
 )
+from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
 from torch_to_nnef.qtensor.qsep import QTensorSepParamsWithPack
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "QZPScalePerChannel",
     "QZPScalePerGroup",
     "QZPScaleScalar",
+    "replace_nn_ops",
 ]
 
 try:  # noqa: C901
