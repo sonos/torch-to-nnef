@@ -222,6 +222,9 @@ class QTensorGGUFExtractor(ModuleInfoExtractor):
 
         q_tensor = node.op_ref
         out_node = node.outputs[0]
+        out_node.data = (
+            None  # very important to avoid linear/conv relying on q issues
+        )
         nnef_tensor_ref = base.add_tensor_variable_node_as_nnef_tensor(
             g, out_node, name_to_tensor, prevent_variable=True
         )

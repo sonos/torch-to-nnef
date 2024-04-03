@@ -479,6 +479,9 @@ class QTensorSepParamsWithPackExtractor(ModuleInfoExtractor):
             )
 
         qtensor = node.op_ref
+        node.outputs[
+            0
+        ].data = None  # very important to avoid linear/conv relying on q issues
 
         is_8bit = qtensor.packed_torch_tensor.n_bits() == 8
         packed_tensor = qtensor.packed_torch_tensor.raw_tensor
@@ -623,6 +626,9 @@ class QTensorSepParamsWithPackExtractor(ModuleInfoExtractor):
                 )
             else:
                 raise NotImplementedError(f"not handled: {qtensor.qscheme}")
+        node.outputs[
+            0
+        ].data = None  # very important to avoid linear/conv relying on q issues
         return ["tract_core"]
 
 
