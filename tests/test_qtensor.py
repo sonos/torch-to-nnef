@@ -1,7 +1,11 @@
 import torch
 from torch import nn
 
-from torch_to_nnef.qtensor import QTensor, TargetDType, replace_nn_ops
+from torch_to_nnef.qtensor import (
+    QTensorSepParamsWithPack,
+    TargetDType,
+    replace_nn_ops,
+)
 
 from .utils import check_model_io_test
 
@@ -21,7 +25,7 @@ def test_quantize_with_q_tensor_basic():
     model_fp32_prepared(test_input)
     q_model = torch.quantization.convert(model_fp32_prepared).eval()
     weight = q_model.module.weight()
-    q_weight = QTensor.from_torch_qtensor(
+    q_weight = QTensorSepParamsWithPack.from_torch_qtensor(
         weight, target_dtype=TargetDType(torch.float32)
     )
     model = replace_nn_ops(model, q_weight)
@@ -43,7 +47,7 @@ def test_quantize_with_q_tensor_per_channel():
     model_fp32_prepared(test_input)
     q_model = torch.quantization.convert(model_fp32_prepared).eval()
     weight = q_model.module.weight()
-    q_weight = QTensor.from_torch_qtensor(
+    q_weight = QTensorSepParamsWithPack.from_torch_qtensor(
         weight, target_dtype=TargetDType(torch.float32)
     )
     q_weight.qscheme = q_weight.qscheme.to_zpscale_per_channel(

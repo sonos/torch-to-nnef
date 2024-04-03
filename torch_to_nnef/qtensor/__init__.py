@@ -7,7 +7,7 @@ from torch_to_nnef.qtensor.base import (
     QZPScaleScalar,
 )
 from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
-from torch_to_nnef.qtensor.qsep import QTensorSepParamsWithPack
+from torch_to_nnef.qtensor.qsep import QTensorSepParamsWithPack, TargetDType
 
 __all__ = [
     "QTensor",
@@ -16,6 +16,7 @@ __all__ = [
     "QZPScalePerGroup",
     "QZPScaleScalar",
     "replace_nn_ops",
+    "TargetDType",
 ]
 
 try:  # noqa: C901
