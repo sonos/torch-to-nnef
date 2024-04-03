@@ -136,7 +136,7 @@ class QTensorGGUF(QTensor):
             if value == self.gguf_data_type
         )
 
-    def _write_tensor_in_gguf_file(
+    def write_tensor_in_gguf_file(
         self,
         filepath: Path,
         variable_name: str,
