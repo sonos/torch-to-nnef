@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from torch_to_nnef.bitpack import (
+from torch_to_nnef.qtensor.bitpack import (
     TensorB1,
     TensorB2,
     TensorB3,
