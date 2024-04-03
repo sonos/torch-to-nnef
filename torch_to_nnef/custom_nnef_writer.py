@@ -347,7 +347,7 @@ class Writer:
                     )
                 if op.type == "tract_core_gguf_variable":
                     qtensor = op.output.qtensor
-                    qtensor._write_tensor_in_gguf_file(
+                    qtensor.write_tensor_in_gguf_file(
                         os.path.join(folder, op.attribs["gguf_filename"]),
                         op.attribs["gguf_tensor_name"],
                         qtensor._float_torch_tensor.numpy(),

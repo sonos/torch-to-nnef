@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 
+import numpy as np
 import torch
 from ggml import ffi, lib
 from torch import nn
@@ -54,7 +55,7 @@ QUANTS.sort(key=get_name)
 
 
 def linear():
-    return nn.Linear(5, 2)
+    return nn.Linear(256, 512, bias=False)
 
 
 def parser_cli():
@@ -73,15 +74,14 @@ def main():
     args = parser_cli()
     dirpath = Path(args.dir)
     assert dirpath.exists()
-    for q_type in QUANTS:
+    with torch.no_grad():
+        inps = torch.arange(256).reshape(1, 256).float() - 128.0
         lin = linear()
-        q_weight = QTensorGGUF(lin.weight, q_type)
-        slug = f"tract_gguf_linear_{q_weight.gguf_data_type_name}"
-        qlin = replace_nn_ops(lin, q_weight)
-        args = torch.arange(10).reshape(2, 5).float()
+        fp_outs = lin(inps)
+        slug = "full_precision"
         export_model_to_nnef(
-            qlin,
-            args,  # args pushed with *args in forward of module
+            lin,
+            inps,  # inps pushed with *inps in forward of module
             file_path_export=dirpath / f"{slug}.nnef.tgz",
             input_names=["input_0"],
             output_names=["output_0"],
@@ -89,6 +89,40 @@ def main():
             compression_level=0,
             nnef_spec_strict=False,
         )
+        np.savez(
+            dirpath / f"{slug}.npz",
+            **{
+                "input_0": inps.detach().numpy(),
+                "output_0": fp_outs.detach().numpy(),
+            },
+        )
+        for q_type in QUANTS:
+            q_weight = QTensorGGUF(lin.weight, q_type)
+            slug = f"tract_gguf_linear_{q_weight.gguf_data_type_name}"
+            qlin = replace_nn_ops(lin, q_weight)
+            q_outs = qlin(inps)
+            export_model_to_nnef(
+                qlin,
+                inps,
+                file_path_export=dirpath / f"{slug}.nnef.tgz",
+                input_names=["input_0"],
+                output_names=["output_0"],
+                dynamic_axes=None,
+                compression_level=0,
+                nnef_spec_strict=False,
+            )
+            print()
+            print(slug)
+            diff = fp_outs - q_outs
+            print("diff l2", np.linalg.norm(diff, 2))
+            print("diff linf", np.linalg.norm(diff, np.inf))
+            np.savez(
+                dirpath / f"{slug}_io.npz",
+                **{
+                    "input_0": inps.detach().numpy(),
+                    "output_0": q_outs.detach().numpy(),
+                },
+            )
 
 
 if __name__ == "__main__":

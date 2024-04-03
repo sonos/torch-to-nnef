@@ -160,8 +160,9 @@ class QTensorGGUF(QTensor):
         gguf_writer.close()
         return filepath
 
+    @classmethod
     def _get_tensor_data_from_gguf_file(
-        self, gguf_file_path: T.Union[Path, str], variable_name: str
+        cls, gguf_file_path: T.Union[Path, str], variable_name: str
     ):
         reader = gguf.GGUFReader(gguf_file_path)
         for tensor in reader.tensors:
@@ -185,6 +186,27 @@ class QTensorGGUF(QTensor):
         return qdata
 
     def to_torch_float_tensor(self):
+        assert len(self._float_torch_tensor.shape) == 2
+        try:
+            # pylint: disable-next=import-outside-toplevel
+            from ggml import lib
+
+            # pylint: disable-next=import-outside-toplevel
+            from ggml.utils import copy, init, numpy
+
+            d1, d2 = self._float_torch_tensor.shape
+            ctx = init(mem_size=(32 + 8) * d1 * d2)  # Will be auto-GC'd
+            quantized_tensor = lib.ggml_new_tensor_2d(
+                ctx, self.gguf_data_type, d1, d2
+            )
+            copy(self._float_torch_tensor.numpy(), quantized_tensor)
+            np_dequant = numpy(quantized_tensor, allow_copy=True)
+            return torch.from_numpy(np_dequant)
+        except ImportError as exp:
+            print(exp)
+        print(
+            f"fall back to full precision tensor in {self.__class__.__name__}.forward() for torch inference"
+        )
         return self._float_torch_tensor
 
     def __repr__(self) -> str:
