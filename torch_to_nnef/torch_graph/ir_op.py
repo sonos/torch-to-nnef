@@ -1,4 +1,4 @@
-""" Abstractions used in torch_to_nnef internal graph Operations IR
+"""Abstractions used in torch_to_nnef internal graph Operations IR
 (decoupled from PyTorch and NNEF)
 
 The goal is that these elements are:
@@ -6,6 +6,7 @@ The goal is that these elements are:
 - translated to NNEF graph operations
 
 """
+
 import logging
 import typing as T
 from dataclasses import dataclass
@@ -41,6 +42,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_INT,
     ATEN_NEW_ONES,
     ATEN_PROD,
+    ATEN_SCALED_DOT_PRODUCT_ATTENTION,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
     ATEN_TO,
@@ -137,6 +139,47 @@ class TorchOp:
             call_name=call_name,
         )
 
+    def update_call_op_arg_kwargs(self, args):
+        """Custom adaptation to call aten fn with torch exposed py fn"""
+        kwargs = {}
+        if self.kind == "aten::div" and len(args) >= 3:
+            kwargs["rounding_mode"] = args[2]
+            args = args[:-1]
+            self.op_ref = torch.div
+        # }
+        if self.kind in [ATEN_ZERO_LIKE, ATEN_ZEROS, ATEN_EMPTY]:
+            args = args[:1]
+        if self.kind == ATEN_TO:
+            if isinstance(args[2], int):
+                LOGGER.debug("wrongly `ordered` to parameters")
+                args = args[:2]
+        if self.kind == ATEN_GELU:
+            args = args[:1]  # skip the 'none' param starting torch 1.12.0
+        if self.kind == ATEN_ARANGE:
+            # ensure there is no args as tesnsor
+            args = [
+                a.tolist() if isinstance(a, torch.Tensor) else a for a in args
+            ]
+        if self.kind == ATEN_FULL:
+            args = list(args[:2])
+            args[0] = [
+                a.tolist() if isinstance(a, torch.Tensor) else a
+                for a in args[0]
+            ]
+            if not isinstance(args[-1], float):
+                args[-1] = args[-1].tolist()
+        if self.kind == ATEN_CUMSUM:
+            args = list(args[:2])
+        if self.kind == ATEN_NEW_ONES:
+            args = list(args[:2])
+        if self.kind == ATEN_PROD:
+            args = list(args[:3])
+        if self.kind == ATEN_SCALED_DOT_PRODUCT_ATTENTION:
+            args = list(args[:6])
+            if len(args) >= 7 and args[6].data is not None:
+                kwargs["scale"] = None
+        return args, kwargs
+
     def call_op(self):
         """Produce operation output based on traced inputs with real torch call
 
@@ -169,43 +212,9 @@ class TorchOp:
                 return getattr(tensor, self.kind.replace(ATEN_STARTID, ""))(
                     *subargs
                 )
-            args = self.args
 
             # hacky/bad way to pass argument that are named argument only {
-            kwargs = {}
-            if self.kind == "aten::div" and len(args) >= 3:
-                kwargs["rounding_mode"] = args[2]
-                args = args[:-1]
-                self.op_ref = torch.div
-            # }
-            if self.kind in [ATEN_ZERO_LIKE, ATEN_ZEROS, ATEN_EMPTY]:
-                args = args[:1]
-            if self.kind == ATEN_TO:
-                if isinstance(args[2], int):
-                    LOGGER.debug("wrongly `ordered` to parameters")
-                    args = args[:2]
-            if self.kind == ATEN_GELU:
-                args = args[:1]  # skip the 'none' param starting torch 1.12.0
-            if self.kind == ATEN_ARANGE:
-                # ensure there is no args as tesnsor
-                args = [
-                    a.tolist() if isinstance(a, torch.Tensor) else a
-                    for a in args
-                ]
-            if self.kind == ATEN_FULL:
-                args = list(args[:2])
-                args[0] = [
-                    a.tolist() if isinstance(a, torch.Tensor) else a
-                    for a in args[0]
-                ]
-                if not isinstance(args[-1], float):
-                    args[-1] = args[-1].tolist()
-            if self.kind == ATEN_CUMSUM:
-                args = list(args[:2])
-            if self.kind == ATEN_NEW_ONES:
-                args = list(args[:2])
-            if self.kind == ATEN_PROD:
-                args = list(args[:3])
+            args, kwargs = self.update_call_op_arg_kwargs(self.args)
 
             return self.op_ref(*args, **kwargs)
         raise TorchToNNEFNotImplementedError(self)

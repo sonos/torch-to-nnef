@@ -1,4 +1,4 @@
-""" Some Core PyTorch core naming, used to trace/parse their JIT """
+"""Some Core PyTorch core naming, used to trace/parse their JIT"""
 
 PRIM_STARTID = "prim::"
 CALL_KIND = "prim::CallMethod"
@@ -28,6 +28,7 @@ ATEN_CUMSUM = "aten::cumsum"
 ATEN_NEW_ONES = "aten::new_ones"
 ATEN_PROD = "aten::prod"
 ATEN_ALIAS = "aten::alias"
+ATEN_SCALED_DOT_PRODUCT_ATTENTION = "aten::scaled_dot_product_attention"
 
 
 CLASSTYPE_KIND = "ClassType"
