@@ -1,4 +1,4 @@
-""" E2E Test of the export function """
+"""E2E Test of the export function"""
 
 import logging as log
 import tempfile
@@ -21,7 +21,7 @@ def test_export_without_dot_nnef():
     test_input = torch.rand(1, 2)
     model = MyDumbNN()
     with tempfile.TemporaryDirectory() as tmpdir:
-        export_path = Path(tmpdir) / "model"
+        export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
 
         model = model.eval()
