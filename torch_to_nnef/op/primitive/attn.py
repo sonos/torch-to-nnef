@@ -1,4 +1,4 @@
-""" Attention mechanisms """
+"""Attention mechanisms"""
 
 import torch
 
@@ -25,7 +25,14 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         attn_mask_node,
         dropout_p_node,
         is_causal_node,
+        *_,
     ) = node.inputs
+    if len(node.inputs) == 7:  # added param between torch 1.13 and 2.2
+        scale_node = node.inputs[-1]
+        if scale_node.data is not None:
+            raise TorchToNNEFNotImplementedError(
+                "scaled_dot_product_attention with specific scale not implemented"
+            )
     if is_causal_node.data is True:
         raise TorchToNNEFNotImplementedError(
             "scaled_dot_product_attention with causal not implemented"
