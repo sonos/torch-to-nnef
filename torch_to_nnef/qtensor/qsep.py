@@ -212,7 +212,7 @@ class QTensorSepParamsWithPackExtractor(ModuleInfoExtractor):
         # why is this an empty ModuleNotFoundError ?
         # because provided node.output[0]
         # is a TensorVariable with data
-        assert node.output[0].data is not None
+        assert node.outputs[0].data is not None
         # this means that expansion to linear/conv/...
         # will handle this as a classical variable (weight/bias..)
         # and since node.output[0].data hold the dequantized
