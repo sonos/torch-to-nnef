@@ -414,8 +414,8 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
-        # UnaryPrimitive(lambda x: x[..., 1::2]),
-        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
+        UnaryPrimitive(lambda x: x[..., 1::2]),
+        UnaryPrimitive(lambda x: x[..., :2, 1::2]),
         torch.nn.LayerNorm(10),
         torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
         torch.nn.GLU(),
