@@ -22,7 +22,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
-from torch_to_nnef.utils import torch_version_within
+from torch_to_nnef.utils import torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def export_model_to_nnef(
         s == ".nnef" for s in file_path_export.suffixes
     ), f"export filepath should end with '.nnef' or '.nnef.tgz', but found: {file_path_export.suffixes}"
     with select_model_mode_for_export(model, TrainingMode.EVAL):
-        if torch_version_within(lower="1.8.0", upper="1.12.0"):
+        if "1.8.0" <= torch_version() < "1.12.0":
             # change starting in 1.12.0 for recurent layers make it unsuitable
             args = _decide_input_format(model, args)
         if dynamic_axes is None:

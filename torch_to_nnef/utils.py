@@ -21,14 +21,6 @@ def fullname(o) -> str:
     return module + "." + klass.__qualname__
 
 
-def torch_version_within(lower: str, upper: str) -> bool:
-    """lower included but upper not included"""
-    torch_version = SemanticVersion.from_str(torch.__version__.split("+")[0])
-    lower_version = SemanticVersion.from_str(lower)
-    upper_version = SemanticVersion.from_str(upper)
-    return lower_version <= torch_version < upper_version
-
-
 @total_ordering
 class SemanticVersion:
     """Helper to check a version is higher than another"""
@@ -71,3 +63,8 @@ class SemanticVersion:
     def __repr__(self) -> str:
         version_str = ".".join(str(self.version[t]) for t in self.TAGS)
         return f"<Version {version_str}>"
+
+
+def torch_version() -> SemanticVersion:
+    """Semantic version for torch"""
+    return SemanticVersion.from_str(torch.__version__.split("+")[0])
