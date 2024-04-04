@@ -739,4 +739,3 @@ def test_should_fail_since_false_output():
 def test_primitive_export(test_input, model):
     """Test simple models"""
     check_model_io_test(model=model, test_input=test_input)
-    check_model_io_test(model=model, test_input=test_input)
