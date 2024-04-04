@@ -1,4 +1,4 @@
-""" Tools to manipulate tract programatically
+"""Tools to manipulate tract programatically
 
 
 NOTE: interaction are done with *Nix tty system in mind, no support for Window
@@ -44,24 +44,6 @@ def tract_version() -> SemanticVersion:
     )
 
 
-def tract_version_lower_than(version: str) -> bool:
-    """In case tract is not installed on  machine return default"""
-    try:
-        return tract_version() < SemanticVersion.from_str(version)
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
-
-
-def tract_version_greater_than(version: str, inclusive: bool = False) -> bool:
-    """In case tract is not installed on  machine return default"""
-    try:
-        if inclusive:
-            return tract_version() >= SemanticVersion.from_str(version)
-        return tract_version() > SemanticVersion.from_str(version)
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
-
-
 def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
     return subprocess.check_output(
         (
@@ -81,17 +63,13 @@ def tract_assert_io(
     io_npz_path: Path,
     raise_exception=True,
 ):
-    extra_param = (
-        "--nnef-tract-extra "
-        if tract_version_greater_than("0.20.20", inclusive=True)
-        else ""
-    )
+    extra_param = "--nnef-tract-extra " if "0.20.20" <= tract_version() else ""
     cmd = (
         f"{TRACT_PATH} {nnef_path} "
         "--nnef-tract-core --nnef-tract-pulse "
         f"{extra_param} -O "
     )
-    if tract_version_lower_than("0.18.0"):
+    if tract_version() < "0.18.0":
         cmd += (
             f"--input-bundle {io_npz_path} "
             # NOTE: resolution of streaming pre 0.18 not handled

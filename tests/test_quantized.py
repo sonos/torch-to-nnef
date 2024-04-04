@@ -1,4 +1,5 @@
 """Tests export quantized models."""
+
 import os
 import typing as T
 
@@ -8,10 +9,7 @@ import torch.nn.quantized as nnq
 from torch import nn
 from torch.quantization import quantize_fx
 
-from torch_to_nnef.tract import (
-    tract_version_greater_than,
-    tract_version_lower_than,
-)
+from torch_to_nnef.tract import tract_version
 
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
@@ -115,21 +113,22 @@ def build_test_tup(
     )
 
 
-if not tract_version_lower_than(
-    "0.19.0"
+if (
+    "0.19.0" <= tract_version()
 ):  # with tract 0.18 quantization work only for PyTorch 1.X
     # we do not test PyTorch 1.X anymore (only 2.X)
 
     # SEED selected so that it works.
-    INPUT_AND_MODELS += [
-        build_test_tup(test_name, mod, shape=(1, 2, 1))
-        for test_name, mod in [
-            (
-                "single_conv1d_with_kernel_1_no_bias",
-                nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
-            ),
+    if tract_version() != "0.21.0":  # regression
+        INPUT_AND_MODELS += [
+            build_test_tup(test_name, mod, shape=(1, 2, 1))
+            for test_name, mod in [
+                (
+                    "single_conv1d_with_kernel_1_no_bias",
+                    nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+                ),
+            ]
         ]
-    ]
 
     INPUT_AND_MODELS += [
         build_test_tup(test_name, mod, shape=(1, 3, 4))
@@ -144,8 +143,8 @@ if not tract_version_lower_than(
             ),
         ]
     ]
-    if tract_version_lower_than("0.20.0") or tract_version_greater_than(
-        "0.20.7"
+    if (
+        tract_version() < "0.20.0" or "0.20.7" < tract_version()
     ):  # tract regression
         INPUT_AND_MODELS += [
             build_test_tup(test_name, mod, shape=(1, 2))
@@ -199,9 +198,7 @@ def qcheck(module: nn.Module, inp: torch.Tensor):
     )
 
 
-if (
-    not tract_version_lower_than("0.22.0") and False
-):  # wait WIP tract PR to be merged
+if "0.21.3" <= tract_version():  # tract PR on quant accuracy merged
 
     class DummyMathExample(nn.Module):
         def __init__(self, math_op: str):
@@ -233,10 +230,6 @@ if (
             torch.tensor([-1, -0.5, -0.3, -0.2, 0, 1]).reshape(2, 3).float(),
         )
 
-
-if False:  # not tract_version_lower_than("0.22.0")
-    INPUT_AND_MODELS = []
-
     def test_quantize_deq_req_sigmoid():
         qcheck(
             torch.nn.Sequential(
@@ -247,13 +240,11 @@ if False:  # not tract_version_lower_than("0.22.0")
             torch.tensor([-5.0, -4, -3.0, 0, -3, 5, 1]).float(),
         )
 
-    def test_quantize_deq_req_real_sigmoid():
-        qcheck(
-            torch.nn.Sequential(
-                torch.nn.Sigmoid(),
-            ),
-            torch.tensor([-5.0, -4, -3.0, 0, -3, 5, 1]).float(),
-        )
+    # def test_quantized_sigmoid():
+    #     qcheck(
+    #         torch.nn.Sigmoid(),
+    #         torch.tensor([-5.0, -4, -3.0, 0, -3, 5, 1]).float(),
+    #     )
 
 
 # Need Monitoring !

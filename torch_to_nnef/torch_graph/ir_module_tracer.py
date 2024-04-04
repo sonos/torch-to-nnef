@@ -5,7 +5,7 @@ from torch import jit, nn
 
 from torch_to_nnef.dtypes import is_quantized_dtype
 from torch_to_nnef.exceptions import TorchJitTraceFailed
-from torch_to_nnef.utils import cache, torch_version_within
+from torch_to_nnef.utils import cache, torch_version
 
 
 def _is_io_quantized_module(module):
@@ -67,9 +67,8 @@ class TorchModuleTracer:
                 self._traced_module = jit.trace(
                     self.mod,
                     self.args,
-                    check_trace=torch_version_within(
-                        "1.8.0", "1.12.0"
-                    ),  # since 1.12 get flaky on ViT model trace
+                    check_trace=("1.8.0" <= torch_version() < "1.12.0"),
+                    # since 1.12 get flaky on ViT model trace
                 )
             except RuntimeError as exp:
                 raise TorchJitTraceFailed(

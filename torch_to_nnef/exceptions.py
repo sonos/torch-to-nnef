@@ -22,6 +22,10 @@ class DynamicShapeValue(ValueError, TorchToNNEFError):
     pass
 
 
+class BitPackingError(ValueError, TorchToNNEFError):
+    pass
+
+
 class FragmentFileError(KeyError, TorchToNNEFError):
     pass
 

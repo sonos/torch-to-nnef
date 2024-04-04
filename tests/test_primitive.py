@@ -14,7 +14,7 @@ from torch import nn
 from torch_to_nnef.exceptions import TractError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
-from torch_to_nnef.tract import tract_assert_io, tract_version_lower_than
+from torch_to_nnef.tract import tract_assert_io, tract_version
 
 from .utils import check_model_io_test, id_tests, set_seed  # noqa: E402
 
@@ -495,7 +495,7 @@ INPUT_AND_MODELS += [
 ]
 
 
-if not tract_version_lower_than("0.19.0"):
+if "0.19.0" <= tract_version():
     # 0.18.5 should have been introducing tract fix that allow slice stride
     # but another bug prevented it's effectiveness
     INPUT_AND_MODELS += [
@@ -541,7 +541,7 @@ def _eintest_gen(expr: str, tensors):
     )
 
 
-if not tract_version_lower_than("0.20.0"):
+if "0.20.0" <= tract_version():
     INPUT_AND_MODELS += [
         (
             torch.arange(9).reshape(3, 3),
@@ -640,6 +640,27 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+try:
+    from torch.nn.utils import weight_norm as wn
+
+    INPUT_AND_MODELS += [
+        (
+            torch.rand(1, 1, 5, 5),
+            wn(
+                nn.Conv2d(
+                    in_channels=1,
+                    out_channels=1,
+                    kernel_size=3,
+                    padding=1,
+                    bias=False,
+                ),
+                dim=2,
+            ),
+        )
+    ]
+except ImportError as exp:
+    print("not yet weight_norm import:", exp)
+
 
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -693,4 +714,5 @@ def test_should_fail_since_false_output():
 )
 def test_primitive_export(test_input, model):
     """Test simple models"""
+    check_model_io_test(model=model, test_input=test_input)
     check_model_io_test(model=model, test_input=test_input)

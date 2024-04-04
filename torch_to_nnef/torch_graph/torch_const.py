@@ -1,4 +1,4 @@
-""" Some Core PyTorch core naming, used to trace/parse their JIT """
+"""Some Core PyTorch core naming, used to trace/parse their JIT"""
 
 PRIM_STARTID = "prim::"
 CALL_KIND = "prim::CallMethod"
@@ -27,6 +27,8 @@ ATEN_FULL = "aten::full"
 ATEN_CUMSUM = "aten::cumsum"
 ATEN_NEW_ONES = "aten::new_ones"
 ATEN_PROD = "aten::prod"
+ATEN_ALIAS = "aten::alias"
+ATEN_SCALED_DOT_PRODUCT_ATTENTION = "aten::scaled_dot_product_attention"
 
 
 CLASSTYPE_KIND = "ClassType"
@@ -44,5 +46,10 @@ MODULE_PATH_ATEN = "TORCH_INTERNAL_ATEN"
 MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
-MAP_TO_NOP = [NUMTOTENSOR_KIND, LISTCONSTRUCT_KIND, ATEN_SCALARIMPLICIT]
+MAP_TO_NOP = [
+    NUMTOTENSOR_KIND,
+    LISTCONSTRUCT_KIND,
+    ATEN_SCALARIMPLICIT,
+    ATEN_ALIAS,
+]
 MAP_TO_TENSOR_FN = [ATEN_CONTIGUOUS_KIND, ATEN_VIEW_KIND]

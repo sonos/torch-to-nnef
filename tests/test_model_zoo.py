@@ -1,4 +1,5 @@
 """Tests canonical models."""
+
 import os
 
 import pytest
@@ -12,7 +13,7 @@ from tests.shifted_window_attention_patch import (
     ExportableShiftedWindowAttention,
     ExportableSwinTransformerBlock,
 )
-from torch_to_nnef.tract import tract_version_greater_than
+from torch_to_nnef.tract import tract_version
 
 from .utils import (  # noqa: E402
     check_model_io_test,
@@ -128,9 +129,7 @@ INPUT_AND_MODELS += [
 
 # swin_transformer {
 # need slice with stride
-if hasattr(vision_mdl, "swin_transformer") and tract_version_greater_than(
-    "0.19.0"
-):
+if hasattr(vision_mdl, "swin_transformer") and "0.19.0" < tract_version():
     vision_mdl.swin_transformer.ShiftedWindowAttention = (
         ExportableShiftedWindowAttention
     )
