@@ -17,7 +17,7 @@ from torch_to_nnef.torch_graph import (
     TensorVariable,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def arange(
         )
 
     if not nnef_spec_strict or has_dynamic_axes:
-        if tract_version_lower_than("0.20.0"):
+        if "0.20.0" < tract_version():
             raise NotImplementedError(
                 "please update to latest tract to use 'tract_core_range'"
             )
