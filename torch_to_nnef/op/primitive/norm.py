@@ -233,12 +233,10 @@ def _weight_norm(g, node, name_to_tensor, **kwargs):
     https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/WeightNorm.cpp#L82
 
     Formulation:
-
         v * (g / norm(v, 2, dim=dim_node))
 
     Note:
         this is a form of unit norm with scale g
-
     """
     #
     (
@@ -259,7 +257,9 @@ def _weight_norm(g, node, name_to_tensor, **kwargs):
             get_or_add_tensor_variable_in_nnef(g, gin_node, name_to_tensor),
         ),
         attrs={
-            "axis": dim_node.data,
+            "axes": [
+                i for i, _ in enumerate(vin_node.shape) if i != dim_node.data
+            ],
         },
     )
     return ["weight_norm"]

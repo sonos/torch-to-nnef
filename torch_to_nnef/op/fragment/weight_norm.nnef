@@ -1,4 +1,5 @@
-fragment weight_norm( v: tensor<scalar>, g: tensor<scalar>, axis: integer) -> ( output: tensor<scalar> )
+# axes should be all dim except norm dim
+fragment weight_norm( v: tensor<scalar>, g: tensor<scalar>, axes: integer[]) -> ( output: tensor<scalar> )
 {
-     output =  v * (g / sqrt(sum_reduce(sqr(v), axes = [axis])));
+     output =  v * (g / sqrt(sum_reduce(sqr(v), axes = axes)));
 }

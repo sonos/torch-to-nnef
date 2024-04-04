@@ -640,6 +640,27 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+try:
+    from torch.nn.utils import weight_norm as wn
+
+    INPUT_AND_MODELS += [
+        (
+            torch.rand(1, 1, 5, 5),
+            wn(
+                nn.Conv2d(
+                    in_channels=1,
+                    out_channels=1,
+                    kernel_size=3,
+                    padding=1,
+                    bias=False,
+                ),
+                dim=2,
+            ),
+        )
+    ]
+except ImportError as exp:
+    print("not yet weight_norm import:", exp)
+
 
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
