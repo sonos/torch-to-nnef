@@ -7,7 +7,7 @@ from torch_to_nnef.op.primitive.base import (
     get_or_add_tensor_variable_in_nnef,
 )
 from torch_to_nnef.torch_graph import Data
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -62,7 +62,7 @@ def _pooling_op(
         dilation = ([1] * missing_n_dims) + dilation
 
         # pre 0.19.0 padding order differ
-        if tract_version_lower_than("0.19.0"):
+        if tract_version() < "0.19.0":
             padding = padding + ([0] * missing_n_dims)
         else:
             padding = ([0] * missing_n_dims) + padding

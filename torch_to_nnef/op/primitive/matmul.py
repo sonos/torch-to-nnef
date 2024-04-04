@@ -9,7 +9,7 @@ from torch_to_nnef.op.primitive.base import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -76,7 +76,7 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
+    if bias_node.data is not None and tract_version() < "0.18.1":
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -141,12 +141,33 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
     groups = groups_node.data
     transposed = transposed_node.data
 
+    # TODO: problem with conv on qtensor for weight or bias
+    # since these params can now be dynamic
+    # >> all following code need to happen in the graph
+    # >> TODAY THIS IS THE CASE for all OPS of THIS KIND
     if transposed:
+        if groups is not None:
+            # torch weight shape:
+            # (in_channels, out_channels/ groups, kernel_size[0],kernel_size[1])
+            # expected formulation for NNEF: O, I/G, H, W
+            i = weight_node.data.shape[0]
+            o = weight_node.data.shape[1]
+            remaining_shape = list(weight_node.data.shape)[2:]
+            expose_group_shape = [groups, int(i / groups), o] + remaining_shape
+            final_expected_shape = [
+                int(i / groups),
+                int(o * groups),
+            ] + remaining_shape
+            weight_node.data = (
+                weight_node.data.reshape(expose_group_shape)
+                .transpose(0, 1)
+                .reshape(final_expected_shape)
+            )
         weight_node.data = weight_node.data.transpose(1, 0)
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
+    if bias_node.data is not None and tract_version() < "0.18.1":
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):

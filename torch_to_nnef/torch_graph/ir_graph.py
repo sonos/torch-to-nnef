@@ -67,7 +67,6 @@ def module_tracer_into_ir_graph(
 
 
 class TorchModuleIRGraph:
-
     """Torch Graph intermediate representation from: jit.trace with recursion
 
     This is not direct torch._C.Graph but simpler abstraction, with:

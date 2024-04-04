@@ -1,3 +1,4 @@
+<!-- markdownlint-disable-file MD001 MD013 MD014 MD024 -->
 # Torch to NNEF
 
 [![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml)
@@ -39,7 +40,7 @@ Or reference this GitHub project via your preferred package manager.
 
 Allow to export any PyTorch model by providing input and model.
 
-```python3
+```python
 import logging
 from pathlib import Path
 
@@ -118,8 +119,7 @@ sub-classing it and defining it's `MODULE_CLASS` attribute.
 In such scenario you will need to write your own graph expansion logic in
 `convert_to_nnef` as follows:
 
-```python3
-
+```python
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 
 class MyCustomHandler(ModuleInfoExtractor):

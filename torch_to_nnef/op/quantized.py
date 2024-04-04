@@ -4,6 +4,7 @@ Quantized layers and primitives
 Maybe usefull when looking at X:
     packed_params._method_names()
 """
+
 import typing as T
 
 import numpy as np
@@ -14,9 +15,10 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     QuantizedOpRegistry,
+    add_nnef_operation,
     add_single_output_op,
 )
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = QuantizedOpRegistry()
 
@@ -26,8 +28,8 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
     np_dtype = np_int_tensor.dtype.type
     qscheme = tensor.qscheme()
     if qscheme == torch.per_channel_affine:
-        qscale = tensor.q_per_channel_scales()
-        qzerop = tensor.q_per_channel_zero_points()
+        qscale = tensor.q_per_channel_scales().numpy()
+        qzerop = tensor.q_per_channel_zero_points().numpy()
     elif qscheme == torch.per_tensor_affine:
         qscale = tensor.q_scale()
         qzerop = tensor.q_zero_point()
@@ -35,6 +37,12 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         raise TorchToNNEFNotImplementedError(
             f"not suported quantization scheme {qscheme}"
         )
+    n_bits = np_dtype().nbytes * 8
+    if tensor.dtype == torch.quint2x4:
+        n_bits = 2
+    elif tensor.dtype == torch.quint4x2:
+        n_bits = 4
+
     return NTensor(
         g,
         name=name,
@@ -44,7 +52,7 @@ def _torch_qtensor_to_ntensor(g, tensor, name):
         quant={
             "scale": qscale,
             "zero_point": qzerop,
-            "bits": np_dtype().nbytes * 8,
+            "bits": n_bits,
             "signed": np.issubdtype(np_dtype, np.signedinteger),
             "symmetric": False,
             "op-name": "zero_point_linear_quantize",
@@ -75,7 +83,7 @@ def register_state_node_as_variable(
     name_to_tensor,
 ):
     # peculiarity of tract implementation
-    if len(torch_tensor.shape) == 1 and tract_version_lower_than("0.18.1"):
+    if len(torch_tensor.shape) == 1 and tract_version() < "0.18.1":
         torch_tensor = torch_tensor.unsqueeze(0)
     nnef_tensor_ref = add_quantized_tensor_to_ngraph(
         g, node, torch_tensor, name_to_tensor, slug_name
@@ -106,33 +114,42 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
         name_to_tensor=name_to_tensor,
     )
     bias_ref = None
-    if bias is not None:
+    if bias is not None and not (bias == 0).all():
+        # we assume whatever qsheme is bias will always be float
+        name = onode.export_name + "_bias"
+        input_quant_infos = node.inputs[0].quant
         qscheme = weight.qscheme()
         if qscheme == torch.per_channel_affine:
-            raise TorchToNNEFNotImplementedError(
-                "tract does not support qscheme=per_channel_affine just yet"
-            )
-        if qscheme == torch.per_tensor_affine:
-            input_quant_infos = name_to_tensor[node.inputs[0].export_name].quant
-            if not input_quant_infos:
-                input_quant_infos = node.inputs[0].quant
-            bias_tensor = torch.quantize_per_tensor(
-                bias.data,
-                scale=weight.q_scale() * input_quant_infos["scale"],
-                zero_point=weight.q_zero_point()
-                + input_quant_infos["zero_point"],
-                dtype=torch.qint32,
-            )
+            qscale = weight.q_per_channel_scales()
+            qzerop = weight.q_per_channel_zero_points()
+        elif qscheme == torch.per_tensor_affine:
+            qscale = weight.q_scale()
+            qzerop = weight.q_zero_point()
         else:
             raise TorchToNNEFNotImplementedError(
                 f"not suported quantization scheme {qscheme }"
             )
-        bias_ref = register_state_node_as_variable(
-            bias_tensor,
-            slug_name="bias",
-            node=onode,
-            g=g,
-            name_to_tensor=name_to_tensor,
+
+        bias_ref = NTensor(
+            g,
+            name,
+            data=(bias.data / (qscale * input_quant_infos["scale"]) + qzerop)
+            .round()
+            .numpy()
+            .astype(np.int32),
+            dtype=np.int32,
+            shape=tuple(bias.shape),
+        )
+        add_nnef_operation(
+            graph=g,
+            type="variable",
+            inputs=None,
+            outputs=bias_ref,
+            attribs={
+                "label": bias_ref.name,
+                "shape": list(bias_ref.shape),
+                "dtype": bias_ref.dtype,
+            },
         )
 
     return weight_ref, bias_ref
@@ -185,9 +202,11 @@ def _conv(
     # apply expansion to align inputs with weight {
     for _ in range(input_node.rank - len(conv_weight.shape)):
         conv_weight = conv_weight.unsqueeze(0)
-    if conv_bias is not None and tract_version_lower_than("0.18.1"):
+
+    if conv_bias is not None and tract_version() < "0.18.1":
         for _ in range(input_node.rank - len(conv_bias.shape)):
             conv_bias = conv_bias.unsqueeze(0)
+
     # }
 
     stride = packed_params.stride()[-conv_rank:]

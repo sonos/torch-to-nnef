@@ -4,7 +4,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import AtenOpRegistry
-from torch_to_nnef.tract import tract_version_greater_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -17,7 +17,7 @@ def is_complex_dtype_and_complex_only_supported_as_lastdim(
         and (
             tract_feature_flags is None or "complex" not in tract_feature_flags
         )
-        and tract_version_greater_than("0.20.0", inclusive=True)
+        and "0.20.0" <= tract_version()
     )
 
 

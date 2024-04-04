@@ -1,0 +1,28 @@
+"""Advanced QTensor (<= 8bits) with complex quant scheme non torch native"""
+
+from torch_to_nnef.qtensor.base import (
+    QTensor,
+    QZPScalePerChannel,
+    QZPScalePerGroup,
+    QZPScaleScalar,
+)
+from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
+from torch_to_nnef.qtensor.qsep import QTensorSepParamsWithPack, TargetDType
+
+__all__ = [
+    "QTensor",
+    "QTensorSepParamsWithPack",
+    "QZPScalePerChannel",
+    "QZPScalePerGroup",
+    "QZPScaleScalar",
+    "replace_nn_ops",
+    "TargetDType",
+]
+
+try:  # noqa: C901
+    from torch_to_nnef.qtensor.gguf import QTensorGGUF, QTensorGGUFExtractor
+
+    __all__ += ["QTensorGGUF", "QTensorGGUFExtractor"]
+except ImportError as exp:
+    # feature gate: gguf_dtype
+    print(exp)

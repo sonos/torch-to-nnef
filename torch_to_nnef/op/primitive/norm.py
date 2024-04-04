@@ -225,3 +225,41 @@ def group_norm(g, node, name_to_tensor, **kwargs):
         },
     )
     return ["group_norm"]
+
+
+@OP_REGISTRY.register()
+def _weight_norm(g, node, name_to_tensor, **kwargs):
+    """
+    https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/WeightNorm.cpp#L82
+
+    Formulation:
+        v * (g / norm(v, 2, dim=dim_node))
+
+    Note:
+        this is a form of unit norm with scale g
+    """
+    #
+    (
+        vin_node,
+        gin_node,
+        dim_node,
+    ) = node.inputs
+
+    assert isinstance(dim_node.data, int)
+
+    add_single_output_op(
+        g=g,
+        name_to_tensor=name_to_tensor,
+        node=node,
+        nnef_op_type="weight_norm",
+        inputs=(
+            get_or_add_tensor_variable_in_nnef(g, vin_node, name_to_tensor),
+            get_or_add_tensor_variable_in_nnef(g, gin_node, name_to_tensor),
+        ),
+        attrs={
+            "axes": [
+                i for i, _ in enumerate(vin_node.shape) if i != dim_node.data
+            ],
+        },
+    )
+    return ["weight_norm"]

@@ -32,6 +32,7 @@ def check_model_io_test(
     dynamic_axes=None,
     input_names=None,
     output_names=None,
+    check_same_io_as_tract: bool = True,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
@@ -53,7 +54,7 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            check_same_io_as_tract=check_same_io_as_tract,
             debug_bundle_path=(
                 Path.cwd()
                 / "failed_tests"

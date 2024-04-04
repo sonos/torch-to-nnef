@@ -63,7 +63,7 @@ def test_export():
     test_input = torch.rand(1, 2, 10, 20)
     model = SqueezeExcitationBlock1d(nb_input_channels=2)
     with tempfile.TemporaryDirectory() as tmpdir:
-        export_path = Path(tmpdir) / "model"
+        export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
 
         model = model.eval()
