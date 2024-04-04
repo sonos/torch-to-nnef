@@ -4,6 +4,7 @@ Quantized layers and primitives
 Maybe usefull when looking at X:
     packed_params._method_names()
 """
+
 import typing as T
 
 import numpy as np

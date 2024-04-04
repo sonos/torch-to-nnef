@@ -1,4 +1,4 @@
-""" Tools to manipulate tract programatically
+"""Tools to manipulate tract programatically
 
 
 NOTE: interaction are done with *Nix tty system in mind, no support for Window
@@ -42,6 +42,14 @@ def tract_version() -> SemanticVersion:
         .decode("utf8")
         .split(" ")[1]
     )
+
+
+def tract_version_equal(version: str) -> bool:
+    """In case tract is not installed on  machine return default"""
+    try:
+        return tract_version() == SemanticVersion.from_str(version)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False
 
 
 def tract_version_lower_than(version: str) -> bool:

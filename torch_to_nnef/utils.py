@@ -52,9 +52,15 @@ class SemanticVersion:
         return cls(**dict(zip(cls.TAGS, vtags)))
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            other = SemanticVersion.from_str(other)
+        assert isinstance(other, SemanticVersion), other
         return all(self.version[t] == other.version[t] for t in self.TAGS)
 
     def __lt__(self, other):
+        if isinstance(other, str):
+            other = SemanticVersion.from_str(other)
+        assert isinstance(other, SemanticVersion), other
         for t in self.TAGS:
             if self.version[t] < other.version[t]:
                 return True
