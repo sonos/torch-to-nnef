@@ -64,7 +64,6 @@ class TorchModuleTracer:
     def traced_module(self):
         if self._traced_module is None:
             try:
-                __import__("ipdb").set_trace()
                 self._traced_module = jit.trace(
                     self.mod,
                     self.args,
