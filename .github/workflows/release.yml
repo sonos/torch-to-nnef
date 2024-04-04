@@ -36,7 +36,9 @@ jobs:
 
       - name: Get Changelog Entry
         id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
+        #  do not use latest that come with node 20.0 and need GLIB: 2.28 not availlable
+        #  in targeted host
+        uses: mindsers/changelog-reader-action@v2.2.0
         with:
           validation_depth: 10
           version: ${{ steps.tag_name.outputs.current_version }}
