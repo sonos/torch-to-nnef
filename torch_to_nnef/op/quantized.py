@@ -18,7 +18,7 @@ from torch_to_nnef.op.primitive.base import (
     add_nnef_operation,
     add_single_output_op,
 )
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = QuantizedOpRegistry()
 
@@ -83,7 +83,7 @@ def register_state_node_as_variable(
     name_to_tensor,
 ):
     # peculiarity of tract implementation
-    if len(torch_tensor.shape) == 1 and tract_version_lower_than("0.18.1"):
+    if len(torch_tensor.shape) == 1 and tract_version() < "0.18.1":
         torch_tensor = torch_tensor.unsqueeze(0)
     nnef_tensor_ref = add_quantized_tensor_to_ngraph(
         g, node, torch_tensor, name_to_tensor, slug_name
@@ -202,9 +202,11 @@ def _conv(
     # apply expansion to align inputs with weight {
     for _ in range(input_node.rank - len(conv_weight.shape)):
         conv_weight = conv_weight.unsqueeze(0)
-    if conv_bias is not None and tract_version_lower_than("0.18.1"):
+
+    if conv_bias is not None and tract_version() < "0.18.1":
         for _ in range(input_node.rank - len(conv_bias.shape)):
             conv_bias = conv_bias.unsqueeze(0)
+
     # }
 
     stride = packed_params.stride()[-conv_rank:]

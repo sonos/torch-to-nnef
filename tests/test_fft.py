@@ -4,7 +4,7 @@ from torch import nn
 from torchaudio import transforms
 
 from tests.utils import check_model_io_test, id_tests
-from torch_to_nnef.tract import tract_version_greater_than
+from torch_to_nnef.tract import tract_version
 
 
 class UnaryPrimitive(nn.Module):
@@ -48,7 +48,7 @@ class MySTFT(nn.Module):
 INPUT_AND_MODELS = []
 
 # disabled for now as tract have a feature gate on this
-if tract_version_greater_than("0.20.7"):
+if "0.20.7" < tract_version():
     INPUT_AND_MODELS += [(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())]
     INPUT_AND_MODELS += [
         (

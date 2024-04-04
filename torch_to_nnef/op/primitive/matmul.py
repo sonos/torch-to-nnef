@@ -9,7 +9,7 @@ from torch_to_nnef.op.primitive.base import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
-from torch_to_nnef.tract import tract_version_lower_than
+from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -76,7 +76,7 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
+    if bias_node.data is not None and tract_version() < "0.18.1":
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -167,7 +167,7 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version_lower_than("0.18.1"):
+    if bias_node.data is not None and tract_version() < "0.18.1":
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
