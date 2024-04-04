@@ -3,6 +3,32 @@
 
 ## Unreleased
 
+## [0.9.0] - 2024-04-04
+
+### Removed
+
+- drop python 3.7.0 support
+- updated tract version tested against: 0.19.16, 0.20.22, 0.21.3
+
+### Added
+
+- (_alpha_) `scripts/generate_qtensor_gguf_matmul.py` to generate unit tests with [GGUF](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md) format for tract
+- (_alpha_) `[gguf]` feature gate to support export to **GGUF** format and quantization
+- (_alpha_) Support 2 new quantization tensor type (implemented as module for now):
+  - `QTensorGGUF` support almost all **GGUF** data types -> with export prototype working
+  - `QTensorSepParamsWithPack` more flexible than **GGUF** format, with support of classical per group with different sizes, per channel, per weight quantisation scheme at different bit-width 1, 2, 3, 4, 8 (useful for experimentation/accuracy simulation)
+- move `[dev]` dependencies as a poetry **group**, to avoid exposition as packaged optional feature
+- new `torch_version()` and `tract_version()` utility functions now allows for direct comparison to string version "`X.Y.Z`"
+- Updated all tests packages torch/torch_audio/..., to torch `2.2` compatible 🎉
+- added `weight_norm` export support
+
+### Fix
+
+- support for latest scaled_dot_product_attention aten version (last PyTorch version)
+- quantization of bias as i32 at export for better support in tract (checked accuracy no-regression on bigger model)
+- additional test for quantization with PyTorch different inputs q params activated (since last tract version merged related PR)
+- custom_extractors have been refactored into sub-modules
+
 ## [0.8.11] - 2024-03-04
 
 ### Fix
