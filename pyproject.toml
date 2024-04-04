@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "torch_to_nnef"
-version = "0.8.11"
+version = "0.9.0"
 homepage = "https://github.com/sonos/torch-to-nnef"
 description = "Any Pytorch Model to NNEF file format."
 authors = ["Julien Balian <julien.balian@sonos.com>"]
