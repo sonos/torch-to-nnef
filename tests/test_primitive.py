@@ -689,6 +689,11 @@ except ImportError as exp:
     print("not yet weight_norm import:", exp)
 
 
+INPUT_AND_MODELS += [
+    (torch.ones(5, 5), TorchFnPrimitive("triu")),
+]
+
+
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"

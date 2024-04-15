@@ -82,7 +82,7 @@ def arange(
         )
         return ["tract_core"]
     if start_node.data is None or end_node.data is None:
-        raise NotImplementedError(
+        raise TorchToNNEFNotImplementedError(
             "Dynamic arange not handled in strict NNEF For now"
         )
 
@@ -374,3 +374,40 @@ def _post_graph_creation_remap(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
+
+
+@OP_REGISTRY.register()
+def triu(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    nnef_spec_strict,
+    **kwargs,
+):
+    """support of triu (thanks to trilu)"""
+    (input_node, diag_node) = node.inputs
+
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
+
+    if tract_version() < "0.21.2":
+        raise TorchToNNEFNotImplementedError(
+            "triu need `tract_core_trilu` from tract >= 0.21.2"
+        )
+
+    # k = 0
+    # upper =true
+    assert isinstance(diag_node, PythonConstant), diag_node
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_trilu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+        ],
+        attrs={"upper": True, "k": diag_node.data},
+    )
+    return ["tract_core"]
