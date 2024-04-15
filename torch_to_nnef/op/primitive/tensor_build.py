@@ -3,6 +3,7 @@ import logging
 import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -35,24 +36,23 @@ def arange(
     we implement it as a simple constant variable.
 
     """
-    if len(node.inputs) == 3:
-        (start_node, end_node, dtype_node) = node.inputs
-        step_node = PythonConstant(
-            name=f"step_node_{node.outputs[0].export_name}", data=1
-        )
-    elif len(node.inputs) == 4:
-        (start_node, end_node, dtype_node, step_node) = node.inputs
+    if len(node.inputs) == 4:
+        # for now should never happen since dtype info is
+        (start_node, end_node, step_node, dtype_node) = node.inputs
     else:
-        raise NotImplementedError(f"arange with {len(node.inputs)} inputs")
+        raise TorchToNNEFNotImplementedError(
+            f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
+        )
 
-    if dtype_node.data != 1:
-        raise NotImplementedError(
+    if dtype_node.data != 6:  # float
+        # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
+        raise TorchToNNEFNotImplementedError(
             f"dtype {dtype_node} not implemented for arange"
         )
 
     if not nnef_spec_strict or has_dynamic_axes:
-        if "0.20.0" < tract_version():
-            raise NotImplementedError(
+        if tract_version() < "0.20.0":
+            raise TractError(
                 "please update to latest tract to use 'tract_core_range'"
             )
 
@@ -215,7 +215,7 @@ def _x_like(
             inputs=input_tensor,
             force_full_output_tensor_name=shape_tensor_name,
         )
-        shape_node = FixedTensorList(data=[])
+        shape_node = FixedTensorList(name="recomposed_shape_node", data=[])
         for dim in range(
             input_node.rank
         ):  # assume always same rank at each graph run
@@ -237,6 +237,7 @@ def _x_like(
             shape_node.data.append(
                 TensorVariable(
                     name=out.name,
+                    data=None,
                     shape=[1],
                     dtype=input_node.dtype,
                 )

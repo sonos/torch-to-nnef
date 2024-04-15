@@ -1,4 +1,4 @@
-""" Make training and any ops involving random reproducible """
+"""Make training and any ops involving random reproducible"""
 
 import os
 import random
@@ -89,7 +89,10 @@ def id_tests(test_fixtures):
             data_fmt = f"{data.dtype}{list(data.shape)}"
         else:
             for d in data:
-                data_fmt += f"{d.dtype}{list(d.shape)}, "
+                if hasattr(d, "dtype"):
+                    data_fmt += f"{d.dtype}{list(d.shape)}, "
+                else:
+                    data_fmt += str(d)
         if len(str(module)) > 100:
             module = str(module.__class__.__name__) + "__" + str(module)[:100]
         test_name = f"{module}({data_fmt})"

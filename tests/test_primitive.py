@@ -72,14 +72,17 @@ class TensorFnPrimitive(nn.Module):
 
 
 class TorchFnPrimitive(nn.Module):
-    def __init__(self, op):
+    def __init__(self, op, opt_kwargs=None):
         super().__init__()
         self.op = op
+        self.opt_kwargs = opt_kwargs
 
     def extra_repr(self):
         return f"torch.op={self.op}"
 
     def forward(self, *args, **kwargs):
+        if self.opt_kwargs is not None:
+            kwargs.update(self.opt_kwargs)
         return getattr(torch, self.op)(*args, **kwargs)
 
 
