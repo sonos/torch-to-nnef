@@ -44,7 +44,7 @@ def arange(
             f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
         )
 
-    if dtype_node.data != 6:  # float
+    if dtype_node.data not in [6, None, 4]:  # accept float, int64
         # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
         raise TorchToNNEFNotImplementedError(
             f"dtype {dtype_node} not implemented for arange"

@@ -12,7 +12,7 @@ from transformers.models.llama.modeling_llama import (  # LlamaRotaryEmbedding,
     LlamaDecoderLayer,
 )
 
-from torch_to_nnef.tract import tract_version_greater_than
+from torch_to_nnef.tract import tract_version
 
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
@@ -80,7 +80,7 @@ tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
 causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
 striped_model = StripedModel(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
-if tract_version_greater_than("0.19.0"):
+if tract_version() > "0.19.0":
     INPUT_AND_MODELS += [
         (
             tuple(
