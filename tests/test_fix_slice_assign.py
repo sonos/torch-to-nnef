@@ -106,6 +106,33 @@ class FixedRelPosEncXL(nn.Module):
 
 
 class AssignSliceIssue(nn.Module):
+    """2024-04-15 -> no handling YET: tensor slice assign mutation
+
+    This is not handled by torch ONNX export as well
+
+    This assignation issue is the core of RelPosEncXL impossibility to export.
+
+    This could be solved if tommorow we introduce a dedicated tract operator
+    of kind (NOT EXIST TODAY) `tract_core_slice_assign`:
+
+    ```nnef
+        slice_infos = [(axis, begin, end, step), ...];
+        a_bis = tract_core_slice_assign(a, slice_infos, b);
+    ```
+
+    Given the provided jit torch graph observed is of the form:
+    ```torch_internals
+
+    a = tensor( ... )
+    b = tensor (... )
+    c = slice(a, c1, c2, c3, c4)
+    d = slice(c, d1, d2, d3, d4)
+    e = copy_(d, b, false)
+
+    ```
+
+    """
+
     def __init__(self, emb_dim):
         super().__init__()
         self.emb_dim = emb_dim
