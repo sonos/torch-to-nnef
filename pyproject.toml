@@ -74,6 +74,7 @@ test = [
     "tokenizers",
     "transformers",
     "sentencepiece",
+    "gguf",
 ]
 
 [tool.poetry.group.dev.dependencies]
