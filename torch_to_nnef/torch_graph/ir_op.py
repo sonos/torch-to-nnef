@@ -160,6 +160,8 @@ class TorchOp:
             args = [
                 a.tolist() if isinstance(a, torch.Tensor) else a for a in args
             ]
+            if len(args) >= 4:
+                kwargs["dtype"] = args.pop(3)
         if self.kind == ATEN_FULL:
             args = list(args[:2])
             args[0] = [
