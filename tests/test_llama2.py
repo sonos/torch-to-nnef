@@ -80,7 +80,7 @@ tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
 causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
 striped_model = StripedModel(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
-if tract_version() > "0.19.0":
+if tract_version() >= "0.21.3":  # prior bug in tract
     INPUT_AND_MODELS += [
         (
             tuple(

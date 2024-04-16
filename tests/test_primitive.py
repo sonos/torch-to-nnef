@@ -689,9 +689,10 @@ except ImportError as exp:
     print("not yet weight_norm import:", exp)
 
 
-INPUT_AND_MODELS += [
-    (torch.ones(5, 5), TorchFnPrimitive("triu")),
-]
+if tract_version() > "0.21.3":  # merged fix PR in tract
+    INPUT_AND_MODELS += [
+        (torch.ones(5, 5), TorchFnPrimitive("triu")),
+    ]
 
 
 def test_should_fail_since_no_input():
