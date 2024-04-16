@@ -279,7 +279,7 @@ def assert_io_and_debug_bundle(
                     input_names=input_names,
                     output_names=output_names,
                 )
-            assert nnef_file_path.exists()
+            assert nnef_file_path.exists(), nnef_file_path
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and Pytorch")
             tract_assert_io(

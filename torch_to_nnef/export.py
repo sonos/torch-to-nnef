@@ -196,7 +196,7 @@ def export_model_to_nnef(
         tract.assert_io_and_debug_bundle(
             model,
             args,
-            (file_path_export.parent / (file_path_export.name + ".tgz")),
+            (file_path_export.parent / (nnef_exp_file_path.name + ".tgz")),
             debug_bundle_path=debug_bundle_path,
             input_names=input_names,
             output_names=output_names,
