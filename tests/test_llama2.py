@@ -80,7 +80,8 @@ tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
 causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
 striped_model = StripedModel(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
-if tract_version() >= "0.21.3":  # prior bug in tract
+if tract_version() >= "0.21.4":  # prior bug in tract
+    # works locally with tract 0.21.3 but seems to need triu export in CI tests ...
     INPUT_AND_MODELS += [
         (
             tuple(
