@@ -3,6 +3,24 @@
 
 ## Unreleased
 
+## [0.10.0] - 2024-04-17
+
+### Removed
+
+- drop python 3.7.0 support
+
+### Added
+
+- added `triu` export support
+- script to export Llama2
+
+### Fix
+
+- Support aten::ops : `ones_like`, `zeros_like`, `arange` with dynamic shape
+- Support aten::ops: `expand`, `masked_fill` with dynamic shape (but no tract support)
+- more unit test of primitive
+- fix poetry source pypi
+
 ## [0.9.1] - 2024-04-04
 
 ### Removed
