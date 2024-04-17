@@ -10,6 +10,7 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
 )
 from transformers.models.llama.modeling_llama import (  # LlamaRotaryEmbedding,
     LlamaDecoderLayer,
+    _prepare_4d_causal_attention_mask,
 )
 
 from torch_to_nnef.tract import tract_version
@@ -42,7 +43,26 @@ class StripedModel(torch.nn.Module):
         # transformers_outputs contains 'logits', 'past_key_values'
         # hidden_states = transformers_outputs[0]
         # return hidden_states
+        #
         return transformers_outputs.logits
+
+
+class AttentionMaskModel(torch.nn.Module):
+    def __init__(self, model: LlamaForCausalLM):
+        super().__init__()
+        self.model = model
+
+    def forward(self, input_ids: torch.Tensor):
+        inputs_embeds = self.model.model.embed_tokens(input_ids)
+        batch_size, seq_length = input_ids.shape[:2]
+        past_key_values_length = 0
+        attention_mask = _prepare_4d_causal_attention_mask(
+            None,
+            (batch_size, seq_length),
+            inputs_embeds,
+            past_key_values_length,
+        )
+        return attention_mask
 
 
 class StripedDecodingLayer(torch.nn.Module):
@@ -88,11 +108,27 @@ if tract_version() >= "0.21.4":  # prior bug in tract
                 inputs.input_ids.unsqueeze(0),
             ),
             striped_model,
+            {"input_0": {1: "S"}},
+        )
+    ]
+if tract_version() >= "0.21.3":  # prior bug in tract
+    # works locally with tract 0.21.3 but seems to need triu export in CI tests ...
+    INPUT_AND_MODELS += [
+        (
+            tuple(
+                inputs.input_ids.unsqueeze(0),
+            ),
+            AttentionMaskModel(causal_llama),
+            {"input_0": {1: "S"}},
         )
     ]
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_model_export(test_input, model):
+@pytest.mark.parametrize("test_input,model,dynamic_axes", INPUT_AND_MODELS)
+def test_model_export(test_input, model, dynamic_axes):
     """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
+    check_model_io_test(
+        model=model,
+        test_input=test_input,
+        dynamic_axes=dynamic_axes,
+    )
