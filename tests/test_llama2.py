@@ -10,7 +10,6 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
 )
 from transformers.models.llama.modeling_llama import (  # LlamaRotaryEmbedding,
     LlamaDecoderLayer,
-    _prepare_4d_causal_attention_mask,
 )
 
 from torch_to_nnef.tract import tract_version
@@ -53,6 +52,10 @@ class AttentionMaskModel(torch.nn.Module):
         self.model = model
 
     def forward(self, input_ids: torch.Tensor):
+        from transformers.models.llama.modeling_llama import (
+            _prepare_4d_causal_attention_mask,
+        )
+
         inputs_embeds = self.model.model.embed_tokens(input_ids)
         batch_size, seq_length = input_ids.shape[:2]
         past_key_values_length = 0
@@ -111,17 +114,20 @@ if tract_version() >= "0.21.4":  # prior bug in tract
             {"input_0": {1: "S"}},
         )
     ]
-if tract_version() >= "0.21.3":  # prior bug in tract
+if tract_version() >= "0.21.4":  # prior bug in tract
     # works locally with tract 0.21.3 but seems to need triu export in CI tests ...
-    INPUT_AND_MODELS += [
-        (
-            tuple(
-                inputs.input_ids.unsqueeze(0),
-            ),
-            AttentionMaskModel(causal_llama),
-            {"input_0": {1: "S"}},
-        )
-    ]
+    try:
+        INPUT_AND_MODELS += [
+            (
+                tuple(
+                    inputs.input_ids.unsqueeze(0),
+                ),
+                AttentionMaskModel(causal_llama),
+                {"input_0": {1: "S"}},
+            )
+        ]
+    except ImportError as exp:
+        print(exp)
 
 
 @pytest.mark.parametrize("test_input,model,dynamic_axes", INPUT_AND_MODELS)
