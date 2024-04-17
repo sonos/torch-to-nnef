@@ -9,9 +9,6 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
     AutoTokenizer,
     LlamaForCausalLM,
 )
-from transformers.models.llama.modeling_llama import (
-    _prepare_4d_causal_attention_mask,
-)
 
 from torch_to_nnef.export import export_model_to_nnef
 
@@ -28,7 +25,7 @@ class SuperBasicCausal(torch.nn.Module):
         This export module is extremly ineficient because no caching can be provided ...
 
         """
-        batch_size, seq_length = input_ids.shape[:2]
+        _, seq_length = input_ids.shape[:2]
         past_key_values_length = 0
         # get pos ids {
         position_ids = torch.arange(
@@ -39,11 +36,15 @@ class SuperBasicCausal(torch.nn.Module):
         )
         position_ids = position_ids.unsqueeze(0)
         inputs_embeds = self.model.model.embed_tokens(input_ids)
-        attention_mask = _prepare_4d_causal_attention_mask(
-            None,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
+        attention_mask = (
+            torch.triu(
+                torch.full(
+                    [seq_length, seq_length], torch.finfo(torch.float32).min
+                ),
+                diagonal=1,
+            )
+            .unsqueeze(0)
+            .unsqueeze(0)
         )
         # }
 
@@ -95,9 +96,7 @@ def main():
 
     export_model_to_nnef(
         model=striped_model,
-        args=tuple(
-            test_input.input_ids.unsqueeze(0),
-        ),
+        args=(test_input.input_ids,),
         file_path_export=Path(args.export_filepath),
         input_names=["input_ids"],
         output_names=["outputs"],

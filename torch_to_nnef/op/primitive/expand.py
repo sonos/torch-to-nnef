@@ -109,6 +109,8 @@ def div_expand_repeat_build(
         prevent_variable=True,
     )
     if is_dynamic_shape:
+        # repeats on non const not working in tract<=0.21.3
+        # so while correct graph notation, tract will fail
         divisor_nnef_tensor = add_single_output_op(
             g,
             node,
