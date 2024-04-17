@@ -53,8 +53,8 @@ INPUT_AND_MODELS += [
     ]
 ]
 
-if hasattr(audio_mdl, "Conformer"):
-    INPUT_AND_MODELS += [
+if hasattr(audio_mdl, "Conformer") and "0.21.2" <= tract_version():
+    INPUT_AND_MODELS = [
         ((torch.rand(1, 100, 64), torch.tensor([100])), model)
         for model in [
             audio_mdl.Conformer(

@@ -41,7 +41,7 @@ def slice_(
         and has_dynamic_axes
         and end >= input_node.shape[dim]
     ):
-        # NOTE: since we can't ensure used dimenssion is not symbolic
+        # NOTE: since we can't ensure used dimension is not symbolic
         # we use `tract_core_shape_of`
         input_tensor = get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
@@ -284,15 +284,49 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def masked_fill(g, node, name_to_tensor, **kwargs):
+def masked_fill(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
-    true_value_node = value_node.into_tensor_variable()
-    true_value_node.data = true_value_node.data.to(
-        false_value_node.dtype
-    ).repeat(false_value_node.shape)
-    true_value_node.dtype = false_value_node.dtype
+    false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, false_value_node, name_to_tensor
+    )
+    if not nnef_spec_strict and has_dynamic_axes:
+        # repeats on non const not working in tract<=0.21.3
+        # so while correct graph notation, tract will fail
+        true_value_node = value_node.into_tensor_variable()
+        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
+        out = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=false_nnef_tensor,
+            output_tensor_name_suffix="shape_of_false",
+        )
+        true_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tile",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, true_value_node, name_to_tensor, name_suffix="true_scalar"
+            ),
+            attrs={"repeats": nnef.Identifier(str(out.name))},
+            output_tensor_name_suffix="true_expanded",
+        )
+    else:
+        # Static expansion
+        true_value_node = value_node.into_tensor_variable()
+        true_value_node.data = true_value_node.data.to(
+            false_value_node.dtype
+        ).repeat(false_value_node.shape)
+        true_value_node.dtype = false_value_node.dtype
+        true_nnef_tensor = get_or_add_tensor_variable_in_nnef(
+            g, true_value_node, name_to_tensor
+        )
 
     # tract need float where ?
     # mask_node.data = mask_node.data.float()
@@ -301,8 +335,10 @@ def masked_fill(g, node, name_to_tensor, **kwargs):
 
     inputs = [
         get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-        for _ in [condition_node, true_value_node, false_value_node]
+        for _ in [condition_node]
     ]
+    inputs += [true_nnef_tensor, false_nnef_tensor]
+
     add_single_output_op(
         g,
         node,

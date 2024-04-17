@@ -121,7 +121,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     name_suffix: str = "",
     prevent_variable: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
-):
+) -> NTensor:
     """Create NNEF tensor and register in graph from torch_graph.Data node
 
     It automatically adds variable if node is a torch tensor is associated

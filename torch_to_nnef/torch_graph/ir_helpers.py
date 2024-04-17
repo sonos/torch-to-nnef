@@ -311,7 +311,8 @@ def _parse_list_construct_values(node, data_nodes):
     for cvalue in node.inputs():
         if cvalue.node().kind() == CONSTANT_KIND:
             value = _parse_constant(
-                cvalue.node(), []  # data_nodes empty as added later
+                cvalue.node(),
+                [],  # data_nodes empty as added later
             )
             if isinstance(value, TensorVariable):
                 contains_tensors = True
@@ -401,7 +402,9 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         # [start, end, dtype, layout_type, device, requires_grad]
         # [end, dtype, layout_type, device, requires_grad]
 
-        abstracted_inputs = abstracted_inputs[:-4]  # skip even dtype
+        abstracted_inputs = abstracted_inputs[
+            :-3
+        ]  # skip non interesting for export
 
         # cast to torch dtype
         # abstracted_inputs[-1].data = SCALAR_TYPE_TO_PYTORCH_TYPE[
@@ -409,19 +412,20 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         # ]
 
         n_inputs = len(abstracted_inputs)
-        if n_inputs < 1 or n_inputs > 3:
+        if n_inputs < 2 or n_inputs > 4:
             raise TorchToNNEFNotImplementedError(n_inputs, abstracted_inputs)
-        if n_inputs == 1:
-            abstracted_inputs.insert(
-                0,
-                PythonConstant(
-                    abstracted_inputs[0].name + "_stub_start", data=0
-                ),
+        if n_inputs == 2:
+            dnode = PythonConstant(
+                abstracted_inputs[0].name + "_stub_start", data=0
             )
-        abstracted_inputs.insert(
-            2,
-            PythonConstant(abstracted_inputs[0].name + "_stub_step", data=1),
-        )
+            data_nodes.append(dnode)
+            abstracted_inputs.insert(0, dnode)
+        if n_inputs != 4:
+            dnode = PythonConstant(
+                abstracted_inputs[0].name + "_stub_step", data=1
+            )
+            data_nodes.append(dnode)
+            abstracted_inputs.insert(2, dnode)
 
     return abstracted_inputs
 

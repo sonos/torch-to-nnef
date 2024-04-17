@@ -71,6 +71,21 @@ class TensorFnPrimitive(nn.Module):
         return getattr(x, self.op)(*self.args, **self.kwargs)
 
 
+class TorchFnPrimitive(nn.Module):
+    def __init__(self, op, opt_kwargs=None):
+        super().__init__()
+        self.op = op
+        self.opt_kwargs = opt_kwargs
+
+    def extra_repr(self):
+        return f"torch.op={self.op}"
+
+    def forward(self, *args, **kwargs):
+        if self.opt_kwargs is not None:
+            kwargs.update(self.opt_kwargs)
+        return getattr(torch, self.op)(*args, **kwargs)
+
+
 class ListInputPrim(nn.Module):
     def __init__(self, op, y):
         super().__init__()
@@ -94,7 +109,7 @@ INPUT_AND_MODELS = [
 # Base unary operations
 _condition_1 = torch.eye(5, 4).to(torch.bool)
 _input0 = torch.zeros(5, 4)
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS += [
     (torch.arange(20).reshape(5, 4).float(), UnaryPrimitive(op))
     for op in [
         torch.sin,
@@ -121,6 +136,7 @@ INPUT_AND_MODELS = [
         torch.acosh,
         torch.atanh,
         torch.zeros_like,
+        torch.ones_like,
         # unimplemented tract {
         # torch.reciprocal,
         # torch.clone,
@@ -401,8 +417,8 @@ INPUT_AND_MODELS += [
     for layer in [
         # test slice
         UnaryPrimitive(lambda x: x[:, 2:, :]),
-        # UnaryPrimitive(lambda x: x[..., 1::2]),
-        # UnaryPrimitive(lambda x: x[..., :2, 1::2]),
+        UnaryPrimitive(lambda x: x[..., 1::2]),
+        UnaryPrimitive(lambda x: x[..., :2, 1::2]),
         torch.nn.LayerNorm(10),
         torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
         torch.nn.GLU(),
@@ -630,6 +646,18 @@ INPUT_AND_MODELS += [
     ]
 ]
 
+if tract_version() >= "0.20.0":
+    INPUT_AND_MODELS += [
+        (
+            (torch.tensor(1), torch.tensor(6), torch.tensor(3)),
+            TorchFnPrimitive("arange"),
+        ),
+        (  # inverse
+            (torch.tensor(10), torch.tensor(-1), torch.tensor(-1)),
+            TorchFnPrimitive("arange"),
+        ),
+    ]
+
 
 INPUT_AND_MODELS += [
     (torch.rand(1, 128, 8, 3), layer)
@@ -660,6 +688,12 @@ try:
     ]
 except ImportError as exp:
     print("not yet weight_norm import:", exp)
+
+
+if tract_version() > "0.21.3":  # merged fix PR in tract
+    INPUT_AND_MODELS += [
+        (torch.ones(5, 5), TorchFnPrimitive("triu")),
+    ]
 
 
 def test_should_fail_since_no_input():
@@ -714,5 +748,4 @@ def test_should_fail_since_false_output():
 )
 def test_primitive_export(test_input, model):
     """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
     check_model_io_test(model=model, test_input=test_input)

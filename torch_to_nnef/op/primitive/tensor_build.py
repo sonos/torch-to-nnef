@@ -3,6 +3,7 @@ import logging
 import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -16,6 +17,8 @@ from torch_to_nnef.torch_graph import (
     FixedTensorList,
     TensorVariable,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.tract import tract_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +26,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def arange(g, node, name_to_tensor, **kwargs):
+def arange(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes: bool, **kwargs
+):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -31,11 +36,56 @@ def arange(g, node, name_to_tensor, **kwargs):
     we implement it as a simple constant variable.
 
     """
-    (start_node, end_node, step_node) = node.inputs
-    LOGGER.warning(
-        "aten::arange replaced by constant traced values (follows NNEF spec)."
-        "Keeping dynamism would require custom operator in tract internals."
-    )
+    if len(node.inputs) == 4:
+        # for now should never happen since dtype info is
+        (start_node, end_node, step_node, dtype_node) = node.inputs
+    else:
+        raise TorchToNNEFNotImplementedError(
+            f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
+        )
+
+    if dtype_node.data not in [6, None, 4]:  # accept float, int64
+        # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
+        raise TorchToNNEFNotImplementedError(
+            f"dtype {dtype_node} not implemented for arange"
+        )
+
+    if not nnef_spec_strict or has_dynamic_axes:
+        if tract_version() < "0.20.0":
+            raise TractError(
+                "please update to latest tract to use 'tract_core_range'"
+            )
+
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_range",
+            inputs=[
+                get_or_add_tensor_variable_in_nnef(
+                    g, start_node, name_to_tensor
+                ),
+                get_or_add_tensor_variable_in_nnef(g, end_node, name_to_tensor),
+            ]
+            + (
+                []
+                if isinstance(step_node, PythonConstant)
+                else [
+                    get_or_add_tensor_variable_in_nnef(
+                        g, step_node, name_to_tensor
+                    ),
+                ]
+            ),
+            attrs={"step": step_node.data}
+            if isinstance(step_node, PythonConstant)
+            else {},
+        )
+        return ["tract_core"]
+    if start_node.data is None or end_node.data is None:
+        raise TorchToNNEFNotImplementedError(
+            "Dynamic arange not handled in strict NNEF For now"
+        )
+
     node.outputs[0].data = torch.arange(
         start_node.data, end_node.data, step=step_node.data
     )
@@ -44,6 +94,7 @@ def arange(g, node, name_to_tensor, **kwargs):
         node.outputs[0],
         name_to_tensor,
     )
+    return []
 
 
 def _generic_auto_tensor_expansion(
@@ -79,8 +130,6 @@ def _generic_auto_tensor_expansion(
             fixed_dim.append(dim_any)
 
     base_tensor_node = node.outputs[0]
-    if to_expand_dim and has_dynamic_axes:
-        base_tensor_node.name += "_to_be_expanded"
     node.outputs[0].data = tensor_build_fn(fixed_dim, dtype=dtype)
     add_tensor_variable_node_as_nnef_tensor(
         g,
@@ -92,6 +141,9 @@ def _generic_auto_tensor_expansion(
             "the aten::ones replaced by constant traced values"
             " with additional expansion (follows NNEF spec)."
         )
+        cached_input = get_or_add_tensor_variable_in_nnef(
+            g, base_tensor_node, name_to_tensor, name_suffix="to_be_expanded"
+        )
         repeats = [1 for _ in range(len(fixed_dim))]
         for k, v in to_expand_dim.items():
             repeats[k] = v
@@ -100,9 +152,7 @@ def _generic_auto_tensor_expansion(
             node,
             name_to_tensor,
             "tile",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, base_tensor_node, name_to_tensor
-            ),
+            inputs=cached_input,
             attrs={"repeats": repeats},
         )
 
@@ -132,17 +182,15 @@ def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
-def zeros_like(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+def _x_like(
+    g,
+    torch_graph,
+    name_to_tensor,
+    node,
+    has_dynamic_axes,
+    tensor_build_fn,
+    **kwargs,
 ):
-    """This operator can not be exactly exported to NNEF.
-
-    In general NNEF spec is against dynamism it could provide so
-
-    we implement it as a simple constant variable.
-
-    """
     (input_node, *_) = node.inputs
     dtype = torch.float32
     if len(_) > 0:
@@ -167,7 +215,7 @@ def zeros_like(
             inputs=input_tensor,
             force_full_output_tensor_name=shape_tensor_name,
         )
-        shape_node = FixedTensorList(data=[])
+        shape_node = FixedTensorList(name="recomposed_shape_node", data=[])
         for dim in range(
             input_node.rank
         ):  # assume always same rank at each graph run
@@ -189,6 +237,7 @@ def zeros_like(
             shape_node.data.append(
                 TensorVariable(
                     name=out.name,
+                    data=None,
                     shape=[1],
                     dtype=input_node.dtype,
                 )
@@ -202,8 +251,28 @@ def zeros_like(
         name_to_tensor,
         has_dynamic_axes=has_dynamic_axes,
         dtype=dtype,
-        tensor_build_fn=torch.zeros,
+        tensor_build_fn=tensor_build_fn,
     )
+
+
+@OP_REGISTRY.register()
+def zeros_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
+def ones_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.ones, **kwargs)
 
 
 @OP_REGISTRY.register()
@@ -305,3 +374,41 @@ def _post_graph_creation_remap(
     g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
 ):
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
+
+
+@OP_REGISTRY.register()
+def triu(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    nnef_spec_strict,
+    **kwargs,
+):
+    """support of triu (thanks to trilu)"""
+    (input_node, diag_node) = node.inputs
+
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
+
+    if tract_version() < "0.21.4":
+        raise TorchToNNEFNotImplementedError(
+            "triu need `tract_core_trilu` from tract >= 0.21.4 "
+            "(prior nnef deserialization was failing)"
+        )
+
+    # k = 0
+    # upper =true
+    assert isinstance(diag_node, PythonConstant), diag_node
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_trilu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+        ],
+        attrs={"upper": True, "k": diag_node.data},
+    )
+    return ["tract_core"]
