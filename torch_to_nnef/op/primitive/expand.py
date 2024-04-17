@@ -54,7 +54,13 @@ def expand(
         shapes.append(dim)
 
     repeats = _expand_build_repeats(
-        g, name_to_tensor, input_node, shape_node, shapes
+        g,
+        name_to_tensor,
+        input_node,
+        shape_node,
+        shapes,
+        node,
+        not nnef_spec_strict and has_dynamic_axes,
     )
 
     out = add_single_output_op(
@@ -80,53 +86,105 @@ def expand(
     )
 
 
-def _expand_build_repeats(g, name_to_tensor, input_node, shape_node, shapes):
+def div_expand_repeat_build(
+    g,
+    name_to_tensor,
+    node,
+    input_shape_nnef_tensor,
+    idx,
+    input_dim,
+    shape_dim,
+    is_dynamic_shape,
+):
+    output_tensor = add_tensor_variable_node_as_nnef_tensor(
+        g,
+        TensorVariable(
+            name=f"{shape_dim}_expand_divided",
+            data=None,
+            shape=list(name_to_tensor[shape_dim].shape),
+            dtype=NUMPY_TO_TORCH_DTYPE[name_to_tensor[shape_dim].dtype],
+        ),
+        name_to_tensor,
+        name_suffix="",
+        prevent_variable=True,
+    )
+    if is_dynamic_shape:
+        divisor_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "slice",
+            inputs=input_shape_nnef_tensor,
+            attrs={
+                "axes": [0],
+                "begin": [idx],
+                "end": [idx + 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"axis{idx}_divisor",
+        )
+    else:
+        divisor_nnef_tensor = get_or_add_tensor_variable_in_nnef(
+            g,
+            TensorVariable(
+                name=f"{shape_dim}_expand_divisor",
+                data=torch.tensor(input_dim, dtype=torch.int32),
+                dtype=torch.int32,
+                shape=[1],
+            ),
+            name_to_tensor,
+        )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="div",
+        inputs=(
+            name_to_tensor[shape_dim],
+            divisor_nnef_tensor,
+        ),
+        outputs=tuple([output_tensor]),
+        attribs={},
+    )
+    return output_tensor
+
+
+def _expand_build_repeats(
+    g, name_to_tensor, input_node, shape_node, shapes, node, is_dynamic_shape
+):
     repeats = []
-    for input_dim, shape_dim in zip(
-        input_node.shape, shapes[-len(input_node.shape) :]
+    if is_dynamic_shape:
+        input_shape_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            output_tensor_name_suffix="shape_of_input",
+        )
+    for idx, (input_dim, shape_dim) in enumerate(
+        zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
         if shape_dim in [-1, input_dim]:
             repeats.append(1)
         else:
             if input_dim > 1:
                 if isinstance(shape_dim, nnef.Identifier):
-                    output_tensor = add_tensor_variable_node_as_nnef_tensor(
-                        g,
-                        TensorVariable(
-                            name=f"{shape_dim}_expand_divided",
-                            data=None,
-                            shape=list(name_to_tensor[shape_dim].shape),
-                            dtype=NUMPY_TO_TORCH_DTYPE[
-                                name_to_tensor[shape_dim].dtype
-                            ],
-                        ),
-                        name_to_tensor,
-                        name_suffix="",
-                        prevent_variable=True,
-                    )
-                    cast_and_add_nnef_operation(
-                        name_to_tensor=name_to_tensor,
-                        graph=g,
-                        type="div",
-                        inputs=(
-                            name_to_tensor[shape_dim],
-                            get_or_add_tensor_variable_in_nnef(
+                    repeats.append(
+                        nnef.Identifier(
+                            div_expand_repeat_build(
                                 g,
-                                TensorVariable(
-                                    name=f"{shape_dim}_expand_divisor",
-                                    data=torch.tensor(
-                                        input_dim, dtype=torch.int32
-                                    ),
-                                    dtype=torch.int32,
-                                    shape=[1],
-                                ),
                                 name_to_tensor,
-                            ),
-                        ),
-                        outputs=tuple([output_tensor]),
-                        attribs={},
+                                node,
+                                input_shape_nnef_tensor,
+                                idx,
+                                input_dim,
+                                shape_dim,
+                                is_dynamic_shape,
+                            ).name
+                        )
                     )
-                    repeats.append(nnef.Identifier(output_tensor.name))
                 else:
                     repeats.append(int(shape_dim / input_dim))
             else:

@@ -316,7 +316,7 @@ def masked_fill(
             output_tensor_name_suffix="true_expanded",
         )
     else:
-        # Static exmpansion
+        # Static expansion
         true_value_node = value_node.into_tensor_variable()
         true_value_node.data = true_value_node.data.to(
             false_value_node.dtype
