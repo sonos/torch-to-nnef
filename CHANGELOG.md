@@ -3,6 +3,11 @@
 
 ## Unreleased
 
+## [0.10.1] - 2024-04-19
+### Fix
+
+- better dynamic shape handling: remove realized shape from IR and adapt translation of slice accordingly
+
 ## [0.10.0] - 2024-04-17
 
 ### Removed
