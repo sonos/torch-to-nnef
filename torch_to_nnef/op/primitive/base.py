@@ -369,7 +369,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             return [cast(v) for v in value]
         if isinstance(value, tuple):
             return tuple(cast(v) for v in value)
-        if value in list(NUMPY_TO_TORCH_DTYPE.keys()):
+        if value in list(NUMPY_TO_TORCH_DTYPE):
             return value
         if isinstance(value, torch.Tensor):
             nvalue = value.numpy()

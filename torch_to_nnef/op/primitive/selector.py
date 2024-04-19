@@ -1,6 +1,7 @@
 import logging
 
 import nnef
+import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
@@ -32,59 +33,74 @@ def slice_(
     # we assert for now all node except first are all constant
     dim = axis_node.data
 
+    has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
-    begin = pick_value_in_rank(input_node, dim, begin_node.data)
-    end = pick_value_in_rank(input_node, dim, end_node.data)
-    assert begin < end
-    if (
-        not nnef_spec_strict
-        and has_dynamic_axes
-        and end >= input_node.shape[dim]
-    ):
-        # NOTE: since we can't ensure used dimension is not symbolic
-        # we use `tract_core_shape_of`
-        input_tensor = get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        )
-        shape_tensor_name = f"{input_tensor.name}_shape"
-        index_tensor_name = f"{shape_tensor_name}_{dim}"
-        out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_shape_of",
-            inputs=input_tensor,
-            force_full_output_tensor_name=shape_tensor_name,
-        )
-        out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=out,
-            attrs={
-                "axes": [0],
-                "begin": [dim],
-                "end": [dim + 1],
-                "stride": [1],
-            },
-            force_full_output_tensor_name=index_tensor_name,
-        )
-        end = nnef.Identifier(out.name)
+    if begin_node.data is not None:
+        begin = pick_value_in_rank(input_node, dim, begin_node.data)
     else:
-        end = min(
-            end,
-            input_node.shape[dim],
-        )
+        has_concrete_values = False
+        begin = nnef.Identifier(begin_node.export_name)
+
+    if end_node.data is not None:
+        end = pick_value_in_rank(input_node, dim, end_node.data)
+    else:
+        has_concrete_values = False
+        end = nnef.Identifier(end_node.export_name)
 
     if (
-        begin_node.data == 0
-        and end == input_node.shape[dim]
+        begin == 0
+        and end in [input_node.shape[dim], np.iinfo(np.int64).max]
         and stride_node.data == 1
     ):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return []
+
+    if has_concrete_values:
+        assert begin < end
+
+    if end_node.data is not None:
+        if (
+            has_dynamic_axes
+            and not nnef_spec_strict
+            and end >= input_node.shape[dim]
+        ):
+            # NOTE: since we can't ensure used dimension is not symbolic
+            # we use `tract_core_shape_of`
+            input_tensor = get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            )
+            shape_tensor_name = f"{input_tensor.name}_shape"
+            index_tensor_name = f"{shape_tensor_name}_{dim}"
+            out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_shape_of",
+                inputs=input_tensor,
+                force_full_output_tensor_name=shape_tensor_name,
+            )
+            out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "slice",
+                inputs=out,
+                attrs={
+                    "axes": [0],
+                    "begin": [dim],
+                    "end": [dim + 1],
+                    "stride": [1],
+                },
+                force_full_output_tensor_name=index_tensor_name,
+            )
+            end = nnef.Identifier(out.name)
+        else:
+            end = min(
+                end,
+                input_node.shape[dim],
+            )
+
     add_single_output_op(
         g,
         node,

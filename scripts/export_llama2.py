@@ -10,51 +10,54 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
     AutoTokenizer,
     LlamaForCausalLM,
 )
-from transformers.models.llama import modeling_llama
 
 from torch_to_nnef.export import export_model_to_nnef
 
+# from transformers.models.llama import modeling_llama
 
-class DynLlamaRotaryEmbedding(torch.nn.Module):
-    """LlamaRotaryEmbedding without 'orignal caching'.
-
-    Caching is hurtfull in this case because
-    when torch jit trace is applied static max sequence seq_length
-    is done but we do not know what will be size of generation after NNEF export
-
-    """
-
-    def __init__(
-        self, dim, max_position_embeddings=2048, base=10000, device=None
-    ):
-        super().__init__()
-
-        self.dim = dim
-        self.max_position_embeddings = max_position_embeddings
-        self.base = base
-        inv_freq = 1.0 / (
-            self.base
-            ** (torch.arange(0, self.dim, 2).float().to(device) / self.dim)
-        )
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-
-    def forward(self, x, seq_len=None):
-        # _, _, seq_len_local, _ = x.shape
-        # x: [bs, num_attention_heads, seq_len, head_size]
-        if isinstance(seq_len, torch.Tensor):
-            seq_len = (
-                seq_len.tolist()
-            )  # fix issue with jit trace and tensor seq_len
-        t = torch.arange(seq_len).to(self.inv_freq.dtype)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        # freqs = t.unsqueeze(0).T @ self.inv_freq.unsqueeze(0)
-
-        # Different from paper, but it uses a different permutation in order to obtain the same calculation
-        emb = torch.cat((freqs, freqs), dim=-1)
-        return (emb.cos(), emb.sin())
-
-
-modeling_llama.LlamaRotaryEmbedding = DynLlamaRotaryEmbedding
+# class DynLlamaRotaryEmbedding(torch.nn.Module):
+#     """LlamaRotaryEmbedding without 'orignal caching'.
+#
+#     Original caching is hurtfull in this case because
+#     when torch jit trace is applied static max sequence seq_length
+#     is done but we do not provide as sample with max size
+#     so we add a static arange of very big size to be cached
+#     """
+#
+#     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
+#         super().__init__()
+#
+#         self.dim = dim
+#         self.max_position_embeddings = max_position_embeddings
+#         self.base = base
+#         inv_freq = 1.0 / (
+#             self.base ** (torch.arange(0, self.dim, 2).float().to(device) / self.dim)
+#         )
+#         self.register_buffer("inv_freq", inv_freq, persistent=False)
+#
+#         t = torch.arange(10_000).to(self.inv_freq.dtype)
+#         freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+#         # freqs = t.unsqueeze(0).T @ self.inv_freq.unsqueeze(0)
+#
+#         # Different from paper, but it uses a different permutation in order to obtain the same calculation
+#         emb = torch.cat((freqs, freqs), dim=-1)
+#         self.register_buffer("emb_cos", emb.cos(), persistent=False)
+#         self.register_buffer("emb_sin", emb.sin(), persistent=False)
+#
+#     def forward(self, x, seq_len=None):
+#         # if isinstance(seq_len, torch.Tensor):
+#         #     seq_len = seq_len.tolist()  # fix issue with jit trace and tensor seq_len
+#         return (self.emb_cos[:seq_len], self.emb_sin[:seq_len])
+#
+#
+# ISSUE transcript
+#
+# modeling_llama.LlamaRotaryEmbedding = DynLlamaRotaryEmbedding
+#     kv_seq_len = key_states.shape[-2]
+#     if past_key_value is not None:
+#         kv_seq_len += past_key_value[0].shape[-2]
+#     # here kv_seq_len is constantized .....
+#     cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
 
 
 class SuperBasicCausal(torch.nn.Module):
@@ -102,6 +105,7 @@ class SuperBasicCausal(torch.nn.Module):
                 use_cache=False,
             )
             hidden_states = layer_outputs[0]
+            # break
         logits = self.model.lm_head(hidden_states)
         return logits
 
@@ -134,17 +138,18 @@ def main():
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     default_model_slug = Llama2SLugs(args.model_slug).value  # check enum type
     tokenizer = AutoTokenizer.from_pretrained(default_model_slug)
+
     # NOTE: size of tokenized text need to be very large because of logic inside
     # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
-    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
+    test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
     causal_llama = AutoModelForCausalLM.from_pretrained(default_model_slug)
     striped_model = SuperBasicCausal(causal_llama)
 
-    generated_ids = causal_llama.generate(**test_input)
-    print(generated_ids)
-    print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
-    caus_res = striped_model(test_input.input_ids)
-    print("caus_res.shape:", caus_res.shape)
+    # generated_ids = causal_llama.generate(**test_input)
+    # print(generated_ids)
+    # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
+    # caus_res = striped_model(test_input.input_ids)
+    # print("caus_res.shape:", caus_res.shape)
 
     export_model_to_nnef(
         model=striped_model,
