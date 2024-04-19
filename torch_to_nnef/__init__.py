@@ -2,4 +2,4 @@
 
 __author__ = """Julien Balian"""
 __email__ = "julien.balian@sonos.com"
-__version__ = "0.10.0"
+__version__ = "0.10.1"
