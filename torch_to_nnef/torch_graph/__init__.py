@@ -10,6 +10,10 @@ absence of control (on our side) over evolution of Pytorch internals.
 If some of the Pytorch internals are modified only this module should idealy
 be impacted.
 
+Here there is NO notion of dynamic axes all shapes are supposedly defined
+based on provided input example.
+At latter stage in other modules the dynamic shapes need to be introduced if requested by user.
+
 """
 
 from torch_to_nnef.torch_graph.ir_data import (

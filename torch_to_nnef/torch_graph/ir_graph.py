@@ -629,12 +629,24 @@ class TorchModuleIRGraph:
 
         return self
 
-    def find_data_node_producer(self, data_node: Data):
+    def find_data_node_producer(self, data_node: Data) -> TorchOp:
+        assert isinstance(data_node, Data), data_node
         for op in self.op_nodes:
             for op_out_dnode in _expand_containers_if_exists(op.outputs):
                 if op_out_dnode is data_node:
                     return op
         raise TorchNotFoundOp("Did not find operation node")
+
+    def find_ops_nodes_by_input_node(self, data_node: Data) -> T.List[TorchOp]:
+        assert isinstance(data_node, Data), data_node
+        collected_ops = []
+        for op in self.op_nodes:
+            for op_out_dnode in _expand_containers_if_exists(op.inputs):
+                if op_out_dnode is data_node:
+                    collected_ops.append(op)
+        if not collected_ops:
+            raise TorchNotFoundOp("Did not find operation node")
+        return collected_ops
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""
