@@ -392,7 +392,7 @@ def triu(
     if nnef_spec_strict:
         raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
 
-    if tract_version() < "0.21.4":
+    if tract_version() < "0.21.3":
         raise TorchToNNEFNotImplementedError(
             "triu need `tract_core_trilu` from tract >= 0.21.4 "
             "(prior nnef deserialization was failing)"

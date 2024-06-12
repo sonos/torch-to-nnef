@@ -111,6 +111,48 @@ class QZPScalePerChannel(QScheme):
         return f"{self.__class__.__name__}(zero_point={self.zero_point}, scale={self.scale})"
 
 
+class QZPScalePerChannelFloat(QScheme):
+    """Same as QZPScalePerChannel but with zero point in float"""
+
+    def __init__(
+        self, zero_point: torch.Tensor, scale: torch.Tensor, dim: int = -1
+    ):
+        assert zero_point.dtype == torch.float32, zero_point.dtype
+        if scale.dtype == torch.float64:
+            scale = scale.to(torch.float32)
+        assert scale.dtype == torch.float32
+        # assert len(zero_point.shape) == 1 # TODO replace by check only 1 dim > 1
+        # assert len(scale.shape) == 1
+        assert zero_point.shape == scale.shape
+        assert (scale != 0).all(), scale
+        self.zero_point = zero_point
+        self.scale = scale
+        self.dim = dim
+
+    def quantize_as_torch(self, fp_tensor):
+        return torch.quantize_per_channel(
+            fp_tensor,
+            scale=self.scale,
+            zero_point=self.zero_point,
+            dtype=torch.quint8,
+        )
+
+    def clone_with_scale_factor(self, scale_factor):
+        return self.__class__(
+            zero_point=(self.zero_point / scale_factor).to(
+                dtype=self.zero_point.dtype
+            ),
+            scale=(self.scale / scale_factor).to(dtype=self.scale.dtype),
+            dim=self.dim,
+        )
+
+    def dequantize(self, u8_tensor):
+        return (u8_tensor.to(torch.float32) - self.zero_point) * self.scale
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(zero_point={self.zero_point}, scale={self.scale})"
+
+
 class QZPScalePerGroup(QScheme):
     def __init__(
         self, group_size: int, zero_point: torch.Tensor, scale: torch.Tensor

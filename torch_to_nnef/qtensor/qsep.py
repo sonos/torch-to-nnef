@@ -11,6 +11,7 @@ from torch_to_nnef.qtensor.base import (
     QScheme,
     QTensor,
     QZPScalePerChannel,
+    QZPScalePerChannelFloat,
     QZPScaleScalar,
 )
 
@@ -166,6 +167,18 @@ class QTensorSepParamsWithPack(QTensor):
             qzerop = qzerop.reshape(qshape)
 
             qscheme = QZPScalePerChannel(qzerop, qscale, dim=dim)
+        elif torch_qscheme == torch.per_channel_affine_float_qparams:
+            qscale = tensor.q_per_channel_scales()
+            qzerop = tensor.q_per_channel_zero_points() + offset_zp
+            dim = tensor.q_per_channel_axis()
+
+            # reshapes to allow torch jit works
+            qshape = [1] * len(tensor.shape)
+            qshape[dim] = qscale.shape[0]
+            qscale = qscale.reshape(qshape)
+            qzerop = qzerop.reshape(qshape)
+
+            qscheme = QZPScalePerChannelFloat(qzerop, qscale, dim=dim)
         elif torch_qscheme == torch.per_tensor_affine:
             qscale = tensor.q_scale()
             qzerop = tensor.q_zero_point() + offset_zp
