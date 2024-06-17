@@ -1,6 +1,7 @@
 import typing as T
 
 import nnef
+import numpy as np
 import torch
 
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
@@ -263,3 +264,107 @@ def repeat(g, node, name_to_tensor, **kwargs):
         ),
         attrs={"repeats": axis_node.data},
     )
+
+
+@OP_REGISTRY.register()
+def repeat_interleave(
+    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
+):
+    """this is same as np.repeat
+
+    Equivalent with repeat:
+        te = y
+        new = te.unsqueeze(dim+1)
+        new_repeats = [1] * (len(te.shape) + 1)
+        new_repeats[ dim + 1 ] = n_repeat
+        shapes = list(te.shape)
+        shapes[dim] *= n_repeat
+        new.repeat(new_repeats).reshape(shapes)
+
+    """
+    (input_node, n_repeats, axis_node, *_) = node.inputs
+    if not isinstance(axis_node.data, int):
+        raise NotImplementedError("case with flattening tensor not implemented")
+    if not isinstance(n_repeats.data, int):
+        raise NotImplementedError(
+            "case with more than 1 dim repeats not implemented"
+        )
+
+    # unsqueeze
+    out = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "unsqueeze",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": [axis_node.data + 1]},
+        output_tensor_name_suffix="unsqueeze",
+    )
+
+    # build repeats
+    repeats = [1] * (input_node.rank + 1)
+    repeats[axis_node.data + 1] = n_repeats.data
+
+    out = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=out,
+        attrs={"repeats": repeats},
+        output_tensor_name_suffix="tile",
+    )
+    # need to compute shape live. if dynamix axes exists
+    nnef_modules = []
+    if not nnef_spec_strict and has_dynamic_axes:
+        input_shape_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            output_tensor_name_suffix="shape_of_input",
+        )
+
+        nnef_modules.append("tract_core")
+
+        _repeats = [1] * (input_node.rank)
+        _repeats[axis_node.data] = n_repeats.data
+        _repeats = torch.from_numpy(np.array(_repeats))
+        new_shape_out = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "mul",
+            inputs=[
+                input_shape_nnef_tensor,
+                get_or_add_tensor_variable_in_nnef(
+                    g,
+                    TensorVariable(
+                        name=f"repeat_of_{input_node.export_name}",
+                        data=_repeats,
+                        shape=list(_repeats.shape),
+                        dtype=_repeats.dtype,
+                    ),
+                    name_to_tensor,
+                ),
+            ],
+        )
+        new_shape = nnef.Identifier(new_shape_out.name)
+    else:
+        new_shape = list(input_node.shape)
+        new_shape[axis_node.data] *= n_repeats.data
+
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "reshape",
+        inputs=out,
+        attrs={"shape": new_shape},
+    )
+    return nnef_modules

@@ -42,6 +42,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_INT,
     ATEN_NEW_ONES,
     ATEN_PROD,
+    ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
@@ -57,6 +58,96 @@ from torch_to_nnef.torch_graph.torch_const import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+class InputsAlignBetweenAtenAndTorch:
+    """Mapping inputs between Python `torch.$1` and cpp `aten::$2`
+    Because function arguments are not 1 to 1
+    """
+
+    @classmethod
+    def align_inputs(cls, kind: str, args, kwargs):
+        map_align = {
+            ATEN_ZERO_LIKE: cls.aten_zero,
+            ATEN_ZEROS: cls.aten_zero,
+            ATEN_EMPTY: cls.aten_zero,
+            ATEN_TO: cls.aten_to,
+            ATEN_GELU: cls.aten_gelu,
+            ATEN_ARANGE: cls.aten_arange,
+            ATEN_FULL: cls.aten_full,
+            ATEN_CUMSUM: cls.aten_cumsum,
+            ATEN_NEW_ONES: cls.aten_new_ones,
+            ATEN_PROD: cls.aten_prod,
+            ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
+            ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
+        }
+        to_call = map_align.get(kind)
+        if to_call:
+            return to_call(args, kwargs)
+        return args, kwargs
+
+    @staticmethod
+    def aten_zero(args, kwargs):
+        args = args[:1]
+        return args, kwargs
+
+    @staticmethod
+    def aten_to(args, kwargs):
+        if isinstance(args[2], int):
+            LOGGER.debug("wrongly `ordered` to parameters")
+            args = args[:2]
+        return args, kwargs
+
+    @staticmethod
+    def aten_gelu(args, kwargs):
+        args = args[:1]  # skip the 'none' param starting torch 1.12.0
+        return args, kwargs
+
+    @staticmethod
+    def aten_arange(args, kwargs):
+        # ensure there is no args as tesnsor
+        args = [a.tolist() if isinstance(a, torch.Tensor) else a for a in args]
+        if len(args) >= 4:
+            kwargs["dtype"] = args.pop(3)
+        return args, kwargs
+
+    @staticmethod
+    def aten_full(args, kwargs):
+        args = list(args[:2])
+        args[0] = [
+            a.tolist() if isinstance(a, torch.Tensor) else a for a in args[0]
+        ]
+        if not isinstance(args[-1], float):
+            args[-1] = args[-1].tolist()
+        return args, kwargs
+
+    @staticmethod
+    def aten_cumsum(args, kwargs):
+        args = list(args[:2])
+        return args, kwargs
+
+    @staticmethod
+    def aten_new_ones(args, kwargs):
+        args = list(args[:2])
+        return args, kwargs
+
+    @staticmethod
+    def aten_prod(args, kwargs):
+        args = list(args[:3])
+        return args, kwargs
+
+    @staticmethod
+    def aten_scaled_dot_product_attention(args, kwargs):
+        args = list(args[:6])
+        if len(args) >= 7 and args[6].data is not None:
+            kwargs["scale"] = None
+        return args, kwargs
+
+    @staticmethod
+    def aten_repeat_interleave(args, kwargs):
+        assert len(args) == 4
+        args = args[:3]
+        return args, kwargs
 
 
 @dataclass
@@ -147,39 +238,9 @@ class TorchOp:
             args = args[:-1]
             self.op_ref = torch.div
         # }
-        if self.kind in [ATEN_ZERO_LIKE, ATEN_ZEROS, ATEN_EMPTY]:
-            args = args[:1]
-        if self.kind == ATEN_TO:
-            if isinstance(args[2], int):
-                LOGGER.debug("wrongly `ordered` to parameters")
-                args = args[:2]
-        if self.kind == ATEN_GELU:
-            args = args[:1]  # skip the 'none' param starting torch 1.12.0
-        if self.kind == ATEN_ARANGE:
-            # ensure there is no args as tesnsor
-            args = [
-                a.tolist() if isinstance(a, torch.Tensor) else a for a in args
-            ]
-            if len(args) >= 4:
-                kwargs["dtype"] = args.pop(3)
-        if self.kind == ATEN_FULL:
-            args = list(args[:2])
-            args[0] = [
-                a.tolist() if isinstance(a, torch.Tensor) else a
-                for a in args[0]
-            ]
-            if not isinstance(args[-1], float):
-                args[-1] = args[-1].tolist()
-        if self.kind == ATEN_CUMSUM:
-            args = list(args[:2])
-        if self.kind == ATEN_NEW_ONES:
-            args = list(args[:2])
-        if self.kind == ATEN_PROD:
-            args = list(args[:3])
-        if self.kind == ATEN_SCALED_DOT_PRODUCT_ATTENTION:
-            args = list(args[:6])
-            if len(args) >= 7 and args[6].data is not None:
-                kwargs["scale"] = None
+        args, kwargs = InputsAlignBetweenAtenAndTorch.align_inputs(
+            self.kind, args, kwargs
+        )
         return args, kwargs
 
     def call_op(self):

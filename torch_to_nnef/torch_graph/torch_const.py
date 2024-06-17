@@ -29,6 +29,7 @@ ATEN_NEW_ONES = "aten::new_ones"
 ATEN_PROD = "aten::prod"
 ATEN_ALIAS = "aten::alias"
 ATEN_SCALED_DOT_PRODUCT_ATTENTION = "aten::scaled_dot_product_attention"
+ATEN_REPEAT_INTERLEAVE = "aten::repeat_interleave"
 
 
 CLASSTYPE_KIND = "ClassType"

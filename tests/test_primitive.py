@@ -695,6 +695,27 @@ if tract_version() > "0.21.3":  # merged fix PR in tract
         (torch.ones(5, 5), TorchFnPrimitive("triu")),
     ]
 
+INPUT_AND_MODELS += [
+    (
+        torch.tensor([[1, 2], [3, 4]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 4, "dim": 1}
+        ),
+    ),
+    (
+        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 4, "dim": 0}
+        ),
+    ),
+    (
+        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}
+        ),
+    ),
+]
+
 
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
