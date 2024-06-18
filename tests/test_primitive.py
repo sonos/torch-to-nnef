@@ -717,6 +717,26 @@ INPUT_AND_MODELS += [
 ]
 
 
+# More advanced slicing
+INPUT_AND_MODELS += [
+    (
+        (torch.tensor([[1, 2], [3, 4], [5, 6]]).float(), torch.tensor([0, 2])),
+        BinaryPrimitive(lambda x, y: x[y]),
+    ),
+    (
+        (torch.tensor([[1, 2], [3, 4], [5, 6]]).float(), torch.tensor([1])),
+        BinaryPrimitive(lambda x, y: x[:, y]),
+    ),
+    (
+        (
+            torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]).float(),
+            torch.tensor([1]),
+        ),
+        BinaryPrimitive(lambda x, y: x[:, :, y]),
+    ),
+]
+
+
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
