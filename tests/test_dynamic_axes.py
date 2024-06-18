@@ -1,4 +1,5 @@
 """Tests dynamic_axes."""
+
 import os
 from functools import partial
 
@@ -7,6 +8,7 @@ import torch
 from torch import nn
 from torchaudio import models as audio_mdl
 
+from .test_primitive import TorchFnPrimitive
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 25)))
@@ -36,6 +38,13 @@ INPUT_AND_MODELS += [
         torch.rand(1, 4, 3),
         {2: "S"},
         MimicShapeOut(partial(torch.full, fill_value=5)),
+    ),
+    (
+        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+        {2: "S"},
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}
+        ),
     ),
 ]
 

@@ -353,6 +353,8 @@ def repeat_interleave(
                     name_to_tensor,
                 ),
             ],
+            output_tensor_name_suffix="new_shape",
+            force_consistent_inputs_shapes=False,
         )
         new_shape = nnef.Identifier(new_shape_out.name)
     else:
