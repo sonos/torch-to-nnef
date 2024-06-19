@@ -356,7 +356,17 @@ def repeat_interleave(
             output_tensor_name_suffix="new_shape",
             force_consistent_inputs_shapes=False,
         )
-        new_shape = nnef.Identifier(new_shape_out.name)
+        new_shape_tdim_casted = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=[new_shape_out],
+            output_tensor_name_suffix="new_shape_as_tdim",
+            force_consistent_inputs_shapes=False,
+            attrs={"to": "tdim"},
+        )
+        new_shape = nnef.Identifier(new_shape_tdim_casted.name)
     else:
         new_shape = list(input_node.shape)
         new_shape[axis_node.data] *= n_repeats.data
