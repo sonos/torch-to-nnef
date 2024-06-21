@@ -77,20 +77,31 @@ def slice_(
                 node,
                 name_to_tensor,
                 "tract_core_shape_of",
-                inputs=input_tensor,
-                force_full_output_tensor_name=shape_tensor_name,
+                inputs=(input_tensor,),
+                output_tensor_name_suffix="shape",
             )
             out = add_single_output_op(
                 g,
                 node,
                 name_to_tensor,
                 "slice",
-                inputs=out,
+                inputs=(out,),
                 attrs={
                     "axes": [0],
                     "begin": [dim],
                     "end": [dim + 1],
                     "stride": [1],
+                },
+                output_tensor_name_suffix=f"sliced{dim}",
+            )
+            out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "squeeze",
+                inputs=(out,),
+                attrs={
+                    "axes": [0],
                 },
                 force_full_output_tensor_name=index_tensor_name,
             )

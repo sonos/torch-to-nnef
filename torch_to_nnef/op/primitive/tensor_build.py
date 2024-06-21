@@ -212,7 +212,7 @@ def _x_like(
             node,
             name_to_tensor,
             "tract_core_shape_of",
-            inputs=input_tensor,
+            inputs=(input_tensor,),
             force_full_output_tensor_name=shape_tensor_name,
         )
         shape_node = FixedTensorList(name="recomposed_shape_node", data=[])
@@ -225,7 +225,7 @@ def _x_like(
                 node,
                 name_to_tensor,
                 "slice",
-                inputs=shape_tensor,
+                inputs=(shape_tensor,),
                 attrs={
                     "axes": [0],
                     "begin": [dim],
@@ -234,9 +234,21 @@ def _x_like(
                 },
                 force_full_output_tensor_name=index_tensor_name,
             )
+            index_tensor_name = f"{shape_tensor_name}_{dim}_scalar"
+            out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "squeeze",
+                inputs=(out,),
+                attrs={
+                    "axes": [0],
+                },
+                force_full_output_tensor_name=index_tensor_name,
+            )
             shape_node.data.append(
                 TensorVariable(
-                    name=out.name,
+                    name=str(out.name),
                     data=None,
                     shape=[1],
                     dtype=input_node.dtype,
