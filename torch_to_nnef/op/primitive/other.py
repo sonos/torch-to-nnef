@@ -229,17 +229,28 @@ def size(
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:
-        add_single_output_op(
+        new_out = add_single_output_op(
             g,
             node,
             name_to_tensor,
             "slice",
-            inputs=out,
+            inputs=(out,),
             attrs={
                 "axes": [0],
                 "begin": [begin],
                 "end": [begin + 1],
                 "stride": [1],
+            },
+            output_tensor_name_suffix="sliced",
+        )
+        add_single_output_op(  # as scalar
+            g,
+            node,
+            name_to_tensor,
+            "squeeze",
+            inputs=(new_out,),
+            attrs={
+                "axes": [0],
             },
             force_full_output_tensor_name=index_tensor_name,
         )

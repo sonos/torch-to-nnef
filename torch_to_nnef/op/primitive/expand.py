@@ -111,7 +111,7 @@ def div_expand_repeat_build(
     if is_dynamic_shape:
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
-        divisor_nnef_tensor = add_single_output_op(
+        divisor_nnef_tensor_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
@@ -123,6 +123,15 @@ def div_expand_repeat_build(
                 "end": [idx + 1],
                 "stride": [1],
             },
+            output_tensor_name_suffix=f"axis{idx}_divisor_tensor",
+        )
+        divisor_nnef_tensor = add_single_output_op(  # scalar
+            g,
+            node,
+            name_to_tensor,
+            "squeeze",
+            inputs=(divisor_nnef_tensor_tensor,),
+            attrs={"axes": [0]},
             output_tensor_name_suffix=f"axis{idx}_divisor",
         )
     else:
