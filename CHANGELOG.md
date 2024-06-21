@@ -3,7 +3,14 @@
 
 ## Unreleased
 
+## [0.10.2] - 2024-06-21
+
+### Fix
+
+- squeeze after getting shape slice to get scalar (specific to tract to get rank 0)
+
 ## [0.10.1] - 2024-04-19
+
 ### Fix
 
 - better dynamic shape handling: remove realized shape from IR and adapt translation of slice accordingly
