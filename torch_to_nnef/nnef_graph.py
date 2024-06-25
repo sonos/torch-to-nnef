@@ -189,7 +189,9 @@ class TorchToNGraphExtractor:
         self.g.inputs = ginputs
         if input_names is not None:
             if self._check_io_names_qte_match:
-                assert len(input_names) == len(self.g.inputs)
+                assert len(input_names) == len(
+                    self.g.inputs
+                ), f"{len(input_names)} == {len(self.g.inputs)}"
             for in_tensor, requested_name in zip(self.g.inputs, input_names):
                 in_tensor.name = requested_name
 
@@ -198,7 +200,9 @@ class TorchToNGraphExtractor:
         ]
         if output_names is not None:
             if self._check_io_names_qte_match:
-                assert len(output_names) == len(self.g.outputs)
+                assert len(output_names) == len(
+                    self.g.outputs
+                ), f"{len(output_names)} == {len(self.g.outputs)}"
             for out_tensor, requested_name in zip(self.g.outputs, output_names):
                 out_tensor.name = requested_name
 

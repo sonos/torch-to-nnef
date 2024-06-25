@@ -271,19 +271,17 @@ class TorchModuleIRGraph:
             _find_data_node(self.data_nodes, _.debugName())
             for _ in torch_graph_outputs
         ]
+        outputs = self._expand_fixed_tensor_list_in(outputs)
 
         if provided_outputs is not None:
-            expanded_output = list(_expand_containers_if_exists(outputs))
-            original_outputs = list(
-                _expand_containers_if_exists(provided_outputs)
+            original_outputs = self._expand_fixed_tensor_list_in(
+                provided_outputs
             )
-            if len(expanded_output) != len(original_outputs):
+            if len(outputs) != len(original_outputs):
                 raise TorchCheckError(
-                    f"{len(expanded_output)} == {len(original_outputs)}"
+                    f"{len(outputs)} == {len(original_outputs)}"
                 )
-            for original_output, output in zip(
-                original_outputs, expanded_output
-            ):
+            for original_output, output in zip(original_outputs, outputs):
                 if _is_container(original_output) and _is_container(output):
                     # can be safely explored
                     continue
@@ -524,6 +522,16 @@ class TorchModuleIRGraph:
                 expanded_data_nodes.append(dnode)
         return expanded_data_nodes
 
+    def _expand_fixed_tensor_list_in(self, iterable):
+        expanded_data_nodes = []
+        for dnode in iterable:
+            if isinstance(dnode, FixedTensorList):
+                for sdnode in dnode.data:
+                    expanded_data_nodes.append(sdnode)
+            else:
+                expanded_data_nodes.append(dnode)
+        return expanded_data_nodes
+
     def _avoid_reference_to_tuples(self):
         """Remove all references to tuple by using only unpacked variables"""
         self._filter_tuple_tensor_from_data_nodes()
@@ -540,9 +548,8 @@ class TorchModuleIRGraph:
 
         """
         used_data_nodes = set(self.outputs)
-        used_data_nodes.update(
-            self.inputs
-        )  # Ensure we do not dish Module inputs
+        # Ensure we do not dish Module inputs
+        used_data_nodes.update(self.inputs)
 
         used_op_nodes = set()
         remaining_op_nodes = set(self.op_nodes)
@@ -576,6 +583,8 @@ class TorchModuleIRGraph:
                 )
                 used_data_nodes.update(additional_data_node_from_list)
 
+        self.pre_op_nodes = self.op_nodes
+        self.pre_data_nodes = self.data_nodes
         # filtered bug with original order
         ordered_op_nodes_hashs = [hash(_) for _ in self.op_nodes]
         self.op_nodes = sorted(
@@ -590,6 +599,17 @@ class TorchModuleIRGraph:
             if _ in ordered_data_nodes_hashs
             else -1,
         )
+        # if len(self.inputs) > 30:
+        #     self.printall()
+        #     print("I AM HERE")
+        #     print(self.outputs[-1].name)
+        #     try:
+        #         print(self.find_data_node_producer(self.outputs[-1]))
+        #     except Exception as exp:
+        #         print(exp)
+        #         pass
+        #     __import__("ipdb").set_trace()
+        #     pass
 
     def _cleanup_unused_nodes_in_graph(self):
         pass

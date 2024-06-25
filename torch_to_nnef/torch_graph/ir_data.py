@@ -1,10 +1,11 @@
-""" Abstractions used in torch_to_nnef internal graph data IR
+"""Abstractions used in torch_to_nnef internal graph data IR
 
 The goal is that these elements are:
 - extracted/parsed from PyTorch graph data structs
 - translated to NNEF graph data structs
 
 """
+
 import typing as T
 from dataclasses import dataclass
 
@@ -293,6 +294,11 @@ class FixedTensorList(Data):
     """FixedTensorList is a list that contains tensor constant or not"""
 
     data: T.List[TensorVariable]
+
+    @property
+    def slug(self) -> str:
+        slugs = ", ".join(_.slug for _ in self.data)
+        return f"fixedTensorList({self.export_name})({slugs})"
 
     @property
     def is_constant(self) -> bool:
