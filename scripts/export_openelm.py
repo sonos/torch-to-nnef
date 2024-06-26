@@ -98,7 +98,7 @@ def main():
     # cache size
     past_values_cache_conf = {
         OpenELMSlugs.MICRO: {
-            "n_kv": 32,
+            "n_kv": 16,
             "kv_shape": [
                 [1, 3, S, 64],  # 0
                 [1, 3, S, 64],  # 1
@@ -143,11 +143,11 @@ def main():
     dynamic_axes = {
         "input_ids": {1: "S"},
     }
-    for idx in range(past_values_cache_conf["n_kv"]):
+    for idx in range(past_values_cache_conf["n_kv"] * 2):
         if idx % 2 == 0:
-            node_name = f"cache_key_{idx}"
+            node_name = f"cache_key_{idx / 2}"
         else:
-            node_name = f"cache_value_{idx}"
+            node_name = f"cache_value_{(idx -1) / 2}"
         past_key_values.append(
             torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
         )

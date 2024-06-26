@@ -1,6 +1,7 @@
 import argparse
 import logging as log
 import os
+import typing as T
 from enum import Enum
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
     AutoTokenizer,
     LlamaForCausalLM,
 )
+from transformers.cache_utils import DynamicCache
 
 from torch_to_nnef.export import export_model_to_nnef
 
@@ -65,23 +67,40 @@ class SuperBasicCausal(torch.nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(self, input_ids: torch.Tensor):
+    def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
 
         This export module is extremly ineficient because no caching can be provided ...
 
         """
         _, seq_length = input_ids.shape[:2]
-        past_key_values_length = 0
+
+        # BUILD cache {
+        cache = DynamicCache()
+        past_key_values = []
+        tup: T.List[torch.Tensor] = []
+        for idx, k_or_v in enumerate(args):
+            if idx % 2 == 0 and len(tup):
+                assert len(tup) == 2
+                past_key_values.append(tuple(tup))
+                tup = []
+            tup.append(k_or_v)
+        assert len(tup) == 2
+        past_key_values.append(tuple(tup))
+        cache.from_legacy_cache(tuple(past_key_values))
+        # }
+        past_key_values_length = cache.get_seq_length()
+
         # get pos ids {
-        position_ids = torch.arange(
+        cache_position = torch.arange(
             past_key_values_length,
             seq_length + past_key_values_length,
             dtype=torch.long,
             device=input_ids.device,
         )
-        position_ids = position_ids.unsqueeze(0)
+        position_ids = cache_position.unsqueeze(0)
         inputs_embeds = self.model.model.embed_tokens(input_ids)
+
         attention_mask = (
             torch.triu(
                 torch.full(
@@ -100,14 +119,19 @@ class SuperBasicCausal(torch.nn.Module):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                past_key_value=None,
+                past_key_value=cache,
                 output_attentions=False,
-                use_cache=False,
+                use_cache=True,
+                cache_position=cache_position,
             )
             hidden_states = layer_outputs[0]
-            # break
+
         logits = self.model.lm_head(hidden_states)
-        return logits
+
+        # Extract cache {
+        kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
+        # }
+        return [logits] + kv_cache_flat_list
 
 
 class Llama2SLugs(str, Enum):
@@ -139,9 +163,37 @@ def main():
     default_model_slug = Llama2SLugs(args.model_slug).value  # check enum type
     tokenizer = AutoTokenizer.from_pretrained(default_model_slug)
 
+    S = 10
+    past_values_cache_conf = {
+        Llama2SLugs.TINY: {
+            "n_kv": 22,
+            "kv_shape": (1, 4, S, 64),
+        }
+    }[default_model_slug]
+
+    dynamic_axes = {
+        "input_ids": {1: "S"},
+    }
+    past_key_values = []
+    in_cache_names = []
+    out_cache_names = []
+    for idx in range(past_values_cache_conf["n_kv"] * 2):
+        if idx % 2 == 0:
+            node_name = f"cache_key_{idx / 2}"
+        else:
+            node_name = f"cache_value_{(idx -1) / 2}"
+        past_key_values.append(
+            torch.rand(past_values_cache_conf["kv_shape"]).float()
+        )
+        in_cache_name = f"in_{node_name}"
+        in_cache_names.append(in_cache_name)
+        out_cache_names.append(f"out_{node_name}")
+        # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
+        dynamic_axes[in_cache_name] = {2: "P"}
+
     # NOTE: size of tokenized text need to be very large because of logic inside
     # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
-    test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
+    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
     causal_llama = AutoModelForCausalLM.from_pretrained(default_model_slug)
     striped_model = SuperBasicCausal(causal_llama)
 
@@ -150,16 +202,18 @@ def main():
     # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
     # caus_res = striped_model(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
+    inputs = tuple([test_input.input_ids] + past_key_values)
+    _ = striped_model(*inputs)
 
     export_model_to_nnef(
         model=striped_model,
-        args=(test_input.input_ids,),
+        args=inputs,
         file_path_export=Path(args.export_filepath),
-        input_names=["input_ids"],
-        output_names=["outputs"],
+        input_names=["input_ids"] + in_cache_names,
+        output_names=["outputs"] + out_cache_names,
         log_level=log.INFO,
         check_same_io_as_tract=True,
-        dynamic_axes={"input_ids": {1: "S"}},
+        dynamic_axes=dynamic_axes,
         renaming_scheme="natural_verbose",
     )
 
