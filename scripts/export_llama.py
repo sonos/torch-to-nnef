@@ -86,7 +86,8 @@ class SuperBasicCausal(torch.nn.Module):
             tup.append(k_or_v)
         assert len(tup) == 2
         past_key_values.append(tuple(tup))
-        cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
+        # cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
+        cache = DynamicCache()
         # }
         past_key_values_length = cache.get_seq_length()
 
@@ -129,11 +130,12 @@ class SuperBasicCausal(torch.nn.Module):
 
         # Extract cache {
         kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
+        __import__("ipdb").set_trace()
         # }
         return [logits] + kv_cache_flat_list
 
 
-class Llama2SLugs(str, Enum):
+class LlamaSLugs(str, Enum):
     DUMMY = "yujiepan/llama-2-tiny-random"
     TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
@@ -149,8 +151,8 @@ def parser_cli():
     parser.add_argument(
         "-s",
         "--model-slug",
-        default=Llama2SLugs.TINY.value,
-        choices=[_.value for _ in Llama2SLugs],
+        default=LlamaSLugs.TINY.value,
+        choices=[_.value for _ in LlamaSLugs],
         help="Default llama2 huggingface slug to export",
     )
     return parser.parse_args()
@@ -159,16 +161,16 @@ def parser_cli():
 def main():
     args = parser_cli()
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    default_model_slug = Llama2SLugs(args.model_slug).value  # check enum type
+    default_model_slug = LlamaSLugs(args.model_slug).value  # check enum type
     tokenizer = AutoTokenizer.from_pretrained(default_model_slug)
 
     S = 10
     past_values_cache_conf = {
-        Llama2SLugs.TINY: {
+        LlamaSLugs.TINY: {
             "n_kv": 22,
             "kv_shape": (1, 4, S, 64),
         },
-        Llama2SLugs.DUMMY: {
+        LlamaSLugs.DUMMY: {
             "n_kv": 1,
             "kv_shape": (1, 2, S, 4),
         },

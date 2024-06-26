@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from scripts.export_llama2 import Llama2SLugs, SuperBasicCausal
+from scripts.export_llama import LlamaSLugs, SuperBasicCausal
 from torch_to_nnef.tract import tract_version
 
 from .utils import check_model_io_test, set_seed  # noqa: E402
@@ -15,13 +15,12 @@ INPUT_AND_MODELS = []
 
 # working exports
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", Llama2SLugs.DUMMY.value)
+DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
 tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
 causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
 striped_model = SuperBasicCausal(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
-if tract_version() >= "0.21.4":  # prior bug in tract
-    # works locally with tract 0.21.3 but seems to need triu export in CI tests ...
+if tract_version() > "0.21.5":  # prior bug in tract
     S = 10
 
     INPUT_AND_MODELS += [
