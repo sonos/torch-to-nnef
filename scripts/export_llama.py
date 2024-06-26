@@ -86,8 +86,8 @@ class SuperBasicCausal(torch.nn.Module):
             tup.append(k_or_v)
         assert len(tup) == 2
         past_key_values.append(tuple(tup))
-        # cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
-        cache = DynamicCache()
+        cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
+        # cache = DynamicCache()
         # }
         past_key_values_length = cache.get_seq_length()
 
@@ -130,7 +130,6 @@ class SuperBasicCausal(torch.nn.Module):
 
         # Extract cache {
         kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
-        __import__("ipdb").set_trace()
         # }
         return [logits] + kv_cache_flat_list
 
@@ -138,6 +137,7 @@ class SuperBasicCausal(torch.nn.Module):
 class LlamaSLugs(str, Enum):
     DUMMY = "yujiepan/llama-2-tiny-random"
     TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    LLAMA3_8B = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
 
 
 def parser_cli():
@@ -173,6 +173,10 @@ def main():
         LlamaSLugs.DUMMY: {
             "n_kv": 1,
             "kv_shape": (1, 2, S, 4),
+        },
+        LlamaSLugs.LLAMA3_8B: {
+            "n_kv": 0,  # unknown
+            "kv_shape": (1, 4, S, 64),  # unknown
         },
     }[default_model_slug]
 
