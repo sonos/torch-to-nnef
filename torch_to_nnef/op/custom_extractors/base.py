@@ -12,7 +12,6 @@ CUSTOMOP_KIND = "wired_custom::"
 
 
 class _ModuleInfoRegistery(type):
-
     """Allow extract in NNEF behavior from specific nn.Module"""
 
     MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
@@ -169,7 +168,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         name_to_tensor,
         null_ref,
         torch_graph,
-        nnef_spec_strict: bool,
+        inference_target,
         **kwargs,
     ):
         raise TorchToNNEFNotImplementedError()

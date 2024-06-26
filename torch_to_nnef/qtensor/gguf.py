@@ -227,9 +227,6 @@ class QTensorGGUFExtractor(ModuleInfoExtractor):
         g,
         node,
         name_to_tensor,
-        null_ref,
-        torch_graph,
-        nnef_spec_strict: bool,
         **kwargs,
     ):
         """implementation with storage"""

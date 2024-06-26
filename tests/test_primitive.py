@@ -13,6 +13,7 @@ from torch import nn
 
 from torch_to_nnef.exceptions import TractError
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.tract import tract_assert_io, tract_version
 
@@ -709,7 +710,10 @@ def test_should_fail_since_no_input():
                 input_names=["input"],
                 output_names=["output"],
                 log_level=log.WARNING,
-                check_same_io_as_tract=True,
+                inference_target=TractNNEF(
+                    version=TractNNEF.LATEST_KNOWN_STABLE_VERSION,
+                    check_io=True,
+                ),
             )
 
 
@@ -728,6 +732,10 @@ def test_should_fail_since_false_output():
             input_names=["input"],
             output_names=["output"],
             log_level=log.WARNING,
+            inference_target=TractNNEF(
+                version=TractNNEF.LATEST_KNOWN_STABLE_VERSION,
+                check_io=False,
+            ),
         )
 
         np.savez(

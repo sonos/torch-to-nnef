@@ -219,8 +219,7 @@ class QTensorSepParamsWithPackExtractor(ModuleInfoExtractor):
         name_to_tensor,
         null_ref,
         torch_graph,
-        nnef_spec_strict: bool,
-        **kwargs,
+        inference_target,
     ):
         # why is this an empty ModuleNotFoundError ?
         # because provided node.output[0]

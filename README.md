@@ -46,7 +46,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef import export_model_to_nnef, TractNNEF
 
 test_input = torch.rand(1, 10, 100)
 model = nn.Sequential(nn.Conv1d(10, 20, 3))
@@ -55,29 +55,25 @@ export_model_to_nnef(
     model=model,
     args=test_input,
     file_path_export=Path("mybeautifulmodel.nnef"),
+    inference_target=TractNNEF(
+        version="0.21.5", # tract version (to ensure compatible operators)
+        check_io=True, # default False need tract installed on machine
+        dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
+        # that named dimension need to be single letter symbol (due to tract spec)
+    ),
     input_names=["input"],
     output_names=["output"],
     compression_level=0, # tar.gz compression level
     # if 0 this become a simple .tar file uncompressed
     log_level=logging.WARN, # default being logging.INFO
-    check_same_io_as_tract=True, # default False need tract installed on machine
     debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
     # debug_bundle_path is generated only if tract IO is not valid
-
     renaming_scheme="numeric", # name NNEF variable in a concise way for readability
     # other possible choice with "natural_verbose" is as close as possible
     # to nn.Module exported variable naming
     # the renaming_scheme is only useful if you intend to read generated
     # NNEF format else do not set it
 
-    dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
-    # that named dimension need to be single letter symbol (due to tract spec)
-
-    check_io_names_qte_match=True, # may be setted to False in some rare case:
-    # if one of the input provided is removed since it is not used to generate outputs
-
-    nnef_spec_strict=False, # if set to true it follows NNEF spec
-    # strictly without any tract adaptations & features
 )
 ```
 

@@ -3,6 +3,8 @@ import operator
 import typing as T
 from functools import reduce
 
+from torch_to_nnef.inference_target import InferenceTarget
+
 # pylint: disable-next=redefined-builtin
 from torch_to_nnef.op.primitive import (
     activation,
@@ -63,9 +65,7 @@ def aten_to_nnef_tensor_and_ops(
     name_to_tensor,
     null_ref,
     torch_graph,
-    nnef_spec_strict: bool = False,
-    has_dynamic_axes: bool = False,
-    tract_feature_flags: T.Optional[T.Set[str]] = None,
+    inference_target: InferenceTarget,
 ) -> T.Optional[T.List[str]]:
     """Main primitive dispatcher
 
@@ -87,9 +87,7 @@ def aten_to_nnef_tensor_and_ops(
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
             torch_graph=torch_graph,
-            nnef_spec_strict=nnef_spec_strict,
-            has_dynamic_axes=has_dynamic_axes,
-            tract_feature_flags=tract_feature_flags,
+            inference_target=inference_target,
             aten_op_id=aten_op_id,
         )
     except KeyError as exp:

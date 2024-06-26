@@ -2,8 +2,10 @@ import logging
 
 import numpy as np
 import torch
+from torch.autograd.grad_mode import inference_mode
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -184,8 +186,8 @@ def pow_(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(torch_op_ids=["round"])
-def round_(nnef_spec_strict, **kwargs):
-    if nnef_spec_strict:
+def round_(inference_target, **kwargs):
+    if not isinstance(inference_target, TractNNEF):
         LOGGER.warning(
             "round: Spec definition of round in NNEF does not follow IEEE, "
             "so it will not be exactly same behavior"
@@ -284,13 +286,12 @@ def abs(
     node,
     name_to_tensor,
     null_ref,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     torch_graph,
     **kwargs,
 ):
     if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
-        if nnef_spec_strict:
+        if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(
                 "NNEF compliance does not allow complex"
             )

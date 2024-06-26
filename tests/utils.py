@@ -12,6 +12,7 @@ import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.tract import build_io
 
@@ -54,7 +55,6 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=check_same_io_as_tract,
             debug_bundle_path=(
                 Path.cwd()
                 / "failed_tests"
@@ -62,7 +62,11 @@ def check_model_io_test(
             )
             if os.environ.get("DEBUG", False)
             else None,
-            dynamic_axes=dynamic_axes,
+            inference_target=TractNNEF(
+                version=TractNNEF.LATEST_KNOWN_STABLE_VERSION,
+                check_io=check_same_io_as_tract,
+                dynamic_axes=dynamic_axes,
+            ),
         )
         dump_filepath = os.environ.get("DUMP_FILEPATH", False)
         if dump_filepath:

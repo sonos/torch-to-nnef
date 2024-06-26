@@ -10,6 +10,7 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_nnef_operation,
@@ -36,7 +37,7 @@ def external(
     g: NGraph,
     node: TensorVariable,
     name_to_tensor: T.Dict[str, NTensor],
-    nnef_spec_strict: bool,
+    inference_target: InferenceTarget,
 ):
     """Add External NNEF Operation in graph"""
     nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
@@ -55,7 +56,7 @@ def external(
             },
         )
     else:
-        if nnef_spec_strict:
+        if not isinstance(inference_target, TractNNEF):
             raise ValueError(
                 "NNEF Spec is not precise enough "
                 f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"

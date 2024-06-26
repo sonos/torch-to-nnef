@@ -4,6 +4,7 @@ import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -187,7 +188,7 @@ def _x_like(
     torch_graph,
     name_to_tensor,
     node,
-    has_dynamic_axes,
+    inference_target,
     tensor_build_fn,
     **kwargs,
 ):
@@ -201,7 +202,7 @@ def _x_like(
             dtype = input_node.dtype
 
     shape_node = input_node.shape
-    if has_dynamic_axes:
+    if isinstance(inference_target, TractNNEF):
         # in this case we need to get full expansion of input_node shape
         input_tensor = get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor

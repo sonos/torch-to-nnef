@@ -13,6 +13,7 @@ from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.primitive.base import (
     QuantizedOpRegistry,
     add_nnef_operation,
@@ -380,7 +381,7 @@ def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 def math_op_binary(
-    op_type: str, g, node, name_to_tensor, nnef_spec_strict, **kwargs
+    op_type: str, g, node, name_to_tensor, inference_target, **kwargs
 ):
     (
         x1_node,
@@ -395,7 +396,11 @@ def math_op_binary(
 
     x1_tensor = name_to_tensor[x1_node.export_name]
     x2_tensor = name_to_tensor[x2_node.export_name]
-    if not nnef_spec_strict and op_type not in ["mul", "add", "div"]:
+    if isinstance(inference_target, TractNNEF) and op_type not in [
+        "mul",
+        "add",
+        "div",
+    ]:
         # assume tract target
         # Tract is not assuming any alignment to do when applying
         # mul, add, div ...
@@ -466,8 +471,7 @@ def quantized_node_to_nnef_tensor_and_ops(
     name_to_tensor,
     null_ref,
     torch_graph,
-    nnef_spec_strict: bool,
-    tract_feature_flags: T.Optional[T.Set[str]] = None,
+    inference_target: InferenceTarget,
 ):
     ops_family, op_name = node.kind.split("::")
     assert ops_family == "quantized"
@@ -477,6 +481,5 @@ def quantized_node_to_nnef_tensor_and_ops(
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
         torch_graph=torch_graph,
-        nnef_spec_strict=nnef_spec_strict,
-        tract_feature_flags=tract_feature_flags,
+        inference_target=inference_target,
     )
