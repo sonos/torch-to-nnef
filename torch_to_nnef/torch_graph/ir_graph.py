@@ -583,8 +583,6 @@ class TorchModuleIRGraph:
                 )
                 used_data_nodes.update(additional_data_node_from_list)
 
-        self.pre_op_nodes = self.op_nodes
-        self.pre_data_nodes = self.data_nodes
         # filtered bug with original order
         ordered_op_nodes_hashs = [hash(_) for _ in self.op_nodes]
         self.op_nodes = sorted(
@@ -599,17 +597,6 @@ class TorchModuleIRGraph:
             if _ in ordered_data_nodes_hashs
             else -1,
         )
-        # if len(self.inputs) > 30:
-        #     self.printall()
-        #     print("I AM HERE")
-        #     print(self.outputs[-1].name)
-        #     try:
-        #         print(self.find_data_node_producer(self.outputs[-1]))
-        #     except Exception as exp:
-        #         print(exp)
-        #         pass
-        #     __import__("ipdb").set_trace()
-        #     pass
 
     def _cleanup_unused_nodes_in_graph(self):
         pass

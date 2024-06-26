@@ -8,12 +8,15 @@ import torch
 from torch import nn
 from torchaudio import models as audio_mdl
 
+from torch_to_nnef.tract import tract_version
+
 from .test_primitive import TorchFnPrimitive
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 25)))
 
-INPUT_AND_MODELS = [
+INPUT_AND_MODELS = []
+INPUT_AND_MODELS += [
     (torch.rand(1, 1, 100, 64), {2: "S"}, model)
     for model in [
         audio_mdl.DeepSpeech(64, n_hidden=256),
@@ -31,6 +34,12 @@ class MimicShapeOut(nn.Module):
         return self.op(xsh, dtype=torch.float32)
 
 
+class SliceShape(nn.Module):
+    def forward(self, x):
+        """Rotates half the hidden dims of the input."""
+        return x[..., : x.shape[-1] // 2]
+
+
 INPUT_AND_MODELS += [
     (torch.rand(1, 2, 3), {2: "S"}, MimicShapeOut(torch.ones)),
     (torch.rand(1, 10, 3), {2: "S"}, MimicShapeOut(torch.ones)),
@@ -39,14 +48,25 @@ INPUT_AND_MODELS += [
         {2: "S"},
         MimicShapeOut(partial(torch.full, fill_value=5)),
     ),
-    (
-        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
-        {2: "S"},
-        TorchFnPrimitive(
-            "repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}
-        ),
-    ),
 ]
+
+if "0.21.5" < tract_version():
+    INPUT_AND_MODELS += [
+        (
+            torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+            {2: "S"},
+            TorchFnPrimitive(
+                "repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}
+            ),
+        ),
+    ]
+    INPUT_AND_MODELS = [
+        (
+            torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]).float(),
+            {2: "S"},
+            SliceShape(),
+        ),
+    ]
 
 
 @pytest.mark.parametrize("test_input,dyn_shapes,model", INPUT_AND_MODELS)

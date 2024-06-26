@@ -13,6 +13,7 @@ from torch_to_nnef.op.primitive.base import (
     unary_output_op_without_params,
 )
 from torch_to_nnef.torch_graph import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import TensorVariable
 
 LOGGER = logging.getLogger(__name__)
 
@@ -105,8 +106,27 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def floor_divide(
+    g, node, name_to_tensor, has_dynamic_axes, torch_graph, **kwargs
+):
     input_node, divisor_node = node.inputs
+    if input_node.data and divisor_node.data and not has_dynamic_axes:
+        # avoid graph computation since static
+        idata = float(
+            input_node.data.tolist()
+            if isinstance(input_node, TensorVariable)
+            else input_node.data
+        )
+        ddata = float(
+            divisor_node.data.tolist()
+            if isinstance(divisor_node, TensorVariable)
+            else divisor_node.data
+        )
+        torch_graph.remap_node(
+            node.outputs[0],
+            PythonConstant(name=node.outputs[0].name, data=idata // ddata),
+        )
+        return []
     # for c_node in [input_node, divisor_node]:
     #     c_node.cast_float_inplace()
 
@@ -128,6 +148,7 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         output_tensor_name_suffix="div",
     )
     add_single_output_op(g, node, name_to_tensor, "floor", inputs=out)
+    return []
 
 
 @OP_REGISTRY.register()
