@@ -25,52 +25,61 @@ set_seed(int(os.environ.get("SEED", 25)))
 
 INPUT_AND_MODELS = [
     (
+        "alexnet",
         torch.rand(1, 3, 224, 224),
         vision_mdl.alexnet(pretrained=True, progress=False),
     ),
 ]
 INPUT_AND_MODELS += [
     (
+        model[0],
         torch.rand(1, 3, 256, 256),
-        model,
+        model[1],
     )
     for model in [
-        vision_mdl.resnet50(pretrained=True, progress=False),
+        ("resnet50", vision_mdl.resnet50(pretrained=True, progress=False)),
         # vision_mdl.regnet_y_8gf(
         # pretrained=True
         # ),  # works - similar to resnet
-        vision_mdl.mnasnet1_0(
-            pretrained=True, progress=False
+        (
+            "mnasnet1_0",
+            vision_mdl.mnasnet1_0(pretrained=True, progress=False),
         ),  # works - nas similar to resnet
-        vision_mdl.efficientnet_b0(pretrained=True, progress=False),
+        (
+            "efficientnet_b0",
+            vision_mdl.efficientnet_b0(pretrained=True, progress=False),
+        ),
     ]
 ]
 
 INPUT_AND_MODELS += [
-    (torch.rand(1, 1, 100, 64), model)
-    for model in [
+    (
+        "deepspeech",
+        torch.rand(1, 1, 100, 64),
         audio_mdl.DeepSpeech(64, n_hidden=256),
-    ]
+    )
 ]
 
 if hasattr(audio_mdl, "Conformer") and "0.21.2" <= tract_version():
     INPUT_AND_MODELS = [
-        ((torch.rand(1, 100, 64), torch.tensor([100])), model)
-        for model in [
+        (
+            "conformer",
+            (torch.rand(1, 100, 64), torch.tensor([100])),
             audio_mdl.Conformer(
                 64,
                 num_heads=2,
                 num_layers=2,
                 ffn_dim=128,
                 depthwise_conv_kernel_size=31,
-            )
-        ]
+            ),
+        )
     ]
 
 if hasattr(audio_mdl, "ConvTasNet"):
     INPUT_AND_MODELS += [
         # input shape: batch, channel==1, frames
         (
+            "convtasnet",
             (torch.rand(1, 1, 1024),),
             audio_mdl.ConvTasNet(
                 num_sources=2,
@@ -116,6 +125,7 @@ INPUT_AND_MODELS += [
     # )
     (
         # torch.rand(1, 2, 512),
+        "wav2vec2_encoder",
         torch.rand(1, 2, 768),
         FilterOut(wav2vec2_model.encoder),
     ),
@@ -123,7 +133,11 @@ INPUT_AND_MODELS += [
 
 # export pretrained work but multi_head giving slightly different values
 INPUT_AND_MODELS += [
-    (torch.rand(1, 3, 224, 224), vision_mdl.vit_b_16(pretrained=False)),
+    (
+        "vit_b_16",
+        torch.rand(1, 3, 224, 224),
+        vision_mdl.vit_b_16(pretrained=False),
+    ),
 ]
 
 
@@ -140,7 +154,7 @@ if hasattr(vision_mdl, "swin_transformer") and "0.19.0" < tract_version():
     mdl = vision_mdl.swin_t()  # pretrained=False
     mdl.eval()
     mdl(data)  # precompute attn mask and few shapes
-    INPUT_AND_MODELS += [(data, mdl)]
+    INPUT_AND_MODELS += [("swin_transformer", data, mdl)]
 
 # }
 
@@ -164,10 +178,16 @@ class ALBERTModel(torch.nn.Module):
 
 # }
 
-INPUT_AND_MODELS += [(tuple(inputs.values()), ALBERTModel())]
+INPUT_AND_MODELS += [("albert", tuple(inputs.values()), ALBERTModel())]
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_model_export(test_input, model):
+def id_tests(items):
+    return [i[0] for i in items]
+
+
+@pytest.mark.parametrize(
+    "id,test_input,model", INPUT_AND_MODELS, ids=id_tests(INPUT_AND_MODELS)
+)
+def test_model_export(id, test_input, model):
     """Test simple models"""
     check_model_io_test(model=model, test_input=test_input)
