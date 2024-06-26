@@ -76,7 +76,6 @@ class SuperBasicCausal(torch.nn.Module):
         _, seq_length = input_ids.shape[:2]
 
         # BUILD cache {
-        cache = DynamicCache()
         past_key_values = []
         tup: T.List[torch.Tensor] = []
         for idx, k_or_v in enumerate(args):
@@ -87,7 +86,7 @@ class SuperBasicCausal(torch.nn.Module):
             tup.append(k_or_v)
         assert len(tup) == 2
         past_key_values.append(tuple(tup))
-        cache.from_legacy_cache(tuple(past_key_values))
+        cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
         # }
         past_key_values_length = cache.get_seq_length()
 
@@ -168,7 +167,11 @@ def main():
         Llama2SLugs.TINY: {
             "n_kv": 22,
             "kv_shape": (1, 4, S, 64),
-        }
+        },
+        Llama2SLugs.DUMMY: {
+            "n_kv": 1,
+            "kv_shape": (1, 2, S, 4),
+        },
     }[default_model_slug]
 
     dynamic_axes = {
@@ -179,9 +182,9 @@ def main():
     out_cache_names = []
     for idx in range(past_values_cache_conf["n_kv"] * 2):
         if idx % 2 == 0:
-            node_name = f"cache_key_{idx / 2}"
+            node_name = f"cache_key_{int(idx / 2)}"
         else:
-            node_name = f"cache_value_{(idx -1) / 2}"
+            node_name = f"cache_value_{int((idx -1) / 2)}"
         past_key_values.append(
             torch.rand(past_values_cache_conf["kv_shape"]).float()
         )
@@ -202,7 +205,7 @@ def main():
     # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
     # caus_res = striped_model(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
-    inputs = tuple([test_input.input_ids] + past_key_values)
+    inputs = tuple([test_input.input_ids[:, :1]] + past_key_values)
     _ = striped_model(*inputs)
 
     export_model_to_nnef(

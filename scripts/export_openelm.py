@@ -145,9 +145,9 @@ def main():
     }
     for idx in range(past_values_cache_conf["n_kv"] * 2):
         if idx % 2 == 0:
-            node_name = f"cache_key_{idx / 2}"
+            node_name = f"cache_key_{int(idx / 2)}"
         else:
-            node_name = f"cache_value_{(idx -1) / 2}"
+            node_name = f"cache_value_{int((idx -1) / 2)}"
         past_key_values.append(
             torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
         )

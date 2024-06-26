@@ -107,8 +107,8 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 @OP_REGISTRY.register()
 def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     input_node, divisor_node = node.inputs
-    for c_node in [input_node, divisor_node]:
-        c_node.cast_float_inplace()
+    # for c_node in [input_node, divisor_node]:
+    #     c_node.cast_float_inplace()
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -127,18 +127,11 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         ),
         output_tensor_name_suffix="div",
     )
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "trunc",
-        inputs=out,
-    )
-    return ["trunc"]
+    add_single_output_op(g, node, name_to_tensor, "floor", inputs=out)
 
 
 @OP_REGISTRY.register()
-def trunc(g, node, name_to_tensor, **kwargs):
+def trunc(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     add_single_output_op(
         g,
         node,
@@ -278,8 +271,8 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     return ["rsub"]
 
 
-@OP_REGISTRY.register()
-def abs(
+@OP_REGISTRY.register(torch_op_ids=["abs"])
+def _abs(
     g,
     node,
     name_to_tensor,
@@ -369,7 +362,7 @@ def abs(
             inputs=input_tensor,
             attrs={"axes": [len(input_tensor.shape)]},
         )
-        return
+        return []
     return unary_output_op_without_params(
         nnef_op_type="abs",
         g=g,

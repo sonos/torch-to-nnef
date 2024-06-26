@@ -227,7 +227,7 @@ def add_single_output_op(
     node,
     name_to_tensor,
     nnef_op_type: str,
-    inputs: T.Sequence[NTensor],
+    inputs: T.Union[NTensor, T.Sequence[NTensor]],
     attrs: T.Optional[T.Dict[str, T.Any]] = None,
     ensure_tuple: bool = True,
     output_tensor_name_suffix: str = "",
