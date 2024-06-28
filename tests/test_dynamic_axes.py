@@ -62,8 +62,9 @@ if "0.21.5" < tract_version():
     ]
     INPUT_AND_MODELS = [
         (
-            torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]).float(),
-            {2: "S"},
+            # shape 1, 2, 1, 4
+            torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+            {3: "S"},
             SliceShape(),
         ),
     ]

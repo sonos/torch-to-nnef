@@ -131,11 +131,6 @@ def _generic_auto_tensor_expansion(
 
     base_tensor_node = node.outputs[0]
     node.outputs[0].data = tensor_build_fn(fixed_dim, dtype=dtype)
-    add_tensor_variable_node_as_nnef_tensor(
-        g,
-        base_tensor_node,
-        name_to_tensor,
-    )
     if to_expand_dim and has_dynamic_axes:
         LOGGER.debug(
             "the aten::ones replaced by constant traced values"
@@ -154,6 +149,12 @@ def _generic_auto_tensor_expansion(
             "tile",
             inputs=cached_input,
             attrs={"repeats": repeats},
+        )
+    else:
+        add_tensor_variable_node_as_nnef_tensor(
+            g,
+            base_tensor_node,
+            name_to_tensor,
         )
 
 

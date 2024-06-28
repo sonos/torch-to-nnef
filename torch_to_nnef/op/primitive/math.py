@@ -220,7 +220,8 @@ def mul(g, node, name_to_tensor, **kwargs):
         if isinstance(c_node, PythonConstant):
             # because torch.ops.aten.mul(float, tensor(float)) give complex number
             c_node = c_node.into_tensor_variable()
-        c_node.cast_float_inplace()
+        if any(nod.dtype.is_floating_point for nod in [input_node, other_node]):
+            c_node.cast_float_inplace()
         inputs.append(
             get_or_add_tensor_variable_in_nnef(g, c_node, name_to_tensor)
         )
