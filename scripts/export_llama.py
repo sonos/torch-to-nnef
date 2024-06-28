@@ -212,14 +212,21 @@ def main():
     # caus_res = striped_model(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
     inputs = tuple([test_input.input_ids[:, :1]] + past_key_values)
+
     _ = striped_model(*inputs)
+
+    input_names = ["input_ids"] + in_cache_names
+    output_names = ["outputs"] + out_cache_names
+    assert (
+        len(inputs) == len(input_names) == len(output_names)
+    ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
 
     export_model_to_nnef(
         model=striped_model,
         args=inputs,
         file_path_export=Path(args.export_filepath),
-        input_names=["input_ids"] + in_cache_names,
-        output_names=["outputs"] + out_cache_names,
+        input_names=input_names,
+        output_names=output_names,
         log_level=log.INFO,
         check_same_io_as_tract=True,
         dynamic_axes=dynamic_axes,
