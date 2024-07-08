@@ -1,4 +1,5 @@
 import logging
+import string
 import typing as T
 from collections import defaultdict
 
@@ -460,13 +461,83 @@ class TorchModuleIRGraph:
                 prefix = ""
                 if cname is not None:
                     prefix = _add_prefix_if_start_with_digit(cname, "s")
-                prefix += f"_c{ref_count[cname]}"
+                if ref_count[cname] == 1:
+                    prefix += "_"
+                elif ref_count[cname] == 2:
+                    prefix += "_2nd_call"
+                elif ref_count[cname] == 3:
+                    prefix += "_3rd_call"
+                else:
+                    prefix += f"_{ref_count[cname]}th_call"
                 self._merge_subraph(
                     submodule_graph,
                     prefix=prefix,
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
+
+    def _rename_compact_numeric(self):
+        count_ref = defaultdict(int)
+        mapping = {}
+        prefix_map = {
+            TensorVariable: "v",
+            PythonConstant: "c",
+            BlobTorchScriptObject: "b",
+            FixedTensorList: "l",
+            TupleTensors: "tt",
+            Data: "d",  # not used, avoid static analysis complain
+        }
+        for dnode in self.data_nodes:
+            prefix = prefix_map[dnode.__class__]
+            if dnode.name in mapping:
+                dnode.name = mapping[dnode.name]
+                continue
+            suffix = count_ref[prefix]
+            count_ref[prefix] += 1
+            mapping[dnode.name] = prefix + str(suffix)
+            dnode.name = mapping[dnode.name]
+
+    def _rename_natural_verbose(self):
+        def replace_last_number(name: str, suffix: str, new_idx: int):
+            idx = -1
+            while name[idx] in string.digits:
+                idx -= 1
+            if idx == -1:
+                trunced_name = name
+            else:
+                trunced_name = name[: idx + 1]
+            if suffix and trunced_name.endswith(suffix):
+                trunced_name = trunced_name[: -len(suffix)]
+            if suffix and trunced_name[:-1].endswith(suffix):
+                trunced_name = trunced_name[: -len(suffix) - 1]
+            return f"{trunced_name}{suffix}{new_idx}"
+
+        def replace_data_node_name_with_suffix_auto_inc(dn, suffix=""):
+            idx = 0
+            new_name = replace_last_number(dn.name, suffix, idx)
+            while True:
+                colliding_dn = self.find_node(new_name)
+                if colliding_dn is None:
+                    break
+                idx += 1
+                new_name = replace_last_number(dn.name, suffix, idx)
+
+            dn.name = new_name
+
+        # for _ in self.op_nodes:
+        # NOTE: data_nodes is not ordered idealy
+        for dn in self.data_nodes:
+            if dn.export_name[-1] in string.digits:
+                try:
+                    producer = self.find_data_node_producer(dn)
+                    kind = producer.kind.split("::")[-1]
+                    replace_data_node_name_with_suffix_auto_inc(dn, kind)
+                except TorchNotFoundOp:
+                    # try to reindex to 0
+                    suffix = ""
+                    if isinstance(dn, PythonConstant):
+                        suffix = "c"
+                    replace_data_node_name_with_suffix_auto_inc(dn, suffix)
 
     def apply_renaming_scheme(self, scheme="natural_verbose"):
         """Rename availlable data node following a scheme
@@ -479,28 +550,9 @@ class TorchModuleIRGraph:
 
         """
         if scheme == "natural_verbose":
-            return
+            return self._rename_natural_verbose()
         if scheme == "numeric":
-            count_ref = defaultdict(int)
-            mapping = {}
-            prefix_map = {
-                TensorVariable: "v",
-                PythonConstant: "c",
-                BlobTorchScriptObject: "b",
-                FixedTensorList: "l",
-                TupleTensors: "tt",
-                Data: "d",  # not used, avoid static analysis complain
-            }
-            for dnode in self.data_nodes:
-                prefix = prefix_map[dnode.__class__]
-                if dnode.name in mapping:
-                    dnode.name = mapping[dnode.name]
-                    continue
-                suffix = count_ref[prefix]
-                count_ref[prefix] += 1
-                mapping[dnode.name] = prefix + str(suffix)
-                dnode.name = mapping[dnode.name]
-            return
+            return self._rename_compact_numeric()
 
         raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
