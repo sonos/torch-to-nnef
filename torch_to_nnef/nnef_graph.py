@@ -46,6 +46,7 @@ class TorchToNGraphExtractor:
                 args=args,
             ),
             renaming_scheme=renaming_scheme,
+            is_root_module=True,
         )
         self._check_io_names_qte_match = check_io_names_qte_match
         self._nnef_spec_strict = nnef_spec_strict

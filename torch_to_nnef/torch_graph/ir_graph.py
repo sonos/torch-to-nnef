@@ -1,7 +1,9 @@
 import logging
+import re
 import string
 import typing as T
 from collections import defaultdict
+from collections.abc import MutableMapping
 
 from torch_to_nnef.console import Console
 from torch_to_nnef.exceptions import (
@@ -171,6 +173,7 @@ class TorchModuleIRGraph:
         self,
         torch_module_tracer: TorchModuleTracer,
         omit_useless_nodes: bool = True,
+        is_root_module: bool = False,
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[Data] = []
@@ -182,6 +185,7 @@ class TorchModuleIRGraph:
         self._omit_useless_nodes = omit_useless_nodes
         self.provided_inputs_picked_indexes: T.List[int] = []
         self._tracer = torch_module_tracer
+        self._is_root_module = is_root_module
 
     @property
     def tracer(self):
@@ -574,8 +578,6 @@ class TorchModuleIRGraph:
             dnode.name = mapping[dnode.name]
 
     def _rename_natural_verbose(self) -> None:
-        # for _ in self.op_nodes:
-        # NOTE: data_nodes is not ordered idealy
         for dn in self.data_nodes[:]:
             dn.name = dn.name.split("/")[-1]
             if all(c in string.digits for c in dn.name):
@@ -602,6 +604,8 @@ class TorchModuleIRGraph:
                     replace_data_node_name_with_suffix_auto_inc(
                         self, dn, suffix=""
                     )
+        if self._is_root_module:
+            remove_useless_digits_from_module_names(self)
 
     def apply_renaming_scheme(self, scheme="natural_verbose"):
         """Rename availlable data node following a scheme
@@ -918,3 +922,58 @@ def replace_data_node_name_with_suffix_auto_inc(
         )
 
     dn.name = new_name
+
+
+def _flatten_dict(
+    d: MutableMapping, parent_key: str = "", sep: str = "."
+) -> MutableMapping:
+    items: T.List[T.Tuple[str, T.Any]] = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def remove_useless_digits_from_module_names(
+    torch_mod_ir_graph: TorchModuleIRGraph,
+):
+    module_separator = "_."
+    # pylint: disable-next=protected-access
+    data_node_names = list(torch_mod_ir_graph.data_nodes._map)
+    assert len(data_node_names) == len(set(data_node_names))
+    name_tree: T.Dict[str, T.Any] = {}
+    for data_node_name in data_node_names:
+        current_sub_tree = name_tree
+        chunks = data_node_name.split(module_separator)
+        for idx, c in enumerate(chunks):
+            if c not in current_sub_tree:
+                current_sub_tree[c] = (
+                    data_node_name if len(chunks) - 1 == idx else {}
+                )
+            current_sub_tree = current_sub_tree[c]
+
+    to_explore = [name_tree]
+    while len(to_explore) > 0:
+        current_sub_tree = to_explore.pop()
+        keys = list(current_sub_tree.keys())
+        stacked_keys = defaultdict(list)
+        for key in keys:
+            stacked_keys[re.sub(r"(\.[0-9]+)?$", "", key)].append(key)
+        for simplified_key, original_keys in stacked_keys.items():
+            if len(original_keys) == 1 and original_keys[0] != simplified_key:
+                current_sub_tree[simplified_key] = current_sub_tree[
+                    original_keys[0]
+                ]
+                del current_sub_tree[original_keys[0]]
+        for next_sub_tree in current_sub_tree.values():
+            if isinstance(next_sub_tree, dict):
+                to_explore.append(next_sub_tree)
+    remapping_table = _flatten_dict(name_tree, sep=module_separator)
+    for new_name, original in remapping_table.items():
+        if new_name == original:
+            continue
+        orignal_data_node = torch_mod_ir_graph.data_nodes.get_by_name(original)
+        orignal_data_node.name = new_name
