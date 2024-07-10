@@ -62,6 +62,8 @@ class _NamedItemOrderedStrictSet:
 
     def _change_name_hook(self, old_name: str, new_name: str):
         """maintain sync between data structure and name changes in items"""
+        if new_name == old_name:
+            return
         self._map[new_name] = self._map[old_name]
         del self._map[old_name]
 
@@ -550,9 +552,9 @@ class TorchModuleIRGraph:
                     callmethod_node=op,
                 )
 
-    def _rename_compact_numeric(self):
-        count_ref = defaultdict(int)
-        mapping = {}
+    def _rename_compact_numeric(self) -> None:
+        count_ref: T.Dict[str, int] = defaultdict(int)
+        mapping: T.Dict[str, str] = {}
         prefix_map = {
             TensorVariable: "v",
             PythonConstant: "c",
@@ -571,10 +573,10 @@ class TorchModuleIRGraph:
             mapping[dnode.name] = prefix + str(suffix)
             dnode.name = mapping[dnode.name]
 
-    def _rename_natural_verbose(self):
+    def _rename_natural_verbose(self) -> None:
         # for _ in self.op_nodes:
         # NOTE: data_nodes is not ordered idealy
-        for dn in self.data_nodes:
+        for dn in self.data_nodes[:]:
             dn.name = dn.name.split("/")[-1]
             if all(c in string.digits for c in dn.name):
                 try:
@@ -611,6 +613,8 @@ class TorchModuleIRGraph:
         when looking at NNEF export correctness.
 
         """
+        if scheme == "raw":
+            return None
         if scheme == "natural_verbose":
             return self._rename_natural_verbose()
         if scheme == "numeric":
