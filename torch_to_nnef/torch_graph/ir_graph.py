@@ -623,13 +623,9 @@ class TorchModuleIRGraph:
         raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
     def _filter_tuple_tensor_from_data_nodes(self):
-        # TODO: directly remove elements from data_nodes to avoid dict reconstruction
-        new_data_nodes = _NamedItemOrderedStrictSet()
-        for dnode in self.data_nodes:
+        for dnode in self.data_nodes[:]:
             if isinstance(dnode, TupleTensors):
-                continue
-            new_data_nodes.append(dnode)
-        self.data_nodes = new_data_nodes
+                self.data_nodes.remove(dnode)
 
     def _expand_tuple_in(self, iterable):
         expanded_data_nodes = []
