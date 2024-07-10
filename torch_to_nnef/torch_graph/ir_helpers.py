@@ -402,9 +402,8 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         # [start, end, dtype, layout_type, device, requires_grad]
         # [end, dtype, layout_type, device, requires_grad]
 
-        abstracted_inputs = abstracted_inputs[
-            :-3
-        ]  # skip non interesting for export
+        # skip non interesting for export
+        abstracted_inputs = abstracted_inputs[:-3]
 
         # cast to torch dtype
         # abstracted_inputs[-1].data = SCALAR_TYPE_TO_PYTORCH_TYPE[

@@ -48,9 +48,11 @@ class _NamedItemOrderedStrictSet:
 
     """
 
-    def __init__(self):
-        self._map = {}
+    def __init__(self, items: T.Optional[T.Iterable[T.Any]] = None):
+        self._map: T.Dict[str, T.Any] = {}
         self._last_inserted_item = None
+        if items is not None:
+            self.__add__(items)
 
     @classmethod
     def from_list(cls, items) -> "_NamedItemOrderedStrictSet":
@@ -58,12 +60,14 @@ class _NamedItemOrderedStrictSet:
             return cls()
         return cls() + items
 
+    def _change_name_hook(self, old_name: str, new_name: str):
+        """maintain sync between data structure and name changes in items"""
+        self._map[new_name] = self._map[old_name]
+        del self._map[old_name]
+
     def __add__(self, items):
         for item in items:
-            self._map[item.name] = item
-        if items:
-            # pylint: disable-next=undefined-loop-variable
-            self._last_inserted_item = item
+            self.append(item)
         return self
 
     def remove(self, item, raise_exception_if_not_found: bool = True):
@@ -75,11 +79,25 @@ class _NamedItemOrderedStrictSet:
             return
         del self._map[item.name]
 
-    def contains(self, item):
-        return item.name in self._map
+    def get_by_name(self, name: str, default: T.Any = None):
+        return self._map.get(name, default)
+
+    def contains(self, item, strict: bool = False):
+        name_exists = item.name in self._map
+        if name_exists and strict:
+            return self._map[item.name] == item
+        return name_exists
 
     def append(self, item):
+        """Append item to ordered set
+
+        WARNING: This is crutial that all added items use this
+        function as it set the hook to listen to name changes
+        """
         assert item.name not in self._map, item.name
+        # look at torch_to_nnef.torch_graph.ir_data.Data.__setattr__
+        # pylint: disable-next=protected-access
+        item._change_name_hook = self._change_name_hook
         self._map[item.name] = item
         self._last_inserted_item = item
 
@@ -95,8 +113,14 @@ class _NamedItemOrderedStrictSet:
     def __iter__(self):
         yield from self._map.values()
 
+    def __len__(self):
+        return len(self._map)
+
     def is_empty(self):
         return not bool(self._map)
+
+    def __repr__(self):
+        return f"<_NamedItemOrderedStrictSet {len(self._map)}>"
 
 
 def module_tracer_into_ir_graph(
@@ -178,29 +202,26 @@ class TorchModuleIRGraph:
         for dnode in self.data_nodes:
             if _is_container(dnode):
                 for subdnode in dnode.data:
-                    assert any(
-                        subdnode == _ for _ in self.data_nodes
+                    assert self.data_nodes.contains(
+                        subdnode, strict=True
                     ), f"not referenced correctly sub item: {subdnode}"
 
     def _check_io_rely_on_data_nodes(self):
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
-            if not any(_ is inode for _ in self.data_nodes):
+            if not self.data_nodes.contains(inode, strict=True):
                 raise TorchCheckError(
                     f"not referenced correctly input: {inode}"
                 )
 
         for onode in self.outputs:
-            if not any(_ is onode for _ in self.data_nodes):
+            if not self.data_nodes.contains(onode, strict=True):
                 raise TorchCheckError(
                     f"not referenced correctly output: {onode}"
                 )
 
     def find_node(self, node_name: str) -> T.Optional[Data]:
-        for dnode in self.data_nodes:
-            if dnode.name == node_name:
-                return dnode
-        return None
+        return self.data_nodes.get_by_name(node_name)
 
     def remap_node(self, from_node, to_node):
         """remap a data_node to another."""
@@ -389,7 +410,7 @@ class TorchModuleIRGraph:
                     node.scope + self.SEP + input_node.name
                 )
 
-        for node in _expand_containers_if_exists(self.data_nodes):
+        for node in _expand_containers_if_exists(self.data_nodes[:]):
             if not node.name.startswith(selected_scope_name + self.SEP):
                 node.name = selected_scope_name + self.SEP + node.name
 
@@ -459,9 +480,8 @@ class TorchModuleIRGraph:
         # }
 
         to_del_nodes = submodule_graph.inputs + submodule_graph.outputs
-        submodule_graph.data_nodes = [
-            _ for _ in submodule_graph.data_nodes if _ not in to_del_nodes
-        ]
+        for to_del_node in to_del_nodes:
+            submodule_graph.data_nodes.remove(to_del_node)
 
         for _ in submodule_graph.op_nodes:
             res = _.scope.split(self.SEP, maxsplit=1)
@@ -471,13 +491,15 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
-        for _ in submodule_graph.data_nodes:
+        for _ in submodule_graph.data_nodes[:]:
             _.name = f"{prefix}.{_.name}"
 
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
         self.op_nodes += submodule_graph.op_nodes
         self.data_nodes += [
-            dn for dn in submodule_graph.data_nodes if dn not in self.data_nodes
+            dn
+            for dn in submodule_graph.data_nodes
+            if not self.data_nodes.contains(dn, strict=True)
         ]
 
     def _recursive_call_method(self, renaming_scheme: str):
@@ -539,7 +561,7 @@ class TorchModuleIRGraph:
             TupleTensors: "tt",
             Data: "d",  # not used, avoid static analysis complain
         }
-        for dnode in self.data_nodes:
+        for dnode in self.data_nodes[:]:
             prefix = prefix_map[dnode.__class__]
             if dnode.name in mapping:
                 dnode.name = mapping[dnode.name]
@@ -597,7 +619,8 @@ class TorchModuleIRGraph:
         raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
     def _filter_tuple_tensor_from_data_nodes(self):
-        new_data_nodes = []
+        # TODO: directly remove elements from data_nodes to avoid dict reconstruction
+        new_data_nodes = _NamedItemOrderedStrictSet()
         for dnode in self.data_nodes:
             if isinstance(dnode, TupleTensors):
                 continue
@@ -683,11 +706,13 @@ class TorchModuleIRGraph:
         )
 
         ordered_data_nodes_hashs = [hash(_) for _ in self.data_nodes]
-        self.data_nodes = sorted(
-            list(used_data_nodes),
-            key=lambda _: ordered_data_nodes_hashs.index(hash(_))
-            if _ in ordered_data_nodes_hashs
-            else -1,
+        self.data_nodes = _NamedItemOrderedStrictSet(
+            sorted(
+                list(used_data_nodes),
+                key=lambda _: ordered_data_nodes_hashs.index(hash(_))
+                if _ in ordered_data_nodes_hashs
+                else -1,
+            )
         )
 
     def _cleanup_unused_nodes_in_graph(self):

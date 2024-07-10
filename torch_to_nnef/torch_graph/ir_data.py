@@ -63,6 +63,11 @@ class Data:
     def tracable(self) -> bool:
         return self.shaped_and_typed
 
+    def __setattr__(self, attr_name, attr_value):
+        if attr_name == "name" and hasattr(self, "_change_name_hook"):
+            self._change_name_hook(self.name, attr_value)
+        super().__setattr__(attr_name, attr_value)
+
     @property
     def is_constant(self):
         raise TorchToNNEFNotImplementedError()
