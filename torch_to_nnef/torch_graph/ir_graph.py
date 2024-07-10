@@ -37,18 +37,61 @@ from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
 LOGGER = logging.getLogger(__name__)
 
 
-class _OrderedStrictSet(list):
-    """Data Structure aimed to detect code implementation bugs
+class _NamedItemOrderedStrictSet:
+    """To detect code implementation bugs
 
-    Indeed it checks that no 2 nodes are inserted with same name
+    Indeed it checks that no 2 nodes are inserted with same 'name' attribute
 
     Warning! only aimed at Data items (but work if provided item as name attr).
 
+    It behave as a 'list' in term of interface but is in reality an orderedset
+
     """
 
+    def __init__(self):
+        self._map = {}
+        self._last_inserted_item = None
+
+    @classmethod
+    def from_list(cls, items) -> "_NamedItemOrderedStrictSet":
+        if not items:
+            return cls()
+        return cls() + items
+
+    def __add__(self, items):
+        for item in items:
+            self._map[item.name] = item
+        if items:
+            # pylint: disable-next=undefined-loop-variable
+            self._last_inserted_item = item
+        return self
+
+    def remove(self, item, raise_exception_if_not_found: bool = True):
+        if item.name not in self._map:
+            if raise_exception_if_not_found:
+                raise ValueError(
+                    f"item '{item.name}' requested for deletion. Not Found !"
+                )
+            return
+        del self._map[item.name]
+
+    def contains(self, item):
+        return item.name in self._map
+
     def append(self, item):
-        assert all(elm.name != item.name for elm in self), item.name
-        return super().append(item)
+        assert item.name not in self._map, item.name
+        self._map[item.name] = item
+        self._last_inserted_item = item
+
+    def __getitem__(self, index: int):
+        if index == -1:
+            if self._last_inserted_item is None:
+                raise ValueError("No last value found")
+            return self._last_inserted_item
+        raise NotImplementedError(index)
+
+    def __iter__(self):
+        yield from self._map.values()
 
 
 def module_tracer_into_ir_graph(
@@ -102,7 +145,9 @@ class TorchModuleIRGraph:
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
 
-        self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
+        self._data_nodes: _NamedItemOrderedStrictSet = (
+            _NamedItemOrderedStrictSet()
+        )
         self._omit_useless_nodes = omit_useless_nodes
         self.provided_inputs_picked_indexes: T.List[int] = []
         self._tracer = torch_module_tracer
@@ -117,10 +162,11 @@ class TorchModuleIRGraph:
 
     @data_nodes.setter
     def data_nodes(self, other):
-        oss = _OrderedStrictSet()
-        for item in other:
-            oss.append(item)
-        self._data_nodes = oss
+        self._data_nodes = (
+            other
+            if isinstance(other, _NamedItemOrderedStrictSet)
+            else _NamedItemOrderedStrictSet.from_list(other)
+        )
 
     def _check_container_items_rely_on_data_nodes(self):
         """container items reference must exists in `data_nodes`"""
@@ -152,13 +198,14 @@ class TorchModuleIRGraph:
         return None
 
     def remap_node(self, from_node, to_node):
+        """remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
         from_node.name = to_node.name
         for op in self.op_nodes:
             op.inputs = [to_node if _ is from_node else _ for _ in op.inputs]
             op.outputs = [to_node if _ is from_node else _ for _ in op.outputs]
-        self.data_nodes = [_ for _ in self.data_nodes if _ is not from_node]
+        self.data_nodes.remove(from_node, raise_exception_if_not_found=False)
 
         # allow to remap item in containers as well
         for dnode in self.data_nodes:
@@ -173,8 +220,8 @@ class TorchModuleIRGraph:
                 dnode.data = new_data
 
         # add if not exists in graph
-        if not any(to_node is _ for _ in self.data_nodes):
-            self.data_nodes.append(to_node)
+        if not self.data_nodes.contains(to_node):
+            self.data_nodes.append(to_node)  # this is very slow...
 
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
