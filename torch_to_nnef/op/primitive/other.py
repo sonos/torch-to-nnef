@@ -213,7 +213,7 @@ def size(
         )
         torch_graph.remap_node(original_variable_output, new_node)
 
-        for data_node in torch_graph.data_nodes:
+        for data_node in torch_graph.data_nodes[:]:
             if (
                 isinstance(data_node, FixedTensorList)
                 and any(_ is new_node for _ in data_node.data)

@@ -83,15 +83,20 @@ class _NamedItemOrderedStrictSet:
         self._map[item.name] = item
         self._last_inserted_item = item
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: T.Any):
         if index == -1:
             if self._last_inserted_item is None:
                 raise ValueError("No last value found")
             return self._last_inserted_item
+        if isinstance(index, (slice, int)):
+            return list(self._map.values())[index]
         raise NotImplementedError(index)
 
     def __iter__(self):
         yield from self._map.values()
+
+    def is_empty(self):
+        return not bool(self._map)
 
 
 def module_tracer_into_ir_graph(
