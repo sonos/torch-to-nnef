@@ -128,6 +128,7 @@ class NamedItemOrderedSet:
         self._last_inserted_item: T.Optional[NamedItem] = None
         if items is not None:
             self.__add__(items)
+        self.avoid_name_collision = False
 
     @classmethod
     def from_list(cls, items) -> "NamedItemOrderedSet":
@@ -140,7 +141,10 @@ class NamedItemOrderedSet:
         if new_name == old_name:
             return
         if new_name in self._map:
-            LOGGER.debug(f"node with name:{new_name} overwritten in {self}")
+            msg = f"node with name:{new_name} overwritten in {self}"
+            LOGGER.debug(msg)
+            if self.avoid_name_collision:
+                raise ValueError(msg)
         self._map[new_name] = self._map[old_name]
         del self._map[old_name]
 

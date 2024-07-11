@@ -485,17 +485,18 @@ class TorchModuleIRGraph:
 
     def _rename_natural_verbose(self) -> None:
         for dn in self.data_nodes[:]:
-            dn.name = dn.name.split("/")[-1]
-            if all(c in string.digits for c in dn.name):
+            original_name = dn.name
+            new_name = original_name.split("/")[-1]
+            if all(c in string.digits for c in new_name):
                 try:
                     self.find_data_node_producer(dn)
                 except TorchNotFoundOp as exp:
                     if isinstance(dn, TensorVariable):
-                        dn.name = f"v{dn.name}"
+                        new_name = f"v{new_name}"
                     elif isinstance(dn, PythonConstant):
-                        dn.name = f"c{dn.name}"
+                        new_name = f"c{new_name}"
                     elif isinstance(dn, FixedTensorList):
-                        dn.name = f"l{dn.name}"
+                        new_name = f"l{new_name}"
                     else:
                         raise NotImplementedError(dn) from exp
 
@@ -503,13 +504,20 @@ class TorchModuleIRGraph:
                 try:
                     producer = self.find_data_node_producer(dn)
                     kind = producer.kind.split("::")[-1]
-                    replace_data_node_name_with_suffix_auto_inc(
-                        self, dn, kind, suffix_only_on_underscore=True
+                    new_name = get_data_node_name_with_suffix_auto_inc(
+                        self.data_nodes,
+                        original_name,
+                        new_name,
+                        kind,
+                        suffix_only_on_underscore=True,
                     )
                 except TorchNotFoundOp:
-                    replace_data_node_name_with_suffix_auto_inc(
-                        self, dn, suffix=""
+                    new_name = get_data_node_name_with_suffix_auto_inc(
+                        self.data_nodes, original_name, new_name, suffix=""
                     )
+
+            if dn.name != new_name:
+                dn.name = new_name
         if self._is_root_module:
             remove_useless_digits_from_module_names(self)
 
@@ -523,12 +531,14 @@ class TorchModuleIRGraph:
         when looking at NNEF export correctness.
 
         """
-        if scheme == "raw":
-            return None
-        if scheme == "natural_verbose":
-            return self._rename_natural_verbose()
-        if scheme == "numeric":
-            return self._rename_compact_numeric()
+        if scheme in ["raw", "natural_verbose", "numeric"]:
+            self.data_nodes.avoid_name_collision = True  # safety
+            {
+                "natural_verbose": self._rename_natural_verbose,
+                "numeric": self._rename_compact_numeric,
+            }[scheme]()
+            self.data_nodes.avoid_name_collision = False
+            return
 
         raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
@@ -659,9 +669,15 @@ class TorchModuleIRGraph:
         # Cleanup all unused nodes nodes in graph
         self._cleanup_unused_nodes_in_graph()
 
+        self._cleanup_dangling_data_node_hooks()
         if renaming_scheme:
             self.apply_renaming_scheme(renaming_scheme)
         return self
+
+    def _cleanup_dangling_data_node_hooks(self):
+        for dn in self.data_nodes:
+            # pylint: disable-next=protected-access
+            dn._name_hooks = {self.data_nodes._change_name_hook}
 
     def find_data_node_producer(self, data_node: Data) -> TorchOp:
         assert isinstance(data_node, Data), data_node
@@ -781,7 +797,7 @@ def replace_last_number(
     suffix: str,
     new_idx: int,
     suffix_only_on_underscore: bool = False,
-):
+) -> str:
     idx = -1
     while name[idx] in string.digits:
         idx -= 1
@@ -807,28 +823,29 @@ def replace_last_number(
     return f"{trunced_name}{suffix}{new_idx}"
 
 
-def replace_data_node_name_with_suffix_auto_inc(
-    torch_mod_ir_graph: TorchModuleIRGraph,
-    dn: Data,
+def get_data_node_name_with_suffix_auto_inc(
+    data_nodes: NamedItemOrderedSet,
+    original_name: str,
+    refined_name: str,
     suffix="",
     suffix_only_on_underscore: bool = False,
-):
+) -> str:
     idx = 0
     new_name = replace_last_number(
-        dn.name, suffix, idx, suffix_only_on_underscore
+        refined_name, suffix, idx, suffix_only_on_underscore
     )
-    if dn.name == new_name:
-        return
+    if original_name == new_name:
+        return original_name
     while True:
-        colliding_dn = torch_mod_ir_graph.find_node(new_name)
+        colliding_dn = data_nodes.get_by_name(new_name)
         if colliding_dn is None:
             break
         idx += 1
         new_name = replace_last_number(
-            dn.name, suffix, idx, suffix_only_on_underscore
+            refined_name, suffix, idx, suffix_only_on_underscore
         )
 
-    dn.name = new_name
+    return new_name
 
 
 def remove_useless_digits_from_module_names(
