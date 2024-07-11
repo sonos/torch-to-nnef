@@ -39,6 +39,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     TUPLEUNPACK_KIND,
 )
 from torch_to_nnef.tract import nop
+from torch_to_nnef.utils import NamedItemOrderedSet
 
 LOGGER = logging.getLogger(__name__)
 
@@ -225,12 +226,11 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
     )
 
 
-def _find_data_node(data_nodes: T.List[Data], name: str):
-    try:
-        return next(d for d in data_nodes if d.name == name)
-    except StopIteration as exp:
-        names = [dnode.name for dnode in data_nodes]
-        raise TorchNotFoundDataNode(f"'{name}' not found in {names}") from exp
+def _find_data_node(data_nodes: NamedItemOrderedSet, name: str):
+    data_node = data_nodes.get_by_name(name)
+    if data_node is None:
+        raise TorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
+    return data_node
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
@@ -305,7 +305,7 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
         ) from exp
 
 
-def _parse_list_construct_values(node, data_nodes):
+def _parse_list_construct_values(node, data_nodes: NamedItemOrderedSet):
     values = []
     contains_tensors = False
     for cvalue in node.inputs():
@@ -333,7 +333,7 @@ def _parse_list_construct_values(node, data_nodes):
     return contains_tensors, values
 
 
-def _parse_list_construct(node, data_nodes):
+def _parse_list_construct(node, data_nodes: NamedItemOrderedSet):
     # should build a Data
     contains_tensors, values = _parse_list_construct_values(node, data_nodes)
 
@@ -341,20 +341,21 @@ def _parse_list_construct(node, data_nodes):
         tensor_values = []
         for value in values:
             if isinstance(value, (TensorVariable, PythonConstant)):
-                if not any(_.name == value.name for _ in data_nodes):
+                if not data_nodes.get_by_name(value.name):
                     data_nodes.append(value)
             else:
                 raise TorchToNNEFNotImplementedError()
             tensor_values.append(value)
 
-        data_node = FixedTensorList(
-            name=node.output().debugName(), data=tensor_values
+        data_nodes.append(
+            FixedTensorList(name=node.output().debugName(), data=tensor_values)
         )
     else:
-        data_node = PythonConstant(
-            name=node.output().debugName(), data=[v.data for v in values]
+        data_nodes.append(
+            PythonConstant(
+                name=node.output().debugName(), data=[v.data for v in values]
+            )
         )
-    data_nodes.append(data_node)
 
     # }
 
@@ -439,7 +440,9 @@ def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
     return op_ref, abstracted_inputs
 
 
-def _rerouted_parsing(node: torch._C.Node, data_nodes: T.List[Data], module):
+def _rerouted_parsing(
+    node: torch._C.Node, data_nodes: NamedItemOrderedSet, module
+):
     """Specific torch kind operation are transformed
 
     to improve readability of intermediate representation
@@ -512,7 +515,7 @@ def _rerouted_parsing(node: torch._C.Node, data_nodes: T.List[Data], module):
 
 def _extract_op_infos(
     module,
-    data_nodes: T.List[Data],
+    data_nodes: NamedItemOrderedSet,
     node: torch._C.Node,
     traced_module: torch.jit.TracedModule,
 ) -> T.Tuple[

@@ -35,96 +35,9 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
+from torch_to_nnef.utils import NamedItemOrderedSet
 
 LOGGER = logging.getLogger(__name__)
-
-
-class _NamedItemOrderedStrictSet:
-    """To detect code implementation bugs
-
-    Indeed it checks that no 2 nodes are inserted with same 'name' attribute
-
-    Warning! only aimed at Data items (but work if provided item as name attr).
-
-    It behave as a 'list' in term of interface but is in reality an orderedset
-
-    """
-
-    def __init__(self, items: T.Optional[T.Iterable[T.Any]] = None):
-        self._map: T.Dict[str, T.Any] = {}
-        self._last_inserted_item = None
-        if items is not None:
-            self.__add__(items)
-
-    @classmethod
-    def from_list(cls, items) -> "_NamedItemOrderedStrictSet":
-        if not items:
-            return cls()
-        return cls() + items
-
-    def _change_name_hook(self, old_name: str, new_name: str):
-        """maintain sync between data structure and name changes in items"""
-        if new_name == old_name:
-            return
-        self._map[new_name] = self._map[old_name]
-        del self._map[old_name]
-
-    def __add__(self, items):
-        for item in items:
-            self.append(item)
-        return self
-
-    def remove(self, item, raise_exception_if_not_found: bool = True):
-        if item.name not in self._map:
-            if raise_exception_if_not_found:
-                raise ValueError(
-                    f"item '{item.name}' requested for deletion. Not Found !"
-                )
-            return
-        del self._map[item.name]
-
-    def get_by_name(self, name: str, default: T.Any = None):
-        return self._map.get(name, default)
-
-    def contains(self, item, strict: bool = False):
-        name_exists = item.name in self._map
-        if name_exists and strict:
-            return self._map[item.name] == item
-        return name_exists
-
-    def append(self, item):
-        """Append item to ordered set
-
-        WARNING: This is crutial that all added items use this
-        function as it set the hook to listen to name changes
-        """
-        assert item.name not in self._map, item.name
-        # look at torch_to_nnef.torch_graph.ir_data.Data.__setattr__
-        # pylint: disable-next=protected-access
-        item._change_name_hook = self._change_name_hook
-        self._map[item.name] = item
-        self._last_inserted_item = item
-
-    def __getitem__(self, index: T.Any):
-        if index == -1:
-            if self._last_inserted_item is None:
-                raise ValueError("No last value found")
-            return self._last_inserted_item
-        if isinstance(index, (slice, int)):
-            return list(self._map.values())[index]
-        raise NotImplementedError(index)
-
-    def __iter__(self):
-        yield from self._map.values()
-
-    def __len__(self):
-        return len(self._map)
-
-    def is_empty(self):
-        return not bool(self._map)
-
-    def __repr__(self):
-        return f"<_NamedItemOrderedStrictSet {len(self._map)}>"
 
 
 def module_tracer_into_ir_graph(
@@ -179,9 +92,7 @@ class TorchModuleIRGraph:
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
 
-        self._data_nodes: _NamedItemOrderedStrictSet = (
-            _NamedItemOrderedStrictSet()
-        )
+        self._data_nodes: NamedItemOrderedSet = NamedItemOrderedSet()
         self._omit_useless_nodes = omit_useless_nodes
         self.provided_inputs_picked_indexes: T.List[int] = []
         self._tracer = torch_module_tracer
@@ -199,8 +110,8 @@ class TorchModuleIRGraph:
     def data_nodes(self, other):
         self._data_nodes = (
             other
-            if isinstance(other, _NamedItemOrderedStrictSet)
-            else _NamedItemOrderedStrictSet.from_list(other)
+            if isinstance(other, NamedItemOrderedSet)
+            else NamedItemOrderedSet.from_list(other)
         )
 
     def _check_container_items_rely_on_data_nodes(self):
@@ -233,7 +144,8 @@ class TorchModuleIRGraph:
         """remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
-        from_node.name = to_node.name
+        self.inputs = [to_node if _ is from_node else _ for _ in self.inputs]
+        self.outputs = [to_node if _ is from_node else _ for _ in self.outputs]
         for op in self.op_nodes:
             op.inputs = [to_node if _ is from_node else _ for _ in op.inputs]
             op.outputs = [to_node if _ is from_node else _ for _ in op.outputs]
@@ -452,7 +364,6 @@ class TorchModuleIRGraph:
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
         # Re-Wire input and output naming => {
-
         def search_and_replace_data_nodes(
             node_subgraph_to_wire: T.List[Data],
             node_graph_to_wire: T.List[Data],
@@ -484,10 +395,6 @@ class TorchModuleIRGraph:
         )
 
         # }
-
-        to_del_nodes = submodule_graph.inputs + submodule_graph.outputs
-        for to_del_node in to_del_nodes:
-            submodule_graph.data_nodes.remove(to_del_node)
 
         for _ in submodule_graph.op_nodes:
             res = _.scope.split(self.SEP, maxsplit=1)
@@ -666,6 +573,7 @@ class TorchModuleIRGraph:
         Backward propagation from graph output to input to select kept nodes
 
         """
+        assert isinstance(self.data_nodes, NamedItemOrderedSet)
         used_data_nodes = set(self.outputs)
         # Ensure we do not dish Module inputs
         used_data_nodes.update(self.inputs)
@@ -710,7 +618,7 @@ class TorchModuleIRGraph:
         )
 
         ordered_data_nodes_hashs = [hash(_) for _ in self.data_nodes]
-        self.data_nodes = _NamedItemOrderedStrictSet(
+        self.data_nodes = NamedItemOrderedSet(
             sorted(
                 list(used_data_nodes),
                 key=lambda _: ordered_data_nodes_hashs.index(hash(_))

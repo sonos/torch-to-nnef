@@ -28,6 +28,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     NUMBERTYPE_KIND,
     TUPLETYPE_KIND,
 )
+from torch_to_nnef.utils import NamedItem
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
@@ -39,7 +40,7 @@ def _refid_clean(name: str) -> str:
 
 
 @dataclass
-class Data:
+class Data(NamedItem):
     name: str
     data: T.Any
 
@@ -62,11 +63,6 @@ class Data:
     @property
     def tracable(self) -> bool:
         return self.shaped_and_typed
-
-    def __setattr__(self, attr_name, attr_value):
-        if attr_name == "name" and hasattr(self, "_change_name_hook"):
-            self._change_name_hook(self.name, attr_value)
-        super().__setattr__(attr_name, attr_value)
 
     @property
     def is_constant(self):
@@ -298,7 +294,7 @@ TtupleOrVar = T.Union[TensorVariable, TupleTensors]
 class FixedTensorList(Data):
     """FixedTensorList is a list that contains tensor constant or not"""
 
-    data: T.List[TensorVariable]
+    data: T.Sequence[T.Union[TensorVariable, PythonConstant]]
 
     @property
     def slug(self) -> str:
