@@ -457,11 +457,17 @@ def weight_bias_and_output_tensor(
     name_to_tensor,
     null_ref,
 ):
+    weight_suffix = ""
+    if weight_node.data is not None and not weight_node.export_name.endswith(
+        "__weight"
+    ):
+        weight_suffix = "weight"
+
     weight_ref = get_or_add_tensor_variable_in_nnef(
         node=weight_node,
         g=g,
         name_to_tensor=name_to_tensor,
-        name_suffix="weight" if weight_node.data is not None else "",
+        name_suffix=weight_suffix,
     )
 
     bias_ref = null_ref
