@@ -3,7 +3,6 @@ import re
 import string
 import typing as T
 from collections import defaultdict
-from collections.abc import MutableMapping
 
 from torch_to_nnef.console import Console
 from torch_to_nnef.exceptions import (
@@ -35,7 +34,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
-from torch_to_nnef.utils import NamedItemOrderedSet
+from torch_to_nnef.utils import NamedItemOrderedSet, flatten_dict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -832,22 +831,19 @@ def replace_data_node_name_with_suffix_auto_inc(
     dn.name = new_name
 
 
-def _flatten_dict(
-    d: MutableMapping, parent_key: str = "", sep: str = "."
-) -> MutableMapping:
-    items: T.List[T.Tuple[str, T.Any]] = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, MutableMapping):
-            items.extend(_flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
-
 def remove_useless_digits_from_module_names(
     torch_mod_ir_graph: TorchModuleIRGraph,
 ):
+    """Cleanup final namings in graph:
+
+    - Remove useless digits from module names
+      by example:
+        '_20__post_attention_layernorm_4__weight_expanded_1__weight'
+        would become
+        '_20__post_attention_layernorm__weight_expanded__weight'
+        if there is no naming collision with this simlification
+
+    """
     module_separator = "_."
     # pylint: disable-next=protected-access
     data_node_names = list(torch_mod_ir_graph.data_nodes._map)
@@ -879,7 +875,7 @@ def remove_useless_digits_from_module_names(
         for next_sub_tree in current_sub_tree.values():
             if isinstance(next_sub_tree, dict):
                 to_explore.append(next_sub_tree)
-    remapping_table = _flatten_dict(name_tree, sep=module_separator)
+    remapping_table = flatten_dict(name_tree, sep=module_separator)
     for new_name, original in remapping_table.items():
         if new_name == original:
             continue

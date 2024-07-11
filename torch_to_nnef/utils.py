@@ -2,6 +2,7 @@ import functools
 import logging
 import typing as T
 from abc import ABC
+from collections.abc import MutableMapping
 from functools import total_ordering
 
 import torch
@@ -23,6 +24,19 @@ def fullname(o) -> str:
     if module == "builtins":
         return klass.__qualname__  # avoid outputs like 'builtins.str'
     return module + "." + klass.__qualname__
+
+
+def flatten_dict(
+    d: MutableMapping, parent_key: str = "", sep: str = "."
+) -> MutableMapping:
+    items: T.List[T.Tuple[str, T.Any]] = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 @total_ordering
