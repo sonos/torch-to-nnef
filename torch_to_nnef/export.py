@@ -55,7 +55,10 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                             external_op.attribs["shape"]
                         )
                     ]
-                    custom_extensions.add("tract_pulse_streaming_symbol")
+                    if tract.tract_version() < "0.18.2":
+                        custom_extensions.add("tract_pulse_streaming_symbol")
+                    else:
+                        custom_extensions.add(f"tract_symbol {axis_name}")
                 break
     return custom_extensions
 
@@ -180,6 +183,7 @@ def export_model_to_nnef(
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
+            target_tract=not nnef_spec_strict,
         )(nnef_graph, str(nnef_exp_file_path))
         LOGGER.info(
             f"model exported successfully as NNEF at: {nnef_exp_file_path}"
