@@ -20,7 +20,6 @@ from torch_to_nnef.torch_graph import (
     Data,
     TensorVariable,
     TorchModuleTracer,
-    _is_container,
     module_tracer_into_ir_graph,
 )
 from torch_to_nnef.torch_graph.torch_const import ATEN_SIZE_KIND
@@ -126,7 +125,7 @@ class TorchToNGraphExtractor:
         def is_missing(node: Data):
             if node.export_name in name_to_tensor:
                 return False
-            if _is_container(node) and any(
+            if node.is_container and any(
                 is_missing(subnode) for subnode in node.data
             ):
                 # case where partial data is available for container

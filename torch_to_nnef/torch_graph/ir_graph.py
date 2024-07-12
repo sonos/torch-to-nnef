@@ -27,7 +27,6 @@ from torch_to_nnef.torch_graph.ir_helpers import (
     _expand_containers_if_exists,
     _find_common_root,
     _find_data_node,
-    _is_container,
     _parse_traced_name,
     _replacement_to_relative_module_path,
 )
@@ -116,7 +115,7 @@ class TorchModuleIRGraph:
     def _check_container_items_rely_on_data_nodes(self):
         """container items reference must exists in `data_nodes`"""
         for dnode in self.data_nodes:
-            if _is_container(dnode):
+            if dnode.is_container:
                 for subdnode in dnode.data:
                     assert self.data_nodes.contains(
                         subdnode, strict=True
@@ -152,7 +151,7 @@ class TorchModuleIRGraph:
 
         # allow to remap item in containers as well
         for dnode in self.data_nodes:
-            if _is_container(dnode):
+            if dnode.is_container:
                 new_data = []
                 for subdnode in dnode.data:
                     if subdnode is from_node:
@@ -273,7 +272,7 @@ class TorchModuleIRGraph:
                     f"{len(outputs)} == {len(original_outputs)}"
                 )
             for original_output, output in zip(original_outputs, outputs):
-                if _is_container(original_output) and _is_container(output):
+                if original_output.is_container and output.is_container:
                     # can be safely explored
                     continue
                 if isinstance(output, TensorVariable):
@@ -610,7 +609,7 @@ class TorchModuleIRGraph:
                 # maybe added FixedTensorList, TupleTensors
                 additional_data_node_from_list = set()
                 for used_data_node in used_data_nodes:
-                    if _is_container(used_data_node):
+                    if used_data_node.is_container:
                         additional_data_node_from_list.update(
                             used_data_node.data
                         )

@@ -45,6 +45,10 @@ class Data(NamedItem):
     data: T.Any
 
     @property
+    def is_container(self) -> bool:
+        return False
+
+    @property
     def export_name(self) -> str:
         return _refid_clean(self.name)
 
@@ -263,6 +267,10 @@ class TupleTensors(Data):
     def is_constant(self) -> bool:
         return all(data.is_constant for data in self.data)
 
+    @property
+    def is_container(self) -> bool:
+        return True
+
     @classmethod
     def parse_from_tuple_type(
         cls, node_c_value: torch._C.Value
@@ -308,6 +316,10 @@ class FixedTensorList(Data):
     @property
     def tracing_data(self) -> T.List[torch.Tensor]:
         return [d.tracing_data for d in self.data]
+
+    @property
+    def is_container(self) -> bool:
+        return True
 
     def __hash__(self):
         return hash(self.name)

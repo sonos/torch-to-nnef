@@ -84,13 +84,9 @@ def _parse_traced_name(module):
     return module_name
 
 
-def _is_container(data_node: "Data"):
-    return isinstance(data_node, (FixedTensorList, TupleTensors))
-
-
 def _expand_containers_if_exists(data_items, filter_container: bool = False):
     for data_item in data_items:
-        if _is_container(data_item):
+        if hasattr(data_item, "is_container") and data_item.is_container:
             yield from data_item.data
             if filter_container:
                 continue
