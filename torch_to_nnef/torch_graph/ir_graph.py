@@ -618,18 +618,17 @@ class TorchModuleIRGraph:
                 )
                 used_data_nodes.update(additional_data_node_from_list)
 
-        # filtered bug with original order
-        ordered_op_nodes_hashs = [hash(_) for _ in self.op_nodes]
-        self.op_nodes = sorted(
-            list(used_op_nodes),
-            key=lambda _: ordered_op_nodes_hashs.index(hash(_)),
-        )
+        self.op_nodes = [op for op in self.op_nodes[:] if op in used_op_nodes]
 
-        ordered_data_nodes_hashs = [hash(_) for _ in self.data_nodes]
+        # filtered bug with original order
+
+        ordered_data_nodes_hashs = {
+            hash(_): idx for idx, _ in enumerate(self.data_nodes)
+        }
         self.data_nodes = NamedItemOrderedSet(
             sorted(
                 list(used_data_nodes),
-                key=lambda _: ordered_data_nodes_hashs.index(hash(_))
+                key=lambda _: ordered_data_nodes_hashs[hash(_)]
                 if _ in ordered_data_nodes_hashs
                 else -1,
             )
