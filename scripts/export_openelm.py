@@ -80,9 +80,10 @@ def parser_cli():
         help="Default OpenELM huggingface slug to export",
     )
     parser.add_argument(
-        "-f",
-        "--finetuned-safetensors",
-        help="OpenELM finetuned safetensors",
+        "-d",
+        "--local-dir",
+        help="local dir containing .safetensors compatible with openELM"
+        " model size specified in slug",
     )
     return parser.parse_args()
 
@@ -223,16 +224,19 @@ def main():
         # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
         dynamic_axes[in_cache_name] = {2: "P"}
 
-    if args.finetuned_safetensors:
-        st_path = Path(args.finetuned_safetensors)
-        assert st_path.exists(), st_path
+    if args.local_dir:
+        dir_path = Path(args.local_dir)
+        assert dir_path.is_dir(), dir_path
+        assert (dir_path / "model.safetensors").is_file(), dir_path
         causal_llm = AutoModelForCausalLM.from_pretrained(
-            st_path, trust_remote_code=True
+            dir_path, trust_remote_code=True
         )
+        print("load from local directory:", dir_path)
     else:
         causal_llm = AutoModelForCausalLM.from_pretrained(
             default_model_slug, trust_remote_code=True
         )
+        print(f"default Apple trained model: {default_model_slug}")
 
     remodeled_llm = SuperBasicCausal(causal_llm)
 
