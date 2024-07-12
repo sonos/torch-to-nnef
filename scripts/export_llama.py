@@ -203,7 +203,10 @@ def main():
     # NOTE: size of tokenized text need to be very large because of logic inside
     # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
     test_input = tokenizer("Hello, I am happy", return_tensors="pt")
-    causal_llama = AutoModelForCausalLM.from_pretrained(default_model_slug)
+    causal_llama = AutoModelForCausalLM.from_pretrained(
+        default_model_slug,
+        torch_dtype="float16",
+    )
     striped_model = SuperBasicCausal(causal_llama)
 
     # generated_ids = causal_llama.generate(**test_input)
