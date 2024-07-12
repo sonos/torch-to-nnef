@@ -634,9 +634,6 @@ class TorchModuleIRGraph:
             )
         )
 
-    def _cleanup_unused_nodes_in_graph(self):
-        pass
-
     def parse(
         self,
         renaming_scheme: str = "numeric",
@@ -663,9 +660,6 @@ class TorchModuleIRGraph:
 
         self._check_container_items_rely_on_data_nodes()
         self._check_io_rely_on_data_nodes()
-
-        # Cleanup all unused nodes nodes in graph
-        self._cleanup_unused_nodes_in_graph()
 
         self._cleanup_dangling_data_node_hooks()
         if renaming_scheme:
