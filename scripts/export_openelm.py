@@ -79,6 +79,11 @@ def parser_cli():
         choices=[_.value for _ in OpenELMSlugs],
         help="Default OpenELM huggingface slug to export",
     )
+    parser.add_argument(
+        "-f",
+        "--finetuned-safetensors",
+        help="OpenELM finetuned safetensors",
+    )
     return parser.parse_args()
 
 
@@ -218,21 +223,29 @@ def main():
         # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
         dynamic_axes[in_cache_name] = {2: "P"}
 
-    causal_llama = AutoModelForCausalLM.from_pretrained(
-        default_model_slug, trust_remote_code=True
-    )
-    striped_model = SuperBasicCausal(causal_llama)
+    if args.finetuned_safetensors:
+        st_path = Path(args.finetuned_safetensors)
+        assert st_path.exists(), st_path
+        causal_llm = AutoModelForCausalLM.from_pretrained(
+            st_path, trust_remote_code=True
+        )
+    else:
+        causal_llm = AutoModelForCausalLM.from_pretrained(
+            default_model_slug, trust_remote_code=True
+        )
 
-    # generated_ids = causal_llama.generate(**test_input)
+    remodeled_llm = SuperBasicCausal(causal_llm)
+
+    # generated_ids = causal_llm.generate(**test_input)
     # print(generated_ids)
     # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
-    # caus_res = striped_model(test_input.input_ids)
+    # caus_res = remodeled_llm(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
     inputs = tuple([test_input.input_ids] + past_key_values)
-    _ = striped_model(*inputs)
+    _ = remodeled_llm(*inputs)
 
     export_model_to_nnef(
-        model=striped_model,
+        model=remodeled_llm,
         args=inputs,
         file_path_export=Path(args.export_filepath),
         input_names=["input_ids"] + in_cache_names,
