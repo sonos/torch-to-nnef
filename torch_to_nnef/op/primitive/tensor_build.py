@@ -425,3 +425,41 @@ def triu(
         attrs={"upper": True, "k": diag_node.data},
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def tril(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    has_dynamic_axes,
+    nnef_spec_strict,
+    **kwargs,
+):
+    """support of triu (thanks to trilu)"""
+    (input_node, diag_node) = node.inputs
+
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
+
+    if tract_version() < "0.21.3":
+        raise TorchToNNEFNotImplementedError(
+            "triu need `tract_core_trilu` from tract >= 0.21.4 "
+            "(prior nnef deserialization was failing)"
+        )
+
+    # k = 0
+    # upper =true
+    assert isinstance(diag_node, PythonConstant), diag_node
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_trilu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+        ],
+        attrs={"upper": False, "k": diag_node.data},
+    )
+    return ["tract_core"]

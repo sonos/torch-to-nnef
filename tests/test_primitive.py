@@ -693,6 +693,7 @@ except ImportError as exp:
 if tract_version() > "0.21.3":  # merged fix PR in tract
     INPUT_AND_MODELS += [
         (torch.ones(5, 5), TorchFnPrimitive("triu")),
+        (torch.ones(5, 5), TorchFnPrimitive("tril")),
     ]
 
 INPUT_AND_MODELS += [
