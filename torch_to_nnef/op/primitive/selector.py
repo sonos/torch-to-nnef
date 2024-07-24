@@ -337,11 +337,12 @@ def masked_fill(
     false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, false_value_node, name_to_tensor
     )
+    true_value_node = value_node.into_tensor_variable()
+    if true_value_node.data is not None:
+        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
     if not nnef_spec_strict and has_dynamic_axes:
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
         out = add_single_output_op(
             g,
             node,
@@ -363,10 +364,9 @@ def masked_fill(
         )
     else:
         # Static expansion
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(
-            false_value_node.dtype
-        ).repeat(false_value_node.shape)
+        true_value_node.data = true_value_node.data.repeat(
+            false_value_node.shape
+        )
         true_value_node.dtype = false_value_node.dtype
         true_nnef_tensor = get_or_add_tensor_variable_in_nnef(
             g, true_value_node, name_to_tensor

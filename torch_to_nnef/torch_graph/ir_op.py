@@ -40,6 +40,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_FULL,
     ATEN_GELU,
     ATEN_INT,
+    ATEN_MASKED_FILL,
     ATEN_NEW_ONES,
     ATEN_ONES_LIKE,
     ATEN_PROD,
@@ -76,6 +77,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_EMPTY: cls.aten_zero,
             ATEN_TO: cls.aten_to,
             ATEN_GELU: cls.aten_gelu,
+            ATEN_MASKED_FILL: cls.aten_masked_fill,
             ATEN_ARANGE: cls.aten_arange,
             ATEN_FULL: cls.aten_full,
             ATEN_CUMSUM: cls.aten_cumsum,
@@ -92,6 +94,12 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_zero(args, kwargs):
         args = args[:1]
+        return args, kwargs
+
+    @staticmethod
+    def aten_masked_fill(args, kwargs):
+        if len(args) >= 2:
+            args[1] = args[1].bool()
         return args, kwargs
 
     @staticmethod

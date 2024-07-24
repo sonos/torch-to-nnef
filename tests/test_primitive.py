@@ -736,6 +736,18 @@ INPUT_AND_MODELS += [
     ),
 ]
 
+# issues with export:
+# INPUT_AND_MODELS = [
+#     (
+#         (
+#             torch.arange(20).reshape(5, 4).float(),
+#             torch.randint(0, 1, (5, 4)).bool(),
+#             torch.tensor(1.2)
+#         ),
+#         TernaryPrimitive(torch.masked_fill)
+#     )
+# ]
+
 
 def test_should_fail_since_no_input():
     with tempfile.TemporaryDirectory() as tmpdir:

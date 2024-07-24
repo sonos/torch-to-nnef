@@ -181,6 +181,9 @@ class TensorVariable(Data):
             quant=None,
         )
 
+    def into_tensor_variable(self):
+        return self
+
     def __hash__(self):
         return hash(self.name)
 
