@@ -155,6 +155,12 @@ def parser_cli():
         choices=[_.value for _ in LlamaSLugs],
         help="Default llama2 huggingface slug to export",
     )
+    parser.add_argument(
+        "-f16",
+        "--as-float16",
+        action="store_true",
+        help="float in 16 bits",
+    )
     return parser.parse_args()
 
 
@@ -176,7 +182,7 @@ def main():
         },
         LlamaSLugs.LLAMA3_8B: {
             "n_kv": 32,
-            "kv_shape": (1, 8, S, 128),  # unknown
+            "kv_shape": (1, 8, S, 128),
         },
     }[default_model_slug]
 
@@ -191,9 +197,11 @@ def main():
             node_name = f"cache_key_{int(idx / 2)}"
         else:
             node_name = f"cache_value_{int((idx -1) / 2)}"
-        past_key_values.append(
-            torch.rand(past_values_cache_conf["kv_shape"]).float()
-        )
+
+        k_or_v = torch.rand(past_values_cache_conf["kv_shape"]).float()
+        if args.as_float16:
+            k_or_v = k_or_v.to(torch.float16)
+        past_key_values.append(k_or_v)
         in_cache_name = f"in_{node_name}"
         in_cache_names.append(in_cache_name)
         out_cache_names.append(f"out_{node_name}")
@@ -201,9 +209,11 @@ def main():
         dynamic_axes[in_cache_name] = {2: "P"}
 
     test_input = tokenizer("Hello, I am happy", return_tensors="pt")
+    kwargs = {}
+    if args.as_float16:
+        kwargs["torch_dtype"] = "float16"
     causal_llama = AutoModelForCausalLM.from_pretrained(
-        default_model_slug,
-        torch_dtype="float16",
+        default_model_slug, **kwargs
     )
     striped_model = SuperBasicCausal(causal_llama)
 
