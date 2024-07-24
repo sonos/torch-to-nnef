@@ -32,6 +32,7 @@ ATEN_ALIAS = "aten::alias"
 ATEN_SCALED_DOT_PRODUCT_ATTENTION = "aten::scaled_dot_product_attention"
 ATEN_REPEAT_INTERLEAVE = "aten::repeat_interleave"
 ATEN_MASKED_FILL = "aten::masked_fill"
+ATEN_MASKED_FILL_ = "aten::masked_fill_"
 
 
 CLASSTYPE_KIND = "ClassType"
