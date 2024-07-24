@@ -175,8 +175,8 @@ def main():
             "kv_shape": (1, 2, S, 4),
         },
         LlamaSLugs.LLAMA3_8B: {
-            "n_kv": 0,  # unknown
-            "kv_shape": (1, 4, S, 64),  # unknown
+            "n_kv": 32,
+            "kv_shape": (1, 8, S, 128),  # unknown
         },
     }[default_model_slug]
 
@@ -200,8 +200,6 @@ def main():
         # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
         dynamic_axes[in_cache_name] = {2: "P"}
 
-    # NOTE: size of tokenized text need to be very large because of logic inside
-    # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
     test_input = tokenizer("Hello, I am happy", return_tensors="pt")
     causal_llama = AutoModelForCausalLM.from_pretrained(
         default_model_slug,
