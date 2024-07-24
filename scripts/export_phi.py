@@ -52,12 +52,9 @@ class BasicCausal(torch.nn.Module):
 
         kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
 
-        __import__("ipdb").set_trace()
-
-        # assert len(past_key_values) * 2 == len(
-        #     kvs
-        # ), f"{len(past_key_values) * 2} == {len(kvs)}"
-        # key values, (32 tensors) of shape (1, 3, S, 64)
+        assert len(past_key_values) * 2 == len(
+            kvs
+        ), f"{len(past_key_values) * 2} == {len(kvs)}"
         return [out_dic["logits"]] + kvs
 
 
