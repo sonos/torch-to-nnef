@@ -72,7 +72,7 @@ def export_model_to_nnef(
     dynamic_axes=None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    renaming_scheme: str = "numeric",
+    renaming_scheme: str = "natural_verbose",
     check_io_names_qte_match: bool = True,
     nnef_spec_strict: bool = False,
     # SONOS tract specific:
@@ -80,6 +80,7 @@ def export_model_to_nnef(
     check_same_io_as_tract: bool = False,
     use_specific_tract_binary: T.Optional[Path] = None,
     tract_feature_flags: T.Optional[T.Set[str]] = None,
+    custom_extensions: T.Optional[T.Set[str]] = None,
 ):
     """Main entrypoint of this library
 
@@ -153,11 +154,13 @@ def export_model_to_nnef(
             for _ in graph_extractor.activated_custom_fragment_keys
             for ext in FRAGMENTS[_].extensions
         }
-        if dynamic_axes is not None:
-            custom_extensions = apply_dynamic_shape_in_nnef(
-                dynamic_axes, nnef_graph
-            )
+        if custom_extensions is not None:
             active_custom_extensions.update(custom_extensions)
+
+        if dynamic_axes is not None:
+            active_custom_extensions.update(
+                apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph)
+            )
 
         if len(active_custom_extensions) > 0:
             LOGGER.warning(

@@ -64,11 +64,11 @@ export_model_to_nnef(
     debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
     # debug_bundle_path is generated only if tract IO is not valid
 
-    renaming_scheme="numeric", # name NNEF variable in a concise way for readability
-    # other possible choice with "natural_verbose" is as close as possible
-    # to nn.Module exported variable naming
-    # the renaming_scheme is only useful if you intend to read generated
-    # NNEF format else do not set it
+    renaming_scheme="natural_verbose",
+    # Possible choices variables naming schemes are:
+    # - "raw": Taking variable names from traced graph debugName directly
+    # - "natural_verbose": that try to provide nn.Module exported variable naming consistency
+    # - "numeric": that try to be as concise as possible
 
     dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
     # that named dimension need to be single letter symbol (due to tract spec)
@@ -78,6 +78,10 @@ export_model_to_nnef(
 
     nnef_spec_strict=False, # if set to true it follows NNEF spec
     # strictly without any tract adaptations & features
+
+    custom_extensions=None,
+    # Useful to set specific extensions like for example:
+    # 'extension tract_assert S >= 0'
 )
 ```
 

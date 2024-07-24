@@ -256,6 +256,11 @@ def main():
         check_same_io_as_tract=True,
         dynamic_axes=dynamic_axes,
         renaming_scheme="natural_verbose",
+        custom_extensions={
+            "tract_assert P >= 0",
+            "tract_assert S >= 0",
+            "tract_assert S+P < 2048",
+        },
     )
 
 
