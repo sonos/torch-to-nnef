@@ -41,6 +41,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_GELU,
     ATEN_INT,
     ATEN_NEW_ONES,
+    ATEN_ONES_LIKE,
     ATEN_PROD,
     ATEN_REPEAT_INTERLEAVE,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
@@ -70,6 +71,7 @@ class InputsAlignBetweenAtenAndTorch:
     def align_inputs(cls, kind: str, args, kwargs):
         map_align = {
             ATEN_ZERO_LIKE: cls.aten_zero,
+            ATEN_ONES_LIKE: cls.aten_ones_like,
             ATEN_ZEROS: cls.aten_zero,
             ATEN_EMPTY: cls.aten_zero,
             ATEN_TO: cls.aten_to,
@@ -89,6 +91,11 @@ class InputsAlignBetweenAtenAndTorch:
 
     @staticmethod
     def aten_zero(args, kwargs):
+        args = args[:1]
+        return args, kwargs
+
+    @staticmethod
+    def aten_ones_like(args, kwargs):
         args = args[:1]
         return args, kwargs
 
