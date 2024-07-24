@@ -1,5 +1,6 @@
 import logging
 
+import nnef
 import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
@@ -389,6 +390,39 @@ def _post_graph_creation_remap(
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
 
 
+def _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper: bool = True):
+    (input_node, diag_node) = node.inputs
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError("trilu need `tract_core_trilu`")
+
+    if tract_version() < "0.21.3":
+        raise TorchToNNEFNotImplementedError(
+            "triu need `tract_core_trilu` from tract >= 0.21.4 "
+            "(prior nnef deserialization was failing)"
+        )
+
+    # k = 0
+    # upper =true
+    if isinstance(diag_node, PythonConstant):
+        k_diag = diag_node.data
+    else:
+        k_diag_tensor = get_or_add_tensor_variable_in_nnef(
+            g, diag_node, name_to_tensor
+        )
+        k_diag = nnef.Identifier(k_diag_tensor.name)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_trilu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+        ],
+        attrs={"upper": is_upper, "k": k_diag},
+    )
+    return ["tract_core"]
+
+
 @OP_REGISTRY.register()
 def triu(
     g,
@@ -399,32 +433,7 @@ def triu(
     nnef_spec_strict,
     **kwargs,
 ):
-    """support of triu (thanks to trilu)"""
-    (input_node, diag_node) = node.inputs
-
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
-
-    if tract_version() < "0.21.3":
-        raise TorchToNNEFNotImplementedError(
-            "triu need `tract_core_trilu` from tract >= 0.21.4 "
-            "(prior nnef deserialization was failing)"
-        )
-
-    # k = 0
-    # upper =true
-    assert isinstance(diag_node, PythonConstant), diag_node
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_trilu",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-        ],
-        attrs={"upper": True, "k": diag_node.data},
-    )
-    return ["tract_core"]
+    return _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper=True)
 
 
 @OP_REGISTRY.register()
@@ -437,29 +446,4 @@ def tril(
     nnef_spec_strict,
     **kwargs,
 ):
-    """support of triu (thanks to trilu)"""
-    (input_node, diag_node) = node.inputs
-
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("triu need `tract_core_trilu`")
-
-    if tract_version() < "0.21.3":
-        raise TorchToNNEFNotImplementedError(
-            "triu need `tract_core_trilu` from tract >= 0.21.4 "
-            "(prior nnef deserialization was failing)"
-        )
-
-    # k = 0
-    # upper =true
-    assert isinstance(diag_node, PythonConstant), diag_node
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_trilu",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-        ],
-        attrs={"upper": False, "k": diag_node.data},
-    )
-    return ["tract_core"]
+    return _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper=False)
