@@ -19,7 +19,7 @@ from torch_to_nnef.export import export_model_to_nnef
 
 class PHISlugs(str, Enum):
     MINI = "microsoft/Phi-3-mini-4k-instruct"
-    SMALL = "microsoft/Phi-3-small-8k-instructt"
+    SMALL = "microsoft/Phi-3-small-8k-instruct"
 
 
 class BasicCausal(torch.nn.Module):
