@@ -7,6 +7,7 @@ code modeling is from: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/b
 import argparse
 import logging as log
 import os
+import typing as T
 from enum import Enum
 from pathlib import Path
 
@@ -32,15 +33,15 @@ class BasicCausal(torch.nn.Module):
         # past_key_values: Optional[List[torch.FloatTensor]] = None # type annotation in code WRONG
 
         past_key_values = []
-        # tup: T.List[torch.Tensor] = []
-        # for idx, k_or_v in enumerate(args):
-        #     if idx % 2 == 0 and len(tup):
-        #         assert len(tup) == 2
-        #         past_key_values.append(tup)
-        #         tup = []
-        #     tup.append(k_or_v)
-        # assert len(tup) == 2
-        # past_key_values.append(tup)
+        tup: T.List[torch.Tensor] = []
+        for idx, k_or_v in enumerate(args):
+            if idx % 2 == 0 and len(tup):
+                assert len(tup) == 2
+                past_key_values.append(tup)
+                tup = []
+            tup.append(k_or_v)
+        assert len(tup) == 2
+        past_key_values.append(tup)
 
         out_dic = self.model(
             input_ids,
@@ -52,6 +53,7 @@ class BasicCausal(torch.nn.Module):
         kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
 
         __import__("ipdb").set_trace()
+
         # assert len(past_key_values) * 2 == len(
         #     kvs
         # ), f"{len(past_key_values) * 2} == {len(kvs)}"
@@ -93,103 +95,10 @@ def main():
     # cache size
     past_values_cache_conf = {
         PHISlugs.MINI: {
-            "n_kv": 16,
-            "kv_shape": [
-                [1, 3, S, 64],  # 0
-                [1, 3, S, 64],  # 1
-                [1, 3, S, 64],  # 2
-                [1, 3, S, 64],  # 3
-                [1, 3, S, 64],  # 4
-                [1, 3, S, 64],  # 5
-                [1, 3, S, 64],  # 6
-                [1, 3, S, 64],  # 7
-                [1, 3, S, 64],  # 8
-                [1, 3, S, 64],  # 9
-                [1, 4, S, 64],  # 10
-                [1, 4, S, 64],  # 11
-                [1, 4, S, 64],  # 12
-                [1, 4, S, 64],  # 13
-                [1, 4, S, 64],  # 14
-                [1, 4, S, 64],  # 15
-                [1, 4, S, 64],  # 16
-                [1, 4, S, 64],  # 17
-                [1, 4, S, 64],  # 18
-                [1, 4, S, 64],  # 19
-                [1, 4, S, 64],  # 20
-                [1, 4, S, 64],  # 21
-                [1, 4, S, 64],  # 22
-                [1, 4, S, 64],  # 23
-                [1, 5, S, 64],  # 24
-                [1, 5, S, 64],  # 25
-                [1, 5, S, 64],  # 26
-                [1, 5, S, 64],  # 27
-                [1, 5, S, 64],  # 28
-                [1, 5, S, 64],  # 29
-                [1, 5, S, 64],  # 30
-                [1, 5, S, 64],  # 31
-            ],
+            "n_kv": 32,
+            "kv_shape": (1, 32, 250, 96),
         },
-        PHISlugs.SMALL: {
-            "n_kv": 28,
-            "kv_shape": [
-                [1, 4, S, 64],
-                [1, 4, S, 64],
-                [1, 4, S, 64],
-                [1, 4, S, 64],
-                [1, 4, S, 64],
-                [1, 4, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 5, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 6, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 7, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-                [1, 8, S, 64],
-            ],
-        },
+        PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, S, 64)},
         # TODO: other sizes
     }[default_model_slug]
     past_key_values = []
@@ -205,7 +114,7 @@ def main():
         else:
             node_name = f"cache_value_{int((idx -1) / 2)}"
         past_key_values.append(
-            torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
+            torch.rand(past_values_cache_conf["kv_shape"]).float()
         )
         in_cache_name = f"in_{node_name}"
         in_cache_names.append(in_cache_name)
