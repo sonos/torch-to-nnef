@@ -96,8 +96,6 @@ def main():
         LLAMA2_TOK_SLUG, trust_remote_code=True
     )
 
-    # NOTE: size of tokenized text need to be very large because of logic inside
-    # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
     test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
 
     S = 10

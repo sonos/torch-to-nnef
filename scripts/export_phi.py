@@ -84,8 +84,6 @@ def main():
         default_model_slug, trust_remote_code=True
     )
 
-    # NOTE: size of tokenized text need to be very large because of logic inside
-    # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
     test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
 
     S = 10
@@ -93,10 +91,10 @@ def main():
     past_values_cache_conf = {
         PHISlugs.MINI: {
             "n_kv": 32,
-            "kv_shape": (1, 32, 250, 96),
+            "kv_shape": (1, 32, S, 96),
         },
+        # TODO: set right shape
         PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, S, 64)},
-        # TODO: other sizes
     }[default_model_slug]
     past_key_values = []
     in_cache_names = []
