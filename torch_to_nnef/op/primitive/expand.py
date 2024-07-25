@@ -160,21 +160,16 @@ def div_expand_repeat_build(
     return output_tensor
 
 
-def _expand_build_repeats(
-    g, name_to_tensor, input_node, shape_node, shapes, node, is_dynamic_shape
+def _append_repeats_on_existing_dims(
+    g,
+    name_to_tensor,
+    node,
+    input_node,
+    shapes,
+    input_shape_nnef_tensor,
+    is_dynamic_shape,
 ):
     repeats = []
-    if is_dynamic_shape:
-        input_shape_nnef_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_shape_of",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, input_node, name_to_tensor
-            ),
-            output_tensor_name_suffix="shape_of_input",
-        )
     for idx, (input_dim, shape_dim) in enumerate(
         zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
@@ -183,6 +178,7 @@ def _expand_build_repeats(
         else:
             if input_dim > 1:
                 if isinstance(shape_dim, nnef.Identifier):
+                    assert input_shape_nnef_tensor is not None
                     repeats.append(
                         nnef.Identifier(
                             div_expand_repeat_build(
@@ -202,15 +198,48 @@ def _expand_build_repeats(
             else:
                 # div per 1 hence shape_dim
                 repeats.append(shape_dim)
+    return repeats
+
+
+def _expand_build_repeats(
+    g, name_to_tensor, input_node, shape_node, shapes, node, is_dynamic_shape
+):
+    input_shape_nnef_tensor = None
+    if is_dynamic_shape:
+        input_shape_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_shape_of",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            output_tensor_name_suffix="shape_of_input",
+        )
+    repeats = _append_repeats_on_existing_dims(
+        g,
+        name_to_tensor,
+        node,
+        input_node,
+        shapes,
+        input_shape_nnef_tensor,
+        is_dynamic_shape,
+    )
 
     if len(shape_node.data) - input_node.rank > 0:
         base_mul = 1
         mul_to_ids = []
-        for val in shape_node.data[: -input_node.rank]:
+        vals = shape_node.data
+        if input_node.rank != 0:
+            vals = vals[: -input_node.rank]
+        for val in vals:
             if isinstance(val, TensorVariable):
                 mul_to_ids.append(val)
+            elif isinstance(val, PythonConstant):
+                base_mul *= val.data
             else:
                 base_mul *= val
+
         if mul_to_ids:
             if base_mul == 1 and len(mul_to_ids) == 1:
                 base_mul = nnef.Identifier(mul_to_ids[0].export_name)

@@ -109,7 +109,7 @@ class TensorVariable(Data):
     def rank(self) -> T.Optional[int]:
         if self.data is not None:
             return len(self.data.shape)
-        return len(self.shape) if self.shape else None
+        return len(self.shape) if self.shape is not None else None
 
     @property
     def shaped(self) -> bool:
