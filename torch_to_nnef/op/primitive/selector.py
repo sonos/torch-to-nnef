@@ -337,6 +337,7 @@ def masked_fill(
     false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, false_value_node, name_to_tensor
     )
+    # value is always a float according to torch spec
     true_value_node = value_node.into_tensor_variable()
     if true_value_node.data is not None:
         true_value_node.data = true_value_node.data.to(false_value_node.dtype)
@@ -351,6 +352,12 @@ def masked_fill(
             inputs=false_nnef_tensor,
             output_tensor_name_suffix="shape_of_false",
         )
+
+        # force rank to be the same
+        true_value_node.data = true_value_node.data.repeat(
+            *([1] * false_value_node.rank)
+        )
+
         true_nnef_tensor = add_single_output_op(
             g,
             node,
