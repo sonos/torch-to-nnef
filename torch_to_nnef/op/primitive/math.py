@@ -282,6 +282,8 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
             ),
         )
         return []
+    if isinstance(alpha_node, PythonConstant):
+        alpha_node.data = float(alpha_node.data)
     add_single_output_op(
         g,
         node,

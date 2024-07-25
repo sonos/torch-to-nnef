@@ -1,5 +1,5 @@
 # This is an approximation of GELU using approximate of ERF
 fragment gelu( x: tensor<scalar> ) -> ( y: tensor<scalar> )
 {
-    y = 0.5 * x * ( 1+ erf(x * 0.7071067811865475));
+    y = 0.5 * x * ( 1.0 + erf(x * 0.7071067811865475));
 }

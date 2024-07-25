@@ -36,16 +36,6 @@ def _fft(
         g, input_node, name_to_tensor
     )
     if input_node.dtype in [torch.float32, torch.float64]:
-        """# sadly casting is not implemented in tract so we use another way
-        casted_complex_input_tensor, _ = cast_to_if_not_dtype_and_variable(
-            g,
-            name_to_tensor,
-            node,
-            nnef_tensor=nnef_tensor,
-            cast_to=np.complex64,
-            suffix="precast_complex",
-        )
-        """
         output_nnef_tensor = add_single_output_op(
             g,
             node,
@@ -97,8 +87,8 @@ def _fft(
         divisor_tensor = get_or_add_tensor_variable_in_nnef(
             g,
             PythonConstant(
-                name=output_tensor.name + "_divisor",
-                data=divisor_value,
+                name=f"{output_tensor.name}_divisor",
+                data=float(divisor_value),
             ),
             name_to_tensor,
         )
@@ -145,7 +135,7 @@ def stft(
         window_node,  # Optional[Tensor] = None
         normalized_node,  # bool = False
         onesided_node,  # Optional[bool] = None
-        return_complex_node,  # Optional[bool] = None
+        _,  # return_complex_node Optional[bool] = None
     ) = node.inputs
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
