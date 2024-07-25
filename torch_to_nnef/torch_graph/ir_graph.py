@@ -1,3 +1,4 @@
+import enum
 import logging
 import re
 import string
@@ -38,11 +39,21 @@ from torch_to_nnef.utils import NamedItemOrderedSet, flatten_dict
 LOGGER = logging.getLogger(__name__)
 
 
+class VariableNamingScheme(str, enum.Enum):
+    RAW = "raw"
+    NATURAL_VERBOSE = "natural_verbose"
+    NUMERIC = "numeric"
+
+    @classmethod
+    def default(cls):
+        return cls.NATURAL_VERBOSE
+
+
 def module_tracer_into_ir_graph(
     module_tracer,
     inputs: T.Optional[T.List[Data]] = None,
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
-    renaming_scheme: str = "numeric",
+    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
@@ -413,7 +424,7 @@ class TorchModuleIRGraph:
             if not self.data_nodes.contains(dn, strict=True)
         ]
 
-    def _recursive_call_method(self, renaming_scheme: str):
+    def _recursive_call_method(self, renaming_scheme: VariableNamingScheme):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -530,11 +541,13 @@ class TorchModuleIRGraph:
         when looking at NNEF export correctness.
 
         """
-        if scheme in ["raw", "natural_verbose", "numeric"]:
+        if scheme in [vns.value for vns in VariableNamingScheme]:
+            if VariableNamingScheme.RAW:
+                return
             self.data_nodes.avoid_name_collision = True  # safety
             {
-                "natural_verbose": self._rename_natural_verbose,
-                "numeric": self._rename_compact_numeric,
+                VariableNamingScheme.NATURAL_VERBOSE: self._rename_natural_verbose,
+                VariableNamingScheme.NUMERIC: self._rename_compact_numeric,
             }[scheme]()
             self.data_nodes.avoid_name_collision = False
             return
@@ -636,7 +649,7 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        renaming_scheme: str = "numeric",
+        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         provided_inputs=None,
         provided_outputs=None,
     ):

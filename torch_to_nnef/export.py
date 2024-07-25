@@ -22,6 +22,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
 LOGGER = log.getLogger(__name__)
@@ -72,7 +73,7 @@ def export_model_to_nnef(
     dynamic_axes=None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    renaming_scheme: str = "natural_verbose",
+    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     check_io_names_qte_match: bool = True,
     nnef_spec_strict: bool = False,
     # SONOS tract specific:

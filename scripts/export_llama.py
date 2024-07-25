@@ -14,6 +14,7 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
 from transformers.cache_utils import DynamicCache
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 # from transformers.models.llama import modeling_llama
 
@@ -241,7 +242,7 @@ def main():
         log_level=log.INFO,
         check_same_io_as_tract=True,
         dynamic_axes=dynamic_axes,
-        renaming_scheme="natural_verbose",
+        renaming_scheme=VariableNamingScheme.NATURAL_VERBOSE,
     )
 
 

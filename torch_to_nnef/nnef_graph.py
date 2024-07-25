@@ -22,6 +22,7 @@ from torch_to_nnef.torch_graph import (
     TorchModuleTracer,
     module_tracer_into_ir_graph,
 )
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 from torch_to_nnef.torch_graph.torch_const import ATEN_SIZE_KIND
 
 
@@ -32,7 +33,7 @@ class TorchToNGraphExtractor:
         self,
         model,
         args,
-        renaming_scheme: str = "numeric",
+        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         check_io_names_qte_match: bool = True,
         nnef_spec_strict: bool = False,
         has_dynamic_axes: bool = False,

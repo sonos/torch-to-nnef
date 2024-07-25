@@ -19,6 +19,7 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
 )
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 LLAMA2_TOK_SLUG = "meta-llama/Llama-2-7b-hf"
 
@@ -255,7 +256,7 @@ def main():
         log_level=log.INFO,
         check_same_io_as_tract=True,
         dynamic_axes=dynamic_axes,
-        renaming_scheme="natural_verbose",
+        renaming_scheme=VariableNamingScheme.NATURAL_VERBOSE,
         custom_extensions={
             "tract_assert P >= 0",
             "tract_assert S >= 0",
