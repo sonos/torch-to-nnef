@@ -542,7 +542,7 @@ class TorchModuleIRGraph:
 
         """
         if scheme in [vns.value for vns in VariableNamingScheme]:
-            if VariableNamingScheme.RAW:
+            if scheme == VariableNamingScheme.RAW:
                 return
             self.data_nodes.avoid_name_collision = True  # safety
             {
