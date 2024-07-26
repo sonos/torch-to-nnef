@@ -33,7 +33,7 @@ from torch_to_nnef.utils import NamedItem
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
 
-def _refid_clean(name: str) -> str:
+def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = name.replace(sep, "_")
     return name.lower()
@@ -44,13 +44,17 @@ class Data(NamedItem):
     name: str
     data: T.Any
 
+    def __post_init__(self):
+        self.debug_name = self.name
+        self.name = cleanup_data_name(self.name)
+
     @property
     def is_container(self) -> bool:
         return False
 
     @property
     def export_name(self) -> str:
-        return _refid_clean(self.name)
+        return cleanup_data_name(self.name)
 
     @property
     def shaped(self) -> bool:

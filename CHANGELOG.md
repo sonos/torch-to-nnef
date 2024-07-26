@@ -11,6 +11,7 @@
 - Compliance with tract>0.21.3 (introduced more restrictive definition within NNEF with different notation of scalar between float and TDim/long/int )
 - Updated NNEF `extensions` to comply to tract expectations
 - Substantial performance improvement for internals graph IR (via by example new data-structures:  `NamedItemOrderedSet`)
+- Protection against variable naming collision with `input_names`, `output_names`
 
 ## [0.10.2] - 2024-06-21
 

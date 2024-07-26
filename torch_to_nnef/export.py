@@ -143,8 +143,10 @@ def export_model_to_nnef(
             # specific feature flags from tract
             # by example 'complex'
             tract_feature_flags=tract_feature_flags,
+            forced_inputs_names=input_names,
+            forced_outputs_names=output_names,
         )
-        nnef_graph = graph_extractor.parse(input_names, output_names)
+        nnef_graph = graph_extractor.parse()
 
         active_custom_fragments = {
             _: FRAGMENTS[_].definition

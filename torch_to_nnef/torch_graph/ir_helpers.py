@@ -17,6 +17,7 @@ from torch_to_nnef.torch_graph.ir_data import (
     PythonConstant,
     TensorVariable,
     TupleTensors,
+    cleanup_data_name,
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.torch_const import (
@@ -223,7 +224,7 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
 
 
 def _find_data_node(data_nodes: NamedItemOrderedSet, name: str):
-    data_node = data_nodes.get_by_name(name)
+    data_node = data_nodes.get_by_name(cleanup_data_name(name))
     if data_node is None:
         raise TorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
     return data_node

@@ -34,6 +34,8 @@ class TorchToNGraphExtractor:
         model,
         args,
         renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        forced_inputs_names: T.Optional[T.List[str]] = None,
+        forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
         nnef_spec_strict: bool = False,
         has_dynamic_axes: bool = False,
@@ -45,9 +47,13 @@ class TorchToNGraphExtractor:
                 model,
                 args=args,
             ),
+            forced_inputs_names=forced_inputs_names,
+            forced_outputs_names=forced_outputs_names,
             renaming_scheme=renaming_scheme,
             is_root_module=True,
         )
+        self._forced_inputs_names = forced_inputs_names
+        self._forced_outputs_names = forced_outputs_names
         self._check_io_names_qte_match = check_io_names_qte_match
         self._nnef_spec_strict = nnef_spec_strict
         self._has_dynamic_axes = has_dynamic_axes
@@ -160,11 +166,7 @@ class TorchToNGraphExtractor:
                 _ for _ in operators_nodes if _ not in done_nodes
             ]
 
-    def build_nnef_graph(
-        self,
-        input_names: T.Optional[T.List[str]],
-        output_names: T.Optional[T.List[str]],
-    ):
+    def build_nnef_graph(self):
         null = NTensor(
             self.g,
             name="",
@@ -188,32 +190,31 @@ class TorchToNGraphExtractor:
         self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = ginputs
-        if input_names is not None:
+        if self._forced_inputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(input_names) == len(
+                assert len(self._forced_inputs_names) == len(
                     self.g.inputs
-                ), f"{len(input_names)} == {len(self.g.inputs)}"
-            for in_tensor, requested_name in zip(self.g.inputs, input_names):
-                in_tensor.name = requested_name
+                ), f"{len(self._forced_inputs_names)} == {len(self.g.inputs)}"
+            # still needed since some .remap_node in ._add_operators may araise
+            for inode, new_name in zip(
+                self.g.inputs, self._forced_inputs_names
+            ):
+                inode.name = new_name
 
         self.g.outputs = [
             name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
-        if output_names is not None:
+        if self._forced_inputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(output_names) == len(
+                assert len(self._forced_outputs_names) == len(
                     self.g.outputs
-                ), f"{len(output_names)} == {len(self.g.outputs)}"
-            for out_tensor, requested_name in zip(self.g.outputs, output_names):
-                out_tensor.name = requested_name
+                ), f"{len(self._forced_outputs_names)} == {len(self.g.outputs)}"
+            # still needed since some .remap_node in ._add_operators may araise
+            for onode, new_name in zip(
+                self.g.outputs, self._forced_outputs_names
+            ):
+                onode.name = new_name
 
-    def parse(
-        self,
-        input_names: T.Optional[T.List[str]],
-        output_names: T.Optional[T.List[str]],
-    ):
-        self.build_nnef_graph(
-            input_names,
-            output_names,
-        )
+    def parse(self):
+        self.build_nnef_graph()
         return self.g

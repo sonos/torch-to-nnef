@@ -53,6 +53,8 @@ def module_tracer_into_ir_graph(
     module_tracer,
     inputs: T.Optional[T.List[Data]] = None,
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
+    forced_inputs_names: T.Optional[T.List[str]] = None,
+    forced_outputs_names: T.Optional[T.List[str]] = None,
     renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     **kwargs,
 ):
@@ -60,6 +62,8 @@ def module_tracer_into_ir_graph(
     ir_graph.parse(
         provided_inputs=inputs,
         provided_outputs=outputs,
+        forced_inputs_names=forced_inputs_names,
+        forced_outputs_names=forced_outputs_names,
         renaming_scheme=renaming_scheme,
     )
     return ir_graph
@@ -483,7 +487,7 @@ class TorchModuleIRGraph:
             TupleTensors: "tt",
             Data: "d",  # not used, avoid static analysis complain
         }
-        for dnode in self.data_nodes[:]:
+        for dnode in list(self.data_nodes.iter_renamable()):
             prefix = prefix_map[dnode.__class__]
             if dnode.name in mapping:
                 dnode.name = mapping[dnode.name]
@@ -494,7 +498,7 @@ class TorchModuleIRGraph:
             dnode.name = mapping[dnode.name]
 
     def _rename_natural_verbose(self) -> None:
-        for dn in self.data_nodes[:]:
+        for dn in list(self.data_nodes.iter_renamable()):
             original_name = dn.name
             new_name = original_name.split("/")[-1]
             if all(c in string.digits for c in new_name):
@@ -510,7 +514,7 @@ class TorchModuleIRGraph:
                     else:
                         raise NotImplementedError(dn) from exp
 
-            if dn.export_name[-1] in string.digits:
+            if dn.name[-1] in string.digits:
                 try:
                     producer = self.find_data_node_producer(dn)
                     kind = producer.kind.split("::")[-1]
@@ -652,6 +656,8 @@ class TorchModuleIRGraph:
         renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         provided_inputs=None,
         provided_outputs=None,
+        forced_inputs_names=None,
+        forced_outputs_names=None,
     ):
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
@@ -675,8 +681,28 @@ class TorchModuleIRGraph:
         self._check_io_rely_on_data_nodes()
 
         self._cleanup_dangling_data_node_hooks()
+
+        if self._is_root_module:
+            if forced_inputs_names:
+                for inode, new_name in zip(self.inputs, forced_inputs_names):
+                    inode.name = new_name
+                    assert inode.name == inode.export_name
+            if forced_outputs_names:
+                for onode, new_name in zip(self.outputs, forced_outputs_names):
+                    onode.name = new_name
+                    assert onode.name == onode.export_name
+            # need to repeat the if's:
+            # in case of input paramater directly in outputs (ie. torchaudio.Conformer)
+            if forced_inputs_names:
+                self.data_nodes.protect_item_names(forced_inputs_names)
+            if forced_outputs_names:
+                self.data_nodes.protect_item_names(forced_outputs_names)
+        elif forced_inputs_names or forced_outputs_names:
+            raise NotImplementedError("forced names are only for root module")
+
         if renaming_scheme:
             self.apply_renaming_scheme(renaming_scheme)
+
         return self
 
     def _cleanup_dangling_data_node_hooks(self):
@@ -867,8 +893,9 @@ def remove_useless_digits_from_module_names(
 
     """
     module_separator = "_."
-    # pylint: disable-next=protected-access
-    data_node_names = list(torch_mod_ir_graph.data_nodes._map)
+    data_node_names = list(
+        i.name for i in torch_mod_ir_graph.data_nodes.iter_renamable()
+    )
     assert len(data_node_names) == len(set(data_node_names))
     name_tree: T.Dict[str, T.Any] = {}
     for data_node_name in data_node_names:

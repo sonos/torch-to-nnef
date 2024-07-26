@@ -129,6 +129,7 @@ class NamedItemOrderedSet:
         if items is not None:
             self.__add__(items)
         self.avoid_name_collision = False
+        self._protected_names: T.Set[str] = set()
 
     @classmethod
     def from_list(cls, items) -> "NamedItemOrderedSet":
@@ -138,6 +139,10 @@ class NamedItemOrderedSet:
 
     def _change_name_hook(self, old_name: str, new_name: str):
         """maintain sync between data structure and name changes in items"""
+        if old_name in self._protected_names:
+            raise ValueError(f"Not allowed to alter protected_name: {old_name}")
+        if new_name in self._protected_names:
+            raise ValueError(f"Not allowed to alter protected_name: {new_name}")
         if new_name == old_name:
             return
         if new_name in self._map:
@@ -149,7 +154,10 @@ class NamedItemOrderedSet:
         del self._map[old_name]
 
     def remove(
-        self, item: NamedItem, raise_exception_if_not_found: bool = True
+        self,
+        item: NamedItem,
+        raise_exception_if_not_found: bool = True,
+        raise_exception_if_protected_name: bool = True,
     ):
         if item.name not in self._map:
             msg = f"item '{item.name}' requested for deletion. Not Found !"
@@ -157,6 +165,11 @@ class NamedItemOrderedSet:
                 raise ValueError(msg)
             LOGGER.debug(msg)
             return
+        if (
+            item.name in self._protected_names
+            and not raise_exception_if_protected_name
+        ):
+            raise ValueError(f"Not authorized to remove: '{item.name}'")
         self._map[item.name].detach_listener_name_change(self._change_name_hook)
         del self._map[item.name]
 
@@ -180,6 +193,9 @@ class NamedItemOrderedSet:
         self._map[item.name] = item
         self._last_inserted_item = item
 
+    def protect_item_names(self, names: T.Iterable[str]):
+        self._protected_names.update(set(names))
+
     def is_empty(self):
         return not bool(self._map)
 
@@ -191,6 +207,12 @@ class NamedItemOrderedSet:
         if isinstance(index, (slice, int)):
             return list(self._map.values())[index]
         raise NotImplementedError(index)
+
+    def iter_renamable(self):
+        for item_name, item in self._map.items():
+            if item_name in self._protected_names:
+                continue
+            yield item
 
     def __add__(self, items):
         for item in items:
@@ -210,6 +232,8 @@ class NamedItemOrderedSet:
 
     def __repr__(self):
         names = "\n\t".join(f"'{k}'" for k in self._map)
-        return (
-            f"<NamedItemOrderedSet ({len(self._map)}) stored_names=[{names}]>"
-        )
+        protected = ""
+        if self._protected_names:
+            pnames = ",\n".join(f"\t'{k}'" for k in self._protected_names)
+            protected = f"\nprotected_names=[\n{pnames}]\n"
+        return f"<NamedItemOrderedSet ({len(self._map)}) stored_names=[{names}] {protected}>"
