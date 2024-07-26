@@ -13,12 +13,14 @@ from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.models.phi3.configuration_phi3 import Phi3Config
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 
 class PHISlugs(str, Enum):
+    DEBUG = "debug"
     MINI = "microsoft/Phi-3-mini-4k-instruct"
     SMALL = "microsoft/Phi-3-small-8k-instruct"
 
@@ -81,15 +83,21 @@ def main():
     args = parser_cli()
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     default_model_slug = PHISlugs(args.model_slug).value  # check enum type
+    tokenizer_slug = (
+        PHISlugs.MINI.value
+        if default_model_slug == PHISlugs.DEBUG
+        else default_model_slug
+    )
     tokenizer = AutoTokenizer.from_pretrained(
-        default_model_slug, trust_remote_code=True
+        tokenizer_slug, trust_remote_code=True
     )
 
-    test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
+    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
 
     S = 10
     # cache size
     past_values_cache_conf = {
+        PHISlugs.DEBUG: {"n_kv": 4, "kv_shape": (1, 4, S, 64)},
         PHISlugs.MINI: {
             "n_kv": 32,
             "kv_shape": (1, 32, S, 96),
@@ -118,12 +126,27 @@ def main():
         # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
         dynamic_axes[in_cache_name] = {2: "P"}
 
-    causal_llama = AutoModelForCausalLM.from_pretrained(
-        default_model_slug, trust_remote_code=True
-    )
-    striped_model = BasicCausal(causal_llama)
+    if default_model_slug == PHISlugs.DEBUG:
+        # debuging purpose config
+        debug_config = Phi3Config(
+            vocab_size=32064,
+            num_hidden_layers=4,
+            num_attention_heads=4,
+            hidden_size=256,
+            intermediate_size=512,
+            max_position_embeddings=4096,
+            original_max_position_embeddings=4096,
+        )
+        causal_model = AutoModelForCausalLM.from_config(
+            debug_config, trust_remote_code=True
+        )
+    else:
+        causal_model = AutoModelForCausalLM.from_pretrained(
+            default_model_slug, trust_remote_code=True
+        )
+    striped_model = BasicCausal(causal_model)
 
-    # generated_ids = causal_llama.generate(**test_input)
+    # generated_ids = causal_model.generate(**test_input)
     # print(generated_ids)
     # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
     # caus_res = striped_model(test_input.input_ids)

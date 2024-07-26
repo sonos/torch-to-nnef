@@ -156,6 +156,18 @@ def div_expand_repeat_build(
         ),
         outputs=tuple([output_tensor]),
         attribs={},
+        force_consistent_inputs_shapes=False,
+    )
+    output_tensor = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=output_tensor,
+        attrs={
+            "to": "tdim",
+        },
+        output_tensor_name_suffix=f"casted{idx}",
     )
     return output_tensor
 
@@ -174,7 +186,27 @@ def _append_repeats_on_existing_dims(
         zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
         if shape_dim in [-1, input_dim]:
-            repeats.append(1)
+            output_tensor = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=get_or_add_tensor_variable_in_nnef(
+                    g,
+                    TensorVariable(
+                        name=f"{node.outputs[0].name}_{idx}_raw",
+                        data=torch.tensor(1),
+                        shape=[],
+                        dtype=torch.int32,
+                    ),
+                    name_to_tensor,
+                ),
+                attrs={
+                    "to": "tdim",
+                },
+                output_tensor_name_suffix=f"{idx}_casted",
+            )
+            repeats.append(nnef.Identifier(output_tensor.name))
         else:
             if input_dim > 1:
                 if isinstance(shape_dim, nnef.Identifier):

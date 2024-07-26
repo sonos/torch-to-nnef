@@ -97,7 +97,7 @@ def main():
         LLAMA2_TOK_SLUG, trust_remote_code=True
     )
 
-    test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
+    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
 
     S = 10
     # cache size
