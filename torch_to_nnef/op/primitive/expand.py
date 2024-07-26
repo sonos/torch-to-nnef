@@ -85,6 +85,7 @@ def expand(
             "shape": _fill_negone_with_dim_by_rank_order(input_node, shapes)
         },
     )
+    return ["tract_core"]
 
 
 def div_expand_repeat_build(
