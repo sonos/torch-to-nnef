@@ -3,15 +3,22 @@
 
 ## Unreleased
 
+## [0.11.0] - 2024-07-26
+
+### Added
+
 - Tested export for `Llama`,`openELM`, `Phi`  LLM family works
 - Added support aten::ops : `tril`, `repeat_interleave`, `type_as`
-- Improved support aten::ops : `index_` multi index gathering, `masked_fill`, `ones_like`
 - Variable naming scheme: old `natural_verbose` option renamed `raw`,  new option `natural_verbose` means 'as close as possible' to torch Python code
+- Protection against variable naming collision with `input_names`, `output_names`
+- Updated NNEF `extensions` to comply to tract expectations
+
+### Fix
+
+- Improved support aten::ops : `index_` multi index gathering, `masked_fill`, `ones_like`
 - added naming for models unit-tests, 'useful' in case of failures
 - Compliance with tract>0.21.3 (introduced more restrictive definition within NNEF with different notation of scalar between float and TDim/long/int )
-- Updated NNEF `extensions` to comply to tract expectations
 - Substantial performance improvement for internals graph IR (via by example new data-structures:  `NamedItemOrderedSet`)
-- Protection against variable naming collision with `input_names`, `output_names`
 
 ## [0.10.2] - 2024-06-21
 
