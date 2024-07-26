@@ -1,6 +1,7 @@
 import argparse
 import logging as log
 import os
+import typing as T
 from enum import Enum
 from pathlib import Path
 
@@ -10,8 +11,10 @@ from transformers import (  # LlamaConfig,; LlamaModel,; LlamaTokenizer,
     AutoTokenizer,
     LlamaForCausalLM,
 )
+from transformers.cache_utils import DynamicCache
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 # from transformers.models.llama import modeling_llama
 
@@ -65,23 +68,40 @@ class SuperBasicCausal(torch.nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(self, input_ids: torch.Tensor):
+    def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
 
         This export module is extremly ineficient because no caching can be provided ...
 
         """
         _, seq_length = input_ids.shape[:2]
-        past_key_values_length = 0
+
+        # BUILD cache {
+        past_key_values = []
+        tup: T.List[torch.Tensor] = []
+        for idx, k_or_v in enumerate(args):
+            if idx % 2 == 0 and len(tup):
+                assert len(tup) == 2
+                past_key_values.append(tuple(tup))
+                tup = []
+            tup.append(k_or_v)
+        assert len(tup) == 2
+        past_key_values.append(tuple(tup))
+        cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
+        # cache = DynamicCache()
+        # }
+        past_key_values_length = cache.get_seq_length()
+
         # get pos ids {
-        position_ids = torch.arange(
+        cache_position = torch.arange(
             past_key_values_length,
             seq_length + past_key_values_length,
             dtype=torch.long,
             device=input_ids.device,
         )
-        position_ids = position_ids.unsqueeze(0)
+        position_ids = cache_position.unsqueeze(0)
         inputs_embeds = self.model.model.embed_tokens(input_ids)
+
         attention_mask = (
             torch.triu(
                 torch.full(
@@ -100,19 +120,25 @@ class SuperBasicCausal(torch.nn.Module):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                past_key_value=None,
+                past_key_value=cache,
                 output_attentions=False,
-                use_cache=False,
+                use_cache=True,
+                cache_position=cache_position,
             )
             hidden_states = layer_outputs[0]
-            # break
+
         logits = self.model.lm_head(hidden_states)
-        return logits
+
+        # Extract cache {
+        kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
+        # }
+        return [logits] + kv_cache_flat_list
 
 
-class Llama2SLugs(str, Enum):
+class LlamaSLugs(str, Enum):
     DUMMY = "yujiepan/llama-2-tiny-random"
     TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    LLAMA3_8B = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
 
 
 def parser_cli():
@@ -126,9 +152,15 @@ def parser_cli():
     parser.add_argument(
         "-s",
         "--model-slug",
-        default=Llama2SLugs.TINY.value,
-        choices=[_.value for _ in Llama2SLugs],
+        default=LlamaSLugs.TINY.value,
+        choices=[_.value for _ in LlamaSLugs],
         help="Default llama2 huggingface slug to export",
+    )
+    parser.add_argument(
+        "-f16",
+        "--as-float16",
+        action="store_true",
+        help="float in 16 bits",
     )
     return parser.parse_args()
 
@@ -136,13 +168,54 @@ def parser_cli():
 def main():
     args = parser_cli()
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    default_model_slug = Llama2SLugs(args.model_slug).value  # check enum type
+    default_model_slug = LlamaSLugs(args.model_slug).value  # check enum type
     tokenizer = AutoTokenizer.from_pretrained(default_model_slug)
 
-    # NOTE: size of tokenized text need to be very large because of logic inside
-    # modeling_llama2 rotary logic that use cache system not JITABLE based on seq len ...
-    test_input = tokenizer("Hello, I am happy" * 50, return_tensors="pt")
-    causal_llama = AutoModelForCausalLM.from_pretrained(default_model_slug)
+    S = 10
+    past_values_cache_conf = {
+        LlamaSLugs.TINY: {
+            "n_kv": 22,
+            "kv_shape": (1, 4, S, 64),
+        },
+        LlamaSLugs.DUMMY: {
+            "n_kv": 1,
+            "kv_shape": (1, 2, S, 4),
+        },
+        LlamaSLugs.LLAMA3_8B: {
+            "n_kv": 32,
+            "kv_shape": (1, 8, S, 128),
+        },
+    }[default_model_slug]
+
+    dynamic_axes = {
+        "input_ids": {1: "S"},
+    }
+    past_key_values = []
+    in_cache_names = []
+    out_cache_names = []
+    for idx in range(past_values_cache_conf["n_kv"] * 2):
+        if idx % 2 == 0:
+            node_name = f"cache_key_{int(idx / 2)}"
+        else:
+            node_name = f"cache_value_{int((idx -1) / 2)}"
+
+        k_or_v = torch.rand(past_values_cache_conf["kv_shape"]).float()
+        if args.as_float16:
+            k_or_v = k_or_v.to(torch.float16)
+        past_key_values.append(k_or_v)
+        in_cache_name = f"in_{node_name}"
+        in_cache_names.append(in_cache_name)
+        out_cache_names.append(f"out_{node_name}")
+        # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
+        dynamic_axes[in_cache_name] = {2: "P"}
+
+    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
+    kwargs = {}
+    if args.as_float16:
+        kwargs["torch_dtype"] = "float16"
+    causal_llama = AutoModelForCausalLM.from_pretrained(
+        default_model_slug, **kwargs
+    )
     striped_model = SuperBasicCausal(causal_llama)
 
     # generated_ids = causal_llama.generate(**test_input)
@@ -150,17 +223,26 @@ def main():
     # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
     # caus_res = striped_model(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
+    inputs = tuple([test_input.input_ids[:, :1]] + past_key_values)
+
+    _ = striped_model(*inputs)
+
+    input_names = ["input_ids"] + in_cache_names
+    output_names = ["outputs"] + out_cache_names
+    assert (
+        len(inputs) == len(input_names) == len(output_names)
+    ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
 
     export_model_to_nnef(
         model=striped_model,
-        args=(test_input.input_ids,),
+        args=inputs,
         file_path_export=Path(args.export_filepath),
-        input_names=["input_ids"],
-        output_names=["outputs"],
+        input_names=input_names,
+        output_names=output_names,
         log_level=log.INFO,
         check_same_io_as_tract=True,
-        dynamic_axes={"input_ids": {1: "S"}},
-        renaming_scheme="natural_verbose",
+        dynamic_axes=dynamic_axes,
+        renaming_scheme=VariableNamingScheme.NATURAL_VERBOSE,
     )
 
 

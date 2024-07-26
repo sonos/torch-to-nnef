@@ -15,6 +15,6 @@ fragment erf( x: tensor<scalar> ) -> ( y: tensor<scalar> )
 
     # A&S formula 7.1.26
     t = 1.0/(1.0 + p*x);
-    ya = 1.0 - (((((a5*t - a4)*t) + a3)*t - a2)*t + a1)*t*exp(0-x*x);
+    ya = 1.0 - (((((a5*t - a4)*t) + a3)*t - a2)*t + a1)*t*exp(0.0-x*x);
     y = basesign * ya;  # erf(-x) = -erf(x)
 }

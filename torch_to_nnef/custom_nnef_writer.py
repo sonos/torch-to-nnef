@@ -282,6 +282,7 @@ class Writer:
         generate_custom_fragments=False,
         version_custom_fragments=True,
         annotate_shapes=False,
+        target_tract: bool = False,
     ):
         self._compression = compression
         self._extensions = extensions or []
@@ -290,6 +291,7 @@ class Writer:
         self._generate_custom_fragments = generate_custom_fragments
         self._version_custom_fragments = version_custom_fragments
         self._annotate_shapes = annotate_shapes
+        self._target_tract = target_tract
 
     def __call__(self, graph, path):
         folder = None
@@ -319,7 +321,7 @@ class Writer:
                     fragments += "\n"
                 fragments += customs
 
-            if len(fragments):
+            if len(fragments) and not self._target_tract:
                 if "KHR_enable_fragment_definitions" not in self._extensions:
                     self._extensions.append("KHR_enable_fragment_definitions")
                 if "KHR_enable_operator_expressions" not in self._extensions:

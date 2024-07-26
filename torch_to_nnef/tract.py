@@ -110,6 +110,16 @@ def tract_assert_io(
                     ):
                         continue
 
+                    if all(  # NOTE: discuss with @kali about migration
+                        _ in serrline
+                        for _ in [
+                            "Flattening the shape will be deprecated.",
+                            "Reshape",
+                            "WARN",
+                        ]
+                    ):
+                        continue
+
                     err_filtered += f"{serrline}\n".strip()
                 if len(err_filtered) > 0:
                     raise TractError(err_filtered)
@@ -290,7 +300,7 @@ def assert_io_and_debug_bundle(
             LOGGER.info(
                 f"IO bit match between tract and Pytorch for {nnef_file_path}"
             )
-        except IOPytorchTractNotISOError as exp:
+        except (IOPytorchTractNotISOError, TractError) as exp:
             if debug_bundle_path is None:
                 raise exp
             nnef_file_path = nnef_file_path.absolute()

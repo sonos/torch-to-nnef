@@ -1,10 +1,11 @@
-""" Abstractions used in torch_to_nnef internal graph data IR
+"""Abstractions used in torch_to_nnef internal graph data IR
 
 The goal is that these elements are:
 - extracted/parsed from PyTorch graph data structs
 - translated to NNEF graph data structs
 
 """
+
 import typing as T
 from dataclasses import dataclass
 
@@ -27,24 +28,33 @@ from torch_to_nnef.torch_graph.torch_const import (
     NUMBERTYPE_KIND,
     TUPLETYPE_KIND,
 )
+from torch_to_nnef.utils import NamedItem
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
 
-def _refid_clean(name: str) -> str:
+def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = name.replace(sep, "_")
     return name.lower()
 
 
 @dataclass
-class Data:
+class Data(NamedItem):
     name: str
     data: T.Any
 
+    def __post_init__(self):
+        self.debug_name = self.name
+        self.name = cleanup_data_name(self.name)
+
+    @property
+    def is_container(self) -> bool:
+        return False
+
     @property
     def export_name(self) -> str:
-        return _refid_clean(self.name)
+        return cleanup_data_name(self.name)
 
     @property
     def shaped(self) -> bool:
@@ -103,7 +113,7 @@ class TensorVariable(Data):
     def rank(self) -> T.Optional[int]:
         if self.data is not None:
             return len(self.data.shape)
-        return len(self.shape) if self.shape else None
+        return len(self.shape) if self.shape is not None else None
 
     @property
     def shaped(self) -> bool:
@@ -174,6 +184,9 @@ class TensorVariable(Data):
             data=node_c_value.toIValue(),
             quant=None,
         )
+
+    def into_tensor_variable(self):
+        return self
 
     def __hash__(self):
         return hash(self.name)
@@ -261,6 +274,10 @@ class TupleTensors(Data):
     def is_constant(self) -> bool:
         return all(data.is_constant for data in self.data)
 
+    @property
+    def is_container(self) -> bool:
+        return True
+
     @classmethod
     def parse_from_tuple_type(
         cls, node_c_value: torch._C.Value
@@ -292,7 +309,12 @@ TtupleOrVar = T.Union[TensorVariable, TupleTensors]
 class FixedTensorList(Data):
     """FixedTensorList is a list that contains tensor constant or not"""
 
-    data: T.List[TensorVariable]
+    data: T.Sequence[T.Union[TensorVariable, PythonConstant]]
+
+    @property
+    def slug(self) -> str:
+        slugs = ", ".join(_.slug for _ in self.data)
+        return f"fixedTensorList({self.export_name})({slugs})"
 
     @property
     def is_constant(self) -> bool:
@@ -301,6 +323,10 @@ class FixedTensorList(Data):
     @property
     def tracing_data(self) -> T.List[torch.Tensor]:
         return [d.tracing_data for d in self.data]
+
+    @property
+    def is_container(self) -> bool:
+        return True
 
     def __hash__(self):
         return hash(self.name)

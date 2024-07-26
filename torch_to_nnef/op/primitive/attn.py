@@ -56,7 +56,7 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
 
     inputs = [query_tensor, key_tensor, value_tensor]
     if has_masked_attn:
-        if attn_mask_node.dtype != torch.float32:
+        if attn_mask_node.dtype not in [torch.float32, torch.float16]:
             raise TorchToNNEFNotImplementedError(
                 "scaled_dot_product_attention with attn_mask_node non float not implemented"
             )
@@ -77,6 +77,9 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         raise TorchToNNEFNotImplementedError(
             "shape unexpected for scaled_dot_product_attention"
         )
+
+    if query_node.dtype == torch.float16:
+        fragment_name = f"{fragment_name}_f16"
 
     add_single_output_op(
         g,

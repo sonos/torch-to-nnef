@@ -12,6 +12,7 @@ from torch_to_nnef.op.primitive.base import (
     pick_rank,
     pick_value_in_rank,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
 
@@ -238,20 +239,33 @@ def select(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
-def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def index_(g, node, name_to_tensor, nnef_spec_strict, torch_graph, **kwargs):
     """
     fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
         indices: tensor<integer>,         # the indices to gather at
         axis: integer = 0 )               # the axis to gather at
     -> ( output: tensor<?> )
+
+
+    torch ir, in this case structure `indexes_node` with:
+    a list of n values where n <= input_node rank
+    each value is either a constant or a tensor.
+    if the constant is None this means the full dimension
+
     """
     # gather
     input_node, indexes_node = node.inputs
     # input_node = TensorVariable([?], shape=(169,4))
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
     if len(indexes_node.data) > 1:
-        raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
+        if not all(
+            (isinstance(idx, PythonConstant) and idx.data is None)
+            for idx in indexes_node.data[:-1]
+        ):
+            raise TorchToNNEFNotImplementedError(
+                "index dim>1 implemented only with all prior dim slice being [:]"
+            )
 
     custom_fragments = []
     if nnef_spec_strict:
@@ -267,12 +281,15 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         inputs=[
             get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
             get_or_add_tensor_variable_in_nnef(
-                g, indexes_node.data[0], name_to_tensor
+                g,
+                indexes_node.data[-1],
+                name_to_tensor,
             ),
         ],
         attrs={
-            "axis": 0,
+            "axis": len(indexes_node.data) - 1,
         },
+        force_consistent_inputs_shapes=False,
     )
     return custom_fragments
 
@@ -320,11 +337,13 @@ def masked_fill(
     false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, false_value_node, name_to_tensor
     )
+    # value is always a float according to torch spec
+    true_value_node = value_node.into_tensor_variable()
+    if true_value_node.data is not None:
+        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
     if not nnef_spec_strict and has_dynamic_axes:
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
         out = add_single_output_op(
             g,
             node,
@@ -333,6 +352,12 @@ def masked_fill(
             inputs=false_nnef_tensor,
             output_tensor_name_suffix="shape_of_false",
         )
+
+        # force rank to be the same
+        true_value_node.data = true_value_node.data.repeat(
+            *([1] * false_value_node.rank)
+        )
+
         true_nnef_tensor = add_single_output_op(
             g,
             node,
@@ -346,10 +371,9 @@ def masked_fill(
         )
     else:
         # Static expansion
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(
-            false_value_node.dtype
-        ).repeat(false_value_node.shape)
+        true_value_node.data = true_value_node.data.repeat(
+            false_value_node.shape
+        )
         true_value_node.dtype = false_value_node.dtype
         true_nnef_tensor = get_or_add_tensor_variable_in_nnef(
             g, true_value_node, name_to_tensor

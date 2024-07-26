@@ -135,6 +135,36 @@ def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
+def type_as(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        input_node,
+        _,  # ref_node
+    ) = node.inputs
+
+    onode = node.outputs[0]
+    LOGGER.debug(
+        "convert .to() with tract custom operator since it can express "
+        "all torch type (contrary to vanilla cast NNEF operator)"
+    )
+    if nnef_spec_strict:
+        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={
+            "to": TORCH_DTYPE_TO_TRACT_STR[onode.dtype],
+            # "shape": list(onode.shape),
+        },
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
 def size(
     g,
     node,
@@ -183,7 +213,7 @@ def size(
         )
         torch_graph.remap_node(original_variable_output, new_node)
 
-        for data_node in torch_graph.data_nodes:
+        for data_node in torch_graph.data_nodes[:]:
             if (
                 isinstance(data_node, FixedTensorList)
                 and any(_ is new_node for _ in data_node.data)

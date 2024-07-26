@@ -26,7 +26,6 @@ from torch_to_nnef.torch_graph.ir_graph import (
     TorchModuleIRGraph,
     module_tracer_into_ir_graph,
 )
-from torch_to_nnef.torch_graph.ir_helpers import _is_container
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import MAP_TO_NOP
@@ -36,7 +35,6 @@ __all__ = [
     "FixedTensorList",
     "PythonConstant",
     "TensorVariable",
-    "_is_container",
     "TorchModuleTracer",
     "TorchOp",
     "MAP_TO_NOP",

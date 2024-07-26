@@ -1,13 +1,18 @@
 import functools
+import logging
+import typing as T
+from abc import ABC
+from collections.abc import MutableMapping
 from functools import total_ordering
-from typing import Callable, TypeVar
 
 import torch
 
-T = TypeVar("T")
+LOGGER = logging.getLogger(__name__)
+
+C = T.TypeVar("C")
 
 
-def cache(func: Callable[..., T]) -> T:
+def cache(func: T.Callable[..., C]) -> C:
     """LRU cache helper that avoid pylint complains"""
     return functools.lru_cache()(func)  # type: ignore
 
@@ -19,6 +24,19 @@ def fullname(o) -> str:
     if module == "builtins":
         return klass.__qualname__  # avoid outputs like 'builtins.str'
     return module + "." + klass.__qualname__
+
+
+def flatten_dict(
+    d: MutableMapping, parent_key: str = "", sep: str = "."
+) -> MutableMapping:
+    items: T.List[T.Tuple[str, T.Any]] = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 
 @total_ordering
@@ -68,3 +86,154 @@ class SemanticVersion:
 def torch_version() -> SemanticVersion:
     """Semantic version for torch"""
     return SemanticVersion.from_str(torch.__version__.split("+")[0])
+
+
+class NamedItem(ABC):
+    # must implement name attribute
+    name: str
+
+    def register_listener_name_change(self, listener):
+        if not hasattr(self, "_name_hooks"):
+            self._name_hooks = set()
+        if listener in self._name_hooks:
+            raise ValueError("Already registered  listener !")
+        self._name_hooks.add(listener)
+
+    def detach_listener_name_change(self, listener):
+        if not hasattr(self, "_name_hooks"):
+            self._name_hooks = set()
+        self._name_hooks.remove(listener)
+
+    def __setattr__(self, attr_name, attr_value):
+        if attr_name == "name" and hasattr(self, "_name_hooks"):
+            for name_hook in self._name_hooks:
+                name_hook(self.name, attr_value)
+        super().__setattr__(attr_name, attr_value)
+
+
+class NamedItemOrderedSet:
+    """Named items ordered Set data structure
+
+    Ensure that no 2 items are inserted with same 'name' attribute
+    and maintains fast name update and Set speed benefits
+
+    Warning! only aimed at NamedItem subclass.
+
+    Expose a 'list' like interface. (with limited index access)
+
+    """
+
+    def __init__(self, items: T.Optional[T.Iterable[NamedItem]] = None):
+        self._map: T.Dict[str, T.Any] = {}
+        self._last_inserted_item: T.Optional[NamedItem] = None
+        if items is not None:
+            self.__add__(items)
+        self.avoid_name_collision = False
+        self._protected_names: T.Set[str] = set()
+
+    @classmethod
+    def from_list(cls, items) -> "NamedItemOrderedSet":
+        if not items:
+            return cls()
+        return cls() + items
+
+    def _change_name_hook(self, old_name: str, new_name: str):
+        """maintain sync between data structure and name changes in items"""
+        if old_name in self._protected_names:
+            raise ValueError(f"Not allowed to alter protected_name: {old_name}")
+        if new_name in self._protected_names:
+            raise ValueError(f"Not allowed to alter protected_name: {new_name}")
+        if new_name == old_name:
+            return
+        if new_name in self._map:
+            msg = f"node with name:{new_name} overwritten in {self}"
+            LOGGER.debug(msg)
+            if self.avoid_name_collision:
+                raise ValueError(msg)
+        self._map[new_name] = self._map[old_name]
+        del self._map[old_name]
+
+    def remove(
+        self,
+        item: NamedItem,
+        raise_exception_if_not_found: bool = True,
+        raise_exception_if_protected_name: bool = True,
+    ):
+        if item.name not in self._map:
+            msg = f"item '{item.name}' requested for deletion. Not Found !"
+            if raise_exception_if_not_found:
+                raise ValueError(msg)
+            LOGGER.debug(msg)
+            return
+        if (
+            item.name in self._protected_names
+            and not raise_exception_if_protected_name
+        ):
+            raise ValueError(f"Not authorized to remove: '{item.name}'")
+        self._map[item.name].detach_listener_name_change(self._change_name_hook)
+        del self._map[item.name]
+
+    def get_by_name(self, name: str, default: T.Any = None):
+        return self._map.get(name, default)
+
+    def contains(self, item: NamedItem, strict: bool = False):
+        name_exists = item.name in self._map
+        if name_exists and strict:
+            return self._map[item.name] == item
+        return name_exists
+
+    def append(self, item: NamedItem):
+        """Append item to ordered set
+
+        WARNING: This is crutial that all added items use this
+        function as it set the hook to listen to name changes
+        """
+        assert item.name not in self._map, item.name
+        item.register_listener_name_change(self._change_name_hook)
+        self._map[item.name] = item
+        self._last_inserted_item = item
+
+    def protect_item_names(self, names: T.Iterable[str]):
+        self._protected_names.update(set(names))
+
+    def is_empty(self):
+        return not bool(self._map)
+
+    def __getitem__(self, index: T.Any):
+        if index == -1:
+            if self._last_inserted_item is None:
+                raise ValueError("No last value found")
+            return self._last_inserted_item
+        if isinstance(index, (slice, int)):
+            return list(self._map.values())[index]
+        raise NotImplementedError(index)
+
+    def iter_renamable(self):
+        for item_name, item in self._map.items():
+            if item_name in self._protected_names:
+                continue
+            yield item
+
+    def __add__(self, items):
+        for item in items:
+            self.append(item)
+        return self
+
+    def __setitem__(self, index: T.Any, value: NamedItem):
+        raise NotImplementedError(
+            "Assigning a specific index is not supported to date"
+        )
+
+    def __iter__(self):
+        yield from self._map.values()
+
+    def __len__(self):
+        return len(self._map)
+
+    def __repr__(self):
+        names = "\n\t".join(f"'{k}'" for k in self._map)
+        protected = ""
+        if self._protected_names:
+            pnames = ",\n".join(f"\t'{k}'" for k in self._protected_names)
+            protected = f"\nprotected_names=[\n{pnames}]\n"
+        return f"<NamedItemOrderedSet ({len(self._map)}) stored_names=[{names}] {protected}>"

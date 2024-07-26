@@ -1,4 +1,6 @@
 import logging as log
+import os
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -71,6 +73,8 @@ def test_export():
         input_names, output_names = build_io(
             model, test_input, io_npz_path=io_npz_path
         )
+        dbg_name = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
+        dbg_name = f"{dbg_name}_squeeze_exite"
         export_model_to_nnef(
             model=model,
             args=test_input,
@@ -79,4 +83,7 @@ def test_export():
             output_names=output_names,
             log_level=log.INFO,
             check_same_io_as_tract=True,
+            debug_bundle_path=(Path.cwd() / "failed_tests" / dbg_name)
+            if os.environ.get("DEBUG", False)
+            else None,
         )

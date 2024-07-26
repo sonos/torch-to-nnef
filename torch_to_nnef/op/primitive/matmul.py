@@ -9,6 +9,7 @@ from torch_to_nnef.op.primitive.base import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
@@ -310,6 +311,11 @@ def matmul(g, node, name_to_tensor, **kwargs):
 @OP_REGISTRY.register()
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
+    for ab_node in [alpha_node, beta_node]:
+        if isinstance(alpha_node, PythonConstant):
+            ab_node.data = float(ab_node.data)
+        else:
+            raise TorchToNNEFNotImplementedError()
     add_single_output_op(
         g,
         node,

@@ -152,9 +152,9 @@ INPUT_AND_MODELS += [
         partial(torch.reshape, shape=(2, 5, 2)),
         partial(torch.unsqueeze, dim=1),
         partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
-        partial(torch.clamp, min=5, max=20.0),
-        partial(torch.clamp, min=10),
-        partial(torch.clamp, max=11),
+        partial(torch.clamp, min=5.0, max=20.0),
+        partial(torch.clamp, min=10.0),
+        partial(torch.clamp, max=11.0),
         # lambda x: torch.where(
         # _condition_1,
         # input=_input0,
@@ -346,7 +346,7 @@ INPUT_AND_MODELS += [
         nn.GELU(),
         nn.SELU(),
         nn.SiLU(),
-        nn.Hardtanh(-1, 10),
+        nn.Hardtanh(-1.0, 10.0),
         nn.LogSoftmax(1),
         nn.LogSoftmax(dim=-1),
         nn.ReLU6(),
@@ -693,7 +693,61 @@ except ImportError as exp:
 if tract_version() > "0.21.3":  # merged fix PR in tract
     INPUT_AND_MODELS += [
         (torch.ones(5, 5), TorchFnPrimitive("triu")),
+        (torch.ones(5, 5), TorchFnPrimitive("tril")),
     ]
+
+INPUT_AND_MODELS += [
+    (
+        torch.tensor([[1, 2], [3, 4]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 4, "dim": 1}
+        ),
+    ),
+    (
+        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 4, "dim": 0}
+        ),
+    ),
+    (
+        torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
+        TorchFnPrimitive(
+            "repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}
+        ),
+    ),
+]
+
+
+# More advanced slicing
+INPUT_AND_MODELS += [
+    (
+        (torch.tensor([[1, 2], [3, 4], [5, 6]]).float(), torch.tensor([0, 2])),
+        BinaryPrimitive(lambda x, y: x[y]),
+    ),
+    (
+        (torch.tensor([[1, 2], [3, 4], [5, 6]]).float(), torch.tensor([1])),
+        BinaryPrimitive(lambda x, y: x[:, y]),
+    ),
+    (
+        (
+            torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]).float(),
+            torch.tensor([1]),
+        ),
+        BinaryPrimitive(lambda x, y: x[:, :, y]),
+    ),
+]
+
+# issues with export:
+# INPUT_AND_MODELS = [
+#     (
+#         (
+#             torch.arange(20).reshape(5, 4).float(),
+#             torch.randint(0, 1, (5, 4)).bool(),
+#             torch.tensor(1.2)
+#         ),
+#         TernaryPrimitive(torch.masked_fill)
+#     )
+# ]
 
 
 def test_should_fail_since_no_input():

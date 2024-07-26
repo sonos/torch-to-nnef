@@ -227,7 +227,7 @@ def add_single_output_op(
     node,
     name_to_tensor,
     nnef_op_type: str,
-    inputs: T.Sequence[NTensor],
+    inputs: T.Union[NTensor, T.Sequence[NTensor]],
     attrs: T.Optional[T.Dict[str, T.Any]] = None,
     ensure_tuple: bool = True,
     output_tensor_name_suffix: str = "",
@@ -457,11 +457,17 @@ def weight_bias_and_output_tensor(
     name_to_tensor,
     null_ref,
 ):
+    weight_suffix = ""
+    if weight_node.data is not None and not weight_node.export_name.endswith(
+        "__weight"
+    ):
+        weight_suffix = "weight"
+
     weight_ref = get_or_add_tensor_variable_in_nnef(
         node=weight_node,
         g=g,
         name_to_tensor=name_to_tensor,
-        name_suffix="weight" if weight_node.data is not None else "",
+        name_suffix=weight_suffix,
     )
 
     bias_ref = null_ref

@@ -13,6 +13,7 @@ from torch_to_nnef.op.primitive.base import (
     unary_output_op_without_params,
 )
 from torch_to_nnef.torch_graph import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import TensorVariable
 
 LOGGER = logging.getLogger(__name__)
 
@@ -105,10 +106,29 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def floor_divide(
+    g, node, name_to_tensor, has_dynamic_axes, torch_graph, **kwargs
+):
     input_node, divisor_node = node.inputs
-    for c_node in [input_node, divisor_node]:
-        c_node.cast_float_inplace()
+    if input_node.data and divisor_node.data and not has_dynamic_axes:
+        # avoid graph computation since static
+        idata = float(
+            input_node.data.tolist()
+            if isinstance(input_node, TensorVariable)
+            else input_node.data
+        )
+        ddata = float(
+            divisor_node.data.tolist()
+            if isinstance(divisor_node, TensorVariable)
+            else divisor_node.data
+        )
+        torch_graph.remap_node(
+            node.outputs[0],
+            PythonConstant(name=node.outputs[0].name, data=idata // ddata),
+        )
+        return []
+    # for c_node in [input_node, divisor_node]:
+    #     c_node.cast_float_inplace()
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -127,18 +147,12 @@ def floor_divide(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         ),
         output_tensor_name_suffix="div",
     )
-    out = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "trunc",
-        inputs=out,
-    )
-    return ["trunc"]
+    add_single_output_op(g, node, name_to_tensor, "floor", inputs=out)
+    return []
 
 
 @OP_REGISTRY.register()
-def trunc(g, node, name_to_tensor, **kwargs):
+def trunc(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     add_single_output_op(
         g,
         node,
@@ -206,7 +220,11 @@ def mul(g, node, name_to_tensor, **kwargs):
         if isinstance(c_node, PythonConstant):
             # because torch.ops.aten.mul(float, tensor(float)) give complex number
             c_node = c_node.into_tensor_variable()
-        c_node.cast_float_inplace()
+        if any(
+            not isinstance(nod, PythonConstant) and nod.dtype.is_floating_point
+            for nod in [input_node, other_node]
+        ):
+            c_node.cast_float_inplace()
         inputs.append(
             get_or_add_tensor_variable_in_nnef(g, c_node, name_to_tensor)
         )
@@ -264,6 +282,8 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
             ),
         )
         return []
+    if isinstance(alpha_node, PythonConstant):
+        alpha_node.data = float(alpha_node.data)
     add_single_output_op(
         g,
         node,
@@ -278,8 +298,8 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
     return ["rsub"]
 
 
-@OP_REGISTRY.register()
-def abs(
+@OP_REGISTRY.register(torch_op_ids=["abs"])
+def _abs(
     g,
     node,
     name_to_tensor,
@@ -369,7 +389,7 @@ def abs(
             inputs=input_tensor,
             attrs={"axes": [len(input_tensor.shape)]},
         )
-        return
+        return []
     return unary_output_op_without_params(
         nnef_op_type="abs",
         g=g,

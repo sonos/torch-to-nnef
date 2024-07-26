@@ -22,6 +22,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
 LOGGER = log.getLogger(__name__)
@@ -55,7 +56,10 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                             external_op.attribs["shape"]
                         )
                     ]
-                    custom_extensions.add("tract_pulse_streaming_symbol")
+                    if tract.tract_version() < "0.18.2":
+                        custom_extensions.add("tract_pulse_streaming_symbol")
+                    else:
+                        custom_extensions.add(f"tract_symbol {axis_name}")
                 break
     return custom_extensions
 
@@ -69,7 +73,7 @@ def export_model_to_nnef(
     dynamic_axes=None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    renaming_scheme: str = "numeric",
+    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     check_io_names_qte_match: bool = True,
     nnef_spec_strict: bool = False,
     # SONOS tract specific:
@@ -77,6 +81,7 @@ def export_model_to_nnef(
     check_same_io_as_tract: bool = False,
     use_specific_tract_binary: T.Optional[Path] = None,
     tract_feature_flags: T.Optional[T.Set[str]] = None,
+    custom_extensions: T.Optional[T.Set[str]] = None,
 ):
     """Main entrypoint of this library
 
@@ -138,8 +143,10 @@ def export_model_to_nnef(
             # specific feature flags from tract
             # by example 'complex'
             tract_feature_flags=tract_feature_flags,
+            forced_inputs_names=input_names,
+            forced_outputs_names=output_names,
         )
-        nnef_graph = graph_extractor.parse(input_names, output_names)
+        nnef_graph = graph_extractor.parse()
 
         active_custom_fragments = {
             _: FRAGMENTS[_].definition
@@ -150,11 +157,13 @@ def export_model_to_nnef(
             for _ in graph_extractor.activated_custom_fragment_keys
             for ext in FRAGMENTS[_].extensions
         }
-        if dynamic_axes is not None:
-            custom_extensions = apply_dynamic_shape_in_nnef(
-                dynamic_axes, nnef_graph
-            )
+        if custom_extensions is not None:
             active_custom_extensions.update(custom_extensions)
+
+        if dynamic_axes is not None:
+            active_custom_extensions.update(
+                apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph)
+            )
 
         if len(active_custom_extensions) > 0:
             LOGGER.warning(
@@ -180,6 +189,7 @@ def export_model_to_nnef(
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
+            target_tract=not nnef_spec_strict,
         )(nnef_graph, str(nnef_exp_file_path))
         LOGGER.info(
             f"model exported successfully as NNEF at: {nnef_exp_file_path}"
