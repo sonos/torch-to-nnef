@@ -21,6 +21,7 @@ from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 class PHISlugs(str, Enum):
     DEBUG = "debug"
+    ONE_FIVE = "microsoft/phi-1_5"
     MINI = "microsoft/Phi-3-mini-4k-instruct"
     SMALL = "microsoft/Phi-3-small-8k-instruct"
 
@@ -102,8 +103,8 @@ def main():
             "n_kv": 32,
             "kv_shape": (1, 32, S, 96),
         },
-        # TODO: set right shape
         PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, S, 64)},
+        PHISlugs.ONE_FIVE: {"n_kv": 24, "kv_shape": (1, 32, S, 64)},
     }[default_model_slug]
     past_key_values = []
     in_cache_names = []
