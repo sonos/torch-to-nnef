@@ -93,18 +93,18 @@ def main():
         tokenizer_slug, trust_remote_code=True
     )
 
-    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
+    test_input = tokenizer("Hello, I am happy.", return_tensors="pt")
 
-    S = 10
+    P = 10
     # cache size
     past_values_cache_conf = {
-        PHISlugs.DEBUG: {"n_kv": 4, "kv_shape": (1, 4, S, 64)},
+        PHISlugs.DEBUG: {"n_kv": 4, "kv_shape": (1, 4, P, 64)},
         PHISlugs.MINI: {
             "n_kv": 32,
-            "kv_shape": (1, 32, S, 96),
+            "kv_shape": (1, 32, P, 96),
         },
-        PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, S, 64)},
-        PHISlugs.ONE_FIVE: {"n_kv": 24, "kv_shape": (1, 32, S, 64)},
+        PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, P, 64)},
+        PHISlugs.ONE_FIVE: {"n_kv": 24, "kv_shape": (1, 32, P, 64)},
     }[default_model_slug]
     past_key_values = []
     in_cache_names = []
@@ -153,7 +153,8 @@ def main():
     # caus_res = striped_model(test_input.input_ids)
     # print("caus_res.shape:", caus_res.shape)
     inputs = tuple([test_input.input_ids] + past_key_values)
-    _ = striped_model(*inputs)
+
+    # _ = striped_model(*inputs)
 
     export_model_to_nnef(
         model=striped_model,
