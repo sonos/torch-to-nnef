@@ -33,7 +33,7 @@ class DummyModel(nn.Module):
         )
         attention_mask = torch.tril(attention_mask)
         # part of interest {
-        (attn_output, _, past_key_value) = self.spda_att.forward(
+        (attn_output, _, past_key_value) = self.spda_att(
             hidden_states=x,
             attention_mask=attention_mask,
             position_ids=torch.arange(
