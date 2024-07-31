@@ -15,10 +15,12 @@ from torch_to_nnef.dtypes import (
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
+    Data,
     FixedTensorList,
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.torch_graph.ir_op import TorchOp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +95,11 @@ def add_nnef_operation(
         and len(inputs) >= 2
         and force_consistent_inputs_shapes
     ):
-        inputs = maybe_unsqueeze_to_consistent_inputs_ranks(graph, inputs)  # type: ignore
+        outputs = kwargs["outputs"]
+        op_type = kwargs["type"]
+        inputs = maybe_align_inputs_ranks(
+            graph, inputs, outputs, op_type
+        )  # type: ignore
     kwargs["graph"] = graph
     kwargs["inputs"] = inputs
     return NOperation(*args, **kwargs)
@@ -158,52 +164,85 @@ def add_tensor_variable_node_as_nnef_tensor(
     return nnef_tensor_ref
 
 
-def maybe_unsqueeze_to_consistent_inputs_ranks(
-    g: NGraph, nnef_tensors: T.Sequence[NTensor]
+def maybe_align_inputs_ranks(
+    g: NGraph,
+    inputs: T.Sequence[NTensor],
+    outputs: T.Sequence[NTensor],
+    op_type: str,
 ) -> T.Sequence[NTensor]:
-    """May unsqueeze at 0 rank n time to ensure consistent rank between inputs
+    """ensure consistent rank between inputs and outputs with regard to spec
+
+    - May unsqueeze at 0 rank n time to align inputs
 
     This is done at export time and not inference time because:
-    inference implementation may use 1 dim expansion from left to right
+    - inference implementation may use 1 dim expansion from left to right
     like Tract or Tensorflow
     instead of Pytorch expansion which happen in opposite direction.
 
     """
-    tensors_ranks = [len(_.shape) for _ in nnef_tensors]
+    tensors_ranks = [len(_.shape) for _ in inputs]
     if len(set(tensors_ranks)) > 1:
-        reference_rank = max(tensors_ranks)
-        new_nnef_tensors = []
-        for nnef_tensor in nnef_tensors:
-            original_rank = len(nnef_tensor.shape)
-            missing_dims = reference_rank - original_rank
-            if missing_dims > 0 and (
-                nnef_tensor.data is None or nnef_tensor.data.size != 1
-            ):
-                new_shape = list(nnef_tensor.shape)
-                new_shape = ([0] * missing_dims) + new_shape
-                unsqueeze_axes = [0] * missing_dims
-
-                output_nnef_tensor = NTensor(
-                    g,
-                    name=f"{nnef_tensor.name}_expanded",
-                    dtype=nnef_tensor.dtype,
-                    shape=tuple(new_shape),
-                )
-                NOperation(
-                    g,
-                    type="unsqueeze",
-                    attribs={"axes": unsqueeze_axes},
-                    inputs=nnef_tensor,
-                    outputs=output_nnef_tensor,
-                )
-                nnef_tensor = output_nnef_tensor
-            new_nnef_tensors.append(nnef_tensor)
-
-        if isinstance(nnef_tensors, list):
-            nnef_tensors = new_nnef_tensors
+        all_inputs_shapes_are_scalar_like = all(
+            rank == 0 or all(d == 1 for d in inputs[idx].shape)
+            for idx, rank in enumerate(tensors_ranks)
+        )
+        if all_inputs_shapes_are_scalar_like and all(
+            len(_.shape) == 0 for _ in outputs
+        ):
+            # auto squeeze useless dims
+            new_inputs = []
+            for nnef_tensor in inputs:
+                if len(nnef_tensor.shape) > 0:
+                    squeeze_axes = [0] * len(nnef_tensor.shape)
+                    output_nnef_tensor = NTensor(
+                        g,
+                        name=f"{nnef_tensor.name}_aligned_rank_reduced",
+                        dtype=nnef_tensor.dtype,
+                        shape=tuple([]),
+                    )
+                    NOperation(
+                        g,
+                        type="squeeze",
+                        attribs={"axes": squeeze_axes},
+                        inputs=nnef_tensor,
+                        outputs=output_nnef_tensor,
+                    )
+                    nnef_tensor = output_nnef_tensor
+                new_inputs.append(nnef_tensor)
         else:
-            nnef_tensors = tuple(new_nnef_tensors)
-    return nnef_tensors
+            # auto unsqueeze missing dims
+            reference_rank = max(tensors_ranks)
+            new_inputs = []
+            for nnef_tensor in inputs:
+                original_rank = len(nnef_tensor.shape)
+                missing_dims = reference_rank - original_rank
+                if missing_dims > 0 and (
+                    nnef_tensor.data is None or nnef_tensor.data.size != 1
+                ):
+                    new_shape = list(nnef_tensor.shape)
+                    new_shape = ([0] * missing_dims) + new_shape
+                    unsqueeze_axes = [0] * missing_dims
+
+                    output_nnef_tensor = NTensor(
+                        g,
+                        name=f"{nnef_tensor.name}_aligned_rank_expanded",
+                        dtype=nnef_tensor.dtype,
+                        shape=tuple(new_shape),
+                    )
+                    NOperation(
+                        g,
+                        type="unsqueeze",
+                        attribs={"axes": unsqueeze_axes},
+                        inputs=nnef_tensor,
+                        outputs=output_nnef_tensor,
+                    )
+                    nnef_tensor = output_nnef_tensor
+                new_inputs.append(nnef_tensor)
+        if isinstance(inputs, list):
+            inputs = new_inputs
+        else:
+            inputs = tuple(new_inputs)
+    return inputs
 
 
 def get_or_add_tensor_variable_in_nnef(
@@ -569,3 +608,110 @@ def cast_to_if_not_dtype_and_variable(
         output_tensor_name_suffix=suffix,
     )
     return out, ["tract_core"]
+
+
+class OpHelper:
+    def __init__(self, g, node, name_to_tensor, null_ref):
+        self.g = g
+        self.node = node
+        self.name_to_tensor = name_to_tensor
+        self.null_ref = null_ref
+
+    def clone_with_new_node(self, node):
+        return self.__class__(
+            g=self.g,
+            node=node,
+            name_to_tensor=self.name_to_tensor,
+            null_ref=self.null_ref,
+        )
+
+    def data_nodes_to_nnef_tensors(self, data_nodes):
+        return [
+            get_or_add_tensor_variable_in_nnef(self.g, dn, self.name_to_tensor)
+            for dn in data_nodes
+        ]
+
+    def _guess_output_dtype_and_shape(
+        self, nnef_op_type: str, input_nodes, attrs
+    ):
+        if nnef_op_type == "tract_core_shape_of":
+            return torch.int64, (len(input_nodes[0].shape),)
+
+        if nnef_op_type == "slice":
+            if len(attrs["begin"]) != 1:
+                raise NotImplementedError()
+            if (
+                isinstance(attrs["begin"][0], int)
+                and isinstance(attrs["end"][0], int)
+                and attrs.get("stride", [1])[0] == 1
+            ):
+                size = attrs["end"][0] - attrs["begin"][0]
+                sh = list(input_nodes[0].shape)
+                sh[0] = size
+                return input_nodes[0].dtype, sh
+        if nnef_op_type == "squeeze":
+            sh = []
+            for dim_idx, dim_value in enumerate(input_nodes[0].shape):
+                if dim_idx in attrs["axes"]:
+                    continue
+                sh.append(dim_value)
+            return input_nodes[0].dtype, tuple(sh)
+
+        raise NotImplementedError(nnef_op_type)
+
+    def new_single_output_op(
+        self,
+        nnef_op_type: str,
+        *args,
+        input_nodes: T.List[Data],
+        output_tensor_name_suffix: str = "",
+        force_full_output_tensor_name: str = "",
+        **kwargs,
+    ):
+        dtype, shape = self._guess_output_dtype_and_shape(
+            nnef_op_type, input_nodes, kwargs.get("attrs", {})
+        )
+        if force_full_output_tensor_name:
+            output_name = force_full_output_tensor_name
+        else:
+            output_name = self.node.outputs[0].name
+            if output_tensor_name_suffix:
+                output_name += f"_{output_tensor_name_suffix}"
+        new_output_data = TensorVariable(
+            name=output_name, data=None, dtype=dtype, shape=shape
+        )
+        # assert output_name not in self.name_to_tensor, output_name
+        new_node = TorchOp(
+            kind=nnef_op_type,
+            module_path=self.node.module_path,
+            inputs=input_nodes,
+            outputs=[new_output_data],
+            scope=self.node.scope,
+            op_ref=None,
+            call_name=None,
+        )
+        kwargs["nnef_op_type"] = nnef_op_type
+        assert "inputs" not in kwargs
+        kwargs["inputs"] = self.data_nodes_to_nnef_tensors(input_nodes)
+        _ = add_single_output_op(
+            self.g, new_node, self.name_to_tensor, *args, **kwargs
+        )
+        return new_node
+
+
+class SimpleOpChainer:
+    def __init__(self, op_helper: OpHelper, input_data_nodes):
+        self.op_helper = op_helper
+        self.input_data_nodes = input_data_nodes
+
+    @property
+    def output_name(self):
+        return self.input_data_nodes[0].export_name
+
+    def chain(self, *args, **kwargs):
+        new_node = self.op_helper.new_single_output_op(
+            input_nodes=self.input_data_nodes, *args, **kwargs
+        )
+        return SimpleOpChainer(
+            self.op_helper.clone_with_new_node(new_node), new_node.outputs
+        )

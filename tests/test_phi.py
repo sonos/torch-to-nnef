@@ -29,7 +29,8 @@ class DummyModel(nn.Module):
         dyn_cache = DynamicCache()
         dyn_cache.update(key_states, value_states, layer_idx=self.LAYER_IDX)
         attention_mask = torch.full(
-            (1, sh[0], sh[1], 16), fill_value=torch.finfo(torch.float32).max
+            (1, sh[0], sh[1], position_offset + sh[1]),
+            fill_value=torch.finfo(torch.float32).max,
         )
         attention_mask = torch.tril(attention_mask)
         # part of interest {
@@ -66,7 +67,11 @@ def test_phi_spda_attn():
             model = mod.eval()
 
             input_names = ["hidden_states", "past_keys", "past_values"]
-            output_names = ["final_attn_output", "past_keys", "past_values"]
+            output_names = [
+                "final_attn_output",
+                "new_past_keys",
+                "new_past_values",
+            ]
             dbg_name = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
             dbg_name = f"{dbg_name}_phi_spda"
             export_model_to_nnef(
@@ -86,6 +91,3 @@ def test_phi_spda_attn():
                 if os.environ.get("DEBUG", False)
                 else None,
             )
-            print(export_path)
-            __import__("ipdb").set_trace()
-            pass

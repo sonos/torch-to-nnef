@@ -417,7 +417,12 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
+        protected_from_rename_node = set(
+            submodule_graph.inputs + submodule_graph.outputs
+        )
         for _ in submodule_graph.data_nodes[:]:
+            if _ in protected_from_rename_node:
+                continue
             _.name = f"{prefix}.{_.name}"
 
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
@@ -718,16 +723,20 @@ class TorchModuleIRGraph:
                     return op
         raise TorchNotFoundOp("Did not find operation node")
 
-    def find_ops_nodes_by_input_node(self, data_node: Data) -> T.List[TorchOp]:
+    def find_ops_nodes_by_input_node(
+        self, data_node: Data
+    ) -> T.Iterable[TorchOp]:
         assert isinstance(data_node, Data), data_node
-        collected_ops = []
+        found_one = False
         for op in self.op_nodes:
-            for op_out_dnode in _expand_containers_if_exists(op.inputs):
-                if op_out_dnode is data_node:
-                    collected_ops.append(op)
-        if not collected_ops:
+            if any(
+                op_out_dnode is data_node
+                for op_out_dnode in _expand_containers_if_exists(op.inputs)
+            ):
+                yield op
+                found_one = True
+        if not found_one:
             raise TorchNotFoundOp("Did not find operation node")
-        return collected_ops
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""

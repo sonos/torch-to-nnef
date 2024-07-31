@@ -6,6 +6,7 @@ import numpy as np
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
+    SimpleOpChainer,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
@@ -27,6 +28,7 @@ def slice_(
     torch_graph,
     nnef_spec_strict,
     has_dynamic_axes,
+    op_helper,
     **kwargs,
 ):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
@@ -68,45 +70,36 @@ def slice_(
         ):
             # NOTE: since we can't ensure used dimension is not symbolic
             # we use `tract_core_shape_of`
-            input_tensor = get_or_add_tensor_variable_in_nnef(
-                g, input_node, name_to_tensor
-            )
-            shape_tensor_name = f"{input_tensor.name}_shape"
+            shape_tensor_name = f"{input_node.export_name}_shape"
             index_tensor_name = f"{shape_tensor_name}_{dim}"
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_shape_of",
-                inputs=(input_tensor,),
-                output_tensor_name_suffix="shape",
+            soc = (
+                SimpleOpChainer(
+                    op_helper=op_helper,
+                    input_data_nodes=[input_node],
+                )
+                .chain(
+                    "tract_core_shape_of",
+                    output_tensor_name_suffix="shape",
+                )
+                .chain(
+                    "slice",
+                    attrs={
+                        "axes": [0],
+                        "begin": [dim],
+                        "end": [dim + 1],
+                        "stride": [1],
+                    },
+                    output_tensor_name_suffix=f"sliced{dim}",
+                )
+                .chain(
+                    "squeeze",
+                    attrs={
+                        "axes": [0],
+                    },
+                    force_full_output_tensor_name=index_tensor_name,
+                )
             )
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "slice",
-                inputs=(out,),
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            )
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "squeeze",
-                inputs=(out,),
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-            end = nnef.Identifier(out.name)
+            end = nnef.Identifier(soc.output_name)
         else:
             end = min(
                 end,
