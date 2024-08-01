@@ -32,7 +32,11 @@ from torch_to_nnef.torch_graph.ir_helpers import (
     _replacement_to_relative_module_path,
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
-from torch_to_nnef.torch_graph.ir_op import TorchOp
+from torch_to_nnef.torch_graph.ir_op import (
+    CacheDataNodeTarget,
+    CacheDataToOpsNode,
+    TorchOp,
+)
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
 from torch_to_nnef.utils import NamedItemOrderedSet, flatten_dict
 
@@ -417,7 +421,12 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
+        protected_from_rename_node = set(
+            submodule_graph.inputs + submodule_graph.outputs
+        )
         for _ in submodule_graph.data_nodes[:]:
+            if _ in protected_from_rename_node:
+                continue
             _.name = f"{prefix}.{_.name}"
 
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
@@ -498,13 +507,16 @@ class TorchModuleIRGraph:
             dnode.name = mapping[dnode.name]
 
     def _rename_natural_verbose(self) -> None:
+        out_data_to_ops_node = CacheDataToOpsNode(
+            target=CacheDataNodeTarget.OUTPUTS,
+            ops=self.op_nodes,
+        )
         for dn in list(self.data_nodes.iter_renamable()):
             original_name = dn.name
             new_name = original_name.split("/")[-1]
             if all(c in string.digits for c in new_name):
-                try:
-                    self.find_data_node_producer(dn)
-                except TorchNotFoundOp as exp:
+                producers = out_data_to_ops_node.get(dn)
+                if len(producers) == 0:
                     if isinstance(dn, TensorVariable):
                         new_name = f"v{new_name}"
                     elif isinstance(dn, PythonConstant):
@@ -512,12 +524,13 @@ class TorchModuleIRGraph:
                     elif isinstance(dn, FixedTensorList):
                         new_name = f"l{new_name}"
                     else:
-                        raise NotImplementedError(dn) from exp
+                        raise NotImplementedError(dn)
 
             if dn.name[-1] in string.digits:
-                try:
-                    producer = self.find_data_node_producer(dn)
-                    kind = producer.kind.split("::")[-1]
+                producers = out_data_to_ops_node.get(dn)
+                if len(producers) > 0:
+                    kind = producers[0].kind.split("::")[-1]
+
                     new_name = get_data_node_name_with_suffix_auto_inc(
                         self.data_nodes,
                         original_name,
@@ -525,7 +538,7 @@ class TorchModuleIRGraph:
                         kind,
                         suffix_only_on_underscore=True,
                     )
-                except TorchNotFoundOp:
+                else:
                     new_name = get_data_node_name_with_suffix_auto_inc(
                         self.data_nodes, original_name, new_name, suffix=""
                     )
@@ -717,17 +730,6 @@ class TorchModuleIRGraph:
                 if op_out_dnode is data_node:
                     return op
         raise TorchNotFoundOp("Did not find operation node")
-
-    def find_ops_nodes_by_input_node(self, data_node: Data) -> T.List[TorchOp]:
-        assert isinstance(data_node, Data), data_node
-        collected_ops = []
-        for op in self.op_nodes:
-            for op_out_dnode in _expand_containers_if_exists(op.inputs):
-                if op_out_dnode is data_node:
-                    collected_ops.append(op)
-        if not collected_ops:
-            raise TorchNotFoundOp("Did not find operation node")
-        return collected_ops
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""

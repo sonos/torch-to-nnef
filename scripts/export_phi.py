@@ -33,8 +33,6 @@ class BasicCausal(torch.nn.Module):
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
-        # past_key_values
-        # past_key_values: Optional[List[torch.FloatTensor]] = None # type annotation in code WRONG
 
         past_key_values = []
         tup: T.List[torch.Tensor] = []
@@ -93,19 +91,40 @@ def main():
         tokenizer_slug, trust_remote_code=True
     )
 
-    test_input = tokenizer("Hello, I am happy", return_tensors="pt")
+    if default_model_slug == PHISlugs.DEBUG:
+        # debuging purpose config
+        debug_config = Phi3Config(
+            vocab_size=32064,
+            num_hidden_layers=4,
+            num_attention_heads=4,
+            hidden_size=256,
+            intermediate_size=512,
+            max_position_embeddings=4096,
+            original_max_position_embeddings=4096,
+        )
+        causal_model = AutoModelForCausalLM.from_config(
+            debug_config, trust_remote_code=True
+        )
+    else:
+        causal_model = AutoModelForCausalLM.from_pretrained(
+            default_model_slug, trust_remote_code=True
+        )
+    conf = causal_model.config
+    striped_model = BasicCausal(causal_model)
 
-    S = 10
+    test_input = tokenizer("Hello, I am happy.", return_tensors="pt")
+
+    P = 10
     # cache size
     past_values_cache_conf = {
-        PHISlugs.DEBUG: {"n_kv": 4, "kv_shape": (1, 4, S, 64)},
+        PHISlugs.DEBUG: {"kv_shape": (1, 4, P, 64)},
         PHISlugs.MINI: {
-            "n_kv": 32,
-            "kv_shape": (1, 32, S, 96),
+            "kv_shape": (1, 32, P, 96),
         },
-        PHISlugs.SMALL: {"n_kv": 28, "kv_shape": (1, 4, S, 64)},
-        PHISlugs.ONE_FIVE: {"n_kv": 24, "kv_shape": (1, 32, S, 64)},
+        PHISlugs.SMALL: {"kv_shape": (1, 4, P, 64)},
+        PHISlugs.ONE_FIVE: {"kv_shape": (1, 32, P, 64)},
     }[default_model_slug]
+    past_values_cache_conf["n_kv"] = conf.num_hidden_layers
     past_key_values = []
     in_cache_names = []
     out_cache_names = []
@@ -127,33 +146,7 @@ def main():
         # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
         dynamic_axes[in_cache_name] = {2: "P"}
 
-    if default_model_slug == PHISlugs.DEBUG:
-        # debuging purpose config
-        debug_config = Phi3Config(
-            vocab_size=32064,
-            num_hidden_layers=4,
-            num_attention_heads=4,
-            hidden_size=256,
-            intermediate_size=512,
-            max_position_embeddings=4096,
-            original_max_position_embeddings=4096,
-        )
-        causal_model = AutoModelForCausalLM.from_config(
-            debug_config, trust_remote_code=True
-        )
-    else:
-        causal_model = AutoModelForCausalLM.from_pretrained(
-            default_model_slug, trust_remote_code=True
-        )
-    striped_model = BasicCausal(causal_model)
-
-    # generated_ids = causal_model.generate(**test_input)
-    # print(generated_ids)
-    # print(tokenizer.batch_decode(generated_ids, skip_special_tokens=True))
-    # caus_res = striped_model(test_input.input_ids)
-    # print("caus_res.shape:", caus_res.shape)
     inputs = tuple([test_input.input_ids] + past_key_values)
-    _ = striped_model(*inputs)
 
     export_model_to_nnef(
         model=striped_model,

@@ -12,6 +12,7 @@ from torch_to_nnef.dtypes import (
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
+    SimpleOpChainer,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -172,6 +173,7 @@ def size(
     nnef_spec_strict,
     has_dynamic_axes,
     torch_graph,
+    op_helper,
     **kwargs,
 ):
     """
@@ -243,28 +245,18 @@ def size(
         g, input_node, name_to_tensor
     )
     shape_tensor_name = f"{input_tensor.name}_shape"
-    if shape_tensor_name in name_to_tensor:
-        out = name_to_tensor[shape_tensor_name]
-    else:
-        out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_shape_of",
-            inputs=input_tensor,
-            force_full_output_tensor_name=shape_tensor_name,
-        )
+    soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
+    soc = soc.chain(
+        "tract_core_shape_of",
+        force_full_output_tensor_name=shape_tensor_name,
+    )
 
     begin = pick_rank(input_node, axis_node.data)
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:
-        new_out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
+        soc = soc.chain(
             "slice",
-            inputs=(out,),
             attrs={
                 "axes": [0],
                 "begin": [begin],
@@ -272,13 +264,8 @@ def size(
                 "stride": [1],
             },
             output_tensor_name_suffix="sliced",
-        )
-        add_single_output_op(  # as scalar
-            g,
-            node,
-            name_to_tensor,
+        ).chain(
             "squeeze",
-            inputs=(new_out,),
             attrs={
                 "axes": [0],
             },

@@ -25,6 +25,7 @@ from torch_to_nnef.op.primitive import (
     tensor_build,
     unary,
 )
+from torch_to_nnef.op.primitive.base import OpHelper
 
 primitive_ops_registry = reduce(
     operator.add,
@@ -91,6 +92,7 @@ def aten_to_nnef_tensor_and_ops(
             has_dynamic_axes=has_dynamic_axes,
             tract_feature_flags=tract_feature_flags,
             aten_op_id=aten_op_id,
+            op_helper=OpHelper(g, node, name_to_tensor, null_ref),
         )
     except KeyError as exp:
         torch_graph.printall()
