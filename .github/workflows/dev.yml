@@ -30,6 +30,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: "cleanup gihtub action host hostedtoolcache"
+        run: |
+          rm -rf rm -rf /opt/hostedtoolcache
+
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
@@ -50,3 +54,7 @@ jobs:
 
       - name: list files
         run: ls -l .
+
+      - uses: "cleanup gihtub action host"
+        run: |
+          rm -rf ./*
