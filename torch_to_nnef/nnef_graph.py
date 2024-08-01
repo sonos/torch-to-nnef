@@ -28,6 +28,10 @@ from torch_to_nnef.torch_graph import (
     module_tracer_into_ir_graph,
 )
 from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_op import (
+    CacheDataNodeTarget,
+    CacheDataToOpsNode,
+)
 from torch_to_nnef.torch_graph.torch_const import ATEN_SIZE_KIND
 
 LOGGER = logging.getLogger(__name__)
@@ -116,6 +120,16 @@ class TorchToNGraphExtractor:
         # NOTE: cleanup all resolved output of torch tensor.size(axis) if
         # is dynamic shape to avoid number hard translated
 
+        LOGGER.debug(
+            "start to build input cache for forward_clean_values_for_dyn_axes"
+        )
+        input_data_to_ops_node = CacheDataToOpsNode(
+            target=CacheDataNodeTarget.INPUTS,
+            ops=self._torch_ir_graph.op_nodes,
+        )
+        LOGGER.debug("done input cache for forward_clean_values_for_dyn_axes")
+        explored_user_op_nodes = set()
+
         def forward_clean_values_for_dyn_axes(op_node):
             """forward clean in all child nodes"""
             assert len(op_node.outputs) == 1
@@ -124,12 +138,14 @@ class TorchToNGraphExtractor:
                 onode.data = None
             for data_node_to_clean in op_node.outputs:
                 try:
-                    for (
-                        user_op_node
-                    ) in self._torch_ir_graph.find_ops_nodes_by_input_node(
+                    for user_op_node in input_data_to_ops_node.get(
                         data_node_to_clean
                     ):
+                        if user_op_node in explored_user_op_nodes:
+                            LOGGER.debug(f"already explored: {user_op_node}")
+                            continue
                         assert len(user_op_node.outputs) == 1
+                        explored_user_op_nodes.add(user_op_node)
                         forward_clean_values_for_dyn_axes(user_op_node)
                 except TorchNotFoundOp as exp:
                     if data_node_to_clean not in self._torch_ir_graph.outputs:
@@ -139,6 +155,7 @@ class TorchToNGraphExtractor:
             for op_node in operators_nodes:
                 if op_node.kind == ATEN_SIZE_KIND:
                     forward_clean_values_for_dyn_axes(op_node)
+        LOGGER.debug("done all forward_clean_values_for_dyn_axes")
 
     def _add_operators(self, name_to_tensor, null_ref):
         def is_missing(node: Data):

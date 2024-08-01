@@ -9,7 +9,9 @@ The goal is that these elements are:
 
 import logging
 import typing as T
+from collections import defaultdict
 from dataclasses import dataclass
+from enum import Enum
 
 import torch
 
@@ -371,3 +373,36 @@ class TorchOp:
         outputs = "".join(f"\t\t{output},\n" for output in self.outputs)
         body += f"\toutputs=(\n{outputs}\t)\n"
         return f"TorchOp(\n{body}\n)".replace("\t", " " * 2)
+
+
+class CacheDataNodeTarget(str, Enum):
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    ALL = "all"
+
+
+class CacheDataToOpsNode:
+    def __init__(self, target: CacheDataNodeTarget, ops: T.Sequence[TorchOp]):
+        self.target = target
+        self._map: T.Dict[Data, T.List[TorchOp]] = defaultdict(list)
+        self.build_cache(ops)
+
+    def build_cache(self, ops):
+        y_inputs = self.target in [
+            CacheDataNodeTarget.ALL,
+            CacheDataNodeTarget.INPUTS,
+        ]
+        y_outputs = self.target in [
+            CacheDataNodeTarget.ALL,
+            CacheDataNodeTarget.OUTPUTS,
+        ]
+        for op in ops:
+            if y_inputs:
+                for inp in _expand_containers_if_exists(op.inputs):
+                    self._map[inp].append(op)
+            if y_outputs:
+                for out in _expand_containers_if_exists(op.outputs):
+                    self._map[out].append(op)
+
+    def get(self, data_node: Data):
+        return self._map[data_node]
