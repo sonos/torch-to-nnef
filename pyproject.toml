@@ -60,7 +60,6 @@ twine = { version = "^3.3.0", optional = true }
 virtualenv = { version = "^20.2.2", optional = true }
 
 [tool.poetry.extras]
-gguf = ["gguf"]
 test = [
     "pytest",
     "black",
@@ -74,7 +73,6 @@ test = [
     "tokenizers",
     "transformers",
     "sentencepiece",
-    "gguf",
 ]
 
 [tool.poetry.group.dev.dependencies]
@@ -82,11 +80,10 @@ tox = "^3.20.1"
 pre-commit = "^2.12.0"
 virtualenv = "^20.2.2"
 pip = "^22.3"
-twine = "^3.3.0"                                                                                                                                     # ?
+twine = "^3.3.0"               # ?
 toml = "^0.10.2"
 bump2version = "^1.0.1"
 ipdb = "^0.13.9"
-ggml = { git = "https://github.com/JulienBalianSonos/ggml.git", subdirectory = "examples/python", rev = "f687a7c175a889d2502365ee484f887b4d1c77d5" }
 rich = { version = "^13.7.1" }
 # pip install -e "git+https://github.com/JulienBalianSonos/ggml.git@f687a7c175a889d2502365ee484f887b4d1c77d5#egg=ggml&subdirectory=examples/python"
 
