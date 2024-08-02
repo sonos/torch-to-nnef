@@ -7,7 +7,7 @@ still we did minor modification to be pythonic.
 (force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
 
 It is adapted with goal:
-- to handle special GGML/GGUF quantization variables storage with gguf data storage format
+- to handle special Tract quantization variables storage with custom .dat data storage format
 
 """
 
@@ -309,15 +309,6 @@ class Writer:
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),
                     )
-            if op.type == "tract_core_gguf_variable":
-                qtensor = op.output.qtensor
-                qtensor.write_tensor_in_gguf_file(
-                    os.path.join(folder, op.attribs["gguf_filename"]),
-                    op.attribs["gguf_tensor_name"],
-                    # pylint: disable-next=protected-access
-                    qtensor._float_torch_tensor.numpy(),
-                    qtensor.gguf_data_type,
-                )
 
     def __call__(self, graph, path):
         folder = None
