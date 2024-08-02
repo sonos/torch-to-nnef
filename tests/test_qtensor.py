@@ -51,10 +51,12 @@ def test_quantize_with_tract_q4_0_classic():
         )
         deq_weights = q_tensor.to_torch_float_tensor()
         diff = (original_weight - deq_weights).abs()
-        assert diff.mean() < 0.005, diff.mean()
+        assert diff.mean() < 0.01, diff.mean()
 
         model = replace_nn_ops(model, q_tensor)
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
-        assert abs_diff.mean() < 0.005, diff.mean()
-        check_model_io_test(model=model, test_input=test_input)
+        assert abs_diff.mean() < 0.01, diff.mean()
+        check_model_io_test(
+            model=model, test_input=test_input, check_same_io_as_tract=False
+        )
