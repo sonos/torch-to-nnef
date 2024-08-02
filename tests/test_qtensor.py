@@ -59,16 +59,25 @@ def test_quantize_with_q_tensor_per_channel():
 
 
 def test_quantize_with_tract_q4_0():
-    """Test simple models"""
-    test_input = torch.rand(10, 64)
-    model = nn.Linear(64, 16, bias=False).eval()
+    """basic quantization values"""
+    with torch.no_grad():
+        test_input = torch.zeros(10, 96)
+        test_input[0, :] = 1
+        model = nn.Linear(96, 16, bias=False).eval()
+        model.weight[:, :] = 0.0
+        model.weight[0:5, 0] = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
+        original_weight = model.weight
+        fp_res = model(test_input)
 
-    fp_res = model(test_input)
-    q_tensor = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
-        model.weight
-    )
-    model = replace_nn_ops(model, q_tensor)
-    q_res = model(test_input)
-    avg_abs_diff = (q_res - fp_res).abs().mean()
-    assert avg_abs_diff.tolist() < 0.03
-    check_model_io_test(model=model, test_input=test_input)
+        q_tensor = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+            original_weight
+        )
+        deq_weights = q_tensor.to_torch_float_tensor()
+        diff = (original_weight - deq_weights).abs()
+        assert diff.sum() == 0
+
+        model = replace_nn_ops(model, q_tensor)
+        q_res = model(test_input)
+        abs_diff = (q_res - fp_res).abs()
+        assert abs_diff.sum() == 0
+        check_model_io_test(model=model, test_input=test_input)

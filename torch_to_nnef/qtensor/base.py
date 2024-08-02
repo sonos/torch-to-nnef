@@ -25,6 +25,12 @@ class QScheme(abc.ABC):
 
 
 class QScalePerGroupF16(QScheme):
+    """Tract aligned
+
+    using negative scales
+
+    """
+
     def __init__(
         self,
         group_size: int,
@@ -32,7 +38,7 @@ class QScalePerGroupF16(QScheme):
         n_bits: int,
     ):
         scale = scale.to(torch.float16)
-        assert (scale != 0).all(), scale
+        # assert (scale != 0).all(), scale
         self.group_size: int = group_size
         self.scale = scale
         self.n_bits = n_bits  # needed for bit-shift before packing
@@ -59,17 +65,17 @@ class QScalePerGroupF16(QScheme):
                 f"tensor provided volume: {volume} but group size are {group_size} "
                 "incomplete groups aren't supported."
             )
-        fp_tensor_per_group = fp_tensor.flatten().reshape(group_size, -1)
+        fp_tensor_per_group = fp_tensor.flatten().reshape(-1, group_size)
 
         # we use full-range symmetric
         # like torch, ONNX, but oposed to restricted range from
         # TensorFlow, NVIDIA TensorRT and Intel DNNL
-        scale = (
-            torch.quantile(fp_tensor_per_group.abs(), percentile, dim=0)
-            * 2
-            / (2**n_bits - 1)
+        scale = torch.quantile(fp_tensor_per_group.abs(), percentile, dim=1) / (
+            -(2**n_bits) / 2
         )
-        qshape = [1] + [scale.shape[0]]
+
+        assert scale.shape[0] == fp_tensor_per_group.shape[0]
+        qshape = [scale.shape[0]] + [1]
         qscheme = cls(
             group_size=group_size,
             scale=scale.reshape(qshape),
@@ -84,27 +90,20 @@ class QScalePerGroupF16(QScheme):
 
     def quantize_as_u8(self, fp_tensor):
         assert (
-            len(fp_tensor.shape) == 2 and fp_tensor.shape[0] == self.group_size
+            len(fp_tensor.shape) == 2 and fp_tensor.shape[1] == self.group_size
         )
-        sym_range = 2**self.n_bits / 2
-        fi8_tensor_per_group = (
-            (fp_tensor / self.scale).round().clamp(-sym_range, sym_range - 1)
-        )
+        recip_scale = torch.where(self.scale == 0, self.scale, 1.0 / self.scale)
         fu8_tensor_per_group = (
-            fi8_tensor_per_group + sym_range
-        )  # could be done via fast bitshift
-        # or even faster by re interpret the i8 ot u8
-
+            ((fp_tensor * recip_scale) + (2**self.n_bits + 1) / 2)
+            .floor()
+            .clamp(0, 2**self.n_bits - 1)
+        )
         return fu8_tensor_per_group.to(torch.uint8)
 
     def dequantize(self, u8_tensor):
-        u8_tensor_per_group = u8_tensor.flatten().reshape(self.group_size, -1)
+        u8_tensor_per_group = u8_tensor.flatten().reshape(-1, self.group_size)
         offset = 2**self.n_bits / 2
-        fp_tensor_per_group = (
-            u8_tensor_per_group.to(torch.float16) - offset
-        )  # could be done via fast bitshift
-        # or even faster by re interpret the u8 ot i8
-
+        fp_tensor_per_group = u8_tensor_per_group.to(torch.float16) - offset
         fp_tensor_per_group *= self.scale
         return fp_tensor_per_group.reshape(u8_tensor.shape)
 
@@ -271,6 +270,7 @@ class QZPScalePerGroup(QScheme):
         fp_tensor_per_group = fp_tensor.flatten().reshape(group_size, -1)
         min_per_group = fp_tensor_per_group.min(dim=0).values
         max_per_group = fp_tensor_per_group.max(dim=0).values
+        assert max_per_group.shape[0] == fp_tensor_per_group.shape[-1]
 
         scale = (max_per_group - min_per_group) / ((2**n_bits) - 1)
         zero_point = (-(min_per_group / scale).round()).to(torch.int32)
@@ -340,6 +340,7 @@ class QScalePerGroup(QScheme):
         fp_tensor_per_group = fp_tensor.flatten().reshape(group_size, -1)
         min_per_group = fp_tensor_per_group.min(dim=0).values
         max_per_group = fp_tensor_per_group.max(dim=0).values
+        assert max_per_group.shape[0] == fp_tensor_per_group.shape[-1]
 
         scale = (max_per_group - min_per_group) / ((2**n_bits) - 1)
         qshape = [1] + [scale.shape[0]]

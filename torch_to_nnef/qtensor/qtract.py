@@ -162,15 +162,15 @@ class QTensorTractScaleOnly(QTensorTract):
         tensor_per_group = (
             self.u8_values_tensor.clone().flatten().reshape(-1, 16, 2)
         )
-        tensor_per_group[:, :, 0] = tensor_per_group[:, :, 0] << 4
+        tensor_per_group[:, :, 0] <<= 4
         tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
 
         b_arr = bytearray(b"")
         for values, scale in zip(
             tensor_per_group, self.qscheme.scale.flatten().numpy()
         ):
-            b_arr.extend(scale.tobytes())
-            b_arr.extend(values.tobytes())
+            b_arr.extend(scale.tobytes("F"))
+            b_arr.extend(values.tobytes("F"))
             assert len(b_arr) % n_bytes_per_group == 0
         return bytes(b_arr)
 
