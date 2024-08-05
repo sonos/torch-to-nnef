@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from scripts.export_llama import LlamaSLugs, SuperBasicCausal
+from torch_to_nnef.llm_tract import BaseCausalWithDynCacheAndTriu, LlamaSLugs
 from torch_to_nnef.tract import tract_version
 
 from .utils import check_model_io_test, set_seed  # noqa: E402
@@ -18,7 +18,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
 tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
 causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
-striped_model = SuperBasicCausal(causal_llama)
+striped_model = BaseCausalWithDynCacheAndTriu(causal_llama)
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 if tract_version() > "0.21.5":  # prior bug in tract
     S = 10

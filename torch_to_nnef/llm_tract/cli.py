@@ -1,0 +1,327 @@
+import argparse
+import os
+import typing as T
+from enum import Enum
+from pathlib import Path
+
+import torch
+from torch import nn
+
+from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.log import log
+from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
+from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
+from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers.models.phi3.configuration_phi3 import Phi3Config
+
+    from torch_to_nnef.llm_tract.models.base import (
+        BaseCausal,
+        BaseCausalWithDynCacheAndTriu,
+    )
+except ImportError as exp:
+    raise ValueError(
+        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
+    ) from exp
+
+
+class PHISlugs(str, Enum):
+    DEBUG = "phi_debug"
+    ONE_FIVE = "microsoft/phi-1_5"
+    MINI = "microsoft/Phi-3-mini-4k-instruct"
+    SMALL = "microsoft/Phi-3-small-8k-instruct"
+
+
+class LlamaSLugs(str, Enum):
+    DUMMY = "yujiepan/llama-2-tiny-random"
+    TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    LLAMA3_8B = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
+    LLAMA2_7B_BASE = "meta-llama/Llama-2-7b-hf"
+
+
+APPLE_OPENELM_STARTSWITH = "apple/OpenELM-"
+
+
+class OpenELMSlugs(str, Enum):
+    MICRO = "apple/OpenELM-270M-Instruct"
+    MINI = "apple/OpenELM-450M-Instruct"
+    MEDIUM = "apple/OpenELM-1_1B-Instruct"
+    BIG = "apple/OpenELM-3B-Instruct"
+
+
+CUSTOM_CONFIGS: T.Dict[str, T.Any] = {
+    PHISlugs.DEBUG: Phi3Config(
+        vocab_size=32064,
+        num_hidden_layers=4,
+        num_attention_heads=4,
+        hidden_size=256,
+        intermediate_size=512,
+        max_position_embeddings=4096,
+        original_max_position_embeddings=4096,
+    )
+}
+
+REMAP_TOKENIZER_FOR_MODEL_STARTING_WITH: T.Dict[str, str] = {
+    APPLE_OPENELM_STARTSWITH: LlamaSLugs.LLAMA2_7B_BASE.value,
+    PHISlugs.DEBUG.value: PHISlugs.MINI.value,
+}
+
+
+def load_tokenizer(hf_model_slug: str):
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    tokenizer_slug = hf_model_slug
+    try:
+        tokenizer_slug = next(
+            mapped_slug
+            for slug_start, mapped_slug in REMAP_TOKENIZER_FOR_MODEL_STARTING_WITH.items()
+            if hf_model_slug.startswith(slug_start)
+        )
+    except StopIteration:
+        pass
+    return AutoTokenizer.from_pretrained(tokenizer_slug)
+
+
+def load_model(
+    hf_model_slug: str,
+    local_dir: T.Optional[T.Union[Path, str]],
+    as_float16: bool = False,
+):
+    model_slug = hf_model_slug
+
+    kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
+    if as_float16:
+        kwargs["torch_dtype"] = "float16"
+
+    custom_config = None
+    if hf_model_slug in CUSTOM_CONFIGS:
+        custom_config = CUSTOM_CONFIGS[model_slug]
+    if custom_config is not None:
+        hf_model_causal = AutoModelForCausalLM.from_config(
+            custom_config, trust_remote_code=True
+        )
+        log.info(f"load custom config: {model_slug}")
+    elif local_dir:
+        dir_path = Path(local_dir)
+        assert dir_path.is_dir(), dir_path
+        assert (dir_path / "model.safetensors").is_file(), dir_path
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(
+            dir_path, **kwargs
+        )
+        log.info(f"load '{model_slug}' from local directory: {dir_path}")
+    else:
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(
+            model_slug, **kwargs
+        )
+        log.info(f"load default trained model from huggingface: {model_slug}")
+    return hf_model_causal
+
+
+class InfosFromSlugAndConfig:
+    def __init__(self, model_slug, conf):
+        self.conf = conf
+        self.model_slug = model_slug
+        if model_slug.startswith(APPLE_OPENELM_STARTSWITH):
+            self.max_position_embeddings = conf.max_context_length
+            self.wrapper_class = BaseCausal
+        else:
+            self.max_position_embeddings = conf.max_position_embeddings
+            self.wrapper_class = BaseCausalWithDynCacheAndTriu
+
+    def get_past_value_cache_conf(self, n_past_input_tokens: int):
+        if self.model_slug.startswith(APPLE_OPENELM_STARTSWITH):
+            num_hidden_layers = self.conf.num_transformer_layers
+            past_values_cache_conf = {
+                "n_kv": num_hidden_layers,
+                "kv_shape": [
+                    (
+                        1,
+                        self.conf.num_kv_heads[layer_idx],
+                        n_past_input_tokens,
+                        self.conf.head_dim,
+                    )
+                    for layer_idx in range(num_hidden_layers)
+                    for _ in range(2)  # k and v
+                ],
+            }
+        else:
+            shape_last_dim = int(
+                self.conf.hidden_size / self.conf.num_attention_heads
+            )
+            past_values_cache_conf = {
+                "n_kv": self.conf.num_hidden_layers,
+                "kv_shape": [
+                    (
+                        1,
+                        self.conf.num_key_value_heads,
+                        n_past_input_tokens,
+                        shape_last_dim,
+                    )
+                ]
+                * self.conf.num_hidden_layers
+                * 2,
+            }
+        return past_values_cache_conf
+
+    def build_kv_cache_infos(
+        self, n_past_input_tokens: int, as_float16: bool = False
+    ):
+        past_values_cache_conf = self.get_past_value_cache_conf(
+            n_past_input_tokens
+        )
+        dynamic_axes = {
+            "input_ids": {1: "S"},
+        }
+        past_key_values = []
+        in_cache_names = []
+        out_cache_names = []
+        for idx in range(past_values_cache_conf["n_kv"] * 2):
+            if idx % 2 == 0:
+                node_name = f"cache_key_{int(idx / 2)}"
+            else:
+                node_name = f"cache_value_{int((idx -1) / 2)}"
+
+            k_or_v = torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
+            if as_float16:
+                k_or_v = k_or_v.to(torch.float16)
+            past_key_values.append(k_or_v)
+            in_cache_name = f"in_{node_name}"
+            in_cache_names.append(in_cache_name)
+            out_cache_names.append(f"out_{node_name}")
+            # past s   dynamic_axes[in_cache_name] = {2: "PAST_S"}
+            dynamic_axes[in_cache_name] = {2: "P"}
+        return in_cache_names, out_cache_names, past_key_values, dynamic_axes
+
+
+class LLMExport:
+    def __init__(
+        self,
+        hf_model_slug: str,
+        local_dir: T.Optional[Path] = None,
+        as_float16: bool = False,
+    ):
+        self.tokenizer = load_tokenizer(hf_model_slug)
+        self.hf_model_causal = load_model(
+            hf_model_slug, local_dir, as_float16=as_float16
+        )
+        self.as_float16 = as_float16
+
+        self.model_infos = InfosFromSlugAndConfig(
+            hf_model_slug, self.hf_model_causal.config
+        )
+
+        self.wrapped_model = self.model_infos.wrapper_class(
+            self.hf_model_causal
+        )
+
+    def quantize_weights_min_max_Q4_0(self):
+        log.info("start quantization Q4_0")
+        with torch.no_grad():
+            for name, mod in self.hf_model_causal.named_modules():
+                if isinstance(mod, nn.Linear):
+                    mod_hierarchy = name.split(".")
+                    submod_name = ".".join(mod_hierarchy[:-1])
+                    mod_name = mod_hierarchy[-1]
+                    log.info(f"quantize layer: {name}")
+                    q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                        mod.weight
+                    )
+                    setattr(
+                        self.hf_model_causal.get_submodule(submod_name),
+                        mod_name,
+                        replace_nn_ops(mod, q_weight),
+                    )
+        log.info("end quantization Q4_0")
+
+    def export_model(self, export_filepath: Path):
+        test_input = self.tokenizer("Hello, I am happy", return_tensors="pt")
+        (
+            in_cache_names,
+            out_cache_names,
+            past_key_values,
+            dynamic_axes,
+        ) = self.model_infos.build_kv_cache_infos(
+            n_past_input_tokens=10, as_float16=self.as_float16
+        )
+
+        inputs = tuple([test_input.input_ids[:, :1]] + past_key_values)
+
+        _ = self.wrapped_model(*inputs)
+
+        input_names = ["input_ids"] + in_cache_names
+        output_names = ["outputs"] + out_cache_names
+        assert (
+            len(inputs) == len(input_names) == len(output_names)
+        ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
+        log.info("start export with 'torch_to_nnef'")
+        export_model_to_nnef(
+            model=self.wrapped_model,
+            args=inputs,
+            file_path_export=Path(export_filepath),
+            input_names=input_names,
+            output_names=output_names,
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
+            dynamic_axes=dynamic_axes,
+            renaming_scheme=VariableNamingScheme.NATURAL_VERBOSE,
+            custom_extensions={
+                "tract_assert P >= 0",
+                "tract_assert S >= 1",
+                f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
+            },
+        )
+
+
+def parser_cli():
+    parser = argparse.ArgumentParser(__doc__)
+    parser.add_argument(
+        "-e",
+        "--export-filepath",
+        required=True,
+        help="export file path to dump .nnef.tgz",
+    )
+    parser.add_argument(
+        "-s",
+        "--model-slug",
+        choices=[
+            _.value
+            for slugsEnums in [LlamaSLugs, PHISlugs, OpenELMSlugs]
+            for _ in slugsEnums
+        ],
+        required=True,
+        help="huggingface slug to export",
+    )
+    parser.add_argument(
+        "-f16",
+        "--as-float16",
+        action="store_true",
+        help="float in 16 bits",
+    )
+    parser.add_argument(
+        "-q",
+        "--quantize-weights",
+        action="store_true",
+        help="quantize weights with Q4.0 default basic calibration",
+    )
+    parser.add_argument(
+        "-d",
+        "--local-dir",
+        help="local dir containing .safetensors compatible with openELM"
+        " model size specified in slug",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parser_cli()
+    log.getLogger().setLevel(log.DEBUG)
+    with torch.no_grad():
+        exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
+        if args.quantize_weights:
+            exporter.quantize_weights_min_max_Q4_0()
+        exporter.export_model(args.export_filepath)
+
+
+if __name__ == "__main__":
+    main()
