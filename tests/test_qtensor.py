@@ -60,3 +60,23 @@ def test_quantize_with_tract_q4_0_classic():
         check_model_io_test(
             model=model, test_input=test_input, check_same_io_as_tract=False
         )
+
+
+def test_quantize_with_tract_q4_0_arange():
+    """basic quantization values"""
+    with torch.no_grad():
+        test_input = torch.arange(960).float().reshape(10, 96)
+        test_input[0, :] = 1
+        model = nn.Linear(96, 16, bias=False).eval()
+        model.weight[:, :] = torch.arange(16 * 96).float().reshape(16, 96)
+        original_weight = model.weight
+
+        q_tensor = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+            original_weight
+        )
+
+        model = replace_nn_ops(model, q_tensor)
+        # can safely check io since all values controled
+        check_model_io_test(
+            model=model, test_input=test_input, check_same_io_as_tract=True
+        )
