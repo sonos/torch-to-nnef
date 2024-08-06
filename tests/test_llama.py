@@ -4,7 +4,10 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from torch_to_nnef.llm_tract import BaseCausalWithDynCacheAndTriu, LlamaSLugs
+from torch_to_nnef.llm_tract.cli import (
+    BaseCausalWithDynCacheAndTriu,
+    LlamaSLugs,
+)
 from torch_to_nnef.tract import tract_version
 
 from .utils import check_model_io_test, set_seed  # noqa: E402
