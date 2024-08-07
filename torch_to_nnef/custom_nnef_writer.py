@@ -320,6 +320,8 @@ class Writer:
                 if not os.path.exists(folder):
                     os.makedirs(folder)
 
+            self._write_tensors_from_operators(graph, folder)
+
             used_operators = self._used_operators(
                 graph, self._fragment_dependencies
             )
@@ -355,8 +357,6 @@ class Writer:
                     and self._version_custom_fragments,
                     annotate_shapes=self._annotate_shapes,
                 )
-
-            self._write_tensors_from_operators(graph, folder)
 
             if any(tensor.quant for tensor in graph.tensors):
                 quant_filename = os.path.join(folder, "graph.quant")

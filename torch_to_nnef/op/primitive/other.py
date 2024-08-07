@@ -44,7 +44,10 @@ def external(
         g, node, name_to_tensor, prevent_variable=True
     )
     custom_fragments = []
-    if nnef_tensor_ref.dtype in _EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT:
+    if (
+        nnef_tensor_ref.dtype in _EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT
+        and nnef_spec_strict
+    ):
         add_nnef_operation(
             graph=g,
             type="external",
