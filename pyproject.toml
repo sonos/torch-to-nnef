@@ -11,10 +11,10 @@ classifiers = [
     'Intended Audience :: Developers',
     'Natural Language :: English',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
 ]
 packages = [{ include = "torch_to_nnef" }]
 include = ["CHANGELOG.md"]
@@ -24,11 +24,11 @@ name = "pypi-public"
 url = "https://pypi.org/simple/"
 
 [tool.poetry.dependencies]
-python = ">=3.8.0,<4.0"
+python = ">=3.9.0,<4.0"
 
 # real deps {
 # limited by NNEF-tools (sadly the orginal package does not keep track of it's deps)
-numpy = ">=1.20.0,<3"
+numpy = ">=1.26.0,<3"
 torch = ">=1.8.0,<3"
 
 nnef_tools = "1.0.6"
@@ -165,7 +165,7 @@ disable = [
 max-attributes = 15
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 
 [[tool.mypy.overrides]]
 module = "torch"

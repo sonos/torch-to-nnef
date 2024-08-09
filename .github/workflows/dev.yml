@@ -20,9 +20,9 @@ jobs:
     # The type of runner that the job will run on
     strategy:
       matrix:
-        python-versions: [3.8, 3.11]
+        python-versions: [3.9, 3.12]
         os: [ubuntu-latest] # , macos-latest disabled since we have limited use
-        # we check at max 5 tract versions
+        # we check 3 minor tract versions
         # with only latest patch version maintained
         tract-versions: [0.19.16, 0.20.22, 0.21.6]
     runs-on: ${{ matrix.os }}
