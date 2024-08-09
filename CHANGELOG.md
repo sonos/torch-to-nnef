@@ -11,10 +11,10 @@
 - new `llm_tract` extension installable with `pip install torch_to_nnef[llm_tract]`
   - hold cli `export_llm_to_tract` for direct LLM export from any huggingface model with optional quant
   - replace `scripts` dir at root of the project
+- added support for Python 3.12
 
 ### Removed
 
-- added support for Python 3.12
 - dropped support for Python 3.8
 - dropped support for unused QTensor formats
 
