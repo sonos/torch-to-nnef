@@ -7,7 +7,7 @@ still we did minor modification to be pythonic.
 (force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
 
 It is adapted with goal:
-- to handle special GGML/GGUF quantization variables storage with gguf data storage format
+- to handle special Tract quantization variables storage with custom .dat data storage format
 
 """
 
@@ -293,6 +293,23 @@ class Writer:
         self._annotate_shapes = annotate_shapes
         self._target_tract = target_tract
 
+    def _write_tensors_from_operators(self, graph, folder):
+        for op in graph.operations:
+            if op.type == "variable":
+                filename = op.attribs["label"] + ".dat"
+                if op.attribs.pop("custom_datatype", "") == "tract_quant":
+                    qtensor = op.output.qtensor
+                    tname = op.attribs["label"]
+                    qtensor.write_in_tract_dat_file(
+                        os.path.join(folder, f"{tname}.dat")
+                    )
+                else:
+                    _write_tensor(
+                        np.asarray(op.output.data, order="C"),
+                        os.path.join(folder, filename),
+                        quantized=bool(op.output.quant),
+                    )
+
     def __call__(self, graph, path):
         folder = None
         try:
@@ -302,6 +319,8 @@ class Writer:
                 folder = path
                 if not os.path.exists(folder):
                     os.makedirs(folder)
+
+            self._write_tensors_from_operators(graph, folder)
 
             used_operators = self._used_operators(
                 graph, self._fragment_dependencies
@@ -338,23 +357,6 @@ class Writer:
                     and self._version_custom_fragments,
                     annotate_shapes=self._annotate_shapes,
                 )
-
-            for op in graph.operations:
-                if op.type == "variable":
-                    filename = op.attribs["label"] + ".dat"
-                    _write_tensor(
-                        np.asarray(op.output.data, order="C"),
-                        os.path.join(folder, filename),
-                        quantized=bool(op.output.quant),
-                    )
-                if op.type == "tract_core_gguf_variable":
-                    qtensor = op.output.qtensor
-                    qtensor.write_tensor_in_gguf_file(
-                        os.path.join(folder, op.attribs["gguf_filename"]),
-                        op.attribs["gguf_tensor_name"],
-                        qtensor._float_torch_tensor.numpy(),
-                        qtensor.gguf_data_type,
-                    )
 
             if any(tensor.quant for tensor in graph.tensors):
                 quant_filename = os.path.join(folder, "graph.quant")

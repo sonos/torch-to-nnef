@@ -132,7 +132,6 @@ class TorchToNGraphExtractor:
 
         def forward_clean_values_for_dyn_axes(op_node):
             """forward clean in all child nodes"""
-            assert len(op_node.outputs) == 1
             LOGGER.debug(f"remove concrete values from {op_node.outputs}")
             for onode in op_node.outputs:
                 onode.data = None
@@ -144,7 +143,6 @@ class TorchToNGraphExtractor:
                         if user_op_node in explored_user_op_nodes:
                             LOGGER.debug(f"already explored: {user_op_node}")
                             continue
-                        assert len(user_op_node.outputs) == 1
                         explored_user_op_nodes.add(user_op_node)
                         forward_clean_values_for_dyn_axes(user_op_node)
                 except TorchNotFoundOp as exp:
