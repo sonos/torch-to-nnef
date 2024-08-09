@@ -30,12 +30,13 @@ python = ">=3.8.0,<4.0"
 # limited by NNEF-tools (sadly the orginal package does not keep track of it's deps)
 numpy = ">=1.20.0,<3"
 torch = ">=1.8.0,<3"
-nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev = "47b496168bd83736ad2fdf40a1193f26a4987c98" }
+
+nnef_tools = "1.0.6"
+nnef = "1.0.6"
 
 six = "^1.16.0" # needed for nnef_tools but deps not correctly declared
 # }
 
-nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "parser/python", rev = "47b496168bd83736ad2fdf40a1193f26a4987c98" }
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"
 
 
