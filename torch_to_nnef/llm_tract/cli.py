@@ -281,16 +281,19 @@ def parser_cli():
         required=True,
         help="export file path to dump .nnef.tgz",
     )
+
+    slug_examples = ", ".join(
+        [
+            f"'{_.value}'"
+            for slugsEnums in [LlamaSLugs, PHISlugs, OpenELMSlugs]
+            for _ in slugsEnums
+        ]
+    )
     parser.add_argument(
         "-s",
         "--model-slug",
-        choices=[
-            _.value
-            for slugsEnums in [LlamaSLugs, PHISlugs, OpenELMSlugs]
-            for _ in slugsEnums
-        ],
         required=True,
-        help="huggingface slug to export",
+        help=f"huggingface slug (web-page 'endpoint') to export by example ({slug_examples})",
     )
     parser.add_argument(
         "-f16",
