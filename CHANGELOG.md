@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## 0.12.0 - 2024-08-09
+
+### Added
+
+- tract `Q4_0` support
+- new `llm_tract` extension installable with `pip install torch_to_nnef[llm_tract]`
+    - hold cli `export_llm_to_tract` for direct LLM export from any huggingface model with optional quant
+    - replace `scripts` dir at root of the project
+
+### Removed
+
+- added support for Python 3.12
+- dropped support for Python 3.8
+- dropped support for unused QTensor formats
+
 ## [0.11.3] - 2024-07-26
 
 ### Added
