@@ -28,7 +28,7 @@ python = ">=3.8.0,<4.0"
 
 # real deps {
 # limited by NNEF-tools (sadly the orginal package does not keep track of it's deps)
-numpy = ">=1.20.0,<2"
+numpy = ">=1.20.0,<3"
 torch = ">=1.8.0,<3"
 nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", rev = "47b496168bd83736ad2fdf40a1193f26a4987c98" }
 
