@@ -34,7 +34,6 @@ torch = ">=1.8.0,<3"
 nnef_tools = "1.0.6"
 nnef = "1.0.6"
 
-six = "^1.16.0" # needed for nnef_tools but deps not correctly declared
 # }
 
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"
