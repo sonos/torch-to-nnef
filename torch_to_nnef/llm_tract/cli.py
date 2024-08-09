@@ -11,7 +11,7 @@ from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
 from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
-from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 try:
     from huggingface_hub import login
