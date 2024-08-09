@@ -14,6 +14,7 @@ from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
 from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
 
 try:
+    from huggingface_hub import login
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from transformers.models.phi3.configuration_phi3 import Phi3Config
 
@@ -320,7 +321,19 @@ def main():
     args = parser_cli()
     log.getLogger().setLevel(log.DEBUG)
     with torch.no_grad():
-        exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
+        try:
+            exporter = LLMExport(
+                args.model_slug, args.local_dir, args.as_float16
+            )
+        except OSError as exp:
+            if "gated repo" in exp.args[0]:
+                print(exp.args[0])
+                login()
+                exporter = LLMExport(
+                    args.model_slug, args.local_dir, args.as_float16
+                )
+            else:
+                raise NotImplementedError() from exp
         if args.quantize_weights:
             exporter.quantize_weights_min_max_Q4_0()
         exporter.export_model(args.export_filepath)
