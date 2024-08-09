@@ -27,12 +27,11 @@ url = "https://pypi.org/simple/"
 python = ">=3.9.0,<4.0"
 
 # real deps {
-# limited by NNEF-tools (sadly the orginal package does not keep track of it's deps)
-numpy = ">=1.26.0,<3"
+numpy = ">=1.26.0,<2"
 torch = ">=1.8.0,<3"
 
-nnef_tools = "1.0.6"
-nnef = "1.0.6"
+nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef_tools-pyproject", rev = "c1aac75" }
+nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef-pyproject", rev = "c1aac75" }
 
 # }
 
