@@ -27,7 +27,7 @@ from torch_to_nnef.torch_graph import (
     TorchModuleTracer,
     module_tracer_into_ir_graph,
 )
-from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_graph.ir_op import (
     CacheDataNodeTarget,
     CacheDataToOpsNode,

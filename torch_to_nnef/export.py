@@ -22,7 +22,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
-from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
 LOGGER = log.getLogger(__name__)

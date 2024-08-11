@@ -11,7 +11,7 @@ from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
 from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
-from torch_to_nnef.torch_graph.ir_graph import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 try:
     from huggingface_hub import login
@@ -235,7 +235,11 @@ class LLMExport:
                     )
         log.info("end quantization Q4_0")
 
-    def export_model(self, export_filepath: Path):
+    def export_model(
+        self,
+        export_filepath: Path,
+        renaming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+    ):
         test_input = self.tokenizer("Hello, I am happy", return_tensors="pt")
         (
             in_cache_names,
@@ -265,7 +269,7 @@ class LLMExport:
             log_level=log.INFO,
             check_same_io_as_tract=True,
             dynamic_axes=dynamic_axes,
-            renaming_scheme=VariableNamingScheme.NATURAL_VERBOSE,
+            renaming_scheme=renaming_scheme,
             custom_extensions={
                 "tract_assert P >= 0",
                 "tract_assert S >= 1",
@@ -314,12 +318,29 @@ def parser_cli():
         help="local dir containing .safetensors compatible with openELM"
         " model size specified in slug",
     )
+    parser.add_argument(
+        "-n",
+        "--naming-scheme",
+        default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
+        choices=[vns.value for vns in VariableNamingScheme],
+        help="display debug information",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="display debug information",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parser_cli()
-    log.getLogger().setLevel(log.DEBUG)
+    log_level = log.INFO
+    if args.verbose:
+        log_level = log.DEBUG
+    log.getLogger().setLevel(log_level)
+
     with torch.no_grad():
         try:
             exporter = LLMExport(
@@ -333,10 +354,12 @@ def main():
                     args.model_slug, args.local_dir, args.as_float16
                 )
             else:
-                raise NotImplementedError() from exp
+                raise exp
         if args.quantize_weights:
             exporter.quantize_weights_min_max_Q4_0()
-        exporter.export_model(args.export_filepath)
+        exporter.export_model(
+            args.export_filepath, renaming_scheme=args.naming_scheme
+        )
 
 
 if __name__ == "__main__":
