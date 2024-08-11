@@ -2,7 +2,7 @@ import enum
 import re
 import string
 import typing as T
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph.ir_data import (
@@ -23,6 +23,7 @@ from torch_to_nnef.utils import NamedItemOrderedSet, flatten_dict
 class VariableNamingScheme(str, enum.Enum):
     RAW = "raw"
     NATURAL_VERBOSE = "natural_verbose"
+    NATURAL_VERBOSE_CAMEL = "natural_verbose_camel"
     NUMERIC = "numeric"
 
     @classmethod
@@ -46,6 +47,7 @@ def apply_renaming_scheme(torch_ir_graph, scheme="natural_verbose"):
         torch_ir_graph.data_nodes.avoid_name_collision = True  # safety
         {
             VariableNamingScheme.NATURAL_VERBOSE: rename_natural_verbose,
+            VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,
             VariableNamingScheme.NUMERIC: rename_compact_numeric,
         }[scheme](torch_ir_graph)
         torch_ir_graph.data_nodes.avoid_name_collision = False
@@ -98,6 +100,28 @@ def rename_natural_verbose(torch_ir_graph) -> None:
             dn.name = new_name
     if torch_ir_graph.is_root_module:
         remove_useless_digits_from_module_names(torch_ir_graph)
+
+
+def to_camel_case(snake_str: str):
+    return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+
+
+def rename_natural_verbose_camel(torch_ir_graph):
+    rename_natural_verbose(torch_ir_graph)
+    if torch_ir_graph.is_root_module:
+
+        def _fmt_node_name(name: str):
+            return "_".join(
+                to_camel_case(name_chunk) for name_chunk in name.split("_.")
+            )
+
+        name_map: T.Dict[str, str] = {}
+        for dnode in list(torch_ir_graph.data_nodes.iter_renamable()):
+            name_map[dnode.name] = _fmt_node_name(dnode.name)
+        ct = Counter(name_map.values())
+        for dnode in list(torch_ir_graph.data_nodes.iter_renamable()):
+            if ct[name_map[dnode.name]] == 1:
+                dnode.name = name_map[dnode.name]
 
 
 def rename_compact_numeric(torch_ir_graph) -> None:
