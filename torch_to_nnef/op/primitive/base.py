@@ -97,15 +97,14 @@ def add_nnef_operation(
     ):
         outputs = kwargs["outputs"]
         op_type = kwargs["type"]
-        inputs = maybe_align_inputs_ranks(
-            graph, inputs, outputs, op_type
-        )  # type: ignore
+        inputs = maybe_align_inputs_ranks(graph, inputs, outputs, op_type)  # type: ignore
     kwargs["graph"] = graph
     kwargs["inputs"] = inputs
     return NOperation(*args, **kwargs)
 
 
 def nnef_tensor_from_tv(g: NGraph, name: str, node: TensorVariable):
+    assert isinstance(node, TensorVariable)
     quant = None
     if node.quant and "shape" not in name:
         np_dtype = TORCH_TO_NUMPY_DTYPE[node.dtype]
@@ -141,6 +140,8 @@ def add_tensor_variable_node_as_nnef_tensor(
         if name_suffix:
             name += f"_{name_suffix}"
 
+    if isinstance(node, PythonConstant):
+        node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()

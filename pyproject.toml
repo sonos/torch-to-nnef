@@ -33,6 +33,8 @@ torch = ">=1.8.0,<3"
 nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef_tools-pyproject", rev = "c1aac75" }
 nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef-pyproject", rev = "c1aac75" }
 
+mako = ">=1.0.0,<2.0" # template engine for fragments
+
 # }
 
 # pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"

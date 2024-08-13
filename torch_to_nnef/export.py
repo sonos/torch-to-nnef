@@ -21,7 +21,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
-from torch_to_nnef.op.fragment import FRAGMENTS
+from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
@@ -213,10 +213,13 @@ def export_model_to_nnef(
         )
         nnef_graph = graph_extractor.parse()
 
-        active_custom_fragments = {
-            _: FRAGMENTS[_].definition
-            for _ in graph_extractor.activated_custom_fragment_keys
-        }
+        active_custom_fragments = {}
+        for _ in graph_extractor.activated_custom_fragment_keys:
+            if isinstance(_, Fragment):
+                active_custom_fragments[_.name] = _.definition
+            else:
+                active_custom_fragments[_] = FRAGMENTS[_].definition
+
         active_custom_extensions = {
             ext
             for _ in graph_extractor.activated_custom_fragment_keys

@@ -303,7 +303,17 @@ class TorchOp:
             # hacky/bad way to pass argument that are named argument only {
             args, kwargs = self.update_call_op_arg_kwargs(self.args)
 
-            return self.op_ref(*args, **kwargs)
+            if self.kind == "aten::where":  # TODO: FIX in bob
+                args = list(args)
+                args[0] = args[0].bool()
+                args = tuple(args)
+
+            try:
+                return self.op_ref(*args, **kwargs)
+            except Exception as exp:  # TODO: remove
+                print(exp)
+                __import__("ipdb").set_trace()
+                pass
         raise TorchToNNEFNotImplementedError(self)
 
     @property

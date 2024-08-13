@@ -30,6 +30,7 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     if len(node.inputs) == 7:  # added param between torch 1.13 and 2.2
         scale_node = node.inputs[-1]
         if scale_node.data is not None:
+            __import__("ipdb").set_trace()
             raise TorchToNNEFNotImplementedError(
                 "scaled_dot_product_attention with specific scale not implemented"
             )
