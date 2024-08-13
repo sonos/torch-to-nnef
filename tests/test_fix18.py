@@ -2,7 +2,6 @@ import pytest
 import torch
 
 from torch_to_nnef.tract import tract_version
-from torch_to_nnef.utils import SemanticVersion
 
 from .utils import check_model_io_test
 
@@ -25,7 +24,7 @@ class MyModule(torch.nn.Module):
 
 
 @pytest.mark.skipif(
-    tract_version() < SemanticVersion.from_str("0.18.0"),
+    tract_version() < "0.18.0",
     reason="tract version installed too old",
 )
 def test_issue18_export():
