@@ -61,8 +61,9 @@ export_model_to_nnef(
     debug_bundle_path=Path("./debug.tgz"),
     dynamic_axes={"input": {2: "S"}},
 )
-# there is a lot of parameters you can look
-# at function documentation for more informations
+# More parameters exists,
+# you can look at function documentation
+# for more informations about each with:
 # help(export_model_to_nnef)
 ```
 
