@@ -39,6 +39,42 @@ def flatten_dict(
     return dict(items)
 
 
+def flatten_tuple_or_list_with_idx(
+    tup, collected_idxes: T.Optional[T.List[int]] = None, current_idx: int = 0
+) -> T.Tuple[T.Tuple[T.Tuple[int, ...], T.Any], ...]:
+    """Flatten list and tuple recursively and provide indexes
+
+    In depth first search approach
+
+    Args:
+        tuple/list of elements each element being a list/tuple or anything else
+            this contains N number of element non list/tuple
+    Return:
+        tuple of N tuples each containing a tuple of indexes and the element
+    """
+    if collected_idxes is None:
+        collected_idxes = []
+    else:
+        collected_idxes = collected_idxes[:]
+    collected_idxes.append(current_idx)
+    current_idx += 1
+    if isinstance(tup, (tuple, list)):
+        if not tup:
+            return ()
+        if isinstance(tup[0], (tuple, list)):
+            return flatten_tuple_or_list_with_idx(
+                tup[0], collected_idxes, 0
+            ) + flatten_tuple_or_list_with_idx(
+                tup[1:], collected_idxes[:-1], current_idx
+            )
+        return (
+            (tuple(collected_idxes), tup[0]),
+        ) + flatten_tuple_or_list_with_idx(
+            tup[1:], collected_idxes[:-1], current_idx
+        )
+    return ()
+
+
 @total_ordering
 class SemanticVersion:
     """Helper to check a version is higher than another"""

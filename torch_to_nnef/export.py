@@ -19,10 +19,11 @@ from torch_to_nnef.exceptions import (
     StrictNNEFSpecError,
     TorchToNNEFInvalidArgument,
 )
+from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import torch_version
+from torch_to_nnef.utils import flatten_tuple_or_list_with_idx, torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -51,8 +52,10 @@ def export_model_to_nnef(
     Export any torch.nn.Module to NNEF file format archive
 
     Args:
-        model: an nn.Module that have a `.forward` function with only tensor
-            arguments and outputs (no tuple, list, dict or objects)
+        model: an nn.Module that have a `.forward` function
+            with only tensor arguments and outputs
+            (no tuple, list, dict or objects)
+            Only this function will be serialised
 
         args: a flat ordered list of tensors for each forward inputs of `model`
             this list can not be of dynamic size (at serialization it will be
@@ -83,7 +86,7 @@ def export_model_to_nnef(
                     and values are axis names. If a list, each element is
                     an axis index.
 
-        compression_level: int (> 0)
+        compression_level: int (>= 0)
             compression level of tar.gz (higher is more compressed)
 
         log_level: int,
@@ -155,7 +158,10 @@ def export_model_to_nnef(
         )
     if isinstance(args, (torch.Tensor, int, float, bool)):
         args = (args,)
-    check_io_types(model, args)
+    outs = model(*args)
+    if isinstance(outs, (torch.Tensor, int, float, bool)):
+        outs = (outs,)
+    check_io_types(model, args, outs)
     check_io_names(input_names, output_names)
 
     if use_specific_tract_binary is not None:
@@ -183,6 +189,10 @@ def export_model_to_nnef(
         if dynamic_axes is None:
             dynamic_axes = {}
         _validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
+
+        model, args, input_names, output_names = may_wrap_model_to_flatten_io(
+            model, args, outs, input_names, output_names
+        )
 
         graph_extractor = TorchToNGraphExtractor(
             model,
@@ -227,20 +237,18 @@ def export_model_to_nnef(
                 f"such as {active_custom_extensions} be sure "
                 "to use an inference engine that support them"
             )
-        custom_framgnent_names = list(active_custom_fragments.keys())
-        nnef_exp_file_path = file_path_export
-        if compression_level is not None:
-            nnef_exp_file_path = Path(nnef_exp_file_path)
-            if nnef_exp_file_path.suffix == ".tgz":
-                nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
+        custom_fragment_names = list(active_custom_fragments.keys())
+        nnef_exp_file_path = real_export_path(
+            file_path_export, compression_level
+        )
 
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
             fragment_dependencies={
                 # this trick ensure all requested fragment are exported
-                _: custom_framgnent_names
-                for _ in custom_framgnent_names
+                _: custom_fragment_names
+                for _ in custom_fragment_names
             },
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
@@ -297,22 +305,36 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
     return custom_extensions
 
 
-def check_io_types(model, args):
+SUPPORTED_IO_TYPES = (torch.Tensor, tuple, list)
+
+
+def check_io_types(model, args, outs):
     for ix, a in enumerate(args):
-        if isinstance(a, torch.Tensor):
+        if isinstance(a, SUPPORTED_IO_TYPES) or (
+            isinstance(a, (tuple, list))
+            and all(
+                isinstance(ax, torch.Tensor)
+                for _, ax in flatten_tuple_or_list_with_idx(a)
+            )
+        ):
             continue
         raise TorchToNNEFInvalidArgument(
             f"Provided args[{ix}] is of type {type(a)}"
-            " but only torch.Tensor is supported."
+            f" but only {SUPPORTED_IO_TYPES} is supported."
             " (you can use a wrapper module to comply to this rule.)"
         )
-    outs = model(*args)
     for ix, o in enumerate(outs):
-        if isinstance(o, torch.Tensor):
+        if isinstance(o, SUPPORTED_IO_TYPES) or (
+            isinstance(o, (tuple, list))
+            and all(
+                isinstance(ox, torch.Tensor)
+                for _, ox in flatten_tuple_or_list_with_idx(o)
+            )
+        ):
             continue
         raise TorchToNNEFInvalidArgument(
             f"Obtained model outputs[{ix}] is of type {type(o)}"
-            " but only torch.Tensor is supported."
+            f" but only {SUPPORTED_IO_TYPES} are supported."
             " (you can use a wrapper module to comply to this rule.)"
         )
 
@@ -340,3 +362,14 @@ def check_io_names(
             "input_names and output_names must be different "
             "(else it could lead to wrong simplification of the graph)"
         )
+
+
+def real_export_path(
+    file_path_export: Path, compression_level: T.Optional[int] = None
+) -> Path:
+    nnef_exp_file_path = file_path_export
+    if compression_level is not None:
+        nnef_exp_file_path = Path(nnef_exp_file_path)
+        if nnef_exp_file_path.suffix == ".tgz":
+            nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
+    return nnef_exp_file_path

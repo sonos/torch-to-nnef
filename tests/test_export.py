@@ -26,7 +26,7 @@ class MultiTensorsIO(nn.Module):
 
 class MultiStructInput(nn.Module):
     def forward(self, x, y: T.Tuple[torch.Tensor, torch.Tensor]):
-        return x * y[0] * 2
+        return x * y[0] * 2 * y[1]
 
 
 class MultiStructOutput(nn.Module):
@@ -103,45 +103,35 @@ def test_export_io_name_collision():
     assert "input_names and output_names must be different" in str(e_info.value)
 
 
-def test_export_wrong_inp_types():
+def test_export_tuple_inp_types():
     test_input = torch.rand(1, 2)
     model = MultiStructInput()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
-        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
-            export_model_to_nnef(
-                model=model,
-                args=(test_input, (test_input, test_input)),
-                file_path_export=export_path,
-                input_names=["a", "tup"],
-                output_names=["b"],
-                log_level=log.INFO,
-                check_same_io_as_tract=True,
-            )
-        assert (
-            "Provided args[1] is of type <class 'tuple'> "
-            "but only torch.Tensor is supported." in str(e_info.value)
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, (test_input, test_input)),
+            file_path_export=export_path,
+            input_names=["a", "tup"],
+            output_names=["b"],
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
         )
 
 
-def test_export_wrong_out_types():
+def test_export_tuple_out_types():
     test_input = torch.rand(1, 2)
     model = MultiStructOutput()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
-        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
-            export_model_to_nnef(
-                model=model,
-                args=(test_input,),
-                file_path_export=export_path,
-                input_names=["a"],
-                output_names=["b", "tup"],
-                log_level=log.INFO,
-                check_same_io_as_tract=True,
-            )
-        assert (
-            "Obtained model outputs[1] is of type <class 'tuple'> but only torch.Tensor is supported."
-            in str(e_info.value)
+        export_model_to_nnef(
+            model=model,
+            args=(test_input,),
+            file_path_export=export_path,
+            input_names=["a"],
+            output_names=["b", "tup"],
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
         )

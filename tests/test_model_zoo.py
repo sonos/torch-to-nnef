@@ -61,16 +61,34 @@ INPUT_AND_MODELS += [
 ]
 
 if hasattr(audio_mdl, "Conformer") and "0.21.2" <= tract_version():
+
+    class ConformerWrapper(torch.nn.Module):
+        """Avoid returning length that is not edited
+        torch_to_nnef forbid to return same tensor as inputed
+        by the model as this means this output is not needed
+        and may introduce silent variable name alterations.
+        """
+
+        def __init__(self, model) -> None:
+            super().__init__()
+            self.model = model
+
+        def forward(self, x, length):
+            out, _ = self.model(x, length)
+            return out
+
     INPUT_AND_MODELS = [
         (
             "conformer",
             (torch.rand(1, 100, 64), torch.tensor([100])),
-            audio_mdl.Conformer(
-                64,
-                num_heads=2,
-                num_layers=2,
-                ffn_dim=128,
-                depthwise_conv_kernel_size=31,
+            ConformerWrapper(
+                audio_mdl.Conformer(
+                    64,
+                    num_heads=2,
+                    num_layers=2,
+                    ffn_dim=128,
+                    depthwise_conv_kernel_size=31,
+                )
             ),
         )
     ]
