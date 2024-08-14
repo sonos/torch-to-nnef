@@ -218,7 +218,7 @@ def export_model_to_nnef(
             )
 
         if len(active_custom_extensions) > 0:
-            LOGGER.warning(
+            LOGGER.info(
                 "The exported NNEF model need special custom extensions "
                 f"such as {active_custom_extensions} be sure "
                 "to use an inference engine that support them"
