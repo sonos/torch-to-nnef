@@ -12,12 +12,12 @@ from torch.onnx.utils import (  # type: ignore
     select_model_mode_for_export,
 )
 
-# from . import __version__
 from torch_to_nnef import tract
 from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
 from torch_to_nnef.exceptions import (
     DynamicShapeValue,
     StrictNNEFSpecError,
+    TorchToNNEFInvalidArgument,
     TractError,
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
@@ -26,42 +26,6 @@ from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
 LOGGER = log.getLogger(__name__)
-
-
-def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
-    custom_extensions = set()
-    for node_name, named_dims in dynamic_axes.items():
-        for inp_tensor in nnef_graph.inputs:
-            if inp_tensor.name == node_name:
-                LOGGER.debug("found matching node element")
-                assert len(inp_tensor.producers) == 1
-                external_op = inp_tensor.producers[0]
-                assert external_op.type in [
-                    "external",
-                    "tract_core_external",
-                ], external_op.type
-                for axis, axis_name in named_dims.items():
-                    if len(axis_name) != 1:
-                        raise DynamicShapeValue(
-                            "axis_name in dynamic_axes must "
-                            "be of length 1 to follow tract convention "
-                            f"but was given '{axis_name}' "
-                            f"in dynamic_axes={dynamic_axes}"
-                        )
-                    external_op.attribs["shape"] = [
-                        nnef.Identifier(str(axis_name))
-                        if idx == axis
-                        else dim_size
-                        for idx, dim_size in enumerate(
-                            external_op.attribs["shape"]
-                        )
-                    ]
-                    if tract.tract_version() < "0.18.2":
-                        custom_extensions.add("tract_pulse_streaming_symbol")
-                    else:
-                        custom_extensions.add(f"tract_symbol {axis_name}")
-                break
-    return custom_extensions
 
 
 def export_model_to_nnef(
@@ -188,6 +152,7 @@ def export_model_to_nnef(
             "NNEF spec does not allow dynamic_axes "
             "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )
+    check_io_names(input_names, output_names)
 
     if use_specific_tract_binary is not None:
         assert use_specific_tract_binary.exists(), use_specific_tract_binary
@@ -297,4 +262,65 @@ def export_model_to_nnef(
             debug_bundle_path=debug_bundle_path,
             input_names=input_names,
             output_names=output_names,
+        )
+
+
+def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
+    custom_extensions = set()
+    for node_name, named_dims in dynamic_axes.items():
+        for inp_tensor in nnef_graph.inputs:
+            if inp_tensor.name == node_name:
+                LOGGER.debug("found matching node element")
+                assert len(inp_tensor.producers) == 1
+                external_op = inp_tensor.producers[0]
+                assert external_op.type in [
+                    "external",
+                    "tract_core_external",
+                ], external_op.type
+                for axis, axis_name in named_dims.items():
+                    if len(axis_name) != 1:
+                        raise DynamicShapeValue(
+                            "axis_name in dynamic_axes must "
+                            "be of length 1 to follow tract convention "
+                            f"but was given '{axis_name}' "
+                            f"in dynamic_axes={dynamic_axes}"
+                        )
+                    external_op.attribs["shape"] = [
+                        nnef.Identifier(str(axis_name))
+                        if idx == axis
+                        else dim_size
+                        for idx, dim_size in enumerate(
+                            external_op.attribs["shape"]
+                        )
+                    ]
+                    if tract.tract_version() < "0.18.2":
+                        custom_extensions.add("tract_pulse_streaming_symbol")
+                    else:
+                        custom_extensions.add(f"tract_symbol {axis_name}")
+                break
+    return custom_extensions
+
+
+def check_io_names(
+    input_names: T.Optional[T.List[str]], output_names: T.Optional[T.List[str]]
+):
+    if input_names and len(set(input_names)) != len(input_names):
+        raise TorchToNNEFInvalidArgument(
+            "each str in input_names must be different"
+        )
+
+    if output_names and len(set(output_names)) != len(output_names):
+        raise TorchToNNEFInvalidArgument(
+            "each str in output_names must be different"
+        )
+
+    if (
+        input_names
+        and output_names
+        and len(set(output_names + input_names))
+        != len(input_names + output_names)
+    ):
+        raise TorchToNNEFInvalidArgument(
+            "input_names and output_names must be different "
+            "(else it could lead to wrong simplification of the graph)"
         )
