@@ -1,8 +1,0 @@
-version 1.0;
-
-extension tract_registry tract_core;
-
-graph net_2024_08_14T18_19_17(output) -> (output)
-{
-    output = tract_core_external(shape = [1, 10, 100], datum_type = 'f32');
-}
