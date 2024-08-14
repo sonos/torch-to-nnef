@@ -18,7 +18,6 @@ from torch_to_nnef.exceptions import (
     DynamicShapeValue,
     StrictNNEFSpecError,
     TorchToNNEFInvalidArgument,
-    TractError,
 )
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
@@ -49,7 +48,7 @@ def export_model_to_nnef(
 ):
     """Main entrypoint of this library
 
-    Export any torch.nn.Module to NNEF file format
+    Export any torch.nn.Module to NNEF file format archive
 
     Args:
         model: an nn.Module that have a `.forward` function with only tensor
@@ -58,6 +57,8 @@ def export_model_to_nnef(
         args: a flat ordered list of tensors for each forward inputs of `model`
             this list can not be of dynamic size (at serialization it will be
             fixed to quantity of tensor provided)
+            WARNING! tensor size in args will increase export time so take that
+            in consideration for dynamic axes
 
         file_path_export: a Path to the exported NNEF serialized model archive.
             It must by convention end with `.nnef.tgz` suffixes
@@ -152,6 +153,9 @@ def export_model_to_nnef(
             "NNEF spec does not allow dynamic_axes "
             "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )
+    if isinstance(args, (torch.Tensor, int, float, bool)):
+        args = (args,)
+    check_io_types(model, args)
     check_io_names(input_names, output_names)
 
     if use_specific_tract_binary is not None:
@@ -167,9 +171,11 @@ def export_model_to_nnef(
     LOGGER.info(
         f"start parse Pytorch model to be exported at {file_path_export}"
     )
-    assert any(
-        s == ".nnef" for s in file_path_export.suffixes
-    ), f"export filepath should end with '.nnef' or '.nnef.tgz', but found: {file_path_export.suffixes}"
+    if not any(s == ".nnef" for s in file_path_export.suffixes):
+        raise TorchToNNEFInvalidArgument(
+            "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
+            f" but found: {file_path_export.suffixes}"
+        )
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         if "1.8.0" <= torch_version() < "1.12.0":
             # change starting in 1.12.0 for recurent layers make it unsuitable
@@ -177,8 +183,6 @@ def export_model_to_nnef(
         if dynamic_axes is None:
             dynamic_axes = {}
         _validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
-        if isinstance(args, (torch.Tensor, int, float, bool)):
-            args = (args,)
 
         graph_extractor = TorchToNGraphExtractor(
             model,
@@ -247,14 +251,6 @@ def export_model_to_nnef(
             f"model exported successfully as NNEF at: {nnef_exp_file_path}"
         )
     if check_same_io_as_tract:
-        # CHECK input and output are different
-        _output_names = {str(t.name) for t in nnef_graph.outputs}
-        _input_names = {str(t.name) for t in nnef_graph.inputs}
-        if len(_output_names.difference(_input_names)) == 0:
-            raise TractError(
-                "Tract does not support input passed as output without transform: "
-                f"outputs={_output_names} inputs={_input_names}"
-            )
         tract.assert_io_and_debug_bundle(
             model,
             args,
@@ -301,17 +297,37 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
     return custom_extensions
 
 
+def check_io_types(model, args):
+    for ix, a in enumerate(args):
+        if isinstance(a, torch.Tensor):
+            continue
+        raise TorchToNNEFInvalidArgument(
+            f"Provided args[{ix}] is of type {type(a)}"
+            " but only torch.Tensor is supported."
+            " (you can use a wrapper module to comply to this rule.)"
+        )
+    outs = model(*args)
+    for ix, o in enumerate(outs):
+        if isinstance(o, torch.Tensor):
+            continue
+        raise TorchToNNEFInvalidArgument(
+            f"Obtained model outputs[{ix}] is of type {type(o)}"
+            " but only torch.Tensor is supported."
+            " (you can use a wrapper module to comply to this rule.)"
+        )
+
+
 def check_io_names(
     input_names: T.Optional[T.List[str]], output_names: T.Optional[T.List[str]]
 ):
     if input_names and len(set(input_names)) != len(input_names):
         raise TorchToNNEFInvalidArgument(
-            "each str in input_names must be different"
+            "Each str in input_names must be different"
         )
 
     if output_names and len(set(output_names)) != len(output_names):
         raise TorchToNNEFInvalidArgument(
-            "each str in output_names must be different"
+            "Each str in output_names must be different"
         )
 
     if (
