@@ -87,6 +87,93 @@ def export_model_to_nnef(
 
     Export any torch.nn.Module to NNEF file format
 
+    Args:
+        model: an nn.Module that have a `.forward` function with only tensor
+            arguments and outputs (no tuple, list, dict or objects)
+
+        args: a flat ordered list of tensors for each forward inputs of `model`
+            this list can not be of dynamic size (at serialization it will be
+            fixed to quantity of tensor provided)
+
+        file_path_export: a Path to the exported NNEF serialized model archive.
+            It must by convention end with `.nnef.tgz` suffixes
+
+        input_names: Optional list of names for args, it replaces
+            variable inputs names traced from graph
+            (if set it must have same size as number of args)
+
+        output_names: Optional list of names for outputs of `model.forward`,
+            it replaces variable output names traced from graph
+            (if set it must have same size as number of outputs)
+
+        dynamic_axes: Optional (only possible if `nnef_spec_strict` is False).
+            By default the exported model will have the shapes of all input
+            and output tensors set to exactly match those given in args.
+            To specify axes of tensors as dynamic (i.e. known only at run-time)
+            set dynamic_axes to a dict with schema:
+                KEY (str): an input or output name. Each name must also
+                    be provided in input_names or output_names.
+
+                VALUE (dict or list): If a dict, keys are axis indices
+                    and values are axis names. If a list, each element is
+                    an axis index.
+
+        compression_level: int (> 0)
+            compression level of tar.gz (higher is more compressed)
+
+        log_level: int,
+            logger level for `torch_to_nnef` following Python
+            standard logging level can be set to:
+            INFO, WARN, DEBUG ...
+
+        renaming_scheme:
+            Possible choices NNEF variables naming schemes are:
+            - "raw": Taking variable names from traced graph debugName directly
+            - "natural_verbose": that try to provide nn.Module exported
+              variable naming consistency
+            - "natural_verbose_camel": that try to provide nn.Module exported
+              variable naming consistency but with more consice camelCase
+              variable pattern
+            - "numeric": that try to be as concise as possible
+
+        check_io_names_qte_match: (default: True)
+            During the tracing process of the torch graph
+            One or more input provided can be removed if not contributing to
+            generate outputs while check_io_names_qte_match is True we ensure
+            that this input and output quantity remain constant with numbers in
+            `input_names` and `output_names`.
+
+        nnef_spec_strict: bool (default: False)
+            If False we can use ["tract"](https://github.com/sonos/tract/)
+            specific operator set that extend strict NNEF specification
+            else we restrict ourselves to NNEF 1.0.5
+            tract version used is the one in your $PATH cli or if specified
+            $TRACT_PATH
+
+        debug_bundle_path: Optional[Path]
+            if specified it should create an archive bundle with all needed
+            information to allows easier debug.
+
+        check_same_io_as_tract: bool
+            check if given provided `args` we get same outputs in PyTorch
+            and in tract
+
+        use_specific_tract_binary: Optional[Path]
+            Use a specific tract binary based on provided Path (
+                It overwrite $PATH / $TRACT_PATH if set
+            )
+
+        tract_feature_flags: Optional[Set[str]]
+            tract offer some feature flags such as: 'complex'
+
+        custom_extensions: Optional[Set[str]]
+            allow to add a set of extensions as defined in
+            (https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
+            Useful to set specific extensions like for example:
+            'extension tract_assert S >= 0'
+            those assertion allows to add limitation on dynamic shapes
+            that are not expressed in traced graph
+            (like for example maximum number of tokens for an LLM)
     """
     logger = log.getLogger("torch_to_nnef")
     logger.setLevel(log_level)
