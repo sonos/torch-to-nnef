@@ -46,7 +46,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef import export_model_to_nnef
 
 test_input = torch.rand(1, 10, 100)
 model = nn.Sequential(nn.Conv1d(10, 20, 3))
