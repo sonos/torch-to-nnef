@@ -161,7 +161,7 @@ def export_model_to_nnef(
     outs = model(*args)
     if isinstance(outs, (torch.Tensor, int, float, bool)):
         outs = (outs,)
-    check_io_types(model, args, outs)
+    check_io_types(args, outs)
     check_io_names(input_names, output_names)
 
     if use_specific_tract_binary is not None:
@@ -305,12 +305,13 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
     return custom_extensions
 
 
-SUPPORTED_IO_TYPES = (torch.Tensor, tuple, list)
+PRIMITIVE_IO_TYPES = (torch.Tensor,)
+SUPPORTED_IO_TYPES = PRIMITIVE_IO_TYPES + (tuple, list)
 
 
-def check_io_types(model, args, outs):
+def check_io_types(args, outs):
     for ix, a in enumerate(args):
-        if isinstance(a, SUPPORTED_IO_TYPES) or (
+        if isinstance(a, PRIMITIVE_IO_TYPES) or (
             isinstance(a, (tuple, list))
             and all(
                 isinstance(ax, torch.Tensor)
@@ -324,7 +325,7 @@ def check_io_types(model, args, outs):
             " (you can use a wrapper module to comply to this rule.)"
         )
     for ix, o in enumerate(outs):
-        if isinstance(o, SUPPORTED_IO_TYPES) or (
+        if isinstance(o, PRIMITIVE_IO_TYPES) or (
             isinstance(o, (tuple, list))
             and all(
                 isinstance(ox, torch.Tensor)

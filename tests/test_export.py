@@ -3,6 +3,7 @@
 import logging as log
 import tempfile
 import typing as T
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -24,16 +25,26 @@ class MultiTensorsIO(nn.Module):
         return x * y * 2, x / y
 
 
-class MultiStructInput(nn.Module):
+class MultiStructInputs(nn.Module):
     def forward(self, x, y: T.Tuple[torch.Tensor, torch.Tensor]):
         return x * y[0] * 2 * y[1]
 
 
-class MultiStructOutput(nn.Module):
+class MultiStructOutputs(nn.Module):
     def forward(
         self, x
     ) -> T.Tuple[torch.Tensor, T.Tuple[torch.Tensor, torch.Tensor]]:
         return x * 2, (x * 3, x * 4)
+
+
+@dataclass()
+class FakeConfig:
+    scale: float = 2.1
+
+
+class MultiObjInputs(nn.Module):
+    def forward(self, x, fake_config: FakeConfig):
+        return x * 2 * fake_config.scale
 
 
 def test_export_without_dot_nnef():
@@ -105,7 +116,7 @@ def test_export_io_name_collision():
 
 def test_export_tuple_inp_types():
     test_input = torch.rand(1, 2)
-    model = MultiStructInput()
+    model = MultiStructInputs()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
@@ -122,7 +133,7 @@ def test_export_tuple_inp_types():
 
 def test_export_tuple_out_types():
     test_input = torch.rand(1, 2)
-    model = MultiStructOutput()
+    model = MultiStructOutputs()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
@@ -135,3 +146,22 @@ def test_export_tuple_out_types():
             log_level=log.INFO,
             check_same_io_as_tract=True,
         )
+
+
+def test_export_obj_inp_types():
+    test_input = torch.rand(1, 2)
+    model = MultiObjInputs()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        model = model.eval()
+        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
+            export_model_to_nnef(
+                model=model,
+                args=(test_input, FakeConfig()),
+                file_path_export=export_path,
+                input_names=["a", "conf"],
+                output_names=["b"],
+                log_level=log.INFO,
+                check_same_io_as_tract=True,
+            )
+        assert "Provided args[1] is of type" in str(e_info.value)
