@@ -51,9 +51,8 @@ class TorchModuleTracer:
         module: nn.Module,
         traced_module: torch.jit.TracedModule = None,
         fn_name: str = "forward",
-        args: T.Optional[
-            T.Tuple[T.Any, ...]
-        ] = None,  # likely mostly torch tensors
+        # likely mostly torch tensors
+        args: T.Optional[T.Tuple[T.Any, ...]] = None,
     ):
         self.mod = module
         self._traced_module = traced_module
@@ -69,6 +68,7 @@ class TorchModuleTracer:
                     self.args,
                     check_trace=("1.8.0" <= torch_version() < "1.12.0"),
                     # since 1.12 get flaky on ViT model trace
+                    strict=False,
                 )
             except RuntimeError as exp:
                 raise TorchJitTraceFailed(

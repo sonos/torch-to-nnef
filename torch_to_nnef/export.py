@@ -23,7 +23,10 @@ from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import flatten_tuple_or_list_with_idx, torch_version
+from torch_to_nnef.utils import (
+    flatten_dict_tuple_or_list_with_idx_and_types,
+    torch_version,
+)
 
 LOGGER = log.getLogger(__name__)
 
@@ -156,10 +159,10 @@ def export_model_to_nnef(
             "NNEF spec does not allow dynamic_axes "
             "(use either dynamic_axes=None or set nnef_spec_strict=False)"
         )
-    if isinstance(args, (torch.Tensor, int, float, bool)):
+    if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
     outs = model(*args)
-    if isinstance(outs, (torch.Tensor, int, float, bool)):
+    if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
         outs = (outs,)
     check_io_types(args, outs)
     check_io_names(input_names, output_names)
@@ -306,37 +309,41 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
 
 
 PRIMITIVE_IO_TYPES = (torch.Tensor,)
-SUPPORTED_IO_TYPES = PRIMITIVE_IO_TYPES + (tuple, list)
+CONTAINER_IO_TYPES = (tuple, list, dict)
+SUPPORTED_IO_TYPES = PRIMITIVE_IO_TYPES + CONTAINER_IO_TYPES
 
 
 def check_io_types(args, outs):
     for ix, a in enumerate(args):
         if isinstance(a, PRIMITIVE_IO_TYPES) or (
-            isinstance(a, (tuple, list))
+            isinstance(a, CONTAINER_IO_TYPES)
             and all(
                 isinstance(ax, torch.Tensor)
-                for _, ax in flatten_tuple_or_list_with_idx(a)
+                for _, _, ax in flatten_dict_tuple_or_list_with_idx_and_types(a)
             )
         ):
             continue
         raise TorchToNNEFInvalidArgument(
             f"Provided args[{ix}] is of type {type(a)}"
-            f" but only {SUPPORTED_IO_TYPES} is supported."
-            " (you can use a wrapper module to comply to this rule.)"
+            f" but only {SUPPORTED_IO_TYPES} is supported "
+            "by internal torch jit since the rest will be constantized. "
+            "(you can use a wrapper module to comply to this rule.)"
         )
     for ix, o in enumerate(outs):
         if isinstance(o, PRIMITIVE_IO_TYPES) or (
-            isinstance(o, (tuple, list))
+            isinstance(o, CONTAINER_IO_TYPES)
             and all(
                 isinstance(ox, torch.Tensor)
-                for _, ox in flatten_tuple_or_list_with_idx(o)
+                for _, _, ox in flatten_dict_tuple_or_list_with_idx_and_types(o)
             )
         ):
             continue
+        __import__("ipdb").set_trace()
         raise TorchToNNEFInvalidArgument(
             f"Obtained model outputs[{ix}] is of type {type(o)}"
-            f" but only {SUPPORTED_IO_TYPES} are supported."
-            " (you can use a wrapper module to comply to this rule.)"
+            f" but only {SUPPORTED_IO_TYPES} are supported "
+            "by internal torch jit since the rest will be constantized. "
+            "(you can use a wrapper module to comply to this rule.)"
         )
 
 
