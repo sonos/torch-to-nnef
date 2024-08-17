@@ -66,6 +66,13 @@ class WrapStructIO(nn.Module):
         if not self.output_infos:
             return struct_output
 
+        if (
+            len(self.output_infos) == 1
+            and len(self.output_infos[0][0]) == 1
+            and self.output_infos[0][0][0] == tuple
+        ):
+            return struct_output
+
         return [
             o
             for _, _, o in flatten_dict_tuple_or_list_with_idx_and_types(
@@ -74,10 +81,10 @@ class WrapStructIO(nn.Module):
         ]
 
     def forward(self, *flat_args):
-        struct_input = self.build_inputs(flat_args)
-        struct_output = self.model(*struct_input)
-        flat_output = self.flatten_outputs(struct_output)
-        return flat_output
+        struct_args = self.build_inputs(flat_args)
+        struct_outputs = self.model(*struct_args)
+        flat_outputs = self.flatten_outputs(struct_outputs)
+        return flat_outputs
 
 
 def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):

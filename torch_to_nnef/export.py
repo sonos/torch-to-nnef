@@ -338,7 +338,6 @@ def check_io_types(args, outs):
             )
         ):
             continue
-        __import__("ipdb").set_trace()
         raise TorchToNNEFInvalidArgument(
             f"Obtained model outputs[{ix}] is of type {type(o)}"
             f" but only {SUPPORTED_IO_TYPES} are supported "
