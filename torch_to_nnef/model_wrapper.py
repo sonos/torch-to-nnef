@@ -21,28 +21,51 @@ class WrapStructIO(nn.Module):
     def build_inputs(self, flat_args):
         if not self.input_infos:
             return flat_args
-        built_args = []
-        for (types, idxes, _), arg in zip(self.input_infos, flat_args):
-            cur_built_args = built_args
-            for typ, idx in zip(types[:-1], idxes[:-1]):
-                if typ in (tuple, list):
-                    if idx == len(cur_built_args):
-                        cur_built_args.append(typ())
-                        cur_built_args = cur_built_args[-1]
-                    elif idx < len(cur_built_args):
-                        cur_built_args = cur_built_args[idx]
-                    else:
-                        raise ValueError()
-                else:
-                    # TODO: implement correctly
-                    raise NotImplementedError(typ, idx, arg)
-            assert idxes[-1] == len(cur_built_args)
-            cur_built_args.append(arg)
-        return built_args
+        inps = []
+        for (types, indexes, _), arg in zip(self.input_infos, flat_args):
+            cur_struct = inps
+            for typ, next_typ, idx in zip(
+                types, list(types[1:]) + [None], indexes
+            ):
+                if typ in (list, tuple):
+                    if idx >= len(cur_struct):
+                        cur_struct += [None] * (idx + 1 - len(cur_struct))
+                    assert idx < len(cur_struct)
+                elif typ is dict:
+                    cur_struct[idx] = None
+                if next_typ is tuple:
+                    next_typ = list
+                if cur_struct[idx] is None:
+                    cur_struct[idx] = (
+                        next_typ() if next_typ is not None else arg
+                    )
+                cur_struct = cur_struct[idx]
+
+        return self._tupleization(inps)
+
+    def _tupleization(self, inps):
+        tup_indexes = set()
+        for types, i, _ in self.input_infos:
+            for idx, typ in enumerate(types):
+                # find each tuple struct indexes
+                if typ is tuple:
+                    tup_indexes.add(i[:idx])
+        tup_indexes = sorted(list(tup_indexes), key=len)
+
+        for idxes in tup_indexes:
+            if not idxes:
+                continue
+            cur_struct = inps
+            for idx in idxes[:-1]:
+                cur_struct = cur_struct[idx]
+            cur_struct[idxes[-1]] = tuple(cur_struct[idxes[-1]])
+        inps = tuple(inps)
+        return inps
 
     def flatten_outputs(self, struct_output):
         if not self.output_infos:
             return struct_output
+
         return [
             o
             for _, _, o in flatten_dict_tuple_or_list_with_idx_and_types(
@@ -58,12 +81,12 @@ class WrapStructIO(nn.Module):
 
 
 def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
-    has_flattened_args = False
-    has_flattened_outs = False
+    flat_args = []
+    flat_outs = []
     if input_names:
         flat_args = flatten_dict_tuple_or_list_with_idx_and_types(args)
+
         if len(flat_args) > len(input_names):
-            has_flattened_args = True
             new_input_names = []
             new_args = []
             for _, idxes, arg in flat_args:
@@ -79,7 +102,6 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     if output_names:
         flat_outs = flatten_dict_tuple_or_list_with_idx_and_types(outs)
         if len(flat_outs) > len(output_names):
-            has_flattened_outs = True
             new_output_names = []
             for _, idxes, _ in flat_outs:
                 str_idxes = "_".join(str(_) for _ in idxes[1:])
@@ -88,6 +110,9 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
                     root_name + "_" + str_idxes if str_idxes else root_name
                 )
             output_names = new_output_names
-    if has_flattened_args or has_flattened_outs:
+    has_sub_containers = any(len(t) > 1 for t, _, _ in flat_args) or any(
+        len(t) > 1 for t, _, _ in flat_outs
+    )
+    if has_sub_containers:
         model = WrapStructIO(model, flat_args, flat_outs)
     return model, tuple(args), input_names, output_names

@@ -92,9 +92,9 @@ def flatten_dict_tuple_or_list_with_idx_and_types(
                     v, collected_types, collected_idxes + [k], 0
                 )
             else:
-                return (
-                    (tuple(collected_types), tuple(collected_idxes + [k]), v),
-                )
+                res += [
+                    (tuple(collected_types), tuple(collected_idxes + [k]), v)
+                ]
         return tuple(res)
     return ()
 

@@ -122,7 +122,7 @@ class TorchModuleIRGraph:
         """container items reference must exists in `data_nodes`"""
         for dnode in self.data_nodes:
             if dnode.is_container:
-                for subdnode in dnode.data:
+                for subdnode in dnode.iter():
                     assert self.data_nodes.contains(
                         subdnode, strict=True
                     ), f"not referenced correctly sub item: {subdnode}"
@@ -159,7 +159,7 @@ class TorchModuleIRGraph:
         for dnode in self.data_nodes:
             if dnode.is_container:
                 new_data = []
-                for subdnode in dnode.data:
+                for subdnode in dnode.iter():
                     if subdnode is from_node:
                         value = to_node
                     else:
@@ -542,7 +542,7 @@ class TorchModuleIRGraph:
                 for used_data_node in used_data_nodes:
                     if used_data_node.is_container:
                         additional_data_node_from_list.update(
-                            used_data_node.data
+                            used_data_node.iter()
                         )
                 remaining_data_nodes.difference_update(
                     additional_data_node_from_list

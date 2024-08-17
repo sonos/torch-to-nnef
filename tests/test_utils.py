@@ -50,6 +50,14 @@ _add_flatten_example(
     ),
 )
 
+_add_flatten_example(
+    inp=[{"a": 1, "b": 3}],
+    out=(
+        ((list, dict), (0, "a"), 1),
+        ((list, dict), (0, "b"), 3),
+    ),
+)
+
 
 @pytest.mark.parametrize("inputs,outputs", FLATTEN_LIST_IOS)
 def test_flatten_tuple_or_list_with_idx(inputs, outputs):

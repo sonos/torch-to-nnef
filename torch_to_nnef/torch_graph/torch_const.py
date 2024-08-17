@@ -10,6 +10,7 @@ TUPLECONSTRUCT_KIND = "prim::TupleConstruct"
 TUPLEUNPACK_KIND = "prim::TupleUnpack"
 LISTUNPACK_KIND = "prim::ListUnpack"
 NUMTOTENSOR_KIND = "prim::NumToTensor"
+DICTCONSTRUCT_KIND = "prim::DictConstruct"
 
 ATEN_STARTID = "aten::"
 ATEN_CONTIGUOUS_KIND = "aten::contiguous"
@@ -41,6 +42,7 @@ LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
 INTTYPE_KIND = "IntType"
 NUMBERTYPE_KIND = "NumberType"  # This type represents a Python number
+DICTTYPE_KIND = "DictType"
 # Subtype hierarchy for Number Types (NumberType as the base type):
 # IntType <: NumberType
 # FloatType <: NumberType
