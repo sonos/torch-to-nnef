@@ -39,16 +39,21 @@ def flatten_dict(
     return dict(items)
 
 
-def flatten_tuple_or_list_with_idx(
-    tup, collected_idxes: T.Optional[T.List[int]] = None, current_idx: int = 0
-) -> T.Tuple[T.Tuple[T.Tuple[int, ...], T.Any], ...]:
-    """Flatten list and tuple recursively and provide indexes
+def flatten_dict_tuple_or_list_with_idx_and_types(
+    obj,
+    collected_types: T.Optional[T.List[T.Type]] = None,
+    collected_idxes: T.Optional[T.List[int]] = None,
+    current_idx: int = 0,
+) -> T.Tuple[
+    T.Tuple[T.Tuple[T.Type, ...], T.Tuple[T.Union[int, str], ...], T.Any], ...
+]:
+    """Flatten dict, list and tuple recursively and provide indexes
 
-    In depth first search approach
+    Flatten in depth first search order
 
     Args:
-        tuple/list of elements each element being a list/tuple or anything else
-            this contains N number of element non list/tuple
+        dict/tuple/list of elements each element being a dict/list/tuple or anything else
+            this contains N number of element non dict/list/tuple
     Return:
         tuple of N tuples each containing a tuple of indexes and the element
     """
@@ -56,22 +61,41 @@ def flatten_tuple_or_list_with_idx(
         collected_idxes = []
     else:
         collected_idxes = collected_idxes[:]
-    collected_idxes.append(current_idx)
-    current_idx += 1
-    if isinstance(tup, (tuple, list)):
-        if not tup:
+
+    if collected_types is None:
+        collected_types = []
+    else:
+        collected_types = collected_types[:]
+
+    collected_types.append(type(obj))
+    if isinstance(obj, (tuple, list)):
+        collected_idxes.append(current_idx)
+        current_idx += 1
+        if not obj:
             return ()
-        if isinstance(tup[0], (tuple, list)):
-            return flatten_tuple_or_list_with_idx(
-                tup[0], collected_idxes, 0
-            ) + flatten_tuple_or_list_with_idx(
-                tup[1:], collected_idxes[:-1], current_idx
+        if isinstance(obj[0], (tuple, list, dict)):
+            return flatten_dict_tuple_or_list_with_idx_and_types(
+                obj[0], collected_types, collected_idxes, 0
+            ) + flatten_dict_tuple_or_list_with_idx_and_types(
+                obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
             )
         return (
-            (tuple(collected_idxes), tup[0]),
-        ) + flatten_tuple_or_list_with_idx(
-            tup[1:], collected_idxes[:-1], current_idx
+            (tuple(collected_types), tuple(collected_idxes), obj[0]),
+        ) + flatten_dict_tuple_or_list_with_idx_and_types(
+            obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
         )
+    if isinstance(obj, dict):
+        res = []  # type: ignore
+        for k, v in obj.items():
+            if isinstance(v, (tuple, list, dict)):
+                res += flatten_dict_tuple_or_list_with_idx_and_types(
+                    v, collected_types, collected_idxes + [k], 0
+                )
+            else:
+                res += [
+                    (tuple(collected_types), tuple(collected_idxes + [k]), v)
+                ]
+        return tuple(res)
     return ()
 
 

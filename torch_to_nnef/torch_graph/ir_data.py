@@ -18,17 +18,20 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
+    TorchNotFoundDataNode,
     TorchToNNEFError,
     TorchToNNEFNotImplementedError,
     TorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_SCALARIMPLICIT,
+    CONSTANT_KIND,
+    DICTTYPE_KIND,
     INTTYPE_KIND,
     NUMBERTYPE_KIND,
     TUPLETYPE_KIND,
 )
-from torch_to_nnef.utils import NamedItem
+from torch_to_nnef.utils import NamedItem, NamedItemOrderedSet
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
@@ -278,6 +281,9 @@ class TupleTensors(Data):
     def is_container(self) -> bool:
         return True
 
+    def iter(self):
+        return self.data
+
     @classmethod
     def parse_from_tuple_type(
         cls, node_c_value: torch._C.Value
@@ -328,9 +334,83 @@ class FixedTensorList(Data):
     def is_container(self) -> bool:
         return True
 
+    def iter(self):
+        return self.data
+
     def __hash__(self):
         return hash(self.name)
 
     def __repr__(self):
         datas = "".join(f"\t\t\t{d},\n" for d in self.data)
         return f"FixedTensorList(name='{self.name}', data=[\n{datas}\t\t])"
+
+
+@dataclass
+class DictTensors(Data):
+    """Used as transition object only
+
+    None should be remaining once graph is fully expanded
+
+    """
+
+    data: T.Dict[str, TensorVariable]
+
+    @property
+    def slug(self) -> str:
+        slugs = ", ".join(f"{k}: {n.slug}" for k, n in self.data.items())
+        return f"dictTensor({self.export_name})({slugs})"
+
+    @property
+    def dtype(self):
+        return None
+
+    @property
+    def is_constant(self) -> bool:
+        return all(data.is_constant for data in self.data.values())
+
+    @property
+    def is_container(self) -> bool:
+        return True
+
+    def iter(self):
+        return self.data.values()
+
+    @classmethod
+    def parse_from_dic_node_c_value(
+        cls, node_c_value: torch._C.Value, data_nodes: NamedItemOrderedSet
+    ) -> "DictTensors":
+        node_type = node_c_value.type()
+        name = node_c_value.debugName()
+        assert node_type.kind() == DICTTYPE_KIND
+        elements = {}
+        key = None
+        for idx, c_val in enumerate(node_c_value.node().inputs()):
+            if idx % 2 == 0:
+                if (
+                    str(c_val.type()) in ["str", "int"]
+                    and c_val.node().kind() == CONSTANT_KIND
+                ):
+                    key = c_val.node()["value"]
+                else:
+                    raise TorchToNNEFNotImplementedError()
+            else:
+                assert key is not None
+                try:
+                    elm_data = data_nodes.get_by_name(
+                        cleanup_data_name(c_val.debugName())
+                    )
+                except TorchNotFoundDataNode:
+                    ctype = c_val.type()
+                    stype = ctype.scalarType()
+                    dtype = str_to_torch_dtype(stype) if stype else None
+                    elm_data = TensorVariable(
+                        name=c_val.debugName(),
+                        shape=ctype.sizes(),
+                        dtype=dtype,
+                        data=None,
+                    )
+                elements[key] = elm_data
+        return DictTensors(name, elements)
+
+    def __hash__(self):
+        return hash(self.slug)
