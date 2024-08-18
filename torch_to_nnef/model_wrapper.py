@@ -4,9 +4,13 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 """
 
+import logging as log
+
 from torch import nn
 
 from torch_to_nnef.utils import flatten_dict_tuple_or_list
+
+LOGGER = log.getLogger(__name__)
 
 
 class WrapStructIO(nn.Module):
@@ -108,14 +112,26 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     flat_args = []
     flat_outs = []
     if input_names:
-        input_names, args, flat_args = _build_new_names_and_elements(
+        new_input_names, args, flat_args = _build_new_names_and_elements(
             input_names, args
         )
+        if new_input_names != input_names:
+            LOGGER.warning(
+                "Graph inputs have been flattened "
+                f"so NNEF inputs are: {new_input_names}"
+            )
+            input_names = new_input_names
 
     if output_names:
-        output_names, _, flat_outs = _build_new_names_and_elements(
+        new_output_names, _, flat_outs = _build_new_names_and_elements(
             output_names, outs
         )
+        if new_output_names != output_names:
+            LOGGER.warning(
+                "Graph outputs have been flattened "
+                f"so NNEF outputs are: {new_output_names}"
+            )
+            output_names = new_output_names
 
     if has_sub_containers(flat_args) or has_sub_containers(flat_outs):
         model = WrapStructIO(model, flat_args, flat_outs)
