@@ -53,6 +53,12 @@ class MultiDictInputs(nn.Module):
         return res
 
 
+class MultiDeepObjInputs(nn.Module):
+    def forward(self, x, y):
+        res = x * 2 * y["a"] * y["b"].scale
+        return res
+
+
 class MultiDictOutputs(nn.Module):
     def forward(self, x):
         return {
@@ -61,8 +67,7 @@ class MultiDictOutputs(nn.Module):
         }
 
 
-def test_export_without_dot_nnef():
-    """Test simple export"""
+def test_export_base():
     test_input = torch.rand(1, 2)
     model = MyDumbNN()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -103,26 +108,22 @@ def _test_export_io_names(input_names, output_names):
 
 
 def test_export_no_name_collision():
-    """Test simple export"""
     _test_export_io_names(["a", "b"], ["c", "d"])
 
 
 def test_export_inputs_name_collision():
-    """Test simple export"""
     with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
         _test_export_io_names(["a", "a"], ["c", "d"])
     assert "Each str in input_names" in str(e_info.value)
 
 
 def test_export_outputs_name_collision():
-    """Test simple export"""
     with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
         _test_export_io_names(["a", "b"], ["c", "c"])
     assert "Each str in output_names" in str(e_info.value)
 
 
 def test_export_io_name_collision():
-    """Test simple export"""
     with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
         _test_export_io_names(["a", "b"], ["a", "c"])
     assert "input_names and output_names must be different" in str(e_info.value)
@@ -179,6 +180,25 @@ def test_export_obj_inp_types():
                 check_same_io_as_tract=True,
             )
         assert "Provided args[1] is of type" in str(e_info.value)
+
+
+def test_multi_deep_obj_inputs():
+    test_input = torch.rand(1, 2)
+    model = MultiDeepObjInputs()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        model = model.eval()
+        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
+            export_model_to_nnef(
+                model=model,
+                args=(test_input, {"a": torch.rand(1, 2), "b": FakeConfig()}),
+                file_path_export=export_path,
+                input_names=["a", "dic"],
+                output_names=["b"],
+                log_level=log.INFO,
+                check_same_io_as_tract=True,
+            )
+        assert "Provided args[1]['b'] is of type" in str(e_info.value)
 
 
 def test_multi_dict_inputs():

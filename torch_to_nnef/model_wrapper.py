@@ -6,7 +6,7 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 from torch import nn
 
-from torch_to_nnef.utils import flatten_dict_tuple_or_list_with_idx_and_types
+from torch_to_nnef.utils import flatten_dict_tuple_or_list
 
 
 class WrapStructIO(nn.Module):
@@ -41,6 +41,7 @@ class WrapStructIO(nn.Module):
                     )
                 cur_struct = cur_struct[idx]
 
+        # tupleization happen after structure is built because tuples are immutables
         return self._tupleization(inps)
 
     def _tupleization(self, inps):
@@ -73,12 +74,7 @@ class WrapStructIO(nn.Module):
         ):
             return struct_output
 
-        return [
-            o
-            for _, _, o in flatten_dict_tuple_or_list_with_idx_and_types(
-                struct_output
-            )
-        ]
+        return [o for _, _, o in flatten_dict_tuple_or_list(struct_output)]
 
     def forward(self, *flat_args):
         struct_args = self.build_inputs(flat_args)
@@ -87,39 +83,40 @@ class WrapStructIO(nn.Module):
         return flat_outputs
 
 
+def _build_new_names_and_elements(original_names, elms):
+    flat_elms = flatten_dict_tuple_or_list(elms)
+
+    if len(flat_elms) > len(original_names):
+        new_names = []
+        new_elms = []
+        for _, idxes, elm in flat_elms:
+            str_idxes = "_".join(str(_) for _ in idxes[1:])
+            root_name = original_names[idxes[0]]
+            new_names.append(
+                root_name + "_" + str_idxes if str_idxes else root_name
+            )
+            new_elms.append(elm)
+        return new_names, new_elms, flat_elms
+    return original_names, elms, flat_elms
+
+
+def has_sub_containers(flat_elms):
+    return any(len(t) > 1 for t, _, _ in flat_elms)
+
+
 def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     flat_args = []
     flat_outs = []
     if input_names:
-        flat_args = flatten_dict_tuple_or_list_with_idx_and_types(args)
-
-        if len(flat_args) > len(input_names):
-            new_input_names = []
-            new_args = []
-            for _, idxes, arg in flat_args:
-                str_idxes = "_".join(str(_) for _ in idxes[1:])
-                root_name = input_names[idxes[0]]
-                new_input_names.append(
-                    root_name + "_" + str_idxes if str_idxes else root_name
-                )
-                new_args.append(arg)
-            input_names = new_input_names
-            args = new_args
+        input_names, args, flat_args = _build_new_names_and_elements(
+            input_names, args
+        )
 
     if output_names:
-        flat_outs = flatten_dict_tuple_or_list_with_idx_and_types(outs)
-        if len(flat_outs) > len(output_names):
-            new_output_names = []
-            for _, idxes, _ in flat_outs:
-                str_idxes = "_".join(str(_) for _ in idxes[1:])
-                root_name = output_names[idxes[0]]
-                new_output_names.append(
-                    root_name + "_" + str_idxes if str_idxes else root_name
-                )
-            output_names = new_output_names
-    has_sub_containers = any(len(t) > 1 for t, _, _ in flat_args) or any(
-        len(t) > 1 for t, _, _ in flat_outs
-    )
-    if has_sub_containers:
+        output_names, _, flat_outs = _build_new_names_and_elements(
+            output_names, outs
+        )
+
+    if has_sub_containers(flat_args) or has_sub_containers(flat_outs):
         model = WrapStructIO(model, flat_args, flat_outs)
     return model, tuple(args), input_names, output_names

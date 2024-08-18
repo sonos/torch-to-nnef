@@ -23,10 +23,7 @@ from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import (
-    flatten_dict_tuple_or_list_with_idx_and_types,
-    torch_version,
-)
+from torch_to_nnef.utils import flatten_dict_tuple_or_list, torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -314,36 +311,34 @@ SUPPORTED_IO_TYPES = PRIMITIVE_IO_TYPES + CONTAINER_IO_TYPES
 
 
 def check_io_types(args, outs):
-    for ix, a in enumerate(args):
-        if isinstance(a, PRIMITIVE_IO_TYPES) or (
-            isinstance(a, CONTAINER_IO_TYPES)
-            and all(
-                isinstance(ax, torch.Tensor)
-                for _, _, ax in flatten_dict_tuple_or_list_with_idx_and_types(a)
-            )
-        ):
-            continue
+    def _check_io(var, ix, elm):
+        ix = [ix]
+        if isinstance(elm, PRIMITIVE_IO_TYPES):
+            return
+        if isinstance(elm, CONTAINER_IO_TYPES):
+            has_wrong_subtype = False
+            for _, idxes, sub_elm in flatten_dict_tuple_or_list(elm):
+                if not isinstance(sub_elm, torch.Tensor):
+                    ix += list(idxes)
+                    has_wrong_subtype = True
+                    break
+            if not has_wrong_subtype:
+                return
+        ix_str = ""
+        for i in ix:
+            val = "'" + i + "'" if isinstance(i, str) else i
+            ix_str += f"[{val}]"
         raise TorchToNNEFInvalidArgument(
-            f"Provided args[{ix}] is of type {type(a)}"
+            f"Provided {var}{ix_str} is of type {type(elm)}"
             f" but only {SUPPORTED_IO_TYPES} is supported "
             "by internal torch jit since the rest will be constantized. "
             "(you can use a wrapper module to comply to this rule.)"
         )
+
+    for ix, a in enumerate(args):
+        _check_io("args", ix, a)
     for ix, o in enumerate(outs):
-        if isinstance(o, PRIMITIVE_IO_TYPES) or (
-            isinstance(o, CONTAINER_IO_TYPES)
-            and all(
-                isinstance(ox, torch.Tensor)
-                for _, _, ox in flatten_dict_tuple_or_list_with_idx_and_types(o)
-            )
-        ):
-            continue
-        raise TorchToNNEFInvalidArgument(
-            f"Obtained model outputs[{ix}] is of type {type(o)}"
-            f" but only {SUPPORTED_IO_TYPES} are supported "
-            "by internal torch jit since the rest will be constantized. "
-            "(you can use a wrapper module to comply to this rule.)"
-        )
+        _check_io("outs", ix, o)
 
 
 def check_io_names(

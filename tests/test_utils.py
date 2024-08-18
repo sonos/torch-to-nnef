@@ -1,6 +1,6 @@
 import pytest
 
-from torch_to_nnef.utils import flatten_dict_tuple_or_list_with_idx_and_types
+from torch_to_nnef.utils import flatten_dict_tuple_or_list
 
 FLATTEN_LIST_IOS = []
 
@@ -60,6 +60,6 @@ _add_flatten_example(
 
 
 @pytest.mark.parametrize("inputs,outputs", FLATTEN_LIST_IOS)
-def test_flatten_tuple_or_list_with_idx(inputs, outputs):
-    gen_outs = flatten_dict_tuple_or_list_with_idx_and_types(inputs)
+def test_flatten(inputs, outputs):
+    gen_outs = flatten_dict_tuple_or_list(inputs)
     assert gen_outs == outputs
