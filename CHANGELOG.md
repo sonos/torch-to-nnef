@@ -3,6 +3,15 @@
 
 ## Unreleased
 
+## [0.12.2] - 2024-08-19
+
+### Added
+
+- refactor NNEF variable naming in a ir_naming in module aside
+- new NNEF variable naming scheme `natural_verbose_camel`
+- added export IO support for dict/list/tuple of torch.Tensor via flattening
+- added export IO support for other object via constantization (not part of graph `external`)
+
 ## [0.12.1] - 2024-08-09
 
 ### Added
