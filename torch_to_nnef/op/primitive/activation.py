@@ -102,6 +102,16 @@ def hardswish(**kwargs):
 
 @OP_REGISTRY.register()
 def gelu(g, node, name_to_tensor, null_ref, **kwargs):
+    if len(node.inputs) == 2 and node.inputs[1].data == "tanh":
+        node.inputs = node.inputs[:1]
+        unary_output_op_without_params(
+            "gelu_fast_approx",
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+        return ["gelu_fast_approx"]
     unary_output_op_without_params(
         "gelu",
         g=g,

@@ -103,7 +103,11 @@ def rename_natural_verbose(torch_ir_graph) -> None:
 
 
 def to_camel_case(snake_str: str):
-    return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+    res = "".join(x.capitalize() for x in snake_str.split("_"))
+
+    if snake_str.startswith("_"):
+        res = f"_{res}"
+    return res
 
 
 def rename_natural_verbose_camel(torch_ir_graph):

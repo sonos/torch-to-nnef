@@ -3,6 +3,7 @@
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.op.fragment import TMPL_FRAGMENTS
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -27,17 +28,6 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         is_causal_node,
         *_,
     ) = node.inputs
-    if len(node.inputs) == 7:  # added param between torch 1.13 and 2.2
-        scale_node = node.inputs[-1]
-        if scale_node.data is not None:
-            __import__("ipdb").set_trace()
-            raise TorchToNNEFNotImplementedError(
-                "scaled_dot_product_attention with specific scale not implemented"
-            )
-    if is_causal_node.data is True:
-        raise TorchToNNEFNotImplementedError(
-            "scaled_dot_product_attention with causal not implemented"
-        )
 
     if dropout_p_node.data != 0.0:
         raise TorchToNNEFNotImplementedError(
@@ -52,10 +42,21 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         g, value_node, name_to_tensor
     )
 
-    fragment_suffix_id = ""
+    inputs = [query_tensor, key_tensor, value_tensor]
+
+    scale = None
+    if len(node.inputs) == 7:  # added param between torch 1.13 and 2.2
+        scale_node = node.inputs[-1]
+        if scale_node.data is not None:
+            scale = scale_node.data
+            scale_tensor = get_or_add_tensor_variable_in_nnef(
+                g, scale_node, name_to_tensor
+            )
+            inputs.append(scale_tensor)
+    is_causal = is_causal_node.data
+
     has_masked_attn = not isinstance(attn_mask_node, PythonConstant)
 
-    inputs = [query_tensor, key_tensor, value_tensor]
     if has_masked_attn:
         if attn_mask_node.dtype not in [torch.float32, torch.float16]:
             raise TorchToNNEFNotImplementedError(
@@ -67,28 +68,26 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         inputs.append(attn_mask_tensor)
     else:
         assert attn_mask_node.data is None
-        fragment_suffix_id = "_nomask"
 
-    fragment_name = ""
-    if key_node.rank == 3:
-        fragment_name = f"scaled_dot_product_attention_3d{fragment_suffix_id}"
-    elif key_node.rank == 4:
-        fragment_name = f"scaled_dot_product_attention_4d{fragment_suffix_id}"
-    else:
-        raise TorchToNNEFNotImplementedError(
-            "shape unexpected for scaled_dot_product_attention"
-        )
-
+    dtype_str = "f32"
     if query_node.dtype == torch.float16:
-        fragment_name = f"{fragment_name}_f16"
+        dtype_str = "f16"
+
+    tmpl = TMPL_FRAGMENTS["scaled_dot_product_attention"]
+    fragment = tmpl.into_concrete_fragment(
+        scale=scale,
+        causal=is_causal,
+        rank=key_node.rank,
+        dtype=dtype_str,
+        attn_mask=has_masked_attn,
+    )
 
     add_single_output_op(
         g,
         node,
         name_to_tensor,
-        fragment_name,
+        fragment.name,
         inputs=tuple(inputs),
-        # attrs={"axes": [pick_rank(input_node, dim) for dim in axes_node.data]},
     )
 
-    return [fragment_name]
+    return [fragment]

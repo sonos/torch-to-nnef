@@ -4,7 +4,7 @@
 # this mean you will have to deactivate check_same_io_as_tract
 # since pytorch compute ERF the numpy way
 # This is an approximation of ERF
-fragment gelu_approx( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+fragment gelu_fast_approx( x: tensor<scalar> ) -> ( y: tensor<scalar> )
 {
     y = 0.5 * x * (1.0 + tanh(x * 0.7978845608 * (1.0 + 0.044715 * x * x)));
 }

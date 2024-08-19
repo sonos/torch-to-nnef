@@ -84,6 +84,83 @@ INPUT_AND_MODELS = [
 ]
 
 
+class FScaledDotProdAttn(torch.nn.Module):
+    def __init__(
+        self, is_causal=False, scale=None, attn_mask=None, as_f16=False
+    ):
+        super().__init__()
+        self.is_causal = is_causal
+        self.scale = scale
+        self.attn_mask = (
+            attn_mask.to(torch.float16 if as_f16 else torch.float32)
+            if attn_mask is not None
+            else None
+        )
+        self.as_f16 = as_f16
+
+    def forward(self, x):
+        # query: Tensor,
+        # key: Tensor,
+        # value: Tensor,
+        # attn_mask: Optional[Tensor] = None,
+        # dropout_p: float = 0.0,
+        # is_causal: bool = False,
+        # scale: Optional[float] = None
+        if self.as_f16:
+            x = x.to(torch.float16)
+        res = F.scaled_dot_product_attention(
+            query=x,
+            key=x,
+            value=x,
+            attn_mask=self.attn_mask,
+            is_causal=self.is_causal,
+            scale=self.scale,
+        )
+        if self.as_f16:
+            res = res.to(torch.float32)
+        return res
+
+
+INPUT_AND_MODELS += [  # 3d
+    (torch.rand((1, 2, 3)).float(), mod)
+    for mod in [
+        FScaledDotProdAttn(),
+        FScaledDotProdAttn(scale=1.3),
+        FScaledDotProdAttn(scale=0.3),
+        FScaledDotProdAttn(is_causal=True),
+        FScaledDotProdAttn(is_causal=True, scale=1.62),
+        FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 2))),
+        FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 2))),
+    ]
+]
+INPUT_AND_MODELS += [  # 4d
+    (torch.rand((1, 2, 3, 4)).float(), mod)
+    for mod in [
+        FScaledDotProdAttn(),
+        FScaledDotProdAttn(scale=1.3),
+        FScaledDotProdAttn(scale=0.3),
+        FScaledDotProdAttn(is_causal=True),
+        FScaledDotProdAttn(is_causal=True, scale=1.62),
+        FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))),
+        FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 3, 3))),
+    ]
+]
+
+# works but difference in precision
+# INPUT_AND_MODELS += [  # 4d f16
+#     (torch.rand((1, 2, 3, 4)).float(), mod)
+#     for mod in [
+#         FScaledDotProdAttn(as_f16=True),
+#         FScaledDotProdAttn(as_f16=True, scale=1.3),
+#         FScaledDotProdAttn(as_f16=True, scale=0.3),
+#         FScaledDotProdAttn(as_f16=True, is_causal=True),
+#         FScaledDotProdAttn(as_f16=True, is_causal=True, scale=1.62),
+#         FScaledDotProdAttn(as_f16=True, scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))),
+#         FScaledDotProdAttn(as_f16=True, attn_mask=torch.rand((1, 2, 3, 3))),
+#     ]
+# ]
+
+
 def _simulate_scaled_dot_product_attention(Q, K, V, attn_mask, dropout_p=0.0):
     attn_weight = torch.softmax(
         (Q @ K.transpose(-2, -1) / math.sqrt(Q.size(-1))) + attn_mask, dim=-1
