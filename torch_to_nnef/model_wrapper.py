@@ -107,9 +107,15 @@ def _build_new_names_and_elements(original_names, elms):
         str_idxes = "_".join(str(_) for _ in idxes[1:])
         root_name = original_names[idxes[0]]
         if not isinstance(elm, torch.Tensor):
+            ix_str = ""
+            for i in idxes:
+                val = "'" + i + "'" if isinstance(i, str) else i
+                ix_str += f"[{val}]"
             LOGGER.warning(
                 "Can only keep trace dynamic for torch.Tensor inputs/outputs  "
-                f"rest is CONSTANTIZED like: '{root_name}' value: {elm}"
+                "rest is CONSTANTIZED like: "
+                f"'{root_name}' value: {elm} at index: {ix_str} "
+                "(if its a container we assume no torch.Tensor inside)"
             )
             continue
         new_names.append(

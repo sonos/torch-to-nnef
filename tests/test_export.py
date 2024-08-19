@@ -179,17 +179,15 @@ def test_export_obj_inp_types():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
-        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
-            export_model_to_nnef(
-                model=model,
-                args=(test_input, FakeConfig()),
-                file_path_export=export_path,
-                input_names=["a", "conf"],
-                output_names=["b"],
-                log_level=log.INFO,
-                check_same_io_as_tract=True,
-            )
-        assert "Provided args[1] is of type" in str(e_info.value)
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, FakeConfig()),
+            file_path_export=export_path,
+            input_names=["a", "conf"],
+            output_names=["b"],
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
+        )
 
 
 def test_multi_deep_obj_inputs():
@@ -198,17 +196,15 @@ def test_multi_deep_obj_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         model = model.eval()
-        with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
-            export_model_to_nnef(
-                model=model,
-                args=(test_input, {"a": torch.rand(1, 2), "b": FakeConfig()}),
-                file_path_export=export_path,
-                input_names=["a", "dic"],
-                output_names=["b"],
-                log_level=log.INFO,
-                check_same_io_as_tract=True,
-            )
-        assert "Provided args[1]['b'] is of type" in str(e_info.value)
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, {"a": torch.rand(1, 2), "b": FakeConfig()}),
+            file_path_export=export_path,
+            input_names=["a", "dic"],
+            output_names=["b"],
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
+        )
 
 
 def test_multi_dict_inputs():
