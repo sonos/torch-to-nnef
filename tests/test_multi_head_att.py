@@ -9,6 +9,8 @@ import pytest
 import torch
 from torch.nn import functional as F
 
+from torch_to_nnef.tract import tract_version
+
 from .test_primitive import TernaryPrimitive
 from .utils import check_model_io_test, set_seed  # noqa: E402
 
@@ -127,11 +129,17 @@ INPUT_AND_MODELS += [  # 3d
         FScaledDotProdAttn(),
         FScaledDotProdAttn(scale=1.3),
         FScaledDotProdAttn(scale=0.3),
-        FScaledDotProdAttn(is_causal=True),
-        FScaledDotProdAttn(is_causal=True, scale=1.62),
         FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 2))),
         FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 2))),
     ]
+    + (
+        [
+            FScaledDotProdAttn(is_causal=True),
+            FScaledDotProdAttn(is_causal=True, scale=1.62),
+        ]
+        if tract_version() >= "0.20.0"
+        else []
+    )
 ]
 INPUT_AND_MODELS += [  # 4d
     (torch.rand((1, 2, 3, 4)).float(), mod)
@@ -139,11 +147,17 @@ INPUT_AND_MODELS += [  # 4d
         FScaledDotProdAttn(),
         FScaledDotProdAttn(scale=1.3),
         FScaledDotProdAttn(scale=0.3),
-        FScaledDotProdAttn(is_causal=True),
-        FScaledDotProdAttn(is_causal=True, scale=1.62),
         FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))),
         FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 3, 3))),
     ]
+    + (
+        [
+            FScaledDotProdAttn(is_causal=True),
+            FScaledDotProdAttn(is_causal=True, scale=1.62),
+        ]
+        if tract_version() >= "0.20.0"
+        else []
+    )
 ]
 
 # works but difference in precision
