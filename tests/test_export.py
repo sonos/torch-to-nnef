@@ -67,6 +67,16 @@ class MultiDictOutputs(nn.Module):
         }
 
 
+class MultiInputsPrimitives(nn.Module):
+    def forward(self, x, is_action_a: bool, n_loop: int):
+        if is_action_a:
+            for _ in range(n_loop):
+                x = x**2
+        else:
+            x = x**2
+        return x
+
+
 def test_export_base():
     test_input = torch.rand(1, 2)
     model = MyDumbNN()
@@ -230,6 +240,23 @@ def test_multi_dict_outputs():
             file_path_export=export_path,
             input_names=["a"],
             output_names=["dic"],
+            log_level=log.INFO,
+            check_same_io_as_tract=True,
+        )
+
+
+def test_primitives():
+    test_input = torch.rand(1, 2)
+    model = MultiInputsPrimitives()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        model = model.eval()
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, True, 2),
+            file_path_export=export_path,
+            input_names=["a", "b", "c"],
+            output_names=["d"],
             log_level=log.INFO,
             check_same_io_as_tract=True,
         )

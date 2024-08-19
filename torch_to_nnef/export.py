@@ -305,7 +305,9 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
     return custom_extensions
 
 
-PRIMITIVE_IO_TYPES = (torch.Tensor,)
+BASE_IO_TYPES = (torch.Tensor,)
+WRAPABLE_IO_TYPES = (bool, int, float, str)
+PRIMITIVE_IO_TYPES = BASE_IO_TYPES + WRAPABLE_IO_TYPES
 CONTAINER_IO_TYPES = (tuple, list, dict)
 SUPPORTED_IO_TYPES = PRIMITIVE_IO_TYPES + CONTAINER_IO_TYPES
 

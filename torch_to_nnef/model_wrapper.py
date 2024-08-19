@@ -6,6 +6,7 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 import logging as log
 
+import torch
 from torch import nn
 
 from torch_to_nnef.utils import flatten_dict_tuple_or_list
@@ -22,11 +23,21 @@ class WrapStructIO(nn.Module):
         self.input_infos = input_infos
         self.output_infos = output_infos
 
+    def _insert_fixed_nontraceable_args(self, flat_args):
+        flat_args = list(flat_args[:])
+        for idx, (_, _, elm) in enumerate(self.input_infos):
+            if not isinstance(elm, torch.Tensor):
+                flat_args.insert(idx, elm)
+        flat_args = tuple(flat_args)
+        return flat_args
+
     def build_inputs(self, flat_args):
         if not self.input_infos:
             return flat_args
         inps = []
-        for (types, indexes, _), arg in zip(self.input_infos, flat_args):
+        for (types, indexes, _), arg in zip(
+            self.input_infos, self._insert_fixed_nontraceable_args(flat_args)
+        ):
             cur_struct = inps
             for typ, next_typ, idx in zip(
                 types, list(types[1:]) + [None], indexes
@@ -74,7 +85,7 @@ class WrapStructIO(nn.Module):
         if (
             len(self.output_infos) == 1
             and len(self.output_infos[0][0]) == 1
-            and self.output_infos[0][0][0] == tuple
+            and self.output_infos[0][0][0] is tuple
         ):
             return struct_output
 
@@ -90,22 +101,30 @@ class WrapStructIO(nn.Module):
 def _build_new_names_and_elements(original_names, elms):
     flat_elms = flatten_dict_tuple_or_list(elms)
 
-    if len(flat_elms) > len(original_names):
-        new_names = []
-        new_elms = []
-        for _, idxes, elm in flat_elms:
-            str_idxes = "_".join(str(_) for _ in idxes[1:])
-            root_name = original_names[idxes[0]]
-            new_names.append(
-                root_name + "_" + str_idxes if str_idxes else root_name
+    new_names = []
+    new_elms = []
+    for _, idxes, elm in flat_elms:
+        str_idxes = "_".join(str(_) for _ in idxes[1:])
+        root_name = original_names[idxes[0]]
+        if not isinstance(elm, torch.Tensor):
+            LOGGER.warning(
+                "Can only keep trace dynamic for torch.Tensor inputs/outputs  "
+                f"rest is CONSTANTIZED like: '{root_name}' value: {elm}"
             )
-            new_elms.append(elm)
-        return new_names, new_elms, flat_elms
-    return original_names, elms, flat_elms
+            continue
+        new_names.append(
+            root_name + "_" + str_idxes if str_idxes else root_name
+        )
+        new_elms.append(elm)
+    return new_names, new_elms, flat_elms
 
 
 def has_sub_containers(flat_elms):
     return any(len(t) > 1 for t, _, _ in flat_elms)
+
+
+def has_non_tensor_elements(flat_elms):
+    return any(not isinstance(e, torch.Tensor) for _, _, e in flat_elms)
 
 
 def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
@@ -133,6 +152,11 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
             )
             output_names = new_output_names
 
-    if has_sub_containers(flat_args) or has_sub_containers(flat_outs):
+    if (
+        has_sub_containers(flat_args)
+        or has_sub_containers(flat_outs)
+        or has_non_tensor_elements(flat_args)
+        or has_non_tensor_elements(flat_outs)
+    ):
         model = WrapStructIO(model, flat_args, flat_outs)
     return model, tuple(args), input_names, output_names
