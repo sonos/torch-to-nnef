@@ -11,7 +11,7 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import TractError
+from torch_to_nnef.exceptions import TorchToNNEFError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.log import log
 from torch_to_nnef.tract import tract_assert_io, tract_version
@@ -755,7 +755,7 @@ def test_should_fail_since_no_input():
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
         model = nn.Dropout()
-        with pytest.raises(TractError):
+        with pytest.raises(TorchToNNEFError):
             export_model_to_nnef(
                 model=model,
                 args=test_input,

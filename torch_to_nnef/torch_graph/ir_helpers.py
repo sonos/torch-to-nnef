@@ -13,6 +13,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.torch_graph.ir_data import (
     BlobTorchScriptObject,
     Data,
+    DictTensors,
     FixedTensorList,
     PythonConstant,
     TensorVariable,
@@ -27,6 +28,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_STARTID,
     CALL_KIND,
     CONSTANT_KIND,
+    DICTCONSTRUCT_KIND,
     GETATTR_KIND,
     LISTCONSTRUCT_KIND,
     LISTTYPE_KIND,
@@ -88,7 +90,7 @@ def _parse_traced_name(module):
 def _expand_containers_if_exists(data_items, filter_container: bool = False):
     for data_item in data_items:
         if hasattr(data_item, "is_container") and data_item.is_container:
-            yield from data_item.data
+            yield from data_item.iter()
             if filter_container:
                 continue
         yield data_item
@@ -500,6 +502,13 @@ def _rerouted_parsing(
         if kind == LISTUNPACK_KIND:
             # note: maybe should be replace dataNode to a FixedTensorList
             raise TorchOpTranslatedDifferently("List unpacked")
+        if kind == DICTCONSTRUCT_KIND:
+            data_nodes.append(
+                DictTensors.parse_from_dic_node_c_value(
+                    node.output(), data_nodes
+                )
+            )
+            raise TorchOpTranslatedDifferently("Dict Construct")
         if kind != CALL_KIND:
             raise TorchToNNEFNotImplementedError(node)
     if kind == CALL_KIND and not any(

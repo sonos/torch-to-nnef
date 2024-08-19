@@ -46,7 +46,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef import export_model_to_nnef
 
 test_input = torch.rand(1, 10, 100)
 model = nn.Sequential(nn.Conv1d(10, 20, 3))
@@ -57,32 +57,14 @@ export_model_to_nnef(
     file_path_export=Path("mybeautifulmodel.nnef"),
     input_names=["input"],
     output_names=["output"],
-    compression_level=0, # tar.gz compression level
-    # if 0 this become a simple .tar file uncompressed
-    log_level=logging.WARN, # default being logging.INFO
-    check_same_io_as_tract=True, # default False need tract installed on machine
-    debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
-    # debug_bundle_path is generated only if tract IO is not valid
-
-    renaming_scheme="natural_verbose",
-    # Possible choices variables naming schemes are:
-    # - "raw": Taking variable names from traced graph debugName directly
-    # - "natural_verbose": that try to provide nn.Module exported variable naming consistency
-    # - "numeric": that try to be as concise as possible
-
-    dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
-    # that named dimension need to be single letter symbol (due to tract spec)
-
-    check_io_names_qte_match=True, # may be setted to False in some rare case:
-    # if one of the input provided is removed since it is not used to generate outputs
-
-    nnef_spec_strict=False, # if set to true it follows NNEF spec
-    # strictly without any tract adaptations & features
-
-    custom_extensions=None,
-    # Useful to set specific extensions like for example:
-    # 'extension tract_assert S >= 0'
+    check_same_io_as_tract=True,
+    debug_bundle_path=Path("./debug.tgz"),
+    dynamic_axes={"input": {2: "S"}},
 )
+# More parameters exists,
+# you can look at function documentation
+# for more informations about each with:
+# help(export_model_to_nnef)
 ```
 
 As shown in API it is by default not checked by tract inference library but has

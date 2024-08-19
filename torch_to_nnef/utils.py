@@ -39,6 +39,80 @@ def flatten_dict(
     return dict(items)
 
 
+def flatten_dict_tuple_or_list(
+    obj,
+    collected_types: T.Optional[T.List[T.Type]] = None,
+    collected_idxes: T.Optional[T.List[int]] = None,
+    current_idx: int = 0,
+) -> T.Tuple[
+    T.Tuple[T.Tuple[T.Type, ...], T.Tuple[T.Union[int, str], ...], T.Any], ...
+]:
+    """Flatten dict/list/tuple recursively, return types, indexes and values
+
+    Flatten in depth first search order
+
+    Args:
+        obj: dict/tuple/list or anything else (structure can be arbitrary deep)
+            this contains N number of element non dict/list/tuple
+
+        collected_types: do not set
+        collected_idxes: do not set
+        current_idx: do not set
+
+    Return:
+        tuple of N tuples each containing a tuple of:
+            types, indexes and the element
+
+    Example:
+        If initial obj=[{"a": 1, "b": 3}]
+        it will output:
+            (
+                ((list, dict), (0, "a"), 1),
+                ((list, dict), (0, "b"), 3),
+            )
+    """
+    if collected_idxes is None:
+        collected_idxes = []
+    else:
+        collected_idxes = collected_idxes[:]
+
+    if collected_types is None:
+        collected_types = []
+    else:
+        collected_types = collected_types[:]
+
+    collected_types.append(type(obj))
+    if isinstance(obj, (tuple, list)):
+        collected_idxes.append(current_idx)
+        current_idx += 1
+        if not obj:
+            return ()
+        if isinstance(obj[0], (tuple, list, dict)):
+            return flatten_dict_tuple_or_list(
+                obj[0], collected_types, collected_idxes, 0
+            ) + flatten_dict_tuple_or_list(
+                obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
+            )
+        return (
+            (tuple(collected_types), tuple(collected_idxes), obj[0]),
+        ) + flatten_dict_tuple_or_list(
+            obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
+        )
+    if isinstance(obj, dict):
+        res = []  # type: ignore
+        for k, v in obj.items():
+            if isinstance(v, (tuple, list, dict)):
+                res += flatten_dict_tuple_or_list(
+                    v, collected_types, collected_idxes + [k], 0
+                )
+            else:
+                res += [
+                    (tuple(collected_types), tuple(collected_idxes + [k]), v)
+                ]
+        return tuple(res)
+    return ()
+
+
 @total_ordering
 class SemanticVersion:
     """Helper to check a version is higher than another"""

@@ -9,6 +9,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.exceptions import (
     IRError,
     TorchNotFoundOp,
+    TorchToNNEFError,
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.op.custom_extractors import (
@@ -231,7 +232,7 @@ class TorchToNGraphExtractor:
         self.g.outputs = [
             name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
-        if self._forced_inputs_names is not None:
+        if self._forced_outputs_names is not None:
             if self._check_io_names_qte_match:
                 assert len(self._forced_outputs_names) == len(
                     self.g.outputs
@@ -240,6 +241,12 @@ class TorchToNGraphExtractor:
             for onode, new_name in zip(
                 self.g.outputs, self._forced_outputs_names
             ):
+                if onode.name in self._forced_inputs_names:
+                    raise TorchToNNEFError(
+                        f"input tensor named: '{onode.name}' tryied to "
+                        f"be replaced by output named: '{new_name}'."
+                        "This is forbidden as it leads to nop for this tensor"
+                    )
                 onode.name = new_name
 
     def parse(self):
