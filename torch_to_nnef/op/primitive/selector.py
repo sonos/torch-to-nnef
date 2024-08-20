@@ -162,7 +162,7 @@ def slice_(
     if has_dynamic_axes and not nnef_spec_strict:
         soc = _get_dyn_input_shape(op_helper, input_node, dim)
         end = _get_slice_end_with_dyn_shape(soc, end_node, end)
-        if begin < 0:
+        if not isinstance(begin, int) or begin < 0:
             begin = _get_slice_begin_with_dyn_shape(soc, begin_node)
     else:
         end = min(
