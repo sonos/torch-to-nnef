@@ -1,0 +1,34 @@
+extension tract_registry tract_core;
+
+# way to bypass tract limitation with regard to out of boundary
+# slices indexes
+
+fragment pick_index_as_positive(
+    index: tensor<scalar>,
+    input_axis_size: tensor<scalar>
+) -> ( positive_index: tensor<scalar> )
+{
+    cond = ge(index, 0);
+    offset = select(cond, 0, input_axis_size);
+    positive_index = tract_core_cast(min(max(0, offset + index), input_axis_size), to="tdim");
+}
+
+fragment dyn_slice(
+    input: tensor<scalar>,
+    axis: tensor<scalar>,
+    begin: tensor<scalar>,
+    end: tensor<scalar>,
+    stride: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    input_shape = tract_core_shape_of(input);
+    input_dim = slice(input_shape, axes=[0], begin=[axis], end=[axis + 1], stride=[1]);
+    input_axis_size = squeeze(input_dim, axes=[0]);
+    output = slice(
+        input,
+        axes = [axis],
+        begin=[pick_index_as_positive(begin, input_axis_size)],
+        end = [pick_index_as_positive(end, input_axis_size)],
+        stride = [stride]
+    );
+}
