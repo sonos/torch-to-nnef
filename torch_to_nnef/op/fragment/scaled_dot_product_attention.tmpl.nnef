@@ -20,9 +20,6 @@ extension tract_registry tract_core;
     scale = div(1.0, sqrt(qsize));
   % endif
   % if causal:
-    #  temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
-    #  attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
-    #  attn_bias.to(query.dtype)
     L = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
     S = tract_core_cast(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
     temp_mask_val =  tile([[1.0]], repeats=[L, S]);

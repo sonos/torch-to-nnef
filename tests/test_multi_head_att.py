@@ -137,7 +137,7 @@ INPUT_AND_MODELS += [  # 3d
             FScaledDotProdAttn(is_causal=True),
             FScaledDotProdAttn(is_causal=True, scale=1.62),
         ]
-        if tract_version() >= "0.20.0"
+        if tract_version() >= "0.21.4"  # prior tract version has casting issue
         else []
     )
 ]
@@ -155,7 +155,7 @@ INPUT_AND_MODELS += [  # 4d
             FScaledDotProdAttn(is_causal=True),
             FScaledDotProdAttn(is_causal=True, scale=1.62),
         ]
-        if tract_version() >= "0.20.0"
+        if tract_version() >= "0.21.4"  # prior tract version has casting issue
         else []
     )
 ]
