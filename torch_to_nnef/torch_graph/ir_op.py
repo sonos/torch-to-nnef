@@ -102,6 +102,7 @@ class InputsAlignBetweenAtenAndTorch:
         args = list(args)
         args[0] = args[0].bool()
         args = tuple(args)
+        return args, kwargs
 
     @staticmethod
     def aten_zero(args, kwargs):
