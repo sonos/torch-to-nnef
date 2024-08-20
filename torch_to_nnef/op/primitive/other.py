@@ -17,7 +17,7 @@ from torch_to_nnef.op.primitive.base import (
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph import (
     FixedTensorList,
@@ -254,7 +254,7 @@ def size(
         force_full_output_tensor_name=shape_tensor_name,
     )
 
-    begin = pick_rank(input_node, axis_node.data)
+    begin = pick_axis(input_node, axis_node.data)
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:

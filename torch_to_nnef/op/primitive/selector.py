@@ -10,8 +10,8 @@ from torch_to_nnef.op.primitive.base import (
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
-    pick_value_in_rank,
+    pick_axis,
+    pick_index_in_axis,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -39,13 +39,13 @@ def slice_(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_value_in_rank(input_node, dim, begin_node.data)
+        begin = pick_index_in_axis(input_node, dim, begin_node.data)
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_value_in_rank(input_node, dim, end_node.data)
+        end = pick_index_in_axis(input_node, dim, end_node.data)
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -115,7 +115,7 @@ def slice_(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, dim)],
+            "axes": [pick_axis(input_node, dim)],
             "begin": [begin],
             "end": [end],
             "stride": [stride_node.data],
@@ -174,7 +174,7 @@ def narrow(
     assert isinstance(length_node.data, int)
     assert length_node.data > 0
 
-    start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
+    start_idx = pick_index_in_axis(input_node, axis_node.data, start_node.data)
 
     add_single_output_op(
         g,
@@ -185,7 +185,7 @@ def narrow(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
+            "axes": [pick_axis(input_node, axis_node.data)],
             "begin": [start_idx],
             "end": [start_idx + length_node.data],
             "stride": [1],
@@ -197,6 +197,7 @@ def narrow(
 @OP_REGISTRY.register()
 def select(g, node, name_to_tensor, **kwargs):
     input_node, axis_node, index_node = node.inputs
+    begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
     out = add_single_output_op(
         g,
         node,
@@ -206,12 +207,10 @@ def select(g, node, name_to_tensor, **kwargs):
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
-            "begin": [
-                pick_value_in_rank(input_node, axis_node.data, index_node.data)
-            ],
+            "axes": [pick_axis(input_node, axis_node.data)],
+            "begin": [begin],
             "end": [
-                pick_value_in_rank(
+                pick_index_in_axis(
                     input_node, axis_node.data, index_node.data + 1
                 )
             ],
@@ -226,7 +225,7 @@ def select(g, node, name_to_tensor, **kwargs):
         name_to_tensor,
         "squeeze",
         inputs=out,
-        attrs={"axes": [pick_rank(input_node, axis_node.data)]},
+        attrs={"axes": [pick_axis(input_node, axis_node.data)]},
         pass_quantization_params=True,
     )
 

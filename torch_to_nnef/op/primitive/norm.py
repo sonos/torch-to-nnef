@@ -5,7 +5,7 @@ from torch_to_nnef.op.primitive.base import (
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
     weight_bias_and_output_tensor,
 )
 
@@ -113,7 +113,7 @@ def norm(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_rank(input_node, dim) for dim in axes_node.data]},
+        attrs={"axes": [pick_axis(input_node, dim) for dim in axes_node.data]},
         output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
     )
     if not keep_dim_node.data:
@@ -124,7 +124,7 @@ def norm(g, node, name_to_tensor, **kwargs):
             "squeeze",
             inputs=out,
             attrs={
-                "axes": [pick_rank(input_node, dim) for dim in axes_node.data]
+                "axes": [pick_axis(input_node, dim) for dim in axes_node.data]
             },
             pass_quantization_params=True,
         )

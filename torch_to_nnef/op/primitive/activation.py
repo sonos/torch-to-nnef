@@ -3,10 +3,11 @@ from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
     unary_input_output_op_with_constant,
     unary_output_op_without_params,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -20,7 +21,7 @@ def softmax(**kwargs):
         del node.inputs[2]
 
     # enforce use of positive rank
-    node.inputs[1].data = pick_rank(node.inputs[0], node.inputs[1].data)
+    node.inputs[1].data = pick_axis(node.inputs[0], node.inputs[1].data)
     return unary_input_output_op_with_constant("softmax", **kwargs)
 
 
@@ -139,6 +140,9 @@ def erf(g, node, name_to_tensor, null_ref, **kwargs):
 def hardtanh(**kwargs):
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # remove inplace param
+    for inode in node.inputs[1:]:
+        if isinstance(inode, PythonConstant):
+            inode.data = float(inode.data)
     unary_input_output_op_with_constant("hard_tanh", **kwargs)
     return ["hard_tanh"]
 
@@ -150,7 +154,7 @@ def log_softmax(**kwargs):
         del node.inputs[2]
     input_node, axis_node = node.inputs
     assert isinstance(axis_node.data, int)
-    axis_node.data = pick_rank(input_node, axis_node.data)
+    axis_node.data = pick_axis(input_node, axis_node.data)
     unary_input_output_op_with_constant("log_softmax", **kwargs)
     return ["log_softmax"]
 
@@ -249,7 +253,7 @@ def glu(g, node, name_to_tensor, **kwargs):
             get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
         ],
         attrs={
-            "axis": pick_rank(input_node, axis_node.data),
+            "axis": pick_axis(input_node, axis_node.data),
             "half_dim_size": int(input_node.shape[axis_node.data] / 2),
             "dim_size": input_node.shape[axis_node.data],
         },

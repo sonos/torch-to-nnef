@@ -53,6 +53,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_STARTID,
     ATEN_TO,
     ATEN_VIEW_KIND,
+    ATEN_WHERE,
     ATEN_ZERO_LIKE,
     ATEN_ZEROS,
     CALL_KIND,
@@ -89,11 +90,18 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_PROD: cls.aten_prod,
             ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
             ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
+            ATEN_WHERE: cls.aten_where,
         }
         to_call = map_align.get(kind)
         if to_call:
             return to_call(args, kwargs)
         return args, kwargs
+
+    @staticmethod
+    def aten_where(args, kwargs):
+        args = list(args)
+        args[0] = args[0].bool()
+        args = tuple(args)
 
     @staticmethod
     def aten_zero(args, kwargs):
@@ -303,17 +311,7 @@ class TorchOp:
             # hacky/bad way to pass argument that are named argument only {
             args, kwargs = self.update_call_op_arg_kwargs(self.args)
 
-            if self.kind == "aten::where":  # TODO: FIX in bob
-                args = list(args)
-                args[0] = args[0].bool()
-                args = tuple(args)
-
-            try:
-                return self.op_ref(*args, **kwargs)
-            except Exception as exp:  # TODO: remove
-                print(exp)
-                __import__("ipdb").set_trace()
-                pass
+            return self.op_ref(*args, **kwargs)
         raise TorchToNNEFNotImplementedError(self)
 
     @property

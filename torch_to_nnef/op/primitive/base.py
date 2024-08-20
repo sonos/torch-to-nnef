@@ -304,7 +304,7 @@ def add_single_output_op(
     return out
 
 
-def pick_rank(input_node, rank: int) -> int:
+def pick_axis(input_node, rank: int) -> int:
     """Enforce that axis, axes ect does contains only positive values"""
     if rank >= 0:
         return rank
@@ -315,16 +315,31 @@ def pick_rank(input_node, rank: int) -> int:
     return base_rank + rank
 
 
-def pick_value_in_rank(input_node, rank: int, index: int) -> int:
-    """Enforce that index in axis does contains only positive values"""
+def pick_index_in_axis(
+    input_node, rank: int, index: int, check_is_positive: bool = True
+) -> int:
+    """Enforce that index in axis does contains only values within bounds.
+
+    Because in case of tract out of bound is not supported !
+
+    """
     if not isinstance(index, int):
         if isinstance(index, torch.Tensor):
             index = index.tolist()
         else:
             raise TorchToNNEFNotImplementedError(type(index))
-    if index >= 0:
+    if not check_is_positive or index >= 0:
         return index
-    return input_node.shape[rank] + index
+    new_index = input_node.shape[rank] + index
+    if check_is_positive:
+        # assert new_index >= 0, new_index
+        # TODO: insert
+        # inshape = tract_core_shape_of(${input_node.name});
+        # inshape_dim = slice(inshape, axes=[0], begin=[rank], begin=[rank +1], stride=[1]);
+        # new_index_int = max(0, inshape_dim + index);
+        # new_index = tract_core_cast(new_index_int, to="tdim");
+        pass
+    return new_index
 
 
 def unary_output_op_without_params(

@@ -5,7 +5,7 @@ from torch_to_nnef.op.primitive.base import (
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
@@ -46,7 +46,7 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
             inputs=inputs,
             outputs=tuple([out]),
             attribs={
-                "axes": [pick_rank(input_node, axis_node.data)],
+                "axes": [pick_axis(input_node, axis_node.data)],
                 "begin": [current_dim_elm_idx],
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],
@@ -69,7 +69,7 @@ def unbind(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axis": pick_rank(input_node, axis_node.data)},
+        attrs={"axis": pick_axis(input_node, axis_node.data)},
         ensure_tuple=False,
     )
 
@@ -98,7 +98,7 @@ def chunk(g, node, name_to_tensor, **kwargs):
             inputs=inputs,
             outputs=tuple([out]),
             attribs={
-                "axes": [pick_rank(input_node, axis_node.data)],
+                "axes": [pick_axis(input_node, axis_node.data)],
                 "begin": [current_dim_elm_idx],
                 "end": [current_dim_elm_idx + n_elements],
                 "stride": [1],
