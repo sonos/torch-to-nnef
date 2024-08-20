@@ -12,6 +12,7 @@ from torch_to_nnef.dtypes import (
     NUMPY_TO_TORCH_DTYPE,
     TORCH_TO_NUMPY_DTYPE,
     numpy_dtype_to_tract_str,
+    str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
@@ -97,15 +98,14 @@ def add_nnef_operation(
     ):
         outputs = kwargs["outputs"]
         op_type = kwargs["type"]
-        inputs = maybe_align_inputs_ranks(
-            graph, inputs, outputs, op_type
-        )  # type: ignore
+        inputs = maybe_align_inputs_ranks(graph, inputs, outputs, op_type)  # type: ignore
     kwargs["graph"] = graph
     kwargs["inputs"] = inputs
     return NOperation(*args, **kwargs)
 
 
 def nnef_tensor_from_tv(g: NGraph, name: str, node: TensorVariable):
+    assert isinstance(node, TensorVariable)
     quant = None
     if node.quant and "shape" not in name:
         np_dtype = TORCH_TO_NUMPY_DTYPE[node.dtype]
@@ -141,6 +141,8 @@ def add_tensor_variable_node_as_nnef_tensor(
         if name_suffix:
             name += f"_{name_suffix}"
 
+    if isinstance(node, PythonConstant):
+        node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
         nnef_tensor_ref.data = node.data.detach().numpy()
@@ -303,7 +305,7 @@ def add_single_output_op(
     return out
 
 
-def pick_rank(input_node, rank: int) -> int:
+def pick_axis(input_node, rank: int) -> int:
     """Enforce that axis, axes ect does contains only positive values"""
     if rank >= 0:
         return rank
@@ -314,8 +316,14 @@ def pick_rank(input_node, rank: int) -> int:
     return base_rank + rank
 
 
-def pick_value_in_rank(input_node, rank: int, index: int) -> int:
-    """Enforce that index in axis does contains only positive values"""
+def pick_index_in_axis(
+    input_node, rank: int, index: int, check_is_positive: bool = True
+) -> int:
+    """Enforce that index in axis does contains only values within bounds.
+
+    Because in case of tract out of bound is not supported !
+
+    """
     if not isinstance(index, int):
         if isinstance(index, torch.Tensor):
             index = index.tolist()
@@ -323,7 +331,10 @@ def pick_value_in_rank(input_node, rank: int, index: int) -> int:
             raise TorchToNNEFNotImplementedError(type(index))
     if index >= 0:
         return index
-    return input_node.shape[rank] + index
+    new_index = input_node.shape[rank] + index
+    if check_is_positive:
+        assert new_index >= 0, new_index
+    return new_index
 
 
 def unary_output_op_without_params(
@@ -656,6 +667,22 @@ class OpHelper:
                     continue
                 sh.append(dim_value)
             return input_nodes[0].dtype, tuple(sh)
+        if nnef_op_type in ["min", "max", "sub", "add"]:
+            # keep biggest volume input
+            sh = []
+            max_vol = 0
+            for inode in input_nodes:
+                if (
+                    isinstance(inode, TensorVariable)
+                    and inode.shape
+                    and inode.volume
+                    and inode.volume > max_vol
+                ):
+                    max_vol = inode.volume
+                    sh = list(inode.shape)
+            return (input_nodes[0].dtype, sh)
+        if nnef_op_type == "tract_core_cast":
+            return (str_to_torch_dtype(attrs["to"]), list(input_nodes[0].shape))
 
         raise NotImplementedError(nnef_op_type)
 
@@ -714,4 +741,10 @@ class SimpleOpChainer:
         )
         return SimpleOpChainer(
             self.op_helper.clone_with_new_node(new_node), new_node.outputs
+        )
+
+    def add_new_input_node(self, input_node):
+        assert isinstance(input_node, Data)
+        return SimpleOpChainer(
+            self.op_helper, self.input_data_nodes + [input_node]
         )

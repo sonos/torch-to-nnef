@@ -4,7 +4,7 @@ from torch_to_nnef.op.primitive.base import (
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.op.primitive.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
@@ -63,7 +63,7 @@ def unflatten(
         axis_node, PythonConstant
     ), "axis is supposed to be static"
 
-    rank_data = pick_rank(input_node, axis_node.data)
+    rank_data = pick_axis(input_node, axis_node.data)
 
     partial_dim_data = get_list_of_int(
         new_shape_chunk_node,
@@ -99,8 +99,8 @@ def unflatten(
 @OP_REGISTRY.register()
 def transpose(g, node, name_to_tensor, tract_feature_flags, **kwargs):
     (input_node, dim0_node, dim1_node) = node.inputs
-    dim0 = pick_rank(input_node, dim0_node.data)
-    dim1 = pick_rank(input_node, dim1_node.data)
+    dim0 = pick_axis(input_node, dim0_node.data)
+    dim1 = pick_axis(input_node, dim1_node.data)
 
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, tract_feature_flags
@@ -142,7 +142,7 @@ def permute(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_rank(input_node, _) for _ in dims_node.data]},
+        attrs={"axes": [pick_axis(input_node, _) for _ in dims_node.data]},
         pass_quantization_params=True,
     )
 
@@ -160,7 +160,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_rank(input_node, dim)]},
+        attrs={"axes": [pick_axis(input_node, dim)]},
         pass_quantization_params=True,
     )
 
@@ -177,7 +177,7 @@ def squeeze(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_rank(input_node, dim)]},
+        attrs={"axes": [pick_axis(input_node, dim)]},
         pass_quantization_params=True,
     )
 

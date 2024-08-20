@@ -147,9 +147,12 @@ class InfosFromSlugAndConfig:
                 ],
             }
         else:
-            shape_last_dim = int(
-                self.conf.hidden_size / self.conf.num_attention_heads
-            )
+            if hasattr(self.conf, "head_dim"):
+                shape_last_dim = int(self.conf.head_dim)
+            else:
+                shape_last_dim = int(
+                    self.conf.hidden_size / self.conf.num_attention_heads
+                )
             past_values_cache_conf = {
                 "n_kv": self.conf.num_hidden_layers,
                 "kv_shape": [

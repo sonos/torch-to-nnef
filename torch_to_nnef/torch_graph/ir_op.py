@@ -53,6 +53,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_STARTID,
     ATEN_TO,
     ATEN_VIEW_KIND,
+    ATEN_WHERE,
     ATEN_ZERO_LIKE,
     ATEN_ZEROS,
     CALL_KIND,
@@ -89,10 +90,18 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_PROD: cls.aten_prod,
             ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
             ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
+            ATEN_WHERE: cls.aten_where,
         }
         to_call = map_align.get(kind)
         if to_call:
             return to_call(args, kwargs)
+        return args, kwargs
+
+    @staticmethod
+    def aten_where(args, kwargs):
+        args = list(args)
+        args[0] = args[0].bool()
+        args = tuple(args)
         return args, kwargs
 
     @staticmethod

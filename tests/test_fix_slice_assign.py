@@ -143,13 +143,11 @@ class FastFixedRelPosEncXL(nn.Module):
                 jpos_inv_freq.permute(2, 1, 0) * torch.tensor([1, -1])
             ).permute(2, 1, 0)
 
-            __import__("ipdb").set_trace()
             results = (
                 torch.stack([jpos_inv_freq_sin, jpos_inv_freq_cos])
                 .permute(0, 2, 1)
                 .reshape(2, seq_len, -1)
             )
-            __import__("ipdb").set_trace()
             return results
 
 

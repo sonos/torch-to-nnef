@@ -3,8 +3,8 @@ from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
-    pick_value_in_rank,
+    pick_axis,
+    pick_index_in_axis,
 )
 from torch_to_nnef.torch_graph import FixedTensorList
 
@@ -30,7 +30,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
-    axis = pick_rank(input_node.data[0], dim)
+    axis = pick_axis(input_node.data[0], dim)
     add_single_output_op(
         g,
         node,
@@ -67,7 +67,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
         name_to_tensor,
         "stack",
         inputs=inputs,
-        attrs={"axis": pick_rank(input_node, dim)},
+        attrs={"axis": pick_axis(input_node, dim)},
         ensure_tuple=False,
     )
 
@@ -154,9 +154,9 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             "slice",
             inputs=input_tensor,
             attrs={
-                "axes": [pick_rank(input_node, dim)],
-                "begin": [pick_value_in_rank(input_node, dim, -shift)],
-                "end": [pick_value_in_rank(input_node, dim, maxsize)],
+                "axes": [pick_axis(input_node, dim)],
+                "begin": [pick_index_in_axis(input_node, dim, -shift)],
+                "end": [pick_index_in_axis(input_node, dim, maxsize)],
                 "stride": [1],
             },
             output_tensor_name_suffix=f"roll_l{i}_p1",
@@ -169,9 +169,9 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             "slice",
             inputs=input_tensor,
             attrs={
-                "axes": [pick_rank(input_node, dim)],
+                "axes": [pick_axis(input_node, dim)],
                 "begin": [0],
-                "end": [pick_value_in_rank(input_node, dim, -shift)],
+                "end": [pick_index_in_axis(input_node, dim, -shift)],
                 "stride": [1],
             },
             output_tensor_name_suffix=f"roll_l{i}_p2",
@@ -184,7 +184,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
             name_to_tensor,
             "concat",
             inputs=tensor_chunks,
-            attrs={"axis": pick_rank(input_node, dim)},
+            attrs={"axis": pick_axis(input_node, dim)},
             ensure_tuple=False,
             output_tensor_name_suffix=""
             if i + 1 == len(shifts)

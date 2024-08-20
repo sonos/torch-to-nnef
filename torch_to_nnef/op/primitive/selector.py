@@ -6,12 +6,11 @@ import numpy as np
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
-    SimpleOpChainer,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
-    pick_value_in_rank,
+    pick_axis,
+    pick_index_in_axis,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -39,13 +38,17 @@ def slice_(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_value_in_rank(input_node, dim, begin_node.data)
+        begin = pick_index_in_axis(
+            input_node, dim, begin_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_value_in_rank(input_node, dim, end_node.data)
+        end = pick_index_in_axis(
+            input_node, dim, end_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -62,49 +65,32 @@ def slice_(
     if has_concrete_values:
         assert begin < end
 
-    if end_node.data is not None:
-        if (
-            has_dynamic_axes
-            and not nnef_spec_strict
-            and end >= input_node.shape[dim]
-        ):
-            # NOTE: since we can't ensure used dimension is not symbolic
-            # we use `tract_core_shape_of`
-            shape_tensor_name = f"{input_node.export_name}_shape"
-            index_tensor_name = f"{shape_tensor_name}_{dim}"
-            soc = (
-                SimpleOpChainer(
-                    op_helper=op_helper,
-                    input_data_nodes=[input_node],
-                )
-                .chain(
-                    "tract_core_shape_of",
-                    output_tensor_name_suffix="shape",
-                )
-                .chain(
-                    "slice",
-                    attrs={
-                        "axes": [0],
-                        "begin": [dim],
-                        "end": [dim + 1],
-                        "stride": [1],
-                    },
-                    output_tensor_name_suffix=f"sliced{dim}",
-                )
-                .chain(
-                    "squeeze",
-                    attrs={
-                        "axes": [0],
-                    },
-                    force_full_output_tensor_name=index_tensor_name,
-                )
-            )
-            end = nnef.Identifier(soc.output_name)
-        else:
-            end = min(
-                end,
-                input_node.shape[dim],
-            )
+    if (has_dynamic_axes and not nnef_spec_strict) and (
+        not has_concrete_values or begin_node.data < 0 or end_node.data < 0
+    ):
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "dyn_slice",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            attrs={
+                "axis": pick_axis(input_node, dim),
+                "begin": begin,
+                "end": end,
+                "stride": stride_node.data,
+            },
+            pass_quantization_params=True,
+        )
+        return ["dyn_slice"]
+
+    end = min(
+        end,
+        input_node.shape[dim],
+    )
+    begin = max(begin, 0)
 
     add_single_output_op(
         g,
@@ -115,11 +101,12 @@ def slice_(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, dim)],
+            "axes": [pick_axis(input_node, dim)],
             "begin": [begin],
             "end": [end],
             "stride": [stride_node.data],
         },
+        pass_quantization_params=True,
     )
     return ["tract_core"]
 
@@ -174,7 +161,7 @@ def narrow(
     assert isinstance(length_node.data, int)
     assert length_node.data > 0
 
-    start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
+    start_idx = pick_index_in_axis(input_node, axis_node.data, start_node.data)
 
     add_single_output_op(
         g,
@@ -185,7 +172,7 @@ def narrow(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
+            "axes": [pick_axis(input_node, axis_node.data)],
             "begin": [start_idx],
             "end": [start_idx + length_node.data],
             "stride": [1],
@@ -197,6 +184,7 @@ def narrow(
 @OP_REGISTRY.register()
 def select(g, node, name_to_tensor, **kwargs):
     input_node, axis_node, index_node = node.inputs
+    begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
     out = add_single_output_op(
         g,
         node,
@@ -206,12 +194,10 @@ def select(g, node, name_to_tensor, **kwargs):
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
-            "begin": [
-                pick_value_in_rank(input_node, axis_node.data, index_node.data)
-            ],
+            "axes": [pick_axis(input_node, axis_node.data)],
+            "begin": [begin],
             "end": [
-                pick_value_in_rank(
+                pick_index_in_axis(
                     input_node, axis_node.data, index_node.data + 1
                 )
             ],
@@ -226,7 +212,7 @@ def select(g, node, name_to_tensor, **kwargs):
         name_to_tensor,
         "squeeze",
         inputs=out,
-        attrs={"axes": [pick_rank(input_node, axis_node.data)]},
+        attrs={"axes": [pick_axis(input_node, axis_node.data)]},
         pass_quantization_params=True,
     )
 

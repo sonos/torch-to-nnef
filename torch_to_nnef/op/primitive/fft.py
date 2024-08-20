@@ -6,7 +6,7 @@ from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
@@ -30,7 +30,7 @@ def _fft(
     if n_node.data is not None or norm_node.data is not None:
         raise TorchToNNEFNotImplementedError("n or norm unexpected")
 
-    dim = pick_rank(input_node, dim_node.data)
+    dim = pick_axis(input_node, dim_node.data)
 
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -42,7 +42,7 @@ def _fft(
             name_to_tensor,
             "unsqueeze",
             inputs=nnef_tensor,
-            attrs={"axes": [pick_rank(input_node, -1) + 1]},
+            attrs={"axes": [pick_axis(input_node, -1) + 1]},
             pass_quantization_params=True,
             output_tensor_name_suffix="complex_cast_unsqueze",
         )
@@ -158,7 +158,7 @@ def stft(
                 name_to_tensor,
                 "unsqueeze",
                 inputs=nnef_tensor,
-                attrs={"axes": [pick_rank(input_node, -1) + 1]},
+                attrs={"axes": [pick_axis(input_node, -1) + 1]},
                 pass_quantization_params=True,
                 output_tensor_name_suffix="complex_cast_unsqueze",
             )
@@ -182,7 +182,7 @@ def stft(
         )
     else:
         casted_complex_input_tensor = nnef_tensor
-    dim = pick_rank(input_node, -1)
+    dim = pick_axis(input_node, -1)
     window_tensor = get_or_add_tensor_variable_in_nnef(
         g, window_node, name_to_tensor
     )

@@ -21,7 +21,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
-from torch_to_nnef.op.fragment import FRAGMENTS
+from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
@@ -143,8 +143,7 @@ def export_model_to_nnef(
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
     """
-    logger = log.getLogger("torch_to_nnef")
-    logger.setLevel(log_level)
+    set_lib_log_level(log_level)
     if nnef_spec_strict and check_same_io_as_tract:
         LOGGER.warning(
             "Activated `nnef_spec_strict=True` and `check_same_io_as_tract=True`"
@@ -213,15 +212,7 @@ def export_model_to_nnef(
         )
         nnef_graph = graph_extractor.parse()
 
-        active_custom_fragments = {
-            _: FRAGMENTS[_].definition
-            for _ in graph_extractor.activated_custom_fragment_keys
-        }
-        active_custom_extensions = {
-            ext
-            for _ in graph_extractor.activated_custom_fragment_keys
-            for ext in FRAGMENTS[_].extensions
-        }
+        active_custom_extensions = get_active_custom_extensions(graph_extractor)
         if custom_extensions is not None:
             active_custom_extensions.update(custom_extensions)
 
@@ -236,6 +227,7 @@ def export_model_to_nnef(
                 f"such as {active_custom_extensions} be sure "
                 "to use an inference engine that support them"
             )
+        active_custom_fragments = get_active_custom_fragments(graph_extractor)
         custom_fragment_names = list(active_custom_fragments.keys())
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level
@@ -338,3 +330,26 @@ def real_export_path(
         if nnef_exp_file_path.suffix == ".tgz":
             nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
     return nnef_exp_file_path
+
+
+def get_active_custom_extensions(graph_extractor):
+    return {
+        ext
+        for _ in graph_extractor.activated_custom_fragment_keys
+        for ext in (FRAGMENTS[_] if isinstance(_, str) else _).extensions
+    }
+
+
+def get_active_custom_fragments(graph_extractor):
+    active_custom_fragments = {}
+    for _ in graph_extractor.activated_custom_fragment_keys:
+        if isinstance(_, Fragment):
+            active_custom_fragments[_.name] = _.definition
+        else:
+            active_custom_fragments[_] = FRAGMENTS[_].definition
+    return active_custom_fragments
+
+
+def set_lib_log_level(log_level):
+    logger = log.getLogger("torch_to_nnef")
+    logger.setLevel(log_level)

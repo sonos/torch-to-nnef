@@ -344,6 +344,7 @@ INPUT_AND_MODELS += [
         nn.Softplus(),
         UnaryPrimitive(torch.erf),
         nn.GELU(),
+        nn.GELU(approximate="tanh"),
         nn.SELU(),
         nn.SiLU(),
         nn.Hardtanh(-1.0, 10.0),
