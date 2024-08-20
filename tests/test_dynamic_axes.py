@@ -79,6 +79,14 @@ INPUT_AND_MODELS += [
 INPUT_AND_MODELS += [
     (torch.rand(2, 1), {2: "S"}, LambdaOp(lambda x: x[:, :1000]))
 ]
+INPUT_AND_MODELS += [
+    (
+        # shape 1, 2, 1, 4
+        torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+        {3: "S"},
+        LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
+    ),
+]
 
 
 @pytest.mark.parametrize("test_input,dyn_shapes,model", INPUT_AND_MODELS)

@@ -2,115 +2,21 @@ import logging
 
 import nnef
 import numpy as np
-import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
-    SimpleOpChainer,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
     pick_index_in_axis,
 )
-from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
-
-
-def _get_dyn_input_shape(op_helper, input_node, dim):
-    shape_tensor_name = f"{input_node.export_name}_shape"
-    index_tensor_name = f"{shape_tensor_name}_{dim}"
-    if index_tensor_name in op_helper.name_to_tensor:
-        LOGGER.debug(f"already computed '{index_tensor_name}'")
-        return SimpleOpChainer(
-            op_helper=op_helper,
-            input_data_nodes=[
-                TensorVariable(
-                    name=str(index_tensor_name),
-                    data=None,
-                    shape=[],
-                    dtype=torch.int64,
-                )
-            ],
-        )
-    return (
-        SimpleOpChainer(
-            op_helper=op_helper,
-            input_data_nodes=[input_node],
-        )
-        .chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=f"{input_node.export_name}_shape",
-        )
-        .chain(
-            "slice",
-            attrs={
-                "axes": [0],
-                "begin": [dim],
-                "end": [dim + 1],
-                "stride": [1],
-            },
-            output_tensor_name_suffix=f"sliced{dim}",
-        )
-        .chain(
-            "squeeze",
-            attrs={
-                "axes": [0],
-            },
-            force_full_output_tensor_name=index_tensor_name,
-        )
-    )
-
-
-def _get_slice_end_with_dyn_shape(soc, end_node, end):
-    # NOTE: since we can't ensure used dimension is not symbolic
-    # we use `tract_core_shape_of`
-    if end_node.data != np.iinfo(np.int64).max:
-        base_tensor_name = soc.output_name
-        soc = (
-            soc.add_new_input_node(
-                end_node
-                if not isinstance(end, PythonConstant)
-                else PythonConstant(name=end_node.name, data=end)
-            )
-            .chain(
-                "min",
-                force_full_output_tensor_name=f"{base_tensor_name}_min_dim_or_idx",
-            )
-            .chain(
-                "tract_core_cast",
-                attrs={"to": "tdim"},
-                force_full_output_tensor_name=f"{base_tensor_name}_min_dim_or_end_casted",
-            )
-        )
-    return nnef.Identifier(soc.output_name)
-
-
-def _get_slice_begin_with_dyn_shape(soc, begin_node):
-    # NOTE: since we can't ensure used dimension is not symbolic
-    base_tensor_name = soc.output_name
-    soc = (
-        soc.add_new_input_node(begin_node)
-        .chain(
-            "add",
-            force_full_output_tensor_name=f"{base_tensor_name}_sub_begin",
-        )
-        .add_new_input_node(PythonConstant(name="zero_constant", data=0))
-        .chain(
-            "max",
-            force_full_output_tensor_name=f"{base_tensor_name}_max_0",
-        )
-        .chain(
-            "tract_core_cast",
-            attrs={"to": "tdim"},
-            force_full_output_tensor_name=f"{base_tensor_name}_begin",
-        )
-    )
-    return nnef.Identifier(soc.output_name)
 
 
 @OP_REGISTRY.register(torch_op_ids=["slice"])
@@ -159,17 +65,32 @@ def slice_(
     if has_concrete_values:
         assert begin < end
 
-    if has_dynamic_axes and not nnef_spec_strict:
-        soc = _get_dyn_input_shape(op_helper, input_node, dim)
-        end = _get_slice_end_with_dyn_shape(soc, end_node, end)
-        if not isinstance(begin, int) or begin < 0:
-            begin = _get_slice_begin_with_dyn_shape(soc, begin_node)
-    else:
-        end = min(
-            end,
-            input_node.shape[dim],
+    if (has_dynamic_axes and not nnef_spec_strict) and (
+        not has_concrete_values or begin_node.data < 0 or end_node.data < 0
+    ):
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "dyn_slice",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            attrs={
+                "axis": pick_axis(input_node, dim),
+                "begin": begin,
+                "end": end,
+                "stride": stride_node.data,
+            },
+            pass_quantization_params=True,
         )
-        begin = max(begin, 0)
+        return ["dyn_slice"]
+
+    end = min(
+        end,
+        input_node.shape[dim],
+    )
+    begin = max(begin, 0)
 
     add_single_output_op(
         g,
