@@ -119,6 +119,15 @@ class TensorVariable(Data):
         return len(self.shape) if self.shape is not None else None
 
     @property
+    def volume(self) -> T.Optional[int]:
+        if self.shape is None:
+            return None
+        vol = 1
+        for s in self.shape:
+            vol *= s
+        return vol
+
+    @property
     def shaped(self) -> bool:
         return self.shape is not None
 

@@ -12,6 +12,7 @@ from torch_to_nnef.dtypes import (
     NUMPY_TO_TORCH_DTYPE,
     TORCH_TO_NUMPY_DTYPE,
     numpy_dtype_to_tract_str,
+    str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.torch_graph import (
@@ -328,17 +329,11 @@ def pick_index_in_axis(
             index = index.tolist()
         else:
             raise TorchToNNEFNotImplementedError(type(index))
-    if not check_is_positive or index >= 0:
+    if index >= 0:
         return index
     new_index = input_node.shape[rank] + index
     if check_is_positive:
-        # assert new_index >= 0, new_index
-        # TODO: insert
-        # inshape = tract_core_shape_of(${input_node.name});
-        # inshape_dim = slice(inshape, axes=[0], begin=[rank], begin=[rank +1], stride=[1]);
-        # new_index_int = max(0, inshape_dim + index);
-        # new_index = tract_core_cast(new_index_int, to="tdim");
-        pass
+        assert new_index >= 0, new_index
     return new_index
 
 
@@ -672,6 +667,22 @@ class OpHelper:
                     continue
                 sh.append(dim_value)
             return input_nodes[0].dtype, tuple(sh)
+        if nnef_op_type in ["min", "max", "sub", "add"]:
+            # keep biggest volume input
+            sh = []
+            max_vol = 0
+            for inode in input_nodes:
+                if (
+                    isinstance(inode, TensorVariable)
+                    and inode.shape
+                    and inode.volume
+                    and inode.volume > max_vol
+                ):
+                    max_vol = inode.volume
+                    sh = list(inode.shape)
+            return (input_nodes[0].dtype, sh)
+        if nnef_op_type == "tract_core_cast":
+            return (str_to_torch_dtype(attrs["to"]), list(input_nodes[0].shape))
 
         raise NotImplementedError(nnef_op_type)
 
@@ -730,4 +741,10 @@ class SimpleOpChainer:
         )
         return SimpleOpChainer(
             self.op_helper.clone_with_new_node(new_node), new_node.outputs
+        )
+
+    def add_new_input_node(self, input_node):
+        assert isinstance(input_node, Data)
+        return SimpleOpChainer(
+            self.op_helper, self.input_data_nodes + [input_node]
         )

@@ -72,9 +72,13 @@ if "0.21.5" < tract_version():
         ),
     ]
 
-# INPUT_AND_MODELS = [(torch.rand(2, 1), {2: "S"}, LambdaOp(lambda x: x[:, -3:]))]
-# # TODO: should in such case have a max(inshape, 1000) before slice
-# INPUT_AND_MODELS = [(torch.rand(2, 1), {2: "S"}, LambdaOp(lambda x: x[:, :1000]))]
+INPUT_AND_MODELS += [
+    (torch.rand(2, 1), {2: "S"}, LambdaOp(lambda x: x[:, -3:]))
+]
+# : should in such case have a max(inshape, 1000) before slice
+INPUT_AND_MODELS += [
+    (torch.rand(2, 1), {2: "S"}, LambdaOp(lambda x: x[:, :1000]))
+]
 
 
 @pytest.mark.parametrize("test_input,dyn_shapes,model", INPUT_AND_MODELS)
