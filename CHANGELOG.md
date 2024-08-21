@@ -3,6 +3,15 @@
 
 ## Unreleased
 
+## [0.12.3] - 2024-08-21
+
+### Added
+
+- support for all variants of `torch.nn.functional.scaled_dot_product_attention`
+- add GELU with `tanh` approximation option
+- slice with out of bound reformulation, to allow tract to work (ie. [-100:] on a 50 size dim)
+- new LLM pass: `Mistral` is passing, `Gemma2` pass but some IO diff
+
 ## [0.12.2] - 2024-08-19
 
 ### Added
