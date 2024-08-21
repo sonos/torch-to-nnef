@@ -431,7 +431,9 @@ def assert_io_and_debug_bundle(
                 f"cp {io_npz_path} {no_suffix_debug_bundle_torch_to_nnef_path}/io.npz",
                 shell=True,
             )
-            dump_environment_versions(no_suffix_debug_bundle_path)
+            dump_environment_versions(
+                no_suffix_debug_bundle_path, tract_cli.tract_path
+            )
 
             debug_dumper_pytorch_to_onnx_to_nnef(
                 model,

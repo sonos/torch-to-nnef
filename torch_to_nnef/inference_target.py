@@ -141,7 +141,7 @@ class TractNNEF(InferenceTarget):
     def post_trace(self, nnef_graph, active_custom_extensions):
         if self.dynamic_axes is not None:
             custom_extensions = apply_dynamic_shape_in_nnef(
-                self.dynamic_axes, nnef_graph
+                self.dynamic_axes, nnef_graph, self.version
             )
             active_custom_extensions.update(custom_extensions)
 
@@ -175,7 +175,7 @@ class TractNNEF(InferenceTarget):
             )
 
 
-def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
+def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
     custom_extensions = set()
     for node_name, named_dims in dynamic_axes.items():
         for inp_tensor in nnef_graph.inputs:
@@ -203,7 +203,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
                             external_op.attribs["shape"]
                         )
                     ]
-                    if tract.tract_version() < "0.18.2":
+                    if tract_version < "0.18.2":
                         custom_extensions.add("tract_pulse_streaming_symbol")
                     else:
                         custom_extensions.add(f"tract_symbol {axis_name}")
