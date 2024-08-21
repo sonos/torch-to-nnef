@@ -18,6 +18,7 @@ from nnef_tools.model import Graph as NGraph
 from torch import nn
 from torch.onnx.utils import _validate_dynamic_axes  # type: ignore
 
+from torch_to_nnef import tract
 from torch_to_nnef.exceptions import DynamicShapeValue, TractError
 from torch_to_nnef.utils import SemanticVersion
 
@@ -36,11 +37,15 @@ class InferenceTarget:
         assert isinstance(version, SemanticVersion), version
         self.check_io = check_io
 
+    @property
+    def has_dynamic_axes(self) -> bool:
+        return False
+
     def pre_trace(
         self,
         model: nn.Module,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         pass
 
@@ -55,7 +60,7 @@ class InferenceTarget:
         nnef_graph: NGraph,
         args: T.List[T.Any],
         exported_filepath: Path,
-        debug_bundle_path: Path,
+        debug_bundle_path: T.Optional[Path] = None,
     ):
         pass
 
@@ -72,39 +77,6 @@ class KhronosNNEF(InferenceTarget):
     @classmethod
     def latest(cls):
         return cls(cls.LATEST_KNOWN_STABLE_VERSION)
-
-
-def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
-    custom_extensions = set()
-    for node_name, named_dims in dynamic_axes.items():
-        for inp_tensor in nnef_graph.inputs:
-            if inp_tensor.name == node_name:
-                LOGGER.debug("found matching node element")
-                assert len(inp_tensor.producers) == 1
-                external_op = inp_tensor.producers[0]
-                assert external_op.type in [
-                    "external",
-                    "tract_core_external",
-                ], external_op.type
-                for axis, axis_name in named_dims.items():
-                    if len(axis_name) != 1:
-                        raise DynamicShapeValue(
-                            "axis_name in dynamic_axes must "
-                            "be of length 1 to follow tract convention "
-                            f"but was given '{axis_name}' "
-                            f"in dynamic_axes={dynamic_axes}"
-                        )
-                    external_op.attribs["shape"] = [
-                        nnef.Identifier(str(axis_name))
-                        if idx == axis
-                        else dim_size
-                        for idx, dim_size in enumerate(
-                            external_op.attribs["shape"]
-                        )
-                    ]
-                    custom_extensions.add("tract_pulse_streaming_symbol")
-                break
-    return custom_extensions
 
 
 class TractFeatureFlag(enum.Enum):
@@ -139,6 +111,10 @@ class TractNNEF(InferenceTarget):
             LOGGER.info(f"use tract:{specific_tract_binary_path.absolute()}")
         self.specific_tract_binary_path = specific_tract_binary_path
 
+    @property
+    def has_dynamic_axes(self) -> bool:
+        return bool(self.dynamic_axes)
+
     @classmethod
     def latest(cls):
         return cls(cls.LATEST_KNOWN_STABLE_VERSION)
@@ -146,8 +122,8 @@ class TractNNEF(InferenceTarget):
     def pre_trace(
         self,
         model: nn.Module,
-        input_names: T.List[str],
-        output_names: T.List[str],
+        input_names: T.Optional[T.List[str]],
+        output_names: T.Optional[T.List[str]],
     ):
         _validate_dynamic_axes(
             self.dynamic_axes, model, input_names, output_names
@@ -166,10 +142,8 @@ class TractNNEF(InferenceTarget):
         nnef_graph: NGraph,
         args: T.List[T.Any],
         exported_filepath: Path,
-        debug_bundle_path: Path,
+        debug_bundle_path: T.Optional[Path] = None,
     ):
-        from torch_to_nnef import tract
-
         if self.check_io:
             # CHECK input and output are different
             input_names = [str(t.name) for t in nnef_graph.inputs]
@@ -189,3 +163,39 @@ class TractNNEF(InferenceTarget):
                 input_names=input_names,
                 output_names=output_names,
             )
+
+
+def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph):
+    custom_extensions = set()
+    for node_name, named_dims in dynamic_axes.items():
+        for inp_tensor in nnef_graph.inputs:
+            if inp_tensor.name == node_name:
+                LOGGER.debug("found matching node element")
+                assert len(inp_tensor.producers) == 1
+                external_op = inp_tensor.producers[0]
+                assert external_op.type in [
+                    "external",
+                    "tract_core_external",
+                ], external_op.type
+                for axis, axis_name in named_dims.items():
+                    if len(axis_name) != 1:
+                        raise DynamicShapeValue(
+                            "axis_name in dynamic_axes must "
+                            "be of length 1 to follow tract convention "
+                            f"but was given '{axis_name}' "
+                            f"in dynamic_axes={dynamic_axes}"
+                        )
+                    external_op.attribs["shape"] = [
+                        nnef.Identifier(str(axis_name))
+                        if idx == axis
+                        else dim_size
+                        for idx, dim_size in enumerate(
+                            external_op.attribs["shape"]
+                        )
+                    ]
+                    if tract.tract_version() < "0.18.2":
+                        custom_extensions.add("tract_pulse_streaming_symbol")
+                    else:
+                        custom_extensions.add(f"tract_symbol {axis_name}")
+                break
+    return custom_extensions

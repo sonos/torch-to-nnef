@@ -3,6 +3,56 @@
 
 ## Unreleased
 
+## [0.12.3] - 2024-08-21
+
+### Added
+
+- support for all variants of `torch.nn.functional.scaled_dot_product_attention`
+- add GELU with `tanh` approximation option
+- slice with out of bound reformulation, to allow tract to work (ie. [-100:] on a 50 size dim)
+- new LLM pass: `Mistral` is passing, `Gemma2` pass but some IO diff
+
+## [0.12.2] - 2024-08-19
+
+### Added
+
+- refactor NNEF variable naming in a ir_naming in module aside
+- new NNEF variable naming scheme `natural_verbose_camel`
+- added export IO support for dict/list/tuple of torch.Tensor via flattening
+- added export IO support for other object via constantization (not part of graph `external`)
+
+## [0.12.1] - 2024-08-09
+
+### Added
+
+- tract `Q4_0` support
+- new `llm_tract` extension installable with `pip install torch_to_nnef[llm_tract]`
+  - hold cli `export_llm_to_tract` for direct LLM export from any huggingface model with optional quant
+  - replace `scripts` dir at root of the project
+- added support for Python 3.12
+
+### Removed
+
+- dropped support for Python 3.8
+- dropped support for unused QTensor formats
+
+## [0.11.3] - 2024-07-26
+
+### Added
+
+- Tested export for `Llama`,`openELM`, `Phi`  LLM family works
+- Added support aten::ops : `tril`, `repeat_interleave`, `type_as`
+- Variable naming scheme: old `natural_verbose` option renamed `raw`,  new option `natural_verbose` means 'as close as possible' to torch Python code
+- Protection against variable naming collision with `input_names`, `output_names`
+- Updated NNEF `extensions` to comply to tract expectations
+
+### Fix
+
+- Improved support aten::ops : `index_` multi index gathering, `masked_fill`, `ones_like`
+- added naming for models unit-tests, 'useful' in case of failures
+- Compliance with tract>0.21.3 (introduced more restrictive definition within NNEF with different notation of scalar between float and TDim/long/int )
+- Substantial performance improvement for internals graph IR (via by example new data-structures:  `NamedItemOrderedSet`)
+
 ## [0.10.2] - 2024-06-21
 
 ### Fix

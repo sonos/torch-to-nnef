@@ -6,7 +6,7 @@ from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
@@ -30,29 +30,19 @@ def _fft(
     if n_node.data is not None or norm_node.data is not None:
         raise TorchToNNEFNotImplementedError("n or norm unexpected")
 
-    dim = pick_rank(input_node, dim_node.data)
+    dim = pick_axis(input_node, dim_node.data)
 
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
     if input_node.dtype in [torch.float32, torch.float64]:
-        """# sadly casting is not implemented in tract so we use another way
-        casted_complex_input_tensor, _ = cast_to_if_not_dtype_and_variable(
-            g,
-            name_to_tensor,
-            node,
-            nnef_tensor=nnef_tensor,
-            cast_to=np.complex64,
-            suffix="precast_complex",
-        )
-        """
         output_nnef_tensor = add_single_output_op(
             g,
             node,
             name_to_tensor,
             "unsqueeze",
             inputs=nnef_tensor,
-            attrs={"axes": [pick_rank(input_node, -1) + 1]},
+            attrs={"axes": [pick_axis(input_node, -1) + 1]},
             pass_quantization_params=True,
             output_tensor_name_suffix="complex_cast_unsqueze",
         )
@@ -97,8 +87,8 @@ def _fft(
         divisor_tensor = get_or_add_tensor_variable_in_nnef(
             g,
             PythonConstant(
-                name=output_tensor.name + "_divisor",
-                data=divisor_value,
+                name=f"{output_tensor.name}_divisor",
+                data=float(divisor_value),
             ),
             name_to_tensor,
         )
@@ -145,7 +135,7 @@ def stft(
         window_node,  # Optional[Tensor] = None
         normalized_node,  # bool = False
         onesided_node,  # Optional[bool] = None
-        return_complex_node,  # Optional[bool] = None
+        _,  # return_complex_node Optional[bool] = None
     ) = node.inputs
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
@@ -168,7 +158,7 @@ def stft(
                 name_to_tensor,
                 "unsqueeze",
                 inputs=nnef_tensor,
-                attrs={"axes": [pick_rank(input_node, -1) + 1]},
+                attrs={"axes": [pick_axis(input_node, -1) + 1]},
                 pass_quantization_params=True,
                 output_tensor_name_suffix="complex_cast_unsqueze",
             )
@@ -192,7 +182,7 @@ def stft(
         )
     else:
         casted_complex_input_tensor = nnef_tensor
-    dim = pick_rank(input_node, -1)
+    dim = pick_axis(input_node, -1)
     window_tensor = get_or_add_tensor_variable_in_nnef(
         g, window_node, name_to_tensor
     )

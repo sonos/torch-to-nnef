@@ -1,5 +1,5 @@
 # This is an approximation of GELU using approximate of ERF
 fragment hardswish( x: tensor<scalar> ) -> ( y: tensor<scalar> )
 {
-    y = x * relu6(x + 3) / 6;
+    y = x * relu6(x + 3.0) / 6.0;
 }

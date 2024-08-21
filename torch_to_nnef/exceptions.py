@@ -1,4 +1,4 @@
-""" Regroup all Exceptions that can happen in torch_to_nnef.
+"""Regroup all Exceptions that can happen in torch_to_nnef.
 
 rational:
     Can catch all package related error with an except TorchToNNEFError
@@ -12,6 +12,10 @@ rational:
 
 class TorchToNNEFError(Exception):
     """Generic error that all errors in this lib inherit"""
+
+
+class TorchToNNEFInvalidArgument(ValueError, TorchToNNEFError):
+    """specification of torch_to_nnef export not respected"""
 
 
 class TorchToNNEFNotImplementedError(NotImplementedError, TorchToNNEFError):

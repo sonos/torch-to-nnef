@@ -25,42 +25,36 @@ from torch_to_nnef.torch_graph.ir_helpers import (
     _expand_containers_if_exists,
     _find_common_root,
     _find_data_node,
-    _is_container,
     _parse_traced_name,
     _replacement_to_relative_module_path,
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
+from torch_to_nnef.torch_graph.ir_naming import (
+    VariableNamingScheme,
+    apply_renaming_scheme,
+)
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
+from torch_to_nnef.utils import NamedItemOrderedSet
 
 LOGGER = logging.getLogger(__name__)
-
-
-class _OrderedStrictSet(list):
-    """Data Structure aimed to detect code implementation bugs
-
-    Indeed it checks that no 2 nodes are inserted with same name
-
-    Warning! only aimed at Data items (but work if provided item as name attr).
-
-    """
-
-    def append(self, item):
-        assert all(elm.name != item.name for elm in self), item.name
-        return super().append(item)
 
 
 def module_tracer_into_ir_graph(
     module_tracer,
     inputs: T.Optional[T.List[Data]] = None,
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
-    renaming_scheme: str = "numeric",
+    forced_inputs_names: T.Optional[T.List[str]] = None,
+    forced_outputs_names: T.Optional[T.List[str]] = None,
+    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
     ir_graph.parse(
         provided_inputs=inputs,
         provided_outputs=outputs,
+        forced_inputs_names=forced_inputs_names,
+        forced_outputs_names=forced_outputs_names,
         renaming_scheme=renaming_scheme,
     )
     return ir_graph
@@ -96,15 +90,17 @@ class TorchModuleIRGraph:
         self,
         torch_module_tracer: TorchModuleTracer,
         omit_useless_nodes: bool = True,
+        is_root_module: bool = False,
     ):
         self.op_nodes: T.List[TorchOp] = []
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
 
-        self._data_nodes: _OrderedStrictSet = _OrderedStrictSet()
+        self._data_nodes: NamedItemOrderedSet = NamedItemOrderedSet()
         self._omit_useless_nodes = omit_useless_nodes
         self.provided_inputs_picked_indexes: T.List[int] = []
         self._tracer = torch_module_tracer
+        self.is_root_module = is_root_module
 
     @property
     def tracer(self):
@@ -116,54 +112,54 @@ class TorchModuleIRGraph:
 
     @data_nodes.setter
     def data_nodes(self, other):
-        oss = _OrderedStrictSet()
-        for item in other:
-            oss.append(item)
-        self._data_nodes = oss
+        self._data_nodes = (
+            other
+            if isinstance(other, NamedItemOrderedSet)
+            else NamedItemOrderedSet.from_list(other)
+        )
 
     def _check_container_items_rely_on_data_nodes(self):
         """container items reference must exists in `data_nodes`"""
         for dnode in self.data_nodes:
-            if _is_container(dnode):
-                for subdnode in dnode.data:
-                    assert any(
-                        subdnode == _ for _ in self.data_nodes
+            if dnode.is_container:
+                for subdnode in dnode.iter():
+                    assert self.data_nodes.contains(
+                        subdnode, strict=True
                     ), f"not referenced correctly sub item: {subdnode}"
 
     def _check_io_rely_on_data_nodes(self):
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
-            if not any(_ is inode for _ in self.data_nodes):
+            if not self.data_nodes.contains(inode, strict=True):
                 raise TorchCheckError(
                     f"not referenced correctly input: {inode}"
                 )
 
         for onode in self.outputs:
-            if not any(_ is onode for _ in self.data_nodes):
+            if not self.data_nodes.contains(onode, strict=True):
                 raise TorchCheckError(
                     f"not referenced correctly output: {onode}"
                 )
 
     def find_node(self, node_name: str) -> T.Optional[Data]:
-        for dnode in self.data_nodes:
-            if dnode.name == node_name:
-                return dnode
-        return None
+        return self.data_nodes.get_by_name(node_name)
 
     def remap_node(self, from_node, to_node):
+        """remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
-        from_node.name = to_node.name
+        self.inputs = [to_node if _ is from_node else _ for _ in self.inputs]
+        self.outputs = [to_node if _ is from_node else _ for _ in self.outputs]
         for op in self.op_nodes:
             op.inputs = [to_node if _ is from_node else _ for _ in op.inputs]
             op.outputs = [to_node if _ is from_node else _ for _ in op.outputs]
-        self.data_nodes = [_ for _ in self.data_nodes if _ is not from_node]
+        self.data_nodes.remove(from_node, raise_exception_if_not_found=False)
 
         # allow to remap item in containers as well
         for dnode in self.data_nodes:
-            if _is_container(dnode):
+            if dnode.is_container:
                 new_data = []
-                for subdnode in dnode.data:
+                for subdnode in dnode.iter():
                     if subdnode is from_node:
                         value = to_node
                     else:
@@ -172,8 +168,8 @@ class TorchModuleIRGraph:
                 dnode.data = new_data
 
         # add if not exists in graph
-        if not any(to_node is _ for _ in self.data_nodes):
-            self.data_nodes.append(to_node)
+        if not self.data_nodes.contains(to_node):
+            self.data_nodes.append(to_node)  # this is very slow...
 
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
@@ -271,20 +267,18 @@ class TorchModuleIRGraph:
             _find_data_node(self.data_nodes, _.debugName())
             for _ in torch_graph_outputs
         ]
+        outputs = self._expand_fixed_tensor_list_in(outputs)
 
         if provided_outputs is not None:
-            expanded_output = list(_expand_containers_if_exists(outputs))
-            original_outputs = list(
-                _expand_containers_if_exists(provided_outputs)
+            original_outputs = self._expand_fixed_tensor_list_in(
+                provided_outputs
             )
-            if len(expanded_output) != len(original_outputs):
+            if len(outputs) != len(original_outputs):
                 raise TorchCheckError(
-                    f"{len(expanded_output)} == {len(original_outputs)}"
+                    f"{len(outputs)} == {len(original_outputs)}"
                 )
-            for original_output, output in zip(
-                original_outputs, expanded_output
-            ):
-                if _is_container(original_output) and _is_container(output):
+            for original_output, output in zip(original_outputs, outputs):
+                if original_output.is_container and output.is_container:
                     # can be safely explored
                     continue
                 if isinstance(output, TensorVariable):
@@ -338,7 +332,7 @@ class TorchModuleIRGraph:
                     node.scope + self.SEP + input_node.name
                 )
 
-        for node in _expand_containers_if_exists(self.data_nodes):
+        for node in _expand_containers_if_exists(self.data_nodes[:]):
             if not node.name.startswith(selected_scope_name + self.SEP):
                 node.name = selected_scope_name + self.SEP + node.name
 
@@ -374,7 +368,6 @@ class TorchModuleIRGraph:
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
         # Re-Wire input and output naming => {
-
         def search_and_replace_data_nodes(
             node_subgraph_to_wire: T.List[Data],
             node_graph_to_wire: T.List[Data],
@@ -407,11 +400,6 @@ class TorchModuleIRGraph:
 
         # }
 
-        to_del_nodes = submodule_graph.inputs + submodule_graph.outputs
-        submodule_graph.data_nodes = [
-            _ for _ in submodule_graph.data_nodes if _ not in to_del_nodes
-        ]
-
         for _ in submodule_graph.op_nodes:
             res = _.scope.split(self.SEP, maxsplit=1)
             if len(res) >= 2 and isinstance(res, list):
@@ -420,16 +408,23 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
-        for _ in submodule_graph.data_nodes:
+        protected_from_rename_node = set(
+            submodule_graph.inputs + submodule_graph.outputs
+        )
+        for _ in submodule_graph.data_nodes[:]:
+            if _ in protected_from_rename_node:
+                continue
             _.name = f"{prefix}.{_.name}"
 
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
         self.op_nodes += submodule_graph.op_nodes
         self.data_nodes += [
-            dn for dn in submodule_graph.data_nodes if dn not in self.data_nodes
+            dn
+            for dn in submodule_graph.data_nodes
+            if not self.data_nodes.contains(dn, strict=True)
         ]
 
-    def _recursive_call_method(self, renaming_scheme: str):
+    def _recursive_call_method(self, renaming_scheme: VariableNamingScheme):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -462,7 +457,14 @@ class TorchModuleIRGraph:
                 prefix = ""
                 if cname is not None:
                     prefix = _add_prefix_if_start_with_digit(cname, "s")
-                prefix += f"_c{ref_count[cname]}"
+                if ref_count[cname] == 1:
+                    prefix += "_"
+                elif ref_count[cname] == 2:
+                    prefix += "_2nd_call"
+                elif ref_count[cname] == 3:
+                    prefix += "_3rd_call"
+                else:
+                    prefix += f"_{ref_count[cname]}th_call"
                 self._merge_subraph(
                     submodule_graph,
                     prefix=prefix,
@@ -470,54 +472,25 @@ class TorchModuleIRGraph:
                     callmethod_node=op,
                 )
 
-    def apply_renaming_scheme(self, scheme="natural_verbose"):
-        """Rename availlable data node following a scheme
-
-        by default the natural_verbose pattern built is as close as possible
-        to Pytorch graph context info. This pattern might come as too verbose.
-
-        we propose a more concise numeric pattern that allow easier debug
-        when looking at NNEF export correctness.
-
-        """
-        if scheme == "natural_verbose":
-            return
-        if scheme == "numeric":
-            count_ref = defaultdict(int)
-            mapping = {}
-            prefix_map = {
-                TensorVariable: "v",
-                PythonConstant: "c",
-                BlobTorchScriptObject: "b",
-                FixedTensorList: "l",
-                TupleTensors: "tt",
-                Data: "d",  # not used, avoid static analysis complain
-            }
-            for dnode in self.data_nodes:
-                prefix = prefix_map[dnode.__class__]
-                if dnode.name in mapping:
-                    dnode.name = mapping[dnode.name]
-                    continue
-                suffix = count_ref[prefix]
-                count_ref[prefix] += 1
-                mapping[dnode.name] = prefix + str(suffix)
-                dnode.name = mapping[dnode.name]
-            return
-
-        raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
-
     def _filter_tuple_tensor_from_data_nodes(self):
-        new_data_nodes = []
-        for dnode in self.data_nodes:
+        for dnode in self.data_nodes[:]:
             if isinstance(dnode, TupleTensors):
-                continue
-            new_data_nodes.append(dnode)
-        self.data_nodes = new_data_nodes
+                self.data_nodes.remove(dnode)
 
     def _expand_tuple_in(self, iterable):
         expanded_data_nodes = []
         for dnode in iterable:
             if isinstance(dnode, TupleTensors):
+                for sdnode in dnode.data:
+                    expanded_data_nodes.append(sdnode)
+            else:
+                expanded_data_nodes.append(dnode)
+        return expanded_data_nodes
+
+    def _expand_fixed_tensor_list_in(self, iterable):
+        expanded_data_nodes = []
+        for dnode in iterable:
+            if isinstance(dnode, FixedTensorList):
                 for sdnode in dnode.data:
                     expanded_data_nodes.append(sdnode)
             else:
@@ -539,10 +512,10 @@ class TorchModuleIRGraph:
         Backward propagation from graph output to input to select kept nodes
 
         """
+        assert isinstance(self.data_nodes, NamedItemOrderedSet)
         used_data_nodes = set(self.outputs)
-        used_data_nodes.update(
-            self.inputs
-        )  # Ensure we do not dish Module inputs
+        # Ensure we do not dish Module inputs
+        used_data_nodes.update(self.inputs)
 
         used_op_nodes = set()
         remaining_op_nodes = set(self.op_nodes)
@@ -567,38 +540,38 @@ class TorchModuleIRGraph:
                 # maybe added FixedTensorList, TupleTensors
                 additional_data_node_from_list = set()
                 for used_data_node in used_data_nodes:
-                    if _is_container(used_data_node):
+                    if used_data_node.is_container:
                         additional_data_node_from_list.update(
-                            used_data_node.data
+                            used_data_node.iter()
                         )
                 remaining_data_nodes.difference_update(
                     additional_data_node_from_list
                 )
                 used_data_nodes.update(additional_data_node_from_list)
 
+        self.op_nodes = [op for op in self.op_nodes[:] if op in used_op_nodes]
+
         # filtered bug with original order
-        ordered_op_nodes_hashs = [hash(_) for _ in self.op_nodes]
-        self.op_nodes = sorted(
-            list(used_op_nodes),
-            key=lambda _: ordered_op_nodes_hashs.index(hash(_)),
-        )
 
-        ordered_data_nodes_hashs = [hash(_) for _ in self.data_nodes]
-        self.data_nodes = sorted(
-            list(used_data_nodes),
-            key=lambda _: ordered_data_nodes_hashs.index(hash(_))
-            if _ in ordered_data_nodes_hashs
-            else -1,
+        ordered_data_nodes_hashs = {
+            hash(_): idx for idx, _ in enumerate(self.data_nodes)
+        }
+        self.data_nodes = NamedItemOrderedSet(
+            sorted(
+                list(used_data_nodes),
+                key=lambda _: ordered_data_nodes_hashs[hash(_)]
+                if _ in ordered_data_nodes_hashs
+                else -1,
+            )
         )
-
-    def _cleanup_unused_nodes_in_graph(self):
-        pass
 
     def parse(
         self,
-        renaming_scheme: str = "numeric",
+        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         provided_inputs=None,
         provided_outputs=None,
+        forced_inputs_names=None,
+        forced_outputs_names=None,
     ):
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
@@ -621,13 +594,35 @@ class TorchModuleIRGraph:
         self._check_container_items_rely_on_data_nodes()
         self._check_io_rely_on_data_nodes()
 
-        # Cleanup all unused nodes nodes in graph
-        self._cleanup_unused_nodes_in_graph()
+        self._cleanup_dangling_data_node_hooks()
+
+        if self.is_root_module:
+            if forced_inputs_names:
+                for inode, new_name in zip(self.inputs, forced_inputs_names):
+                    inode.name = new_name
+                    assert inode.name == inode.export_name
+            if forced_outputs_names:
+                for onode, new_name in zip(self.outputs, forced_outputs_names):
+                    onode.name = new_name
+                    assert onode.name == onode.export_name
+            # need to repeat the if's:
+            # in case of input paramater directly in outputs (ie. torchaudio.Conformer)
+            if forced_inputs_names:
+                self.data_nodes.protect_item_names(forced_inputs_names)
+            if forced_outputs_names:
+                self.data_nodes.protect_item_names(forced_outputs_names)
+        elif forced_inputs_names or forced_outputs_names:
+            raise NotImplementedError("forced names are only for root module")
 
         if renaming_scheme:
-            self.apply_renaming_scheme(renaming_scheme)
+            apply_renaming_scheme(self, renaming_scheme)
 
         return self
+
+    def _cleanup_dangling_data_node_hooks(self):
+        for dn in self.data_nodes:
+            # pylint: disable-next=protected-access
+            dn._name_hooks = {self.data_nodes._change_name_hook}
 
     def find_data_node_producer(self, data_node: Data) -> TorchOp:
         assert isinstance(data_node, Data), data_node
@@ -636,17 +631,6 @@ class TorchModuleIRGraph:
                 if op_out_dnode is data_node:
                     return op
         raise TorchNotFoundOp("Did not find operation node")
-
-    def find_ops_nodes_by_input_node(self, data_node: Data) -> T.List[TorchOp]:
-        assert isinstance(data_node, Data), data_node
-        collected_ops = []
-        for op in self.op_nodes:
-            for op_out_dnode in _expand_containers_if_exists(op.inputs):
-                if op_out_dnode is data_node:
-                    collected_ops.append(op)
-        if not collected_ops:
-            raise TorchNotFoundOp("Did not find operation node")
-        return collected_ops
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""

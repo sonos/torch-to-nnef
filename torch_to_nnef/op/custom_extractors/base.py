@@ -60,7 +60,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
     def generate_in_torch_graph(self, torch_graph, *args, **kwargs):
         # ensure empty at first
         assert torch_graph.inputs == []
-        assert torch_graph.data_nodes == []
+        assert torch_graph.data_nodes.is_empty()
         assert torch_graph.op_nodes == []
         assert torch_graph.outputs == []
         self._generate_in_torch_graph(torch_graph, *args, **kwargs)

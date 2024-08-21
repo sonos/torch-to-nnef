@@ -14,6 +14,7 @@ from torch.nn.utils.weight_norm import WeightNorm
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.log import log
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.tract import build_io
 
 
@@ -34,6 +35,7 @@ def check_model_io_test(
     input_names=None,
     output_names=None,
     check_same_io_as_tract: bool = True,
+    renaming_scheme=VariableNamingScheme.default(),
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"

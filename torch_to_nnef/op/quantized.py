@@ -15,6 +15,7 @@ from nnef_tools.model import Tensor as NTensor
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.primitive.base import (
+    OpHelper,
     QuantizedOpRegistry,
     add_nnef_operation,
     add_single_output_op,
@@ -482,4 +483,5 @@ def quantized_node_to_nnef_tensor_and_ops(
         null_ref=null_ref,
         torch_graph=torch_graph,
         inference_target=inference_target,
+        op_helper=OpHelper(g, node, name_to_tensor, null_ref),
     )

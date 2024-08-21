@@ -63,18 +63,15 @@ export_model_to_nnef(
     ),
     input_names=["input"],
     output_names=["output"],
-    compression_level=0, # tar.gz compression level
-    # if 0 this become a simple .tar file uncompressed
-    log_level=logging.WARN, # default being logging.INFO
-    debug_bundle_path=Path("./debug.tgz"), # if end with tgz will be archived else folder will be created
-    # debug_bundle_path is generated only if tract IO is not valid
-    renaming_scheme="numeric", # name NNEF variable in a concise way for readability
-    # other possible choice with "natural_verbose" is as close as possible
-    # to nn.Module exported variable naming
-    # the renaming_scheme is only useful if you intend to read generated
-    # NNEF format else do not set it
-
+    compression_level=0,
+    log_level=logging.WARN,
+    debug_bundle_path=Path("./debug.tgz"),
+    renaming_scheme="numeric",
 )
+# More parameters exists,
+# you can look at function documentation
+# for more informations about each with:
+# help(export_model_to_nnef)
 ```
 
 As shown in API it is by default not checked by tract inference library but has

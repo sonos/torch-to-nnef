@@ -2,6 +2,7 @@ import typing as T
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -9,6 +10,7 @@ from torch_to_nnef.op.primitive.base import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
@@ -254,11 +256,11 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def einsum(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    if nnef_spec_strict:
+def einsum(g, node, name_to_tensor, inference_target, **kwargs):
+    if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(
             "einsum operator is not supported by `NNEF` and "
-            "breaking it down to primite ops would be a siginficant work"
+            "breaking it down to primitive ops would be a siginficant work"
         )
 
     expr_node, args_node, _ = node.inputs
@@ -310,6 +312,11 @@ def matmul(g, node, name_to_tensor, **kwargs):
 @OP_REGISTRY.register()
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
+    for ab_node in [alpha_node, beta_node]:
+        if isinstance(alpha_node, PythonConstant):
+            ab_node.data = float(ab_node.data)
+        else:
+            raise TorchToNNEFNotImplementedError()
     add_single_output_op(
         g,
         node,

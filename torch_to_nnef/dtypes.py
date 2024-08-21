@@ -67,6 +67,8 @@ STR_TO_NUMPY_DTYPE = {
     "bool": np.bool_,
     "Half": np.float16,
     "ComplexFloat": np.complex64,
+    "TDim": np.bool_,
+    "tdim": np.bool_,
 }
 NUMPY_DTYPE_TO_STR = {v: k for k, v in STR_TO_NUMPY_DTYPE.items()}
 NUMPY_DTYPE_TO_STR.update({int: "Long"})

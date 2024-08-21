@@ -1,11 +1,18 @@
+import logging
 import typing as T
 from datetime import datetime
 
 import numpy as np
+import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.exceptions import IRError, TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import (
+    IRError,
+    TorchNotFoundOp,
+    TorchToNNEFError,
+    TorchToNNEFNotImplementedError,
+)
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
@@ -21,10 +28,16 @@ from torch_to_nnef.torch_graph import (
     Data,
     TensorVariable,
     TorchModuleTracer,
-    _is_container,
     module_tracer_into_ir_graph,
 )
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_op import (
+    CacheDataNodeTarget,
+    CacheDataToOpsNode,
+)
 from torch_to_nnef.torch_graph.torch_const import ATEN_SIZE_KIND
+
+LOGGER = logging.getLogger(__name__)
 
 
 class TorchToNGraphExtractor:
@@ -32,10 +45,12 @@ class TorchToNGraphExtractor:
 
     def __init__(
         self,
-        model,
-        args,
+        model: torch.nn.Module,
+        args: T.Tuple[torch.Tensor, ...],
         inference_target: InferenceTarget,
-        renaming_scheme: str = "numeric",
+        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        forced_inputs_names: T.Optional[T.List[str]] = None,
+        forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
     ):
         self.model = model
@@ -44,8 +59,13 @@ class TorchToNGraphExtractor:
                 model,
                 args=args,
             ),
+            forced_inputs_names=forced_inputs_names,
+            forced_outputs_names=forced_outputs_names,
             renaming_scheme=renaming_scheme,
+            is_root_module=True,
         )
+        self._forced_inputs_names = forced_inputs_names
+        self._forced_outputs_names = forced_outputs_names
         self._check_io_names_qte_match = check_io_names_qte_match
         self._inference_target = inference_target
         datestr = datetime.now().strftime("%Y_%m_%d")
@@ -99,19 +119,34 @@ class TorchToNGraphExtractor:
         # NOTE: cleanup all resolved output of torch tensor.size(axis) if
         # is dynamic shape to avoid number hard translated
 
+        LOGGER.debug(
+            "start to build input cache for forward_clean_values_for_dyn_axes"
+        )
+        input_data_to_ops_node = CacheDataToOpsNode(
+            target=CacheDataNodeTarget.INPUTS,
+            ops=self._torch_ir_graph.op_nodes,
+        )
+        LOGGER.debug("done input cache for forward_clean_values_for_dyn_axes")
+        explored_user_op_nodes = set()
+
         def forward_clean_values_for_dyn_axes(op_node):
             """forward clean in all child nodes"""
-            assert len(op_node.outputs) == 1
-            op_node.outputs[0].data = None
-            data_node_to_clean = op_node.outputs[0]
-            for (
-                user_op_node
-            ) in self._torch_ir_graph.find_ops_nodes_by_input_node(
-                data_node_to_clean
-            ):
-                assert len(user_op_node.outputs) == 1
-                if user_op_node.outputs[0].data is not None:
-                    forward_clean_values_for_dyn_axes(user_op_node)
+            LOGGER.debug(f"remove concrete values from {op_node.outputs}")
+            for onode in op_node.outputs:
+                onode.data = None
+            for data_node_to_clean in op_node.outputs:
+                try:
+                    for user_op_node in input_data_to_ops_node.get(
+                        data_node_to_clean
+                    ):
+                        if user_op_node in explored_user_op_nodes:
+                            LOGGER.debug(f"already explored: {user_op_node}")
+                            continue
+                        explored_user_op_nodes.add(user_op_node)
+                        forward_clean_values_for_dyn_axes(user_op_node)
+                except TorchNotFoundOp as exp:
+                    if data_node_to_clean not in self._torch_ir_graph.outputs:
+                        raise exp
 
         if (
             isinstance(self._inference_target, TractNNEF)
@@ -120,12 +155,13 @@ class TorchToNGraphExtractor:
             for op_node in operators_nodes:
                 if op_node.kind == ATEN_SIZE_KIND:
                     forward_clean_values_for_dyn_axes(op_node)
+        LOGGER.debug("done all forward_clean_values_for_dyn_axes")
 
     def _add_operators(self, name_to_tensor, null_ref):
         def is_missing(node: Data):
             if node.export_name in name_to_tensor:
                 return False
-            if _is_container(node) and any(
+            if node.is_container and any(
                 is_missing(subnode) for subnode in node.data
             ):
                 # case where partial data is available for container
@@ -159,11 +195,7 @@ class TorchToNGraphExtractor:
                 _ for _ in operators_nodes if _ not in done_nodes
             ]
 
-    def build_nnef_graph(
-        self,
-        input_names: T.Optional[T.List[str]],
-        output_names: T.Optional[T.List[str]],
-    ):
+    def build_nnef_graph(self):
         null = NTensor(
             self.g,
             name="",
@@ -175,7 +207,10 @@ class TorchToNGraphExtractor:
         ginputs = []
         for node in self._torch_ir_graph.inputs:
             op, custom_fragments = primitive_ops_registry.get("external")(
-                self.g, node, name_to_tensor, inference_target=self._inference_target
+                self.g,
+                node,
+                name_to_tensor,
+                inference_target=self._inference_target,
             )
             ginputs.append(op)
             if custom_fragments:
@@ -184,28 +219,37 @@ class TorchToNGraphExtractor:
         self._add_operators(name_to_tensor, null_ref=null)
 
         self.g.inputs = ginputs
-        if input_names is not None:
+        if self._forced_inputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(input_names) == len(self.g.inputs)
-            for in_tensor, requested_name in zip(self.g.inputs, input_names):
-                in_tensor.name = requested_name
+                assert len(self._forced_inputs_names) == len(
+                    self.g.inputs
+                ), f"{len(self._forced_inputs_names)} == {len(self.g.inputs)}"
+            # still needed since some .remap_node in ._add_operators may araise
+            for inode, new_name in zip(
+                self.g.inputs, self._forced_inputs_names
+            ):
+                inode.name = new_name
 
         self.g.outputs = [
             name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
-        if output_names is not None:
+        if self._forced_outputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(output_names) == len(self.g.outputs)
-            for out_tensor, requested_name in zip(self.g.outputs, output_names):
-                out_tensor.name = requested_name
+                assert len(self._forced_outputs_names) == len(
+                    self.g.outputs
+                ), f"{len(self._forced_outputs_names)} == {len(self.g.outputs)}"
+            # still needed since some .remap_node in ._add_operators may araise
+            for onode, new_name in zip(
+                self.g.outputs, self._forced_outputs_names
+            ):
+                if onode.name in self._forced_inputs_names:
+                    raise TorchToNNEFError(
+                        f"input tensor named: '{onode.name}' tryied to "
+                        f"be replaced by output named: '{new_name}'."
+                        "This is forbidden as it leads to nop for this tensor"
+                    )
+                onode.name = new_name
 
-    def parse(
-        self,
-        input_names: T.Optional[T.List[str]],
-        output_names: T.Optional[T.List[str]],
-    ) -> NGraph:
-        self.build_nnef_graph(
-            input_names,
-            output_names,
-        )
+    def parse(self) -> NGraph:
+        self.build_nnef_graph()
         return self.g

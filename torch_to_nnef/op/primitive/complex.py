@@ -1,24 +1,27 @@
-import typing as T
-
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.primitive.base import AtenOpRegistry
-from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
 
-def is_complex_dtype_and_complex_only_supported_as_lastdim(
-    dtype, tract_feature_flags: T.List[str]
-) -> bool:
+def tract_complex_support(inference_target: InferenceTarget) -> bool:
     return (
-        dtype in [torch.complex64, torch.complex128]
-        and (
-            tract_feature_flags is None or "complex" not in tract_feature_flags
-        )
-        and "0.20.0" <= tract_version()
+        isinstance(inference_target, TractNNEF)
+        and "complex" in inference_target.feature_flags
+        and "0.20.0" > inference_target.version
     )
+
+
+def is_complex_dtype_and_complex_only_supported_as_lastdim(
+    dtype, inference_target: InferenceTarget
+) -> bool:
+    return dtype in [
+        torch.complex64,
+        torch.complex128,
+    ] and not tract_complex_support(inference_target)
 
 
 @OP_REGISTRY.register()

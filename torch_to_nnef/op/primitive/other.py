@@ -10,14 +10,19 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.inference_target import (
+    InferenceTarget,
+    KhronosNNEF,
+    TractNNEF,
+)
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
+    SimpleOpChainer,
     add_nnef_operation,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph import (
     FixedTensorList,
@@ -29,7 +34,7 @@ LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
 
-_EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT = {np.float32, np.int64}
+_EXTERNAL_DTYPE_PRECISE_ENOUGHT = {np.float32, np.int64}
 
 
 @OP_REGISTRY.register()
@@ -44,7 +49,12 @@ def external(
         g, node, name_to_tensor, prevent_variable=True
     )
     custom_fragments = []
-    if nnef_tensor_ref.dtype in _EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT:
+    if isinstance(inference_target, KhronosNNEF):
+        if node.dtype not in _EXTERNAL_DTYPE_PRECISE_ENOUGHT:
+            LOGGER.warning(
+                "NNEF Spec is not precise enough "
+                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+            )
         add_nnef_operation(
             graph=g,
             type="external",
@@ -55,12 +65,7 @@ def external(
                 "dtype": nnef_tensor_ref.dtype,
             },
         )
-    else:
-        if not isinstance(inference_target, TractNNEF):
-            raise ValueError(
-                "NNEF Spec is not precise enough "
-                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
-            )
+    elif isinstance(inference_target, TractNNEF):
         add_nnef_operation(
             graph=g,
             type="tract_core_external",
@@ -72,6 +77,10 @@ def external(
             },
         )
         custom_fragments.append("tract_core")
+    else:
+        raise TorchToNNEFNotImplementedError(
+            f"inference_target: {inference_target}"
+        )
     return nnef_tensor_ref, custom_fragments
 
 
@@ -106,10 +115,40 @@ def contiguous(node, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def to(g, node, name_to_tensor, inference_target, **kwargs):
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
+    ) = node.inputs
+
+    onode = node.outputs[0]
+    if isinstance(inference_target, KhronosNNEF):
+        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
+    LOGGER.debug(
+        "convert .to() with tract custom operator since it can express "
+        "all torch type (contrary to vanilla cast NNEF operator)"
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_cast",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={
+            "to": TORCH_DTYPE_TO_TRACT_STR[onode.dtype],
+            # "shape": list(onode.shape),
+        },
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def type_as(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+    (
+        input_node,
+        _,  # ref_node
     ) = node.inputs
 
     onode = node.outputs[0]
@@ -140,9 +179,9 @@ def size(
     g,
     node,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
+    inference_target,
     torch_graph,
+    op_helper,
     **kwargs,
 ):
     """
@@ -171,7 +210,7 @@ def size(
 
     """
     input_node, axis_node = node.inputs
-    if nnef_spec_strict or not has_dynamic_axes:
+    if not inference_target.has_dynamic_axes:
         original_vec_node, axis_node = node.inputs
         original_variable_output = node.outputs[0]
         if original_variable_output.data is None:
@@ -184,7 +223,7 @@ def size(
         )
         torch_graph.remap_node(original_variable_output, new_node)
 
-        for data_node in torch_graph.data_nodes:
+        for data_node in torch_graph.data_nodes[:]:
             if (
                 isinstance(data_node, FixedTensorList)
                 and any(_ is new_node for _ in data_node.data)
@@ -207,35 +246,26 @@ def size(
             "Keeping dynamism would require dynamic_axes specified."
         )
         return []
-    # original_variable_output = node.outputs[0]
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
 
     # ensure consistant name to avoid strangeness
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
     shape_tensor_name = f"{input_tensor.name}_shape"
-    if shape_tensor_name in name_to_tensor:
-        out = name_to_tensor[shape_tensor_name]
-    else:
-        out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_shape_of",
-            inputs=input_tensor,
-            force_full_output_tensor_name=shape_tensor_name,
-        )
+    soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
+    soc = soc.chain(
+        "tract_core_shape_of",
+        force_full_output_tensor_name=shape_tensor_name,
+    )
 
-    begin = pick_rank(input_node, axis_node.data)
+    begin = pick_axis(input_node, axis_node.data)
 
     index_tensor_name = f"{shape_tensor_name}_{begin}"
     if index_tensor_name not in name_to_tensor:
-        new_out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
+        soc = soc.chain(
             "slice",
-            inputs=(out,),
             attrs={
                 "axes": [0],
                 "begin": [begin],
@@ -243,13 +273,8 @@ def size(
                 "stride": [1],
             },
             output_tensor_name_suffix="sliced",
-        )
-        add_single_output_op(  # as scalar
-            g,
-            node,
-            name_to_tensor,
+        ).chain(
             "squeeze",
-            inputs=(new_out,),
             attrs={
                 "axes": [0],
             },

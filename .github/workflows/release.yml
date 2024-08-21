@@ -17,7 +17,7 @@ jobs:
   # This workflow contains a single job called "release"
   release:
     name: Create Release
-    runs-on: [self-hosted, s2-player-builder]
+    runs-on: [self-hosted, s2-player-builder-rust]
 
     strategy:
       matrix:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Get Changelog Entry
         id: changelog_reader

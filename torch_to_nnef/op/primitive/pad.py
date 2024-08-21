@@ -30,14 +30,14 @@ def pad(node, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["reflection_pad1d", "reflection_padnd"])
 def reflection_padnd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+    g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
     pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
@@ -59,14 +59,14 @@ def reflection_padnd(
 
 @OP_REGISTRY.register(torch_op_ids=["replication_pad1d", "replication_padnd"])
 def replication_padnd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+    g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
     pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)
@@ -88,14 +88,14 @@ def replication_padnd(
 
 @OP_REGISTRY.register(torch_op_ids=["constant_pad1d", "constant_pad_nd"])
 def constant_pad_nd(
-    g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs
+    g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node, value_node) = node.inputs
     pads = get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
     assert all(isinstance(_, int) for _ in pads)

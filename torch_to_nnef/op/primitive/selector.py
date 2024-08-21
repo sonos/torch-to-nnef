@@ -4,14 +4,16 @@ import nnef
 import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
-    pick_value_in_rank,
+    pick_axis,
+    pick_index_in_axis,
 )
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,8 +26,8 @@ def slice_(
     node,
     name_to_tensor,
     torch_graph,
-    nnef_spec_strict,
-    has_dynamic_axes,
+    inference_target,
+    op_helper,
     **kwargs,
 ):
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
@@ -36,13 +38,17 @@ def slice_(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_value_in_rank(input_node, dim, begin_node.data)
+        begin = pick_index_in_axis(
+            input_node, dim, begin_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_value_in_rank(input_node, dim, end_node.data)
+        end = pick_index_in_axis(
+            input_node, dim, end_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -59,58 +65,34 @@ def slice_(
     if has_concrete_values:
         assert begin < end
 
-    if end_node.data is not None:
-        if (
-            has_dynamic_axes
-            and not nnef_spec_strict
-            and end >= input_node.shape[dim]
-        ):
-            # NOTE: since we can't ensure used dimension is not symbolic
-            # we use `tract_core_shape_of`
-            input_tensor = get_or_add_tensor_variable_in_nnef(
+    if inference_target.has_dynamic_axes and (
+        not has_concrete_values or begin_node.data < 0 or end_node.data < 0
+    ):
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(inference_target)
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "dyn_slice",
+            inputs=get_or_add_tensor_variable_in_nnef(
                 g, input_node, name_to_tensor
-            )
-            shape_tensor_name = f"{input_tensor.name}_shape"
-            index_tensor_name = f"{shape_tensor_name}_{dim}"
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_shape_of",
-                inputs=(input_tensor,),
-                output_tensor_name_suffix="shape",
-            )
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "slice",
-                inputs=(out,),
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            )
-            out = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "squeeze",
-                inputs=(out,),
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-            end = nnef.Identifier(out.name)
-        else:
-            end = min(
-                end,
-                input_node.shape[dim],
-            )
+            ),
+            attrs={
+                "axis": pick_axis(input_node, dim),
+                "begin": begin,
+                "end": end,
+                "stride": stride_node.data,
+            },
+            pass_quantization_params=True,
+        )
+        return ["dyn_slice"]
+
+    end = min(
+        end,
+        input_node.shape[dim],
+    )
+    begin = max(begin, 0)
 
     add_single_output_op(
         g,
@@ -121,11 +103,12 @@ def slice_(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, dim)],
+            "axes": [pick_axis(input_node, dim)],
             "begin": [begin],
             "end": [end],
             "stride": [stride_node.data],
         },
+        pass_quantization_params=True,
     )
     return ["tract_core"]
 
@@ -158,9 +141,7 @@ def where(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def narrow(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
+def narrow(g, node, name_to_tensor, **kwargs):
     """Fancy slice made in PyTorch
 
     torch.narrow(input, dim, start, length)
@@ -175,12 +156,13 @@ def narrow(
     """
     input_node, axis_node, start_node, length_node = node.inputs
 
+    # only ops subset implemented
     assert isinstance(axis_node.data, int)
     assert isinstance(start_node.data, int)
     assert isinstance(length_node.data, int)
     assert length_node.data > 0
 
-    start_idx = pick_value_in_rank(input_node, axis_node.data, start_node.data)
+    start_idx = pick_index_in_axis(input_node, axis_node.data, start_node.data)
 
     add_single_output_op(
         g,
@@ -191,7 +173,7 @@ def narrow(
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
+            "axes": [pick_axis(input_node, axis_node.data)],
             "begin": [start_idx],
             "end": [start_idx + length_node.data],
             "stride": [1],
@@ -203,6 +185,7 @@ def narrow(
 @OP_REGISTRY.register()
 def select(g, node, name_to_tensor, **kwargs):
     input_node, axis_node, index_node = node.inputs
+    begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
     out = add_single_output_op(
         g,
         node,
@@ -212,12 +195,10 @@ def select(g, node, name_to_tensor, **kwargs):
             g, input_node, name_to_tensor
         ),
         attrs={
-            "axes": [pick_rank(input_node, axis_node.data)],
-            "begin": [
-                pick_value_in_rank(input_node, axis_node.data, index_node.data)
-            ],
+            "axes": [pick_axis(input_node, axis_node.data)],
+            "begin": [begin],
             "end": [
-                pick_value_in_rank(
+                pick_index_in_axis(
                     input_node, axis_node.data, index_node.data + 1
                 )
             ],
@@ -232,33 +213,46 @@ def select(g, node, name_to_tensor, **kwargs):
         name_to_tensor,
         "squeeze",
         inputs=out,
-        attrs={"axes": [pick_rank(input_node, axis_node.data)]},
+        attrs={"axes": [pick_axis(input_node, axis_node.data)]},
         pass_quantization_params=True,
     )
 
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
-def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def index_(g, node, name_to_tensor, inference_target, **kwargs):
     """
     fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
         indices: tensor<integer>,         # the indices to gather at
         axis: integer = 0 )               # the axis to gather at
     -> ( output: tensor<?> )
+
+
+    torch ir, in this case structure `indexes_node` with:
+    a list of n values where n <= input_node rank
+    each value is either a constant or a tensor.
+    if the constant is None this means the full dimension
+
     """
     # gather
     input_node, indexes_node = node.inputs
     # input_node = TensorVariable([?], shape=(169,4))
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
     if len(indexes_node.data) > 1:
-        raise TorchToNNEFNotImplementedError("index dim>1 not implemented")
+        if not all(
+            (isinstance(idx, PythonConstant) and idx.data is None)
+            for idx in indexes_node.data[:-1]
+        ):
+            raise TorchToNNEFNotImplementedError(
+                "index dim>1 implemented only with all prior dim slice being [:]"
+            )
 
     custom_fragments = []
-    if nnef_spec_strict:
-        op_name = "gather"
-    else:
+    if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+    else:
+        op_name = "gather"
     add_single_output_op(
         g,
         node,
@@ -267,18 +261,21 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         inputs=[
             get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
             get_or_add_tensor_variable_in_nnef(
-                g, indexes_node.data[0], name_to_tensor
+                g,
+                indexes_node.data[-1],
+                name_to_tensor,
             ),
         ],
         attrs={
-            "axis": 0,
+            "axis": len(indexes_node.data) - 1,
         },
+        force_consistent_inputs_shapes=False,
     )
     return custom_fragments
 
 
 @OP_REGISTRY.register()
-def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def embedding(g, node, name_to_tensor, inference_target, **kwargs):
     (
         weight_node,
         indices_node,
@@ -294,16 +291,16 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         g, indices_node, name_to_tensor
     )
     custom_fragments = []
-    if nnef_spec_strict:
-        fragment_name = "gather"
-    else:
-        fragment_name = "tract_core_gather"
+    if isinstance(inference_target, TractNNEF):
+        op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+    else:
+        op_name = "gather"
     add_single_output_op(
         g,
         node,
         name_to_tensor,
-        fragment_name,
+        op_name,
         inputs=(weight_tensor, indices_tensor),
         attrs={"axis": 0},
     )
@@ -311,20 +308,22 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def masked_fill(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
+def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
     false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, false_value_node, name_to_tensor
     )
-    if not nnef_spec_strict and has_dynamic_axes:
+    # value is always a float according to torch spec
+    true_value_node = value_node.into_tensor_variable()
+    if true_value_node.data is not None:
+        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
+    if inference_target.has_dynamic_axes:
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(inference_target)
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
         out = add_single_output_op(
             g,
             node,
@@ -333,6 +332,12 @@ def masked_fill(
             inputs=false_nnef_tensor,
             output_tensor_name_suffix="shape_of_false",
         )
+
+        # force rank to be the same
+        true_value_node.data = true_value_node.data.repeat(
+            *([1] * false_value_node.rank)
+        )
+
         true_nnef_tensor = add_single_output_op(
             g,
             node,
@@ -346,10 +351,9 @@ def masked_fill(
         )
     else:
         # Static expansion
-        true_value_node = value_node.into_tensor_variable()
-        true_value_node.data = true_value_node.data.to(
-            false_value_node.dtype
-        ).repeat(false_value_node.shape)
+        true_value_node.data = true_value_node.data.repeat(
+            false_value_node.shape
+        )
         true_value_node.dtype = false_value_node.dtype
         true_nnef_tensor = get_or_add_tensor_variable_in_nnef(
             g, true_value_node, name_to_tensor

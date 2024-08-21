@@ -6,7 +6,7 @@ from torch_to_nnef.op.primitive.base import (
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
-    pick_rank,
+    pick_axis,
     unary_output_op_without_params,
 )
 from torch_to_nnef.torch_graph import PythonConstant
@@ -40,9 +40,9 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
 
     # can be either 1 or n axes {
     if isinstance(axis_node.data, int):
-        axes = [pick_rank(input_node, axis_node.data)]
+        axes = [pick_axis(input_node, axis_node.data)]
     else:
-        axes = [pick_rank(input_node, _) for _ in axis_node.data]
+        axes = [pick_axis(input_node, _) for _ in axis_node.data]
     #  }
     attribs = {"axes": axes}
     cast_and_add_nnef_operation(
