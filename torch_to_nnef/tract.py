@@ -6,7 +6,6 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Window
 """
 
 import logging
-import os
 import platform
 import subprocess
 import sys
@@ -32,8 +31,6 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.utils import SemanticVersion
 
 DEFAULT_CACHE_DIR = Path.home() / ".tract"
-
-TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +69,7 @@ class TractCli:
     def convert_onnx_to_nnef(self, onnx_path, io_npz_path, nnef_path):
         return subprocess.check_output(
             (
-                f"{TRACT_PATH} {onnx_path} "
+                f"{self.tract_path} {onnx_path} "
                 f"--nnef-tract-core --nnef-tract-pulse "
                 "dump "
                 f"--input-from-bundle {io_npz_path} "
@@ -90,7 +87,7 @@ class TractCli:
     ):
         extra_param = "--nnef-tract-extra " if "0.20.20" <= self.version else ""
         cmd = (
-            f"{TRACT_PATH} {nnef_path} "
+            f"{self.tract_path} {nnef_path} "
             "--nnef-tract-core --nnef-tract-pulse "
             f"{extra_param} -O "
         )
@@ -149,7 +146,7 @@ class TractCli:
 
                         err_filtered += f"{serrline}\n".strip()
                     if len(err_filtered) > 0:
-                        raise TractError(err_filtered)
+                        raise TractError(cmd, err_filtered)
                     return True
                 LOGGER.debug(serr)
                 return False

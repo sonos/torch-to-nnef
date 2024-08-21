@@ -580,7 +580,8 @@ test_suite.add(
             torch.arange(12).reshape(3, 4).float(),
             torch.arange(12).reshape(3, 4).float(),
         ],
-    )
+    ),
+    inference_conditions=cond_tract_ge_0_20_0,
 )
 test_suite.add(
     *_eintest_gen(
@@ -589,7 +590,8 @@ test_suite.add(
             torch.arange(6).reshape(2, 3).float(),
             torch.arange(12).reshape(3, 4).float(),
         ],
-    )
+    ),
+    inference_conditions=cond_tract_ge_0_20_0,
 )
 test_suite.add(
     *_eintest_gen(
@@ -598,7 +600,8 @@ test_suite.add(
             torch.arange(2).reshape(1, 2).float(),
             torch.arange(12).reshape(3, 4).float(),
         ],
-    )
+    ),
+    inference_conditions=cond_tract_ge_0_20_0,
 )
 
 
