@@ -20,7 +20,6 @@ from torch_to_nnef.op.primitive.base import (
     add_nnef_operation,
     add_single_output_op,
 )
-from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = QuantizedOpRegistry()
 
@@ -83,9 +82,14 @@ def register_state_node_as_variable(
     node,
     g,
     name_to_tensor,
+    inference_target,
 ):
     # peculiarity of tract implementation
-    if len(torch_tensor.shape) == 1 and tract_version() < "0.18.1":
+    if (
+        len(torch_tensor.shape) == 1
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         torch_tensor = torch_tensor.unsqueeze(0)
     nnef_tensor_ref = add_quantized_tensor_to_ngraph(
         g, node, torch_tensor, name_to_tensor, slug_name
@@ -106,7 +110,7 @@ def register_state_node_as_variable(
     return var.output
 
 
-def _weight_bias(g, node, weight, bias, name_to_tensor):
+def _weight_bias(g, node, weight, bias, name_to_tensor, inference_target):
     onode = node.outputs[0]
     weight_ref = register_state_node_as_variable(
         weight,
@@ -114,6 +118,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor):
         node=onode,
         g=g,
         name_to_tensor=name_to_tensor,
+        inference_target=inference_target,
     )
     bias_ref = None
     if bias is not None and not (bias == 0).all():
@@ -189,6 +194,7 @@ def _conv(
     g,
     name_to_tensor,
     null_ref,
+    inference_target,
     suffix_output_tensor="",
     conv_rank: int = 1,
 ):
@@ -205,7 +211,11 @@ def _conv(
     for _ in range(input_node.rank - len(conv_weight.shape)):
         conv_weight = conv_weight.unsqueeze(0)
 
-    if conv_bias is not None and tract_version() < "0.18.1":
+    if (
+        conv_bias is not None
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         for _ in range(input_node.rank - len(conv_bias.shape)):
             conv_bias = conv_bias.unsqueeze(0)
 
@@ -217,7 +227,7 @@ def _conv(
     groups = packed_params.groups()
 
     weight_ref, bias_ref = _weight_bias(
-        g, node, conv_weight, conv_bias, name_to_tensor
+        g, node, conv_weight, conv_bias, name_to_tensor, inference_target
     )
     output_tensor = _output_tensor_from_s_and_zp(
         g,
@@ -282,7 +292,9 @@ def _conv(
     return output_tensor
 
 
-def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
+def _linear(
+    node, g, name_to_tensor, inference_target, suffix_output_tensor: str = ""
+):
     (input_node, packed_params_node, scale_node, zero_point_node) = node.inputs
 
     packed_params = packed_params_node.data
@@ -294,7 +306,9 @@ def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
         for _ in range(input_node.rank - len(bias.shape)):
             bias = bias.unsqueeze(0)
 
-    weight_ref, bias_ref = _weight_bias(g, node, weight, bias, name_to_tensor)
+    weight_ref, bias_ref = _weight_bias(
+        g, node, weight, bias, name_to_tensor, inference_target
+    )
     output_tensor = _output_tensor_from_s_and_zp(
         g,
         name_to_tensor,
@@ -318,9 +332,14 @@ def _linear(node, g, name_to_tensor, suffix_output_tensor: str = ""):
 
 
 @OP_REGISTRY.register()
-def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
+def conv1d_relu(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
     conv_output_tensor = _conv(
-        node, g, name_to_tensor, null_ref, suffix_output_tensor="_conv"
+        node,
+        g,
+        name_to_tensor,
+        null_ref,
+        inference_target=inference_target,
+        suffix_output_tensor="_conv",
     )
 
     out = add_single_output_op(
@@ -330,19 +349,29 @@ def conv1d_relu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def conv1d(g, node, name_to_tensor, null_ref, **kwargs):
-    _conv(node, g, name_to_tensor, null_ref)
+def conv1d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
+    _conv(
+        node,
+        g,
+        name_to_tensor,
+        null_ref,
+        inference_target=inference_target,
+    )
 
 
 @OP_REGISTRY.register()
-def linear(g, node, name_to_tensor, **kwargs):
-    _linear(node, g, name_to_tensor)
+def linear(g, node, name_to_tensor, inference_target, **kwargs):
+    _linear(node, g, name_to_tensor, inference_target)
 
 
 @OP_REGISTRY.register()
-def linear_relu(g, node, name_to_tensor, **kwargs):
+def linear_relu(g, node, name_to_tensor, inference_target, **kwargs):
     linear_output_tensor = _linear(
-        node, g, name_to_tensor, suffix_output_tensor="_linear"
+        node,
+        g,
+        name_to_tensor,
+        inference_target,
+        suffix_output_tensor="_linear",
     )
     out = add_single_output_op(
         g,
@@ -355,17 +384,18 @@ def linear_relu(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def conv2d(g, node, name_to_tensor, null_ref, **kwargs):
-    _conv(node, g, name_to_tensor, null_ref, conv_rank=2)
+def conv2d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
+    _conv(node, g, name_to_tensor, null_ref, inference_target, conv_rank=2)
 
 
 @OP_REGISTRY.register()
-def conv2d_relu(g, node, name_to_tensor, null_ref, **kwargs):
+def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     conv_output_tensor = _conv(
         node,
         g,
         name_to_tensor,
         null_ref,
+        inference_target,
         suffix_output_tensor="_conv",
         conv_rank=2,
     )

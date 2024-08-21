@@ -11,7 +11,6 @@ from torch_to_nnef.op.primitive.base import (
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
-from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -31,7 +30,9 @@ def _get_padding_same_symetric(
 
 
 @OP_REGISTRY.register()
-def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
+def _convolution_mode(
+    g, node, name_to_tensor, null_ref, inference_target, **kwargs
+):
     (
         input_node,
         weight_node,
@@ -78,7 +79,11 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version() < "0.18.1":
+    if (
+        bias_node.data is not None
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -120,7 +125,7 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
+def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     (
         input_node,
         weight_node,
@@ -169,7 +174,11 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version() < "0.18.1":
+    if (
+        bias_node.data is not None
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):

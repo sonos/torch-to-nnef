@@ -17,6 +17,13 @@ from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.tract import build_io
 
+INFERENCE_TARGETS_TO_TESTS = [
+    TractNNEF(version=TractNNEF.LATEST_KNOWN_STABLE_VERSION),
+    TractNNEF(version="0.20.22"),
+    TractNNEF(version="0.19.16"),
+    # TODO: add KhronosNNEF 1.0.5
+]
+
 
 def set_seed(seed=0, cudnn=False, torch=True):
     if cudnn and Torch.cuda.is_available():
@@ -31,10 +38,9 @@ def set_seed(seed=0, cudnn=False, torch=True):
 def check_model_io_test(
     model: Torch.nn.Module,
     test_input,
-    dynamic_axes=None,
+    inference_target,
     input_names=None,
     output_names=None,
-    check_same_io_as_tract: bool = True,
     renaming_scheme=VariableNamingScheme.default(),
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -64,11 +70,8 @@ def check_model_io_test(
             )
             if os.environ.get("DEBUG", False)
             else None,
-            inference_target=TractNNEF(
-                version=TractNNEF.LATEST_KNOWN_STABLE_VERSION,
-                check_io=check_same_io_as_tract,
-                dynamic_axes=dynamic_axes,
-            ),
+            inference_target=inference_target,
+            renaming_scheme=renaming_scheme,
         )
         dump_filepath = os.environ.get("DUMP_FILEPATH", False)
         if dump_filepath:

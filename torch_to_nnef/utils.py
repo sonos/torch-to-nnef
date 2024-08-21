@@ -152,9 +152,11 @@ class SemanticVersion:
                 return False
         return False
 
+    def to_str(self):
+        return ".".join(str(self.version[t]) for t in self.TAGS)
+
     def __repr__(self) -> str:
-        version_str = ".".join(str(self.version[t]) for t in self.TAGS)
-        return f"<Version {version_str}>"
+        return f"<Version {self.to_str()}>"
 
 
 def torch_version() -> SemanticVersion:

@@ -7,9 +7,12 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Window
 
 import logging
 import os
+import platform
 import subprocess
+import sys
 import tempfile
 import typing as T
+from functools import cached_property
 from pathlib import Path
 
 import nnef
@@ -28,105 +31,196 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.utils import SemanticVersion
 
+DEFAULT_CACHE_DIR = Path.home() / ".tract"
+
 TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 LOGGER = logging.getLogger(__name__)
 
 
-def tract_version() -> SemanticVersion:
-    return SemanticVersion.from_str(
-        subprocess.check_output(
-            f"{TRACT_PATH} --version".split(" "),
+class TractCli:
+    """tract calls from CLI
+
+    Why not use python package provided since few release of tract ?
+
+    - we do not want to be coupled with a python lib as we declare
+      version requested in API
+      because this would lead to the need for an auto package download/import then rollback
+      (since original environement may use another version)
+
+    """
+
+    def __init__(self, tract_path: Path):
+        self.tract_path = tract_path
+        assert self.tract_path.exists()
+
+    @classmethod
+    def download(cls, version: SemanticVersion) -> "TractCli":
+        return cls(TractBinaryDownloader(version).tract_filepath)
+
+    @cached_property
+    def version(self) -> SemanticVersion:
+        return SemanticVersion.from_str(
+            subprocess.check_output(
+                f"{self.tract_path} --version".split(" "),
+                stderr=subprocess.STDOUT,
+            )
+            .decode("utf8")
+            .split(" ")[1]
+        )
+
+    def convert_onnx_to_nnef(self, onnx_path, io_npz_path, nnef_path):
+        return subprocess.check_output(
+            (
+                f"{TRACT_PATH} {onnx_path} "
+                f"--nnef-tract-core --nnef-tract-pulse "
+                "dump "
+                f"--input-from-bundle {io_npz_path} "
+                f"--nnef {nnef_path} "
+            ),
+            shell=True,
             stderr=subprocess.STDOUT,
         )
-        .decode("utf8")
-        .split(" ")[1]
-    )
 
-
-def tract_convert_onnx_to_nnef(onnx_path, io_npz_path, nnef_path):
-    return subprocess.check_output(
-        (
-            f"{TRACT_PATH} {onnx_path} "
-            f"--nnef-tract-core --nnef-tract-pulse "
-            "dump "
-            f"--input-from-bundle {io_npz_path} "
-            f"--nnef {nnef_path} "
-        ),
-        shell=True,
-        stderr=subprocess.STDOUT,
-    )
-
-
-def tract_assert_io(
-    nnef_path: Path,
-    io_npz_path: Path,
-    raise_exception=True,
-):
-    extra_param = "--nnef-tract-extra " if "0.20.20" <= tract_version() else ""
-    cmd = (
-        f"{TRACT_PATH} {nnef_path} "
-        "--nnef-tract-core --nnef-tract-pulse "
-        f"{extra_param} -O "
-    )
-    if tract_version() < "0.18.0":
-        cmd += (
-            f"--input-bundle {io_npz_path} "
-            # NOTE: resolution of streaming pre 0.18 not handled
-            "run "
-            f"--assert-output-bundle {io_npz_path}"
+    def assert_io(
+        self,
+        nnef_path: Path,
+        io_npz_path: Path,
+        raise_exception=True,
+    ):
+        extra_param = "--nnef-tract-extra " if "0.20.20" <= self.version else ""
+        cmd = (
+            f"{TRACT_PATH} {nnef_path} "
+            "--nnef-tract-core --nnef-tract-pulse "
+            f"{extra_param} -O "
         )
-    else:
-        cmd += (
-            f"--input-facts-from-bundle {io_npz_path} "
-            "run "
-            f"--input-from-bundle {io_npz_path} "
-            f"--assert-output-bundle {io_npz_path}"
+        if self.version < "0.18.0":
+            cmd += (
+                f"--input-bundle {io_npz_path} "
+                # NOTE: resolution of streaming pre 0.18 not handled
+                "run "
+                f"--assert-output-bundle {io_npz_path}"
+            )
+        else:
+            cmd += (
+                f"--input-facts-from-bundle {io_npz_path} "
+                "run "
+                f"--input-from-bundle {io_npz_path} "
+                f"--assert-output-bundle {io_npz_path}"
+            )
+        with subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as proc:
+            _, err = proc.communicate()
+            if err:
+                serr = err.decode("utf8")
+                if raise_exception:
+                    if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
+                        print(cmd)
+                        raise IOPytorchTractNotISOError(serr)
+                    # NOTE: tract up to at least 0.20.7 stderr info and trace messages
+                    # we filter those to check if any other messages remain
+                    err_filtered = ""
+                    for serrline in serr.split("\n"):
+                        if any(
+                            _ in serrline for _ in ["Ignore unknown extension"]
+                        ):
+                            continue
+
+                        if all(  # NOTE: discuss with @kali about migration
+                            _ in serrline
+                            for _ in [
+                                "tract_pulse_streaming_symbol",
+                                "deprecated",
+                                "WARN",
+                            ]
+                        ):
+                            continue
+
+                        if all(  # NOTE: discuss with @kali about migration
+                            _ in serrline
+                            for _ in [
+                                "Flattening the shape will be deprecated.",
+                                "Reshape",
+                                "WARN",
+                            ]
+                        ):
+                            continue
+
+                        err_filtered += f"{serrline}\n".strip()
+                    if len(err_filtered) > 0:
+                        raise TractError(err_filtered)
+                    return True
+                LOGGER.debug(serr)
+                return False
+        return True
+
+
+class TractBinaryDownloader:
+    """Tract Downloader.
+
+    NOTE: Current version assume you are using hardware officialy supported by
+    tract with pre-built binaries.
+    """
+
+    def __init__(self, version: SemanticVersion, auto_download: bool = True):
+        self.version = version.to_str()
+        DEFAULT_CACHE_DIR.mkdir(exist_ok=True)
+        self.extract_dir = DEFAULT_CACHE_DIR / self.version
+        if not self.tract_filepath.exists() and auto_download:
+            self.dl_tract()
+
+    @property
+    def arch(self):
+        machine = platform.machine()
+        if sys.platform in ["linux", "linux2"]:
+            # linux ARM
+            if machine == "x86_64":
+                return "x86_64-unknown-linux-musl"
+            if machine == "aarch64":
+                return "tract-aarch64-unknown-linux-musl"
+            raise NotImplementedError(
+                f"No binary prebuild for machine: {machine}"
+            )
+            # missing: tract-armv7-unknown-linux-musleabihf-0.20.5.tgz ?
+        if sys.platform == "darwin":
+            # OS X
+            if machine == "x86_64":
+                return "tract-x86_64-apple-darwin"
+            if machine == "aarch64":
+                return "aarch64-apple-darwin"
+            raise NotImplementedError(
+                f"No binary prebuild for machine: {machine}"
+            )
+        if sys.platform == "win32":
+            # Windows...
+            raise NotImplementedError("No binary prebuild for Windows OS")
+        raise NotImplementedError(f"No binary prebuild for {sys.platform}")
+
+    @property
+    def archive_name(self):
+        return f"tract-{self.arch}-{self.version}"
+
+    @property
+    def binary_url(self):
+        return f"https://github.com/sonos/tract/releases/download/{self.version}/{self.archive_name}.tgz"
+
+    @property
+    def tract_filepath(self) -> Path:
+        return self.extract_dir / "tract"
+
+    def dl_tract(self):
+        self.extract_dir.mkdir()
+        subprocess.check_output(
+            f"""
+        cd {self.extract_dir} && \
+        wget --quiet "{self.binary_url}" && \
+        tar -xvzf {self.archive_name}.tgz && \
+        rm {self.archive_name}.tgz && \
+        mv {self.archive_name}/tract ./
+        """,
+            shell=True,
         )
-    with subprocess.Popen(
-        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ) as proc:
-        _, err = proc.communicate()
-        if err:
-            serr = err.decode("utf8")
-            if raise_exception:
-                if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
-                    print(cmd)
-                    raise IOPytorchTractNotISOError(serr)
-                # NOTE: tract up to at least 0.20.7 stderr info and trace messages
-                # we filter those to check if any other messages remain
-                err_filtered = ""
-                for serrline in serr.split("\n"):
-                    if any(_ in serrline for _ in ["Ignore unknown extension"]):
-                        continue
-
-                    if all(  # NOTE: discuss with @kali about migration
-                        _ in serrline
-                        for _ in [
-                            "tract_pulse_streaming_symbol",
-                            "deprecated",
-                            "WARN",
-                        ]
-                    ):
-                        continue
-
-                    if all(  # NOTE: discuss with @kali about migration
-                        _ in serrline
-                        for _ in [
-                            "Flattening the shape will be deprecated.",
-                            "Reshape",
-                            "WARN",
-                        ]
-                    ):
-                        continue
-
-                    err_filtered += f"{serrline}\n".strip()
-                if len(err_filtered) > 0:
-                    raise TractError(err_filtered)
-                return True
-            LOGGER.debug(serr)
-            return False
-    return True
 
 
 def nop(x, *args, **kwargs):
@@ -185,6 +279,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
     model: nn.Module,
     test_input,
     nnef_path,
+    tract_cli: TractCli,
     onnx_path=None,
     io_npz_path=None,
     raise_export_error: bool = True,
@@ -210,7 +305,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
             LOGGER.warning(f"ONNX export error: {exp}")
             return False, str(exp.args)
         try:
-            tract_convert_onnx_to_nnef(
+            tract_cli.convert_onnx_to_nnef(
                 onnx_path,
                 io_npz_path,
                 nnef_path=nnef_path,
@@ -232,6 +327,7 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
     model: nn.Module,
     test_input,
     target_folder: Path,
+    tract_cli: TractCli,
     raise_export_error: bool = True,
 ) -> bool:
     assert not target_folder.exists()
@@ -246,6 +342,7 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
         onnx_path=onnx_path,
         io_npz_path=io_npz_path,
         raise_export_error=raise_export_error,
+        tract_cli=tract_cli,
     )
     if error_msg:
         with (target_folder / "tract_convert_error.log").open(
@@ -273,6 +370,7 @@ def assert_io_and_debug_bundle(
     model: nn.Module,
     test_input,
     nnef_file_path: Path,
+    tract_cli: TractCli,
     io_npz_path: T.Optional[Path] = None,
     debug_bundle_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
@@ -292,7 +390,7 @@ def assert_io_and_debug_bundle(
             assert nnef_file_path.exists(), nnef_file_path
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and Pytorch")
-            tract_assert_io(
+            tract_cli.assert_io(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=True,
@@ -344,6 +442,7 @@ def assert_io_and_debug_bundle(
                 target_folder=no_suffix_debug_bundle_path
                 / "tract_onnx_converted_model",
                 raise_export_error=False,
+                tract_cli=tract_cli,
             )
             if any(
                 extension in debug_bundle_path.suffix

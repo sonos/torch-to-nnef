@@ -1,4 +1,5 @@
-""" Used to collect environment status/versions for debuging purpose """
+"""Used to collect environment status/versions for debuging purpose"""
+
 import locale
 import os
 import platform

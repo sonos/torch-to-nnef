@@ -9,7 +9,6 @@ Stricter Khronos NNEF specification mode also exist but is less extensively test
 
 import enum
 import logging as log
-import os
 import typing as T
 from pathlib import Path
 
@@ -19,7 +18,11 @@ from torch import nn
 from torch.onnx.utils import _validate_dynamic_axes  # type: ignore
 
 from torch_to_nnef import tract
-from torch_to_nnef.exceptions import DynamicShapeValue, TractError
+from torch_to_nnef.exceptions import (
+    DynamicShapeValue,
+    TorchToNNEFNotImplementedError,
+    TractError,
+)
 from torch_to_nnef.utils import SemanticVersion
 
 LOGGER = log.getLogger(__name__)
@@ -34,7 +37,7 @@ class InferenceTarget:
             if isinstance(version, str)
             else version
         )
-        assert isinstance(version, SemanticVersion), version
+        assert isinstance(self.version, SemanticVersion), self.version
         self.check_io = check_io
 
     @property
@@ -85,7 +88,7 @@ class TractFeatureFlag(enum.Enum):
 
 
 class TractNNEF(InferenceTarget):
-    LATEST_KNOWN_STABLE_VERSION = SemanticVersion.from_str("0.21.5")
+    LATEST_KNOWN_STABLE_VERSION = SemanticVersion.from_str("0.21.6")
 
     def __init__(
         self,
@@ -101,15 +104,18 @@ class TractNNEF(InferenceTarget):
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
-        if specific_tract_binary_path is not None:
-            assert (
-                specific_tract_binary_path.exists()
-            ), specific_tract_binary_path
-            os.environ["TRACT_PATH"] = str(
-                specific_tract_binary_path.absolute()
-            )
-            LOGGER.info(f"use tract:{specific_tract_binary_path.absolute()}")
-        self.specific_tract_binary_path = specific_tract_binary_path
+        if specific_tract_binary_path is None:
+            if self.feature_flags:
+                raise TorchToNNEFNotImplementedError(
+                    "feature_flags need specific_tract_binary_path provided"
+                )
+            tract_cli = tract.TractCli.download(self.version)
+            # we can not check easily feature flags compat so it's left
+        else:
+            tract_cli = tract.TractCli(specific_tract_binary_path)
+        LOGGER.info(f"use tract:{tract_cli.tract_path.absolute()}")
+        self.tract_cli = tract_cli
+        assert tract_cli.version == self.version
 
     @property
     def has_dynamic_axes(self) -> bool:
@@ -162,6 +168,7 @@ class TractNNEF(InferenceTarget):
                 debug_bundle_path=debug_bundle_path,
                 input_names=input_names,
                 output_names=output_names,
+                tract_cli=self.tract_cli,
             )
 
 

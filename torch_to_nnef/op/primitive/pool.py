@@ -1,13 +1,13 @@
 import typing as T
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
 )
 from torch_to_nnef.torch_graph import Data
-from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -18,6 +18,7 @@ def _pooling_op(
     g,
     node,
     name_to_tensor,
+    inference_target,
 ):
     """
     NNEF (avg|max)_pool params (not dimension specific):
@@ -62,7 +63,10 @@ def _pooling_op(
         dilation = ([1] * missing_n_dims) + dilation
 
         # pre 0.19.0 padding order differ
-        if tract_version() < "0.19.0":
+        if (
+            isinstance(inference_target, TractNNEF)
+            and inference_target.version < "0.19.0"
+        ):
             padding = padding + ([0] * missing_n_dims)
         else:
             padding = ([0] * missing_n_dims) + padding
@@ -88,18 +92,14 @@ def _pooling_op(
 
 
 @OP_REGISTRY.register()
-def max_pool1d(g, node, name_to_tensor, **kwargs):
+def max_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
     _pooling_op(
-        "max_pool",
-        node.inputs,
-        g,
-        node,
-        name_to_tensor,
+        "max_pool", node.inputs, g, node, name_to_tensor, inference_target
     )
 
 
 @OP_REGISTRY.register()
-def avg_pool1d(g, node, name_to_tensor, **kwargs):
+def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
         raise TorchToNNEFNotImplementedError(
@@ -110,27 +110,19 @@ def avg_pool1d(g, node, name_to_tensor, **kwargs):
 
     # Dilation is available
     _pooling_op(
-        "avg_pool",
-        inputs_name_tuple,
-        g,
-        node,
-        name_to_tensor,
+        "avg_pool", inputs_name_tuple, g, node, name_to_tensor, inference_target
     )
 
 
 @OP_REGISTRY.register()
-def max_pool2d(g, node, name_to_tensor, **kwargs):
+def max_pool2d(g, node, name_to_tensor, inference_target, **kwargs):
     _pooling_op(
-        "max_pool",
-        node.inputs,
-        g,
-        node,
-        name_to_tensor,
+        "max_pool", node.inputs, g, node, name_to_tensor, inference_target
     )
 
 
 @OP_REGISTRY.register()
-def avg_pool2d(g, node, name_to_tensor, **kwargs):
+def avg_pool2d(g, node, name_to_tensor, inference_target, **kwargs):
     """
     cpp func parameters:
     (const Tensor& input,
@@ -165,11 +157,7 @@ def avg_pool2d(g, node, name_to_tensor, **kwargs):
     inputs_tups = node.inputs[:-2]
     inputs_tups.insert(4, None)
     _pooling_op(
-        "avg_pool",
-        inputs_tups,
-        g,
-        node,
-        name_to_tensor,
+        "avg_pool", inputs_tups, g, node, name_to_tensor, inference_target
     )
 
 
