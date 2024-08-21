@@ -10,6 +10,7 @@ import pytest
 import torch
 from torch import nn
 
+from tests.utils import INFERENCE_TARGETS_TO_TESTS
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.tract import build_io
@@ -96,7 +97,7 @@ def test_export_base():
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -113,7 +114,7 @@ def _test_export_io_names(input_names, output_names):
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -152,7 +153,7 @@ def test_export_tuple_inp_types():
             input_names=["a", "tup"],
             output_names=["b"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -169,7 +170,7 @@ def test_export_tuple_out_types():
             input_names=["a"],
             output_names=["b", "tup"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -186,7 +187,7 @@ def test_export_obj_inp_types():
             input_names=["a", "conf"],
             output_names=["b"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -203,7 +204,7 @@ def test_multi_deep_obj_inputs():
             input_names=["a", "dic"],
             output_names=["b"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -220,7 +221,7 @@ def test_multi_dict_inputs():
             input_names=["a", "dic"],
             output_names=["b"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -237,7 +238,7 @@ def test_multi_dict_outputs():
             input_names=["a"],
             output_names=["dic"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
 
 
@@ -254,5 +255,5 @@ def test_primitives():
             input_names=["a", "b", "c"],
             output_names=["d"],
             log_level=log.INFO,
-            check_same_io_as_tract=True,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )

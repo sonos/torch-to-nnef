@@ -26,15 +26,12 @@ def is_complex_dtype_and_complex_only_supported_as_lastdim(
 
 @OP_REGISTRY.register()
 def view_as_complex(
-    g,
     node,
-    name_to_tensor,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     torch_graph,
     **kwargs,
 ):
-    if nnef_spec_strict:
+    if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported in vanilla spec"
         )
@@ -50,15 +47,12 @@ def view_as_complex(
 
 @OP_REGISTRY.register()
 def view_as_real(
-    g,
     node,
-    name_to_tensor,
     torch_graph,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
-    if nnef_spec_strict:
+    if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported by vanilla NNEF"
         )

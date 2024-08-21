@@ -3,8 +3,12 @@ import torch
 from torch import nn
 from torchaudio import transforms
 
-from tests.utils import check_model_io_test, id_tests
-from torch_to_nnef.tract import tract_version
+from tests.utils import (
+    TRACT_INFERENCES_TO_TESTS,
+    TestSuiteInferenceExactnessBuilder,
+    check_model_io_test,
+)
+from torch_to_nnef.inference_target import TractNNEF
 
 
 class UnaryPrimitive(nn.Module):
@@ -45,49 +49,47 @@ class MySTFT(nn.Module):
         return torch.view_as_real(spec_f)
 
 
-INPUT_AND_MODELS = []
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
 
-# disabled for now as tract have a feature gate on this
-if "0.20.7" < tract_version():
-    INPUT_AND_MODELS += [(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())]
-    INPUT_AND_MODELS += [
-        (
-            torch.arange(12).float(),
-            MySTFT(),
-        )
-    ]
-    INPUT_AND_MODELS += [
-        (
-            torch.arange(4.0).reshape((2, 2)),
-            UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
-        )
-    ]
-    INPUT_AND_MODELS += [
-        (
-            torch.arange(400 * 2).float() / 200,
-            transforms.Spectrogram(),
-        )
-    ]
-    INPUT_AND_MODELS += [
-        (
-            torch.arange(400 * 2).float() / 200,
-            transforms.MelSpectrogram(),
-        )
-    ]
 
-    """ precision issue for now
-    INPUT_AND_MODELS += [
-        (
-            torch.arange(400 * 2).float() / 400,
-            transforms.MFCC(),
-        )
-    ]
-    """
+def cond_tract_gt_0_20_7(i) -> bool:
+    return isinstance(i, TractNNEF) and i.version > "0.20.7"
+
+
+def add_test(*args):
+    global test_suite
+    test_suite.add(*args, inference_conditions=cond_tract_gt_0_20_7)
+
+
+add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
+add_test(torch.arange(12).float(), MySTFT())
+add_test(
+    torch.arange(4.0).reshape((2, 2)),
+    UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
+)
+add_test(
+    torch.arange(400 * 2).float() / 200,
+    transforms.Spectrogram(),
+)
+add_test(
+    torch.arange(400 * 2).float() / 200,
+    transforms.MelSpectrogram(),
+)
+""" precision issue for now
+add_test(
+    torch.arange(400 * 2).float() / 400,
+    transforms.MFCC(),
+)
+"""
 
 
 @pytest.mark.parametrize(
-    "test_input,model", INPUT_AND_MODELS, ids=id_tests(INPUT_AND_MODELS)
+    "id,test_input,model,inference_target",
+    test_suite.test_samples,
+    ids=test_suite.ids,
 )
-def test_complex_export(test_input, model):
+def test_complex_and_fft_export(id, test_input, model, inference_target):
     """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
+    check_model_io_test(
+        model=model, test_input=test_input, inference_target=inference_target
+    )

@@ -13,52 +13,17 @@ from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFError
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.log import log
 
 from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
+    TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
 )
 
 set_seed(int(os.environ.get("SEED", 25)))
-
-
-class TestSuiteInferenceExactnessBuilder:
-    def __init__(self, inference_targets: T.List[InferenceTarget]):
-        self.test_samples = []
-        self.inference_targets = inference_targets
-
-    def generate_test_name(self, data, module):
-        data_fmt = ""
-        if isinstance(data, torch.Tensor):
-            data_fmt = f"{data.dtype}{list(data.shape)}"
-        else:
-            for d in data:
-                if hasattr(d, "dtype"):
-                    data_fmt += f"{d.dtype}{list(d.shape)}, "
-                else:
-                    data_fmt += str(d)
-        if len(str(module)) > 100:
-            module = str(module.__class__.__name__) + "__" + str(module)[:100]
-        test_name = f"{module}({data_fmt})"
-        return test_name
-
-    def add(self, inputs, model, test_name=None, inference_conditions=None):
-        test_name = test_name or self.generate_test_name(inputs, model)
-        for it in self.inference_targets:
-            if inference_conditions is None or inference_conditions(it):
-                self.test_samples.append(
-                    (f"{it}__{test_name}", inputs, model, it)
-                )
-
-    @property
-    def ids(self):
-        return [_[0] for _ in self.test_samples]
-
-    def __repr__(self):
-        return f"<TestSuiteInferenceExactnessBuilder len({len(self.test_samples)})>"
 
 
 class UnaryPrimitive(nn.Module):
@@ -786,7 +751,7 @@ def test_should_fail_since_false_output():
     ids=test_suite.ids,
 )
 def test_primitive_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple aten PyTorch core"""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )
