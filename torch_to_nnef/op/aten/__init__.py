@@ -27,7 +27,7 @@ from torch_to_nnef.op.aten import (
     tensor_build,
     unary,
 )
-from torch_to_nnef.op.aten.base import OpHelper
+from torch_to_nnef.op.helper import OpHelper
 
 aten_ops_registry = reduce(
     operator.add,

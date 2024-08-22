@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.aten.base import (
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     get_list_of_int,

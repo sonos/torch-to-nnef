@@ -1,6 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
-from torch_to_nnef.op.aten.base import (
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
