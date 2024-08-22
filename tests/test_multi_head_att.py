@@ -9,28 +9,33 @@ import pytest
 import torch
 from torch.nn import functional as F
 
-from torch_to_nnef.tract import tract_version
+from torch_to_nnef.inference_target import TractNNEF
 
 from .test_primitive import TernaryPrimitive
-from .utils import check_model_io_test, set_seed  # noqa: E402
+from .utils import (  # noqa: E402
+    TRACT_INFERENCES_TO_TESTS,
+    TestSuiteInferenceExactnessBuilder,
+    check_model_io_test,
+    set_seed,
+)
 
-INPUT_AND_MODELS = []
 set_seed(int(os.environ.get("SEED", 0)))
 
-# NOTE: More than 2 head seems to fail
-# hidden_dim = 256  # 4  # KO: 768 or
-# n_heads = 16  # 2  # KO: 12 or
-# keys = torch.randint(2, (1, 2, hidden_dim)).float()
-# values = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float()
-# queries = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float() * 2
-# INPUT_AND_MODELS += [
-#     ((keys, values, queries), op)
-#     for op in [
-#         torch.nn.MultiheadAttention(
-#             hidden_dim, num_heads=n_heads, dropout=0.0, batch_first=True
-#         )
-#     ]
-# ]
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+
+# NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
+n_heads = 8
+hidden_dim = 256  # 4  # KO: 768 or
+keys = torch.randint(2, (1, 2, hidden_dim)).float()
+values = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float()
+queries = torch.arange(2 * hidden_dim).reshape(1, 2, hidden_dim).float() * 2
+test_suite.add(
+    (keys, values, queries),
+    torch.nn.MultiheadAttention(
+        hidden_dim, num_heads=n_heads, dropout=0.0, batch_first=True
+    ),
+    test_name="8_heads_attn",
+)
 
 
 class SelfAttn(torch.nn.Module):
@@ -65,25 +70,23 @@ class SelfAttn(torch.nn.Module):
 X = torch.rand((100, 1, 64)).float()
 Xmini = torch.randint(high=8, size=(1, 2, 4)).float()
 
-INPUT_AND_MODELS = [
-    (
-        torch.rand((100, 1, 64)).float(),
-        SelfAttn(need_weights=True),
+test_suite.add(
+    torch.rand((100, 1, 64)).float(),
+    SelfAttn(need_weights=True),
+)
+test_suite.add(
+    (Xmini, Xmini, Xmini),
+    TernaryPrimitive(
+        partial(
+            F.scaled_dot_product_attention,
+            attn_mask=torch.randint(high=1, size=(2, 1)).float(),
+        )
     ),
-    (
-        (Xmini, Xmini, Xmini),
-        TernaryPrimitive(
-            partial(
-                F.scaled_dot_product_attention,
-                attn_mask=torch.randint(high=1, size=(2, 1)).float(),
-            )
-        ),
-    ),
-    (
-        torch.randint(high=5, size=(3, 1, 4)).float(),
-        SelfAttn(size=4, batch_size=3, need_weights=False),
-    ),
-]
+)
+test_suite.add(
+    torch.randint(high=5, size=(3, 1, 4)).float(),
+    SelfAttn(size=4, batch_size=3, need_weights=False),
+)
 
 
 class FScaledDotProdAttn(torch.nn.Module):
@@ -123,56 +126,59 @@ class FScaledDotProdAttn(torch.nn.Module):
         return res
 
 
-INPUT_AND_MODELS += [  # 3d
-    (torch.rand((1, 2, 3)).float(), mod)
-    for mod in [
-        FScaledDotProdAttn(),
-        FScaledDotProdAttn(scale=1.3),
-        FScaledDotProdAttn(scale=0.3),
-        FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 2))),
-        FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 2))),
-    ]
-    + (
-        [
-            FScaledDotProdAttn(is_causal=True),
-            FScaledDotProdAttn(is_causal=True, scale=1.62),
-        ]
-        if tract_version() >= "0.21.4"  # prior tract version has casting issue
-        else []
-    )
-]
-INPUT_AND_MODELS += [  # 4d
-    (torch.rand((1, 2, 3, 4)).float(), mod)
-    for mod in [
-        FScaledDotProdAttn(),
-        FScaledDotProdAttn(scale=1.3),
-        FScaledDotProdAttn(scale=0.3),
-        FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))),
-        FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 3, 3))),
-    ]
-    + (
-        [
-            FScaledDotProdAttn(is_causal=True),
-            FScaledDotProdAttn(is_causal=True, scale=1.62),
-        ]
-        if tract_version() >= "0.21.4"  # prior tract version has casting issue
-        else []
-    )
-]
+# 3d
+inp = torch.rand((1, 2, 3)).float()
+test_suite.add(inp, FScaledDotProdAttn())
+test_suite.add(inp, FScaledDotProdAttn(scale=1.3))
+test_suite.add(inp, FScaledDotProdAttn(scale=0.3))
+test_suite.add(
+    inp, FScaledDotProdAttn(scale=0.3, attn_mask=torch.rand((1, 2, 2)))
+)
+test_suite.add(inp, FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 2))))
 
-# works but difference in precision
-# INPUT_AND_MODELS += [  # 4d f16
-#     (torch.rand((1, 2, 3, 4)).float(), mod)
-#     for mod in [
-#         FScaledDotProdAttn(as_f16=True),
-#         FScaledDotProdAttn(as_f16=True, scale=1.3),
-#         FScaledDotProdAttn(as_f16=True, scale=0.3),
-#         FScaledDotProdAttn(as_f16=True, is_causal=True),
-#         FScaledDotProdAttn(as_f16=True, is_causal=True, scale=1.62),
-#         FScaledDotProdAttn(as_f16=True, scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))),
-#         FScaledDotProdAttn(as_f16=True, attn_mask=torch.rand((1, 2, 3, 3))),
-#     ]
-# ]
+test_suite.add(
+    inp,
+    FScaledDotProdAttn(is_causal=True),
+    inference_conditions=lambda i: isinstance(i, TractNNEF)
+    and i.version >= "0.21.4",
+)
+
+test_suite.add(
+    inp,
+    FScaledDotProdAttn(is_causal=True, scale=1.62),
+    inference_conditions=lambda i: isinstance(i, TractNNEF)
+    and i.version >= "0.21.4",
+)
+# 4d
+for as_f16 in [False]:  # True works but difference in precision
+    inp = torch.rand((1, 2, 3, 4)).float()
+    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16))
+    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16, scale=1.3))
+    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16, scale=0.3))
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(
+            as_f16=as_f16, scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))
+        ),
+    )
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16, attn_mask=torch.rand((1, 2, 3, 3))),
+    )
+
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16, is_causal=True),
+        inference_conditions=lambda i: isinstance(i, TractNNEF)
+        and i.version >= "0.21.4",
+    )
+
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16, is_causal=True, scale=1.62),
+        inference_conditions=lambda i: isinstance(i, TractNNEF)
+        and i.version >= "0.21.4",
+    )
 
 
 def _simulate_scaled_dot_product_attention(Q, K, V, attn_mask, dropout_p=0.0):
@@ -200,7 +206,13 @@ def test_equivalent_implementation():
     )
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_primitive_export(test_input, model):
+@pytest.mark.parametrize(
+    "id,test_input,model,inference_target",
+    test_suite.test_samples,
+    ids=test_suite.ids,
+)
+def test_attn_layers_export(id, test_input, model, inference_target):
     """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
+    check_model_io_test(
+        model=model, test_input=test_input, inference_target=inference_target
+    )

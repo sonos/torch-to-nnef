@@ -168,7 +168,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         name_to_tensor,
         null_ref,
         torch_graph,
-        nnef_spec_strict: bool,
+        inference_target,
         **kwargs,
     ):
         raise TorchToNNEFNotImplementedError()

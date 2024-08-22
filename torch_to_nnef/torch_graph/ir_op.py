@@ -62,7 +62,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     NONETYPE_KIND,
     TUPLETYPE_KIND,
 )
-from torch_to_nnef.utils import NamedItemOrderedSet
+from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ class TorchOp:
 
     @classmethod
     def _parse_outputs(
-        cls, node: torch._C.Node, data_nodes: NamedItemOrderedSet
+        cls, node: torch._C.Node, data_nodes: ReactiveNamedItemDict
     ):
         outputs: T.List[TtupleOrVar] = []
         for out_node in node.outputs():  #: torch._C.Value
@@ -230,7 +230,7 @@ class TorchOp:
         module,
         node: torch._C.Node,
         scope: str,
-        data_nodes: NamedItemOrderedSet,
+        data_nodes: ReactiveNamedItemDict,
         traced_module,
     ) -> "TorchOp":
         op_ref = None
@@ -360,7 +360,7 @@ class TorchOp:
         for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
                 data_node.data = result
-            if isinstance(data_node, TensorVariable):
+            if isinstance(data_node, TensorVariable) and result is not None:
                 if self.kind == ATEN_SIZE_KIND:
                     # note this is a special case where we fix variable value
                     data_node.data = result

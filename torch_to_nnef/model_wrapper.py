@@ -89,7 +89,11 @@ class WrapStructIO(nn.Module):
         ):
             return struct_output
 
-        return [o for _, _, o in flatten_dict_tuple_or_list(struct_output)]
+        return [
+            o
+            for _, _, o in flatten_dict_tuple_or_list(struct_output)
+            if isinstance(o, torch.Tensor)
+        ]
 
     def forward(self, *flat_args):
         struct_args = self.build_inputs(flat_args)
@@ -98,8 +102,16 @@ class WrapStructIO(nn.Module):
         return flat_outputs
 
 
-def _build_new_names_and_elements(original_names, elms):
+def _build_new_names_and_elements(
+    original_names, elms, default_element_name_tmpl
+):
+    if original_names is None:
+        original_names = []
     flat_elms = flatten_dict_tuple_or_list(elms)
+    if len(original_names) != len(flat_elms):
+        offset = len(original_names)
+        for i in range(len(flat_elms) - len(original_names)):
+            original_names.append(default_element_name_tmpl.format(offset + i))
 
     new_names = []
     new_elms = []
@@ -136,27 +148,25 @@ def has_non_tensor_elements(flat_elms):
 def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     flat_args = []
     flat_outs = []
-    if input_names:
-        new_input_names, args, flat_args = _build_new_names_and_elements(
-            input_names, args
+    new_input_names, args, flat_args = _build_new_names_and_elements(
+        input_names, args, default_element_name_tmpl="input_{}"
+    )
+    if new_input_names != input_names:
+        LOGGER.warning(
+            "Graph inputs have been flattened "
+            f"so NNEF inputs are: {new_input_names}"
         )
-        if new_input_names != input_names:
-            LOGGER.warning(
-                "Graph inputs have been flattened "
-                f"so NNEF inputs are: {new_input_names}"
-            )
-            input_names = new_input_names
+        input_names = new_input_names
 
-    if output_names:
-        new_output_names, _, flat_outs = _build_new_names_and_elements(
-            output_names, outs
+    new_output_names, _, flat_outs = _build_new_names_and_elements(
+        output_names, outs, default_element_name_tmpl="output_{}"
+    )
+    if new_output_names != output_names:
+        LOGGER.warning(
+            "Graph outputs have been flattened "
+            f"so NNEF outputs are: {new_output_names}"
         )
-        if new_output_names != output_names:
-            LOGGER.warning(
-                "Graph outputs have been flattened "
-                f"so NNEF outputs are: {new_output_names}"
-            )
-            output_names = new_output_names
+        output_names = new_output_names
 
     if (
         has_sub_containers(flat_args)

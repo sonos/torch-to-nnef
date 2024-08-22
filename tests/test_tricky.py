@@ -6,7 +6,12 @@ import pytest
 import torch
 from torch import nn
 
-from .utils import check_model_io_test, set_seed  # noqa: E402
+from .utils import (  # noqa: E402
+    TRACT_INFERENCES_TO_TESTS,
+    TestSuiteInferenceExactnessBuilder,
+    check_model_io_test,
+    set_seed,
+)
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -72,15 +77,19 @@ class LostDimPad(nn.Module):
         return x
 
 
-INPUT_AND_MODELS = [
-    # to solve this we will need to expand fully graph constant at torch_graph module level
-    (torch.rand(5, 10, 4), DynamicDoubleBatchRank()),
-    (torch.rand(5, 10, 4), SelectNotFirstOutput()),
-    (torch.rand(1, 3, 16, 16), LostDimPad()),
-]
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+
+test_suite.add(torch.rand(5, 10, 4), DynamicDoubleBatchRank())
+test_suite.add(torch.rand(5, 10, 4), SelectNotFirstOutput())
+test_suite.add(torch.rand(1, 3, 16, 16), LostDimPad())
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_tricky_export(test_input, model):
-    """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
+@pytest.mark.parametrize(
+    "id,test_input,model,inference_target",
+    test_suite.test_samples,
+    ids=test_suite.ids,
+)
+def test_tricky_export(id, test_input, model, inference_target):
+    check_model_io_test(
+        model=model, test_input=test_input, inference_target=inference_target
+    )

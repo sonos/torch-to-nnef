@@ -10,7 +10,12 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import (
+    InferenceTarget,
+    KhronosNNEF,
+    TractNNEF,
+)
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     SimpleOpChainer,
     add_nnef_operation,
@@ -29,7 +34,7 @@ LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
 
-_EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT = {np.float32, np.int64}
+_EXTERNAL_DTYPE_PRECISE_ENOUGHT = {np.float32, np.int64}
 
 
 @OP_REGISTRY.register()
@@ -37,17 +42,19 @@ def external(
     g: NGraph,
     node: TensorVariable,
     name_to_tensor: T.Dict[str, NTensor],
-    nnef_spec_strict: bool,
+    inference_target: InferenceTarget,
 ):
     """Add External NNEF Operation in graph"""
     nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
         g, node, name_to_tensor, prevent_variable=True
     )
     custom_fragments = []
-    if (
-        nnef_tensor_ref.dtype in _EXTERNAL_MAP_UNPRECISE_NNEF_TO_PRECISE_TRACT
-        and nnef_spec_strict
-    ):
+    if isinstance(inference_target, KhronosNNEF):
+        if node.dtype not in _EXTERNAL_DTYPE_PRECISE_ENOUGHT:
+            LOGGER.warning(
+                "NNEF Spec is not precise enough "
+                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+            )
         add_nnef_operation(
             graph=g,
             type="external",
@@ -58,12 +65,7 @@ def external(
                 "dtype": nnef_tensor_ref.dtype,
             },
         )
-    else:
-        if nnef_spec_strict:
-            raise ValueError(
-                "NNEF Spec is not precise enough "
-                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
-            )
+    elif isinstance(inference_target, TractNNEF):
         add_nnef_operation(
             graph=g,
             type="tract_core_external",
@@ -75,6 +77,10 @@ def external(
             },
         )
         custom_fragments.append("tract_core")
+    else:
+        raise TorchToNNEFNotImplementedError(
+            f"inference_target: {inference_target}"
+        )
     return nnef_tensor_ref, custom_fragments
 
 
@@ -109,19 +115,19 @@ def contiguous(node, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def to(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def to(g, node, name_to_tensor, inference_target, **kwargs):
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
     ) = node.inputs
 
     onode = node.outputs[0]
+    if isinstance(inference_target, KhronosNNEF):
+        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
     LOGGER.debug(
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
     add_single_output_op(
         g,
         node,
@@ -173,8 +179,7 @@ def size(
     g,
     node,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
+    inference_target,
     torch_graph,
     op_helper,
     **kwargs,
@@ -205,7 +210,7 @@ def size(
 
     """
     input_node, axis_node = node.inputs
-    if nnef_spec_strict or not has_dynamic_axes:
+    if not inference_target.has_dynamic_axes:
         original_vec_node, axis_node = node.inputs
         original_variable_output = node.outputs[0]
         if original_variable_output.data is None:
@@ -241,7 +246,8 @@ def size(
             "Keeping dynamism would require dynamic_axes specified."
         )
         return []
-    # original_variable_output = node.outputs[0]
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
 
     # ensure consistant name to avoid strangeness
     input_tensor = get_or_add_tensor_variable_in_nnef(

@@ -2,7 +2,8 @@ import typing as T
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     cast_and_add_nnef_operation,
@@ -10,7 +11,6 @@ from torch_to_nnef.op.primitive.base import (
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
-from torch_to_nnef.tract import tract_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -30,7 +30,9 @@ def _get_padding_same_symetric(
 
 
 @OP_REGISTRY.register()
-def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
+def _convolution_mode(
+    g, node, name_to_tensor, null_ref, inference_target, **kwargs
+):
     (
         input_node,
         weight_node,
@@ -77,7 +79,11 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version() < "0.18.1":
+    if (
+        bias_node.data is not None
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -119,7 +125,7 @@ def _convolution_mode(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
+def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     (
         input_node,
         weight_node,
@@ -168,7 +174,11 @@ def _convolution(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
     params_nodes = [weight_node]
-    if bias_node.data is not None and tract_version() < "0.18.1":
+    if (
+        bias_node.data is not None
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.18.1"
+    ):
         params_nodes.append(bias_node)
     for param_node in params_nodes:
         for _ in range(input_node.rank - param_node.rank):
@@ -255,11 +265,11 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def einsum(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
-    if nnef_spec_strict:
+def einsum(g, node, name_to_tensor, inference_target, **kwargs):
+    if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(
             "einsum operator is not supported by `NNEF` and "
-            "breaking it down to primite ops would be a siginficant work"
+            "breaking it down to primitive ops would be a siginficant work"
         )
 
     expr_node, args_node, _ = node.inputs

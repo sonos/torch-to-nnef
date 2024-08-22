@@ -35,7 +35,7 @@ from torch_to_nnef.torch_graph.ir_naming import (
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
-from torch_to_nnef.utils import NamedItemOrderedSet
+from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class TorchModuleIRGraph:
         self.inputs: T.List[Data] = []
         self.outputs: T.List[TtupleOrVar] = []
 
-        self._data_nodes: NamedItemOrderedSet = NamedItemOrderedSet()
+        self._data_nodes: ReactiveNamedItemDict = ReactiveNamedItemDict()
         self._omit_useless_nodes = omit_useless_nodes
         self.provided_inputs_picked_indexes: T.List[int] = []
         self._tracer = torch_module_tracer
@@ -114,8 +114,8 @@ class TorchModuleIRGraph:
     def data_nodes(self, other):
         self._data_nodes = (
             other
-            if isinstance(other, NamedItemOrderedSet)
-            else NamedItemOrderedSet.from_list(other)
+            if isinstance(other, ReactiveNamedItemDict)
+            else ReactiveNamedItemDict.from_list(other)
         )
 
     def _check_container_items_rely_on_data_nodes(self):
@@ -512,7 +512,7 @@ class TorchModuleIRGraph:
         Backward propagation from graph output to input to select kept nodes
 
         """
-        assert isinstance(self.data_nodes, NamedItemOrderedSet)
+        assert isinstance(self.data_nodes, ReactiveNamedItemDict)
         used_data_nodes = set(self.outputs)
         # Ensure we do not dish Module inputs
         used_data_nodes.update(self.inputs)
@@ -556,7 +556,7 @@ class TorchModuleIRGraph:
         ordered_data_nodes_hashs = {
             hash(_): idx for idx, _ in enumerate(self.data_nodes)
         }
-        self.data_nodes = NamedItemOrderedSet(
+        self.data_nodes = ReactiveNamedItemDict(
             sorted(
                 list(used_data_nodes),
                 key=lambda _: ordered_data_nodes_hashs[hash(_)]

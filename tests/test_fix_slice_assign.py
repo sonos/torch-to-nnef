@@ -1,11 +1,11 @@
 import math
+from copy import deepcopy
 
+import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.tract import tract_version
-
-from .utils import check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
 class RelPosEncXL(nn.Module):
@@ -207,17 +207,21 @@ class AssignSliceIssue(nn.Module):
 #     )
 
 
-if tract_version() >= "0.21.2":  # prior bug in tract rank range
-
-    def test_export_assign_slice():
-        """Test simple models"""
-        check_model_io_test(
-            model=FixedRelPosEncXL(3),
-            test_input=torch.arange(10).float().reshape(2, 5),
-            # without dyn axes assume constant shape inputs so
-            # positions and pe_future are static value tensors
-            dynamic_axes={"input_0": {1: "S"}},
-        )
+@pytest.mark.parametrize(
+    "inference_target",
+    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version >= "0.21.2"],
+)
+def test_export_assign_slice(inference_target):
+    """Test simple models"""
+    # without dyn axes assume constant shape inputs so
+    # positions and pe_future are static value tensors
+    it = deepcopy(inference_target)
+    it.dynamic_axes = {"input_0": {1: "S"}}
+    check_model_io_test(
+        model=FixedRelPosEncXL(3),
+        test_input=torch.arange(10).float().reshape(2, 5),
+        inference_target=it,
+    )
 
 
 def test_export_check_equivalent_pos_encoding():

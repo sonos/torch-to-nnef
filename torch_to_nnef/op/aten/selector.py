@@ -4,7 +4,8 @@ import nnef
 import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -25,8 +26,7 @@ def slice_(
     node,
     name_to_tensor,
     torch_graph,
-    nnef_spec_strict,
-    has_dynamic_axes,
+    inference_target,
     op_helper,
     **kwargs,
 ):
@@ -65,9 +65,11 @@ def slice_(
     if has_concrete_values:
         assert begin < end
 
-    if (has_dynamic_axes and not nnef_spec_strict) and (
+    if inference_target.has_dynamic_axes and (
         not has_concrete_values or begin_node.data < 0 or end_node.data < 0
     ):
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(inference_target)
         add_single_output_op(
             g,
             node,
@@ -139,9 +141,7 @@ def where(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def narrow(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
+def narrow(g, node, name_to_tensor, **kwargs):
     """Fancy slice made in PyTorch
 
     torch.narrow(input, dim, start, length)
@@ -156,6 +156,7 @@ def narrow(
     """
     input_node, axis_node, start_node, length_node = node.inputs
 
+    # only ops subset implemented
     assert isinstance(axis_node.data, int)
     assert isinstance(start_node.data, int)
     assert isinstance(length_node.data, int)
@@ -218,7 +219,7 @@ def select(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
-def index_(g, node, name_to_tensor, nnef_spec_strict, torch_graph, **kwargs):
+def index_(g, node, name_to_tensor, inference_target, **kwargs):
     """
     fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
@@ -247,11 +248,11 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, torch_graph, **kwargs):
             )
 
     custom_fragments = []
-    if nnef_spec_strict:
-        op_name = "gather"
-    else:
+    if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+    else:
+        op_name = "gather"
     add_single_output_op(
         g,
         node,
@@ -274,7 +275,7 @@ def index_(g, node, name_to_tensor, nnef_spec_strict, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def embedding(g, node, name_to_tensor, inference_target, **kwargs):
     (
         weight_node,
         indices_node,
@@ -290,16 +291,16 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         g, indices_node, name_to_tensor
     )
     custom_fragments = []
-    if nnef_spec_strict:
-        fragment_name = "gather"
-    else:
-        fragment_name = "tract_core_gather"
+    if isinstance(inference_target, TractNNEF):
+        op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+    else:
+        op_name = "gather"
     add_single_output_op(
         g,
         node,
         name_to_tensor,
-        fragment_name,
+        op_name,
         inputs=(weight_tensor, indices_tensor),
         attrs={"axis": 0},
     )
@@ -307,9 +308,7 @@ def embedding(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def masked_fill(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes, **kwargs
-):
+def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
@@ -320,7 +319,9 @@ def masked_fill(
     true_value_node = value_node.into_tensor_variable()
     if true_value_node.data is not None:
         true_value_node.data = true_value_node.data.to(false_value_node.dtype)
-    if not nnef_spec_strict and has_dynamic_axes:
+    if inference_target.has_dynamic_axes:
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(inference_target)
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
         out = add_single_output_op(

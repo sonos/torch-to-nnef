@@ -1,5 +1,6 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -13,7 +14,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
+def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     """
 
     nnef inputs:
@@ -40,15 +41,16 @@ def batch_norm(g, node, name_to_tensor, null_ref, **kwargs):
     ) = node.inputs
 
     # expand in stored variables export to avoid unsqueeze guessing in graph {
-    params_nodes = [weight_node, running_mean_node, running_var_node]
-    if bias_node.data is not None:
-        params_nodes.append(bias_node)
-    for param_node in params_nodes:
-        param_node.data = param_node.data.unsqueeze(0)
-        param_node.shape = list(param_node.data.shape)
-        for _ in range(input_node.rank - param_node.rank):
-            param_node.data = param_node.data.unsqueeze(-1)
+    if isinstance(inference_target, TractNNEF):
+        params_nodes = [weight_node, running_mean_node, running_var_node]
+        if bias_node.data is not None:
+            params_nodes.append(bias_node)
+        for param_node in params_nodes:
+            param_node.data = param_node.data.unsqueeze(0)
             param_node.shape = list(param_node.data.shape)
+            for _ in range(input_node.rank - param_node.rank):
+                param_node.data = param_node.data.unsqueeze(-1)
+                param_node.shape = list(param_node.data.shape)
     # }
 
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(

@@ -6,7 +6,12 @@ import pytest
 import torch
 from torch import nn
 
-from .utils import check_model_io_test, set_seed  # noqa: E402
+from .utils import (  # noqa: E402
+    TRACT_INFERENCES_TO_TESTS,
+    TestSuiteInferenceExactnessBuilder,
+    check_model_io_test,
+    set_seed,
+)
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -19,14 +24,19 @@ class Mul(nn.Module):
         return x * 2
 
 
-INPUT_AND_MODELS = [
-    (torch.randint(0, 4, (2, 4), dtype=torch.int32), Mul()),
-    (torch.rand((2, 4), dtype=torch.float64), Mul()),
-    # (torch.rand((2, 4), dtype=torch.float16), Mul()), # tract strange error with npz format
-]
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+
+test_suite.add(torch.randint(0, 4, (2, 4), dtype=torch.int32), Mul())
+test_suite.add(torch.rand((2, 4), dtype=torch.float64), Mul())
+# (torch.rand((2, 4), dtype=torch.float16), Mul()), # tract does not support npz f16 format
 
 
-@pytest.mark.parametrize("test_input,model", INPUT_AND_MODELS)
-def test_tricky_export(test_input, model):
-    """Test simple models"""
-    check_model_io_test(model=model, test_input=test_input)
+@pytest.mark.parametrize(
+    "id,test_input,model,inference_target",
+    test_suite.test_samples,
+    ids=test_suite.ids,
+)
+def test_externals_export(id, test_input, model, inference_target):
+    check_model_io_test(
+        model=model, test_input=test_input, inference_target=inference_target
+    )

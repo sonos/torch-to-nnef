@@ -3,7 +3,7 @@ fragment erf( x: tensor<scalar> ) -> ( y: tensor<scalar> )
 {
     # save the sign of x
     basesign = sign(x);
-    x = abs(x);
+    abs_x = abs(x);
 
     # constants
     a1 = 0.254829592;
@@ -14,7 +14,7 @@ fragment erf( x: tensor<scalar> ) -> ( y: tensor<scalar> )
     p  = 0.3275911;
 
     # A&S formula 7.1.26
-    t = 1.0/(1.0 + p*x);
-    ya = 1.0 - (((((a5*t - a4)*t) + a3)*t - a2)*t + a1)*t*exp(0.0-x*x);
+    t = 1.0/(1.0 + p * abs_x);
+    ya = 1.0 - (((((a5*t - a4)*t) + a3)*t - a2)*t + a1)*t*exp(0.0-abs_x*abs_x);
     y = basesign * ya;  # erf(-x) = -erf(x)
 }

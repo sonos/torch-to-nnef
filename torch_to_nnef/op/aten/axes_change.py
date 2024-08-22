@@ -1,13 +1,13 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.complex import (
+    is_complex_dtype_and_complex_only_supported_as_lastdim,
+)
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
-)
-from torch_to_nnef.op.primitive.complex import (
-    is_complex_dtype_and_complex_only_supported_as_lastdim,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -20,8 +20,7 @@ def view(
     node,
     name_to_tensor,
     torch_graph,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     (input_node, axis_node) = node.inputs
@@ -30,10 +29,10 @@ def view(
         torch_graph,
         name_to_tensor=name_to_tensor,
         accept_none=1,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, tract_feature_flags
+        input_node.dtype, inference_target
     ):
         dim_data.append(2)
     add_single_output_op(
@@ -54,8 +53,7 @@ def unflatten(
     node,
     name_to_tensor,
     torch_graph,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     (input_node, axis_node, new_shape_chunk_node) = node.inputs
@@ -70,7 +68,7 @@ def unflatten(
         torch_graph,
         name_to_tensor=name_to_tensor,
         accept_none=1,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
     )
 
     dim_data = (
@@ -80,7 +78,7 @@ def unflatten(
     )
 
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, tract_feature_flags
+        input_node.dtype, inference_target
     ):
         dim_data.append(2)
 
@@ -97,13 +95,13 @@ def unflatten(
 
 
 @OP_REGISTRY.register()
-def transpose(g, node, name_to_tensor, tract_feature_flags, **kwargs):
+def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     (input_node, dim0_node, dim1_node) = node.inputs
     dim0 = pick_axis(input_node, dim0_node.data)
     dim1 = pick_axis(input_node, dim1_node.data)
 
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, tract_feature_flags
+        input_node.dtype, inference_target
     ):
         raise TorchToNNEFNotImplementedError(
             "complex transpose without tract complex feature flag"
@@ -183,7 +181,7 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def flatten(g, node, name_to_tensor, tract_feature_flags, **kwargs):
+def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     """
     Using NNEF:
         fragment reshape<?>(
@@ -196,7 +194,7 @@ def flatten(g, node, name_to_tensor, tract_feature_flags, **kwargs):
     (input_node, _, _) = node.inputs  # start_dim_name  # end_dim_name
     onode = node.outputs[0]
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, tract_feature_flags
+        input_node.dtype, inference_target
     ):
         raise TorchToNNEFNotImplementedError(
             "complex flatten without tract complex feature flag"
@@ -224,8 +222,7 @@ def reshape(
     node,
     name_to_tensor,
     torch_graph,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     (input_node, axis_node) = node.inputs
@@ -235,11 +232,11 @@ def reshape(
         torch_graph,
         name_to_tensor=name_to_tensor,
         accept_none=1,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         force_none_as_tensor_ref=True,
     )
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
-        input_node.dtype, tract_feature_flags
+        input_node.dtype, inference_target
     ):
         dim_data.append(2)
     add_single_output_op(

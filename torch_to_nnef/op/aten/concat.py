@@ -1,5 +1,5 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
@@ -131,7 +131,7 @@ def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
+def roll(g, node, name_to_tensor, inference_target, **kwargs):
     input_node, shifts_node, dims_node = node.inputs
     shifts = shifts_node.data
     dims = dims_node.data
@@ -143,7 +143,7 @@ def roll(g, node, name_to_tensor, has_dynamic_axes, nnef_spec_strict, **kwargs):
         tensor_chunks = []
         dim = dims[i]
         shift = shifts[i]
-        if not has_dynamic_axes or nnef_spec_strict:
+        if not inference_target.has_dynamic_axes:
             maxsize = input_node.shape[dim]
         else:
             raise TorchToNNEFNotImplementedError("Should use shape_of")

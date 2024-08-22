@@ -3,6 +3,7 @@ import typing as T
 from datetime import datetime
 
 import numpy as np
+import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
@@ -12,13 +13,12 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFError,
     TorchToNNEFNotImplementedError,
 )
+from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.model_wrapper import WrapStructIO
+from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
-)
-from torch_to_nnef.op.primitive import (
-    aten_to_nnef_tensor_and_ops,
-    primitive_ops_registry,
 )
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
@@ -43,15 +43,13 @@ class TorchToNGraphExtractor:
 
     def __init__(
         self,
-        model,
-        args,
+        model: torch.nn.Module,
+        args: T.Tuple[torch.Tensor, ...],
+        inference_target: InferenceTarget,
         renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         forced_inputs_names: T.Optional[T.List[str]] = None,
         forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
-        nnef_spec_strict: bool = False,
-        has_dynamic_axes: bool = False,
-        tract_feature_flags: T.Optional[T.Set[str]] = None,
     ):
         self.model = model
         self._torch_ir_graph = module_tracer_into_ir_graph(
@@ -67,12 +65,16 @@ class TorchToNGraphExtractor:
         self._forced_inputs_names = forced_inputs_names
         self._forced_outputs_names = forced_outputs_names
         self._check_io_names_qte_match = check_io_names_qte_match
-        self._nnef_spec_strict = nnef_spec_strict
-        self._has_dynamic_axes = has_dynamic_axes
-        self._tract_feature_flags = tract_feature_flags
-        datestr = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
-        self.g = NGraph(f"net_{datestr}")
+        self._inference_target = inference_target
+        datestr = datetime.now().strftime("%Y_%m_%d")
+        model_slug = self.smart_graph_name(model)
+        self.g = NGraph(f"net_{model_slug}_{datestr}")
         self.activated_custom_fragment_keys: T.Set[str] = set()
+
+    def smart_graph_name(self, model):
+        if isinstance(model, WrapStructIO):
+            model = model.model
+        return str(model.__class__.__name__).replace(".", "_").lower()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
         if node.kind.startswith("aten::"):
@@ -82,9 +84,7 @@ class TorchToNGraphExtractor:
                 name_to_tensor,
                 null_ref,
                 torch_graph=self._torch_ir_graph,
-                nnef_spec_strict=self._nnef_spec_strict,
-                has_dynamic_axes=self._has_dynamic_axes,
-                tract_feature_flags=self._tract_feature_flags,
+                inference_target=self._inference_target,
             )
         if node.kind.startswith("prim::"):
             if node.kind in MAP_TO_NOP:
@@ -99,18 +99,16 @@ class TorchToNGraphExtractor:
                 name_to_tensor,
                 null_ref,
                 torch_graph=self._torch_ir_graph,
-                nnef_spec_strict=self._nnef_spec_strict,
-                tract_feature_flags=self._tract_feature_flags,
+                inference_target=self._inference_target,
             )
         if node.kind.startswith(CUSTOMOP_KIND):
             return ModuleInfoExtractor.get_by_kind(node.kind).convert_to_nnef(
                 self.g,
                 node,
-                name_to_tensor,
-                null_ref,
+                name_to_tensor=name_to_tensor,
+                null_ref=null_ref,
                 torch_graph=self._torch_ir_graph,
-                nnef_spec_strict=self._nnef_spec_strict,
-                tract_feature_flags=self._tract_feature_flags,
+                inference_target=self._inference_target,
             )
 
         raise TorchToNNEFNotImplementedError(
@@ -150,7 +148,10 @@ class TorchToNGraphExtractor:
                     if data_node_to_clean not in self._torch_ir_graph.outputs:
                         raise exp
 
-        if self._has_dynamic_axes and not self._nnef_spec_strict:
+        if (
+            isinstance(self._inference_target, TractNNEF)
+            and self._inference_target.dynamic_axes
+        ):
             for op_node in operators_nodes:
                 if op_node.kind == ATEN_SIZE_KIND:
                     forward_clean_values_for_dyn_axes(op_node)
@@ -205,11 +206,11 @@ class TorchToNGraphExtractor:
         name_to_tensor: T.Dict[str, NTensor] = {}
         ginputs = []
         for node in self._torch_ir_graph.inputs:
-            op, custom_fragments = primitive_ops_registry.get("external")(
+            op, custom_fragments = aten_ops_registry.get("external")(
                 self.g,
                 node,
                 name_to_tensor,
-                nnef_spec_strict=self._nnef_spec_strict,
+                inference_target=self._inference_target,
             )
             ginputs.append(op)
             if custom_fragments:
@@ -249,6 +250,6 @@ class TorchToNGraphExtractor:
                     )
                 onode.name = new_name
 
-    def parse(self):
+    def parse(self) -> NGraph:
         self.build_nnef_graph()
         return self.g

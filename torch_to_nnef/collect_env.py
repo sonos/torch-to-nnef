@@ -1,4 +1,5 @@
-""" Used to collect environment status/versions for debuging purpose """
+"""Used to collect environment status/versions for debuging purpose"""
+
 import locale
 import os
 import platform
@@ -7,8 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 from platform import machine
-
-TRACT_PATH = os.environ.get("TRACT_PATH", "tract")
 
 
 def run_lambda(command):
@@ -25,15 +24,6 @@ def run_lambda(command):
         output = raw_output.decode(enc)
         err = raw_err.decode(enc)
     return rc, output.strip(), err.strip()
-
-
-def tract_version() -> str:
-    return (
-        subprocess.check_output(f"{TRACT_PATH} --version".split())
-        .decode("utf8")
-        .split(maxsplit=1)[-1]
-        .strip()
-    )
 
 
 def run_and_read_all(command):
@@ -150,9 +140,9 @@ def get_gcc_version():
     return run_and_parse_first_match("gcc --version", r"gcc (.*)")
 
 
-def dump_environment_versions(pathdir: Path):
+def dump_environment_versions(pathdir: Path, tract_path: Path):
     with (pathdir / "versions").open("w", encoding="utf8") as fh:
-        fh.write(f"tract: {tract_version()}\n")
+        fh.write(f"tract: {tract_path.absolute()}\n")
         fh.write("\n")
         fh.write(f"os: {get_os()}\n")
         fh.write(f"GCC version: {get_gcc_version()}\n")

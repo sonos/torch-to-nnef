@@ -1,4 +1,4 @@
-from torch_to_nnef.op.primitive import base
+from torch_to_nnef.op import helper
 
 REMAP_ATEN_OP_NAMES = {
     "_relu": "relu",
@@ -53,7 +53,7 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
 ]
 
 
-OP_REGISTRY = base.AtenOpRegistry()
+OP_REGISTRY = helper.AtenOpRegistry()
 
 
 @OP_REGISTRY.register(
@@ -62,7 +62,7 @@ OP_REGISTRY = base.AtenOpRegistry()
 )
 def generic_unary(aten_op_id, g, node, name_to_tensor, null_ref, **kwargs):
     aten_op_id = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
-    return base.unary_output_op_without_params(
+    return helper.unary_output_op_without_params(
         nnef_op_type=aten_op_id,
         g=g,
         node=node,

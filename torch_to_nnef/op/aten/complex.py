@@ -1,37 +1,37 @@
-import typing as T
-
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import AtenOpRegistry
-from torch_to_nnef.tract import tract_version
+from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.op.helper import AtenOpRegistry
 
 OP_REGISTRY = AtenOpRegistry()
 
 
-def is_complex_dtype_and_complex_only_supported_as_lastdim(
-    dtype, tract_feature_flags: T.List[str]
-) -> bool:
+def tract_complex_support(inference_target: InferenceTarget) -> bool:
     return (
-        dtype in [torch.complex64, torch.complex128]
-        and (
-            tract_feature_flags is None or "complex" not in tract_feature_flags
-        )
-        and "0.20.0" <= tract_version()
+        isinstance(inference_target, TractNNEF)
+        and "complex" in inference_target.feature_flags
+        and "0.20.0" > inference_target.version
     )
+
+
+def is_complex_dtype_and_complex_only_supported_as_lastdim(
+    dtype, inference_target: InferenceTarget
+) -> bool:
+    return dtype in [
+        torch.complex64,
+        torch.complex128,
+    ] and not tract_complex_support(inference_target)
 
 
 @OP_REGISTRY.register()
 def view_as_complex(
-    g,
     node,
-    name_to_tensor,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     torch_graph,
     **kwargs,
 ):
-    if nnef_spec_strict:
+    if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported in vanilla spec"
         )
@@ -47,15 +47,12 @@ def view_as_complex(
 
 @OP_REGISTRY.register()
 def view_as_real(
-    g,
     node,
-    name_to_tensor,
     torch_graph,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
-    if nnef_spec_strict:
+    if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported by vanilla NNEF"
         )

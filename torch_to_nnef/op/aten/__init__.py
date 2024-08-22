@@ -3,8 +3,10 @@ import operator
 import typing as T
 from functools import reduce
 
+from torch_to_nnef.inference_target import InferenceTarget
+
 # pylint: disable-next=redefined-builtin
-from torch_to_nnef.op.primitive import (
+from torch_to_nnef.op.aten import (
     activation,
     attn,
     axes_change,
@@ -25,9 +27,9 @@ from torch_to_nnef.op.primitive import (
     tensor_build,
     unary,
 )
-from torch_to_nnef.op.primitive.base import OpHelper
+from torch_to_nnef.op.helper import OpHelper
 
-primitive_ops_registry = reduce(
+aten_ops_registry = reduce(
     operator.add,
     [
         mod.OP_REGISTRY
@@ -64,9 +66,7 @@ def aten_to_nnef_tensor_and_ops(
     name_to_tensor,
     null_ref,
     torch_graph,
-    nnef_spec_strict: bool = False,
-    has_dynamic_axes: bool = False,
-    tract_feature_flags: T.Optional[T.Set[str]] = None,
+    inference_target: InferenceTarget,
 ) -> T.Optional[T.List[str]]:
     """Main primitive dispatcher
 
@@ -82,15 +82,13 @@ def aten_to_nnef_tensor_and_ops(
         aten_op_id = aten_op_id[:-1]
 
     try:
-        return primitive_ops_registry.get(aten_op_id)(
+        return aten_ops_registry.get(aten_op_id)(
             g=g,
             node=node,
             name_to_tensor=name_to_tensor,
             null_ref=null_ref,
             torch_graph=torch_graph,
-            nnef_spec_strict=nnef_spec_strict,
-            has_dynamic_axes=has_dynamic_axes,
-            tract_feature_flags=tract_feature_flags,
+            inference_target=inference_target,
             aten_op_id=aten_op_id,
             op_helper=OpHelper(g, node, name_to_tensor, null_ref),
         )

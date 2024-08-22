@@ -4,7 +4,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.fragment import TMPL_FRAGMENTS
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,

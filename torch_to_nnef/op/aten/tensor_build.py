@@ -5,7 +5,8 @@ import torch
 
 from torch_to_nnef.dtypes import SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
@@ -19,7 +20,6 @@ from torch_to_nnef.torch_graph import (
     TensorVariable,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
-from torch_to_nnef.tract import tract_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -27,9 +27,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def arange(
-    g, node, name_to_tensor, nnef_spec_strict, has_dynamic_axes: bool, **kwargs
-):
+def arange(g, node, name_to_tensor, inference_target, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -51,8 +49,12 @@ def arange(
             f"dtype {dtype_node} not implemented for arange"
         )
 
-    if not nnef_spec_strict or has_dynamic_axes:
-        if tract_version() < "0.20.0":
+    if inference_target.has_dynamic_axes or isinstance(
+        inference_target, TractNNEF
+    ):
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(inference_target)
+        if inference_target.version < "0.20.0":
             raise TractError(
                 "please update to latest tract to use 'tract_core_range'"
             )
@@ -160,7 +162,7 @@ def _generic_auto_tensor_expansion(
 
 
 @OP_REGISTRY.register()
-def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def ones(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
     """This operator can not be exactly exported to NNEF.
 
     In general NNEF spec is against dynamism it could provide so
@@ -178,7 +180,7 @@ def ones(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         g,
         torch_graph,
         name_to_tensor,
-        has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=dtype,
         tensor_build_fn=torch.ones,
     )
@@ -189,7 +191,7 @@ def _x_like(
     torch_graph,
     name_to_tensor,
     node,
-    has_dynamic_axes,
+    inference_target,
     tensor_build_fn,
     **kwargs,
 ):
@@ -203,7 +205,10 @@ def _x_like(
             dtype = input_node.dtype
 
     shape_node = input_node.shape
-    if has_dynamic_axes:
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    ):
         # in this case we need to get full expansion of input_node shape
         input_tensor = get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
@@ -256,14 +261,13 @@ def _x_like(
                     dtype=input_node.dtype,
                 )
             )
-
     return _generic_auto_tensor_expansion(
         shape_node,  # not dynamic for now
         node,
         g,
         torch_graph,
         name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=dtype,
         tensor_build_fn=tensor_build_fn,
     )
@@ -290,7 +294,7 @@ def ones_like(**kwargs):
 
 
 @OP_REGISTRY.register()
-def new_zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def new_zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
     (
         input_node,  # input_node,
         shape_node,
@@ -313,14 +317,14 @@ def new_zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         g,
         torch_graph,
         name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=dtype,
         tensor_build_fn=torch.zeros,
     )
 
 
 @OP_REGISTRY.register()
-def zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
     (
         shape_node,
         dtype_node,
@@ -339,14 +343,14 @@ def zeros(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         g,
         torch_graph,
         name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=dtype,
         tensor_build_fn=torch.zeros,
     )
 
 
 @OP_REGISTRY.register()
-def full(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
+def full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
     (shape_node, val_node, _, _, _, _) = node.inputs  # device_node,  # False
 
     def full_fn(*args, **kwargs):
@@ -358,7 +362,7 @@ def full(g, node, name_to_tensor, torch_graph, has_dynamic_axes, **kwargs):
         g,
         torch_graph,
         name_to_tensor,
-        has_dynamic_axes=has_dynamic_axes,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=torch.float32,
         tensor_build_fn=full_fn,
     )
@@ -384,18 +388,16 @@ def copy(
 @OP_REGISTRY.register(
     torch_op_ids=[_.replace("aten::", "") for _ in MAP_TO_NOP]
 )
-def _post_graph_creation_remap(
-    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
-):
+def _post_graph_creation_remap(g, node, name_to_tensor, torch_graph, **kwargs):
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
 
 
-def _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper: bool = True):
+def _trilu(g, name_to_tensor, node, inference_target, is_upper: bool = True):
     (input_node, diag_node) = node.inputs
-    if nnef_spec_strict:
+    if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError("trilu need `tract_core_trilu`")
 
-    if tract_version() < "0.21.3":
+    if inference_target.version < "0.21.3":
         raise TorchToNNEFNotImplementedError(
             "triu need `tract_core_trilu` from tract >= 0.21.4 "
             "(prior nnef deserialization was failing)"
@@ -428,12 +430,10 @@ def triu(
     g,
     node,
     name_to_tensor,
-    torch_graph,
-    has_dynamic_axes,
-    nnef_spec_strict,
+    inference_target,
     **kwargs,
 ):
-    return _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper=True)
+    return _trilu(g, name_to_tensor, node, inference_target, is_upper=True)
 
 
 @OP_REGISTRY.register()
@@ -441,9 +441,7 @@ def tril(
     g,
     node,
     name_to_tensor,
-    torch_graph,
-    has_dynamic_axes,
-    nnef_spec_strict,
+    inference_target,
     **kwargs,
 ):
-    return _trilu(g, name_to_tensor, node, nnef_spec_strict, is_upper=False)
+    return _trilu(g, name_to_tensor, node, inference_target, is_upper=False)

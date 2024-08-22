@@ -4,7 +4,9 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
+from torch_to_nnef.op.aten.complex import tract_complex_support
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,
@@ -21,7 +23,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def div(g, node, name_to_tensor, inference_target, **kwargs):
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
     suffix_div_op_output = ""
@@ -43,9 +45,9 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
     if hasattr(input_node, "dtype") and input_node.dtype in int_types:
         io_casting_with_dtype = input_node.np_dtype
-        if nnef_spec_strict:
+        if isinstance(inference_target, KhronosNNEF):
             raise TorchToNNEFNotImplementedError(
-                "What NNEF compliance mean in such case ?"
+                "What NNEF compliance means in such case ?"
             )
         input_tensor, custom_fragments = cast_to_if_not_dtype_and_variable(
             g=g,
@@ -90,9 +92,9 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
             used_custom_fragment.append(rounding_mode)
 
     if io_casting_with_dtype is not None:
-        if nnef_spec_strict:
+        if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(
-                "What NNEF compliance mean in such case ?"
+                "What NNEF compliance mean in such case ?", inference_target
             )
         _, custom_fragments = cast_to_if_not_dtype_and_variable(
             g=g,
@@ -107,10 +109,14 @@ def div(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 @OP_REGISTRY.register()
 def floor_divide(
-    g, node, name_to_tensor, has_dynamic_axes, torch_graph, **kwargs
+    g, node, name_to_tensor, inference_target, torch_graph, **kwargs
 ):
     input_node, divisor_node = node.inputs
-    if input_node.data and divisor_node.data and not has_dynamic_axes:
+    if (
+        input_node.data
+        and divisor_node.data
+        and not inference_target.has_dynamic_axes
+    ):
         # avoid graph computation since static
         idata = float(
             input_node.data.tolist()
@@ -152,7 +158,7 @@ def floor_divide(
 
 
 @OP_REGISTRY.register()
-def trunc(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def trunc(g, node, name_to_tensor, **kwargs):
     add_single_output_op(
         g,
         node,
@@ -198,8 +204,8 @@ def pow_(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(torch_op_ids=["round"])
-def round_(nnef_spec_strict, **kwargs):
-    if nnef_spec_strict:
+def round_(inference_target, **kwargs):
+    if not isinstance(inference_target, TractNNEF):
         LOGGER.warning(
             "round: Spec definition of round in NNEF does not follow IEEE, "
             "so it will not be exactly same behavior"
@@ -304,13 +310,12 @@ def _abs(
     node,
     name_to_tensor,
     null_ref,
-    nnef_spec_strict,
-    tract_feature_flags,
+    inference_target,
     torch_graph,
     **kwargs,
 ):
     if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
-        if nnef_spec_strict:
+        if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(
                 "NNEF compliance does not allow complex"
             )
@@ -318,7 +323,7 @@ def _abs(
             g, node.inputs[0], name_to_tensor
         )
         # to real, pow(2), slice both, add 2 tensors, rsqr
-        if tract_feature_flags is not None and "complex" in tract_feature_flags:
+        if tract_complex_support(inference_target):
             input_tensor = add_single_output_op(
                 g,
                 node,

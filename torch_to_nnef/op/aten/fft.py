@@ -2,7 +2,8 @@ import nnef
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
     get_or_add_tensor_variable_in_nnef,
@@ -17,15 +18,16 @@ def _fft(
     node,
     g,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
+    inference_target,
     inverse=False,
-    tract_feature_flags=None,
 ):
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
     # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("NNEF strict can not export FFT")
+    if (
+        not isinstance(inference_target, TractNNEF)
+        or inference_target.version < "0.20.7"
+    ):
+        raise TorchToNNEFNotImplementedError(inference_target)
     input_node, n_node, dim_node, norm_node = node.inputs
     if n_node.data is not None or norm_node.data is not None:
         raise TorchToNNEFNotImplementedError("n or norm unexpected")
@@ -80,7 +82,7 @@ def _fft(
         output_tensor_name_suffix=suffix,
     )
     if inverse and norm_node.data == "backward":
-        if has_dynamic_axes:
+        if inference_target.has_dynamic_axes:
             raise TorchToNNEFNotImplementedError("Need to use implement")
 
         divisor_value = input_node.shape[dim]
@@ -116,17 +118,16 @@ def stft(
     g,
     node,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "STFT not supported by vanilla NNEF"
-        )
+    if (
+        not isinstance(inference_target, TractNNEF)
+        or inference_target.version < "0.20.7"
+    ):
+        raise TorchToNNEFNotImplementedError(inference_target)
     (
         input_node,  # Tensor
         n_fft_node,  # int,
@@ -246,19 +247,15 @@ def fft_fft(
     g,
     node,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     return _fft(
         node,
         g,
         name_to_tensor,
-        nnef_spec_strict,
-        has_dynamic_axes,
         inverse=False,
-        tract_feature_flags=tract_feature_flags,
+        inference_target=inference_target,
     )
 
 
@@ -267,17 +264,13 @@ def fft_ifft(
     g,
     node,
     name_to_tensor,
-    nnef_spec_strict,
-    has_dynamic_axes,
-    tract_feature_flags,
+    inference_target,
     **kwargs,
 ):
     return _fft(
         node,
         g,
         name_to_tensor,
-        nnef_spec_strict,
-        has_dynamic_axes,
         inverse=True,
-        tract_feature_flags=tract_feature_flags,
+        inference_target=inference_target,
     )

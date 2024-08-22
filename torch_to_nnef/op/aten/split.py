@@ -1,5 +1,5 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_multi_output_op,
     add_tensor_variable_node_as_nnef_tensor,
