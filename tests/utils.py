@@ -19,9 +19,9 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
+from torch_to_nnef.inference_target.tract import TractCli, build_io
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.tract import TractCli, build_io
 
 TRACT_INFERENCES_TO_TESTS = [
     # we maintain last 3 majors of tract

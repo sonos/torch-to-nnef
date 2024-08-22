@@ -13,7 +13,7 @@ from torch import nn
 from tests.utils import INFERENCE_TARGETS_TO_TESTS
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.tract import build_io
+from torch_to_nnef.inference_target.tract import build_io
 
 
 class MyDumbNN(nn.Module):

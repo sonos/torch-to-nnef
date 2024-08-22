@@ -12,7 +12,7 @@ from torch.nn import init
 
 from tests.utils import TRACT_INFERENCES_TO_TESTS
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.tract import build_io
+from torch_to_nnef.inference_target.tract import build_io
 
 
 class SqueezeExcitationBlock1d(nn.Module):

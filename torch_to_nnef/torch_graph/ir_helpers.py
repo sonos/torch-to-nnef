@@ -41,10 +41,13 @@ from torch_to_nnef.torch_graph.torch_const import (
     TUPLECONSTRUCT_KIND,
     TUPLEUNPACK_KIND,
 )
-from torch_to_nnef.tract import nop
 from torch_to_nnef.utils import NamedItemOrderedSet
 
 LOGGER = logging.getLogger(__name__)
+
+
+def nop(x, *args, **kwargs):
+    return x
 
 
 def _node_get(node: torch._C.Node, key: str):
