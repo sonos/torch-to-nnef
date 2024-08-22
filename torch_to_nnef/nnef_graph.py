@@ -15,13 +15,10 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.model_wrapper import WrapStructIO
+from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
-)
-from torch_to_nnef.op.primitive import (
-    aten_to_nnef_tensor_and_ops,
-    primitive_ops_registry,
 )
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
@@ -209,7 +206,7 @@ class TorchToNGraphExtractor:
         name_to_tensor: T.Dict[str, NTensor] = {}
         ginputs = []
         for node in self._torch_ir_graph.inputs:
-            op, custom_fragments = primitive_ops_registry.get("external")(
+            op, custom_fragments = aten_ops_registry.get("external")(
                 self.g,
                 node,
                 name_to_tensor,

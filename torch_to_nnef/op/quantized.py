@@ -14,7 +14,7 @@ from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     OpHelper,
     QuantizedOpRegistry,
     add_nnef_operation,

@@ -15,7 +15,7 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     AtenOpRegistry,
     SimpleOpChainer,
     add_nnef_operation,

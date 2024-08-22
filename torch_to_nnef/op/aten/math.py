@@ -5,7 +5,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     AtenOpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,
@@ -13,7 +13,7 @@ from torch_to_nnef.op.primitive.base import (
     unary_input_output_op_with_constant,
     unary_output_op_without_params,
 )
-from torch_to_nnef.op.primitive.complex import tract_complex_support
+from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.torch_graph import PythonConstant
 from torch_to_nnef.torch_graph.ir_data import TensorVariable
 

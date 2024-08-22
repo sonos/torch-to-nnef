@@ -4,7 +4,7 @@ import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     AtenOpRegistry,
     add_single_output_op,
     cast_to_if_not_dtype_and_variable,

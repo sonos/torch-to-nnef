@@ -2,7 +2,7 @@ import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
-from torch_to_nnef.op.primitive.base import AtenOpRegistry
+from torch_to_nnef.op.aten.base import AtenOpRegistry
 
 OP_REGISTRY = AtenOpRegistry()
 

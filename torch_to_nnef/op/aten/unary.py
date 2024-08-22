@@ -1,4 +1,4 @@
-from torch_to_nnef.op.primitive import base
+from torch_to_nnef.op.aten import base
 
 REMAP_ATEN_OP_NAMES = {
     "_relu": "relu",

@@ -6,7 +6,7 @@ from functools import reduce
 from torch_to_nnef.inference_target import InferenceTarget
 
 # pylint: disable-next=redefined-builtin
-from torch_to_nnef.op.primitive import (
+from torch_to_nnef.op.aten import (
     activation,
     attn,
     axes_change,
@@ -27,9 +27,9 @@ from torch_to_nnef.op.primitive import (
     tensor_build,
     unary,
 )
-from torch_to_nnef.op.primitive.base import OpHelper
+from torch_to_nnef.op.aten.base import OpHelper
 
-primitive_ops_registry = reduce(
+aten_ops_registry = reduce(
     operator.add,
     [
         mod.OP_REGISTRY
@@ -82,7 +82,7 @@ def aten_to_nnef_tensor_and_ops(
         aten_op_id = aten_op_id[:-1]
 
     try:
-        return primitive_ops_registry.get(aten_op_id)(
+        return aten_ops_registry.get(aten_op_id)(
             g=g,
             node=node,
             name_to_tensor=name_to_tensor,

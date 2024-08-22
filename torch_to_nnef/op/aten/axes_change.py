@@ -1,12 +1,12 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     AtenOpRegistry,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
 )
-from torch_to_nnef.op.primitive.complex import (
+from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant

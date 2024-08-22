@@ -3,7 +3,7 @@ import typing as T
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
-from torch_to_nnef.op.primitive.base import (
+from torch_to_nnef.op.aten.base import (
     AtenOpRegistry,
     add_single_output_op,
     cast_and_add_nnef_operation,

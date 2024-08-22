@@ -47,7 +47,7 @@ class _RNNMixin:
 
     def _pre_batch_first(self, g, input_tensor, node, name_to_tensor):
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         transposed_input_tensor = base.add_tensor_variable_node_as_nnef_tensor(
             g, node.inputs[0], name_to_tensor, name_suffix="transposed"
@@ -63,7 +63,7 @@ class _RNNMixin:
 
     def _post_batch_first(self, g, input_tensor, node, name_to_tensor):
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         input_tensor.name += "_batch_first"
         out_transpose_tensor = base.add_tensor_variable_node_as_nnef_tensor(
@@ -84,7 +84,7 @@ class _RNNMixin:
         """allow to concat last from each layers for h_t and and c_t"""
 
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         for idx, out_node in enumerate(node.outputs[1:]):
             real_output = base.add_tensor_variable_node_as_nnef_tensor(
@@ -120,7 +120,7 @@ class _RNNMixin:
 
         """
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         assert tensor_variable is None, tensor_variable
         variable_storage_id = f"{var_name}_store"
@@ -228,7 +228,7 @@ class _RNNMixin:
         from torch_to_nnef import torch_graph as tg
 
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         name_to_nnef_variable = {}
         for var_name, item in self.tensor_params(
@@ -309,7 +309,7 @@ class _RNNMixin:
         self, g, name_to_tensor, linfo: str, module: T_RNNS, node
     ) -> T.List[NTensor]:
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         return [
             base.add_tensor_variable_node_as_nnef_tensor(
@@ -334,7 +334,7 @@ class _RNNMixin:
         module: T_RNNS,
     ):
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op.aten import base
 
         out_packed_bidi = base.add_tensor_variable_node_as_nnef_tensor(
             g,
