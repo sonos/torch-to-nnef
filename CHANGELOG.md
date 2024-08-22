@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## [0.13.0] - 2024-08-22
+
+### Added
+
+- Support for explicit `InferenceTarget` in core function `export_model_to_nnef` (so far 2 variants: `KhronosNNEF` and `TractNNEF`)
+- Added `KhronosNNEF` test suite based on nnef-tool interpreter
+- In case of `TractNNEF` binary management is handled internally (no more system wide `tract` reference)
+
+### Change
+
+- refactor tract within inference_target
+- refactor module "primitives" as "aten"
+- refactor class "NamedItemOrderedSet" as "ReactiveNamedItemDict"
+- updated README in accordance with new exposed API
+
 ## [0.12.3] - 2024-08-21
 
 ### Added
