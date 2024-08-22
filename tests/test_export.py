@@ -257,3 +257,19 @@ def test_primitives():
             log_level=log.INFO,
             inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
+
+
+def test_without_names():
+    test_input = torch.rand(1, 2)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef"
+        model = MultiInputsPrimitives()
+        model = model.eval()
+
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, True, 2),
+            file_path_export=export_path,
+            log_level=log.INFO,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
+        )

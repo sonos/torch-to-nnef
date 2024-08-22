@@ -14,6 +14,7 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.model_wrapper import WrapStructIO
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
@@ -74,6 +75,8 @@ class TorchToNGraphExtractor:
         self.activated_custom_fragment_keys: T.Set[str] = set()
 
     def smart_graph_name(self, model):
+        if isinstance(model, WrapStructIO):
+            model = model.model
         return str(model.__class__.__name__).replace(".", "_").lower()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):

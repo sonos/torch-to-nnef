@@ -109,28 +109,21 @@ if hasattr(audio_mdl, "ConvTasNet"):
     )
 
 
-class FilterOut(torch.nn.Module):
-    def __init__(self, wav2vec2_encoder):
-        super().__init__()
-        self.wav2vec2_encoder = wav2vec2_encoder.cpu()
-
-    def forward(
-        self,
-        features,
-    ):
-        return self.wav2vec2_encoder.transformer(features, attention_mask=None)
-
-
 wav2vec2_model = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H.get_model()
 remove_weight_norm(wav2vec2_model)
 wav2vec2_model.eval()
 
 
 test_suite.add(
-    torch.rand(1, 2, 768),
-    FilterOut(wav2vec2_model.encoder),
+    (torch.rand(1, 1, 512),),
+    wav2vec2_model.encoder,
     test_name="wav2vec2_encoder",
 )
+# test_suite.add(
+#     (torch.rand(1, 16000),),
+#     wav2vec2_model,
+#     test_name="wav2vec2",
+# ) # 1: eval() called on a Dummy op. This is a bug.
 
 # export pretrained work but multi_head might give different values
 test_suite.add(
