@@ -13,7 +13,7 @@ from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFError
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
 
 from .utils import (  # noqa: E402
@@ -155,7 +155,6 @@ for op in [
     partial(torch.permute, dims=[1, 0]),
     partial(torch.reshape, shape=(2, 5, 2)),
     partial(torch.unsqueeze, dim=1),
-    partial(nn.functional.pad, pad=(1, 0), mode="reflect"),
     partial(torch.clamp, min=5.0, max=20.0),
     partial(torch.clamp, min=10.0),
     partial(torch.clamp, max=11.0),
@@ -167,7 +166,22 @@ for op in [
 ]:
     test_suite.add(inp, UnaryPrimitive(op))
 
-test_suite.add((torch.rand(10) - 0.5) * 3, TensorFnPrimitive("trunc"))
+
+def skip_khronos_interpreter(i):
+    return not isinstance(i, KhronosNNEF)
+
+
+test_suite.add(
+    inp,
+    UnaryPrimitive(partial(nn.functional.pad, pad=(1, 0), mode="reflect")),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(10) - 0.5) * 3,
+    TensorFnPrimitive("trunc"),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
 
 
 inp = torch.rand(13, 10, 1)
@@ -182,12 +196,16 @@ for op in [
     TensorFnPrimitive("argmin", {"dim": 1}),
     TensorFnPrimitive("view", args=(13, 5, 2)),
     TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
-    TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
-    TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
-    TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
     TensorFnPrimitive("clamp_min", args=(0.5,)),
     TensorFnPrimitive("clamp_max", args=(0.5,)),
     TensorFnPrimitive("new_zeros", kwargs=dict(size=(3, 2))),
+    TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
+]:
+    test_suite.add(inp, UnaryPrimitive(op))
+
+for op in [
+    TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
+    TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),
     partial(
         nn.functional.pad,
         pad=[0, 0, 0, 0, 0, 1],
@@ -201,14 +219,20 @@ for op in [
         value=2.0,
     ),
 ]:
-    test_suite.add(inp, UnaryPrimitive(op))
+    test_suite.add(
+        inp, UnaryPrimitive(op), inference_conditions=skip_khronos_interpreter
+    )
 
 for op in [
     TensorFnPrimitive("expand", args=(3, 2, 1, 10)),
     TensorFnPrimitive("expand", args=(-1, 2, -1, -1)),
     TensorFnPrimitive("expand", args=(2, 3, 2, 1, 10)),
 ]:
-    test_suite.add(torch.rand(3, 1, 1, 10), UnaryPrimitive(op))
+    test_suite.add(
+        torch.rand(3, 1, 1, 10),
+        UnaryPrimitive(op),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 for op in [
     # TensorFnPrimitive("any", {"dim": 1}),
@@ -271,6 +295,7 @@ for op in [
 test_suite.add(
     torch.tensor([1, 0, 1]),
     TensorFnPrimitive("to", {"dtype": torch.bool}),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 
@@ -308,22 +333,34 @@ for layer in [
     nn.Conv1d(10, 20, 3, padding=3),
     nn.Conv1d(10, 20, 3, padding="valid"),
     nn.Conv1d(10, 20, 3, padding="same"),
-    nn.BatchNorm1d(10, eps=0, momentum=0.1),
     nn.MaxPool1d(10, stride=3, padding=2, dilation=1),
     nn.AvgPool1d(10),
-    nn.ConvTranspose1d(10, 20, 3),
-    nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
 ]:
     test_suite.add(torch.rand(1, 10, 100), layer)
 
+for layer in [
+    nn.BatchNorm1d(10, eps=0, momentum=0.1),
+    nn.ConvTranspose1d(10, 20, 3),
+    nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
+]:
+    test_suite.add(
+        torch.rand(1, 10, 100),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )  # issue with KhronosNNEF on our side (dim expansion)
+
 # Activations
 for activation in [
-    nn.ELU(),
-    nn.LeakyReLU(),
-    nn.PReLU(),
-    nn.ReLU(),
     nn.Sigmoid(),
+    nn.ReLU(),
     nn.Tanh(),
+]:
+    test_suite.add(torch.rand(1, 10, 100), activation)
+
+for activation in [
+    nn.LeakyReLU(),
+    nn.ELU(),
+    nn.PReLU(),
     nn.Softmax(1),
     nn.Softplus(),
     UnaryPrimitive(torch.erf),
@@ -337,7 +374,11 @@ for activation in [
     nn.ReLU6(),
     nn.Hardswish(),
 ]:
-    test_suite.add(torch.rand(1, 10, 100), activation)
+    test_suite.add(
+        torch.rand(1, 10, 100),
+        activation,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 # Test composition is expanded correctly
 test_suite.add(
@@ -375,7 +416,11 @@ for layer in [
     nn.LSTM(20, 5, proj_size=3, num_layers=2),
 ]:
     # L x N x H
-    test_suite.add(torch.rand(33, 1, 20), layer)
+    test_suite.add(
+        torch.rand(33, 1, 20),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 for layer in [
     nn.GRU(10, 5, batch_first=True, num_layers=1),
@@ -384,7 +429,11 @@ for layer in [
     nn.RNN(10, 5, batch_first=True, bidirectional=True, num_layers=1),
 ]:
     # N x L x  H
-    test_suite.add(torch.rand(1, 3, 10), layer)
+    test_suite.add(
+        torch.rand(1, 3, 10),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 
 for layer in [
@@ -396,22 +445,37 @@ for layer in [
     torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
     torch.nn.GLU(),
 ]:
-    # N x L x  H
-    test_suite.add(torch.rand(1, 3, 10), layer)
+    test_suite.add(
+        torch.rand(1, 3, 10),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
-for op in [
-    UnaryPrimitive(partial(torch.unbind, axis=1)),
+test_suite.add(
+    torch.arange(6).reshape(1, 2, 3).float(),
     ListInputPrim(torch.stack, y=torch.arange(6).reshape(1, 2, 3).float()),
-]:
-    test_suite.add(torch.arange(6).reshape(1, 2, 3).float(), op)
+)
+test_suite.add(
+    torch.arange(6).reshape(1, 2, 3).float(),
+    UnaryPrimitive(partial(torch.unbind, axis=1)),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 #
 mdl = nn.GroupNorm(num_groups=3, num_channels=6, eps=0.0)
 mdl.requires_grad_ = False
 mdl.eval()
-test_suite.add(torch.arange(12).reshape(1, 6, 2).float(), mdl)
-test_suite.add(torch.arange(12).reshape(1, 6, 2, 1).float(), mdl)
+test_suite.add(
+    torch.arange(12).reshape(1, 6, 2).float(),
+    mdl,
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    torch.arange(12).reshape(1, 6, 2, 1).float(),
+    mdl,
+    inference_conditions=skip_khronos_interpreter,
+)
 
 # torch.select
 for op in [
@@ -424,7 +488,9 @@ for op in [
 
 # torch.erf
 test_suite.add(
-    torch.arange(6).reshape(1, 2, 3).float(), UnaryPrimitive(torch.erf)
+    torch.arange(6).reshape(1, 2, 3).float(),
+    UnaryPrimitive(torch.erf),
+    inference_conditions=skip_khronos_interpreter,  # unssuported by interpreter
 )
 
 
@@ -439,6 +505,7 @@ test_suite.add(
     torch.nn.MultiheadAttention(
         hidden_dim, num_heads=n_heads, dropout=0.0, batch_first=True
     ),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 test_suite.add(
@@ -448,6 +515,7 @@ test_suite.add(
         torch.arange(6).reshape(1, 2, 3).float(),  # batch2=(b×m×p)
     ),
     TernaryPrimitive(torch.baddbmm),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 
@@ -457,6 +525,7 @@ test_suite.add(
         torch.arange(6).reshape(1, 2, 3).float() + 1.0,
     ),
     BinaryPrimitive(torch.remainder),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 test_suite.add(
@@ -614,7 +683,11 @@ for layer in [
     nn.ConvTranspose2d(128, 64, kernel_size=(4, 1), groups=64),
     nn.Conv2d(128, 64, kernel_size=(4, 1), groups=32),
 ]:
-    test_suite.add(torch.rand(1, 128, 8, 3), layer)
+    test_suite.add(
+        torch.rand(1, 128, 8, 3),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 try:
     from torch.nn.utils import weight_norm as wn
@@ -631,6 +704,7 @@ try:
             ),
             dim=2,
         ),
+        inference_conditions=skip_khronos_interpreter,
     )
 except ImportError as exp:
     print("not yet weight_norm import:", exp)

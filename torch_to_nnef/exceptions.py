@@ -22,6 +22,10 @@ class TorchToNNEFNotImplementedError(NotImplementedError, TorchToNNEFError):
     pass
 
 
+class KhronosInterpreterDiffValueError(ValueError, TorchToNNEFError):
+    pass
+
+
 class DynamicShapeValue(ValueError, TorchToNNEFError):
     pass
 

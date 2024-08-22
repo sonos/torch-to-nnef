@@ -14,7 +14,11 @@ import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
 
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.inference_target import (
+    InferenceTarget,
+    KhronosNNEF,
+    TractNNEF,
+)
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.tract import TractCli, build_io
@@ -40,9 +44,7 @@ elif "T2N_TEST_TRACT_VERSION" in os.environ:
     TRACT_INFERENCES_TO_TESTS = [_tract_inf]
 
 
-INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
-    # TODO: add KhronosNNEF 1.0.5
-]
+INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [KhronosNNEF("1.0.5")]
 
 
 def change_dynamic_axes(it, dynamic_axes):
@@ -71,6 +73,9 @@ class TestSuiteInferenceExactnessBuilder:
             module = str(module.__class__.__name__) + "__" + str(module)[:100]
         test_name = f"{module}({data_fmt})"
         return test_name
+
+    def reset(self):
+        self.test_samples = []
 
     def add(
         self,

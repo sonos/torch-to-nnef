@@ -360,7 +360,7 @@ class TorchOp:
         for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
                 data_node.data = result
-            if isinstance(data_node, TensorVariable):
+            if isinstance(data_node, TensorVariable) and result is not None:
                 if self.kind == ATEN_SIZE_KIND:
                     # note this is a special case where we fix variable value
                     data_node.data = result

@@ -60,7 +60,7 @@ def expand(g, node, name_to_tensor, inference_target, **kwargs):
         shape_node,
         shapes,
         node,
-        inference_target.has_dynamic_axes,
+        inference_target=inference_target,
     )
 
     out = add_single_output_op(
@@ -84,7 +84,12 @@ def expand(g, node, name_to_tensor, inference_target, **kwargs):
             "shape": _fill_negone_with_dim_by_rank_order(input_node, shapes)
         },
     )
-    return ["tract_core"]
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    ):
+        return ["tract_core"]
+    return []
 
 
 def div_expand_repeat_build(
@@ -95,7 +100,7 @@ def div_expand_repeat_build(
     idx,
     input_dim,
     shape_dim,
-    is_dynamic_shape,
+    inference_target,
 ):
     output_tensor = add_tensor_variable_node_as_nnef_tensor(
         g,
@@ -109,7 +114,7 @@ def div_expand_repeat_build(
         name_suffix="",
         prevent_variable=True,
     )
-    if is_dynamic_shape:
+    if inference_target.has_dynamic_axes:
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
         divisor_nnef_tensor_tensor = add_single_output_op(
@@ -158,17 +163,18 @@ def div_expand_repeat_build(
         attribs={},
         force_consistent_inputs_shapes=False,
     )
-    output_tensor = add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "tract_core_cast",
-        inputs=output_tensor,
-        attrs={
-            "to": "tdim",
-        },
-        output_tensor_name_suffix=f"casted{idx}",
-    )
+    if isinstance(inference_target, TractNNEF):
+        output_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=output_tensor,
+            attrs={
+                "to": "tdim",
+            },
+            output_tensor_name_suffix=f"casted{idx}",
+        )
     return output_tensor
 
 
@@ -179,13 +185,15 @@ def _append_repeats_on_existing_dims(
     input_node,
     shapes,
     input_shape_nnef_tensor,
-    is_dynamic_shape,
+    inference_target,
 ):
     repeats = []
     for idx, (input_dim, shape_dim) in enumerate(
         zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
-        if shape_dim in [-1, input_dim]:
+        if shape_dim in [-1, input_dim] and isinstance(
+            inference_target, TractNNEF
+        ):
             output_tensor = add_single_output_op(
                 g,
                 node,
@@ -221,7 +229,7 @@ def _append_repeats_on_existing_dims(
                                 idx,
                                 input_dim,
                                 shape_dim,
-                                is_dynamic_shape,
+                                inference_target,
                             ).name
                         )
                     )
@@ -234,10 +242,13 @@ def _append_repeats_on_existing_dims(
 
 
 def _expand_build_repeats(
-    g, name_to_tensor, input_node, shape_node, shapes, node, is_dynamic_shape
+    g, name_to_tensor, input_node, shape_node, shapes, node, inference_target
 ):
     input_shape_nnef_tensor = None
-    if is_dynamic_shape:
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    ):
         input_shape_nnef_tensor = add_single_output_op(
             g,
             node,
@@ -255,7 +266,7 @@ def _expand_build_repeats(
         input_node,
         shapes,
         input_shape_nnef_tensor,
-        is_dynamic_shape,
+        inference_target,
     )
 
     if len(shape_node.data) - input_node.rank > 0:
