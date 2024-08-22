@@ -17,7 +17,7 @@ from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.tract import build_io
+from torch_to_nnef.tract import TractCli, build_io
 
 TRACT_INFERENCES_TO_TESTS = [
     # we maintain last 3 majors of tract
@@ -25,6 +25,20 @@ TRACT_INFERENCES_TO_TESTS = [
     TractNNEF(version="0.20.22"),
     TractNNEF(version="0.19.16"),
 ]
+
+# Options to easily test new tract versions
+if "T2N_TEST_TRACT_PATH" in os.environ:
+    _tract_cli_path = Path(os.environ["T2N_TEST_TRACT_PATH"])
+    assert _tract_cli_path.exists(), _tract_cli_path
+    _tract_cli = TractCli(_tract_cli_path)
+    _tract_inf = TractNNEF(
+        _tract_cli.version, specific_tract_binary_path=_tract_cli_path
+    )
+    TRACT_INFERENCES_TO_TESTS = [_tract_inf]
+elif "T2N_TEST_TRACT_VERSION" in os.environ:
+    _tract_inf = TractNNEF(os.environ["T2N_TEST_TRACT_VERSION"])
+    TRACT_INFERENCES_TO_TESTS = [_tract_inf]
+
 
 INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
     # TODO: add KhronosNNEF 1.0.5
