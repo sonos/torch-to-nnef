@@ -60,7 +60,6 @@ test_suite.add(
     ids=test_suite.ids,
 )
 def test_llama_export(id, test_input, model, inference_target):
-    """Test simple models"""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

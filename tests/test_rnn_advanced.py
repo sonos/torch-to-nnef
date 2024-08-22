@@ -1,7 +1,9 @@
+import pytest
 import torch
 from torch import nn
+from transformers.models.deprecated.tvlt.modeling_tvlt import deepcopy
 
-from .utils import check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
 class LSTMWrapper(nn.Module):
@@ -15,7 +17,8 @@ class LSTMWrapper(nn.Module):
         return y, hnew, cnew
 
 
-def test_manage_lstm_states():
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+def test_manage_lstm_states(inference_target):
     seqlen = 10
     batch = 16
     inputs = 2
@@ -24,6 +27,15 @@ def test_manage_lstm_states():
     module = LSTMWrapper(inputs, outputs)
     x = torch.rand(seqlen, batch, inputs)
 
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "input": {0: "S", 1: "B"},
+        "input_state_1": {1: "B"},
+        "input_state_2": {1: "B"},
+        "output": {0: "S", 1: "B"},
+        "output_state_1": {1: "B"},
+        "output_state_2": {1: "B"},
+    }
     check_model_io_test(
         model=module,
         test_input=(
@@ -33,18 +45,12 @@ def test_manage_lstm_states():
         ),
         input_names=["input", "input_state_1", "input_state_2"],
         output_names=["output", "output_state_1", "output_state_2"],
-        dynamic_axes={
-            "input": {0: "S", 1: "B"},
-            "input_state_1": {1: "B"},
-            "input_state_2": {1: "B"},
-            "output": {0: "S", 1: "B"},
-            "output_state_1": {1: "B"},
-            "output_state_2": {1: "B"},
-        },
+        inference_target=inference_target,
     )
 
 
-def test_manage_lstm_states_multi_layers():
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+def test_manage_lstm_states_multi_layers(inference_target):
     seqlen = 10
     batch = 16
     inputs = 2
@@ -53,6 +59,16 @@ def test_manage_lstm_states_multi_layers():
     module = LSTMWrapper(inputs, outputs, 3)
     x = torch.rand(seqlen, batch, inputs)
 
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "input": {0: "S", 1: "B"},
+        "input_state_1": {1: "B"},
+        "input_state_2": {1: "B"},
+        "output": {0: "S", 1: "B"},
+        "output_state_1": {1: "B"},
+        "output_state_2": {1: "B"},
+    }
+
     check_model_io_test(
         model=module,
         test_input=(
@@ -62,18 +78,11 @@ def test_manage_lstm_states_multi_layers():
         ),
         input_names=["input", "input_state_1", "input_state_2"],
         output_names=["output", "output_state_1", "output_state_2"],
-        dynamic_axes={
-            "input": {0: "S", 1: "B"},
-            "input_state_1": {1: "B"},
-            "input_state_2": {1: "B"},
-            "output": {0: "S", 1: "B"},
-            "output_state_1": {1: "B"},
-            "output_state_2": {1: "B"},
-        },
+        inference_target=inference_target,
     )
 
 
-def _test_mono_states_rnn(cls):
+def _test_mono_states_rnn(cls, inference_target):
     seqlen = 10
     batch = 16
     inputs = 2
@@ -82,23 +91,28 @@ def _test_mono_states_rnn(cls):
     module = cls(inputs, outputs)
     x = torch.rand(seqlen, batch, inputs)
 
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "input": {0: "S", 1: "B"},
+        "input_state_1": {1: "B"},
+        "output": {0: "S", 1: "B"},
+        "output_state_1": {1: "B"},
+    }
+
     check_model_io_test(
         model=module,
         test_input=(x, torch.rand(1, batch, outputs)),
         input_names=["input", "input_state_1"],
         output_names=["output", "output_state_1"],
-        dynamic_axes={
-            "input": {0: "S", 1: "B"},
-            "input_state_1": {1: "B"},
-            "output": {0: "S", 1: "B"},
-            "output_state_1": {1: "B"},
-        },
+        inference_target=inference_target,
     )
 
 
-def test_manage_gru_states():
-    _test_mono_states_rnn(nn.GRU)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+def test_manage_gru_states(inference_target):
+    _test_mono_states_rnn(nn.GRU, inference_target)
 
 
-def test_manage_rnn_states():
-    _test_mono_states_rnn(nn.RNN)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+def test_manage_rnn_states(inference_target):
+    _test_mono_states_rnn(nn.RNN, inference_target)

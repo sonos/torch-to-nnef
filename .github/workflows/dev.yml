@@ -22,9 +22,6 @@ jobs:
       matrix:
         python-versions: [3.9, 3.12]
         os: [ubuntu-latest] # , macos-latest disabled since we have limited use
-        # we check 3 minor tract versions
-        # with only latest patch version maintained
-        tract-versions: [0.19.16, 0.20.22, 0.21.6]
     runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -49,23 +46,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-versions }}
 
-      - name: Install tract
-        run: |
-          ./dl_ci_tract.sh ${{ matrix.tract-versions }}
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install poetry tox tox-gh-actions
 
       - name: test with tox
-        run:
-          TRACT_PATH=.tract/tract-x86_64-unknown-linux-musl-${{ matrix.tract-versions }}/tract tox
+        run: tox
 
       - name: list files
         run: ls -l .
-
-      - name: "cleanup gihtub action host"
-        if: always()
-        run: |
-          rm -rf ./*

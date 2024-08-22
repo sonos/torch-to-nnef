@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.op.primitive.base import (
     AtenOpRegistry,
     add_single_output_op,
@@ -16,7 +17,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def quantize_per_tensor(g, node, name_to_tensor, inference_target, **kwargs):
     (
         input_node,
         scale_node,
@@ -34,7 +35,7 @@ def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         "symmetric": False,
         "op-name": "zero_point_linear_quantize",
     }
-    if nnef_spec_strict:
+    if isinstance(inference_target, KhronosNNEF):
         LOGGER.debug(
             "quantize with nnef_spec_strict: set quant info on direct output"
         )
@@ -52,7 +53,7 @@ def quantize_per_tensor(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
 
 
 @OP_REGISTRY.register()
-def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def dequantize(g, node, name_to_tensor, inference_target, **kwargs):
     """
     We will only handle the case of zero_point affine quantization for now.
     which in reverse of quantization is:
@@ -63,10 +64,8 @@ def dequantize(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError(
-            "What NNEF compliance mean in such case"
-        )
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
     _, fragment_names = cast_to_if_not_dtype_and_variable(
         g,
         name_to_tensor,
