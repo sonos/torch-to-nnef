@@ -4,7 +4,7 @@ import pytest
 
 from torch_to_nnef.utils import (
     NamedItem,
-    NamedItemOrderedSet,
+    ReactiveNamedItemDict,
     flatten_dict_tuple_or_list,
 )
 
@@ -15,7 +15,7 @@ class MyDataItem(NamedItem):
 
 
 def test_named_items_base():
-    nos = NamedItemOrderedSet(
+    nos = ReactiveNamedItemDict(
         [
             MyDataItem("a"),
             MyDataItem("b"),
@@ -26,7 +26,7 @@ def test_named_items_base():
 
 
 def test_named_items_rename():
-    nos = NamedItemOrderedSet(
+    nos = ReactiveNamedItemDict(
         [
             MyDataItem("a"),
             MyDataItem("b"),
@@ -45,8 +45,8 @@ def test_named_items_multiple_ordered_set_of_same_item():
         MyDataItem("b"),
         MyDataItem("c"),
     ]
-    nos1 = NamedItemOrderedSet(items)
-    nos2 = NamedItemOrderedSet(items)
+    nos1 = ReactiveNamedItemDict(items)
+    nos2 = ReactiveNamedItemDict(items)
     nitem = nos1[-1]
     nitem.name = "d"
     assert nos1.get_by_name("c") is None

@@ -31,7 +31,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     NUMBERTYPE_KIND,
     TUPLETYPE_KIND,
 )
-from torch_to_nnef.utils import NamedItem, NamedItemOrderedSet
+from torch_to_nnef.utils import NamedItem, ReactiveNamedItemDict
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
 
@@ -386,7 +386,7 @@ class DictTensors(Data):
 
     @classmethod
     def parse_from_dic_node_c_value(
-        cls, node_c_value: torch._C.Value, data_nodes: NamedItemOrderedSet
+        cls, node_c_value: torch._C.Value, data_nodes: ReactiveNamedItemDict
     ) -> "DictTensors":
         node_type = node_c_value.type()
         name = node_c_value.debugName()

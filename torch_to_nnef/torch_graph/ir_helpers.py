@@ -41,7 +41,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     TUPLECONSTRUCT_KIND,
     TUPLEUNPACK_KIND,
 )
-from torch_to_nnef.utils import NamedItemOrderedSet
+from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -228,7 +228,7 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
     )
 
 
-def _find_data_node(data_nodes: NamedItemOrderedSet, name: str):
+def _find_data_node(data_nodes: ReactiveNamedItemDict, name: str):
     data_node = data_nodes.get_by_name(cleanup_data_name(name))
     if data_node is None:
         raise TorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
@@ -307,7 +307,7 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
         ) from exp
 
 
-def _parse_list_construct_values(node, data_nodes: NamedItemOrderedSet):
+def _parse_list_construct_values(node, data_nodes: ReactiveNamedItemDict):
     values = []
     contains_tensors = False
     for cvalue in node.inputs():
@@ -335,7 +335,7 @@ def _parse_list_construct_values(node, data_nodes: NamedItemOrderedSet):
     return contains_tensors, values
 
 
-def _parse_list_construct(node, data_nodes: NamedItemOrderedSet):
+def _parse_list_construct(node, data_nodes: ReactiveNamedItemDict):
     # should build a Data
     contains_tensors, values = _parse_list_construct_values(node, data_nodes)
 
@@ -443,7 +443,7 @@ def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
 
 
 def _rerouted_parsing(
-    node: torch._C.Node, data_nodes: NamedItemOrderedSet, module
+    node: torch._C.Node, data_nodes: ReactiveNamedItemDict, module
 ):
     """Specific torch kind operation are transformed
 
@@ -524,7 +524,7 @@ def _rerouted_parsing(
 
 def _extract_op_infos(
     module,
-    data_nodes: NamedItemOrderedSet,
+    data_nodes: ReactiveNamedItemDict,
     node: torch._C.Node,
     traced_module: torch.jit.TracedModule,
 ) -> T.Tuple[

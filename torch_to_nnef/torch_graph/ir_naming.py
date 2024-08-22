@@ -17,7 +17,7 @@ from torch_to_nnef.torch_graph.ir_op import (
     CacheDataNodeTarget,
     CacheDataToOpsNode,
 )
-from torch_to_nnef.utils import NamedItemOrderedSet, flatten_dict
+from torch_to_nnef.utils import ReactiveNamedItemDict, flatten_dict
 
 
 class VariableNamingScheme(str, enum.Enum):
@@ -182,7 +182,7 @@ def replace_last_number(
 
 
 def get_data_node_name_with_suffix_auto_inc(
-    data_nodes: NamedItemOrderedSet,
+    data_nodes: ReactiveNamedItemDict,
     original_name: str,
     refined_name: str,
     suffix="",

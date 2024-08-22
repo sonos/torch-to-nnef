@@ -187,11 +187,12 @@ class NamedItem(ABC):
         super().__setattr__(attr_name, attr_value)
 
 
-class NamedItemOrderedSet:
-    """Named items ordered Set data structure
+class ReactiveNamedItemDict:
+    """Named items ordered Dict data structure
 
-    Ensure that no 2 items are inserted with same 'name' attribute
-    and maintains fast name update and Set speed benefits
+    Ensure that 'NO' 2 items are inserted with same 'name' attribute
+    and maintains fast name update and with some additive colision
+    protections.
 
     Warning! only aimed at NamedItem subclass.
 
@@ -208,7 +209,7 @@ class NamedItemOrderedSet:
         self._protected_names: T.Set[str] = set()
 
     @classmethod
-    def from_list(cls, items) -> "NamedItemOrderedSet":
+    def from_list(cls, items) -> "ReactiveNamedItemDict":
         if not items:
             return cls()
         return cls() + items
@@ -312,4 +313,4 @@ class NamedItemOrderedSet:
         if self._protected_names:
             pnames = ",\n".join(f"\t'{k}'" for k in self._protected_names)
             protected = f"\nprotected_names=[\n{pnames}]\n"
-        return f"<NamedItemOrderedSet ({len(self._map)}) stored_names=[{names}] {protected}>"
+        return f"<ReactiveNamedItemDict ({len(self._map)}) stored_names=[{names}] {protected}>"
