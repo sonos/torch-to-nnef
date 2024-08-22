@@ -46,7 +46,18 @@ class TractFeatureFlag(enum.Enum):
 
 
 class TractNNEF(InferenceTarget):
-    LATEST_KNOWN_STABLE_VERSION = SemanticVersion.from_str("0.21.6")
+    OFFICIAL_SUPPORTED_VERSIONS = [
+        SemanticVersion.from_str(version)
+        for version in [
+            "0.21.6",
+            "0.20.22",
+            "0.19.16",
+        ]
+    ]
+
+    @classmethod
+    def latest(cls):
+        return cls(cls.OFFICIAL_SUPPORTED_VERSIONS[0])
 
     def __init__(
         self,
@@ -78,10 +89,6 @@ class TractNNEF(InferenceTarget):
     @property
     def has_dynamic_axes(self) -> bool:
         return bool(self.dynamic_axes)
-
-    @classmethod
-    def latest(cls):
-        return cls(cls.LATEST_KNOWN_STABLE_VERSION)
 
     def pre_trace(
         self,

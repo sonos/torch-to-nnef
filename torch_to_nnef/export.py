@@ -50,6 +50,16 @@ def export_model_to_nnef(
         file_path_export: a Path to the exported NNEF serialized model archive.
             It must by convention end with `.nnef.tgz` suffixes
 
+        inference_target: can be either `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
+            for each you can specify version targeted:
+            - KhronosNNEF is least maintained so far, and is checked against nnef-tools PyTorch interpreter
+            - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
+                among key paramters there is
+                    feature_flags: Optional[Set[str]], that may contains tract specifics
+                    dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] same as ONNX export
+                    specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
+
+
         input_names: Optional list of names for args, it replaces
             variable inputs names traced from graph
             (if set it must have same size as number of args)
@@ -95,28 +105,9 @@ def export_model_to_nnef(
             that this input and output quantity remain constant with numbers in
             `input_names` and `output_names`.
 
-        nnef_spec_strict: bool (default: False)
-            If False we can use ["tract"](https://github.com/sonos/tract/)
-            specific operator set that extend strict NNEF specification
-            else we restrict ourselves to NNEF 1.0.5
-            tract version used is the one in your $PATH cli or if specified
-            $TRACT_PATH
-
         debug_bundle_path: Optional[Path]
             if specified it should create an archive bundle with all needed
             information to allows easier debug.
-
-        check_same_io_as_tract: bool
-            check if given provided `args` we get same outputs in PyTorch
-            and in tract
-
-        use_specific_tract_binary: Optional[Path]
-            Use a specific tract binary based on provided Path (
-                It overwrite $PATH / $TRACT_PATH if set
-            )
-
-        tract_feature_flags: Optional[Set[str]]
-            tract offer some feature flags such as: 'complex'
 
         custom_extensions: Optional[Set[str]]
             allow to add a set of extensions as defined in

@@ -23,11 +23,16 @@ class KhronosNNEF(InferenceTarget):
         And access original and reloaded pytorch model provide same outputs
     """
 
-    LATEST_KNOWN_STABLE_VERSION = SemanticVersion.from_str("1.0.5")
+    OFFICIAL_SUPPORTED_VERSIONS = [
+        SemanticVersion.from_str(version)
+        for version in [
+            "1.0.5",
+        ]
+    ]
 
     @classmethod
     def latest(cls):
-        return cls(cls.LATEST_KNOWN_STABLE_VERSION)
+        return cls(cls.OFFICIAL_SUPPORTED_VERSIONS[0])
 
     def __init__(
         self, version: T.Union[SemanticVersion, str], check_io: bool = True

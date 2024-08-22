@@ -25,9 +25,8 @@ from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 TRACT_INFERENCES_TO_TESTS = [
     # we maintain last 3 majors of tract
-    TractNNEF(version=TractNNEF.LATEST_KNOWN_STABLE_VERSION),
-    TractNNEF(version="0.20.22"),
-    TractNNEF(version="0.19.16"),
+    TractNNEF(v)
+    for v in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS
 ]
 
 # Options to easily test new tract versions
@@ -44,7 +43,9 @@ elif "T2N_TEST_TRACT_VERSION" in os.environ:
     TRACT_INFERENCES_TO_TESTS = [_tract_inf]
 
 
-INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [KhronosNNEF("1.0.5")]
+INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
+    KhronosNNEF(v) for v in KhronosNNEF.OFFICIAL_SUPPORTED_VERSIONS
+]
 
 
 def change_dynamic_axes(it, dynamic_axes):
