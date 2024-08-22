@@ -1,8 +1,6 @@
-import pytest
 import torch
 
-from tests.utils import check_model_io_test
-from torch_to_nnef.tract import tract_version
+from tests.utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
 class MyModule(torch.nn.Module):
@@ -18,10 +16,6 @@ class MyModule(torch.nn.Module):
         return x * self.param
 
 
-@pytest.mark.skipif(
-    tract_version() == "0.21.6",
-    reason="tract version installed expected to fail",
-)
 def test_issue_tract_mul_export():
     """Test issue mul not behaving as expected
 
@@ -36,4 +30,5 @@ def test_issue_tract_mul_export():
     check_model_io_test(
         model=MyModule(),
         test_input=inp,
+        inference_target=TRACT_INFERENCES_TO_TESTS[0],
     )

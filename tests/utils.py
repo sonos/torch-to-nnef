@@ -5,6 +5,7 @@ import random
 import shutil
 import tempfile
 import typing as T
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -28,6 +29,13 @@ TRACT_INFERENCES_TO_TESTS = [
 INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
     # TODO: add KhronosNNEF 1.0.5
 ]
+
+
+def change_dynamic_axes(it, dynamic_axes):
+    assert isinstance(it, TractNNEF)
+    new_it = deepcopy(it)
+    new_it.dynamic_axes = dynamic_axes
+    return new_it
 
 
 class TestSuiteInferenceExactnessBuilder:

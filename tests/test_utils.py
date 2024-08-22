@@ -1,6 +1,59 @@
+from dataclasses import dataclass
+
 import pytest
 
-from torch_to_nnef.utils import flatten_dict_tuple_or_list
+from torch_to_nnef.utils import (
+    NamedItem,
+    NamedItemOrderedSet,
+    flatten_dict_tuple_or_list,
+)
+
+
+@dataclass
+class MyDataItem(NamedItem):
+    name: str
+
+
+def test_named_items_base():
+    nos = NamedItemOrderedSet(
+        [
+            MyDataItem("a"),
+            MyDataItem("b"),
+            MyDataItem("c"),
+        ]
+    )
+    assert len(nos) == 3
+
+
+def test_named_items_rename():
+    nos = NamedItemOrderedSet(
+        [
+            MyDataItem("a"),
+            MyDataItem("b"),
+            MyDataItem("c"),
+        ]
+    )
+    nitem = nos[-1]
+    nitem.name = "d"
+    assert nos.get_by_name("c") is None
+    assert nos.get_by_name("d") is nitem
+
+
+def test_named_items_multiple_ordered_set_of_same_item():
+    items = [
+        MyDataItem("a"),
+        MyDataItem("b"),
+        MyDataItem("c"),
+    ]
+    nos1 = NamedItemOrderedSet(items)
+    nos2 = NamedItemOrderedSet(items)
+    nitem = nos1[-1]
+    nitem.name = "d"
+    assert nos1.get_by_name("c") is None
+    assert nos1.get_by_name("d") is nitem
+    assert nos2.get_by_name("c") is None
+    assert nos2.get_by_name("d") is nitem
+
 
 FLATTEN_LIST_IOS = []
 

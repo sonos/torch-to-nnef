@@ -3,12 +3,14 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 import torch
 from nnef_tools.io.nnef.writer import tempfile
 from torch import nn
 from torch.nn import functional as f
 from torch.nn import init
 
+from tests.utils import TRACT_INFERENCES_TO_TESTS
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.tract import build_io
 
@@ -60,7 +62,8 @@ class SqueezeExcitationBlock1d(nn.Module):
         init.constant_(self.linear_up.bias, 2)
 
 
-def test_export():
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+def test_export(inference_target):
     """Test simple export"""
     test_input = torch.rand(1, 2, 10, 20)
     model = SqueezeExcitationBlock1d(nb_input_channels=2)
@@ -82,8 +85,8 @@ def test_export():
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=True,
             debug_bundle_path=(Path.cwd() / "failed_tests" / dbg_name)
             if os.environ.get("DEBUG", False)
             else None,
+            inference_target=inference_target,
         )

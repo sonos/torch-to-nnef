@@ -1,7 +1,6 @@
 """Tests dynamic_axes."""
 
 import os
-from copy import deepcopy
 from functools import partial
 
 import pytest
@@ -15,6 +14,7 @@ from .test_primitive import TorchFnPrimitive
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
+    change_dynamic_axes,
     check_model_io_test,
     set_seed,
 )
@@ -23,13 +23,6 @@ set_seed(int(os.environ.get("SEED", 25)))
 
 
 test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
-
-
-def change_dynamic_axes(it, dynamic_axes):
-    assert isinstance(it, TractNNEF)
-    new_it = deepcopy(it)
-    new_it.dynamic_axes = dynamic_axes
-    return new_it
 
 
 test_suite.add(

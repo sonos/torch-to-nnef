@@ -1,9 +1,8 @@
-import pytest
+from copy import deepcopy
+
 import torch
 
-from torch_to_nnef.tract import tract_version
-
-from .utils import check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
 # add unit test for https://github.com/{project}/issues/18
@@ -23,18 +22,19 @@ class MyModule(torch.nn.Module):
         return self.linear(x)
 
 
-@pytest.mark.skipif(
-    tract_version() < "0.18.0",
-    reason="tract version installed too old",
-)
 def test_issue18_export():
     """Test issue 18.
 
     Should work starting with tract 0.18.0
 
     """
+    latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS[0])
+    latest_tract_inference.dynamic_axes = {
+        "input_0": {1: "S"},
+        "output_0": {1: "S"},
+    }
     check_model_io_test(
         model=MyModule(),
         test_input=torch.rand(1, 1000, 10),
-        dynamic_axes={"input_0": {1: "S"}, "output_0": {1: "S"}},
+        inference_target=latest_tract_inference,
     )
