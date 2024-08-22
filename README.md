@@ -12,17 +12,17 @@ Any PyTorch Model to NNEF file format.
 We intend to export any model formulated with vanilla Torch whatever tensor type
 (handling quantized model).
 
-When NNEF spec is insufficient to express computational graph, we use extensions from
-[tract inference engine](github.com/sonos/tract) seamlessly (that you can opt-out with `nnef_spec_strict`).
-For example, we use special tract components to express:
+Depending on selected NNEF inference target, adjustment are made to enable maximum support.
+
+For example, `TractNNEF` target allow to use [tract](https://github.com/sonos/tract/) operators to express:
 
 - recurrent layers (LSTM, GRU, ...)
 - dynamic streamable input dimensions
-- casting (since NNEF spec is too vague in this regard)
+- data type casting (since NNEF spec is too vague in this regard)
 
 This package strives to have minimum dependencies (to allow easy integration in other project).
 
-We aim to support PyTorch > 1.8.0 with tract last 3 minor releases (>= 1.19.16 to date) over Linux and MacOS systems.
+We aim to support PyTorch > 1.8.0 with tract last 3 major releases (>= 1.19.16 to date) over Linux and MacOS systems.
 
 ## Install
 
@@ -38,7 +38,7 @@ Or reference this GitHub project via your preferred package manager.
 
 ## Features
 
-Allow to export any PyTorch model by providing input and model.
+Export any PyTorch model by providing input and model in a Python script:
 
 ```python
 import logging
@@ -52,10 +52,10 @@ test_input = torch.rand(1, 10, 100)
 model = nn.Sequential(nn.Conv1d(10, 20, 3))
 
 export_model_to_nnef(
-    model=model,
-    args=test_input,
-    file_path_export=Path("mybeautifulmodel.nnef"),
-    inference_target=TractNNEF(
+    model=model, # nn.Module
+    args=test_input, # list of model arguments
+    file_path_export=Path("mybeautifulmodel.nnef.tgz"), # target NNEF filepath
+    inference_target=TractNNEF( # inference engine to target
         version="0.21.5", # tract version (to ensure compatible operators)
         check_io=True, # default False need tract installed on machine
         dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
@@ -63,10 +63,7 @@ export_model_to_nnef(
     ),
     input_names=["input"],
     output_names=["output"],
-    compression_level=0,
-    log_level=logging.WARN,
     debug_bundle_path=Path("./debug.tgz"),
-    renaming_scheme="numeric",
 )
 # More parameters exists,
 # you can look at function documentation
@@ -74,21 +71,20 @@ export_model_to_nnef(
 # help(export_model_to_nnef)
 ```
 
-As shown in API it is by default not checked by tract inference library but has
-opt-in to ensure compatibility.
+`export_model_to_nnef` is the main API of this library.
+
+One of it's core features is ability to specify an `inference_target` with spefic options:
+- `TractNNEF` is the engine developed by SONOS (see [here](https://github.com/sonos/tract/))
+- `KhronosNNEF` is the standard specification as thought by Khronos group (see [here](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html))
 
 ## Limitation
 
-Torch Model need to be serializable to `torch.jit` (fancy python dict routing
-or others might prevent proper tracing of it).
+Torch Model need to be serializable to `torch.jit`.
 
-This applies for `nn.Module` with forward containing default None parameters which
-will crash as no work around have been found yet.
+This applies for `nn.Module` with forward outputing complex object or None parameters which
+will be filtered out (only torch.Tensor are supposed).
 
-Also, we follow to some extent limitation of NNEF specification, in particular:
-We concretize dynamic shape at export for some operators such as (zeros_like/ones/arange ...).
-
-Only *Static* Quantization is supported and for now only with scheme `torch.per_tensor_affine`.
+Only Quantization supported by tract is for now translated only with scheme `torch.per_tensor_affine` (*Static*).
 
 ## Design choice
 
@@ -99,9 +95,12 @@ Compared to the 2 other possible Graph API for PyTorch we chose it because:
 - `torch.fx`: is limited in the shape and type inference it provides. It seems more
   aimed at AST graph manipulation than export. Moreover this API was introduced very
   recently as stable (torch==1.10.0).
+
 - `torch.jit.script`: offer a more flexible graph repr than trace and do not freeze
   Logical structure into the path taken during sample execution (contrary to trace),
   but it seems some tensor_size are not extracted as well.
+
+We may consider also using the new [torch dynamo](https://pytorch.org/docs/stable/onnx_dynamo.html) approach soon.
 
 ## Advanced usage
 
