@@ -73,7 +73,6 @@ if hasattr(audio_mdl, "Conformer"):
             out, _ = self.model(x, length)
             return out
 
-    # and "0.21.2" <= tract_version()
     test_suite.add(
         (torch.rand(1, 100, 64), torch.tensor([100])),
         ConformerWrapper(
@@ -154,7 +153,6 @@ if hasattr(vision_mdl, "swin_transformer"):
     mdl = vision_mdl.swin_t()  # pretrained=False
     mdl.eval()
     mdl(data)  # precompute attn mask and few shapes
-    #  and "0.19.0" < tract_version()
     test_suite.add(
         data,
         mdl,
