@@ -26,7 +26,7 @@ def export_model_to_nnef(
     output_names: T.Optional[T.List[str]] = None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.Set[str]] = None,
@@ -56,7 +56,18 @@ def export_model_to_nnef(
             - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
                 among key paramters there is
                     feature_flags: Optional[Set[str]], that may contains tract specifics
-                    dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] same as ONNX export
+                    dynamic_axes: Optional (only possible if `nnef_spec_strict` is False).
+                        By default the exported model will have the shapes of all input
+                        and output tensors set to exactly match those given in args.
+                        To specify axes of tensors as dynamic (i.e. known only at run-time)
+                        set dynamic_axes to a dict with schema:
+                            KEY (str): an input or output name. Each name must also
+                                be provided in input_names or output_names.
+
+                            VALUE (dict or list): If a dict, keys are axis indices
+                                and values are axis names. If a list, each element is
+                                an axis index.
+
                     specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
 
 
@@ -68,18 +79,6 @@ def export_model_to_nnef(
             it replaces variable output names traced from graph
             (if set it must have same size as number of outputs)
 
-        dynamic_axes: Optional (only possible if `nnef_spec_strict` is False).
-            By default the exported model will have the shapes of all input
-            and output tensors set to exactly match those given in args.
-            To specify axes of tensors as dynamic (i.e. known only at run-time)
-            set dynamic_axes to a dict with schema:
-                KEY (str): an input or output name. Each name must also
-                    be provided in input_names or output_names.
-
-                VALUE (dict or list): If a dict, keys are axis indices
-                    and values are axis names. If a list, each element is
-                    an axis index.
-
         compression_level: int (>= 0)
             compression level of tar.gz (higher is more compressed)
 
@@ -88,7 +87,7 @@ def export_model_to_nnef(
             standard logging level can be set to:
             INFO, WARN, DEBUG ...
 
-        renaming_scheme:
+        nnef_variable_naming_scheme:
             Possible choices NNEF variables naming schemes are:
             - "raw": Taking variable names from traced graph debugName directly
             - "natural_verbose": that try to provide nn.Module exported
@@ -144,7 +143,7 @@ def export_model_to_nnef(
             model,
             args,
             inference_target=inference_target,
-            renaming_scheme=renaming_scheme,
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             check_io_names_qte_match=check_io_names_qte_match,
             forced_inputs_names=input_names,
             forced_outputs_names=output_names,

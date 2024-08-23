@@ -120,7 +120,7 @@ def check_model_io_test(
     inference_target,
     input_names=None,
     output_names=None,
-    renaming_scheme=VariableNamingScheme.default(),
+    nnef_variable_naming_scheme=VariableNamingScheme.default(),
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
@@ -150,7 +150,7 @@ def check_model_io_test(
             if os.environ.get("DEBUG", False)
             else None,
             inference_target=inference_target,
-            renaming_scheme=renaming_scheme,
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
         )
         dump_filepath = os.environ.get("DUMP_FILEPATH", False)
         if dump_filepath:

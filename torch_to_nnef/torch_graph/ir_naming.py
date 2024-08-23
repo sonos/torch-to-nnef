@@ -33,7 +33,7 @@ class VariableNamingScheme(str, enum.Enum):
         return cls.NATURAL_VERBOSE
 
 
-def apply_renaming_scheme(torch_ir_graph, scheme="natural_verbose"):
+def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
     """Rename availlable data node following a scheme
 
     by default the natural_verbose pattern built is as close as possible
@@ -111,10 +111,8 @@ def to_camel_case(
 ):
     res = "".join(x.capitalize() for x in snake_str.split("_"))
 
-    if (
-        snake_str.startswith("_")
-        and maintain_leading_underscore
-        or res[0].isdigit()
+    if snake_str.startswith("_") and (
+        maintain_leading_underscore or res[0].isdigit()
     ):
         res = f"_{res}"
     if first_lower_case:

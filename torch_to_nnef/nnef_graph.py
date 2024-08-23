@@ -46,7 +46,7 @@ class TorchToNGraphExtractor:
         model: torch.nn.Module,
         args: T.Tuple[torch.Tensor, ...],
         inference_target: InferenceTarget,
-        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         forced_inputs_names: T.Optional[T.List[str]] = None,
         forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
@@ -59,7 +59,7 @@ class TorchToNGraphExtractor:
             ),
             forced_inputs_names=forced_inputs_names,
             forced_outputs_names=forced_outputs_names,
-            renaming_scheme=renaming_scheme,
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             is_root_module=True,
         )
         self._forced_inputs_names = forced_inputs_names

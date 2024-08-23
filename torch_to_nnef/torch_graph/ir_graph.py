@@ -31,7 +31,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_naming import (
     VariableNamingScheme,
-    apply_renaming_scheme,
+    apply_nnef_variable_naming_scheme,
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
@@ -46,7 +46,7 @@ def module_tracer_into_ir_graph(
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
     forced_inputs_names: T.Optional[T.List[str]] = None,
     forced_outputs_names: T.Optional[T.List[str]] = None,
-    renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
@@ -55,7 +55,7 @@ def module_tracer_into_ir_graph(
         provided_outputs=outputs,
         forced_inputs_names=forced_inputs_names,
         forced_outputs_names=forced_outputs_names,
-        renaming_scheme=renaming_scheme,
+        nnef_variable_naming_scheme=nnef_variable_naming_scheme,
     )
     return ir_graph
 
@@ -424,7 +424,9 @@ class TorchModuleIRGraph:
             if not self.data_nodes.contains(dn, strict=True)
         ]
 
-    def _recursive_call_method(self, renaming_scheme: VariableNamingScheme):
+    def _recursive_call_method(
+        self, nnef_variable_naming_scheme: VariableNamingScheme
+    ):
         """In case prim::CallMethod is encountered it tries to trace it
 
         It does this by recursive call to parse_module on linked submodule.
@@ -452,7 +454,7 @@ class TorchModuleIRGraph:
                     omit_useless_nodes=self._omit_useless_nodes,
                     inputs=op.inputs,
                     outputs=op.outputs,
-                    renaming_scheme=renaming_scheme,
+                    nnef_variable_naming_scheme=nnef_variable_naming_scheme,
                 )
                 prefix = ""
                 if cname is not None:
@@ -567,7 +569,7 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        renaming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
         provided_inputs=None,
         provided_outputs=None,
         forced_inputs_names=None,
@@ -587,7 +589,9 @@ class TorchModuleIRGraph:
         self._update_scope_reference()
         self._update_data_node_name_with_base_context()
         self._infer_missing_shapes_from_ops_outputs()
-        self._recursive_call_method(renaming_scheme=renaming_scheme)
+        self._recursive_call_method(
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme
+        )
         self._avoid_reference_to_tuples()
         self._filter_nodes_not_in_trace_between_inputs_and_outputs()
 
@@ -614,8 +618,8 @@ class TorchModuleIRGraph:
         elif forced_inputs_names or forced_outputs_names:
             raise NotImplementedError("forced names are only for root module")
 
-        if renaming_scheme:
-            apply_renaming_scheme(self, renaming_scheme)
+        if nnef_variable_naming_scheme:
+            apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
 
         return self
 
