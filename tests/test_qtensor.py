@@ -31,7 +31,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
         diff = (original_weight - deq_weights).abs()
         assert diff.sum() == 0
 
-        model = replace_nn_ops(model, q_tensor)
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
         assert abs_diff.sum() == 0

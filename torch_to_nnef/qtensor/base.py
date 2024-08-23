@@ -3,7 +3,6 @@ import logging
 import typing as T
 
 import torch
-from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 
@@ -122,13 +121,8 @@ class QScalePerGroupF16(QScheme):
         )
 
 
-class QTensor(nn.Module):
+class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
     def to_torch_float_tensor(self) -> torch.Tensor:
         raise NotImplementedError()
-
-    def forward(self):
-        return (
-            self.to_torch_float_tensor() * 1.0
-        )  # dummy  mul by 1 necessary to avoid torch agressive trace simplification

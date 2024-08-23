@@ -230,8 +230,10 @@ class LLMExport:
                     submod_name = ".".join(mod_hierarchy[:-1])
                     mod_name = mod_hierarchy[-1]
                     log.info(f"quantize layer: {name}")
-                    q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
-                        mod.weight
+                    q_weight = nn.Parameter(
+                        QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                            mod.weight
+                        )
                     )
                     setattr(
                         self.hf_model_causal.get_submodule(submod_name),

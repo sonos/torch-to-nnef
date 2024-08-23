@@ -99,6 +99,38 @@ class QTensorTractScaleOnly(QTensorTract):
 
     """
 
+    @staticmethod
+    def __new__(
+        cls,
+        u8_values_tensor,
+        qscheme,
+        tract_quant_data_type,
+        dequant_to_dtype,
+        *args,
+        **kwargs,
+    ):
+        return super().__new__(cls, u8_values_tensor, *args, **kwargs)
+
+    def clone(self, *args, **kwargs):
+        return QTensorTractScaleOnly(
+            super().clone(*args, **kwargs),
+            self.qscheme,
+            self.tract_quant_data_type,
+            self.dequant_to_dtype,
+        )
+
+    def to(self, *args, **kwargs):
+        new_obj = QTensorTractScaleOnly(
+            [],
+            self.qscheme,
+            self.tract_quant_data_type,
+            self.dequant_to_dtype,
+        )
+        tempTensor = super().to(*args, **kwargs)
+        new_obj.data = tempTensor.data
+        new_obj.requires_grad = False
+        return new_obj
+
     def __init__(
         self,
         u8_values_tensor: torch.Tensor,
@@ -119,6 +151,7 @@ class QTensorTractScaleOnly(QTensorTract):
         self.qscheme = qscheme
         self.tract_quant_data_type = tract_quant_data_type
         self.dequant_to_dtype = dequant_to_dtype
+        self.requires_grad = False  # since it's a
 
     @classmethod
     def build_q4_0_from_min_max_calibration(
@@ -136,6 +169,7 @@ class QTensorTractScaleOnly(QTensorTract):
                 u8_values_tensor=u8_values_tensor,
                 qscheme=q_scheme,
                 tract_quant_data_type=TractQuantDataType.Q4_0,
+                dequant_to_dtype=fp_tensor.dtype,
             )
 
     def to_torch_float_tensor(self):
