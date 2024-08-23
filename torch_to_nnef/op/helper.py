@@ -15,6 +15,7 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.qtensor.base import QTensor
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -145,22 +146,39 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
-        nnef_tensor_ref.data = node.data.detach().numpy()
-        nnef_tensor_ref.shape = tuple(node.data.shape)
-        if not prevent_variable and (
-            len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
-        ):
+        if isinstance(node.data, QTensor):
+            q_tensor = node.data
+            nnef_tensor_ref.qtensor = (
+                q_tensor  # main assign to allow corect dump
+            )
             add_nnef_operation(
                 graph=g,
                 type="variable",
                 inputs=None,
                 outputs=nnef_tensor_ref,
                 attribs={
+                    "custom_datatype": "tract_quant",
                     "label": nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
-                    "dtype": nnef_tensor_ref.dtype,
                 },
             )
+        else:
+            nnef_tensor_ref.data = node.data.detach().numpy()
+            nnef_tensor_ref.shape = tuple(node.data.shape)
+            if not prevent_variable and (
+                len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
+            ):
+                add_nnef_operation(
+                    graph=g,
+                    type="variable",
+                    inputs=None,
+                    outputs=nnef_tensor_ref,
+                    attribs={
+                        "label": nnef_tensor_ref.name,
+                        "shape": list(nnef_tensor_ref.shape),
+                        "dtype": nnef_tensor_ref.dtype,
+                    },
+                )
 
     name_to_tensor[name] = nnef_tensor_ref
     return nnef_tensor_ref
