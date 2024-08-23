@@ -109,6 +109,7 @@ class QTensorTract(QTensor):
     ):
         assert isinstance(tract_quant_data_type, TractQuantDataType)
         super().__init__()
+        self.fp_tensor = fp_tensor
         self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
         self.tract_quant_data_type = tract_quant_data_type
@@ -127,7 +128,7 @@ class QTensorTract(QTensor):
     def to(self, *args, **kwargs):
         tempTensor = super().to(*args, **kwargs)
         new_obj = QTensorTractScaleOnly(
-            [],
+            self.fp_tensor,
             self.u8_values_tensor,
             self.qscheme,
             self.tract_quant_data_type,

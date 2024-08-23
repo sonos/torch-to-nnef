@@ -124,15 +124,19 @@ class QScalePerGroupF16(QScheme):
 class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
-    # MUST OVERWRITE
+    # should overwrite
     # clone(self, *args, **kwargs)
+
+    # need overwrite since nn.Paramater use it at __new__
     # to(self, *args, **kwargs)
 
     def detach(self):
+        # need overwrite since nn.Paramater use it at __new__
         LOGGER.debug("QTensor does not support detach")
         return self
 
     def requires_grad_(self, requires_grad):
+        # need overwrite since nn.Paramater use it at __new__
         LOGGER.debug("QTensor does not support requires_grad")
         return self
 
