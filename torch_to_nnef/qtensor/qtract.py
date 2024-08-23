@@ -126,13 +126,13 @@ class QTensorTract(QTensor):
         )
 
     def to(self, *args, **kwargs):
-        tempTensor = super().to(*args, **kwargs)
+        temp_tensor = super().to(*args, **kwargs)
         new_obj = QTensorTractScaleOnly(
             self.fp_tensor,
             self.u8_values_tensor,
             self.qscheme,
             self.tract_quant_data_type,
-            tempTensor.data.dtype,
+            temp_tensor.data.dtype,
         )
         new_obj.requires_grad = False
         return new_obj
