@@ -8,10 +8,12 @@ import torch
 from torch import nn
 
 from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
 from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import SemanticVersion
 
 try:
     from huggingface_hub import login
@@ -241,8 +243,17 @@ class LLMExport:
     def export_model(
         self,
         export_filepath: Path,
-        renaming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        tract_specific_path: T.Optional[Path] = None,
+        tract_specific_version: T.Optional[
+            T.Union[SemanticVersion, str]
+        ] = None,
     ):
+        assert (  # mutualy exclusive arguments
+            (tract_specific_path is None and tract_specific_version is None)
+            or tract_specific_path is None
+            or tract_specific_version is None
+        )
         test_input = self.tokenizer("Hello, I am happy", return_tensors="pt")
         (
             in_cache_names,
@@ -263,16 +274,31 @@ class LLMExport:
             len(inputs) == len(input_names) == len(output_names)
         ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
         log.info("start export with 'torch_to_nnef'")
+        if tract_specific_version:
+            inference_target = TractNNEF(
+                SemanticVersion.from_str(tract_specific_version)
+                if isinstance(tract_specific_version, str)
+                else tract_specific_version
+            )
+        if tract_specific_path:
+            tract_cli_path = Path(tract_specific_path)
+            assert tract_cli_path.exists(), tract_cli_path
+            tract_cli = TractCli(tract_cli_path)
+            inference_target = TractNNEF(
+                tract_cli.version, specific_tract_binary_path=tract_cli_path
+            )
+        else:
+            inference_target = TractNNEF.latest()
+        inference_target.dynamic_axes = dynamic_axes
         export_model_to_nnef(
             model=self.wrapped_model,
             args=inputs,
+            inference_target=inference_target,
             file_path_export=Path(export_filepath),
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            check_same_io_as_tract=True,
-            dynamic_axes=dynamic_axes,
-            renaming_scheme=renaming_scheme,
+            nnef_variable_naming_scheme=naming_scheme,
             custom_extensions={
                 "tract_assert P >= 0",
                 "tract_assert S >= 1",
@@ -329,6 +355,16 @@ def parser_cli():
         help="display debug information",
     )
     parser.add_argument(
+        "--tract-specific-path",
+        required=False,
+        help="tract specific path (instead of latest version)",
+    )
+    parser.add_argument(
+        "--tract-specific-version",
+        required=False,
+        help="tract specific version",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -361,7 +397,10 @@ def main():
         if args.quantize_weights:
             exporter.quantize_weights_min_max_Q4_0()
         exporter.export_model(
-            args.export_filepath, renaming_scheme=args.naming_scheme
+            args.export_filepath,
+            naming_scheme=args.naming_scheme,
+            tract_specific_path=args.tract_specific_path,
+            tract_specific_version=args.tract_specific_version,
         )
 
 
