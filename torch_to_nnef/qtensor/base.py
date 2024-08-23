@@ -124,5 +124,22 @@ class QScalePerGroupF16(QScheme):
 class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
+    # MUST OVERWRITE
+    # clone(self, *args, **kwargs)
+    # to(self, *args, **kwargs)
+
+    def detach(self):
+        LOGGER.debug("QTensor does not support detach")
+        return self
+
+    def requires_grad_(self, requires_grad):
+        LOGGER.debug("QTensor does not support requires_grad")
+        return self
+
+    @property
+    def data(self):
+        """very important to keep access to all special attr of QTensor"""
+        return self
+
     def to_torch_float_tensor(self) -> torch.Tensor:
         raise NotImplementedError()

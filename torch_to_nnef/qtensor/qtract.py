@@ -7,7 +7,6 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.qtensor.base import QScalePerGroupF16, QScheme, QTensor
 
 # header encoded in 2 bytes
@@ -87,18 +86,6 @@ class DatBinHeaderBuilder:
 
 
 class QTensorTract(QTensor):
-    def write_in_tract_dat_file(self, filepath: T.Union[str, Path]):
-        raise TorchToNNEFNotImplementedError()
-
-
-class QTensorTractScaleOnly(QTensorTract):
-    """
-
-    u8_values_tensor: is a "non-packed" tensor where each value
-        is stored in 8bits regardless of the final storage format
-
-    """
-
     @staticmethod
     def __new__(
         cls,
@@ -112,6 +99,22 @@ class QTensorTractScaleOnly(QTensorTract):
     ):
         return super().__new__(cls, fp_tensor, *args, **kwargs)
 
+    def __init__(
+        self,
+        fp_tensor: torch.Tensor,
+        u8_values_tensor: torch.Tensor,
+        qscheme: QScheme,
+        tract_quant_data_type: TractQuantDataType,
+        dequant_to_dtype=torch.float32,
+    ):
+        assert isinstance(tract_quant_data_type, TractQuantDataType)
+        super().__init__()
+        self.u8_values_tensor = u8_values_tensor
+        self.qscheme = qscheme
+        self.tract_quant_data_type = tract_quant_data_type
+        self.dequant_to_dtype = dequant_to_dtype
+        self.requires_grad = False  # since it's a
+
     def clone(self, *args, **kwargs):
         return QTensorTractScaleOnly(
             super().clone(*args, **kwargs),
@@ -122,40 +125,44 @@ class QTensorTractScaleOnly(QTensorTract):
         )
 
     def to(self, *args, **kwargs):
+        tempTensor = super().to(*args, **kwargs)
         new_obj = QTensorTractScaleOnly(
             [],
             self.u8_values_tensor,
             self.qscheme,
             self.tract_quant_data_type,
-            self.dequant_to_dtype,  # TODO: fix with .to params
+            tempTensor.data.dtype,
         )
-        tempTensor = super().to(*args, **kwargs)
-        new_obj.data = tempTensor.data
         new_obj.requires_grad = False
         return new_obj
 
-    def __init__(
-        self,
-        fp_tensor: torch.Tensor,
-        u8_values_tensor: torch.Tensor,
-        qscheme: QScheme,
-        tract_quant_data_type: TractQuantDataType,
-        dequant_to_dtype=torch.float32,
-    ):
-        assert isinstance(
-            tract_quant_data_type, TractQuantDataType
-        ) and tract_quant_data_type.value.endswith("_0"), tract_quant_data_type
-        assert isinstance(qscheme, QScalePerGroupF16), qscheme
-        assert len(u8_values_tensor.shape) == 2, u8_values_tensor.shape
+    def write_in_tract_dat_file(self, filepath: T.Union[str, Path]):
+        raise TorchToNNEFNotImplementedError()
 
+
+class QTensorTractScaleOnly(QTensorTract):
+    """
+
+    u8_values_tensor: is a "non-packed" tensor where each value
+        is stored in 8bits regardless of the final storage format
+
+    """
+
+    qscheme: QScalePerGroupF16  # type notation for mypy
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert self.tract_quant_data_type.value.endswith(
+            "_0"
+        ), self.tract_quant_data_type
+        assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
+        assert (
+            len(self.u8_values_tensor.shape) == 2
+        ), self.u8_values_tensor.shape
         # tract limited support of packing
-        assert u8_values_tensor.shape[1] % 32 == 0, u8_values_tensor.shape
-        super().__init__()
-        self.u8_values_tensor = u8_values_tensor
-        self.qscheme = qscheme
-        self.tract_quant_data_type = tract_quant_data_type
-        self.dequant_to_dtype = dequant_to_dtype
-        self.requires_grad = False  # since it's a
+        assert (
+            self.u8_values_tensor.shape[1] % 32 == 0
+        ), self.u8_values_tensor.shape
 
     @classmethod
     def build_q4_0_from_min_max_calibration(
@@ -222,47 +229,3 @@ class QTensorTractScaleOnly(QTensorTract):
         with path.open("wb") as fh:
             fh.write(bin_header)
             fh.write(bin_content)
-
-
-class QTensorTractExtractor(ModuleInfoExtractor):
-    MODULE_CLASS = QTensorTractScaleOnly
-
-    def convert_to_nnef(
-        self,
-        g,
-        node,
-        name_to_tensor,
-        null_ref,
-        torch_graph,
-        inference_target,
-        **kwargs,
-    ):
-        """implementation with storage"""
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import helper
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.helper import add_nnef_operation
-
-        q_tensor = node.op_ref
-        out_node = node.outputs[0]
-        out_node.data = (
-            None  # very important to avoid linear/conv relying on q issues
-        )
-        nnef_tensor_ref = helper.add_tensor_variable_node_as_nnef_tensor(
-            g, out_node, name_to_tensor, prevent_variable=True
-        )
-        nnef_tensor_ref.qtensor = q_tensor  # main assign to allow corect dump
-        add_nnef_operation(
-            graph=g,
-            type="variable",
-            inputs=None,
-            outputs=nnef_tensor_ref,
-            attribs={
-                "custom_datatype": "tract_quant",
-                "label": out_node.export_name,
-                "shape": list(nnef_tensor_ref.shape),
-            },
-        )
-        return ["tract_core"]

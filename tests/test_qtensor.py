@@ -9,6 +9,28 @@ from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
 from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
+def test_quantize_with_tract_q4_0_and_manipulate_tensor():
+    original_weight = torch.arange(64).reshape(2, 32).float()
+    q_tensor = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+        original_weight
+    )
+    q_tensor.u8_values_tensor  # check access works
+    new_q_tensor = q_tensor.to(torch.float32)
+    new_q_tensor.u8_values_tensor  # check access works
+
+    class Test(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = nn.Parameter(new_q_tensor, requires_grad=False)
+
+        def forward(self, x):
+            return x @ self.weight
+
+    mod = Test()
+    mod.weight.u8_values_tensor
+    mod.weight.data.u8_values_tensor
+
+
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
