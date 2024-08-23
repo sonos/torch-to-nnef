@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import typing as T
 from enum import Enum
@@ -7,6 +8,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.log import log
@@ -25,6 +27,9 @@ try:
     )
 except ImportError as exp:
     raise ValueError("Should be used with 'torch_to_nnef[llm_tract]' enabled") from exp
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PHISlugs(str, Enum):
@@ -214,11 +219,15 @@ class LLMExport:
             for name, mod in self.hf_model_causal.named_modules():
                 if isinstance(mod, (nn.Linear, nn.Embedding)):
                     log.info(f"quantize layer: {name}")
-                    q_weight = nn.Parameter(
-                        QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
-                            mod.weight
+                    try:
+                        q_weight = nn.Parameter(
+                            QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                                mod.weight
+                            )
                         )
-                    )
+                    except TorchToNNEFNotImplementedError as exp:
+                        LOGGER.error(f"quant layer: {name} error: {exp}")
+                        continue
                     setattr(
                         mod,
                         "weight",
