@@ -6,7 +6,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import (
+    TorchToNNEFImpossibleQuantization,
+    TorchToNNEFNotImplementedError,
+)
 from torch_to_nnef.qtensor.base import QScalePerGroupF16, QScheme, QTensor
 
 # header encoded in 2 bytes
@@ -172,8 +175,13 @@ class QTensorTractScaleOnly(QTensorTract):
         if isinstance(fp_tensor, torch.nn.Parameter):
             fp_tensor = fp_tensor.data
         if len(fp_tensor.shape) != 2:
-            raise TorchToNNEFNotImplementedError(
-                f"tract does only support weight of shape 2d but found {fp_tensor.shape}"
+            raise TorchToNNEFImpossibleQuantization(
+                f"tract Q4_0 does only support weight of shape 2d but found {fp_tensor.shape}"
+            )
+        if fp_tensor.shape[1] % 32 != 0:
+            raise TorchToNNEFImpossibleQuantization(
+                f"tract Q4_0 does only support weight with 2nd dim "
+                f"divisible by 32 but found {fp_tensor.shape[1]}"
             )
         with torch.no_grad():
             q_scheme, u8_values_tensor = QScalePerGroupF16.min_max_calibration(

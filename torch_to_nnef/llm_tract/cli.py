@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.log import log
@@ -225,7 +225,7 @@ class LLMExport:
                                 mod.weight
                             )
                         )
-                    except TorchToNNEFNotImplementedError as exp:
+                    except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")
                         continue
                     setattr(
