@@ -179,7 +179,9 @@ class QTensorTractScaleOnly(QTensorTract):
                 fp_tensor, n_bits=4, group_size=32, percentile=percentile
             )
             return cls(
-                fp_tensor=fp_tensor,
+                fp_tensor=q_scheme.dequantize(u8_values_tensor).to(
+                    fp_tensor.dtype
+                ),
                 u8_values_tensor=u8_values_tensor,
                 qscheme=q_scheme,
                 tract_quant_data_type=TractQuantDataType.Q4_0,
