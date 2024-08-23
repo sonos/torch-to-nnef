@@ -94,7 +94,37 @@ class QWeightedOp(nn.Module):
         raise AttributeError(f"{name} not found")
 
 
+class WeightInputedEmbedding(nn.Module):
+    def __init__(self, embedding: nn.Embedding):
+        super().__init__()
+        self.padding_idx = embedding.padding_idx
+        self.max_norm = embedding.max_norm
+        self.norm_type = embedding.norm_type
+        self.scale_grad_by_freq = embedding.scale_grad_by_freq
+        self.sparse = embedding.sparse
+
+    def forward(
+        self,
+        inp: torch.Tensor,
+        weight: torch.Tensor,
+    ):
+        return F.embedding(
+            inp,
+            weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
+
+
 def replace_nn_ops(module: nn.Module, q_weight: QTensor) -> nn.Module:
+    if isinstance(module, nn.Embedding):
+        assert (
+            module.weight.shape == q_weight().shape
+        ), f"{module.weight.shape} == {q_weight().shape}"
+        return QWeightedOp(WeightInputedEmbedding(module), q_weight)
     if isinstance(module, nn.Conv1d):
         assert (
             module.weight.shape == q_weight().shape
