@@ -33,7 +33,7 @@ class InferenceTarget:
                 "some features may be missing"
             )
         oldest_supported = self.OFFICIAL_SUPPORTED_VERSIONS[-1]
-        if oldest_supported < self.version:
+        if self.version < oldest_supported:
             LOGGER.warning(
                 "`torch_to_nnef` maintainers do not tests (anymore) "
                 f"inference target '{self.__class__.__name__}' "
