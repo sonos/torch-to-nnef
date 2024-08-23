@@ -370,9 +370,9 @@ def full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["copy", "clone"])
 def copy(
-    g, node, name_to_tensor, nnef_spec_strict, torch_graph, null_ref, **kwargs
+    g, node, name_to_tensor, inference_target, torch_graph, null_ref, **kwargs
 ):
-    if nnef_spec_strict:
+    if not isinstance(inference_target, TractNNEF):
         # nnef spec include copy fragment
         return unary_output_op_without_params(
             nnef_op_type="copy",

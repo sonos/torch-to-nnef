@@ -56,7 +56,7 @@ def export_model_to_nnef(
             - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
                 among key paramters there is
                     feature_flags: Optional[Set[str]], that may contains tract specifics
-                    dynamic_axes: Optional (only possible if `nnef_spec_strict` is False).
+                    dynamic_axes: Optional
                         By default the exported model will have the shapes of all input
                         and output tensors set to exactly match those given in args.
                         To specify axes of tensors as dynamic (i.e. known only at run-time)

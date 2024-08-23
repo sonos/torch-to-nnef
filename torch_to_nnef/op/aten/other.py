@@ -123,7 +123,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
     onode = node.outputs[0]
     if isinstance(inference_target, KhronosNNEF):
-        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
+        raise TorchToNNEFNotImplementedError("`to` with KhronosNNEF ?")
     LOGGER.debug(
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
@@ -145,7 +145,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def type_as(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
+def type_as(g, node, name_to_tensor, inference_target, **kwargs):
     (
         input_node,
         _,  # ref_node
@@ -156,8 +156,8 @@ def type_as(g, node, name_to_tensor, nnef_spec_strict, **kwargs):
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
-    if nnef_spec_strict:
-        raise TorchToNNEFNotImplementedError("`to` with nnef_spec_strict ?")
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(f"`to` with {inference_target} ?")
     add_single_output_op(
         g,
         node,

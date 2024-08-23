@@ -92,7 +92,6 @@ class QTensorTract(QTensor):
 
 
 class QTensorTractScaleOnly(QTensorTract):
-
     """
 
     u8_values_tensor: is a "non-packed" tensor where each value
@@ -194,23 +193,23 @@ class QTensorTractExtractor(ModuleInfoExtractor):
         name_to_tensor,
         null_ref,
         torch_graph,
-        nnef_spec_strict: bool,
+        inference_target,
         **kwargs,
     ):
         """implementation with storage"""
 
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive import base
+        from torch_to_nnef.op import helper
 
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.primitive.base import add_nnef_operation
+        from torch_to_nnef.op.helper import add_nnef_operation
 
         q_tensor = node.op_ref
         out_node = node.outputs[0]
         out_node.data = (
             None  # very important to avoid linear/conv relying on q issues
         )
-        nnef_tensor_ref = base.add_tensor_variable_node_as_nnef_tensor(
+        nnef_tensor_ref = helper.add_tensor_variable_node_as_nnef_tensor(
             g, out_node, name_to_tensor, prevent_variable=True
         )
         nnef_tensor_ref.qtensor = q_tensor  # main assign to allow corect dump

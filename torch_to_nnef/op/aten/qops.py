@@ -37,7 +37,7 @@ def quantize_per_tensor(g, node, name_to_tensor, inference_target, **kwargs):
     }
     if isinstance(inference_target, KhronosNNEF):
         LOGGER.debug(
-            "quantize with nnef_spec_strict: set quant info on direct output"
+            "quantize with KhronosNNEF: set quant info on direct output"
         )
         tensor.quant = quant_infos
         return []
