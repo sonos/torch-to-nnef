@@ -10,7 +10,6 @@ from torch import nn
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.log import log
-from torch_to_nnef.qtensor.mod_inject import replace_nn_ops
 from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion
@@ -25,9 +24,7 @@ try:
         BaseCausalWithDynCacheAndTriu,
     )
 except ImportError as exp:
-    raise ValueError(
-        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
-    ) from exp
+    raise ValueError("Should be used with 'torch_to_nnef[llm_tract]' enabled") from exp
 
 
 class PHISlugs(str, Enum):
@@ -109,14 +106,10 @@ def load_model(
         dir_path = Path(local_dir)
         assert dir_path.is_dir(), dir_path
         assert (dir_path / "model.safetensors").is_file(), dir_path
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            dir_path, **kwargs
-        )
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(dir_path, **kwargs)
         log.info(f"load '{model_slug}' from local directory: {dir_path}")
     else:
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            model_slug, **kwargs
-        )
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(model_slug, **kwargs)
         log.info(f"load default trained model from huggingface: {model_slug}")
     return hf_model_causal
 
@@ -170,12 +163,8 @@ class InfosFromSlugAndConfig:
             }
         return past_values_cache_conf
 
-    def build_kv_cache_infos(
-        self, n_past_input_tokens: int, as_float16: bool = False
-    ):
-        past_values_cache_conf = self.get_past_value_cache_conf(
-            n_past_input_tokens
-        )
+    def build_kv_cache_infos(self, n_past_input_tokens: int, as_float16: bool = False):
+        past_values_cache_conf = self.get_past_value_cache_conf(n_past_input_tokens)
         dynamic_axes = {
             "input_ids": {1: "S"},
         }
@@ -217,18 +206,13 @@ class LLMExport:
             hf_model_slug, self.hf_model_causal.config
         )
 
-        self.wrapped_model = self.model_infos.wrapper_class(
-            self.hf_model_causal
-        )
+        self.wrapped_model = self.model_infos.wrapper_class(self.hf_model_causal)
 
     def quantize_weights_min_max_Q4_0(self):
         log.info("start quantization Q4_0")
         with torch.no_grad():
             for name, mod in self.hf_model_causal.named_modules():
-                if isinstance(mod, (nn.Linear,)):
-                    mod_hierarchy = name.split(".")
-                    submod_name = ".".join(mod_hierarchy[:-1])
-                    mod_name = mod_hierarchy[-1]
+                if isinstance(mod, (nn.Linear, nn.Embedding)):
                     log.info(f"quantize layer: {name}")
                     q_weight = nn.Parameter(
                         QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
@@ -236,9 +220,9 @@ class LLMExport:
                         )
                     )
                     setattr(
-                        self.hf_model_causal.get_submodule(submod_name),
-                        mod_name,
-                        replace_nn_ops(mod, q_weight),
+                        mod,
+                        "weight",
+                        nn.Parameter(q_weight, requires_grad=False),
                     )
         log.info("end quantization Q4_0")
 
@@ -247,9 +231,7 @@ class LLMExport:
         export_filepath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
         tract_specific_path: T.Optional[Path] = None,
-        tract_specific_version: T.Optional[
-            T.Union[SemanticVersion, str]
-        ] = None,
+        tract_specific_version: T.Optional[T.Union[SemanticVersion, str]] = None,
         log_level=log.INFO,
     ):
         assert (  # mutualy exclusive arguments
@@ -385,16 +367,12 @@ def main():
 
     with torch.no_grad():
         try:
-            exporter = LLMExport(
-                args.model_slug, args.local_dir, args.as_float16
-            )
+            exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
         except OSError as exp:
             if "gated repo" in exp.args[0]:
                 print(exp.args[0])
                 login()
-                exporter = LLMExport(
-                    args.model_slug, args.local_dir, args.as_float16
-                )
+                exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
             else:
                 raise exp
         if args.quantize_weights:

@@ -102,6 +102,7 @@ class QTensorTractScaleOnly(QTensorTract):
     @staticmethod
     def __new__(
         cls,
+        fp_tensor,
         u8_values_tensor,
         qscheme,
         tract_quant_data_type,
@@ -109,11 +110,12 @@ class QTensorTractScaleOnly(QTensorTract):
         *args,
         **kwargs,
     ):
-        return super().__new__(cls, u8_values_tensor, *args, **kwargs)
+        return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def clone(self, *args, **kwargs):
         return QTensorTractScaleOnly(
             super().clone(*args, **kwargs),
+            self.u8_values_tensor,
             self.qscheme,
             self.tract_quant_data_type,
             self.dequant_to_dtype,
@@ -122,9 +124,10 @@ class QTensorTractScaleOnly(QTensorTract):
     def to(self, *args, **kwargs):
         new_obj = QTensorTractScaleOnly(
             [],
+            self.u8_values_tensor,
             self.qscheme,
             self.tract_quant_data_type,
-            self.dequant_to_dtype,
+            self.dequant_to_dtype,  # TODO: fix with .to params
         )
         tempTensor = super().to(*args, **kwargs)
         new_obj.data = tempTensor.data
@@ -133,6 +136,7 @@ class QTensorTractScaleOnly(QTensorTract):
 
     def __init__(
         self,
+        fp_tensor: torch.Tensor,
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         tract_quant_data_type: TractQuantDataType,
@@ -157,6 +161,8 @@ class QTensorTractScaleOnly(QTensorTract):
     def build_q4_0_from_min_max_calibration(
         cls, fp_tensor, percentile: float = 1.0
     ) -> "QTensorTractScaleOnly":
+        if isinstance(fp_tensor, torch.nn.Parameter):
+            fp_tensor = fp_tensor.data
         if len(fp_tensor.shape) != 2:
             raise TorchToNNEFNotImplementedError(
                 f"tract does only support weight of shape 2d but found {fp_tensor.shape}"
@@ -166,6 +172,7 @@ class QTensorTractScaleOnly(QTensorTract):
                 fp_tensor, n_bits=4, group_size=32, percentile=percentile
             )
             return cls(
+                fp_tensor=fp_tensor,
                 u8_values_tensor=u8_values_tensor,
                 qscheme=q_scheme,
                 tract_quant_data_type=TractQuantDataType.Q4_0,

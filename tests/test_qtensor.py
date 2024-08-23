@@ -1,9 +1,9 @@
+from copy import deepcopy
+
 import pytest
 import torch
 from torch import nn
-from transformers.integrations.bitsandbytes import deepcopy
 
-from torch_to_nnef.qtensor import replace_nn_ops
 from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
 
 from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
@@ -62,7 +62,7 @@ def test_quantize_with_tract_q4_0_classic(inference_target):
         diff = (original_weight - deq_weights).abs()
         assert diff.mean() < 0.01, diff.mean()
 
-        model = replace_nn_ops(model, q_tensor)
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
         assert abs_diff.mean() < 0.01, diff.mean()
@@ -92,7 +92,7 @@ def test_quantize_with_tract_q4_0_arange(inference_target):
             original_weight
         )
 
-        model = replace_nn_ops(model, q_tensor)
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
         # can safely check io since all values controled
         check_model_io_test(
             model=model,
