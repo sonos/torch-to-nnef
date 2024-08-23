@@ -19,6 +19,8 @@ from torch_to_nnef.torch_graph.ir_op import (
 )
 from torch_to_nnef.utils import ReactiveNamedItemDict, flatten_dict
 
+MODULE_SEPARATOR = "_."
+
 
 class VariableNamingScheme(str, enum.Enum):
     RAW = "raw"
@@ -56,7 +58,7 @@ def apply_renaming_scheme(torch_ir_graph, scheme="natural_verbose"):
     raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
 
 
-def rename_natural_verbose(torch_ir_graph) -> None:
+def rename_natural_verbose(torch_ir_graph, lower: bool = True) -> None:
     out_data_to_ops_node = CacheDataToOpsNode(
         target=CacheDataNodeTarget.OUTPUTS,
         ops=torch_ir_graph.op_nodes,
@@ -99,24 +101,35 @@ def rename_natural_verbose(torch_ir_graph) -> None:
         if dn.name != new_name:
             dn.name = new_name
     if torch_ir_graph.is_root_module:
-        remove_useless_digits_from_module_names(torch_ir_graph)
+        remove_useless_digits_from_module_names(torch_ir_graph, lower=lower)
 
 
-def to_camel_case(snake_str: str):
+def to_camel_case(
+    snake_str: str,
+    first_lower_case: bool = True,
+    maintain_leading_underscore: bool = False,
+):
     res = "".join(x.capitalize() for x in snake_str.split("_"))
 
-    if snake_str.startswith("_"):
+    if (
+        snake_str.startswith("_")
+        and maintain_leading_underscore
+        or res[0].isdigit()
+    ):
         res = f"_{res}"
+    if first_lower_case:
+        res = res[0].lower() + res[1:]
     return res
 
 
 def rename_natural_verbose_camel(torch_ir_graph):
-    rename_natural_verbose(torch_ir_graph)
+    rename_natural_verbose(torch_ir_graph, lower=False)
     if torch_ir_graph.is_root_module:
 
         def _fmt_node_name(name: str):
             return "_".join(
-                to_camel_case(name_chunk) for name_chunk in name.split("_.")
+                to_camel_case(name_chunk)
+                for name_chunk in name.split(MODULE_SEPARATOR)
             )
 
         name_map: T.Dict[str, str] = {}
@@ -206,7 +219,7 @@ def get_data_node_name_with_suffix_auto_inc(
     return new_name
 
 
-def remove_useless_digits_from_module_names(torch_mod_ir_graph):
+def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
     """Cleanup final namings in graph:
 
     - Remove useless digits from module names
@@ -217,7 +230,7 @@ def remove_useless_digits_from_module_names(torch_mod_ir_graph):
         if there is no naming collision with this simlification
 
     """
-    module_separator = "_."
+    module_separator = MODULE_SEPARATOR
     data_node_names = list(
         i.name for i in torch_mod_ir_graph.data_nodes.iter_renamable()
     )
@@ -254,4 +267,6 @@ def remove_useless_digits_from_module_names(torch_mod_ir_graph):
         if new_name == original:
             continue
         orignal_data_node = torch_mod_ir_graph.data_nodes.get_by_name(original)
+        if lower:
+            new_name = new_name.lower()
         orignal_data_node.name = new_name

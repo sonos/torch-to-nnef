@@ -39,7 +39,7 @@ UNKNOWN_TRACE_SHAPE_VALUE = 321
 def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
         name = name.replace(sep, "_")
-    return name.lower()
+    return name
 
 
 @dataclass
