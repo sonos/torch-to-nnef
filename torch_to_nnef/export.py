@@ -178,8 +178,8 @@ def export_model_to_nnef(
         if len(active_custom_extensions) > 0:
             LOGGER.info(
                 "The exported NNEF model need special custom extensions "
-                f"such as {active_custom_extensions} be sure "
-                "to use an inference engine that support them"
+                f"such as {active_custom_extensions}, be sure "
+                f"to use the inference engine you specified: {inference_target}"
             )
         LOGGER.info(
             f"model exported successfully as NNEF at: {nnef_exp_file_path}"
