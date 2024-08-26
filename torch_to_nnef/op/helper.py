@@ -179,7 +179,7 @@ def maybe_align_inputs_ranks(
     This is done at export time and not inference time because:
     - inference implementation may use 1 dim expansion from left to right
     like Tract or Tensorflow
-    instead of Pytorch expansion which happen in opposite direction.
+    instead of PyTorch expansion which happen in opposite direction.
 
     """
     tensors_ranks = [len(_.shape) for _ in inputs]

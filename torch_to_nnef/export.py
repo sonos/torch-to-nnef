@@ -126,7 +126,7 @@ def export_model_to_nnef(
     check_io_names(input_names, output_names)
 
     LOGGER.info(
-        f"start parse Pytorch model to be exported at {file_path_export}"
+        f"start parse PyTorch model to be exported at {file_path_export}"
     )
     if not any(s == ".nnef" for s in file_path_export.suffixes):
         raise TorchToNNEFInvalidArgument(
@@ -156,12 +156,6 @@ def export_model_to_nnef(
 
         inference_target.post_trace(nnef_graph, active_custom_extensions)
 
-        if len(active_custom_extensions) > 0:
-            LOGGER.info(
-                "The exported NNEF model need special custom extensions "
-                f"such as {active_custom_extensions} be sure "
-                "to use an inference engine that support them"
-            )
         active_custom_fragments = get_active_custom_fragments(graph_extractor)
         custom_fragment_names = list(active_custom_fragments.keys())
         nnef_exp_file_path = real_export_path(
@@ -181,6 +175,12 @@ def export_model_to_nnef(
             version_custom_fragments=None,  # using version sometime create conflict with ops
             target_tract=isinstance(inference_target, TractNNEF),
         )(nnef_graph, str(nnef_exp_file_path))
+        if len(active_custom_extensions) > 0:
+            LOGGER.info(
+                "The exported NNEF model need special custom extensions "
+                f"such as {active_custom_extensions} be sure "
+                "to use an inference engine that support them"
+            )
         LOGGER.info(
             f"model exported successfully as NNEF at: {nnef_exp_file_path}"
         )

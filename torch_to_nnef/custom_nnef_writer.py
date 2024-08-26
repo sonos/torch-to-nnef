@@ -11,6 +11,7 @@ It is adapted with goal:
 
 """
 
+import logging
 import os
 import shutil
 import tempfile
@@ -20,6 +21,8 @@ import numpy as np
 from nnef_tools.io.nnef.helpers import tgz_compress
 from nnef_tools.model import Tensor
 from nnef_tools.utils.types import as_str, from_numpy
+
+LOGGER = logging.getLogger(__name__)
 
 _DtypeFromNumpy = {
     np.float16: "scalar",
@@ -311,6 +314,7 @@ class Writer:
                     )
 
     def __call__(self, graph, path):
+        LOGGER.info(f"start writting NNEF graph into: {path}")
         folder = None
         try:
             if self._compression is not None:
@@ -368,6 +372,7 @@ class Writer:
                     folder, path + ".tgz", compression_level=self._compression
                 )
                 shutil.rmtree(folder)
+        LOGGER.info(f"finished writting NNEF graph into: {path}")
 
     @staticmethod
     def _used_operators(graph, dependencies):

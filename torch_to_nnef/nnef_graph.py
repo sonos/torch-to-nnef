@@ -39,7 +39,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TorchToNGraphExtractor:
-    """Extract Pytorch Graph and build associated nnef_tools.model.Graph"""
+    """Extract PyTorch Graph and build associated nnef_tools.model.Graph"""
 
     def __init__(
         self,
@@ -52,6 +52,7 @@ class TorchToNGraphExtractor:
         check_io_names_qte_match: bool = True,
     ):
         self.model = model
+        LOGGER.info("start to translate PyTorch to internal IR")
         self._torch_ir_graph = module_tracer_into_ir_graph(
             TorchModuleTracer(
                 model,
@@ -62,6 +63,7 @@ class TorchToNGraphExtractor:
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             is_root_module=True,
         )
+        LOGGER.info("translated PyTorch to internal IR")
         self._forced_inputs_names = forced_inputs_names
         self._forced_outputs_names = forced_outputs_names
         self._check_io_names_qte_match = check_io_names_qte_match
@@ -196,6 +198,7 @@ class TorchToNGraphExtractor:
             ]
 
     def build_nnef_graph(self):
+        LOGGER.info("start to translate internal IR to NNEF Graph object")
         null = NTensor(
             self.g,
             name="",
@@ -249,6 +252,7 @@ class TorchToNGraphExtractor:
                         "This is forbidden as it leads to nop for this tensor"
                     )
                 onode.name = new_name
+        LOGGER.info("translated internal IR to NNEF Graph object sucessfully")
 
     def parse(self) -> NGraph:
         self.build_nnef_graph()

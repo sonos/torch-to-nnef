@@ -209,7 +209,7 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
 
     node_type = node_c_value.type()
     assert node_type.kind() == LISTTYPE_KIND
-    LOGGER.warning(
+    LOGGER.debug(
         "ListType can be of arbitrary length "
         "but we can not handle this dynamism at inference "
         " so 'split and other ops' will generate array "

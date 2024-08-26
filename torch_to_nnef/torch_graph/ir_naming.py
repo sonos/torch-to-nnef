@@ -37,7 +37,7 @@ def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
     """Rename availlable data node following a scheme
 
     by default the natural_verbose pattern built is as close as possible
-    to Pytorch graph context info. This pattern might come as too verbose.
+    to PyTorch graph context info. This pattern might come as too verbose.
 
     we propose a more concise numeric pattern that allow easier debug
     when looking at NNEF export correctness.

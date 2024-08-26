@@ -76,7 +76,7 @@ class TorchModuleIRGraph:
     useless operations for our transcription needs.
 
     It's also allows to be less reliant on base graph in case
-    of modification of Pytorch Internals (think Adapter Pattern).
+    of modification of PyTorch Internals (think Adapter Pattern).
 
     Warning !
         Only NOT nested data container (TupleTensors, FixedTensorList, ...)
@@ -650,7 +650,7 @@ class TorchModuleIRGraph:
         cprint(
             "\n\n[type]"
             + "_" * 35
-            + "[Pytorch JIT Graph]"
+            + "[PyTorch JIT Graph]"
             + "_" * 35
             + "[/type]"
         )

@@ -225,7 +225,7 @@ class LLMExport:
         log.info("start quantization Q4_0")
         with torch.no_grad():
             for name, mod in self.hf_model_causal.named_modules():
-                if isinstance(mod, (nn.Linear, nn.Embedding)):
+                if isinstance(mod, (nn.Linear,)):
                     mod_hierarchy = name.split(".")
                     submod_name = ".".join(mod_hierarchy[:-1])
                     mod_name = mod_hierarchy[-1]

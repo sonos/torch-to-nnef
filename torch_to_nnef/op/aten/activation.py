@@ -28,10 +28,10 @@ def softmax(**kwargs):
 @OP_REGISTRY.register()
 def softplus(**kwargs):
     """
-    Note: numerical stability applied in Pytorch is not done in NNEF vanilla
+    Note: numerical stability applied in PyTorch is not done in NNEF vanilla
     implementation, nor case beta != 1.
 
-    Pytorch ref:
+    PyTorch ref:
         y = (1/beta) * log(exp(beta * x) + 1)  if ((beta * x) < thresh) else x
     NNEF ref:
         y = log(exp(x) + 1.0)

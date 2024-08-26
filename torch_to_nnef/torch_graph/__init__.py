@@ -1,13 +1,13 @@
 """
-torch_graph is intended to extract full representation of pytorch Graph
+torch_graph is intended to extract full representation of PyTorch Graph
 into a stable intermediate representation suitable to then apply translation
-operation to NNEF. This means that not all Pytorch orginal graph is translated.
+operation to NNEF. This means that not all PyTorch orginal graph is translated.
 By example, we ignore part linked to device location informations,
 memory specific operation or parameters linked to gradients.
 
 This choice which is different compared to torch.onnx module due to the
-absence of control (on our side) over evolution of Pytorch internals.
-If some of the Pytorch internals are modified only this module should idealy
+absence of control (on our side) over evolution of PyTorch internals.
+If some of the PyTorch internals are modified only this module should idealy
 be impacted.
 
 Here there is NO notion of dynamic axes all shapes are supposedly defined
