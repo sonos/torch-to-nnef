@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## [0.13.1] - 2024-08-26
+
+### Added
+
+- `tract_llm` with various tract target support
+
+### Change
+
+- refactor `renaming_scheme` -> `nnef_variable_naming_scheme`
+
+### Fix
+
+- few remaining `nnef_spec_strict` replaced
+- logger.warning for unofficially supported inference target fixed
+
 ## [0.13.0] - 2024-08-22
 
 ### Added
