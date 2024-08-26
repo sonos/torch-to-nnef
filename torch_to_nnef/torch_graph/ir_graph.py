@@ -575,6 +575,9 @@ class TorchModuleIRGraph:
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
+        LOGGER.debug(
+            f"start parse to IR: {self._tracer.mod.__class__.__name__}"
+        )
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
             extractor.generate_in_torch_graph(
@@ -621,6 +624,7 @@ class TorchModuleIRGraph:
         if nnef_variable_naming_scheme:
             apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
 
+        LOGGER.debug(f"parsed to IR: {self._tracer.mod.__class__.__name__}")
         return self
 
     def _cleanup_dangling_data_node_hooks(self):

@@ -248,6 +248,7 @@ class LLMExport:
         tract_specific_version: T.Optional[
             T.Union[SemanticVersion, str]
         ] = None,
+        log_level=log.INFO,
     ):
         assert (  # mutualy exclusive arguments
             (tract_specific_path is None and tract_specific_version is None)
@@ -297,7 +298,7 @@ class LLMExport:
             file_path_export=Path(export_filepath),
             input_names=input_names,
             output_names=output_names,
-            log_level=log.INFO,
+            log_level=log_level,
             nnef_variable_naming_scheme=naming_scheme,
             custom_extensions={
                 "tract_assert P >= 0",
@@ -401,6 +402,7 @@ def main():
             naming_scheme=args.naming_scheme,
             tract_specific_path=args.tract_specific_path,
             tract_specific_version=args.tract_specific_version,
+            log_level=log_level,
         )
 
 
