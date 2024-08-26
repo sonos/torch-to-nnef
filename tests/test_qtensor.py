@@ -28,7 +28,11 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
 
     mod = Test()
     mod.weight.u8_values_tensor
-    mod.weight.data.u8_values_tensor
+    # mod.weight.data.u8_values_tensor
+
+    inp_tensor = torch.rand(4, 2)
+    out = mod(inp_tensor)
+    assert type(out) == type(inp_tensor)  # avoid propagation of qtype
 
 
 @pytest.mark.parametrize(

@@ -301,6 +301,7 @@ class Writer:
             if op.type == "variable":
                 filename = op.attribs["label"] + ".dat"
                 if op.attribs.pop("custom_datatype", "") == "tract_quant":
+                    LOGGER.info(f"write qtensor: {filename}")
                     qtensor = op.output.qtensor
                     tname = op.attribs["label"]
                     qtensor.write_in_tract_dat_file(

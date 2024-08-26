@@ -3,6 +3,9 @@ import logging
 import typing as T
 
 import torch
+from torch import _C
+from torch._tensor import _convert
+from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 
@@ -139,6 +142,29 @@ class QTensor(torch.Tensor):
         # need overwrite since nn.Paramater use it at __new__
         LOGGER.debug("QTensor does not support requires_grad")
         return self
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        """
+        This __torch_function__ implementation wraps subclasses such that
+        methods called on subclasses return a subclass instance instead of
+        a ``torch.Tensor`` instance.
+        we modify it so it's always reference torch.Tensor.
+        """
+
+        if kwargs is None:
+            kwargs = {}
+
+        if not all(issubclass(cls, t) for t in types):
+            return NotImplemented
+
+        with _C.DisableTorchFunctionSubclass():
+            ret = func(*args, **kwargs)
+            if func in get_default_nowrap_functions():
+                return ret
+            # important modification
+            # do not propagate this qtype
+            return _convert(ret, torch.Tensor)
 
     @property
     def data(self):
