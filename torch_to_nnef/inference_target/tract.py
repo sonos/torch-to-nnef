@@ -142,7 +142,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
     for node_name, named_dims in dynamic_axes.items():
         for inp_tensor in nnef_graph.inputs:
             if inp_tensor.name == node_name:
-                LOGGER.debug("found matching node element")
+                # LOGGER.debug(f"found matching node element {node_name}")
                 assert len(inp_tensor.producers) == 1
                 external_op = inp_tensor.producers[0]
                 assert external_op.type in [
@@ -170,6 +170,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     else:
                         custom_extensions.add(f"tract_symbol {axis_name}")
                 break
+    LOGGER.debug("applied dynamic axes in NNEF")
     return custom_extensions
 
 
