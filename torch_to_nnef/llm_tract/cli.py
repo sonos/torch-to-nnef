@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 import typing as T
 from enum import Enum
@@ -26,10 +25,12 @@ try:
         BaseCausalWithDynCacheAndTriu,
     )
 except ImportError as exp:
-    raise ValueError("Should be used with 'torch_to_nnef[llm_tract]' enabled") from exp
+    raise ValueError(
+        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
+    ) from exp
 
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = log.getLogger(__name__)
 
 
 class PHISlugs(str, Enum):
@@ -111,10 +112,14 @@ def load_model(
         dir_path = Path(local_dir)
         assert dir_path.is_dir(), dir_path
         assert (dir_path / "model.safetensors").is_file(), dir_path
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(dir_path, **kwargs)
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(
+            dir_path, **kwargs
+        )
         log.info(f"load '{model_slug}' from local directory: {dir_path}")
     else:
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(model_slug, **kwargs)
+        hf_model_causal = AutoModelForCausalLM.from_pretrained(
+            model_slug, **kwargs
+        )
         log.info(f"load default trained model from huggingface: {model_slug}")
     return hf_model_causal
 
@@ -168,8 +173,12 @@ class InfosFromSlugAndConfig:
             }
         return past_values_cache_conf
 
-    def build_kv_cache_infos(self, n_past_input_tokens: int, as_float16: bool = False):
-        past_values_cache_conf = self.get_past_value_cache_conf(n_past_input_tokens)
+    def build_kv_cache_infos(
+        self, n_past_input_tokens: int, as_float16: bool = False
+    ):
+        past_values_cache_conf = self.get_past_value_cache_conf(
+            n_past_input_tokens
+        )
         dynamic_axes = {
             "input_ids": {1: "S"},
         }
@@ -211,7 +220,9 @@ class LLMExport:
             hf_model_slug, self.hf_model_causal.config
         )
 
-        self.wrapped_model = self.model_infos.wrapper_class(self.hf_model_causal)
+        self.wrapped_model = self.model_infos.wrapper_class(
+            self.hf_model_causal
+        )
 
     def quantize_weights_min_max_Q4_0(self):
         log.info("start quantization Q4_0")
@@ -220,10 +231,8 @@ class LLMExport:
                 if isinstance(mod, (nn.Linear, nn.Embedding)):
                     log.info(f"quantize layer: {name}")
                     try:
-                        q_weight = nn.Parameter(
-                            QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
-                                mod.weight
-                            )
+                        q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                            mod.weight
                         )
                     except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")
@@ -233,21 +242,10 @@ class LLMExport:
                         "weight",
                         nn.Parameter(q_weight, requires_grad=False),
                     )
+
         log.info("end quantization Q4_0")
 
-    def export_model(
-        self,
-        export_filepath: Path,
-        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-        tract_specific_path: T.Optional[Path] = None,
-        tract_specific_version: T.Optional[T.Union[SemanticVersion, str]] = None,
-        log_level=log.INFO,
-    ):
-        assert (  # mutualy exclusive arguments
-            (tract_specific_path is None and tract_specific_version is None)
-            or tract_specific_path is None
-            or tract_specific_version is None
-        )
+    def generate_inputs(self):
         test_input = self.tokenizer("Hello, I am happy", return_tensors="pt")
         (
             in_cache_names,
@@ -258,7 +256,34 @@ class LLMExport:
             n_past_input_tokens=10, as_float16=self.as_float16
         )
 
-        inputs = tuple([test_input.input_ids[:, :1]] + past_key_values)
+        return (
+            tuple([test_input.input_ids[:, :1]] + past_key_values),
+            in_cache_names,
+            out_cache_names,
+            dynamic_axes,
+        )
+
+    def export_model(
+        self,
+        export_filepath: Path,
+        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        tract_specific_path: T.Optional[Path] = None,
+        tract_specific_version: T.Optional[
+            T.Union[SemanticVersion, str]
+        ] = None,
+        log_level=log.INFO,
+    ):
+        assert (  # mutualy exclusive arguments
+            (tract_specific_path is None and tract_specific_version is None)
+            or tract_specific_path is None
+            or tract_specific_version is None
+        )
+        (
+            inputs,
+            in_cache_names,
+            out_cache_names,
+            dynamic_axes,
+        ) = self.generate_inputs()
 
         _ = self.wrapped_model(*inputs)
 
@@ -376,12 +401,16 @@ def main():
 
     with torch.no_grad():
         try:
-            exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
+            exporter = LLMExport(
+                args.model_slug, args.local_dir, args.as_float16
+            )
         except OSError as exp:
             if "gated repo" in exp.args[0]:
                 print(exp.args[0])
                 login()
-                exporter = LLMExport(args.model_slug, args.local_dir, args.as_float16)
+                exporter = LLMExport(
+                    args.model_slug, args.local_dir, args.as_float16
+                )
             else:
                 raise exp
         if args.quantize_weights:
@@ -396,4 +425,5 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
     main()
