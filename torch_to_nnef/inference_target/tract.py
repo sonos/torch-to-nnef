@@ -6,7 +6,6 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Window
 """
 
 import enum
-import gc
 import logging
 import platform
 import subprocess
@@ -520,9 +519,6 @@ def assert_io_and_debug_bundle(
                     input_names=input_names,
                     output_names=output_names,
                 )
-            if debug_bundle_path is None:
-                del model
-                gc.collect()
 
             assert nnef_file_path.exists(), nnef_file_path
             assert io_npz_path.exists()
