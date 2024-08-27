@@ -245,19 +245,22 @@ class LLMExport:
 
         log.info("end quantization Q4_0")
 
-    def generate_inputs(self):
+    def generate_inputs(
+        self, n_input_tokens: int = 1, n_past_input_tokens: int = 2
+    ):
         test_input = self.tokenizer("Hello, I am happy", return_tensors="pt")
+        assert test_input.input_ids.shape[1] >= n_input_tokens
         (
             in_cache_names,
             out_cache_names,
             past_key_values,
             dynamic_axes,
         ) = self.model_infos.build_kv_cache_infos(
-            n_past_input_tokens=10, as_float16=self.as_float16
+            n_past_input_tokens=n_past_input_tokens, as_float16=self.as_float16
         )
 
         return (
-            tuple([test_input.input_ids[:, :1]] + past_key_values),
+            tuple([test_input.input_ids[:, :n_input_tokens]] + past_key_values),
             in_cache_names,
             out_cache_names,
             dynamic_axes,
