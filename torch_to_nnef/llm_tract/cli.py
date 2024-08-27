@@ -203,6 +203,33 @@ class InfosFromSlugAndConfig:
         return in_cache_names, out_cache_names, past_key_values, dynamic_axes
 
 
+def quantize_weights_min_max_Q4_0(
+    hf_model_causal: nn.Module, args: T.Tuple[T.Any, ...]
+):
+    log.info("start quantization Q4_0")
+    with torch.no_grad():
+        for name, mod in hf_model_causal.named_modules():
+            if isinstance(mod, (nn.Linear, nn.Embedding)):
+                log.info(f"quantize layer: {name}")
+                try:
+                    q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                        mod.weight
+                    )
+                except TorchToNNEFImpossibleQuantization as exp:
+                    LOGGER.error(f"quant layer: {name} error: {exp}")
+                    continue
+                setattr(
+                    mod,
+                    "weight",
+                    nn.Parameter(q_weight, requires_grad=False),
+                )
+
+    log.info("end quantization Q4_0")
+
+
+DEFAULT_COMPRESSION = {"min_max_q4_0": quantize_weights_min_max_Q4_0}
+
+
 class LLMExport:
     def __init__(
         self,
@@ -223,27 +250,6 @@ class LLMExport:
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal
         )
-
-    def quantize_weights_min_max_Q4_0(self):
-        log.info("start quantization Q4_0")
-        with torch.no_grad():
-            for name, mod in self.hf_model_causal.named_modules():
-                if isinstance(mod, (nn.Linear, nn.Embedding)):
-                    log.info(f"quantize layer: {name}")
-                    try:
-                        q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
-                            mod.weight
-                        )
-                    except TorchToNNEFImpossibleQuantization as exp:
-                        LOGGER.error(f"quant layer: {name} error: {exp}")
-                        continue
-                    setattr(
-                        mod,
-                        "weight",
-                        nn.Parameter(q_weight, requires_grad=False),
-                    )
-
-        log.info("end quantization Q4_0")
 
     def generate_inputs(
         self, n_input_tokens: int = 1, n_past_input_tokens: int = 2
@@ -329,15 +335,24 @@ class LLMExport:
         )
 
 
-def parser_cli():
-    parser = argparse.ArgumentParser(__doc__)
-    parser.add_argument(
-        "-e",
-        "--export-filepath",
-        required=True,
-        help="export file path to dump .nnef.tgz",
-    )
+def dynamic_load_registry(compression_registry_full_path: str):
+    module_str, name = compression_registry_full_path.rsplit(".", maxsplit=1)
+    mod = __import__(module_str, fromlist=[""])
+    registry = getattr(mod, name)
+    assert isinstance(registry, dict)
+    return registry
 
+
+def parser_cli():
+    loader_parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        add_help=False,
+    )
+    full_parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     slug_examples = ", ".join(
         [
             f"'{_.value}'"
@@ -345,52 +360,73 @@ def parser_cli():
             for _ in slugsEnums
         ]
     )
-    parser.add_argument(
-        "-s",
-        "--model-slug",
-        required=True,
-        help=f"huggingface slug (web-page 'endpoint') to export by example ({slug_examples})",
+    for parser in [loader_parser, full_parser]:
+        parser.add_argument(
+            "-e",
+            "--export-filepath",
+            required=True,
+            help="export file path to dump .nnef.tgz",
+        )
+
+        parser.add_argument(
+            "-s",
+            "--model-slug",
+            required=True,
+            help=f"huggingface slug (web-page 'endpoint') to export by example ({slug_examples})",
+        )
+        parser.add_argument(
+            "-f16",
+            "--as-float16",
+            action="store_true",
+            help="float in 16 bits",
+        )
+        parser.add_argument(
+            "--compression-registry",
+            default="torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+            help="Compression registry to load "
+            "(should be a Dict[str, Callable(model, args)]), "
+            "can be specified to load arbitrary compression library.",
+        )
+        parser.add_argument(
+            "-d",
+            "--local-dir",
+            help="local dir containing .safetensors compatible with openELM"
+            " model size specified in slug",
+        )
+        parser.add_argument(
+            "-n",
+            "--naming-scheme",
+            default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
+            choices=[vns.value for vns in VariableNamingScheme],
+            help="display debug information",
+        )
+        parser.add_argument(
+            "--tract-specific-path",
+            required=False,
+            help="tract specific path (instead of latest version)",
+        )
+        parser.add_argument(
+            "--tract-specific-version",
+            required=False,
+            help="tract specific version",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="display debug information",
+        )
+    # == hack by using 1st parser without help to fill dynamically 2nd parser ==
+    args, _ = loader_parser.parse_known_args()
+    possible_compression_ids = list(
+        dynamic_load_registry(args.compression_registry).keys()
     )
+    parser = full_parser
     parser.add_argument(
-        "-f16",
-        "--as-float16",
-        action="store_true",
-        help="float in 16 bits",
-    )
-    parser.add_argument(
-        "-q",
-        "--quantize-weights",
-        action="store_true",
-        help="quantize weights with Q4.0 default basic calibration",
-    )
-    parser.add_argument(
-        "-d",
-        "--local-dir",
-        help="local dir containing .safetensors compatible with openELM"
-        " model size specified in slug",
-    )
-    parser.add_argument(
-        "-n",
-        "--naming-scheme",
-        default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
-        choices=[vns.value for vns in VariableNamingScheme],
-        help="display debug information",
-    )
-    parser.add_argument(
-        "--tract-specific-path",
-        required=False,
-        help="tract specific path (instead of latest version)",
-    )
-    parser.add_argument(
-        "--tract-specific-version",
-        required=False,
-        help="tract specific version",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="display debug information",
+        "-c",
+        "--compression-method",
+        choices=possible_compression_ids,
+        help="possible compression method to apply on Model before export",
     )
     return parser.parse_args()
 
@@ -416,8 +452,10 @@ def main():
                 )
             else:
                 raise exp
-        if args.quantize_weights:
-            exporter.quantize_weights_min_max_Q4_0()
+        if args.compression_method:
+            registry = dynamic_load_registry(args.compression_registry)
+            inps, *_ = exporter.generate_inputs()
+            registry[args.compression_method](exporter.wrapped_model, inps)
         exporter.export_model(
             args.export_filepath,
             naming_scheme=args.naming_scheme,
