@@ -210,7 +210,7 @@ def quantize_weights_min_max_Q4_0(
 ):
     with torch.no_grad():
         for name, mod in hf_model_causal.named_modules():
-            if isinstance(mod, (nn.Linear,)):
+            if isinstance(mod, (nn.Linear, nn.Embedding)):
                 LOGGER.info(f"quantize layer: {name}")
                 try:
                     q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
