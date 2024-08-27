@@ -313,7 +313,7 @@ class TractBinaryDownloader:
             # linux ARM
             if machine == "x86_64":
                 return "x86_64-unknown-linux-musl"
-            if machine == "aarch64":
+            if machine in ["arm64", "aarch64"]:
                 return "tract-aarch64-unknown-linux-musl"
             raise NotImplementedError(
                 f"No binary prebuild for machine: {machine}"
@@ -323,7 +323,7 @@ class TractBinaryDownloader:
             # OS X
             if machine == "x86_64":
                 return "tract-x86_64-apple-darwin"
-            if machine == "aarch64":
+            if machine in ["arm64", "aarch64"]:
                 return "aarch64-apple-darwin"
             raise NotImplementedError(
                 f"No binary prebuild for machine: {machine}"
