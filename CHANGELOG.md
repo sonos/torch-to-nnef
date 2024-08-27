@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.2] - 2024-08-27
+
+### Fix
+
+- add missing `arm64` in arch64 for tract downloader
+
 ## [0.13.1] - 2024-08-26
 
 ### Added
