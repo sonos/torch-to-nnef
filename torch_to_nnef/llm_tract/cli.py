@@ -107,7 +107,7 @@ def load_model(
         hf_model_causal = AutoModelForCausalLM.from_config(
             custom_config, trust_remote_code=True
         )
-        log.info(f"load custom config: {model_slug}")
+        LOGGER.info(f"load custom config: {model_slug}")
     elif local_dir:
         dir_path = Path(local_dir)
         assert dir_path.is_dir(), dir_path
@@ -115,12 +115,14 @@ def load_model(
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
             dir_path, **kwargs
         )
-        log.info(f"load '{model_slug}' from local directory: {dir_path}")
+        LOGGER.info(f"load '{model_slug}' from local directory: {dir_path}")
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
             model_slug, **kwargs
         )
-        log.info(f"load default trained model from huggingface: {model_slug}")
+        LOGGER.info(
+            f"load default trained model from huggingface: {model_slug}"
+        )
     return hf_model_causal
 
 
@@ -209,7 +211,7 @@ def quantize_weights_min_max_Q4_0(
     with torch.no_grad():
         for name, mod in hf_model_causal.named_modules():
             if isinstance(mod, (nn.Linear,)):
-                log.info(f"quantize layer: {name}")
+                LOGGER.info(f"quantize layer: {name}")
                 try:
                     q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
                         mod.weight
@@ -300,7 +302,7 @@ class LLMExport:
         assert (
             len(inputs) == len(input_names) == len(output_names)
         ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
-        log.info("start export with 'torch_to_nnef'")
+        LOGGER.info("start export with 'torch_to_nnef'")
         if tract_specific_version:
             inference_target = TractNNEF(
                 SemanticVersion.from_str(tract_specific_version)
@@ -452,13 +454,13 @@ def main():
             else:
                 raise exp
         if args.compression_method:
-            log.info(f"start compresssion: {args.compression_method}")
+            LOGGER.info(f"start compresssion: {args.compression_method}")
             registry = dynamic_load_registry(args.compression_registry)
             inps, *_ = exporter.generate_inputs()
             exporter.wrapped_model = registry[args.compression_method](
                 exporter.wrapped_model, inps
             )
-            log.info(
+            LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
         exporter.export_model(
