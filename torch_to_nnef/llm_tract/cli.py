@@ -206,10 +206,9 @@ class InfosFromSlugAndConfig:
 def quantize_weights_min_max_Q4_0(
     hf_model_causal: nn.Module, args: T.Tuple[T.Any, ...]
 ):
-    log.info("start quantization Q4_0")
     with torch.no_grad():
         for name, mod in hf_model_causal.named_modules():
-            if isinstance(mod, (nn.Linear, nn.Embedding)):
+            if isinstance(mod, (nn.Linear,)):
                 log.info(f"quantize layer: {name}")
                 try:
                     q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
@@ -224,7 +223,7 @@ def quantize_weights_min_max_Q4_0(
                     nn.Parameter(q_weight, requires_grad=False),
                 )
 
-    log.info("end quantization Q4_0")
+    return hf_model_causal
 
 
 DEFAULT_COMPRESSION = {"min_max_q4_0": quantize_weights_min_max_Q4_0}
@@ -453,9 +452,15 @@ def main():
             else:
                 raise exp
         if args.compression_method:
+            log.info(f"start compresssion: {args.compression_method}")
             registry = dynamic_load_registry(args.compression_registry)
             inps, *_ = exporter.generate_inputs()
-            registry[args.compression_method](exporter.wrapped_model, inps)
+            exporter.wrapped_model = registry[args.compression_method](
+                exporter.wrapped_model, inps
+            )
+            log.info(
+                f"successfully applied compression: {args.compression_method}"
+            )
         exporter.export_model(
             args.export_filepath,
             naming_scheme=args.naming_scheme,
