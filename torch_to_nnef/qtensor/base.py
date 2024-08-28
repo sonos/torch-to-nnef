@@ -131,24 +131,21 @@ class QTensor(torch.Tensor):
     @staticmethod
     def __new__(
         cls,
-        fp_tensor,
         u8_values_tensor,
         qscheme,
         dequant_to_dtype,
         *args,
         **kwargs,
     ):
-        return super().__new__(cls, fp_tensor, *args, **kwargs)
+        return super().__new__(cls, u8_values_tensor, *args, **kwargs)
 
     def __init__(
         self,
-        fp_tensor: torch.Tensor,
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
     ):
         super().__init__()
-        self.fp_tensor = fp_tensor
         self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
@@ -162,18 +159,18 @@ class QTensor(torch.Tensor):
     def clone(self, *args, **kwargs):
         return self.__class__(
             super().clone(*args, **kwargs),
-            self.u8_values_tensor,
             self.qscheme,
             self.dequant_to_dtype,
         )
 
     def to(self, *args, **kwargs):
-        temp_tensor = super().to(*args, **kwargs)
+        new_dtype = kwargs.get("dtype") or args[0] if args else None
+        if new_dtype is None:
+            return self
         new_obj = self.__class__(
-            self.fp_tensor,
             self.u8_values_tensor,
             self.qscheme,
-            temp_tensor.data.dtype,
+            new_dtype,
         )
         new_obj.requires_grad = False
         return new_obj
@@ -204,7 +201,16 @@ class QTensor(torch.Tensor):
             return NotImplemented
 
         with _C.DisableTorchFunctionSubclass():
-            ret = func(*args, **kwargs)
+            new_args = [
+                a.to_torch_float_tensor() if isinstance(a, cls) else a
+                for a in args
+            ]
+            new_kwargs = {
+                k: v.to_torch_float_tensor() if isinstance(v, cls) else v
+                for k, v in kwargs.items()
+            }
+
+            ret = func(*new_args, **new_kwargs)
             if func in get_default_nowrap_functions():
                 return ret
             # important modification
