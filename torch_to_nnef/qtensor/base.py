@@ -128,11 +128,55 @@ class QScalePerGroupF16(QScheme):
 class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
-    # should overwrite
-    # clone(self, *args, **kwargs)
+    @staticmethod
+    def __new__(
+        cls,
+        fp_tensor,
+        u8_values_tensor,
+        qscheme,
+        dequant_to_dtype,
+        *args,
+        **kwargs,
+    ):
+        return super().__new__(cls, fp_tensor, *args, **kwargs)
 
-    # need overwrite since nn.Paramater use it at __new__
-    # to(self, *args, **kwargs)
+    def __init__(
+        self,
+        fp_tensor: torch.Tensor,
+        u8_values_tensor: torch.Tensor,
+        qscheme: QScheme,
+        dequant_to_dtype=torch.float32,
+    ):
+        super().__init__()
+        self.fp_tensor = fp_tensor
+        self.u8_values_tensor = u8_values_tensor
+        self.qscheme = qscheme
+        self.dequant_to_dtype = dequant_to_dtype
+        self.requires_grad = False
+
+    def to_torch_float_tensor(self):
+        return self.qscheme.dequantize(self.u8_values_tensor).to(
+            self.dequant_to_dtype
+        )
+
+    def clone(self, *args, **kwargs):
+        return self.__class__(
+            super().clone(*args, **kwargs),
+            self.u8_values_tensor,
+            self.qscheme,
+            self.dequant_to_dtype,
+        )
+
+    def to(self, *args, **kwargs):
+        temp_tensor = super().to(*args, **kwargs)
+        new_obj = self.__class__(
+            self.fp_tensor,
+            self.u8_values_tensor,
+            self.qscheme,
+            temp_tensor.data.dtype,
+        )
+        new_obj.requires_grad = False
+        return new_obj
 
     def detach(self):
         # need overwrite since nn.Paramater use it at __new__
@@ -171,9 +215,6 @@ class QTensor(torch.Tensor):
     def data(self):
         """very important to keep access to all special attr of QTensor"""
         return self
-
-    def to_torch_float_tensor(self) -> torch.Tensor:
-        raise NotImplementedError()
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         """Called at NNEF write time.

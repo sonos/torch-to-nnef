@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.qtensor.base import QScalePerGroupF16, QScheme, QTensor
+from torch_to_nnef.qtensor.base import QScalePerGroupF16, QTensor
 
 
 class DatBinHeaderBuilder:
@@ -73,64 +73,7 @@ class DatBinHeaderBuilder:
 
 
 class QTensorTract(QTensor):
-    """
-
-    u8_values_tensor: is a "non-packed" tensor where each value
-        is stored in 8bits regardless of the final storage format
-
-    """
-
-    @staticmethod
-    def __new__(
-        cls,
-        fp_tensor,
-        u8_values_tensor,
-        qscheme,
-        dequant_to_dtype,
-        *args,
-        **kwargs,
-    ):
-        return super().__new__(cls, fp_tensor, *args, **kwargs)
-
-    def __init__(
-        self,
-        fp_tensor: torch.Tensor,
-        u8_values_tensor: torch.Tensor,
-        qscheme: QScheme,
-        dequant_to_dtype=torch.float32,
-    ):
-        super().__init__()
-        self.fp_tensor = fp_tensor
-        self.u8_values_tensor = u8_values_tensor
-        self.qscheme = qscheme
-        self.dequant_to_dtype = dequant_to_dtype
-        self.requires_grad = False  # since it's a
-
-    def to_torch_float_tensor(self):
-        # TODO: dequant_to_dtype should be an arg and passed to .dequantize
-        # only self.forward(...) should use self.dequant_to_dtype
-        return self.qscheme.dequantize(self.u8_values_tensor).to(
-            self.dequant_to_dtype
-        )
-
-    def clone(self, *args, **kwargs):
-        return QTensorTractScaleOnly(
-            super().clone(*args, **kwargs),
-            self.u8_values_tensor,
-            self.qscheme,
-            self.dequant_to_dtype,
-        )
-
-    def to(self, *args, **kwargs):
-        temp_tensor = super().to(*args, **kwargs)
-        new_obj = QTensorTractScaleOnly(
-            self.fp_tensor,
-            self.u8_values_tensor,
-            self.qscheme,
-            temp_tensor.data.dtype,
-        )
-        new_obj.requires_grad = False
-        return new_obj
+    """All QTensorTract implementations"""
 
 
 class QTensorTractScaleOnly(QTensorTract):
