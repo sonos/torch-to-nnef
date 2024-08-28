@@ -157,7 +157,7 @@ def add_tensor_variable_node_as_nnef_tensor(
                 inputs=None,
                 outputs=nnef_tensor_ref,
                 attribs={
-                    "custom_datatype": "tract_quant",
+                    "custom_datatype": "quant_tensor",
                     "label": nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
                 },

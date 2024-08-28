@@ -11,7 +11,9 @@ from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
 from torch_to_nnef.log import log
-from torch_to_nnef.qtensor.qtract import QTensorTractScaleOnly
+from torch_to_nnef.qtensor.qtract import (
+    fp_to_tract_q4_0_with_min_max_calibration,
+)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion
 
@@ -210,10 +212,11 @@ def quantize_weights_min_max_Q4_0(
 ):
     with torch.no_grad():
         for name, mod in hf_model_causal.named_modules():
-            if isinstance(mod, (nn.Linear, nn.Embedding)):
+            if isinstance(mod, (nn.Linear)):
+                # NOTE: nn.Embedding will likely need per channel implem in Tract
                 LOGGER.info(f"quantize layer: {name}")
                 try:
-                    q_weight = QTensorTractScaleOnly.build_q4_0_from_min_max_calibration(
+                    q_weight = fp_to_tract_q4_0_with_min_max_calibration(
                         mod.weight
                     )
                 except TorchToNNEFImpossibleQuantization as exp:

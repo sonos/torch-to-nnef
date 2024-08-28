@@ -1,6 +1,7 @@
 import abc
 import logging
 import typing as T
+from pathlib import Path
 
 import torch
 from torch import _C
@@ -173,3 +174,12 @@ class QTensor(torch.Tensor):
 
     def to_torch_float_tensor(self) -> torch.Tensor:
         raise NotImplementedError()
+
+    def write_in_file(self, dirpath: T.Union[str, Path], label: str):
+        """Called at NNEF write time.
+
+        Each specific inference engine format should implement
+        the file dump prefered.
+
+        """
+        raise TorchToNNEFNotImplementedError()
