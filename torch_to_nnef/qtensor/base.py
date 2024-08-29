@@ -1,6 +1,7 @@
 import abc
 import logging
 import typing as T
+from enum import Enum
 from pathlib import Path
 
 import torch
@@ -125,6 +126,11 @@ class QScalePerGroupF16(QScheme):
         )
 
 
+class SerializationMethod(str, Enum):
+    DEQUANTIZATION_OPERATIONS = "dequantization_operations"
+    OPAQUE_TENSOR_IN_FILE = "opaque_tensor_in_file"
+
+
 class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
@@ -134,6 +140,7 @@ class QTensor(torch.Tensor):
         u8_values_tensor,
         qscheme,
         dequant_to_dtype,
+        serialization_method,
         *args,
         **kwargs,
     ):
@@ -144,11 +151,13 @@ class QTensor(torch.Tensor):
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
+        serialization_method: SerializationMethod = SerializationMethod.OPAQUE_TENSOR_IN_FILE,
     ):
         super().__init__()
         self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
+        self.serialization_method = serialization_method
         self.requires_grad = False
 
     def to_torch_float_tensor(self):
@@ -156,11 +165,16 @@ class QTensor(torch.Tensor):
             self.dequant_to_dtype
         )
 
+    @torch.jit.ignore(drop=True)
+    def to_torch_float_tensor_jit_ignore(self):
+        return self.to_torch_float_tensor()
+
     def clone(self, *args, **kwargs):
         return self.__class__(
             super().clone(*args, **kwargs),
             self.qscheme,
             self.dequant_to_dtype,
+            self.serialization_method,
         )
 
     def to(self, *args, **kwargs):
@@ -171,6 +185,7 @@ class QTensor(torch.Tensor):
             self.u8_values_tensor,
             self.qscheme,
             new_dtype,
+            self.serialization_method,
         )
         new_obj.requires_grad = False
         return new_obj
@@ -194,6 +209,20 @@ class QTensor(torch.Tensor):
         we modify it so it's always reference torch.Tensor.
         """
 
+        def maybe_make_opaque_tensor(q_tensor: "QTensor") -> torch.Tensor:
+            if (
+                q_tensor.serialization_method
+                is SerializationMethod.DEQUANTIZATION_OPERATIONS
+            ):
+                return q_tensor.to_torch_float_tensor()
+            if (
+                q_tensor.serialization_method
+                is SerializationMethod.OPAQUE_TENSOR_IN_FILE
+            ):
+                ref = QTensorRef(q_tensor.to_torch_float_tensor(), q_tensor)
+                return ref
+            raise TorchToNNEFNotImplementedError(q_tensor.serialization_method)
+
         if kwargs is None:
             kwargs = {}
 
@@ -202,11 +231,11 @@ class QTensor(torch.Tensor):
 
         with _C.DisableTorchFunctionSubclass():
             new_args = [
-                a.to_torch_float_tensor() if isinstance(a, cls) else a
+                maybe_make_opaque_tensor(a) if isinstance(a, cls) else a
                 for a in args
             ]
             new_kwargs = {
-                k: v.to_torch_float_tensor() if isinstance(v, cls) else v
+                k: maybe_make_opaque_tensor(v) if isinstance(v, cls) else v
                 for k, v in kwargs.items()
             }
 
@@ -230,3 +259,69 @@ class QTensor(torch.Tensor):
 
         """
         raise TorchToNNEFNotImplementedError()
+
+
+class QTensorRef(torch.Tensor):
+    """ """
+
+    @staticmethod
+    def __new__(
+        cls,
+        fp_tensor,
+        q_tensor,
+        *args,
+        **kwargs,
+    ):
+        return super().__new__(cls, fp_tensor, *args, **kwargs)
+
+    def __init__(
+        self,
+        fp_tensor: torch.Tensor,
+        q_tensor: QTensor,
+    ):
+        super().__init__()
+        self.q_tensor = q_tensor
+
+    @property
+    def data(self):
+        return self
+
+    def clone(self, *args, **kwargs):
+        return self.__class__(
+            super().clone(*args, **kwargs),
+            self.q_tensor,
+        )
+
+    def to(self, *args, **kwargs):
+        return self
+
+    def detach(self):
+        # need overwrite since nn.Paramater use it at __new__
+        return self
+
+    def requires_grad_(self, requires_grad):
+        # need overwrite since nn.Paramater use it at __new__
+        return self
+
+    @classmethod
+    def __torch_function__(cls, func, types, args=(), kwargs=None):
+        """
+        This __torch_function__ implementation wraps subclasses such that
+        methods called on subclasses return a subclass instance instead of
+        a `torch.Tensor` instance.
+        we modify it so it's always reference torch.Tensor.
+        """
+
+        if kwargs is None:
+            kwargs = {}
+
+        if not all(issubclass(cls, t) for t in types):
+            return NotImplemented
+
+        with _C.DisableTorchFunctionSubclass():
+            ret = func(*args, **kwargs)
+            if func in get_default_nowrap_functions():
+                return ret
+            # important modification
+            # do not propagate this qtype
+            return _convert(ret, torch.Tensor)

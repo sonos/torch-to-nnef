@@ -15,7 +15,7 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.qtensor.base import QTensor
+from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -146,7 +146,10 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
+        if isinstance(node.data, QTensorRef):
+            __import__("ipdb").set_trace()
         if isinstance(node.data, QTensor):
+            __import__("ipdb").set_trace()
             q_tensor = node.data
             nnef_tensor_ref.qtensor = (
                 q_tensor  # main assign to allow corect dump
