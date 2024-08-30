@@ -4,14 +4,16 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.qtensor.qtract import build_q4_0_from_min_max_calibration
+from torch_to_nnef.qtensor.qtract import (
+    fp_to_tract_q4_0_with_min_max_calibration,
+)
 
 from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
 
 
 def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     original_weight = torch.arange(64).reshape(2, 32).float()
-    q_tensor = build_q4_0_from_min_max_calibration(original_weight)
+    q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
     q_tensor.u8_values_tensor  # check access works
     new_q_tensor = q_tensor.to(torch.float32)
     new_q_tensor.u8_values_tensor  # check access works
@@ -48,7 +50,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
         original_weight = model.weight
         fp_res = model(test_input)
 
-        q_tensor = build_q4_0_from_min_max_calibration(original_weight)
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
         deq_weights = q_tensor.to_torch_float_tensor()
         diff = (original_weight - deq_weights).abs()
         assert diff.sum() == 0
@@ -77,7 +79,7 @@ def test_quantize_with_tract_q4_0_classic(inference_target):
         original_weight = model.weight
         fp_res = model(test_input)
 
-        q_tensor = build_q4_0_from_min_max_calibration(original_weight)
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
         deq_weights = q_tensor.to_torch_float_tensor()
         diff = (original_weight - deq_weights).abs()
         assert diff.mean() < 0.01, diff.mean()
@@ -108,7 +110,7 @@ def test_quantize_with_tract_q4_0_arange(inference_target):
         model.weight[:, :] = torch.arange(16 * 96).float().reshape(16, 96)
         original_weight = model.weight
 
-        q_tensor = build_q4_0_from_min_max_calibration(original_weight)
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
         # can safely check io since all values controled
