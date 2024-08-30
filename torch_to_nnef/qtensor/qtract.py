@@ -6,7 +6,11 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.qtensor.base import QScalePerGroupF16, QTensor
+from torch_to_nnef.qtensor.base import (
+    QScalePerGroupF16,
+    QTensor,
+    qscale_per_group_f16_min_max_calibration,
+)
 
 
 class DatBinHeaderBuilder:
@@ -136,7 +140,7 @@ class QTensorTractScaleOnly(QTensorTract):
 def fp_to_tract_q4_0_with_min_max_calibration(
     fp_tensor, percentile: float = 1.0
 ) -> QTensorTractScaleOnly:
-    """Min-Max method to quantize float tensor to Q4_0"""
+    """Min-Max method to quantize float tensor to tract supported Q4_0"""
     if isinstance(fp_tensor, torch.nn.Parameter):
         fp_tensor = fp_tensor.data
     if len(fp_tensor.shape) != 2:
@@ -149,7 +153,7 @@ def fp_to_tract_q4_0_with_min_max_calibration(
             f"divisible by 32 but found {fp_tensor.shape[1]}"
         )
     with torch.no_grad():
-        q_scheme, u8_values_tensor = QScalePerGroupF16.min_max_calibration(
+        q_scheme, u8_values_tensor = qscale_per_group_f16_min_max_calibration(
             fp_tensor, n_bits=4, group_size=32, percentile=percentile
         )
         return QTensorTractScaleOnly(

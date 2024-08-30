@@ -51,46 +51,6 @@ class QScalePerGroupF16(QScheme):
             "native torch does not suport per chunk"
         )
 
-    @classmethod
-    def min_max_calibration(
-        cls,
-        fp_tensor,
-        n_bits: int,
-        group_size: int,
-        percentile: float = 1.0,
-    ) -> T.Tuple["QScalePerGroupF16", torch.Tensor]:
-        assert 0.0 < percentile <= 1.0
-        volume = 1
-        for fp_dim in fp_tensor.shape:
-            volume *= fp_dim
-        if volume % group_size != 0:
-            raise ValueError(
-                f"tensor provided volume: {volume} but group size are {group_size} "
-                "incomplete groups aren't supported."
-            )
-        fp_tensor_per_group = fp_tensor.flatten().reshape(-1, group_size)
-
-        # we use full-range symmetric
-        # like torch, ONNX, but oposed to restricted range from
-        # TensorFlow, NVIDIA TensorRT and Intel DNNL
-        scale = torch.quantile(fp_tensor_per_group.abs(), percentile, dim=1) / (
-            -(2**n_bits) / 2
-        )
-
-        assert scale.shape[0] == fp_tensor_per_group.shape[0]
-        qshape = [scale.shape[0]] + [1]
-        qscheme = cls(
-            group_size=group_size,
-            scale=scale.reshape(qshape),
-            n_bits=n_bits,
-        )
-        return (
-            qscheme,
-            qscheme.quantize_as_u8(fp_tensor_per_group).reshape(
-                fp_tensor.shape
-            ),
-        )
-
     def quantize_as_u8(self, fp_tensor):
         assert (
             len(fp_tensor.shape) == 2 and fp_tensor.shape[1] == self.group_size
@@ -313,6 +273,12 @@ class QTensorRef(torch.Tensor):
 
 
 def if_qtensor_in_params_set_as_ref(model):
+    """Move QTensor into QTensorRef which expand tensor
+
+    This is applied at export time of torch_to_nnef
+    Just before doing any tracing.
+
+    """
     for named_p, param in model.named_parameters():
         if not isinstance(param, QTensor):
             continue
@@ -329,3 +295,48 @@ def if_qtensor_in_params_set_as_ref(model):
                 requires_grad=False,
             ),
         )
+
+
+def qscale_per_group_f16_min_max_calibration(
+    fp_tensor,
+    n_bits: int,
+    group_size: int,
+    percentile: float = 1.0,
+) -> T.Tuple["QScalePerGroupF16", torch.Tensor]:
+    """Build QScalePerGroupF16 and calibrate requested float tensor.
+
+    Return:
+        Tuple(
+            QScalePerGroupF16 qscheme,
+            torch.Tensor[uint8]
+        )
+    """
+    assert 0.0 < percentile <= 1.0
+    volume = 1
+    for fp_dim in fp_tensor.shape:
+        volume *= fp_dim
+    if volume % group_size != 0:
+        raise ValueError(
+            f"tensor provided volume: {volume} but group size are {group_size} "
+            "incomplete groups aren't supported."
+        )
+    fp_tensor_per_group = fp_tensor.flatten().reshape(-1, group_size)
+
+    # we use full-range symmetric
+    # like torch, ONNX, but oposed to restricted range from
+    # TensorFlow, NVIDIA TensorRT and Intel DNNL
+    scale = torch.quantile(fp_tensor_per_group.abs(), percentile, dim=1) / (
+        -(2**n_bits) / 2
+    )
+
+    assert scale.shape[0] == fp_tensor_per_group.shape[0]
+    qshape = [scale.shape[0]] + [1]
+    qscheme = QScalePerGroupF16(
+        group_size=group_size,
+        scale=scale.reshape(qshape),
+        n_bits=n_bits,
+    )
+    return (
+        qscheme,
+        qscheme.quantize_as_u8(fp_tensor_per_group).reshape(fp_tensor.shape),
+    )
