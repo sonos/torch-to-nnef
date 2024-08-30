@@ -1,7 +1,6 @@
 import abc
 import logging
 import typing as T
-from enum import Enum
 from pathlib import Path
 
 import torch
@@ -126,11 +125,6 @@ class QScalePerGroupF16(QScheme):
         )
 
 
-class SerializationMethod(str, Enum):
-    DEQUANTIZATION_OPERATIONS = "dequantization_operations"
-    OPAQUE_TENSOR_IN_FILE = "opaque_tensor_in_file"
-
-
 class QTensor(torch.Tensor):
     """Common interface for all Quantized storage"""
 
@@ -140,7 +134,6 @@ class QTensor(torch.Tensor):
         u8_values_tensor,
         qscheme,
         dequant_to_dtype,
-        serialization_method,
         *args,
         **kwargs,
     ):
@@ -151,13 +144,11 @@ class QTensor(torch.Tensor):
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
-        serialization_method: SerializationMethod = SerializationMethod.OPAQUE_TENSOR_IN_FILE,
     ):
         super().__init__()
         self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
-        self.serialization_method = serialization_method
         self.requires_grad = False
 
     def to_torch_float_tensor(self):
@@ -174,7 +165,6 @@ class QTensor(torch.Tensor):
             super().clone(*args, **kwargs),
             self.qscheme,
             self.dequant_to_dtype,
-            self.serialization_method,
         )
 
     def to(self, *args, **kwargs):
@@ -185,7 +175,6 @@ class QTensor(torch.Tensor):
             self.u8_values_tensor,
             self.qscheme,
             new_dtype,
-            self.serialization_method,
         )
         new_obj.requires_grad = False
         return new_obj
@@ -209,20 +198,6 @@ class QTensor(torch.Tensor):
         we modify it so it's always reference torch.Tensor.
         """
 
-        def maybe_make_opaque_tensor(q_tensor: "QTensor") -> torch.Tensor:
-            if (
-                q_tensor.serialization_method
-                is SerializationMethod.DEQUANTIZATION_OPERATIONS
-            ):
-                return q_tensor.to_torch_float_tensor()
-            if (
-                q_tensor.serialization_method
-                is SerializationMethod.OPAQUE_TENSOR_IN_FILE
-            ):
-                ref = QTensorRef(q_tensor.to_torch_float_tensor(), q_tensor)
-                return ref
-            raise TorchToNNEFNotImplementedError(q_tensor.serialization_method)
-
         if kwargs is None:
             kwargs = {}
 
@@ -231,11 +206,11 @@ class QTensor(torch.Tensor):
 
         with _C.DisableTorchFunctionSubclass():
             new_args = [
-                maybe_make_opaque_tensor(a) if isinstance(a, cls) else a
+                a.to_torch_float_tensor() if isinstance(a, cls) else a
                 for a in args
             ]
             new_kwargs = {
-                k: maybe_make_opaque_tensor(v) if isinstance(v, cls) else v
+                k: v.to_torch_float_tensor(v) if isinstance(v, cls) else v
                 for k, v in kwargs.items()
             }
 
@@ -245,6 +220,9 @@ class QTensor(torch.Tensor):
             # important modification
             # do not propagate this qtype
             return _convert(ret, torch.Tensor)
+
+    def as_ref(self):
+        return QTensorRef(self.to_torch_float_tensor(), self)
 
     @property
     def data(self):
@@ -262,8 +240,6 @@ class QTensor(torch.Tensor):
 
 
 class QTensorRef(torch.Tensor):
-    """ """
-
     @staticmethod
     def __new__(
         cls,
@@ -325,3 +301,20 @@ class QTensorRef(torch.Tensor):
             # important modification
             # do not propagate this qtype
             return _convert(ret, torch.Tensor)
+
+
+def if_qtensor_in_params_set_as_ref(model):
+    for named_p, param in model.named_parameters():
+        if not isinstance(param, QTensor):
+            continue
+        ref_mod = model
+        chunked_names = named_p.split(".")
+        for mod_name in chunked_names[:-1]:
+            ref_mod = getattr(ref_mod, mod_name)
+        # new_param = param.to_ref
+        __import__("ipdb").set_trace()
+        # setattr(
+        #     ref_mod,
+        #     chunked_names[-1],
+        #
+        # )

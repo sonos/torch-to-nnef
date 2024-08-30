@@ -6,11 +6,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.qtensor.base import (
-    QScalePerGroupF16,
-    QTensor,
-    SerializationMethod,
-)
+from torch_to_nnef.qtensor.base import QScalePerGroupF16, QTensor
 
 
 class DatBinHeaderBuilder:
@@ -160,5 +156,4 @@ def fp_to_tract_q4_0_with_min_max_calibration(
             u8_values_tensor=u8_values_tensor,
             qscheme=q_scheme,
             dequant_to_dtype=fp_tensor.dtype,
-            serialization_method=SerializationMethod.OPAQUE_TENSOR_IN_FILE,
         )
