@@ -146,11 +146,12 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
-        if isinstance(node.data, QTensorRef):
-            __import__("ipdb").set_trace()
-        if isinstance(node.data, QTensor):
-            __import__("ipdb").set_trace()
-            q_tensor = node.data
+        if isinstance(node.data, (QTensorRef, QTensor)):
+            if isinstance(node.data, QTensorRef):
+                q_tensor = node.data.q_tensor
+            else:
+                q_tensor = node.data
+
             nnef_tensor_ref.qtensor = (
                 q_tensor  # main assign to allow corect dump
             )

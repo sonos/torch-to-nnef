@@ -219,7 +219,6 @@ def quantize_weights_min_max_Q4_0(
                     q_weight = fp_to_tract_q4_0_with_min_max_calibration(
                         mod.weight
                     )
-                    __import__("ipdb").set_trace()
                 except TorchToNNEFImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")
                     continue

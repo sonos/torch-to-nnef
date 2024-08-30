@@ -126,7 +126,7 @@ class QScalePerGroupF16(QScheme):
 
 
 class QTensor(torch.Tensor):
-    """Common interface for all Quantized storage"""
+    """Common interface for all Compressed storage"""
 
     @staticmethod
     def __new__(
@@ -155,10 +155,6 @@ class QTensor(torch.Tensor):
         return self.qscheme.dequantize(self.u8_values_tensor).to(
             self.dequant_to_dtype
         )
-
-    @torch.jit.ignore(drop=True)
-    def to_torch_float_tensor_jit_ignore(self):
-        return self.to_torch_float_tensor()
 
     def clone(self, *args, **kwargs):
         return self.__class__(
@@ -205,14 +201,25 @@ class QTensor(torch.Tensor):
             return NotImplemented
 
         with _C.DisableTorchFunctionSubclass():
-            new_args = [
-                a.to_torch_float_tensor() if isinstance(a, cls) else a
-                for a in args
-            ]
-            new_kwargs = {
-                k: v.to_torch_float_tensor(v) if isinstance(v, cls) else v
-                for k, v in kwargs.items()
-            }
+            new_args = args
+            new_kwargs = kwargs
+            if func not in get_default_nowrap_functions().union(
+                {cls.__repr__}
+            ) and "'__set__'" not in str(
+                func
+            ):  # class should not be expanded for setattr
+                new_args = [
+                    QTensorRef(a.to_torch_float_tensor(), a)
+                    if isinstance(a, cls)
+                    else a
+                    for a in args
+                ]
+                new_kwargs = {
+                    k: QTensorRef(v.to_torch_float_tensor(), v)
+                    if isinstance(v, cls)
+                    else v
+                    for k, v in kwargs.items()
+                }
 
             ret = func(*new_args, **new_kwargs)
             if func in get_default_nowrap_functions():
@@ -220,9 +227,6 @@ class QTensor(torch.Tensor):
             # important modification
             # do not propagate this qtype
             return _convert(ret, torch.Tensor)
-
-    def as_ref(self):
-        return QTensorRef(self.to_torch_float_tensor(), self)
 
     @property
     def data(self):
@@ -284,7 +288,7 @@ class QTensorRef(torch.Tensor):
         """
         This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
-        a `torch.Tensor` instance.
+        a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
 
@@ -295,7 +299,12 @@ class QTensorRef(torch.Tensor):
             return NotImplemented
 
         with _C.DisableTorchFunctionSubclass():
-            ret = func(*args, **kwargs)
+            new_args = [a.clone() if isinstance(a, cls) else a for a in args]
+            new_kwargs = {
+                k: v.clone() if isinstance(v, cls) else v
+                for k, v in kwargs.items()
+            }
+            ret = func(*new_args, **new_kwargs)
             if func in get_default_nowrap_functions():
                 return ret
             # important modification
@@ -311,10 +320,12 @@ def if_qtensor_in_params_set_as_ref(model):
         chunked_names = named_p.split(".")
         for mod_name in chunked_names[:-1]:
             ref_mod = getattr(ref_mod, mod_name)
-        # new_param = param.to_ref
-        __import__("ipdb").set_trace()
-        # setattr(
-        #     ref_mod,
-        #     chunked_names[-1],
-        #
-        # )
+
+        setattr(
+            ref_mod,
+            chunked_names[-1],
+            torch.nn.Parameter(
+                QTensorRef(param.to_torch_float_tensor(), param),
+                requires_grad=False,
+            ),
+        )

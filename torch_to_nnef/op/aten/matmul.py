@@ -10,7 +10,7 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
-from torch_to_nnef.qtensor.base import QTensor
+from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
@@ -233,7 +233,7 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
     suffix_weight = ""
     suffix_bias = ""
     if weight_node.data is not None:
-        if isinstance(weight_node.data, QTensor):
+        if isinstance(weight_node.data, (QTensor, QTensorRef)):
             suffix_weight = "weight_raw2d"
         else:
             for _ in range(input_node.rank - weight_node.rank):
@@ -241,7 +241,7 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
                 weight_node.shape = list(weight_node.data.shape)
 
     if bias_node.data is not None:
-        if isinstance(weight_node.data, QTensor):
+        if isinstance(weight_node.data, (QTensor, QTensorRef)):
             suffix_bias = "bias_raw2d"
         else:
             for _ in range(input_node.rank - bias_node.rank):
