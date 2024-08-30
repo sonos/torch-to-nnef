@@ -85,6 +85,32 @@ class QScalePerGroupF16(QScheme):
         )
 
 
+class Packing:
+    """Abstract class to add Lossless compression methods
+
+    to pack elements bellow 8bit
+
+    """
+
+    @abc.abstractmethod
+    def pack(self, u8_tensor):
+        pass
+
+    @abc.abstractmethod
+    def unpack(self, u8_tensor):
+        pass
+
+
+class DummyPacking(Packing):
+    """No compression"""
+
+    def pack(self, u8_tensor):
+        return u8_tensor
+
+    def unpack(self, u8_tensor):
+        return u8_tensor
+
+
 class QTensor(torch.Tensor):
     """Common interface for all Compressed storage"""
 
@@ -93,8 +119,9 @@ class QTensor(torch.Tensor):
         cls,
         u8_values_tensor,
         qscheme,
-        dequant_to_dtype,
         *args,
+        dequant_to_dtype=torch.float32,
+        packing: Packing = DummyPacking(),
         **kwargs,
     ):
         return super().__new__(cls, u8_values_tensor, *args, **kwargs)
@@ -104,10 +131,12 @@ class QTensor(torch.Tensor):
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
+        packing: Packing = DummyPacking(),
     ):
         super().__init__()
         self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
+        self.packing = packing
         self.dequant_to_dtype = dequant_to_dtype
         self.requires_grad = False
 
@@ -169,15 +198,11 @@ class QTensor(torch.Tensor):
                 func
             ):  # class should not be expanded for setattr
                 new_args = [
-                    QTensorRef(a.to_torch_float_tensor(), a)
-                    if isinstance(a, cls)
-                    else a
+                    a.to_torch_float_tensor() if isinstance(a, cls) else a
                     for a in args
                 ]
                 new_kwargs = {
-                    k: QTensorRef(v.to_torch_float_tensor(), v)
-                    if isinstance(v, cls)
-                    else v
+                    k: v.to_torch_float_tensor() if isinstance(v, cls) else v
                     for k, v in kwargs.items()
                 }
 
@@ -272,31 +297,6 @@ class QTensorRef(torch.Tensor):
             return _convert(ret, torch.Tensor)
 
 
-def if_qtensor_in_params_set_as_ref(model):
-    """Move QTensor into QTensorRef which expand tensor
-
-    This is applied at export time of torch_to_nnef
-    Just before doing any tracing.
-
-    """
-    for named_p, param in model.named_parameters():
-        if not isinstance(param, QTensor):
-            continue
-        ref_mod = model
-        chunked_names = named_p.split(".")
-        for mod_name in chunked_names[:-1]:
-            ref_mod = getattr(ref_mod, mod_name)
-
-        setattr(
-            ref_mod,
-            chunked_names[-1],
-            torch.nn.Parameter(
-                QTensorRef(param.to_torch_float_tensor(), param),
-                requires_grad=False,
-            ),
-        )
-
-
 def qscale_per_group_f16_min_max_calibration(
     fp_tensor,
     n_bits: int,
@@ -340,3 +340,28 @@ def qscale_per_group_f16_min_max_calibration(
         qscheme,
         qscheme.quantize_as_u8(fp_tensor_per_group).reshape(fp_tensor.shape),
     )
+
+
+def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
+    """Transform QTensor Parameters into QTensorRef
+
+    This is applied at export time of `torch_to_nnef`
+    Just before doing any tracing
+
+    """
+    for named_p, param in model.named_parameters():
+        if not isinstance(param, QTensor):
+            continue
+        ref_mod = model
+        chunked_names = named_p.split(".")
+        for mod_name in chunked_names[:-1]:
+            ref_mod = getattr(ref_mod, mod_name)
+
+        setattr(
+            ref_mod,
+            chunked_names[-1],
+            torch.nn.Parameter(
+                QTensorRef(param.to_torch_float_tensor(), param),
+                requires_grad=False,
+            ),
+        )
