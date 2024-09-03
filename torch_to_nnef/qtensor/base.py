@@ -124,7 +124,14 @@ class QTensor(torch.Tensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        return super().__new__(cls, u8_values_tensor, *args, **kwargs)
+        compressed_u8_values_tensor = u8_values_tensor[:]
+        for u8_compressor in u8_compressors or []:
+            compressed_u8_values_tensor = u8_compressor.compress(
+                compressed_u8_values_tensor
+            )
+        return super().__new__(
+            cls, compressed_u8_values_tensor, *args, **kwargs
+        )
 
     def __init__(
         self,
@@ -135,12 +142,7 @@ class QTensor(torch.Tensor):
     ):
         super().__init__()
         self.u8_compressors = u8_compressors or []
-        compress_u8_values_tensor = u8_values_tensor[:]
-        for u8_compressor in self.u8_compressors:
-            compress_u8_values_tensor = u8_compressor.compress(
-                compress_u8_values_tensor
-            )
-        self.u8_values_tensor = compress_u8_values_tensor
+        self.u8_values_tensor = u8_values_tensor
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
         self.requires_grad = False
