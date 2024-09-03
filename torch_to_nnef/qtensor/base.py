@@ -22,10 +22,6 @@ class QScheme(abc.ABC):
     def dequantize(self, u8_tensor, target_dtype):
         raise NotImplementedError()
 
-    @abc.abstractmethod
-    def clone_with_scale_factor(self, scale_factor):
-        raise NotImplementedError()
-
 
 class QScalePerGroupF16(QScheme):
     """Tract aligned
@@ -124,31 +120,27 @@ class QTensor(torch.Tensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        compressed_u8_values_tensor = u8_values_tensor[:]
+        u8_blob = u8_values_tensor[:]
         for u8_compressor in u8_compressors or []:
-            compressed_u8_values_tensor = u8_compressor.compress(
-                compressed_u8_values_tensor
-            )
-        return super().__new__(
-            cls, compressed_u8_values_tensor, *args, **kwargs
-        )
+            u8_blob = u8_compressor.compress(u8_blob)
+        return super().__new__(cls, u8_blob, *args, **kwargs)
 
     def __init__(
         self,
-        u8_values_tensor: torch.Tensor,
+        u8_blob: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
     ):
         super().__init__()
-        self.u8_compressors = u8_compressors or []
-        self.u8_values_tensor = u8_values_tensor
+        self.u8_blob = u8_blob
         self.qscheme = qscheme
+        self.u8_compressors = u8_compressors or []
         self.dequant_to_dtype = dequant_to_dtype
         self.requires_grad = False
 
     def to_torch_float_tensor(self):
-        decompress_u8 = self.u8_values_tensor
+        decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
         return self.qscheme.dequantize(
@@ -167,7 +159,7 @@ class QTensor(torch.Tensor):
         if new_dtype is None:
             return self
         new_obj = self.__class__(
-            self.u8_values_tensor,
+            self.u8_blob,
             qscheme=self.qscheme,
             dequant_to_dtype=new_dtype,
         )
