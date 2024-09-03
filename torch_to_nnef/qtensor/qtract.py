@@ -91,17 +91,12 @@ class QTensorTractScaleOnly(QTensorTract):
     qscheme: QScalePerGroupF16  # type notation for mypy
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
-
         # tract limited support of packing
         assert self.qscheme.n_bits == 4, self.qscheme.n_bits
-        assert (
-            len(self.u8_values_tensor.shape) == 2
-        ), self.u8_values_tensor.shape
-        assert (
-            self.u8_values_tensor.shape[1] % 32 == 0
-        ), self.u8_values_tensor.shape
+        self.decompressed_shape = self.decompress_to_u8().shape
+        assert len(self.decompressed_shape) == 2, self.decompressed_shape
+        assert self.decompressed_shape[1] % 32 == 0, self.decompressed_shape
 
     def to_torch_float_tensor(self):
         """tract dequantization depends on hardware
@@ -128,7 +123,7 @@ class QTensorTractScaleOnly(QTensorTract):
     def _build_binary_dat_header(self) -> bytes:
         q4_0_hex_code = "4020"
         return DatBinHeaderBuilder(
-            q4_0_hex_code, self.u8_values_tensor.shape
+            q4_0_hex_code, self.decompressed_shape
         ).to_bytes()
 
     def _build_binary_dat_content(self) -> bytes:
@@ -136,7 +131,7 @@ class QTensorTractScaleOnly(QTensorTract):
 
         n_bytes_per_group = 18
         tensor_per_group = (
-            self.u8_values_tensor.clone().flatten().reshape(-1, 16, 2)
+            self.decompress_to_u8().clone().flatten().reshape(-1, 16, 2)
         )
         tensor_per_group[:, :, 0] <<= 4
         tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
@@ -176,11 +171,11 @@ def fp_to_tract_q4_0_with_min_max_calibration(
             f"divisible by 32 but found {fp_tensor.shape[1]}"
         )
     with torch.no_grad():
-        q_scheme, u8_values_tensor = qscale_per_group_f16_min_max_calibration(
+        q_scheme = qscale_per_group_f16_min_max_calibration(
             fp_tensor, n_bits=4, group_size=32, percentile=percentile
         )
         return QTensorTractScaleOnly(
-            u8_values_tensor=u8_values_tensor,
+            fp_tensor,
             qscheme=q_scheme,
             dequant_to_dtype=fp_tensor.dtype,
         )

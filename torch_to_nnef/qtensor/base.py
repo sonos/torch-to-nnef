@@ -47,20 +47,30 @@ class QScalePerGroupF16(QScheme):
             "native torch does not suport per chunk"
         )
 
+    @staticmethod
+    def reshape_tensor_per_group(fp_tensor, group_size: int):
+        return fp_tensor.flatten().reshape(-1, group_size)
+
     def quantize_as_u8(self, fp_tensor):
+        fp_tensor_per_group = self.reshape_tensor_per_group(
+            fp_tensor, self.group_size
+        )
         assert (
-            len(fp_tensor.shape) == 2 and fp_tensor.shape[1] == self.group_size
+            len(fp_tensor_per_group.shape) == 2
+            and fp_tensor_per_group.shape[1] == self.group_size
         )
         recip_scale = torch.where(self.scale == 0, self.scale, 1.0 / self.scale)
         fu8_tensor_per_group = (
-            ((fp_tensor * recip_scale) + (2**self.n_bits + 1) / 2)
+            ((fp_tensor_per_group * recip_scale) + (2**self.n_bits + 1) / 2)
             .floor()
             .clamp(0, 2**self.n_bits - 1)
         )
-        return fu8_tensor_per_group.to(torch.uint8)
+        return fu8_tensor_per_group.to(torch.uint8).reshape(fp_tensor.shape)
 
     def dequantize(self, u8_tensor, target_dtype):
-        u8_tensor_per_group = u8_tensor.flatten().reshape(-1, self.group_size)
+        u8_tensor_per_group = self.reshape_tensor_per_group(
+            u8_tensor, self.group_size
+        )
         offset = 2**self.n_bits / 2
         fp_tensor_per_group = (u8_tensor_per_group - offset).to(target_dtype)
         fp_tensor_per_group *= self.scale.to(target_dtype)
@@ -88,6 +98,9 @@ class U8Compressor:
     > Apply bitpack elements bellow 8bit
     > Apply classic compression algorithm
 
+    Warning !! .shape of u8_tensor compressed
+                must be same as
+               .shape once decompressed
     """
 
     @abc.abstractmethod
@@ -115,38 +128,36 @@ class QTensor(torch.Tensor):
     @staticmethod
     def __new__(
         cls,
-        u8_values_tensor,
+        fp_tensor,
         qscheme,
         *args,
         dequant_to_dtype=torch.float32,
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        u8_blob = u8_values_tensor[:]
+        u8_blob = qscheme.quantize_as_u8(fp_tensor)
         for u8_compressor in u8_compressors or []:
             u8_blob = u8_compressor.compress(u8_blob)
-        return super().__new__(cls, u8_blob, *args, **kwargs)
+        # we apply all quant/compress prior to __new__
+        # because it is the operation that define tensor
+        obj = super().__new__(cls, u8_blob, *args, **kwargs)
+        # contrary to usual practice we assign
+        obj.u8_blob = u8_blob
+        obj.qscheme = qscheme
+        obj.u8_compressors = u8_compressors or []
+        obj.dequant_to_dtype = dequant_to_dtype
+        obj.requires_grad = False
+        return obj
 
-    def __init__(
-        self,
-        u8_blob: torch.Tensor,
-        qscheme: QScheme,
-        dequant_to_dtype=torch.float32,
-        u8_compressors: T.Optional[T.List[U8Compressor]] = None,
-    ):
-        super().__init__()
-        self.u8_blob = u8_blob
-        self.qscheme = qscheme
-        self.u8_compressors = u8_compressors or []
-        self.dequant_to_dtype = dequant_to_dtype
-        self.requires_grad = False
-
-    def to_torch_float_tensor(self):
+    def decompress_to_u8(self):
         decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
+        return decompress_u8
+
+    def to_torch_float_tensor(self):
         return self.qscheme.dequantize(
-            decompress_u8, target_dtype=self.dequant_to_dtype
+            self.decompress_to_u8(), target_dtype=self.dequant_to_dtype
         )
 
     def clone(self, *args, **kwargs):
@@ -306,7 +317,7 @@ def qscale_per_group_f16_min_max_calibration(
     n_bits: int,
     group_size: int,
     percentile: float = 1.0,
-) -> T.Tuple["QScalePerGroupF16", torch.Tensor]:
+) -> T.Tuple["QScalePerGroupF16"]:
     """Build QScalePerGroupF16 and calibrate requested float tensor.
 
     Return:
@@ -324,7 +335,9 @@ def qscale_per_group_f16_min_max_calibration(
             f"tensor provided volume: {volume} but group size are {group_size} "
             "incomplete groups aren't supported."
         )
-    fp_tensor_per_group = fp_tensor.flatten().reshape(-1, group_size)
+    fp_tensor_per_group = QScalePerGroupF16.reshape_tensor_per_group(
+        fp_tensor, group_size
+    )
 
     # we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
@@ -335,14 +348,10 @@ def qscale_per_group_f16_min_max_calibration(
 
     assert scale.shape[0] == fp_tensor_per_group.shape[0]
     qshape = [scale.shape[0]] + [1]
-    qscheme = QScalePerGroupF16(
+    return QScalePerGroupF16(
         group_size=group_size,
         scale=scale.reshape(qshape),
         n_bits=n_bits,
-    )
-    return (
-        qscheme,
-        qscheme.quantize_as_u8(fp_tensor_per_group).reshape(fp_tensor.shape),
     )
 
 
