@@ -63,14 +63,29 @@ def expand(g, node, name_to_tensor, inference_target, **kwargs):
         inference_target=inference_target,
     )
 
+    nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if input_node.rank != len(repeats):
+        qte_missing_dim = len(repeats) - input_node.rank
+        assert qte_missing_dim > 0, qte_missing_dim
+
+        nnef_input_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=nnef_input_tensor,
+            attrs={"axes": [0] * qte_missing_dim},
+            output_tensor_name_suffix="unsqueeze_align",
+        )
+
     out = add_single_output_op(
         g,
         node,
         name_to_tensor,
         "tile",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=nnef_input_tensor,
         attrs={"repeats": repeats},
         output_tensor_name_suffix="repeat",
     )
