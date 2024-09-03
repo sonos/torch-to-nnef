@@ -84,7 +84,9 @@ class QScalePerGroupF16(QScheme):
 class U8Compressor:
     """Abstract class to add u8 compression methods
 
-    to pack elements bellow 8bit
+    This can be used to
+    > Apply bitpack elements bellow 8bit
+    > Apply classic compression algorithm
 
     """
 
