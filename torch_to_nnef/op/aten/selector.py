@@ -7,6 +7,7 @@ from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    SimpleOpChainer,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     get_or_add_tensor_variable_in_nnef,
@@ -70,6 +71,17 @@ def slice_(
     ):
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(inference_target)
+        if inference_target.version < "0.21.7":
+            return tract_pre_0_21_7_slice(
+                g,
+                node,
+                name_to_tensor,
+                torch_graph,
+                False,
+                inference_target.has_dynamic_axes,
+                op_helper,
+                **kwargs,
+            )
         add_single_output_op(
             g,
             node,
@@ -109,6 +121,111 @@ def slice_(
             "stride": [stride_node.data],
         },
         pass_quantization_params=True,
+    )
+    return ["tract_core"]
+
+
+def tract_pre_0_21_7_slice(
+    g,
+    node,
+    name_to_tensor,
+    torch_graph,
+    nnef_spec_strict,
+    has_dynamic_axes,
+    op_helper,
+    **kwargs,
+):
+    """Old version of slice for tract version prior to 0.21.7"""
+    LOGGER.debug("use legacy tract slice pre 0.21.7")
+    input_node, axis_node, begin_node, end_node, stride_node = node.inputs
+
+    # we assert for now all node except first are all constant
+    dim = axis_node.data
+
+    has_concrete_values = True
+    # we use this since by default pytorch generate max int32 value for end
+    if begin_node.data is not None:
+        begin = pick_index_in_axis(input_node, dim, begin_node.data)
+    else:
+        has_concrete_values = False
+        begin = nnef.Identifier(begin_node.export_name)
+
+    if end_node.data is not None:
+        end = pick_index_in_axis(input_node, dim, end_node.data)
+    else:
+        has_concrete_values = False
+        end = nnef.Identifier(end_node.export_name)
+
+    if (
+        begin == 0
+        and end in [input_node.shape[dim], np.iinfo(np.int64).max]
+        and stride_node.data == 1
+    ):
+        LOGGER.debug("Slice is not needed since it have not effect")
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+        return []
+
+    if has_concrete_values:
+        assert begin < end
+
+    if end_node.data is not None:
+        if (
+            has_dynamic_axes
+            and not nnef_spec_strict
+            and end >= input_node.shape[dim]
+        ):
+            # NOTE: since we can't ensure used dimension is not symbolic
+            # we use `tract_core_shape_of`
+            shape_tensor_name = f"{input_node.export_name}_shape"
+            index_tensor_name = f"{shape_tensor_name}_{dim}"
+            soc = (
+                SimpleOpChainer(
+                    op_helper=op_helper,
+                    input_data_nodes=[input_node],
+                )
+                .chain(
+                    "tract_core_shape_of",
+                    output_tensor_name_suffix="shape",
+                )
+                .chain(
+                    "slice",
+                    attrs={
+                        "axes": [0],
+                        "begin": [dim],
+                        "end": [dim + 1],
+                        "stride": [1],
+                    },
+                    output_tensor_name_suffix=f"sliced{dim}",
+                )
+                .chain(
+                    "squeeze",
+                    attrs={
+                        "axes": [0],
+                    },
+                    force_full_output_tensor_name=index_tensor_name,
+                )
+            )
+            end = nnef.Identifier(soc.output_name)
+        else:
+            end = min(
+                end,
+                input_node.shape[dim],
+            )
+
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={
+            "axes": [pick_axis(input_node, dim)],
+            "begin": [begin],
+            "end": [end],
+            "stride": [stride_node.data],
+        },
     )
     return ["tract_core"]
 
