@@ -31,6 +31,20 @@ def slice_(
     op_helper,
     **kwargs,
 ):
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version < "0.21.7"
+    ):
+        return tract_pre_0_21_7_slice(
+            g,
+            node,
+            name_to_tensor,
+            torch_graph,
+            False,
+            inference_target.has_dynamic_axes,
+            op_helper,
+            **kwargs,
+        )
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
     # we assert for now all node except first are all constant
@@ -39,17 +53,13 @@ def slice_(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_index_in_axis(
-            input_node, dim, begin_node.data, check_is_positive=False
-        )
+        begin = pick_index_in_axis(input_node, dim, begin_node.data)
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_index_in_axis(
-            input_node, dim, end_node.data, check_is_positive=False
-        )
+        end = pick_index_in_axis(input_node, dim, end_node.data)
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -71,17 +81,6 @@ def slice_(
     ):
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(inference_target)
-        if inference_target.version < "0.21.7":
-            return tract_pre_0_21_7_slice(
-                g,
-                node,
-                name_to_tensor,
-                torch_graph,
-                False,
-                inference_target.has_dynamic_axes,
-                op_helper,
-                **kwargs,
-            )
         add_single_output_op(
             g,
             node,
@@ -145,13 +144,17 @@ def tract_pre_0_21_7_slice(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_index_in_axis(input_node, dim, begin_node.data)
+        begin = pick_index_in_axis(
+            input_node, dim, begin_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_index_in_axis(input_node, dim, end_node.data)
+        end = pick_index_in_axis(
+            input_node, dim, end_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -167,6 +170,63 @@ def tract_pre_0_21_7_slice(
 
     if has_concrete_values:
         assert begin < end
+
+    if begin_node.data is not None and begin < 0:
+        if has_dynamic_axes and not nnef_spec_strict:
+            shape_tensor_name = f"{input_node.export_name}_shape"
+            index_tensor_name = f"{shape_tensor_name}_{dim}"
+            real_begin_tensor_name = (
+                f"{node.outputs[0].export_name}_slice_begin"
+            )
+            soc = (
+                SimpleOpChainer(
+                    op_helper=op_helper,
+                    input_data_nodes=[input_node],
+                )
+                .chain(
+                    "tract_core_shape_of",
+                    output_tensor_name_suffix="shape",
+                )
+                .chain(
+                    "slice",
+                    attrs={
+                        "axes": [0],
+                        "begin": [dim],
+                        "end": [dim + 1],
+                        "stride": [1],
+                    },
+                    output_tensor_name_suffix=f"sliced{dim}",
+                )
+                .chain(
+                    "squeeze",
+                    attrs={
+                        "axes": [0],
+                    },
+                    force_full_output_tensor_name=index_tensor_name,
+                )
+                .add_new_input_node(begin_node)
+                .chain(
+                    "add",
+                    force_full_output_tensor_name=f"{real_begin_tensor_name}_add",
+                )
+                .add_new_input_node(
+                    PythonConstant(
+                        name=f"{real_begin_tensor_name}_zero", data=0
+                    )
+                )
+                .chain(
+                    "max",
+                    force_full_output_tensor_name=real_begin_tensor_name,
+                )
+                .chain(
+                    "tract_core_cast",
+                    attrs={"to": "TDim"},
+                    force_full_output_tensor_name=f"{real_begin_tensor_name}_casted",
+                )
+            )
+            begin = nnef.Identifier(soc.output_name)
+        else:
+            begin = max(input_node.shape[dim] - begin, 0)
 
     if end_node.data is not None:
         if (
