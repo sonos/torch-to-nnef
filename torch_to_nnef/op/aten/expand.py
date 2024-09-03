@@ -66,7 +66,9 @@ def expand(g, node, name_to_tensor, inference_target, **kwargs):
     nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if input_node.rank != len(repeats):
+    if input_node.rank != len(repeats) and isinstance(
+        inference_target, TractNNEF
+    ):
         qte_missing_dim = len(repeats) - input_node.rank
         assert qte_missing_dim > 0, qte_missing_dim
 
