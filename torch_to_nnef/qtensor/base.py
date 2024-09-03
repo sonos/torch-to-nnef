@@ -85,30 +85,30 @@ class QScalePerGroupF16(QScheme):
         )
 
 
-class Packing:
-    """Abstract class to add Lossless compression methods
+class U8Compressor:
+    """Abstract class to add u8 compression methods
 
     to pack elements bellow 8bit
 
     """
 
     @abc.abstractmethod
-    def pack(self, u8_tensor):
-        pass
+    def compress(self, u8_tensor) -> torch.Tensor:
+        """
+        Args:
+            u8_tensor:  tensor to be compressed with dtype torch.uint8
+        Return:
+            compressed tensor with dtype torch.uint8
+        """
 
     @abc.abstractmethod
-    def unpack(self, u8_tensor):
-        pass
-
-
-class DummyPacking(Packing):
-    """No compression"""
-
-    def pack(self, u8_tensor):
-        return u8_tensor
-
-    def unpack(self, u8_tensor):
-        return u8_tensor
+    def decompress(self, u8_tensor) -> torch.Tensor:
+        """
+        Args:
+            u8_tensor:  compressed tensor with dtype torch.uint8
+        Return:
+            tensor decompressed with dtype torch.uint8
+        """
 
 
 class QTensor(torch.Tensor):
@@ -121,7 +121,7 @@ class QTensor(torch.Tensor):
         qscheme,
         *args,
         dequant_to_dtype=torch.float32,
-        packing: Packing = DummyPacking(),
+        u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
         return super().__new__(cls, u8_values_tensor, *args, **kwargs)
@@ -131,25 +131,31 @@ class QTensor(torch.Tensor):
         u8_values_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
-        packing: Packing = DummyPacking(),
+        u8_compressors: T.Optional[T.List[U8Compressor]] = None,
     ):
         super().__init__()
-        self.u8_values_tensor = u8_values_tensor
+        self.u8_compressors = u8_compressors or []
+        compress_u8_values_tensor = u8_values_tensor[:]
+        for u8_compressor in self.u8_compressors:
+            compress_u8_values_tensor = u8_compressor.compress(
+                compress_u8_values_tensor
+            )
+        self.u8_values_tensor = compress_u8_values_tensor
         self.qscheme = qscheme
-        self.packing = packing
         self.dequant_to_dtype = dequant_to_dtype
         self.requires_grad = False
 
     def to_torch_float_tensor(self):
-        return self.qscheme.dequantize(self.u8_values_tensor).to(
-            self.dequant_to_dtype
-        )
+        decompress_u8 = self.u8_values_tensor
+        for u8_compressor in reversed(self.u8_compressors):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        return self.qscheme.dequantize(decompress_u8).to(self.dequant_to_dtype)
 
     def clone(self, *args, **kwargs):
         return self.__class__(
             super().clone(*args, **kwargs),
-            self.qscheme,
-            self.dequant_to_dtype,
+            qscheme=self.qscheme,
+            dequant_to_dtype=self.dequant_to_dtype,
         )
 
     def to(self, *args, **kwargs):
@@ -158,8 +164,8 @@ class QTensor(torch.Tensor):
             return self
         new_obj = self.__class__(
             self.u8_values_tensor,
-            self.qscheme,
-            new_dtype,
+            qscheme=self.qscheme,
+            dequant_to_dtype=new_dtype,
         )
         new_obj.requires_grad = False
         return new_obj
