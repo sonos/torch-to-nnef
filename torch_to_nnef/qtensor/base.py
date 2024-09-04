@@ -19,7 +19,7 @@ class QScheme(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def dequantize(self, u8_tensor):
+    def dequantize(self, u8_tensor, target_dtype):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -63,11 +63,11 @@ class QScalePerGroupF16(QScheme):
         )
         return fu8_tensor_per_group.to(torch.uint8)
 
-    def dequantize(self, u8_tensor):
+    def dequantize(self, u8_tensor, target_dtype):
         u8_tensor_per_group = u8_tensor.flatten().reshape(-1, self.group_size)
         offset = 2**self.n_bits / 2
-        fp_tensor_per_group = u8_tensor_per_group.to(torch.float16) - offset
-        fp_tensor_per_group *= self.scale
+        fp_tensor_per_group = (u8_tensor_per_group - offset).to(target_dtype)
+        fp_tensor_per_group *= self.scale.to(target_dtype)
         return fp_tensor_per_group.reshape(u8_tensor.shape)
 
     def clone_with_scale_factor(self, scale_factor):
@@ -151,7 +151,9 @@ class QTensor(torch.Tensor):
         decompress_u8 = self.u8_values_tensor
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
-        return self.qscheme.dequantize(decompress_u8).to(self.dequant_to_dtype)
+        return self.qscheme.dequantize(
+            decompress_u8, target_dtype=self.dequant_to_dtype
+        )
 
     def clone(self, *args, **kwargs):
         return self.__class__(

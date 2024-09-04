@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import pytest
 import torch
 from torch import nn
@@ -88,8 +86,6 @@ def test_quantize_with_tract_q4_0_classic(inference_target):
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
         assert abs_diff.mean() < 0.01, diff.mean()
-        inference_target = deepcopy(inference_target)
-        inference_target.check_io = False
         check_model_io_test(
             model=model,
             test_input=test_input,

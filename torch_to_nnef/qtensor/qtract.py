@@ -1,3 +1,4 @@
+import platform
 import struct
 import typing as T
 from pathlib import Path
@@ -101,6 +102,28 @@ class QTensorTractScaleOnly(QTensorTract):
         assert (
             self.u8_values_tensor.shape[1] % 32 == 0
         ), self.u8_values_tensor.shape
+
+    def to_torch_float_tensor(self):
+        """tract dequantization depends on hardware
+
+        typically dequantization happen with ops in f16
+        on ARM and f32 (scale directly casted) on others
+
+        so we overwrite the function to be consistant
+        with tract.
+
+        """
+        machine = platform.machine()
+        decompress_u8 = self.u8_values_tensor
+        for u8_compressor in reversed(self.u8_compressors):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        if "arm" in machine:
+            return self.qscheme.dequantize(
+                decompress_u8, target_dtype=torch.float16
+            ).to(self.dequant_to_dtype)
+        return self.qscheme.dequantize(
+            decompress_u8, target_dtype=self.dequant_to_dtype
+        )
 
     def _build_binary_dat_header(self) -> bytes:
         q4_0_hex_code = "4020"
