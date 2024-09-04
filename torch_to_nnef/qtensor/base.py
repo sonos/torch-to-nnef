@@ -18,6 +18,9 @@ class QScheme(abc.ABC):
     def quantize_as_torch(self, fp_tensor):
         raise NotImplementedError()
 
+    def quantize_as_u8(self, fp_tensor):
+        raise NotImplementedError()
+
     @abc.abstractmethod
     def dequantize(self, u8_tensor, target_dtype):
         raise NotImplementedError()
@@ -135,23 +138,21 @@ class QTensor(torch.Tensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        u8_blob = qscheme.quantize_as_u8(fp_tensor)
-        for u8_compressor in u8_compressors or []:
-            u8_blob = u8_compressor.compress(u8_blob)
-        # we apply all quant/compress prior to __new__
-        # because it is the operation that define tensor
-        return super().__new__(cls, u8_blob, *args, **kwargs)
+        return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(
         self,
-        u8_values_tensor: torch.Tensor,
+        fp_tensor: torch.Tensor,
         qscheme: QScheme,
         dequant_to_dtype=torch.float32,
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
     ):
+        u8_blob = qscheme.quantize_as_u8(fp_tensor)
+        for u8_compressor in u8_compressors or []:
+            u8_blob = u8_compressor.compress(u8_blob)
         super().__init__()
         self.u8_compressors = u8_compressors or []
-        self.u8_blob = u8_values_tensor
+        self.u8_blob = u8_blob
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
         self.requires_grad = False
