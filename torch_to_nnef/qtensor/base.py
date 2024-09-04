@@ -140,14 +140,21 @@ class QTensor(torch.Tensor):
             u8_blob = u8_compressor.compress(u8_blob)
         # we apply all quant/compress prior to __new__
         # because it is the operation that define tensor
-        obj = super().__new__(cls, u8_blob, *args, **kwargs)
-        # contrary to usual practice we assign
-        obj.u8_blob = u8_blob
-        obj.qscheme = qscheme
-        obj.u8_compressors = u8_compressors or []
-        obj.dequant_to_dtype = dequant_to_dtype
-        obj.requires_grad = False
-        return obj
+        return super().__new__(cls, u8_blob, *args, **kwargs)
+
+    def __init__(
+        self,
+        u8_values_tensor: torch.Tensor,
+        qscheme: QScheme,
+        dequant_to_dtype=torch.float32,
+        u8_compressors: T.Optional[T.List[U8Compressor]] = None,
+    ):
+        super().__init__()
+        self.u8_compressors = u8_compressors or []
+        self.u8_blob = u8_values_tensor
+        self.qscheme = qscheme
+        self.dequant_to_dtype = dequant_to_dtype
+        self.requires_grad = False
 
     def decompress_to_u8(self):
         decompress_u8 = self.u8_blob
@@ -317,7 +324,7 @@ def qscale_per_group_f16_min_max_calibration(
     n_bits: int,
     group_size: int,
     percentile: float = 1.0,
-) -> T.Tuple["QScalePerGroupF16"]:
+) -> "QScalePerGroupF16":
     """Build QScalePerGroupF16 and calibrate requested float tensor.
 
     Return:

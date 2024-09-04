@@ -91,6 +91,7 @@ class QTensorTractScaleOnly(QTensorTract):
     qscheme: QScalePerGroupF16  # type notation for mypy
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
         # tract limited support of packing
         assert self.qscheme.n_bits == 4, self.qscheme.n_bits
@@ -109,7 +110,7 @@ class QTensorTractScaleOnly(QTensorTract):
 
         """
         machine = platform.machine()
-        decompress_u8 = self.u8_values_tensor
+        decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
         if "arm" in machine:
