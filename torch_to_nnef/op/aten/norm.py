@@ -153,10 +153,13 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
         input_tensor_node.rank - r - 1
         for r, _ in enumerate(normalized_shape_node.data)
     )
-    has_affine = elementwise_affine_node.data and not (
-        # check affine as any use
-        (bias_node.data == 0).all().tolist()
-        and (weight_node.data == 1).all().tolist()
+    has_affine = elementwise_affine_node.data and (
+        (bias_node.data is None or weight_node.data is None)
+        or not (
+            # check affine as any use
+            (bias_node.data == 0).all().tolist()
+            and (weight_node.data == 1).all().tolist()
+        )
     )
     inputs = [input_tensor_node]
     op_name = "layer_norm"
