@@ -90,7 +90,9 @@ class QTensorTractScaleOnly(QTensorTract):
 
     qscheme: QScalePerGroupF16  # type notation for mypy
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self, *args, specific_machine: T.Optional[str] = None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
         # tract limited support of packing
@@ -98,8 +100,9 @@ class QTensorTractScaleOnly(QTensorTract):
         self.decompressed_shape = self.decompress_to_u8().shape
         assert len(self.decompressed_shape) == 2, self.decompressed_shape
         assert self.decompressed_shape[1] % 32 == 0, self.decompressed_shape
+        self.specific_machine = specific_machine
 
-    def to_torch_float_tensor(self):
+    def decompress(self):
         """tract dequantization depends on hardware
 
         typically dequantization happen with ops in f16
@@ -113,7 +116,7 @@ class QTensorTractScaleOnly(QTensorTract):
         decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
-        if "arm" in machine:
+        if (self.specific_machine or "arm") in machine:
             return self.qscheme.dequantize(
                 decompress_u8, target_dtype=torch.float16
             ).to(self.dequant_to_dtype)

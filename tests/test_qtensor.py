@@ -49,7 +49,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
         fp_res = model(test_input)
 
         q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
-        deq_weights = q_tensor.to_torch_float_tensor()
+        deq_weights = q_tensor.decompress()
         diff = (original_weight - deq_weights).abs()
         assert diff.sum() == 0
 
@@ -78,7 +78,7 @@ def test_quantize_with_tract_q4_0_classic(inference_target):
         fp_res = model(test_input)
 
         q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
-        deq_weights = q_tensor.to_torch_float_tensor()
+        deq_weights = q_tensor.decompress()
         diff = (original_weight - deq_weights).abs()
         assert diff.mean() < 0.01, diff.mean()
 

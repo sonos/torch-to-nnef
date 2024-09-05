@@ -163,7 +163,7 @@ class QTensor(torch.Tensor):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
         return decompress_u8
 
-    def to_torch_float_tensor(self):
+    def decompress(self):
         return self.qscheme.dequantize(
             self.decompress_to_u8(), target_dtype=self.dequant_to_dtype
         )
@@ -221,11 +221,10 @@ class QTensor(torch.Tensor):
                 func
             ):  # class should not be expanded for setattr
                 new_args = [
-                    a.to_torch_float_tensor() if isinstance(a, cls) else a
-                    for a in args
+                    a.decompress() if isinstance(a, cls) else a for a in args
                 ]
                 new_kwargs = {
-                    k: v.to_torch_float_tensor() if isinstance(v, cls) else v
+                    k: v.decompress() if isinstance(v, cls) else v
                     for k, v in kwargs.items()
                 }
 
@@ -382,7 +381,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
             ref_mod,
             chunked_names[-1],
             torch.nn.Parameter(
-                QTensorRef(param.to_torch_float_tensor(), param),
+                QTensorRef(param.decompress(), param),
                 requires_grad=False,
             ),
         )
