@@ -10,6 +10,7 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
+from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
@@ -229,15 +230,23 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
 
     # expand in stored variable export to avoid adding unsqueeze in graph {
 
+    suffix_weight = ""
+    suffix_bias = ""
     if weight_node.data is not None:
-        for _ in range(input_node.rank - weight_node.rank):
-            weight_node.data = weight_node.data.unsqueeze(0)
-            weight_node.shape = list(weight_node.data.shape)
+        if isinstance(weight_node.data, (QTensor, QTensorRef)):
+            suffix_weight = "weight_raw2d"
+        else:
+            for _ in range(input_node.rank - weight_node.rank):
+                weight_node.data = weight_node.data.unsqueeze(0)
+                weight_node.shape = list(weight_node.data.shape)
 
     if bias_node.data is not None:
-        for _ in range(input_node.rank - bias_node.rank):
-            bias_node.data = bias_node.data.unsqueeze(0)
-            bias_node.shape = list(bias_node.data.shape)
+        if isinstance(weight_node.data, (QTensor, QTensorRef)):
+            suffix_bias = "bias_raw2d"
+        else:
+            for _ in range(input_node.rank - bias_node.rank):
+                bias_node.data = bias_node.data.unsqueeze(0)
+                bias_node.shape = list(bias_node.data.shape)
     # }
 
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
@@ -247,7 +256,29 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
         name_to_tensor,
         null_ref,
+        suffix_weight_name=suffix_weight,
+        suffix_bias_name=suffix_bias,
     )
+    if suffix_weight:
+        weight_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=weight_ref,
+            attrs={"axes": [0] * (input_node.rank - weight_node.rank)},
+            output_tensor_name_suffix=f"{suffix_weight}_unsqueeze",
+        )
+    if suffix_bias:
+        bias_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "unsqueeze",
+            inputs=bias_ref,
+            attrs={"axes": [0] * (input_node.rank - bias_node.rank)},
+            output_tensor_name_suffix=f"{suffix_bias}_unsqueeze",
+        )
 
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,

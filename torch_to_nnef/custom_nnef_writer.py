@@ -299,14 +299,13 @@ class Writer:
     def _write_tensors_from_operators(self, graph, folder):
         for op in graph.operations:
             if op.type == "variable":
-                filename = op.attribs["label"] + ".dat"
-                if op.attribs.pop("custom_datatype", "") == "tract_quant":
+                if op.attribs.pop("custom_datatype", "") == "quant_tensor":
                     qtensor = op.output.qtensor
-                    tname = op.attribs["label"]
-                    qtensor.write_in_tract_dat_file(
-                        os.path.join(folder, f"{tname}.dat")
-                    )
+                    label = op.attribs["label"]
+                    qtensor.write_in_file(folder, label)
+                    LOGGER.info(f"written qtensor: {label}")
                 else:
+                    filename = op.attribs["label"] + ".dat"
                     _write_tensor(
                         np.asarray(op.output.data, order="C"),
                         os.path.join(folder, filename),

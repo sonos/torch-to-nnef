@@ -8,6 +8,7 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import (
+    IOQuantityError,
     IRError,
     TorchNotFoundOp,
     TorchToNNEFError,
@@ -224,9 +225,13 @@ class TorchToNGraphExtractor:
         self.g.inputs = ginputs
         if self._forced_inputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(self._forced_inputs_names) == len(
-                    self.g.inputs
-                ), f"{len(self._forced_inputs_names)} == {len(self.g.inputs)}"
+                if len(self._forced_inputs_names) != len(self.g.inputs):
+                    raise IOQuantityError(
+                        f"miss-aligned quantity of `input_names`: {len(self._forced_inputs_names)}"
+                        f" and quantity of inputs in NNEF graph: {len(self.g.inputs)}\n"
+                        f"\t- with input_names: {self._forced_inputs_names}\n"
+                        f"\t- with graph inputs: {self.g.inputs}"
+                    )
             # still needed since some .remap_node in ._add_operators may araise
             for inode, new_name in zip(
                 self.g.inputs, self._forced_inputs_names
@@ -238,9 +243,13 @@ class TorchToNGraphExtractor:
         ]
         if self._forced_outputs_names is not None:
             if self._check_io_names_qte_match:
-                assert len(self._forced_outputs_names) == len(
-                    self.g.outputs
-                ), f"{len(self._forced_outputs_names)} == {len(self.g.outputs)}"
+                if len(self._forced_outputs_names) != len(self.g.outputs):
+                    raise IOQuantityError(
+                        f"miss-aligned quantity of `output_names`: {len(self._forced_outputs_names)}"
+                        f" and quantity of outputs in NNEF graph: {len(self.g.outputs)}\n"
+                        f"\t- with output_names: {self._forced_inputs_names}\n"
+                        f"\t- with graph outputs: {self.g.outputs}"
+                    )
             # still needed since some .remap_node in ._add_operators may araise
             for onode, new_name in zip(
                 self.g.outputs, self._forced_outputs_names

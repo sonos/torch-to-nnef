@@ -1,26 +1,17 @@
+import platform
 import struct
 import typing as T
-from enum import Enum
 from pathlib import Path
 
 import numpy as np
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
-from torch_to_nnef.qtensor.base import QScalePerGroupF16, QScheme, QTensor
-
-# header encoded in 2 bytes
-
-
-class TractQuantDataType(str, Enum):
-    """tract weight quantization formats
-
-    * 2024-07-29 : q4_0 same as the GGML tensor format available
-
-    """
-
-    Q4_0 = "q4_0"
+from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.qtensor.base import (
+    QScalePerGroupF16,
+    QTensor,
+    qscale_per_group_f16_min_max_calibration,
+)
 
 
 class DatBinHeaderBuilder:
@@ -87,79 +78,64 @@ class DatBinHeaderBuilder:
 
 
 class QTensorTract(QTensor):
-    def write_in_tract_dat_file(self, filepath: T.Union[str, Path]):
-        raise TorchToNNEFNotImplementedError()
+    """All QTensorTract implementations"""
 
 
 class QTensorTractScaleOnly(QTensorTract):
     """
 
-    u8_values_tensor: is a "non-packed" tensor where each value
-        is stored in 8bits regardless of the final storage format
+    Tract data format it serialize to: Q4_0
 
     """
 
+    qscheme: QScalePerGroupF16  # type notation for mypy
+
     def __init__(
-        self,
-        u8_values_tensor: torch.Tensor,
-        qscheme: QScheme,
-        tract_quant_data_type: TractQuantDataType,
-        dequant_to_dtype=torch.float32,
+        self, *args, specific_machine: T.Optional[str] = None, **kwargs
     ):
-        assert isinstance(
-            tract_quant_data_type, TractQuantDataType
-        ) and tract_quant_data_type.value.endswith("_0"), tract_quant_data_type
-        assert isinstance(qscheme, QScalePerGroupF16), qscheme
-        assert len(u8_values_tensor.shape) == 2, u8_values_tensor.shape
-
+        super().__init__(*args, **kwargs)
+        assert isinstance(self.qscheme, QScalePerGroupF16), self.qscheme
         # tract limited support of packing
-        assert u8_values_tensor.shape[1] % 32 == 0, u8_values_tensor.shape
-        super().__init__()
-        self.u8_values_tensor = u8_values_tensor
-        self.qscheme = qscheme
-        self.tract_quant_data_type = tract_quant_data_type
-        self.dequant_to_dtype = dequant_to_dtype
+        assert self.qscheme.n_bits == 4, self.qscheme.n_bits
+        self.decompressed_shape = self.decompress_to_u8().shape
+        assert len(self.decompressed_shape) == 2, self.decompressed_shape
+        assert self.decompressed_shape[1] % 32 == 0, self.decompressed_shape
+        self.specific_machine = specific_machine
 
-    @classmethod
-    def build_q4_0_from_min_max_calibration(
-        cls, fp_tensor, percentile: float = 1.0
-    ) -> "QTensorTractScaleOnly":
-        if len(fp_tensor.shape) != 2:
-            raise TorchToNNEFNotImplementedError(
-                f"tract does only support weight of shape 2d but found {fp_tensor.shape}"
-            )
-        with torch.no_grad():
-            q_scheme, u8_values_tensor = QScalePerGroupF16.min_max_calibration(
-                fp_tensor, n_bits=4, group_size=32, percentile=percentile
-            )
-            return cls(
-                u8_values_tensor=u8_values_tensor,
-                qscheme=q_scheme,
-                tract_quant_data_type=TractQuantDataType.Q4_0,
-            )
+    def decompress(self):
+        """tract dequantization depends on hardware
 
-    def to_torch_float_tensor(self):
-        # TODO: dequant_to_dtype should be an arg and passed to .dequantize
-        # only self.forward(...) should use self.dequant_to_dtype
-        return self.qscheme.dequantize(self.u8_values_tensor).to(
-            self.dequant_to_dtype
+        typically dequantization happen with ops in f16
+        on ARM and f32 (scale directly casted) on others
+
+        so we overwrite the function to be consistant
+        with tract.
+
+        """
+        machine = platform.machine()
+        decompress_u8 = self.u8_blob
+        for u8_compressor in reversed(self.u8_compressors):
+            decompress_u8 = u8_compressor.decompress(decompress_u8)
+        if (self.specific_machine or "arm") in machine:
+            return self.qscheme.dequantize(
+                decompress_u8, target_dtype=torch.float16
+            ).to(self.dequant_to_dtype)
+        return self.qscheme.dequantize(
+            decompress_u8, target_dtype=self.dequant_to_dtype
         )
 
     def _build_binary_dat_header(self) -> bytes:
         q4_0_hex_code = "4020"
         return DatBinHeaderBuilder(
-            q4_0_hex_code, self.u8_values_tensor.shape
+            q4_0_hex_code, self.decompressed_shape
         ).to_bytes()
 
     def _build_binary_dat_content(self) -> bytes:
         # NOTE: implementation with multiple call to .tobytes, not tested if bottleneck
 
-        # Q40 block: 1 scale (f16) followed by 16bytes, each one storing 2 values rank == 2.
-        assert self.tract_quant_data_type == TractQuantDataType.Q4_0
-
         n_bytes_per_group = 18
         tensor_per_group = (
-            self.u8_values_tensor.clone().flatten().reshape(-1, 16, 2)
+            self.decompress_to_u8().clone().flatten().reshape(-1, 16, 2)
         )
         tensor_per_group[:, :, 0] <<= 4
         tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
@@ -173,8 +149,8 @@ class QTensorTractScaleOnly(QTensorTract):
             assert len(b_arr) % n_bytes_per_group == 0
         return bytes(b_arr)
 
-    def write_in_tract_dat_file(self, filepath: T.Union[str, Path]):
-        path = Path(filepath)
+    def write_in_file(self, dirpath: T.Union[str, Path], label: str):
+        path = Path(dirpath) / f"{label}.dat"
         assert not path.exists(), path
         bin_header = self._build_binary_dat_header()
         bin_content = self._build_binary_dat_content()
@@ -183,45 +159,27 @@ class QTensorTractScaleOnly(QTensorTract):
             fh.write(bin_content)
 
 
-class QTensorTractExtractor(ModuleInfoExtractor):
-    MODULE_CLASS = QTensorTractScaleOnly
-
-    def convert_to_nnef(
-        self,
-        g,
-        node,
-        name_to_tensor,
-        null_ref,
-        torch_graph,
-        inference_target,
-        **kwargs,
-    ):
-        """implementation with storage"""
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op import helper
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.op.helper import add_nnef_operation
-
-        q_tensor = node.op_ref
-        out_node = node.outputs[0]
-        out_node.data = (
-            None  # very important to avoid linear/conv relying on q issues
+def fp_to_tract_q4_0_with_min_max_calibration(
+    fp_tensor, percentile: float = 1.0
+) -> QTensorTractScaleOnly:
+    """Min-Max method to quantize float tensor to tract supported Q4_0"""
+    if isinstance(fp_tensor, torch.nn.Parameter):
+        fp_tensor = fp_tensor.data
+    if len(fp_tensor.shape) != 2:
+        raise TorchToNNEFImpossibleQuantization(
+            f"tract Q4_0 does only support weight of shape 2d but found {fp_tensor.shape}"
         )
-        nnef_tensor_ref = helper.add_tensor_variable_node_as_nnef_tensor(
-            g, out_node, name_to_tensor, prevent_variable=True
+    if fp_tensor.shape[1] % 32 != 0:
+        raise TorchToNNEFImpossibleQuantization(
+            f"tract Q4_0 does only support weight with 2nd dim "
+            f"divisible by 32 but found {fp_tensor.shape[1]}"
         )
-        nnef_tensor_ref.qtensor = q_tensor  # main assign to allow corect dump
-        add_nnef_operation(
-            graph=g,
-            type="variable",
-            inputs=None,
-            outputs=nnef_tensor_ref,
-            attribs={
-                "custom_datatype": "tract_quant",
-                "label": out_node.export_name,
-                "shape": list(nnef_tensor_ref.shape),
-            },
+    with torch.no_grad():
+        q_scheme = qscale_per_group_f16_min_max_calibration(
+            fp_tensor, n_bits=4, group_size=32, percentile=percentile
         )
-        return ["tract_core"]
+        return QTensorTractScaleOnly(
+            fp_tensor,
+            qscheme=q_scheme,
+            dequant_to_dtype=fp_tensor.dtype,
+        )

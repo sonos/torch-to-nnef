@@ -9,6 +9,7 @@ from torch_to_nnef.op.helper import (
     pick_axis,
     weight_bias_and_output_tensor,
 )
+from torch_to_nnef.qtensor.qtract import QTensorTract
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -46,6 +47,10 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         if bias_node.data is not None:
             params_nodes.append(bias_node)
         for param_node in params_nodes:
+            if isinstance(param_node.data, QTensorTract):
+                raise TorchToNNEFNotImplementedError(
+                    "should write unsqueeze within NNEF graph"
+                )
             param_node.data = param_node.data.unsqueeze(0)
             param_node.shape = list(param_node.data.shape)
             for _ in range(input_node.rank - param_node.rank):
@@ -191,6 +196,10 @@ def group_norm(g, node, name_to_tensor, **kwargs):
     ) = node.inputs
     for nd in [offset_node, scale_node]:
         for _ in range(input_node.rank - nd.rank - 1):
+            if isinstance(nd.data, QTensorTract):
+                raise TorchToNNEFNotImplementedError(
+                    "should write unsqueeze within NNEF graph"
+                )
             nd.data = nd.data.unsqueeze(-1)
         nd.shape = list(nd.data.shape)
 

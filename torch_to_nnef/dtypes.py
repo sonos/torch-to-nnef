@@ -56,6 +56,7 @@ SCALAR_TYPE_TO_PYTORCH_TYPE = [
 
 STR_TO_NUMPY_DTYPE = {
     "QUInt8": np.int8,
+    "Byte": np.uint8,
     "Long": np.int64,
     "Float": np.float32,
     "float": np.float32,

@@ -15,6 +15,7 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -145,22 +146,43 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
-        nnef_tensor_ref.data = node.data.detach().numpy()
-        nnef_tensor_ref.shape = tuple(node.data.shape)
-        if not prevent_variable and (
-            len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
-        ):
+        if isinstance(node.data, (QTensorRef, QTensor)):
+            if isinstance(node.data, QTensorRef):
+                q_tensor = node.data.q_tensor
+            else:
+                q_tensor = node.data
+
+            nnef_tensor_ref.qtensor = (
+                q_tensor  # main assign to allow corect dump
+            )
             add_nnef_operation(
                 graph=g,
                 type="variable",
                 inputs=None,
                 outputs=nnef_tensor_ref,
                 attribs={
+                    "custom_datatype": "quant_tensor",
                     "label": nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
-                    "dtype": nnef_tensor_ref.dtype,
                 },
             )
+        else:
+            nnef_tensor_ref.data = node.data.detach().numpy()
+            nnef_tensor_ref.shape = tuple(node.data.shape)
+            if not prevent_variable and (
+                len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
+            ):
+                add_nnef_operation(
+                    graph=g,
+                    type="variable",
+                    inputs=None,
+                    outputs=nnef_tensor_ref,
+                    attribs={
+                        "label": nnef_tensor_ref.name,
+                        "shape": list(nnef_tensor_ref.shape),
+                        "dtype": nnef_tensor_ref.dtype,
+                    },
+                )
 
     name_to_tensor[name] = nnef_tensor_ref
     return nnef_tensor_ref
@@ -506,27 +528,32 @@ def weight_bias_and_output_tensor(
     bias_node,
     name_to_tensor,
     null_ref,
+    suffix_weight_name="",
+    suffix_bias_name="",
 ):
-    weight_suffix = ""
-    if weight_node.data is not None and not weight_node.export_name.endswith(
-        "__weight"
-    ):
-        weight_suffix = "weight"
+    if suffix_weight_name == "":
+        if (
+            weight_node.data is not None
+            and not weight_node.export_name.endswith("__weight")
+        ):
+            suffix_weight_name = "weight"
 
     weight_ref = get_or_add_tensor_variable_in_nnef(
         node=weight_node,
         g=g,
         name_to_tensor=name_to_tensor,
-        name_suffix=weight_suffix,
+        name_suffix=suffix_weight_name,
     )
 
     bias_ref = null_ref
     if bias_node.data is not None:
+        if suffix_bias_name == "":
+            suffix_bias_name = "bias" if bias_node.data is not None else ""
         bias_ref = get_or_add_tensor_variable_in_nnef(
             node=bias_node,
             g=g,
             name_to_tensor=name_to_tensor,
-            name_suffix="bias" if bias_node.data is not None else "",
+            name_suffix=suffix_bias_name,
         )
 
     out_node = node.outputs[0]

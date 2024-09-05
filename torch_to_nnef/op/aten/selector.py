@@ -53,13 +53,17 @@ def slice_(
     has_concrete_values = True
     # we use this since by default pytorch generate max int32 value for end
     if begin_node.data is not None:
-        begin = pick_index_in_axis(input_node, dim, begin_node.data)
+        begin = pick_index_in_axis(
+            input_node, dim, begin_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_index_in_axis(input_node, dim, end_node.data)
+        end = pick_index_in_axis(
+            input_node, dim, end_node.data, check_is_positive=False
+        )
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
