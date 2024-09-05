@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.3] - 2024-09-05
+
+### Change
+
+- QTensor inherit now from torch.Tensor and support any weight sharing
+
 ## [0.13.2] - 2024-08-27
 
 ### Fix
