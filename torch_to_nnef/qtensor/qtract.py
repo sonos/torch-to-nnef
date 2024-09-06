@@ -112,11 +112,12 @@ class QTensorTractScaleOnly(QTensorTract):
         with tract.
 
         """
-        machine = platform.machine()
         decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
-        if (self.specific_machine or "arm") in machine:
+        if (self.specific_machine and "arm" in self.specific_machine) or (
+            self.specific_machine is None and "arm" in platform.machine()
+        ):
             return self.qscheme.dequantize(
                 decompress_u8, target_dtype=torch.float16
             ).to(self.dequant_to_dtype)
