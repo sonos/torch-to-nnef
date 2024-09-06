@@ -1,8 +1,15 @@
+from datetime import datetime
+
 import pytest
 import torch
 from torch import nn
 
+from torch_to_nnef.qtensor.base import (
+    U8Compressor,
+    qscale_per_group_f16_min_max_calibration,
+)
 from torch_to_nnef.qtensor.qtract import (
+    QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 
@@ -114,4 +121,59 @@ def test_quantize_with_tract_q4_0_arange(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+        )
+
+
+class DummyU8Compressor(U8Compressor):
+    def __init__(self):
+        self.compress_times = []
+        self.decompress_times = []
+
+    def compress(self, u8_tensor) -> torch.Tensor:
+        self.compress_times.append(datetime.now())
+        return u8_tensor
+
+    def decompress(self, u8_tensor) -> torch.Tensor:
+        self.decompress_times.append(datetime.now())
+        return u8_tensor
+
+
+def test_u8_compressors():
+    fp_tensor = torch.rand(2, 32)
+    with torch.no_grad():
+        q_scheme = qscale_per_group_f16_min_max_calibration(
+            fp_tensor, n_bits=4, group_size=32, percentile=1
+        )
+        dummy_compressor1 = DummyU8Compressor()
+        dummy_compressor2 = DummyU8Compressor()
+        qtensor = QTensorTractScaleOnly(
+            fp_tensor,
+            qscheme=q_scheme,
+            dequant_to_dtype=fp_tensor.dtype,
+            u8_compressors=[dummy_compressor1, dummy_compressor2],
+        )
+        # compressed
+        assert len(dummy_compressor1.compress_times) == 1
+        assert len(dummy_compressor2.compress_times) == 1
+        assert (
+            dummy_compressor1.compress_times[0]
+            < dummy_compressor2.compress_times[0]
+        )
+        # decompressed
+        assert len(dummy_compressor1.decompress_times) == 1
+        assert len(dummy_compressor2.decompress_times) == 1
+        assert (
+            dummy_compressor1.decompress_times[0]
+            > dummy_compressor2.decompress_times[0]
+        )
+        # test
+        torch.matmul(torch.rand(1, 2), qtensor)
+        assert len(dummy_compressor1.compress_times) == 1
+        assert len(dummy_compressor2.compress_times) == 1
+        # decompressed
+        assert len(dummy_compressor1.decompress_times) == 2
+        assert len(dummy_compressor2.decompress_times) == 2
+        assert (
+            dummy_compressor1.decompress_times[1]
+            > dummy_compressor2.decompress_times[1]
         )
