@@ -259,17 +259,18 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         suffix_weight_name=suffix_weight,
         suffix_bias_name=suffix_bias,
     )
-    if suffix_weight:
+    rank_diff = input_node.rank - weight_node.rank
+    if suffix_weight and rank_diff > 0:
         weight_ref = add_single_output_op(
             g,
             node,
             name_to_tensor,
             "unsqueeze",
             inputs=weight_ref,
-            attrs={"axes": [0] * (input_node.rank - weight_node.rank)},
+            attrs={"axes": [0] * rank_diff},
             output_tensor_name_suffix=f"{suffix_weight}_unsqueeze",
         )
-    if suffix_bias:
+    if suffix_bias and input_node.rank - bias_node.rank > 0:
         bias_ref = add_single_output_op(
             g,
             node,
