@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 
 import pytest
@@ -75,7 +76,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
 )
-def test_quantize_with_tract_q4_0_classic(inference_target):
+def test_quantize_with_tract_q4_0_controled(inference_target):
     """basic quantization values"""
     with torch.no_grad():
         test_input = torch.zeros(10, 96)
@@ -93,6 +94,34 @@ def test_quantize_with_tract_q4_0_classic(inference_target):
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
         assert abs_diff.mean() < 0.01, diff.mean()
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+        )
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+)
+def test_quantize_with_tract_q4_0_rounding2(inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        nd = 32
+        test_input = torch.rand(nd).float().reshape(1, nd)
+        model = nn.Linear(nd, 2, bias=False).eval()
+        original_weight = model.weight
+        model.weight[:, :] = 0.0
+        model.weight[0, 0:5] = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
+
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+        deq_weights = q_tensor.decompress()
+        diff = (original_weight - deq_weights).abs()
+        assert diff.mean() < 0.03, diff.mean()
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+
         check_model_io_test(
             model=model,
             test_input=test_input,
@@ -130,10 +159,12 @@ class DummyU8Compressor(U8Compressor):
         self.decompress_times = []
 
     def compress(self, u8_tensor) -> torch.Tensor:
+        time.sleep(0.01)
         self.compress_times.append(datetime.now())
         return u8_tensor
 
     def decompress(self, u8_tensor) -> torch.Tensor:
+        time.sleep(0.01)
         self.decompress_times.append(datetime.now())
         return u8_tensor
 

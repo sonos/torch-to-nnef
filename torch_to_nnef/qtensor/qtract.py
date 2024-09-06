@@ -138,7 +138,7 @@ class QTensorTractScaleOnly(QTensorTract):
         tensor_per_group = (
             self.decompress_to_u8().clone().flatten().reshape(-1, 16, 2)
         )
-        tensor_per_group[:, :, 0] <<= 4
+        tensor_per_group[:, :, 1] <<= 4
         tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
 
         b_arr = bytearray(b"")
