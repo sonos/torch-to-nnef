@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
+from transformers import GenerationConfig
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.export import export_model_to_nnef
@@ -196,8 +197,8 @@ class InfosFromSlugAndConfig:
                 node_name = f"cache_value_{int((idx -1) / 2)}"
 
             k_or_v = torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
-            if as_float16:
-                k_or_v = k_or_v.to(torch.float16)
+            # if as_float16:
+            #     k_or_v = k_or_v.to(torch.float16)
             past_key_values.append(k_or_v)
             in_cache_name = f"in_{node_name}"
             in_cache_names.append(in_cache_name)
@@ -275,6 +276,61 @@ class LLMExport:
             out_cache_names,
             dynamic_axes,
         )
+
+    def generate_test_text(self):
+        LOGGER.info("start to generate testing text from loaded model:")
+        generation_config = GenerationConfig(
+            max_new_tokens=50,
+            do_sample=True,
+            top_k=50,
+            eos_token_id=self.hf_model_causal.config.eos_token_id,
+        )
+        __import__("ipdb").set_trace()
+        iids = self.hf_model_causal.generate(
+            self.tokenizer.encode("Alan Turing was", return_tensors="pt"),
+            generation_config=generation_config,
+        )
+        text = self.tokenizer.decode(iids[0])
+        LOGGER.info(f"generated text: {text}")
+
+    def apply_f16_fx(self):
+        """Align float dtype arguments in few graph ops
+
+        Indeed all LLM are trained using GPU/TPU kernels
+        related PyTorch backend support heterogeneous dtype in some operators
+        contrary to CPU PyTorch inference.
+
+        To solve this issue and since tract (@ 2024-09-09) itself do not support
+        heterogeneous float dtype in operators.
+
+        We apply an fx replacement to align those.
+        """
+        return
+        import torch
+        from transformers.utils.fx import symbolic_trace
+
+        traced = symbolic_trace(self.hf_model_causal)
+        patterns = {torch.nn.functional.scaled_dot_product_attention}
+
+        # Go through all the nodes in the Graph
+        for n in traced.graph.nodes:
+            # If the target matches one of the patterns
+            if any(n.target == pattern for pattern in patterns):
+                # Set the insert point, add the new node, and replace all uses
+                # of `n` with the new node
+                with traced.graph.inserting_after(n):
+                    # TODO: fix align dtype's
+                    new_node = traced.graph.call_module(
+                        torch.bitwise_and, n.args, n.kwargs
+                    )
+                    n.replace_all_uses_with(new_node)
+                # Remove the old node from the graph
+                traced.graph.erase_node(n)
+
+        traced.recompile()
+        self.wrapped_model = traced
+        __import__("ipdb").set_trace()
+        pass
 
     def export_model(
         self,
@@ -414,6 +470,16 @@ def parser_cli():
             required=False,
             help="tract specific version",
         )
+
+        parser.add_argument(
+            "-td",
+            "--test-display-token-gens",
+            action="store_true",
+            help="Generate 50 tokens with model, "
+            "and after f16/compression if activated "
+            "this is meant as a way to detect spurious precision problems "
+            "early",
+        )
         parser.add_argument(
             "-v",
             "--verbose",
@@ -456,6 +522,8 @@ def main():
                 )
             else:
                 raise exp
+        if args.test_display_token_gens:
+            exporter.generate_test_text()
         if args.compression_method:
             LOGGER.info(f"start compresssion: {args.compression_method}")
             registry = dynamic_load_registry(args.compression_registry)
@@ -466,6 +534,12 @@ def main():
             LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
+        if args.as_float16:
+            exporter.apply_f16_fx()
+
+        if args.test_display_token_gens and args.compression_method:
+            LOGGER.info("check testing text post compression/f16 conversion:")
+            exporter.generate_test_text()
         exporter.export_model(
             args.export_filepath,
             naming_scheme=args.naming_scheme,
