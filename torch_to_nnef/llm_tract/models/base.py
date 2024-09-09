@@ -59,7 +59,7 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
             )
             .unsqueeze(0)
             .unsqueeze(0)
-        )
+        ).to(inputs_embeds.dtype)
         # }
 
         hidden_states = inputs_embeds
