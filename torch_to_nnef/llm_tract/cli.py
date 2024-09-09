@@ -494,8 +494,6 @@ def main():
             LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
-        if args.as_float16:
-            exporter.apply_f16_fx()
 
         if args.test_display_token_gens and args.compression_method:
             LOGGER.info("check testing text post compression/f16 conversion:")
