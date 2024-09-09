@@ -29,6 +29,10 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
     suffix_div_op_output = ""
     rounding_mode = None
 
+    if input_node.data is not None and divisor_node.data is not None:
+        node.outputs[0].data = input_node.data / divisor_node.data
+        return []
+
     if remap_if_neural_op(torch_graph, node, divisor_node, input_node):
         return []
 
@@ -246,6 +250,10 @@ def remap_if_neural_op(torch_graph, node, a, b):
 def mul(g, node, name_to_tensor, torch_graph, **kwargs):
     input_node = node.inputs[0]
     other_node = node.inputs[1]
+
+    if input_node.data is not None and other_node.data is not None:
+        node.outputs[0].data = input_node.data * other_node.data
+        return
     if remap_if_neural_op(
         torch_graph, node, input_node, other_node
     ) or remap_if_neural_op(torch_graph, node, other_node, input_node):
