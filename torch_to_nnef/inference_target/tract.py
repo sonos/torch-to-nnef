@@ -397,7 +397,7 @@ def build_io(
 
         def cast(val):
             if val.dtype in [torch.float16, torch.bfloat16]:
-                val = val.to(torch.float32)
+                val = val.to(torch.float32)  # tract --allow-float-casts
             val = val.detach().numpy()
             return val
 
