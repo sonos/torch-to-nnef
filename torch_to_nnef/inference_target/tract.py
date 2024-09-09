@@ -244,6 +244,7 @@ class TractCli:
                 f"--input-from-bundle {io_npz_path} "
                 f"--assert-output-bundle {io_npz_path}"
             )
+        cmd += " --allow-float-casts"
         with subprocess.Popen(
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as proc:
@@ -393,13 +394,20 @@ def build_io(
     assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:
+
+        def cast(val):
+            if val.dtype in [torch.float16, torch.bfloat16]:
+                val = val.to(torch.float32)  # tract --allow-float-casts
+            val = val.detach().numpy()
+            return val
+
         kwargs = {
-            key: input_arg.detach().numpy()
+            key: cast(input_arg)
             for key, input_arg in zip(input_names, tup_inputs)
         }
         kwargs.update(
             {
-                key: output_arg.detach().numpy()
+                key: cast(output_arg)
                 for key, output_arg in zip(output_names, test_outputs)
             }
         )

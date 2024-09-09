@@ -53,13 +53,14 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
         attention_mask = (
             torch.triu(
                 torch.full(
-                    [seq_length, seq_length], torch.finfo(torch.float32).min
+                    [seq_length, seq_length],
+                    torch.finfo(inputs_embeds.dtype).min,
                 ),
                 diagonal=1,
             )
             .unsqueeze(0)
             .unsqueeze(0)
-        )
+        ).to(inputs_embeds.dtype)
         # }
 
         hidden_states = inputs_embeds

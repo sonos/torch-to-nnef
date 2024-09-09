@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
+from transformers import GenerationConfig
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.export import export_model_to_nnef
@@ -276,6 +277,21 @@ class LLMExport:
             dynamic_axes,
         )
 
+    def generate_test_text(self):
+        LOGGER.info("start to generate testing text from loaded model:")
+        generation_config = GenerationConfig(
+            max_new_tokens=50,
+            do_sample=True,
+            top_k=50,
+            eos_token_id=self.hf_model_causal.config.eos_token_id,
+        )
+        iids = self.hf_model_causal.generate(
+            self.tokenizer.encode("Alan Turing was", return_tensors="pt"),
+            generation_config=generation_config,
+        )
+        text = self.tokenizer.decode(iids[0])
+        LOGGER.info(f"generated text: {text}")
+
     def export_model(
         self,
         export_filepath: Path,
@@ -414,6 +430,16 @@ def parser_cli():
             required=False,
             help="tract specific version",
         )
+
+        parser.add_argument(
+            "-td",
+            "--test-display-token-gens",
+            action="store_true",
+            help="Generate 50 tokens with model, "
+            "and after f16/compression if activated "
+            "this is meant as a way to detect spurious precision problems "
+            "early",
+        )
         parser.add_argument(
             "-v",
             "--verbose",
@@ -456,6 +482,8 @@ def main():
                 )
             else:
                 raise exp
+        if args.test_display_token_gens:
+            exporter.generate_test_text()
         if args.compression_method:
             LOGGER.info(f"start compresssion: {args.compression_method}")
             registry = dynamic_load_registry(args.compression_registry)
@@ -466,6 +494,10 @@ def main():
             LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
+
+        if args.test_display_token_gens and args.compression_method:
+            LOGGER.info("check testing text post compression/f16 conversion:")
+            exporter.generate_test_text()
         exporter.export_model(
             args.export_filepath,
             naming_scheme=args.naming_scheme,

@@ -306,6 +306,16 @@ for layer in [
 ]:
     test_suite.add(torch.rand(13, 10), layer)
 
+# f16
+for layer in [
+    nn.Linear(10, 20, bias=False, dtype=torch.float16),
+    nn.Linear(10, 32, dtype=torch.float16),
+]:
+    test_suite.add(
+        torch.rand(13, 10, dtype=torch.float16),
+        layer,
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 for layer in [
     nn.Conv2d(
