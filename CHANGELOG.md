@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.13.4] - 2024-09-09
+
+### Fix
+
+- `f16` export of llm export correctly
+- `Q4_0` accurately serialize to tract
+
 ## [0.13.3] - 2024-09-05
 
 ### Change
