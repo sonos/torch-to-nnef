@@ -135,10 +135,14 @@ class InfosFromSlugAndConfig:
         self.model_slug = model_slug
         if model_slug.startswith(APPLE_OPENELM_STARTSWITH):
             self.max_position_embeddings = conf.max_context_length
-            self.wrapper_class = BaseCausal
         else:
             self.max_position_embeddings = conf.max_position_embeddings
+
+        if "llama" in model_slug.lower():
+            LOGGER.info("using special wrapper BaseCausalWithDynCacheAndTriu")
             self.wrapper_class = BaseCausalWithDynCacheAndTriu
+        else:
+            self.wrapper_class = BaseCausal
 
     def get_past_value_cache_conf(self, n_past_input_tokens: int):
         if self.model_slug.startswith(APPLE_OPENELM_STARTSWITH):
