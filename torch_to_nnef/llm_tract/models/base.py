@@ -11,6 +11,27 @@ except ImportError as exp:
     ) from exp
 
 
+def build_past_kv_list(
+    args: T.Iterable[torch.Tensor],
+) -> T.List[T.Tuple[torch.Tensor, torch.Tensor]]:
+    past_key_values = []
+    tup: T.List[torch.Tensor] = []
+    for idx, k_or_v in enumerate(args):
+        assert isinstance(k_or_v, torch.Tensor), k_or_v
+        if idx % 2 == 0 and len(tup):
+            assert len(tup) == 2
+            past_key_values.append(tuple(tup))
+            tup = []
+        tup.append(k_or_v)
+    assert len(tup) == 2
+    past_key_values.append(tuple(tup))
+    return past_key_values  # type: ignore
+
+
+def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
+    return DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
+
+
 class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
     def __init__(self, model: AutoModelForCausalLM):
         super().__init__()
@@ -25,18 +46,7 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
         _, seq_length = input_ids.shape[:2]
 
         # BUILD cache {
-        past_key_values = []
-        tup: T.List[torch.Tensor] = []
-        for idx, k_or_v in enumerate(args):
-            if idx % 2 == 0 and len(tup):
-                assert len(tup) == 2
-                past_key_values.append(tuple(tup))
-                tup = []
-            tup.append(k_or_v)
-        assert len(tup) == 2
-        past_key_values.append(tuple(tup))
-        cache = DynamicCache.from_legacy_cache(tuple(past_key_values))
-        # cache = DynamicCache()
+        cache = build_past_kv_dyn_cache(args)
         # }
         past_key_values_length = cache.get_seq_length()
 
@@ -85,34 +95,29 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
 
 
 class BaseCausal(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, with_dyn_cache: bool = True):
         super().__init__()
         self.model = model
+        self.with_dyn_cache = with_dyn_cache
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
         # past_key_values
         # past_key_values: Optional[List[torch.FloatTensor]] = None # type annotation in code WRONG
-
-        past_key_values = []
-        tup: T.List[torch.Tensor] = []
-        for idx, k_or_v in enumerate(args):
-            if idx % 2 == 0 and len(tup):
-                assert len(tup) == 2
-                past_key_values.append(tup)
-                tup = []
-            tup.append(k_or_v)
-        assert len(tup) == 2
-        past_key_values.append(tup)
+        if self.with_dyn_cache:
+            past_key_values = build_past_kv_dyn_cache(args)
+        else:
+            past_key_values = build_past_kv_list(args)
 
         out_dic = self.model(
             input_ids, past_key_values=past_key_values, use_cache=True
         )
 
-        kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
+        if self.with_dyn_cache:
+            kvs = [t for kv in past_key_values.to_legacy_cache() for t in kv]
+        else:
+            kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
 
-        assert len(past_key_values) * 2 == len(
-            kvs
-        ), f"{len(past_key_values) * 2} == {len(kvs)}"
+        assert len(args) == len(kvs), f"{len(args) * 2} == {len(kvs)}"
         # key values, (32 tensors) of shape (1, 3, S, 64)
         return [out_dic["logits"]] + kvs
