@@ -6,6 +6,7 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Window
 """
 
 import enum
+import gc
 import logging
 import platform
 import subprocess
@@ -126,15 +127,25 @@ class TractNNEF(InferenceTarget):
                     "Tract does not support input passed as output without any transform: "
                     f"outputs={_output_names} inputs={_input_names}"
                 )
-            assert_io_and_debug_bundle(
-                model,
-                args,
-                exported_filepath,
-                debug_bundle_path=debug_bundle_path,
-                input_names=input_names,
-                output_names=output_names,
-                tract_cli=self.tract_cli,
-            )
+            if debug_bundle_path is None:
+                assert_io(
+                    model,
+                    args,
+                    exported_filepath,
+                    input_names=input_names,
+                    output_names=output_names,
+                    tract_cli=self.tract_cli,
+                )
+            else:
+                assert_io_and_debug_bundle(
+                    model,
+                    args,
+                    exported_filepath,
+                    debug_bundle_path=debug_bundle_path,
+                    input_names=input_names,
+                    output_names=output_names,
+                    tract_cli=self.tract_cli,
+                )
 
 
 def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
@@ -504,6 +515,51 @@ def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
                 arr = nnef.read_tensor(fh)
                 oarr = nnef.read_tensor(fh_o)
                 assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
+
+
+def assert_io(
+    model: nn.Module,
+    test_input,
+    nnef_file_path: Path,
+    tract_cli: TractCli,
+    io_npz_path: T.Optional[Path] = None,
+    input_names: T.Optional[T.List[str]] = None,
+    output_names: T.Optional[T.List[str]] = None,
+):
+    """simple assertion without debug bundle.
+
+    With addition of gc of model once output is generated.
+
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            if io_npz_path is None:
+                io_npz_path = Path(tmpdir) / "io.npz"
+                build_io(
+                    model,
+                    test_input,
+                    io_npz_path=io_npz_path,
+                    input_names=input_names,
+                    output_names=output_names,
+                )
+
+            del model
+            del test_input
+            gc.collect()
+
+            assert nnef_file_path.exists(), nnef_file_path
+            assert io_npz_path.exists()
+            LOGGER.info("Start checking IO is ISO between tract and PyTorch")
+            tract_cli.assert_io(
+                nnef_file_path,
+                io_npz_path,
+                raise_exception=True,
+            )
+            LOGGER.info(
+                f"IO bit match between tract and PyTorch for {nnef_file_path}"
+            )
+        except (IOPytorchTractNotISOError, TractError) as exp:
+            raise exp
 
 
 def assert_io_and_debug_bundle(
