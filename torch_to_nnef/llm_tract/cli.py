@@ -292,6 +292,45 @@ class LLMExport:
         text = self.tokenizer.decode(iids[0])
         LOGGER.info(f"generated text: {text}")
 
+    def apply_f16_fixes(self):
+        """Align float dtype arguments in few graph ops
+
+        Indeed all LLM are trained using GPU/TPU/CPU kernels
+        related PyTorch backend support f16 dtype in some operators
+        contrary to PyTorch CPU inference (@ 2024-09-09).
+
+        To solve this issue we monkey patch in this cli few functional API.
+        """
+
+        class StateLessF32LayerNorm(nn.Module):
+            def forward(
+                self,
+                input: torch.Tensor,  # pylint: disable=redefined-builtin
+                normalized_shape: T.List[int],
+                weight: T.Optional[torch.Tensor] = None,
+                bias: T.Optional[torch.Tensor] = None,
+                eps: float = 1e-5,
+            ):
+                """Upcast and apply layer norm in f32.
+                This is because f16 is not implemented on CPU in PyTorch
+                (only GPU) as of torch 2.2.2 (2024-09-10):
+                ```
+                RuntimeError: "LayerNormKernelImpl" not implemented for 'Half'
+                ```
+                """
+                return torch.nn.functional.original_layer_norm(
+                    input.to(torch.float32),
+                    normalized_shape=normalized_shape,
+                    weight=weight
+                    if weight is None
+                    else weight.to(torch.float32),
+                    bias=bias if bias is None else bias.to(torch.float32),
+                    eps=eps,
+                ).to(torch.float16)
+
+        torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
+        torch.nn.functional.layer_norm = StateLessF32LayerNorm()
+
     def export_model(
         self,
         export_filepath: Path,
@@ -494,6 +533,8 @@ def main():
             LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
+        if args.as_float16:
+            exporter.apply_f16_fixes()
 
         if args.test_display_token_gens and args.compression_method:
             LOGGER.info("check testing text post compression/f16 conversion:")
