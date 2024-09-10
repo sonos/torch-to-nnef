@@ -349,9 +349,11 @@ def qscale_per_group_f16_min_max_calibration(
     # we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
     # TensorFlow, NVIDIA TensorRT and Intel DNNL
-    scale = torch.quantile(fp_tensor_per_group.abs(), percentile, dim=1) / (
-        -(2**n_bits) / 2
-    )
+
+    # torch.quantile only support f32 (2024-09-10, torch 2.2.2)
+    scale = torch.quantile(
+        fp_tensor_per_group.abs().float(), percentile, dim=1
+    ) / (-(2**n_bits) / 2)
 
     assert scale.shape[0] == fp_tensor_per_group.shape[0]
     qshape = [scale.shape[0]] + [1]
