@@ -371,6 +371,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
     Just before doing any tracing
 
     """
+    LOGGER.info("started to apply qtensor ref with decompress")
     for named_p, param in model.named_parameters():
         if not isinstance(param, QTensor):
             continue
@@ -379,6 +380,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
         for mod_name in chunked_names[:-1]:
             ref_mod = getattr(ref_mod, mod_name)
 
+        LOGGER.debug(f"apply qtensor ref with decompress: {named_p}")
         setattr(
             ref_mod,
             chunked_names[-1],
@@ -387,3 +389,4 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
                 requires_grad=False,
             ),
         )
+    LOGGER.info("sucessfull to apply qtensor ref with decompress")
