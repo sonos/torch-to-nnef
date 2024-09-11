@@ -28,7 +28,7 @@ try:
         BaseCausal,
         BaseCausalWithDynCacheAndTriu,
     )
-except ImportError as exp:
+except (ModuleNotFoundError, ImportError) as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
