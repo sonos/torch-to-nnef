@@ -1,3 +1,8 @@
+""" Export any huggingface transformers LLM to tract NNEF
+
+With options to compress it to Q4_0 and use float16
+
+"""
 import argparse
 import os
 import typing as T
@@ -428,7 +433,11 @@ def dynamic_load_registry(compression_registry_full_path: str):
     return registry
 
 
-def parser_cli():
+def parser_cli(
+    fn_parser_adder: T.Optional[
+        T.Callable[[argparse.ArgumentParser], None]
+    ] = None
+):
     loader_parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -511,6 +520,8 @@ def parser_cli():
             action="store_true",
             help="display debug information",
         )
+        if fn_parser_adder is not None:
+            fn_parser_adder(parser)
     # == hack by using 1st parser without help to fill dynamically 2nd parser ==
     args, _ = loader_parser.parse_known_args()
     possible_compression_ids = list(
@@ -534,7 +545,7 @@ def dump_llm(
     tract_specific_version: T.Optional[str] = None,
     as_float16: bool = False,
     compression_method: T.Optional[str] = None,
-    compression_registry: T.Optional[str] = None,
+    compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
     test_display_token_gens: bool = False,
     naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
     log_level: int = log.INFO,
@@ -589,8 +600,10 @@ def main():
     log_level = log.INFO
     if args.verbose:
         log_level = log.DEBUG
+    kwargs = vars(args)
+    del kwargs["verbose"]
     dump_llm(
-        **{k: v for k, v in vars(args).items() if k != "verbose"},
+        **kwargs,
         log_level=log_level,
     )
 
