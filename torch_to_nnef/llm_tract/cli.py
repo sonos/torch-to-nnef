@@ -11,7 +11,7 @@ from transformers import GenerationConfig
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli, TractNNEF
+from torch_to_nnef.inference_target.tract import TractCli, TractNNEF, build_io
 from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -393,6 +393,14 @@ class LLMExport:
 
         self.hf_model_causal.config.save_pretrained(export_dirpath)
         self.tokenizer.save_pretrained(export_dirpath)
+        # Add io.npz test in exproted dir for dbg purpose
+        build_io(
+            self.wrapped_model,
+            inputs,
+            io_npz_path=export_dirpath / "tests" / "io.npz",
+            input_names=input_names,
+            output_names=output_names,
+        )
         export_model_to_nnef(
             model=self.wrapped_model,
             args=inputs,
