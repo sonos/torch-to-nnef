@@ -349,9 +349,11 @@ def qscale_per_group_f16_min_max_calibration(
     # we use full-range symmetric
     # like torch, ONNX, but oposed to restricted range from
     # TensorFlow, NVIDIA TensorRT and Intel DNNL
-    scale = torch.quantile(fp_tensor_per_group.abs(), percentile, dim=1) / (
-        -(2**n_bits) / 2
-    )
+
+    # torch.quantile only support f32 (2024-09-10, torch 2.2.2)
+    scale = torch.quantile(
+        fp_tensor_per_group.abs().float(), percentile, dim=1
+    ) / (-(2**n_bits) / 2)
 
     assert scale.shape[0] == fp_tensor_per_group.shape[0]
     qshape = [scale.shape[0]] + [1]
@@ -369,6 +371,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
     Just before doing any tracing
 
     """
+    LOGGER.info("started to apply qtensor ref with decompress")
     for named_p, param in model.named_parameters():
         if not isinstance(param, QTensor):
             continue
@@ -377,6 +380,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
         for mod_name in chunked_names[:-1]:
             ref_mod = getattr(ref_mod, mod_name)
 
+        LOGGER.debug(f"apply qtensor ref with decompress: {named_p}")
         setattr(
             ref_mod,
             chunked_names[-1],
@@ -385,3 +389,4 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
                 requires_grad=False,
             ),
         )
+    LOGGER.info("sucessfull to apply qtensor ref with decompress")

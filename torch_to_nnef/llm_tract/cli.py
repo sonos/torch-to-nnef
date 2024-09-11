@@ -2,6 +2,7 @@ import argparse
 import os
 import typing as T
 from enum import Enum
+from functools import partial
 from pathlib import Path
 
 import torch
@@ -36,6 +37,7 @@ except ImportError as exp:
 LOGGER = log.getLogger(__name__)
 
 
+# collection of tested examples for cli {
 class PHISlugs(str, Enum):
     DEBUG = "phi_debug"
     ONE_FIVE = "microsoft/phi-1_5"
@@ -50,9 +52,6 @@ class LlamaSLugs(str, Enum):
     LLAMA2_7B_BASE = "meta-llama/Llama-2-7b-hf"
 
 
-APPLE_OPENELM_STARTSWITH = "apple/OpenELM-"
-
-
 class OpenELMSlugs(str, Enum):
     MICRO = "apple/OpenELM-270M-Instruct"
     MINI = "apple/OpenELM-450M-Instruct"
@@ -60,8 +59,12 @@ class OpenELMSlugs(str, Enum):
     BIG = "apple/OpenELM-3B-Instruct"
 
 
+# }
+
+
 CUSTOM_CONFIGS: T.Dict[str, T.Any] = {
     PHISlugs.DEBUG: Phi3Config(
+        model_type="phi3debug",
         vocab_size=32064,
         num_hidden_layers=4,
         num_attention_heads=4,
@@ -72,23 +75,17 @@ CUSTOM_CONFIGS: T.Dict[str, T.Any] = {
     )
 }
 
-REMAP_TOKENIZER_FOR_MODEL_STARTING_WITH: T.Dict[str, str] = {
-    APPLE_OPENELM_STARTSWITH: LlamaSLugs.LLAMA2_7B_BASE.value,
-    PHISlugs.DEBUG.value: PHISlugs.MINI.value,
+REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
+    "openelm": LlamaSLugs.LLAMA2_7B_BASE.value,
+    "phi3debug": PHISlugs.MINI.value,
 }
 
 
-def load_tokenizer(hf_model_slug: str):
+def load_tokenizer(hf_model_slug: str, config):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    tokenizer_slug = hf_model_slug
-    try:
-        tokenizer_slug = next(
-            mapped_slug
-            for slug_start, mapped_slug in REMAP_TOKENIZER_FOR_MODEL_STARTING_WITH.items()
-            if hf_model_slug.startswith(slug_start)
-        )
-    except StopIteration:
-        pass
+    tokenizer_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
+        config.model_type, hf_model_slug
+    )
     return AutoTokenizer.from_pretrained(tokenizer_slug)
 
 
@@ -133,15 +130,25 @@ class InfosFromSlugAndConfig:
     def __init__(self, model_slug, conf):
         self.conf = conf
         self.model_slug = model_slug
-        if model_slug.startswith(APPLE_OPENELM_STARTSWITH):
+        if conf.model_type == "openelm":
             self.max_position_embeddings = conf.max_context_length
-            self.wrapper_class = BaseCausal
         else:
             self.max_position_embeddings = conf.max_position_embeddings
+
+        if conf.model_type in ["llama", "phi"] or conf.model_type.startswith(
+            "gemma"
+        ):
             self.wrapper_class = BaseCausalWithDynCacheAndTriu
+        elif conf.model_type == "openelm":
+            self.wrapper_class = partial(BaseCausal, with_dyn_cache=False)
+        else:
+            self.wrapper_class = BaseCausal
+        LOGGER.info(
+            f"detected arch:'{conf.model_type}' using wrapper '{self.wrapper_class}'"
+        )
 
     def get_past_value_cache_conf(self, n_past_input_tokens: int):
-        if self.model_slug.startswith(APPLE_OPENELM_STARTSWITH):
+        if self.conf.model_type == "openelm":
             num_hidden_layers = self.conf.num_transformer_layers
             past_values_cache_conf = {
                 "n_kv": num_hidden_layers,
@@ -235,6 +242,31 @@ def quantize_weights_min_max_Q4_0(
 DEFAULT_COMPRESSION = {"min_max_q4_0": quantize_weights_min_max_Q4_0}
 
 
+class StateLessF32LayerNorm(nn.Module):
+    def forward(
+        self,
+        input: torch.Tensor,  # pylint: disable=redefined-builtin
+        normalized_shape: T.List[int],
+        weight: T.Optional[torch.Tensor] = None,
+        bias: T.Optional[torch.Tensor] = None,
+        eps: float = 1e-5,
+    ):
+        """Upcast and apply layer norm in f32.
+        This is because f16 is not implemented on CPU in PyTorch
+        (only GPU) as of torch 2.2.2 (2024-09-10):
+        ```
+        RuntimeError: "LayerNormKernelImpl" not implemented for 'Half'
+        ```
+        """
+        return torch.nn.functional.original_layer_norm(
+            input.to(torch.float32),
+            normalized_shape=normalized_shape,
+            weight=weight if weight is None else weight.to(torch.float32),
+            bias=bias if bias is None else bias.to(torch.float32),
+            eps=eps,
+        ).to(torch.float16)
+
+
 class LLMExport:
     def __init__(
         self,
@@ -242,9 +274,11 @@ class LLMExport:
         local_dir: T.Optional[Path] = None,
         as_float16: bool = False,
     ):
-        self.tokenizer = load_tokenizer(hf_model_slug)
         self.hf_model_causal = load_model(
             hf_model_slug, local_dir, as_float16=as_float16
+        )
+        self.tokenizer = load_tokenizer(
+            hf_model_slug, self.hf_model_causal.config
         )
         self.as_float16 = as_float16
 
@@ -291,6 +325,19 @@ class LLMExport:
         )
         text = self.tokenizer.decode(iids[0])
         LOGGER.info(f"generated text: {text}")
+
+    def apply_f16_fixes(self):
+        """Align float dtype arguments in few graph ops
+
+        Indeed all LLM are trained using GPU/TPU/CPU kernels
+        related PyTorch backend support f16 dtype in some operators
+        contrary to PyTorch CPU inference (@ 2024-09-09).
+
+        To solve this issue we monkey patch in this cli few functional API.
+        """
+
+        torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
+        torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
     def export_model(
         self,
@@ -494,6 +541,8 @@ def main():
             LOGGER.info(
                 f"successfully applied compression: {args.compression_method}"
             )
+        if args.as_float16:
+            exporter.apply_f16_fixes()
 
         if args.test_display_token_gens and args.compression_method:
             LOGGER.info("check testing text post compression/f16 conversion:")
