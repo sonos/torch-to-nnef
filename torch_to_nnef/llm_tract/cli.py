@@ -394,10 +394,12 @@ class LLMExport:
         self.hf_model_causal.config.save_pretrained(export_dirpath)
         self.tokenizer.save_pretrained(export_dirpath)
         # Add io.npz test in exproted dir for dbg purpose
+        test_dir = export_dirpath / "tests"
+        test_dir.mkdir(parents=True)
         build_io(
             self.wrapped_model,
             inputs,
-            io_npz_path=export_dirpath / "tests" / "io.npz",
+            io_npz_path=test_dir / "io.npz",
             input_names=input_names,
             output_names=output_names,
         )
