@@ -3,11 +3,18 @@
 
 ## Unreleased
 
+## [0.13.5] - 2024-09-11
+
+### Fix
+
+- `f16` export of LLM more stable (LayerNorm handling)
+- more robust `export_llm_to_tract` export cli (+ full tokenizer, config export)
+
 ## [0.13.4] - 2024-09-09
 
 ### Fix
 
-- `f16` export of llm export correctly
+- `f16` export of LLM export correctly
 - `Q4_0` accurately serialize to tract
 
 ## [0.13.3] - 2024-09-05
