@@ -269,7 +269,7 @@ class StateLessF32LayerNorm(nn.Module):
         ).to(torch.float16)
 
 
-class LLMExport:
+class LLMExporter:
     def __init__(
         self,
         hf_model_slug: str,
@@ -526,52 +526,73 @@ def parser_cli():
     return parser.parse_args()
 
 
+def dump_llm(
+    model_slug: str,
+    export_dirpath: T.Union[str, Path],
+    local_dir: T.Optional[Path] = None,
+    tract_specific_path: T.Optional[Path] = None,
+    tract_specific_version: T.Optional[str] = None,
+    as_float16: bool = False,
+    compression_method: T.Optional[str] = None,
+    compression_registry: T.Optional[str] = None,
+    test_display_token_gens: bool = False,
+    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+    log_level: int = log.INFO,
+) -> T.Tuple[Path, LLMExporter]:
+    """Util to export LLM model"""
+    export_dirpath = Path(export_dirpath)
+    if export_dirpath.exists():
+        raise ValueError(
+            f"'export_dirpath' should not exist but found: '{export_dirpath}'"
+        )
+    log.getLogger().setLevel(log_level)
+    with torch.no_grad():
+        try:
+            exporter = LLMExporter(model_slug, local_dir, as_float16)
+        except OSError as exp:
+            if "gated repo" in exp.args[0]:
+                print(exp.args[0])
+                login()
+                exporter = LLMExporter(model_slug, local_dir, as_float16)
+            else:
+                raise exp
+        if test_display_token_gens:
+            exporter.generate_test_text()
+        if compression_method:
+            LOGGER.info(f"start compresssion: {compression_method}")
+            registry = dynamic_load_registry(compression_registry)
+            inps, *_ = exporter.generate_inputs()
+            exporter.wrapped_model = registry[compression_method](
+                exporter.wrapped_model, inps
+            )
+            LOGGER.info(
+                f"successfully applied compression: {compression_method}"
+            )
+        if as_float16:
+            exporter.apply_f16_fixes()
+
+        if test_display_token_gens and (compression_method or as_float16):
+            LOGGER.info("check testing text post compression/f16 conversion:")
+            exporter.generate_test_text()
+        exporter.export_model(
+            Path(export_dirpath),
+            naming_scheme=naming_scheme,
+            tract_specific_path=tract_specific_path,
+            tract_specific_version=tract_specific_version,
+            log_level=log_level,
+        )
+    return export_dirpath, exporter
+
+
 def main():
     args = parser_cli()
     log_level = log.INFO
     if args.verbose:
         log_level = log.DEBUG
-    log.getLogger().setLevel(log_level)
-
-    with torch.no_grad():
-        try:
-            exporter = LLMExport(
-                args.model_slug, args.local_dir, args.as_float16
-            )
-        except OSError as exp:
-            if "gated repo" in exp.args[0]:
-                print(exp.args[0])
-                login()
-                exporter = LLMExport(
-                    args.model_slug, args.local_dir, args.as_float16
-                )
-            else:
-                raise exp
-        if args.test_display_token_gens:
-            exporter.generate_test_text()
-        if args.compression_method:
-            LOGGER.info(f"start compresssion: {args.compression_method}")
-            registry = dynamic_load_registry(args.compression_registry)
-            inps, *_ = exporter.generate_inputs()
-            exporter.wrapped_model = registry[args.compression_method](
-                exporter.wrapped_model, inps
-            )
-            LOGGER.info(
-                f"successfully applied compression: {args.compression_method}"
-            )
-        if args.as_float16:
-            exporter.apply_f16_fixes()
-
-        if args.test_display_token_gens and args.compression_method:
-            LOGGER.info("check testing text post compression/f16 conversion:")
-            exporter.generate_test_text()
-        exporter.export_model(
-            Path(args.export_dirpath),
-            naming_scheme=args.naming_scheme,
-            tract_specific_path=args.tract_specific_path,
-            tract_specific_version=args.tract_specific_version,
-            log_level=log_level,
-        )
+    dump_llm(
+        **{k: v for k, v in vars(args).items() if k != "verbose"},
+        log_level=log_level,
+    )
 
 
 if __name__ == "__main__":
