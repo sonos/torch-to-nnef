@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.6] - 2024-09-11
+
+### Fix
+
+- `export_llm_to_tract` export cli more modular and reusable fn's
+
 ## [0.13.5] - 2024-09-11
 
 ### Fix
