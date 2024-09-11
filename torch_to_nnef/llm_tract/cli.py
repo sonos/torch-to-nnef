@@ -81,12 +81,14 @@ REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
 }
 
 
-def load_tokenizer(hf_model_slug: str, config):
+def load_tokenizer(
+    hf_model_slug: str, config, local_dir: T.Optional[Path] = None
+):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     tokenizer_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
         config.model_type, hf_model_slug
     )
-    return AutoTokenizer.from_pretrained(tokenizer_slug)
+    return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
 def load_model(
@@ -278,7 +280,9 @@ class LLMExport:
             hf_model_slug, local_dir, as_float16=as_float16
         )
         self.tokenizer = load_tokenizer(
-            hf_model_slug, self.hf_model_causal.config
+            hf_model_slug,
+            self.hf_model_causal.config,
+            local_dir=local_dir,
         )
         self.as_float16 = as_float16
 
@@ -341,7 +345,7 @@ class LLMExport:
 
     def export_model(
         self,
-        export_filepath: Path,
+        export_dirpath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
         tract_specific_path: T.Optional[Path] = None,
         tract_specific_version: T.Optional[
@@ -349,6 +353,7 @@ class LLMExport:
         ] = None,
         log_level=log.INFO,
     ):
+        assert not export_dirpath.exists(), export_dirpath
         assert (  # mutualy exclusive arguments
             (tract_specific_path is None and tract_specific_version is None)
             or tract_specific_path is None
@@ -385,11 +390,14 @@ class LLMExport:
         else:
             inference_target = TractNNEF.latest()
         inference_target.dynamic_axes = dynamic_axes
+
+        self.hf_model_causal.config.save_pretrained(export_dirpath)
+        self.tokenizer.save_pretrained(export_dirpath)
         export_model_to_nnef(
             model=self.wrapped_model,
             args=inputs,
             inference_target=inference_target,
-            file_path_export=Path(export_filepath),
+            file_path_export=export_dirpath / "model.nnef.tgz",
             input_names=input_names,
             output_names=output_names,
             log_level=log_level,
@@ -430,9 +438,9 @@ def parser_cli():
     for parser in [loader_parser, full_parser]:
         parser.add_argument(
             "-e",
-            "--export-filepath",
+            "--export-dirpath",
             required=True,
-            help="export file path to dump .nnef.tgz",
+            help="export dir path to dump tokenizer infos, model config.json, model.nnef.tgz",
         )
 
         parser.add_argument(
@@ -548,7 +556,7 @@ def main():
             LOGGER.info("check testing text post compression/f16 conversion:")
             exporter.generate_test_text()
         exporter.export_model(
-            args.export_filepath,
+            Path(args.export_dirpath),
             naming_scheme=args.naming_scheme,
             tract_specific_path=args.tract_specific_path,
             tract_specific_version=args.tract_specific_version,
