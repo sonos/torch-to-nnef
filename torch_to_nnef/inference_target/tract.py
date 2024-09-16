@@ -8,6 +8,7 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Window
 import enum
 import gc
 import logging
+import os
 import platform
 import subprocess
 import sys
@@ -37,6 +38,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.utils import SemanticVersion
 
+T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
 DEFAULT_CACHE_DIR = Path.home() / ".tract"
 LOGGER = logging.getLogger(__name__)
 
@@ -265,43 +267,51 @@ class TractCli:
                 if raise_exception:
                     if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                         LOGGER.error(f"check_io call: {cmd}")
+                        for errline in tract_err_filter(serr).split("\n"):
+                            LOGGER.error(f"> {errline}")
                         raise IOPytorchTractNotISOError(serr)
                     # NOTE: tract up to at least 0.20.7 stderr info and trace messages
                     # we filter those to check if any other messages remain
-                    err_filtered = ""
-                    for serrline in serr.split("\n"):
-                        if any(
-                            _ in serrline for _ in ["Ignore unknown extension"]
-                        ):
-                            continue
-
-                        if all(  # NOTE: discuss with @kali about migration
-                            _ in serrline
-                            for _ in [
-                                "tract_pulse_streaming_symbol",
-                                "deprecated",
-                                "WARN",
-                            ]
-                        ):
-                            continue
-
-                        if all(  # NOTE: discuss with @kali about migration
-                            _ in serrline
-                            for _ in [
-                                "Flattening the shape will be deprecated.",
-                                "Reshape",
-                                "WARN",
-                            ]
-                        ):
-                            continue
-
-                        err_filtered += f"{serrline}\n".strip()
+                    err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
                         raise TractError(cmd, err_filtered)
                     return True
-                LOGGER.debug(serr)
+                for errline in tract_err_filter(serr).split("\n"):
+                    LOGGER.error(f"> {errline}")
                 return False
         return True
+
+
+def tract_err_filter(serr: str) -> str:
+    err_filtered = ""
+    for serrline in serr.split("\n"):
+        if any(_ in serrline for _ in ["Ignore unknown extension"]):
+            continue
+
+        if all(  # NOTE: discuss with @kali about migration
+            _ in serrline
+            for _ in [
+                "tract_pulse_streaming_symbol",
+                "deprecated",
+                "WARN",
+            ]
+        ):
+            continue
+
+        if all(  # NOTE: discuss with @kali about migration
+            _ in serrline
+            for _ in [
+                "Flattening the shape will be deprecated.",
+                "Reshape",
+                "WARN",
+            ]
+        ):
+            continue
+
+        serrline = serrline.strip()
+        if serrline:
+            err_filtered += f"{serrline}\n"
+    return err_filtered.strip()
 
 
 class TractBinaryDownloader:
@@ -550,10 +560,13 @@ def assert_io(
             assert nnef_file_path.exists(), nnef_file_path
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and PyTorch")
+            raise_exception = bool(
+                int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
+            )
             tract_cli.assert_io(
                 nnef_file_path,
                 io_npz_path,
-                raise_exception=True,
+                raise_exception=raise_exception,
             )
             LOGGER.info(
                 f"IO bit match between tract and PyTorch for {nnef_file_path}"
@@ -587,10 +600,13 @@ def assert_io_and_debug_bundle(
             assert nnef_file_path.exists(), nnef_file_path
             assert io_npz_path.exists()
             LOGGER.info("Start checking IO is ISO between tract and PyTorch")
+            raise_exception = bool(
+                int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
+            )
             tract_cli.assert_io(
                 nnef_file_path,
                 io_npz_path,
-                raise_exception=True,
+                raise_exception=raise_exception,
             )
             LOGGER.info(
                 f"IO bit match between tract and PyTorch for {nnef_file_path}"
