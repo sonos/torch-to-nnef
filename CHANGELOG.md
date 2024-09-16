@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.13.7] - 2024-09-16
+
+### Fix
+
+- `export_llm_to_tract` API underlying no more need hugging face slug if only local dir.
+- `export_llm_to_tract` log error if IO check wrong.
+
 ## [0.13.6] - 2024-09-11
 
 ### Fix
