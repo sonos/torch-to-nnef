@@ -87,34 +87,34 @@ REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
 
 
 def load_tokenizer(
-    hf_model_slug: str, config, local_dir: T.Optional[Path] = None
+    config,
+    hf_model_slug: T.Optional[str] = None,
+    local_dir: T.Optional[Path] = None,
 ):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     tokenizer_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
         config.model_type, hf_model_slug
     )
+    if tokenizer_slug is None:
+        assert local_dir is not None
     return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
 def load_model(
-    hf_model_slug: str,
-    local_dir: T.Optional[T.Union[Path, str]],
+    hf_model_slug: T.Optional[str] = None,
+    local_dir: T.Optional[T.Union[Path, str]] = None,
     as_float16: bool = False,
 ):
-    model_slug = hf_model_slug
-
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if as_float16:
         kwargs["torch_dtype"] = "float16"
 
-    custom_config = None
-    if hf_model_slug in CUSTOM_CONFIGS:
-        custom_config = CUSTOM_CONFIGS[model_slug]
+    custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
     if custom_config is not None:
         hf_model_causal = AutoModelForCausalLM.from_config(
             custom_config, trust_remote_code=True
         )
-        LOGGER.info(f"load custom config: {model_slug}")
+        LOGGER.info(f"load custom config: '{hf_model_slug}'")
     elif local_dir:
         dir_path = Path(local_dir)
         assert dir_path.is_dir(), dir_path
@@ -122,13 +122,16 @@ def load_model(
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
             dir_path, **kwargs
         )
-        LOGGER.info(f"load '{model_slug}' from local directory: {dir_path}")
+        LOGGER.info(
+            f"load '{hf_model_causal.config.model_type}' "
+            f"from local directory: {dir_path}"
+        )
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            model_slug, **kwargs
+            hf_model_slug, **kwargs
         )
         LOGGER.info(
-            f"load default trained model from huggingface: {model_slug}"
+            f"load default trained model from huggingface: '{hf_model_slug}'"
         )
     return hf_model_causal
 
@@ -277,16 +280,17 @@ class StateLessF32LayerNorm(nn.Module):
 class LLMExporter:
     def __init__(
         self,
-        hf_model_slug: str,
+        hf_model_slug: T.Optional[str] = None,
         local_dir: T.Optional[Path] = None,
         as_float16: bool = False,
     ):
+        assert hf_model_slug is not None or local_dir is not None
         self.hf_model_causal = load_model(
             hf_model_slug, local_dir, as_float16=as_float16
         )
         self.tokenizer = load_tokenizer(
-            hf_model_slug,
             self.hf_model_causal.config,
+            hf_model_slug=hf_model_slug,
             local_dir=local_dir,
         )
         self.as_float16 = as_float16
@@ -320,16 +324,17 @@ class LLMExporter:
             dynamic_axes,
         )
 
-    def generate_test_text(self):
+    def generate_test_text(self, prompt: str = "Alan Turing was"):
         LOGGER.info("start to generate testing text from loaded model:")
         generation_config = GenerationConfig(
             max_new_tokens=50,
-            do_sample=True,
+            do_sample=False,
+            num_beams=1,
             top_k=50,
             eos_token_id=self.hf_model_causal.config.eos_token_id,
         )
         iids = self.hf_model_causal.generate(
-            self.tokenizer.encode("Alan Turing was", return_tensors="pt"),
+            self.tokenizer.encode(prompt, return_tensors="pt"),
             generation_config=generation_config,
         )
         text = self.tokenizer.decode(iids[0])
@@ -465,7 +470,6 @@ def parser_cli(
         parser.add_argument(
             "-s",
             "--model-slug",
-            required=True,
             help=f"huggingface slug (web-page 'endpoint') to export by example ({slug_examples})",
         )
         parser.add_argument(
@@ -538,8 +542,8 @@ def parser_cli(
 
 
 def dump_llm(
-    model_slug: str,
     export_dirpath: T.Union[str, Path],
+    model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     tract_specific_path: T.Optional[Path] = None,
     tract_specific_version: T.Optional[str] = None,
@@ -557,6 +561,10 @@ def dump_llm(
             f"'export_dirpath' should not exist but found: '{export_dirpath}'"
         )
     log.getLogger().setLevel(log_level)
+    if model_slug is None and local_dir is None:
+        raise ValueError(
+            "You should either provide `model_slug` or a `local_dir`"
+        )
     with torch.no_grad():
         try:
             exporter = LLMExporter(model_slug, local_dir, as_float16)
