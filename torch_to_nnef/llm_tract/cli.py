@@ -97,7 +97,7 @@ def load_tokenizer(
     )
     if tokenizer_slug is None:
         assert local_dir is not None
-    return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
+    return AutoTokenizer.from_pretrained(tokenizer_slug or local_dir)
 
 
 def load_model(
