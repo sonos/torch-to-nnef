@@ -86,6 +86,18 @@ REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
 }
 
 
+def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
+    """Find a subdir with filename in it"""
+    found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
+    if 1 < len(found_dirs):
+        raise ValueError(
+            f"Found {len(found_dirs)} dirs for with '{filename}' file. "
+            f"found_dirs={found_dirs}. "
+            "Unable to decide which one should selected..."
+        )
+    return found_dirs.pop()
+
+
 def load_tokenizer(
     config,
     hf_model_slug: T.Optional[str] = None,
@@ -97,12 +109,14 @@ def load_tokenizer(
     )
     if tokenizer_slug is None:
         assert local_dir is not None
-    return AutoTokenizer.from_pretrained(tokenizer_slug or local_dir)
+    if local_dir is not None:
+        local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
+    return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
 def load_model(
     hf_model_slug: T.Optional[str] = None,
-    local_dir: T.Optional[T.Union[Path, str]] = None,
+    local_dir: T.Optional[Path] = None,
     as_float16: bool = False,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
@@ -116,7 +130,7 @@ def load_model(
         )
         LOGGER.info(f"load custom config: '{hf_model_slug}'")
     elif local_dir:
-        dir_path = Path(local_dir)
+        dir_path = find_subdir_with_filename_in(local_dir, "config.json")
         assert dir_path.is_dir(), dir_path
         assert (dir_path / "model.safetensors").is_file(), dir_path
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
@@ -284,6 +298,7 @@ class LLMExporter:
         local_dir: T.Optional[Path] = None,
         as_float16: bool = False,
     ):
+        local_dir = Path(local_dir) if local_dir else None
         assert hf_model_slug is not None or local_dir is not None
         self.hf_model_causal = load_model(
             hf_model_slug, local_dir, as_float16=as_float16
@@ -362,6 +377,7 @@ class LLMExporter:
             T.Union[SemanticVersion, str]
         ] = None,
         log_level=log.INFO,
+        dump_with_tokenizer_and_conf: bool = False,
     ):
         assert not export_dirpath.exists(), export_dirpath
         assert (  # mutualy exclusive arguments
@@ -401,8 +417,9 @@ class LLMExporter:
             inference_target = TractNNEF.latest()
         inference_target.dynamic_axes = dynamic_axes
 
-        self.hf_model_causal.config.save_pretrained(export_dirpath)
-        self.tokenizer.save_pretrained(export_dirpath)
+        if dump_with_tokenizer_and_conf:
+            self.hf_model_causal.config.save_pretrained(export_dirpath)
+            self.tokenizer.save_pretrained(export_dirpath)
         # Add io.npz test in exproted dir for dbg purpose
         test_dir = export_dirpath / "tests"
         test_dir.mkdir(parents=True)
@@ -519,6 +536,12 @@ def parser_cli(
             "early",
         )
         parser.add_argument(
+            "-dwtac",
+            "--dump-with-tokenizer-and-conf",
+            action="store_true",
+            help="dump tokenizer and conf at same dir as model",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
@@ -552,6 +575,7 @@ def dump_llm(
     compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
     test_display_token_gens: bool = False,
     naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+    dump_with_tokenizer_and_conf: bool = False,
     log_level: int = log.INFO,
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
@@ -599,6 +623,7 @@ def dump_llm(
             tract_specific_path=tract_specific_path,
             tract_specific_version=tract_specific_version,
             log_level=log_level,
+            dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
         )
     return export_dirpath, exporter
 
