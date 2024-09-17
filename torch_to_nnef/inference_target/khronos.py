@@ -11,7 +11,7 @@ from torch import nn
 
 from torch_to_nnef.exceptions import KhronosInterpreterDiffValueError
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import SemanticVersion, cd
 
 LOGGER = log.getLogger(__name__)
 
@@ -52,9 +52,10 @@ class KhronosNNEF(InferenceTarget):
             with tempfile.TemporaryDirectory() as td:
                 # reader decompression ill written in nnef-tools
                 # so uncompress here to avoid issue
-                subprocess.check_output(
-                    f"cd {td} && tar -xvzf {exported_filepath}", shell=True
-                )
+                with cd(td):
+                    subprocess.check_output(
+                        ["tar", "-xvzf", str(exported_filepath)]
+                    )
                 nnef_mod = NNEFModule(td)
                 interpreter_outs = nnef_mod(*args)
                 reference_outs = model(*args)

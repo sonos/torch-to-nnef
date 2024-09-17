@@ -10,10 +10,12 @@ import gc
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
 import typing as T
+import urllib.request
 from functools import cached_property
 from pathlib import Path
 
@@ -36,10 +38,10 @@ from torch_to_nnef.exceptions import (
     TractOnnxToNNEFError,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import SemanticVersion, cd
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
-DEFAULT_CACHE_DIR = Path.home() / ".tract"
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -220,14 +222,17 @@ class TractCli:
 
     def convert_onnx_to_nnef(self, onnx_path, io_npz_path, nnef_path):
         return subprocess.check_output(
-            (
-                f"{self.tract_path} {onnx_path} "
-                f"--nnef-tract-core --nnef-tract-pulse "
-                "dump "
-                f"--input-from-bundle {io_npz_path} "
-                f"--nnef {nnef_path} "
-            ),
-            shell=True,
+            [
+                self.tract_path,
+                str(onnx_path),
+                "--nnef-tract-core",
+                "--nnef-tract-pulse",
+                "dump",
+                "--input-from-bundle",
+                str(io_npz_path),
+                "--nnef",
+                str(nnef_path),
+            ],
             stderr=subprocess.STDOUT,
         )
 
@@ -237,36 +242,51 @@ class TractCli:
         io_npz_path: Path,
         raise_exception=True,
     ):
-        extra_param = "--nnef-tract-extra " if "0.20.20" <= self.version else ""
-        cmd = (
-            f"{self.tract_path} {nnef_path} "
-            "--nnef-tract-core --nnef-tract-pulse "
-            f"{extra_param} -O "
+        extra_param = (
+            ["--nnef-tract-extra"] if "0.20.20" <= self.version else []
         )
+        cmd_ = (
+            [
+                self.tract_path,
+                nnef_path,
+                "--nnef-tract-core",
+                "--nnef-tract-pulse",
+            ]
+            + extra_param
+            + ["-O"]
+        )
+
         if self.version < "0.18.0":
-            cmd += (
-                f"--input-bundle {io_npz_path} "
+            cmd_ += [
+                "--input-bundle",
+                io_npz_path,
                 # NOTE: resolution of streaming pre 0.18 not handled
-                "run "
-                f"--assert-output-bundle {io_npz_path}"
-            )
+                "run",
+                "--assert-output-bundle",
+                io_npz_path,
+            ]
         else:
-            cmd += (
-                f"--input-facts-from-bundle {io_npz_path} "
-                "run "
-                f"--input-from-bundle {io_npz_path} "
-                f"--assert-output-bundle {io_npz_path}"
-            )
-        cmd += " --allow-float-casts"
+            cmd_ += [
+                "--input-facts-from-bundle",
+                io_npz_path,
+                "run",
+                "--input-from-bundle",
+                io_npz_path,
+                "--assert-output-bundle",
+                io_npz_path,
+            ]
+        cmd_ += ["--allow-float-casts"]
+        cmd = [str(c) for c in cmd_]
+        cmd_shell = " ".join(_ for _ in cmd)
         with subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ) as proc:
             _, err = proc.communicate()
             if err:
                 serr = err.decode("utf8")
                 if raise_exception:
                     if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
-                        LOGGER.error(f"check_io call: {cmd}")
+                        LOGGER.error(f"check_io call: {cmd_shell}")
                         for errline in tract_err_filter(serr).split("\n"):
                             if errline.strip():
                                 LOGGER.error(f"> {errline}")
@@ -275,7 +295,7 @@ class TractCli:
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
-                        raise TractError(cmd, err_filtered)
+                        raise TractError(cmd_shell, err_filtered)
                     return True
                 for errline in tract_err_filter(serr).split("\n"):
                     if errline.strip():
@@ -370,17 +390,15 @@ class TractBinaryDownloader:
         return self.extract_dir / "tract"
 
     def dl_tract(self):
-        self.extract_dir.mkdir()
-        subprocess.check_output(
-            f"""
-        cd {self.extract_dir} && \
-        wget --quiet "{self.binary_url}" && \
-        tar -xvzf {self.archive_name}.tgz && \
-        rm {self.archive_name}.tgz && \
-        mv {self.archive_name}/tract ./
-        """,
-            shell=True,
-        )
+        self.extract_dir.mkdir(exist_ok=True)
+        with cd(self.extract_dir):
+            archive_path = self.extract_dir / self.archive_name
+            archive_gz_path = archive_path.with_suffix(".tgz")
+            urllib.request.urlretrieve(self.binary_url, archive_gz_path)
+            subprocess.check_output(["tar", "-xvzf", str(archive_gz_path)])
+            shutil.move(archive_path / "tract", self.extract_dir)
+            shutil.rmtree(archive_path)
+            archive_gz_path.unlink()
 
 
 def _unfold_outputs(test_outputs):
@@ -514,9 +532,8 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
             fh.write(error_msg)
     if not sucessfull_export:
         return False
-    subprocess.check_output(
-        f"cd {target_folder} && tar -xvf {nnef_path}", shell=True
-    )
+    with cd(target_folder):
+        subprocess.check_output(["tar", "-xvf", str(nnef_path)])
     return True
 
 
@@ -641,14 +658,18 @@ def assert_io_and_debug_bundle(
                 no_suffix_debug_bundle_torch_to_nnef_path / "io_iso_error.log"
             ).open("w", encoding="utf8") as fh:
                 fh.write(exp.args[0])
-            subprocess.check_output(
-                f""
-                f"cd {no_suffix_debug_bundle_torch_to_nnef_path} && "
-                f"cp {nnef_file_path} {no_suffix_debug_bundle_torch_to_nnef_path}/model.nnef.tgz && "
-                f"tar -xvzf {nnef_file_path} && "
-                f"cp {io_npz_path} {no_suffix_debug_bundle_torch_to_nnef_path}/io.npz",
-                shell=True,
-            )
+            with cd(no_suffix_debug_bundle_torch_to_nnef_path):
+                shutil.copy(
+                    nnef_file_path,
+                    no_suffix_debug_bundle_torch_to_nnef_path
+                    / "model.nnef.tgz",
+                )
+                subprocess.check_output(["tar", "-xvzf", str(nnef_file_path)])
+                if io_npz_path:
+                    shutil.copy(
+                        io_npz_path,
+                        no_suffix_debug_bundle_torch_to_nnef_path / "io.npz",
+                    )
             dump_environment_versions(
                 no_suffix_debug_bundle_path, tract_cli.tract_path
             )
@@ -665,13 +686,17 @@ def assert_io_and_debug_bundle(
                 extension in debug_bundle_path.suffix
                 for extension in ["tgz", "tar.gz"]
             ):
-                subprocess.check_output(
-                    f"cd {no_suffix_debug_bundle_path.parent} && "
-                    f"tar -cvzf {debug_bundle_path.absolute()} {no_suffix_debug_bundle_path.name} && cd - && "
-                    # rm acceptable since dir created ensured empty before use
-                    f"rm -r {no_suffix_debug_bundle_path}",
-                    shell=True,
-                )
+                with no_suffix_debug_bundle_path.parent:
+                    subprocess.check_output(
+                        [
+                            "tar",
+                            "-cvzf",
+                            str(debug_bundle_path.absolute()),
+                            str(no_suffix_debug_bundle_path.name),
+                        ]
+                    )
+                # rm acceptable since dir created ensured empty before use
+                shutil.rmtree(no_suffix_debug_bundle_path)
             LOGGER.info(f"debug bundle built at {debug_bundle_path}")
 
             exp.args = tuple(

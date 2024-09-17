@@ -1,5 +1,7 @@
+import contextlib
 import functools
 import logging
+import os
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
@@ -24,6 +26,16 @@ def fullname(o) -> str:
     if module == "builtins":
         return klass.__qualname__  # avoid outputs like 'builtins.str'
     return module + "." + klass.__qualname__
+
+
+@contextlib.contextmanager
+def cd(path):
+    old_path = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(old_path)
 
 
 def flatten_dict(
