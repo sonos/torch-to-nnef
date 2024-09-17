@@ -96,30 +96,33 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     )
 
 
-@OP_REGISTRY.register(["norm", "linalg_vector_norm"])
+@OP_REGISTRY.register(["norm", "linalg_vector_norm", "linalg_norm"])
 def norm(g, node, name_to_tensor, **kwargs):
     """
     NOTE this is only the normed vector
     """
-    if node.kind == "aten::linalg_vector_norm":
+    if node.kind in ["aten::linalg_vector_norm", "aten::linalg_norm"]:
         # new in PyTorch 2.0
         input_node, p_node, axes_node, keep_dim_node, _ = node.inputs
     else:
         input_node, p_node, axes_node, keep_dim_node = node.inputs
+    if p_node.data is None:
+        p_node.data = 2
     if p_node.data not in [1, 2]:
         raise TorchToNNEFNotImplementedError(
             "norm with p only supported for 1 and 2"
         )
 
+    input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
     custom_fragment_name = f"norm_p{p_node.data}"
     out = add_single_output_op(
         g,
         node,
         name_to_tensor,
         custom_fragment_name,
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=input_tensor,
         attrs={"axes": [pick_axis(input_node, dim) for dim in axes_node.data]},
         output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
     )

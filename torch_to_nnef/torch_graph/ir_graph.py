@@ -32,6 +32,7 @@ from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_naming import (
     VariableNamingScheme,
     apply_nnef_variable_naming_scheme,
+    rename_variable_by_incr,
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
@@ -411,18 +412,25 @@ class TorchModuleIRGraph:
         protected_from_rename_node = set(
             submodule_graph.inputs + submodule_graph.outputs
         )
-        for _ in submodule_graph.data_nodes[:]:
-            if _ in protected_from_rename_node:
+        for dn in submodule_graph.data_nodes[:]:
+            if dn in protected_from_rename_node:
                 continue
-            _.name = f"{prefix}.{_.name}"
+            dn.name = f"{prefix}.{dn.name}"
 
+        for dn in submodule_graph.data_nodes[:]:
+            if not self.data_nodes.contains(dn, strict=True):
+                if self.data_nodes.get_by_name(dn.name):
+                    new_name = rename_variable_by_incr(
+                        dn.name, [self.data_nodes, submodule_graph.data_nodes]
+                    )
+                    LOGGER.info(
+                        "potential name collision detected rename"
+                        f"new '{dn.name}' into '{new_name}'"
+                    )
+                    dn.name = new_name
+                self.data_nodes.append(dn)
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
         self.op_nodes += submodule_graph.op_nodes
-        self.data_nodes += [
-            dn
-            for dn in submodule_graph.data_nodes
-            if not self.data_nodes.contains(dn, strict=True)
-        ]
 
     def _recursive_call_method(
         self, nnef_variable_naming_scheme: VariableNamingScheme
@@ -475,7 +483,7 @@ class TorchModuleIRGraph:
                 )
 
     def _filter_tuple_tensor_from_data_nodes(self):
-        for dnode in self.data_nodes[:]:
+        for dnode in self.data_nodes[:]:  # pylint: disable=not-an-iterable
             if isinstance(dnode, TupleTensors):
                 self.data_nodes.remove(dnode)
 

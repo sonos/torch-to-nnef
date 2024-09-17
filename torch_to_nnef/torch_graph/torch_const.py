@@ -35,6 +35,8 @@ ATEN_REPEAT_INTERLEAVE = "aten::repeat_interleave"
 ATEN_MASKED_FILL = "aten::masked_fill"
 ATEN_MASKED_FILL_ = "aten::masked_fill_"
 ATEN_WHERE = "aten::where"
+ATEN_LINALG_NORM = "aten::linalg_norm"
+ATEN_EINSUM = "aten::einsum"
 
 
 CLASSTYPE_KIND = "ClassType"

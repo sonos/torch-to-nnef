@@ -38,10 +38,12 @@ from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
     ATEN_CUMSUM,
+    ATEN_EINSUM,
     ATEN_EMPTY,
     ATEN_FULL,
     ATEN_GELU,
     ATEN_INT,
+    ATEN_LINALG_NORM,
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
     ATEN_NEW_ONES,
@@ -91,6 +93,8 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
             ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
             ATEN_WHERE: cls.aten_where,
+            ATEN_LINALG_NORM: cls.aten_linalg_norm,
+            ATEN_EINSUM: cls.aten_einsum,
         }
         to_call = map_align.get(kind)
         if to_call:
@@ -165,6 +169,17 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_prod(args, kwargs):
         args = list(args[:3])
+        return args, kwargs
+
+    @staticmethod
+    def aten_linalg_norm(args, kwargs):
+        # last is likely param: 'out'
+        args = list(args[:4])
+        return args, kwargs
+
+    @staticmethod
+    def aten_einsum(args, kwargs):
+        args = list(args[:2])
         return args, kwargs
 
     @staticmethod

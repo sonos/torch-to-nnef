@@ -9,6 +9,8 @@ from functools import total_ordering
 
 import torch
 
+from torch_to_nnef.exceptions import DataNodeValueError
+
 LOGGER = logging.getLogger(__name__)
 
 C = T.TypeVar("C")
@@ -184,7 +186,7 @@ class NamedItem(ABC):
         if not hasattr(self, "_name_hooks"):
             self._name_hooks = set()
         if listener in self._name_hooks:
-            raise ValueError("Already registered  listener !")
+            raise DataNodeValueError("Already registered  listener !")
         self._name_hooks.add(listener)
 
     def detach_listener_name_change(self, listener):
@@ -229,18 +231,25 @@ class ReactiveNamedItemDict:
     def _change_name_hook(self, old_name: str, new_name: str):
         """maintain sync between data structure and name changes in items"""
         if old_name in self._protected_names:
-            raise ValueError(f"Not allowed to alter protected_name: {old_name}")
+            raise DataNodeValueError(
+                f"Not allowed to alter protected_name: {old_name}"
+            )
         if new_name in self._protected_names:
-            raise ValueError(f"Not allowed to alter protected_name: {new_name}")
+            raise DataNodeValueError(
+                f"Not allowed to alter protected_name: {new_name}"
+            )
         if new_name == old_name:
             return
         if new_name in self._map:
             msg = f"node with name:{new_name} overwritten in {self}"
             LOGGER.debug(msg)
             if self.avoid_name_collision:
-                raise ValueError(msg)
+                raise DataNodeValueError(msg)
         self._map[new_name] = self._map[old_name]
         del self._map[old_name]
+
+    def detach_listener_name_change_for_item(self, item):
+        self._map[item.name].detach_listener_name_change(self._change_name_hook)
 
     def remove(
         self,
@@ -251,15 +260,15 @@ class ReactiveNamedItemDict:
         if item.name not in self._map:
             msg = f"item '{item.name}' requested for deletion. Not Found !"
             if raise_exception_if_not_found:
-                raise ValueError(msg)
+                raise DataNodeValueError(msg)
             LOGGER.debug(msg)
             return
         if (
             item.name in self._protected_names
             and not raise_exception_if_protected_name
         ):
-            raise ValueError(f"Not authorized to remove: '{item.name}'")
-        self._map[item.name].detach_listener_name_change(self._change_name_hook)
+            raise DataNodeValueError(f"Not authorized to remove: '{item.name}'")
+        self.detach_listener_name_change_for_item(item)
         del self._map[item.name]
 
     def get_by_name(self, name: str, default: T.Any = None):
@@ -274,10 +283,15 @@ class ReactiveNamedItemDict:
     def append(self, item: NamedItem):
         """Append item to ordered set
 
-        WARNING: This is crutial that all added items use this
+        WARNING: This is crucial that all added items use this
         function as it set the hook to listen to name changes
         """
-        assert item.name not in self._map, item.name
+        if item.name in self._map:
+            raise DataNodeValueError(
+                f"`{item.name}` already exist in container:"
+                f" {self._map[item.name]}, "
+                f"but tried to add an item: {item} with same name."
+            )
         item.register_listener_name_change(self._change_name_hook)
         self._map[item.name] = item
         self._last_inserted_item = item

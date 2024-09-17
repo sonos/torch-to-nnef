@@ -30,6 +30,10 @@ class IOQuantityError(ValueError, TorchToNNEFError):
     pass
 
 
+class DataNodeValueError(ValueError, TorchToNNEFError):
+    pass
+
+
 class KhronosInterpreterDiffValueError(ValueError, TorchToNNEFError):
     pass
 

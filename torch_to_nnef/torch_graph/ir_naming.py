@@ -217,6 +217,10 @@ def get_data_node_name_with_suffix_auto_inc(
     return new_name
 
 
+def rm_digits_suffix(name: str):
+    return re.sub(r"([0-9]+)?$", "", name)
+
+
 def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
     """Cleanup final namings in graph:
 
@@ -268,3 +272,19 @@ def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
         if lower:
             new_name = new_name.lower()
         orignal_data_node.name = new_name
+
+
+def rename_variable_by_incr(
+    name: str, named_item_containers: T.List[ReactiveNamedItemDict]
+) -> str:
+    striped_name = rm_digits_suffix(name)
+    assert len(striped_name.strip()) > 0, striped_name
+    idx = 1
+    proposed_name = f"{striped_name}{idx}"
+    while any(
+        c.get_by_name(proposed_name) is not None for c in named_item_containers
+    ):
+        idx += 1
+        proposed_name = f"{striped_name}{idx}"
+    assert proposed_name != name
+    return proposed_name
