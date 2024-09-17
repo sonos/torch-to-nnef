@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+## [0.13.8] - 2024-09-17
+
+### Fix
+
+- filter more possible *stdout* tract (avoid to land in *stderr*)
+- tract inference target more robust with no subprocess shell=True and no *wget* needed
+- in case of potential collision while merging graph and sub-graph during torch graph parsing, auto incrementation of variable name is performed
+
+### Added
+
+- `aten::linalg_norm` basic support for p=1 and p=2 added
+
 ## [0.13.7] - 2024-09-16
 
 ### Fix
