@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.9] - 2024-09-17
+
+### Fix
+
+- mkdir parents dir if needed while cache tract binary
+
 ## [0.13.8] - 2024-09-17
 
 ### Fix

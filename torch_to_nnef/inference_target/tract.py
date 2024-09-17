@@ -390,7 +390,7 @@ class TractBinaryDownloader:
         return self.extract_dir / "tract"
 
     def dl_tract(self):
-        self.extract_dir.mkdir(exist_ok=True)
+        self.extract_dir.mkdir(exist_ok=True, parents=True)
         with cd(self.extract_dir):
             archive_path = self.extract_dir / self.archive_name
             archive_gz_path = archive_path.with_suffix(".tgz")
