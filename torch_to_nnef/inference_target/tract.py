@@ -268,7 +268,8 @@ class TractCli:
                     if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                         LOGGER.error(f"check_io call: {cmd}")
                         for errline in tract_err_filter(serr).split("\n"):
-                            LOGGER.error(f"> {errline}")
+                            if errline.strip():
+                                LOGGER.error(f"> {errline}")
                         raise IOPytorchTractNotISOError(serr)
                     # NOTE: tract up to at least 0.20.7 stderr info and trace messages
                     # we filter those to check if any other messages remain
@@ -277,7 +278,8 @@ class TractCli:
                         raise TractError(cmd, err_filtered)
                     return True
                 for errline in tract_err_filter(serr).split("\n"):
-                    LOGGER.error(f"> {errline}")
+                    if errline.strip():
+                        LOGGER.error(f"> {errline}")
                 return False
         return True
 
