@@ -27,7 +27,6 @@ from torch_to_nnef.utils import SemanticVersion
 try:
     from huggingface_hub import login
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from transformers.models.phi3.configuration_phi3 import Phi3Config
 
     from torch_to_nnef.llm_tract.models.base import (
         BaseCausal,
@@ -67,8 +66,12 @@ class OpenELMSlugs(str, Enum):
 # }
 
 
-CUSTOM_CONFIGS: T.Dict[str, T.Any] = {
-    PHISlugs.DEBUG: Phi3Config(
+CUSTOM_CONFIGS: T.Dict[str, T.Any] = {}
+
+try:
+    from transformers.models.phi3.configuration_phi3 import Phi3Config
+
+    CUSTOM_CONFIGS[PHISlugs.DEBUG] = Phi3Config(
         model_type="phi3debug",
         vocab_size=32064,
         num_hidden_layers=4,
@@ -78,7 +81,10 @@ CUSTOM_CONFIGS: T.Dict[str, T.Any] = {
         max_position_embeddings=4096,
         original_max_position_embeddings=4096,
     )
-}
+except (ModuleNotFoundError, ImportError) as exp:
+    LOGGER.debug(
+        f"Phi3 not available since too old version of transformers: {exp}"
+    )
 
 REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
     "openelm": LlamaSLugs.LLAMA2_7B_BASE.value,
