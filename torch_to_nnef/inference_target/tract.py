@@ -345,7 +345,7 @@ class TractBinaryDownloader:
 
     def __init__(self, version: SemanticVersion, auto_download: bool = True):
         self.version = version.to_str()
-        DEFAULT_CACHE_DIR.mkdir(exist_ok=True)
+        DEFAULT_CACHE_DIR.mkdir(exist_ok=True, parents=True)
         self.extract_dir = DEFAULT_CACHE_DIR / self.version
         if not self.tract_filepath.exists() and auto_download:
             self.dl_tract()
@@ -390,7 +390,7 @@ class TractBinaryDownloader:
         return self.extract_dir / "tract"
 
     def dl_tract(self):
-        self.extract_dir.mkdir(exist_ok=True, parents=True)
+        self.extract_dir.mkdir(exist_ok=True)
         with cd(self.extract_dir):
             archive_path = self.extract_dir / self.archive_name
             archive_gz_path = archive_path.with_suffix(".tgz")
