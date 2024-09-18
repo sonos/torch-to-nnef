@@ -14,7 +14,10 @@ import torch
 from torch import nn
 from transformers import GenerationConfig
 
-from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.exceptions import (
+    TorchToNNEFImpossibleQuantization,
+    TorchToNNEFInvalidArgument,
+)
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF, build_io
 from torch_to_nnef.log import log
@@ -464,15 +467,20 @@ def dynamic_load_registry(compression_registry_full_path: str):
 def parser_cli(
     fn_parser_adder: T.Optional[
         T.Callable[[argparse.ArgumentParser], None]
-    ] = None
+    ] = None,
+    description=__doc__,
+    with_dump_with_tokenizer_and_conf: bool = True,
+    with_test_display_token_gens: bool = True,
+    # usefull to set False if just use `prep_exporter`
+    with_export_args: bool = True,
 ):
     loader_parser = argparse.ArgumentParser(
-        description=__doc__,
+        description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         add_help=False,
     )
     full_parser = argparse.ArgumentParser(
-        description=__doc__,
+        description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     slug_examples = ", ".join(
@@ -483,12 +491,13 @@ def parser_cli(
         ]
     )
     for parser in [loader_parser, full_parser]:
-        parser.add_argument(
-            "-e",
-            "--export-dirpath",
-            required=True,
-            help="export dir path to dump tokenizer infos, model config.json, model.nnef.tgz",
-        )
+        if with_export_args:
+            parser.add_argument(
+                "-e",
+                "--export-dirpath",
+                required=True,
+                help="export dir path to dump tokenizer infos, model config.json, model.nnef.tgz",
+            )
 
         parser.add_argument(
             "-s",
@@ -514,39 +523,42 @@ def parser_cli(
             help="local dir containing .safetensors compatible with openELM"
             " model size specified in slug",
         )
-        parser.add_argument(
-            "-n",
-            "--naming-scheme",
-            default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
-            choices=[vns.value for vns in VariableNamingScheme],
-            help="display debug information",
-        )
-        parser.add_argument(
-            "--tract-specific-path",
-            required=False,
-            help="tract specific path (instead of latest version)",
-        )
-        parser.add_argument(
-            "--tract-specific-version",
-            required=False,
-            help="tract specific version",
-        )
+        if with_export_args:
+            parser.add_argument(
+                "-n",
+                "--naming-scheme",
+                default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
+                choices=[vns.value for vns in VariableNamingScheme],
+                help="display debug information",
+            )
+            parser.add_argument(
+                "--tract-specific-path",
+                required=False,
+                help="tract specific path (instead of latest version)",
+            )
+            parser.add_argument(
+                "--tract-specific-version",
+                required=False,
+                help="tract specific version",
+            )
 
-        parser.add_argument(
-            "-td",
-            "--test-display-token-gens",
-            action="store_true",
-            help="Generate 50 tokens with model, "
-            "and after f16/compression if activated "
-            "this is meant as a way to detect spurious precision problems "
-            "early",
-        )
-        parser.add_argument(
-            "-dwtac",
-            "--dump-with-tokenizer-and-conf",
-            action="store_true",
-            help="dump tokenizer and conf at same dir as model",
-        )
+        if with_test_display_token_gens:
+            parser.add_argument(
+                "-td",
+                "--test-display-token-gens",
+                action="store_true",
+                help="Generate 50 tokens with model, "
+                "and after f16/compression if activated "
+                "this is meant as a way to detect spurious precision problems "
+                "early",
+            )
+        if with_dump_with_tokenizer_and_conf and with_export_args:
+            parser.add_argument(
+                "-dwtac",
+                "--dump-with-tokenizer-and-conf",
+                action="store_true",
+                help="dump tokenizer and conf at same dir as model",
+            )
         parser.add_argument(
             "-v",
             "--verbose",
@@ -567,11 +579,19 @@ def parser_cli(
         choices=possible_compression_ids,
         help="possible compression method to apply on Model before export",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.model_slug is None and args.local_dir is None:
+        raise TorchToNNEFInvalidArgument(
+            "You should either provide `--model-slug` or a `--local-dir`"
+        )
+    if args.model_slug is not None and args.local_dir is not None:
+        raise TorchToNNEFInvalidArgument(
+            "You should only provide one of `--model-slug` or `--local-dir`"
+        )
+    return args
 
 
 def prep_exporter(
-    export_dirpath: T.Union[str, Path],
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     as_float16: bool = False,
@@ -581,16 +601,7 @@ def prep_exporter(
     log_level: int = log.INFO,
 ) -> LLMExporter:
     """Util to prepare export (loading/f16/compression/...) LLM model"""
-    export_dirpath = Path(export_dirpath)
-    if export_dirpath.exists():
-        raise ValueError(
-            f"'export_dirpath' should not exist but found: '{export_dirpath}'"
-        )
     log.getLogger().setLevel(log_level)
-    if model_slug is None and local_dir is None:
-        raise ValueError(
-            "You should either provide `model_slug` or a `local_dir`"
-        )
     with torch.no_grad():
         try:
             exporter = LLMExporter(model_slug, local_dir, as_float16)
@@ -638,8 +649,11 @@ def dump_llm(
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
     export_dirpath = Path(export_dirpath)
+    if export_dirpath.exists():
+        raise ValueError(
+            f"'export_dirpath' should not exist but found: '{export_dirpath}'"
+        )
     exporter = prep_exporter(
-        export_dirpath=export_dirpath,
         model_slug=model_slug,
         local_dir=local_dir,
         as_float16=as_float16,
