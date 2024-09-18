@@ -473,6 +473,7 @@ def parser_cli(
     with_test_display_token_gens: bool = True,
     # usefull to set False if just use `prep_exporter`
     with_export_args: bool = True,
+    other_model_id_args: T.Optional[T.List[T.Tuple[str, str]]] = None,
 ):
     loader_parser = argparse.ArgumentParser(
         description=description,
@@ -580,13 +581,23 @@ def parser_cli(
         help="possible compression method to apply on Model before export",
     )
     args = parser.parse_args()
-    if args.model_slug is None and args.local_dir is None:
+    ref_model_id_args = [
+        ("model_slug", "--model-slug"),
+        ("local_dir", "--local-dir"),
+    ] + (other_model_id_args or [])
+    n_flags = sum(
+        getattr(args, argname) is not None for argname, _ in ref_model_id_args
+    )
+    possible_model_id_args = ",".join(
+        [f"'{cli_arg_name}'" for _, cli_arg_name in ref_model_id_args]
+    )
+    if n_flags == 0:
         raise TorchToNNEFInvalidArgument(
-            "You should either provide `--model-slug` or a `--local-dir`"
+            f"You should provide one among: {possible_model_id_args}"
         )
-    if args.model_slug is not None and args.local_dir is not None:
+    if n_flags > 1:
         raise TorchToNNEFInvalidArgument(
-            "You should only provide one of `--model-slug` or `--local-dir`"
+            f"You should only provide one of {possible_model_id_args}"
         )
     return args
 
