@@ -570,21 +570,17 @@ def parser_cli(
     return parser.parse_args()
 
 
-def dump_llm(
+def prep_exporter(
     export_dirpath: T.Union[str, Path],
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
-    tract_specific_path: T.Optional[Path] = None,
-    tract_specific_version: T.Optional[str] = None,
     as_float16: bool = False,
     compression_method: T.Optional[str] = None,
     compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
     test_display_token_gens: bool = False,
-    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-    dump_with_tokenizer_and_conf: bool = False,
     log_level: int = log.INFO,
-) -> T.Tuple[Path, LLMExporter]:
-    """Util to export LLM model"""
+) -> LLMExporter:
+    """Util to prepare export (loading/f16/compression/...) LLM model"""
     export_dirpath = Path(export_dirpath)
     if export_dirpath.exists():
         raise ValueError(
@@ -623,8 +619,38 @@ def dump_llm(
         if test_display_token_gens and (compression_method or as_float16):
             LOGGER.info("check testing text post compression/f16 conversion:")
             exporter.generate_test_text()
+    return exporter
+
+
+def dump_llm(
+    export_dirpath: T.Union[str, Path],
+    model_slug: T.Optional[str] = None,
+    local_dir: T.Optional[Path] = None,
+    tract_specific_path: T.Optional[Path] = None,
+    tract_specific_version: T.Optional[str] = None,
+    as_float16: bool = False,
+    compression_method: T.Optional[str] = None,
+    compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+    test_display_token_gens: bool = False,
+    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+    dump_with_tokenizer_and_conf: bool = False,
+    log_level: int = log.INFO,
+) -> T.Tuple[Path, LLMExporter]:
+    """Util to export LLM model"""
+    export_dirpath = Path(export_dirpath)
+    exporter = prep_exporter(
+        export_dirpath=export_dirpath,
+        model_slug=model_slug,
+        local_dir=local_dir,
+        as_float16=as_float16,
+        compression_method=compression_method,
+        compression_registry=compression_registry,
+        test_display_token_gens=test_display_token_gens,
+        log_level=log_level,
+    )
+    with torch.no_grad():
         exporter.export_model(
-            Path(export_dirpath),
+            export_dirpath,
             naming_scheme=naming_scheme,
             tract_specific_path=tract_specific_path,
             tract_specific_version=tract_specific_version,
