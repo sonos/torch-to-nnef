@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.11] - 2024-09-18
+
+### Fix
+
+- Split further functionalities & add some arguments as opt-in in LLM cli to add more reusable code
+
 ## [0.13.10] - 2024-09-18
 
 ### Fix
