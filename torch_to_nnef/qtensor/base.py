@@ -9,6 +9,7 @@ from torch._tensor import _convert
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.utils import torch_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -63,11 +64,22 @@ class QScalePerGroupF16(QScheme):
             and fp_tensor_per_group.shape[1] == self.group_size
         )
         recip_scale = torch.where(self.scale == 0, self.scale, 1.0 / self.scale)
-        fu8_tensor_per_group = (
-            ((fp_tensor_per_group * recip_scale) + (2**self.n_bits + 1) / 2)
-            .floor()
-            .clamp(0, 2**self.n_bits - 1)
+        fu8_tensor_per_group = (fp_tensor_per_group * recip_scale) + (
+            2**self.n_bits + 1
+        ) / 2
+        # support for old CPU version of PyTorch
+        legacy_cpu_mode = (
+            torch_version() < "2.1.0"
+            and fu8_tensor_per_group.dtype == torch.float16
+            and fu8_tensor_per_group.device == torch.device("cpu")
         )
+        if legacy_cpu_mode:
+            fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float32)
+        fu8_tensor_per_group = fu8_tensor_per_group.floor().clamp(
+            0, 2**self.n_bits - 1
+        )
+        if legacy_cpu_mode:
+            fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float16)
         return fu8_tensor_per_group.to(torch.uint8).reshape(fp_tensor.shape)
 
     def dequantize(self, u8_tensor, target_dtype):
@@ -125,6 +137,18 @@ class U8Compressor:
         """
 
 
+def select_ctx_disable_torch_fn():
+    if hasattr(_C, "DisableTorchFunctionSubclass"):  # post torch 2.0.0
+        ctx_disable_torch_fn = _C.DisableTorchFunctionSubclass()
+    elif hasattr(_C, "DisableTorchFunction"):  # pre torch 2.0.0
+        ctx_disable_torch_fn = _C.DisableTorchFunction()
+    else:
+        raise TorchToNNEFNotImplementedError(
+            f"How to disable torch function in torch=={torch_version()}"
+        )
+    return ctx_disable_torch_fn
+
+
 class QTensor(torch.Tensor):
     """Common interface for all Compressed storage"""
 
@@ -138,6 +162,10 @@ class QTensor(torch.Tensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
+        if torch_version() < "1.12.0":
+            raise TorchToNNEFNotImplementedError(
+                "QTensor only work with torch>=1.12.0"
+            )
         return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(
@@ -212,7 +240,7 @@ class QTensor(torch.Tensor):
         if not all(issubclass(cls, t) for t in types):
             return NotImplemented
 
-        with _C.DisableTorchFunctionSubclass():
+        with select_ctx_disable_torch_fn():
             new_args = args
             new_kwargs = kwargs
             if func not in get_default_nowrap_functions().union(
@@ -305,7 +333,7 @@ class QTensorRef(torch.Tensor):
         if not all(issubclass(cls, t) for t in types):
             return NotImplemented
 
-        with _C.DisableTorchFunctionSubclass():
+        with select_ctx_disable_torch_fn():
             new_args = [a.clone() if isinstance(a, cls) else a for a in args]
             new_kwargs = {
                 k: v.clone() if isinstance(v, cls) else v
