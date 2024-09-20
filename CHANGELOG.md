@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.13] - 2024-09-20
+
+### Fix
+
+- Support QTensor for legacy (bellow 2.0), up to 1.12.0 <= torch
+
 ## [0.13.12] - 2024-09-18
 
 ### Fix
