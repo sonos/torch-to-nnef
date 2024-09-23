@@ -2,7 +2,7 @@
 
 __author__ = """Julien Balian"""
 __email__ = "julien.balian@sonos.com"
-__version__ = "0.13.13"
+__version__ = "0.13.14"
 
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
