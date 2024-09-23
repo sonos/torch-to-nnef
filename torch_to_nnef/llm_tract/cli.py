@@ -25,7 +25,7 @@ from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import SemanticVersion, torch_version
 
 try:
     from huggingface_hub import login
@@ -613,6 +613,11 @@ def prep_exporter(
 ) -> LLMExporter:
     """Util to prepare export (loading/f16/compression/...) LLM model"""
     log.getLogger().setLevel(log_level)
+    if as_float16 and torch_version() < "2.0.0":
+        LOGGER.warning(
+            "float16 with CPU backend is limited in PyTorch 1.X "
+            "(if issues, try to use torch>2.0)"
+        )
     with torch.no_grad():
         try:
             exporter = LLMExporter(model_slug, local_dir, as_float16)
