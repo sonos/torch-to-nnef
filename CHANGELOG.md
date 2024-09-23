@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.14] - 2024-09-23
+
+### Added
+
+- Official support tract `0.21.7`
+
 ## [0.13.13] - 2024-09-20
 
 ### Fix
