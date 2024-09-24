@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.15] - 2024-09-24
+
+### Fix
+
+- slice with dyn axis edge case
+
 ## [0.13.14] - 2024-09-23
 
 ### Added
