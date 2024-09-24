@@ -68,10 +68,15 @@ def slice_(
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
 
+    fixed_dims_and_higher_end_slice = (
+        isinstance(end, int)
+        and end >= input_node.shape[dim]
+        and not inference_target.has_dynamic_axes
+    )
     if (
         begin == 0
-        and end in [input_node.shape[dim], np.iinfo(np.int64).max]
         and stride_node.data == 1
+        and (end == np.iinfo(np.int64).max or fixed_dims_and_higher_end_slice)
     ):
         LOGGER.debug("Slice is not needed since it have not effect")
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
@@ -80,11 +85,10 @@ def slice_(
     if has_concrete_values:
         assert begin < end
 
-    if inference_target.has_dynamic_axes and (
-        not has_concrete_values or begin_node.data < 0 or end_node.data < 0
-    ):
+    if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(inference_target)
+        # Case with TractNNEF.version < 0.21.7 are handled upper
         add_single_output_op(
             g,
             node,
