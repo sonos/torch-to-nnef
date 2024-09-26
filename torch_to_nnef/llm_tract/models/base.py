@@ -33,6 +33,14 @@ def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
 
 
 class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
+    """Assume common AutoModelForCausalLM arch.
+
+    with :
+    - .model
+    - .lm_head
+
+    """
+
     def __init__(self, model: AutoModelForCausalLM):
         super().__init__()
         self.model = model
@@ -74,18 +82,17 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
         # }
 
         hidden_states = inputs_embeds
-        for _, decoder_layer in enumerate(self.model.model.layers):
-            layer_outputs = decoder_layer(
-                hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_value=cache,
-                output_attentions=False,
-                use_cache=True,
-                cache_position=cache_position,
-            )
-            hidden_states = layer_outputs[0]
 
+        outputs = self.model.model(
+            inputs_embeds=hidden_states,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=cache,
+            output_attentions=False,
+            use_cache=True,
+            cache_position=cache_position,
+        )
+        hidden_states = outputs[0]
         logits = self.model.lm_head(hidden_states)
 
         # Extract cache {
