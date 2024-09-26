@@ -513,5 +513,5 @@ def quantized_node_to_nnef_tensor_and_ops(
         null_ref=null_ref,
         torch_graph=torch_graph,
         inference_target=inference_target,
-        op_helper=OpHelper(g, node, name_to_tensor, null_ref),
+        op_helper=OpHelper(g, node, name_to_tensor, null_ref, inference_target),
     )

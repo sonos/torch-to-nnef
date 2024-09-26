@@ -8,11 +8,7 @@ from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    add_single_output_op,
-    cast_to_if_not_dtype_and_variable,
-    get_or_add_tensor_variable_in_nnef,
     unary_input_output_op_with_constant,
-    unary_output_op_without_params,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 from torch_to_nnef.torch_graph.ir_data import TensorVariable
@@ -23,7 +19,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
+def div(node, op_helper, inference_target, torch_graph, **kwargs):
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
     suffix_div_op_output = ""
@@ -33,7 +29,7 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
         node.outputs[0].data = input_node.data / divisor_node.data
         return []
 
-    if remap_if_neural_op(torch_graph, node, divisor_node, input_node):
+    if remap_if_neutral_op(torch_graph, node, divisor_node, input_node):
         return []
 
     used_custom_fragment = []
@@ -54,12 +50,8 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
             )
             c_node.cast_float_inplace()
 
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    divisor_tensor = get_or_add_tensor_variable_in_nnef(
-        g, divisor_node, name_to_tensor
-    )
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    divisor_tensor = op_helper.get_or_add_tensor_variable_in_nnef(divisor_node)
     io_casting_with_dtype = None
 
     int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
@@ -72,10 +64,11 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
         cast_to = np.float32  # default
         if divisor_tensor.dtype == np.float16:
             cast_to = divisor_tensor.dtype
-        input_tensor, custom_fragments = cast_to_if_not_dtype_and_variable(
-            g=g,
+        (
+            input_tensor,
+            custom_fragments,
+        ) = op_helper.cast_to_if_not_dtype_and_variable(
             node=node,
-            name_to_tensor=name_to_tensor,
             nnef_tensor=input_tensor,
             cast_to=cast_to,
             suffix="casted",
@@ -88,10 +81,8 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
     if len(node.inputs) == 3 or io_casting_with_dtype is not None:
         suffix_div_op_output = "div"
 
-    out = add_single_output_op(
-        g,
+    out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "div",
         inputs=(
             input_tensor,
@@ -101,10 +92,8 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
     )
 
     if rounding_mode:
-        out = add_single_output_op(
-            g,
+        out = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             rounding_mode,
             inputs=out,
             output_tensor_name_suffix=""
@@ -119,10 +108,8 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
             raise TorchToNNEFNotImplementedError(
                 "What NNEF compliance mean in such case ?", inference_target
             )
-        _, custom_fragments = cast_to_if_not_dtype_and_variable(
-            g=g,
+        _, custom_fragments = op_helper.cast_to_if_not_dtype_and_variable(
             node=node,
-            name_to_tensor=name_to_tensor,
             nnef_tensor=out,
             cast_to=io_casting_with_dtype,
         )
@@ -131,9 +118,7 @@ def div(g, node, name_to_tensor, inference_target, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def floor_divide(
-    g, node, name_to_tensor, inference_target, torch_graph, **kwargs
-):
+def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
     input_node, divisor_node = node.inputs
     if (
         input_node.data
@@ -159,16 +144,10 @@ def floor_divide(
     # for c_node in [input_node, divisor_node]:
     #     c_node.cast_float_inplace()
 
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
-    divisor_tensor = get_or_add_tensor_variable_in_nnef(
-        g, divisor_node, name_to_tensor
-    )
-    out = add_single_output_op(
-        g,
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    divisor_tensor = op_helper.get_or_add_tensor_variable_in_nnef(divisor_node)
+    out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "div",
         inputs=(
             input_tensor,
@@ -176,28 +155,24 @@ def floor_divide(
         ),
         output_tensor_name_suffix="div",
     )
-    add_single_output_op(g, node, name_to_tensor, "floor", inputs=out)
+    op_helper.add_single_output_op_from_nnef_tensors(node, "floor", inputs=out)
     return []
 
 
 @OP_REGISTRY.register()
-def trunc(g, node, name_to_tensor, **kwargs):
-    add_single_output_op(
-        g,
+def trunc(node, op_helper, **kwargs):
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "trunc",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, node.inputs[0], name_to_tensor
-        ),
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
     )
     return ["trunc"]
 
 
 @OP_REGISTRY.register(torch_op_ids=["pow"])
-def pow_(g, node, name_to_tensor, **kwargs):
+def pow_(node, op_helper, **kwargs):
     (input_node, exponent_node) = node.inputs
-    inputs = [get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)]
+    inputs = [op_helper.get_or_add_tensor_variable_in_nnef(input_node)]
     if exponent_node.data:
         exponent = exponent_node.data
         if exponent == 2:
@@ -207,20 +182,14 @@ def pow_(g, node, name_to_tensor, **kwargs):
         else:
             op_type = "pow"
             inputs += [
-                get_or_add_tensor_variable_in_nnef(
-                    g, exponent_node, name_to_tensor
-                )
+                op_helper.get_or_add_tensor_variable_in_nnef(exponent_node)
             ]
     else:
         op_type = "pow"
-        inputs += [
-            get_or_add_tensor_variable_in_nnef(g, exponent_node, name_to_tensor)
-        ]
+        inputs += [op_helper.get_or_add_tensor_variable_in_nnef(exponent_node)]
 
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         op_type,
         inputs=inputs,
     )
@@ -239,7 +208,7 @@ def round_(inference_target, **kwargs):
     return ["tract_core"]
 
 
-def remap_if_neural_op(torch_graph, node, a, b):
+def remap_if_neutral_op(torch_graph, node, a, b):
     if a.data is not None and (a.into_tensor_variable().data == 1.0).all():
         torch_graph.remap_node(node.outputs[0], b)
         return True
@@ -247,16 +216,16 @@ def remap_if_neural_op(torch_graph, node, a, b):
 
 
 @OP_REGISTRY.register()
-def mul(g, node, name_to_tensor, torch_graph, **kwargs):
+def mul(node, op_helper, torch_graph, **kwargs):
     input_node = node.inputs[0]
     other_node = node.inputs[1]
 
     if input_node.data is not None and other_node.data is not None:
         node.outputs[0].data = input_node.data * other_node.data
         return
-    if remap_if_neural_op(
+    if remap_if_neutral_op(
         torch_graph, node, input_node, other_node
-    ) or remap_if_neural_op(torch_graph, node, other_node, input_node):
+    ) or remap_if_neutral_op(torch_graph, node, other_node, input_node):
         return
 
     inputs = []
@@ -278,20 +247,16 @@ def mul(g, node, name_to_tensor, torch_graph, **kwargs):
                 " force cast to f32"
             )
             c_node.cast_float_inplace()
-        inputs.append(
-            get_or_add_tensor_variable_in_nnef(g, c_node, name_to_tensor)
-        )
-    add_single_output_op(
-        g,
+        inputs.append(op_helper.get_or_add_tensor_variable_in_nnef(c_node))
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "mul",
         inputs=inputs,
     )
 
 
 @OP_REGISTRY.register()
-def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
+def remainder(node, op_helper, torch_graph, **kwargs):
     input_node, other_node = node.inputs
     if all(
         isinstance(node, PythonConstant) for node in [input_node, other_node]
@@ -304,13 +269,11 @@ def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
             ),
         )
         return []
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "remainder",
         inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            op_helper.get_or_add_tensor_variable_in_nnef(_)
             for _ in [input_node, other_node]
         ],
     )
@@ -318,7 +281,7 @@ def remainder(g, node, name_to_tensor, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
+def rsub(node, op_helper, torch_graph, **kwargs):
     input_node, other_node, alpha_node = node.inputs
     if all(
         isinstance(_, PythonConstant)
@@ -337,13 +300,11 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
         return []
     if isinstance(alpha_node, PythonConstant):
         alpha_node.data = float(alpha_node.data)
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "rsub",
         inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            op_helper.get_or_add_tensor_variable_in_nnef(_)
             for _ in [input_node, other_node]
         ],
         attrs={"alpha": alpha_node.data},
@@ -353,10 +314,8 @@ def rsub(g, node, name_to_tensor, torch_graph, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["abs"])
 def _abs(
-    g,
     node,
-    name_to_tensor,
-    null_ref,
+    op_helper,
     inference_target,
     torch_graph,
     **kwargs,
@@ -366,32 +325,26 @@ def _abs(
             raise TorchToNNEFNotImplementedError(
                 "NNEF compliance does not allow complex"
             )
-        input_tensor = get_or_add_tensor_variable_in_nnef(
-            g, node.inputs[0], name_to_tensor
+        input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
+            node.inputs[0]
         )
         # to real, pow(2), slice both, add 2 tensors, rsqr
         if tract_complex_support(inference_target):
-            input_tensor = add_single_output_op(
-                g,
+            input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
                 node,
-                name_to_tensor,
                 "tract_core_complex_to_inner_dim",
                 inputs=input_tensor,
                 output_tensor_name_suffix="complex_abs_to_real",
             )
 
-        input_tensor = add_single_output_op(
-            g,
+        input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "sqr",
             inputs=input_tensor,
             output_tensor_name_suffix="complex_abs_sqr",
         )
-        input_tensor_real = add_single_output_op(
-            g,
+        input_tensor_real = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "slice",
             inputs=input_tensor,
             attrs={
@@ -402,10 +355,8 @@ def _abs(
             },
             output_tensor_name_suffix="complex_abs_slice_real",
         )
-        input_tensor_imag = add_single_output_op(
-            g,
+        input_tensor_imag = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "slice",
             inputs=input_tensor,
             attrs={
@@ -417,61 +368,52 @@ def _abs(
             output_tensor_name_suffix="complex_abs_slice_imag",
         )
 
-        input_tensor = add_single_output_op(
-            g,
+        input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "add",
             inputs=[input_tensor_real, input_tensor_imag],
             output_tensor_name_suffix="complex_abs_add",
         )
-        input_tensor = add_single_output_op(
-            g,
+        input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "sqrt",
             inputs=input_tensor,
             output_tensor_name_suffix="complex_abs_sqrt",
         )
-        input_tensor = add_single_output_op(
-            g,
+        input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "squeeze",
             inputs=input_tensor,
             attrs={"axes": [len(input_tensor.shape)]},
         )
         return []
-    return unary_output_op_without_params(
+    return op_helper.add_single_output_op_from_nnef_tensors(
+        node,
         nnef_op_type="abs",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(_)
+            if _ and not (isinstance(_.data, str) and _.data == "none")
+            else op_helper.null_ref
+            for _ in node.inputs
+        ],
     )
 
 
 @OP_REGISTRY.register()
-def log10(g, node, name_to_tensor, **kwargs):
+def log10(node, op_helper, **kwargs):
     """mul val may not be good enough"""
-    input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, node.inputs[0], name_to_tensor
-    )
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     # maybe better puting this in the graph to avoid precision loss
     mul_val = 1 / np.log(10)
-    input_tensor = add_single_output_op(
-        g,
+    input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "log",
         inputs=input_tensor,
         output_tensor_name_suffix="pre_log10",
     )
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "mul",
-        inputs=[input_tensor],
+        inputs=input_tensor,
         attrs={"y": mul_val},
     )

@@ -15,6 +15,7 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph import (
     Data,
@@ -270,17 +271,18 @@ def maybe_align_inputs_ranks(
 
 
 def get_or_add_tensor_variable_in_nnef(
-    g, node, name_to_tensor, name_suffix: str = ""
+    g, node, name_to_tensor, name_suffix: str = "", **kwargs
 ) -> NTensor:
     name = node.export_name
     if name_suffix:
         name += f"_{name_suffix}"
 
+    kwargs["name_suffix"] = name_suffix
     if name not in name_to_tensor:
         if isinstance(node, PythonConstant):
             node = node.into_tensor_variable()
         add_tensor_variable_node_as_nnef_tensor(
-            g, node, name_to_tensor, name_suffix
+            g, node, name_to_tensor, **kwargs
         )
     return name_to_tensor[name]
 
@@ -309,6 +311,7 @@ def add_single_output_op(
     )
     if isinstance(inputs, list) and ensure_tuple:
         inputs = tuple(inputs)
+
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
@@ -649,11 +652,12 @@ def cast_to_if_not_dtype_and_variable(
 
 
 class OpHelper:
-    def __init__(self, g, node, name_to_tensor, null_ref):
+    def __init__(self, g, node, name_to_tensor, null_ref, inference_target):
         self.g = g
         self.node = node
         self.name_to_tensor = name_to_tensor
         self.null_ref = null_ref
+        self.inference_target = inference_target
 
     def clone_with_new_node(self, node):
         return self.__class__(
@@ -661,11 +665,12 @@ class OpHelper:
             node=node,
             name_to_tensor=self.name_to_tensor,
             null_ref=self.null_ref,
+            inference_target=self.inference_target,
         )
 
     def data_nodes_to_nnef_tensors(self, data_nodes):
         return [
-            get_or_add_tensor_variable_in_nnef(self.g, dn, self.name_to_tensor)
+            self.get_or_add_tensor_variable_in_nnef(node=dn)
             for dn in data_nodes
         ]
 
@@ -713,15 +718,101 @@ class OpHelper:
 
         raise NotImplementedError(nnef_op_type)
 
-    def new_single_output_op(
+    def get_or_add_tensor_variable_in_nnef(self, node, **kwargs):
+        return get_or_add_tensor_variable_in_nnef(
+            g=self.g, node=node, name_to_tensor=self.name_to_tensor, **kwargs
+        )
+
+    def _scalar_value_must_align_to_other_inputs_dtype(
+        self, node, nnef_op_type, inputs
+    ):
+        if (
+            isinstance(inputs, (list, tuple))
+            and len(inputs) > 1
+            and any(sum(i.shape) in [0, 1] for i in inputs)
+        ):
+            eligible_dtypes = []
+            to_cast_indices = []
+            for idx, inp in enumerate(inputs):
+                if sum(inp.shape) in [0, 1]:
+                    to_cast_indices.append(idx)
+                    continue
+                eligible_dtypes.append(inp.dtype)
+            if nnef_op_type == "select":
+                eligible_dtypes = eligible_dtypes[1:]
+            etypes = set(eligible_dtypes)
+            if len(etypes) == 0:
+                return inputs
+            if len(etypes) != 1:
+                raise TorchToNNEFNotImplementedError(
+                    f"potential conflicting dtypes {etypes} in '{nnef_op_type}'"
+                )
+            new_dtype = etypes.pop()
+            if new_dtype == np.float32:
+                return inputs
+            to_str = numpy_dtype_to_tract_str(new_dtype)
+            for idx in to_cast_indices:
+                to_cast_nnef_tensor = inputs[idx]
+                out = self.add_single_output_op_from_nnef_tensors(
+                    node=node,
+                    nnef_op_type="tract_core_cast",
+                    inputs=to_cast_nnef_tensor,
+                    attrs={"to": to_str},
+                    output_tensor_name_suffix=f"as_{to_str}",
+                )
+                inputs[idx] = out
+        return inputs
+
+    def add_single_output_op_from_nnef_tensors(
+        self,
+        node,
+        nnef_op_type: str,
+        inputs,
+        **kwargs,
+    ):
+        if not isinstance(inputs, (list, tuple)):
+            inputs = (inputs,)
+        if isinstance(self.inference_target, TractNNEF):
+            inputs = self._scalar_value_must_align_to_other_inputs_dtype(
+                node, nnef_op_type, inputs
+            )
+        return add_single_output_op(
+            node=node,
+            nnef_op_type=nnef_op_type,
+            inputs=inputs,
+            g=self.g,
+            name_to_tensor=self.name_to_tensor,
+            **kwargs,
+        )
+
+    def cast_to_if_not_dtype_and_variable(
+        self,
+        node,
+        nnef_tensor: NTensor,
+        cast_to: np.dtype,
+        suffix: str = "",
+    ):
+        return cast_to_if_not_dtype_and_variable(
+            self.g,
+            self.name_to_tensor,
+            node,
+            nnef_tensor,
+            cast_to,
+            suffix,
+        )
+
+    def add_single_output_op_from_ir_datas(
         self,
         nnef_op_type: str,
-        *args,
         input_nodes: T.List[Data],
         output_tensor_name_suffix: str = "",
         force_full_output_tensor_name: str = "",
         **kwargs,
-    ):
+    ) -> TorchOp:
+        """Use input_nodes Data instead of nnef.Tensor
+
+        Also nnefe
+        """
         dtype, shape = self._guess_output_dtype_and_shape(
             nnef_op_type, input_nodes, kwargs.get("attrs", {})
         )
@@ -747,9 +838,7 @@ class OpHelper:
         kwargs["nnef_op_type"] = nnef_op_type
         assert "inputs" not in kwargs
         kwargs["inputs"] = self.data_nodes_to_nnef_tensors(input_nodes)
-        _ = add_single_output_op(
-            self.g, new_node, self.name_to_tensor, *args, **kwargs
-        )
+        _ = self.add_single_output_op_from_nnef_tensors(node=new_node, **kwargs)
         return new_node
 
 
@@ -762,9 +851,9 @@ class SimpleOpChainer:
     def output_name(self):
         return self.input_data_nodes[0].export_name
 
-    def chain(self, *args, **kwargs):
-        new_node = self.op_helper.new_single_output_op(
-            input_nodes=self.input_data_nodes, *args, **kwargs
+    def chain(self, nnef_op_type, **kwargs):
+        new_node = self.op_helper.add_single_output_op_from_ir_datas(
+            nnef_op_type, input_nodes=self.input_data_nodes, **kwargs
         )
         return SimpleOpChainer(
             self.op_helper.clone_with_new_node(new_node), new_node.outputs

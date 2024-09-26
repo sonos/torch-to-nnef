@@ -399,7 +399,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
     Just before doing any tracing
 
     """
-    LOGGER.info("started to apply qtensor ref with decompress")
+    LOGGER.debug("started to apply qtensor ref with decompress")
     for named_p, param in model.named_parameters():
         if not isinstance(param, QTensor):
             continue
@@ -417,4 +417,4 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
                 requires_grad=False,
             ),
         )
-    LOGGER.info("sucessfull to apply qtensor ref with decompress")
+    LOGGER.debug("sucessfull to apply qtensor ref with decompress")
