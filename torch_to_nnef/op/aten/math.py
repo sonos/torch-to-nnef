@@ -387,7 +387,7 @@ def _abs(
             attrs={"axes": [len(input_tensor.shape)]},
         )
         return []
-    return op_helper.add_single_output_op_from_nnef_tensors(
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
         nnef_op_type="abs",
         inputs=[
@@ -397,6 +397,7 @@ def _abs(
             for _ in node.inputs
         ],
     )
+    return []
 
 
 @OP_REGISTRY.register()
