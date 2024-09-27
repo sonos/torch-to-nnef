@@ -155,8 +155,10 @@ class TractNNEF(InferenceTarget):
 def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
     custom_extensions = set()
     for node_name, named_dims in dynamic_axes.items():
+        found_name = False
         for inp_tensor in nnef_graph.inputs:
             if inp_tensor.name == node_name:
+                found_name = True
                 # LOGGER.debug(f"found matching node element {node_name}")
                 assert len(inp_tensor.producers) == 1
                 external_op = inp_tensor.producers[0]
@@ -185,6 +187,20 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     else:
                         custom_extensions.add(f"tract_symbol {axis_name}")
                 break
+        if not found_name:
+            if any(
+                node_name == out_tensor.name
+                for out_tensor in nnef_graph.outputs
+            ):
+                LOGGER.warning(
+                    "useless to set output dynamic axes "
+                    "since not interpreted by inference engines"
+                )
+            raise DynamicShapeValue(
+                f"Requested dynamic_axes on input named: '{node_name}', "
+                f"is not in graph inputs: {nnef_graph.inputs}"
+            )
+
     LOGGER.debug("applied dynamic axes in NNEF")
     return custom_extensions
 
