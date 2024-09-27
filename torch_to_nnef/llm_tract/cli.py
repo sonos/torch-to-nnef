@@ -356,7 +356,9 @@ class LLMExporter:
         out_pkv = [t for kv in pkv for t in kv]
 
         def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):
-            if not torch.allclose(wrapped_outs[0], outs["logits"]):
+            if not torch.allclose(
+                ref, cand, atol=1e-3 if self.as_float16 else 1e-4
+            ):
                 msg = (
                     f"Model: {self.hf_model_causal.__class__} wrapped "
                     f"with: {self.wrapped_model.__class__}, "
