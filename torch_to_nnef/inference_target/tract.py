@@ -283,7 +283,7 @@ class TractCli:
                 io_npz_path,
             ]
         cmd_ += ["--allow-float-casts"]
-        if self.version > "0.21.6":
+        if self.version >= "0.21.8":
             cmd_ += ["--approx", "approximate"]
         cmd = [str(c) for c in cmd_]
         cmd_shell = " ".join(_ for _ in cmd)
