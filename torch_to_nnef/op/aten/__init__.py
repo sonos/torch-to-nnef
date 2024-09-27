@@ -90,7 +90,9 @@ def aten_to_nnef_tensor_and_ops(
             torch_graph=torch_graph,
             inference_target=inference_target,
             aten_op_id=aten_op_id,
-            op_helper=OpHelper(g, node, name_to_tensor, null_ref),
+            op_helper=OpHelper(
+                g, node, name_to_tensor, null_ref, inference_target
+            ),
         )
     except KeyError as exp:
         torch_graph.printall()

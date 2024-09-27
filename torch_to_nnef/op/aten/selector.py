@@ -8,9 +8,6 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     SimpleOpChainer,
-    add_single_output_op,
-    add_tensor_variable_node_as_nnef_tensor,
-    get_or_add_tensor_variable_in_nnef,
     pick_axis,
     pick_index_in_axis,
 )
@@ -23,9 +20,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
-    g,
     node,
-    name_to_tensor,
     torch_graph,
     inference_target,
     op_helper,
@@ -36,9 +31,7 @@ def slice_(
         and inference_target.version < "0.21.7"
     ):
         return tract_pre_0_21_7_slice(
-            g,
             node,
-            name_to_tensor,
             torch_graph,
             False,
             inference_target.has_dynamic_axes,
@@ -89,14 +82,10 @@ def slice_(
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(inference_target)
         # Case with TractNNEF.version < 0.21.7 are handled upper
-        add_single_output_op(
-            g,
+        op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "dyn_slice",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, input_node, name_to_tensor
-            ),
+            inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
             attrs={
                 "axis": pick_axis(input_node, dim),
                 "begin": begin,
@@ -113,14 +102,10 @@ def slice_(
     )
     begin = max(begin, 0)
 
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
         attrs={
             "axes": [pick_axis(input_node, dim)],
             "begin": [begin],
@@ -133,9 +118,7 @@ def slice_(
 
 
 def tract_pre_0_21_7_slice(
-    g,
     node,
-    name_to_tensor,
     torch_graph,
     nnef_spec_strict,
     has_dynamic_axes,
@@ -280,14 +263,10 @@ def tract_pre_0_21_7_slice(
                 input_node.shape[dim],
             )
 
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
         attrs={
             "axes": [pick_axis(input_node, dim)],
             "begin": [begin],
@@ -299,34 +278,21 @@ def tract_pre_0_21_7_slice(
 
 
 @OP_REGISTRY.register()
-def where(g, node, name_to_tensor, **kwargs):
+def where(node, op_helper, **kwargs):
     (condition_node, true_value_node, false_value_node) = node.inputs
 
-    inputs = []
-    for snode in [condition_node, true_value_node, false_value_node]:
-        name = snode.export_name
-        if name in name_to_tensor:
-            inputs.append(name_to_tensor[name])
-        else:
-            snode_ref = add_tensor_variable_node_as_nnef_tensor(
-                name_suffix=name,
-                node=snode,
-                g=g,
-                name_to_tensor=name_to_tensor,
-            )
-            inputs.append(snode_ref)
-
-    add_single_output_op(
-        g,
+    inputs = op_helper.data_nodes_to_nnef_tensors(
+        [condition_node, true_value_node, false_value_node]
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         nnef_op_type="select",
         inputs=inputs,
     )
 
 
 @OP_REGISTRY.register()
-def narrow(g, node, name_to_tensor, **kwargs):
+def narrow(node, op_helper, **kwargs):
     """Fancy slice made in PyTorch
 
     torch.narrow(input, dim, start, length)
@@ -348,15 +314,10 @@ def narrow(g, node, name_to_tensor, **kwargs):
     assert length_node.data > 0
 
     start_idx = pick_index_in_axis(input_node, axis_node.data, start_node.data)
-
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
         attrs={
             "axes": [pick_axis(input_node, axis_node.data)],
             "begin": [start_idx],
@@ -368,17 +329,13 @@ def narrow(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register()
-def select(g, node, name_to_tensor, **kwargs):
+def select(node, op_helper, **kwargs):
     input_node, axis_node, index_node = node.inputs
     begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
-    out = add_single_output_op(
-        g,
+    out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "slice",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
         attrs={
             "axes": [pick_axis(input_node, axis_node.data)],
             "begin": [begin],
@@ -392,10 +349,8 @@ def select(g, node, name_to_tensor, **kwargs):
         output_tensor_name_suffix="_select",
         pass_quantization_params=True,
     )
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "squeeze",
         inputs=out,
         attrs={"axes": [pick_axis(input_node, axis_node.data)]},
@@ -404,7 +359,7 @@ def select(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
-def index_(g, node, name_to_tensor, inference_target, **kwargs):
+def index_(node, op_helper, inference_target, **kwargs):
     """
     fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
@@ -438,17 +393,13 @@ def index_(g, node, name_to_tensor, inference_target, **kwargs):
         custom_fragments += ["tract_core"]
     else:
         op_name = "gather"
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         op_name,
         inputs=[
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
-            get_or_add_tensor_variable_in_nnef(
-                g,
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
                 indexes_node.data[-1],
-                name_to_tensor,
             ),
         ],
         attrs={
@@ -460,7 +411,7 @@ def index_(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def embedding(g, node, name_to_tensor, inference_target, **kwargs):
+def embedding(node, op_helper, inference_target, **kwargs):
     (
         weight_node,
         indices_node,
@@ -469,36 +420,30 @@ def embedding(g, node, name_to_tensor, inference_target, **kwargs):
         _,  # sparse_node
     ) = node.inputs
 
-    weight_tensor = get_or_add_tensor_variable_in_nnef(
-        g, weight_node, name_to_tensor
-    )
-    indices_tensor = get_or_add_tensor_variable_in_nnef(
-        g, indices_node, name_to_tensor
-    )
     custom_fragments = []
     if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
     else:
         op_name = "gather"
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         op_name,
-        inputs=(weight_tensor, indices_tensor),
+        inputs=op_helper.data_nodes_to_nnef_tensors(
+            [weight_node, indices_node]
+        ),
         attrs={"axis": 0},
     )
     return custom_fragments
 
 
 @OP_REGISTRY.register()
-def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
+def masked_fill(node, op_helper, inference_target, **kwargs):
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
-    false_nnef_tensor = get_or_add_tensor_variable_in_nnef(
-        g, false_value_node, name_to_tensor
+    false_nnef_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
+        false_value_node
     )
     # value is always a float according to torch spec
     true_value_node = value_node.into_tensor_variable()
@@ -509,10 +454,8 @@ def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
             raise TorchToNNEFNotImplementedError(inference_target)
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
-        out = add_single_output_op(
-            g,
+        out = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "tract_core_shape_of",
             inputs=false_nnef_tensor,
             output_tensor_name_suffix="shape_of_false",
@@ -523,13 +466,11 @@ def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
             *([1] * false_value_node.rank)
         )
 
-        true_nnef_tensor = add_single_output_op(
-            g,
+        true_nnef_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "tile",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, true_value_node, name_to_tensor, name_suffix="true_scalar"
+            inputs=op_helper.get_or_add_tensor_variable_in_nnef(
+                true_value_node, name_suffix="true_scalar"
             ),
             attrs={"repeats": nnef.Identifier(str(out.name))},
             output_tensor_name_suffix="true_expanded",
@@ -540,8 +481,8 @@ def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
             false_value_node.shape
         )
         true_value_node.dtype = false_value_node.dtype
-        true_nnef_tensor = get_or_add_tensor_variable_in_nnef(
-            g, true_value_node, name_to_tensor
+        true_nnef_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
+            true_value_node
         )
 
     # tract need float where ?
@@ -549,16 +490,12 @@ def masked_fill(g, node, name_to_tensor, inference_target, **kwargs):
     # mask_node.dtype = mask_node.data.dtype
     condition_node = mask_node
 
-    inputs = [
-        get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-        for _ in [condition_node]
-    ]
-    inputs += [true_nnef_tensor, false_nnef_tensor]
-
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         nnef_op_type="select",
-        inputs=inputs,
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(condition_node),
+            true_nnef_tensor,
+            false_nnef_tensor,
+        ],
     )
