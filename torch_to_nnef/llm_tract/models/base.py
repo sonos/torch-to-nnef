@@ -41,6 +41,8 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
 
     """
 
+    with_dyn_cache: bool = True
+
     def __init__(self, model: AutoModelForCausalLM):
         super().__init__()
         self.model = model

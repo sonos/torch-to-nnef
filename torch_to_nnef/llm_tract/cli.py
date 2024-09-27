@@ -15,6 +15,7 @@ from torch import nn
 from transformers import GenerationConfig
 
 from torch_to_nnef.exceptions import (
+    TorchToNNEFConsistencyError,
     TorchToNNEFImpossibleQuantization,
     TorchToNNEFInvalidArgument,
 )
@@ -34,6 +35,8 @@ try:
     from torch_to_nnef.llm_tract.models.base import (
         BaseCausal,
         BaseCausalWithDynCacheAndTriu,
+        build_past_kv_dyn_cache,
+        build_past_kv_list,
     )
 except (ModuleNotFoundError, ImportError) as exp:
     raise ValueError(
@@ -327,6 +330,54 @@ class LLMExporter:
             self.hf_model_causal
         )
 
+    def chech_wrapper_io(self):
+        """Checking that wrapper given consistent outputs compared to vanilla model"""
+        (
+            inputs,
+            _,
+            out_cache_names,
+            _,
+        ) = self.generate_inputs()
+        wrapped_outs = self.wrapped_model(*inputs)
+        if self.wrapped_model.with_dyn_cache:
+            past_key_values = build_past_kv_dyn_cache(inputs[1:])
+        else:
+            past_key_values = build_past_kv_list(inputs[1:])
+        outs = self.hf_model_causal(
+            input_ids=inputs[0],
+            past_key_values=past_key_values,
+            use_cache=True,
+            return_dict=True,
+        )
+
+        pkv = outs["past_key_values"]
+        if self.wrapped_model.with_dyn_cache:
+            pkv = pkv.to_legacy_cache()
+        out_pkv = [t for kv in pkv for t in kv]
+
+        def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):
+            if not torch.allclose(wrapped_outs[0], outs["logits"]):
+                msg = (
+                    f"Model: {self.hf_model_causal.__class__} wrapped "
+                    f"with: {self.wrapped_model.__class__}, "
+                    "give inconsistent results compared to "
+                    f"vanilla in '{output_name}': "
+                    f"avg diff: {(ref - cand).abs().mean():0.4f}. "
+                    "Likely need a torch_to_nnef fix."
+                )
+                log.error(msg)
+                raise TorchToNNEFConsistencyError(msg)
+
+        err_check("logits", wrapped_outs[0], outs["logits"])
+        for kv_name, ref, cand in zip(
+            out_cache_names, out_pkv, wrapped_outs[1:]
+        ):
+            err_check(kv_name, ref, cand)
+        LOGGER.info(
+            f"In PyTorch wrapped_model:{self.model_infos.wrapper_class} "
+            f"provide same results as {self.hf_model_causal.__class__}"
+        )
+
     def generate_inputs(
         self, n_input_tokens: int = 1, n_past_input_tokens: int = 2
     ):
@@ -609,6 +660,7 @@ def prep_exporter(
     compression_method: T.Optional[str] = None,
     compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
     test_display_token_gens: bool = False,
+    wrapper_io_check: bool = True,
     log_level: int = log.INFO,
 ) -> LLMExporter:
     """Util to prepare export (loading/f16/compression/...) LLM model"""
@@ -646,6 +698,8 @@ def prep_exporter(
         if test_display_token_gens and (compression_method or as_float16):
             LOGGER.info("check testing text post compression/f16 conversion:")
             exporter.generate_test_text()
+        if wrapper_io_check:
+            exporter.chech_wrapper_io()
     return exporter
 
 
@@ -661,6 +715,7 @@ def dump_llm(
     test_display_token_gens: bool = False,
     naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
     dump_with_tokenizer_and_conf: bool = False,
+    wrapper_io_check: bool = True,
     log_level: int = log.INFO,
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
@@ -676,6 +731,7 @@ def dump_llm(
         compression_method=compression_method,
         compression_registry=compression_registry,
         test_display_token_gens=test_display_token_gens,
+        wrapper_io_check=wrapper_io_check,
         log_level=log_level,
     )
     with torch.no_grad():
