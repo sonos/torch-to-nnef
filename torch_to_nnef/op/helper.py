@@ -1,5 +1,7 @@
 import logging
+import operator
 import typing as T
+from functools import reduce
 
 import nnef
 import numpy as np
@@ -729,12 +731,12 @@ class OpHelper:
         if (
             isinstance(inputs, (list, tuple))
             and len(inputs) > 1
-            and any(sum(i.shape) in [0, 1] for i in inputs)
+            and any(reduce(operator.mul, i.shape, 1) == 1 for i in inputs)
         ):
             eligible_dtypes = []
             to_cast_indices = []
             for idx, inp in enumerate(inputs):
-                if sum(inp.shape) in [0, 1]:
+                if reduce(operator.mul, inp.shape, 1) == 1:
                     to_cast_indices.append(idx)
                     continue
                 eligible_dtypes.append(inp.dtype)
@@ -748,19 +750,21 @@ class OpHelper:
                     f"potential conflicting dtypes {etypes} in '{nnef_op_type}'"
                 )
             new_dtype = etypes.pop()
-            if new_dtype == np.float32:
-                return inputs
             to_str = numpy_dtype_to_tract_str(new_dtype)
             for idx in to_cast_indices:
                 to_cast_nnef_tensor = inputs[idx]
-                out = self.add_single_output_op_from_nnef_tensors(
-                    node=node,
-                    nnef_op_type="tract_core_cast",
-                    inputs=to_cast_nnef_tensor,
-                    attrs={"to": to_str},
-                    output_tensor_name_suffix=f"as_{to_str}",
-                )
-                inputs[idx] = out
+                if to_cast_nnef_tensor.dtype != new_dtype:
+                    LOGGER.debug(
+                        f"cast align input: {to_cast_nnef_tensor} to {to_str}"
+                    )
+                    out = self.add_single_output_op_from_nnef_tensors(
+                        node=node,
+                        nnef_op_type="tract_core_cast",
+                        inputs=to_cast_nnef_tensor,
+                        attrs={"to": to_str},
+                        output_tensor_name_suffix=f"as_{to_str}",
+                    )
+                    inputs[idx] = out
         return inputs
 
     def add_single_output_op_from_nnef_tensors(
