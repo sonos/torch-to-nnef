@@ -247,7 +247,7 @@ def maybe_align_inputs_ranks(
                     nnef_tensor.data is None or nnef_tensor.data.size != 1
                 ):
                     new_shape = list(nnef_tensor.shape)
-                    new_shape = ([0] * missing_dims) + new_shape
+                    new_shape = ([1] * missing_dims) + new_shape
                     unsqueeze_axes = [0] * missing_dims
 
                     output_nnef_tensor = NTensor(
@@ -732,6 +732,8 @@ class OpHelper:
             isinstance(inputs, (list, tuple))
             and len(inputs) > 1
             and any(reduce(operator.mul, i.shape, 1) == 1 for i in inputs)
+            # avoid for mixed dtypes int/float alignment --> think 'tract_core_gather'/'gather'...
+            and all(np.issubdtype(i.dtype, np.floating) for i in inputs)
         ):
             eligible_dtypes = []
             to_cast_indices = []

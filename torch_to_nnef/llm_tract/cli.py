@@ -171,10 +171,9 @@ class InfosFromSlugAndConfig:
         else:
             self.max_position_embeddings = conf.max_position_embeddings
 
-        if conf.model_type in ["llama", "phi"]:
-            __import__("ipdb").set_trace()
+        if conf.model_type in ["phi"]:
             self.wrapper_class = BaseCausalWithDynCacheAndTriu
-        elif conf.model_type == "openelm":
+        elif conf.model_type in ["openelm"]:
             self.wrapper_class = partial(BaseCausal, with_dyn_cache=False)
         else:
             self.wrapper_class = BaseCausal
