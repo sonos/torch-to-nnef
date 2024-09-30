@@ -870,3 +870,41 @@ class SimpleOpChainer:
         return SimpleOpChainer(
             self.op_helper, self.input_data_nodes + [input_node]
         )
+
+
+def get_tract_dyn_axis_size_soc(
+    op_helper, input_node, axis: int
+) -> SimpleOpChainer:
+    assert (
+        input_node.rank - np.abs(axis) >= 0
+    ), f"{input_node.rank} - {np.abs(axis)}"
+    shape_tensor_name = f"{input_node.export_name}_shape"
+    index_tensor_name = f"{shape_tensor_name}_{axis}"
+    soc = (
+        SimpleOpChainer(
+            op_helper=op_helper,
+            input_data_nodes=[input_node],
+        )
+        .chain(
+            "tract_core_shape_of",
+            output_tensor_name_suffix="shape",
+        )
+        .chain(
+            "slice",
+            attrs={
+                "axes": [0],
+                "begin": [axis],
+                "end": [axis + 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"sliced{axis}",
+        )
+        .chain(
+            "squeeze",
+            attrs={
+                "axes": [0],
+            },
+            force_full_output_tensor_name=index_tensor_name,
+        )
+    )
+    return soc
