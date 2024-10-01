@@ -31,7 +31,6 @@ def test_issue18_export():
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS[0])
     latest_tract_inference.dynamic_axes = {
         "input_0": {1: "S"},
-        "output_0": {1: "S"},
     }
     check_model_io_test(
         model=MyModule(),
