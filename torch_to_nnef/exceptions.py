@@ -34,6 +34,10 @@ class DataNodeValueError(ValueError, TorchToNNEFError):
     pass
 
 
+class TorchToNNEFConsistencyError(ValueError, TorchToNNEFError):
+    pass
+
+
 class KhronosInterpreterDiffValueError(ValueError, TorchToNNEFError):
     pass
 

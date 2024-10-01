@@ -155,8 +155,10 @@ class TractNNEF(InferenceTarget):
 def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
     custom_extensions = set()
     for node_name, named_dims in dynamic_axes.items():
+        found_name = False
         for inp_tensor in nnef_graph.inputs:
             if inp_tensor.name == node_name:
+                found_name = True
                 # LOGGER.debug(f"found matching node element {node_name}")
                 assert len(inp_tensor.producers) == 1
                 external_op = inp_tensor.producers[0]
@@ -185,8 +187,29 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     else:
                         custom_extensions.add(f"tract_symbol {axis_name}")
                 break
+        if not found_name:
+            if any(
+                node_name == out_tensor.name
+                for out_tensor in nnef_graph.outputs
+            ):
+                LOGGER.warning(
+                    "useless to set output dynamic axes "
+                    "since not interpreted by inference engines"
+                )
+            raise DynamicShapeValue(
+                f"Requested dynamic_axes on input named: '{node_name}', "
+                f"is not in graph inputs: {nnef_graph.inputs}"
+            )
+
     LOGGER.debug("applied dynamic axes in NNEF")
     return custom_extensions
+
+
+def log_io_check_call_err(cmd_shell: str, serr: str):
+    LOGGER.error(f"check_io call: {cmd_shell}")
+    for errline in tract_err_filter(serr).split("\n"):
+        if errline.strip():
+            LOGGER.error(f"> {errline}")
 
 
 class TractCli:
@@ -276,7 +299,7 @@ class TractCli:
                 io_npz_path,
             ]
         cmd_ += ["--allow-float-casts"]
-        if self.version > "0.21.6":
+        if self.version >= "0.21.7":
             cmd_ += ["--approx", "approximate"]
         cmd = [str(c) for c in cmd_]
         cmd_shell = " ".join(_ for _ in cmd)
@@ -288,10 +311,7 @@ class TractCli:
                 serr = err.decode("utf8")
                 if raise_exception:
                     if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
-                        LOGGER.error(f"check_io call: {cmd_shell}")
-                        for errline in tract_err_filter(serr).split("\n"):
-                            if errline.strip():
-                                LOGGER.error(f"> {errline}")
+                        log_io_check_call_err(cmd_shell, serr)
                         raise IOPytorchTractNotISOError(serr)
                     # NOTE: tract up to at least 0.20.7 stderr info and trace messages
                     # we filter those to check if any other messages remain
@@ -299,9 +319,7 @@ class TractCli:
                     if len(err_filtered) > 0:
                         raise TractError(cmd_shell, err_filtered)
                     return True
-                for errline in tract_err_filter(serr).split("\n"):
-                    if errline.strip():
-                        LOGGER.error(f"> {errline}")
+                log_io_check_call_err(cmd_shell, serr)
                 return False
         return True
 
@@ -584,14 +602,14 @@ def assert_io(
             raise_exception = bool(
                 int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
             )
-            tract_cli.assert_io(
+            if tract_cli.assert_io(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=raise_exception,
-            )
-            LOGGER.info(
-                f"IO bit match between tract and PyTorch for {nnef_file_path}"
-            )
+            ):
+                LOGGER.info(
+                    f"IO bit match between tract and PyTorch for {nnef_file_path}"
+                )
         except (IOPytorchTractNotISOError, TractError) as exp:
             raise exp
 

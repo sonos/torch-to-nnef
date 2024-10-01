@@ -7,12 +7,15 @@ import torch
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    OpHelper,
     add_single_output_op,
     add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
+    get_tract_dyn_axis_size_soc,
 )
 from torch_to_nnef.torch_graph import PythonConstant, TensorVariable
 
@@ -20,7 +23,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def expand(g, node, name_to_tensor, inference_target, **kwargs):
+def expand(g, node, name_to_tensor, inference_target, op_helper, **kwargs):
     """
     Illustration of expand:
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
@@ -63,42 +66,36 @@ def expand(g, node, name_to_tensor, inference_target, **kwargs):
         inference_target=inference_target,
     )
 
-    nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
-        g, input_node, name_to_tensor
-    )
+    nnef_input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     if input_node.rank != len(repeats) and isinstance(
         inference_target, TractNNEF
     ):
         qte_missing_dim = len(repeats) - input_node.rank
         assert qte_missing_dim > 0, qte_missing_dim
 
-        nnef_input_tensor = add_single_output_op(
-            g,
+        nnef_input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            name_to_tensor,
             "unsqueeze",
             inputs=nnef_input_tensor,
             attrs={"axes": [0] * qte_missing_dim},
             output_tensor_name_suffix="unsqueeze_align",
         )
 
-    out = add_single_output_op(
-        g,
+    out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "tile",
         inputs=nnef_input_tensor,
         attrs={"repeats": repeats},
         output_tensor_name_suffix="repeat",
     )
-    add_single_output_op(
-        g,
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        name_to_tensor,
         "reshape",
         inputs=out,
         attrs={
-            "shape": _fill_negone_with_dim_by_rank_order(input_node, shapes)
+            "shape": _fill_negone_with_dim_by_rank_order(
+                op_helper, input_node, shapes, inference_target
+            )
         },
     )
     if (
@@ -313,7 +310,10 @@ def _expand_build_repeats(
 
 
 def _fill_negone_with_dim_by_rank_order(
-    input_node, shapes: T.List[int]
+    op_helper: OpHelper,
+    input_node,
+    shapes: T.List[int],
+    inference_target: InferenceTarget,
 ) -> T.List[int]:
     """Cast each -1 encountered in shapes to incremental rank dim in input_node
 
@@ -330,9 +330,21 @@ def _fill_negone_with_dim_by_rank_order(
 
     """
     new_shapes = []
-    for rank_id, s in enumerate(shapes):
+    for axis, s in enumerate(shapes):
         if s == -1:
-            new_shapes.append(input_node.shape[rank_id])
+            if inference_target.has_dynamic_axes:
+                # input_node.shape[axis]
+                if not isinstance(inference_target, TractNNEF):
+                    raise TorchToNNEFNotImplementedError(inference_target)
+                new_shapes.append(
+                    nnef.Identifier(
+                        get_tract_dyn_axis_size_soc(
+                            op_helper, input_node, axis
+                        ).output_name
+                    )
+                )
+            else:
+                new_shapes.append(input_node.shape[axis])
         elif isinstance(s, nnef.Identifier) or s > 0:
             new_shapes.append(s)
         else:

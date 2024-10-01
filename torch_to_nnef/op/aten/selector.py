@@ -7,7 +7,7 @@ from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    SimpleOpChainer,
+    get_tract_dyn_axis_size_soc,
     pick_axis,
     pick_index_in_axis,
 )
@@ -164,37 +164,11 @@ def tract_pre_0_21_7_slice(
 
     if begin_node.data is not None and begin < 0:
         if has_dynamic_axes and not nnef_spec_strict:
-            shape_tensor_name = f"{input_node.export_name}_shape"
-            index_tensor_name = f"{shape_tensor_name}_{dim}"
             real_begin_tensor_name = (
                 f"{node.outputs[0].export_name}_slice_begin"
             )
             soc = (
-                SimpleOpChainer(
-                    op_helper=op_helper,
-                    input_data_nodes=[input_node],
-                )
-                .chain(
-                    "tract_core_shape_of",
-                    output_tensor_name_suffix="shape",
-                )
-                .chain(
-                    "slice",
-                    attrs={
-                        "axes": [0],
-                        "begin": [dim],
-                        "end": [dim + 1],
-                        "stride": [1],
-                    },
-                    output_tensor_name_suffix=f"sliced{dim}",
-                )
-                .chain(
-                    "squeeze",
-                    attrs={
-                        "axes": [0],
-                    },
-                    force_full_output_tensor_name=index_tensor_name,
-                )
+                get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
                 .add_new_input_node(begin_node)
                 .chain(
                     "add",
@@ -227,36 +201,11 @@ def tract_pre_0_21_7_slice(
         ):
             # NOTE: since we can't ensure used dimension is not symbolic
             # we use `tract_core_shape_of`
-            shape_tensor_name = f"{input_node.export_name}_shape"
-            index_tensor_name = f"{shape_tensor_name}_{dim}"
-            soc = (
-                SimpleOpChainer(
-                    op_helper=op_helper,
-                    input_data_nodes=[input_node],
-                )
-                .chain(
-                    "tract_core_shape_of",
-                    output_tensor_name_suffix="shape",
-                )
-                .chain(
-                    "slice",
-                    attrs={
-                        "axes": [0],
-                        "begin": [dim],
-                        "end": [dim + 1],
-                        "stride": [1],
-                    },
-                    output_tensor_name_suffix=f"sliced{dim}",
-                )
-                .chain(
-                    "squeeze",
-                    attrs={
-                        "axes": [0],
-                    },
-                    force_full_output_tensor_name=index_tensor_name,
-                )
+            end = nnef.Identifier(
+                get_tract_dyn_axis_size_soc(
+                    op_helper, input_node, dim
+                ).output_name
             )
-            end = nnef.Identifier(soc.output_name)
         else:
             end = min(
                 end,

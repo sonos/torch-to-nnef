@@ -32,9 +32,6 @@ def test_manage_lstm_states(inference_target):
         "input": {0: "S", 1: "B"},
         "input_state_1": {1: "B"},
         "input_state_2": {1: "B"},
-        "output": {0: "S", 1: "B"},
-        "output_state_1": {1: "B"},
-        "output_state_2": {1: "B"},
     }
     check_model_io_test(
         model=module,
@@ -64,9 +61,6 @@ def test_manage_lstm_states_multi_layers(inference_target):
         "input": {0: "S", 1: "B"},
         "input_state_1": {1: "B"},
         "input_state_2": {1: "B"},
-        "output": {0: "S", 1: "B"},
-        "output_state_1": {1: "B"},
-        "output_state_2": {1: "B"},
     }
 
     check_model_io_test(
@@ -95,8 +89,6 @@ def _test_mono_states_rnn(cls, inference_target):
     inference_target.dynamic_axes = {
         "input": {0: "S", 1: "B"},
         "input_state_1": {1: "B"},
-        "output": {0: "S", 1: "B"},
-        "output_state_1": {1: "B"},
     }
 
     check_model_io_test(

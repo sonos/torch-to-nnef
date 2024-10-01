@@ -1,5 +1,7 @@
 import logging
+import operator
 import typing as T
+from functools import reduce
 
 import nnef
 import numpy as np
@@ -245,7 +247,7 @@ def maybe_align_inputs_ranks(
                     nnef_tensor.data is None or nnef_tensor.data.size != 1
                 ):
                     new_shape = list(nnef_tensor.shape)
-                    new_shape = ([0] * missing_dims) + new_shape
+                    new_shape = ([1] * missing_dims) + new_shape
                     unsqueeze_axes = [0] * missing_dims
 
                     output_nnef_tensor = NTensor(
@@ -729,12 +731,14 @@ class OpHelper:
         if (
             isinstance(inputs, (list, tuple))
             and len(inputs) > 1
-            and any(sum(i.shape) in [0, 1] for i in inputs)
+            and any(reduce(operator.mul, i.shape, 1) == 1 for i in inputs)
+            # avoid for mixed dtypes int/float alignment --> think 'tract_core_gather'/'gather'...
+            and all(np.issubdtype(i.dtype, np.floating) for i in inputs)
         ):
             eligible_dtypes = []
             to_cast_indices = []
             for idx, inp in enumerate(inputs):
-                if sum(inp.shape) in [0, 1]:
+                if reduce(operator.mul, inp.shape, 1) == 1:
                     to_cast_indices.append(idx)
                     continue
                 eligible_dtypes.append(inp.dtype)
@@ -748,19 +752,21 @@ class OpHelper:
                     f"potential conflicting dtypes {etypes} in '{nnef_op_type}'"
                 )
             new_dtype = etypes.pop()
-            if new_dtype == np.float32:
-                return inputs
             to_str = numpy_dtype_to_tract_str(new_dtype)
             for idx in to_cast_indices:
                 to_cast_nnef_tensor = inputs[idx]
-                out = self.add_single_output_op_from_nnef_tensors(
-                    node=node,
-                    nnef_op_type="tract_core_cast",
-                    inputs=to_cast_nnef_tensor,
-                    attrs={"to": to_str},
-                    output_tensor_name_suffix=f"as_{to_str}",
-                )
-                inputs[idx] = out
+                if to_cast_nnef_tensor.dtype != new_dtype:
+                    LOGGER.debug(
+                        f"cast align input: {to_cast_nnef_tensor} to {to_str}"
+                    )
+                    out = self.add_single_output_op_from_nnef_tensors(
+                        node=node,
+                        nnef_op_type="tract_core_cast",
+                        inputs=to_cast_nnef_tensor,
+                        attrs={"to": to_str},
+                        output_tensor_name_suffix=f"as_{to_str}",
+                    )
+                    inputs[idx] = out
         return inputs
 
     def add_single_output_op_from_nnef_tensors(
@@ -864,3 +870,41 @@ class SimpleOpChainer:
         return SimpleOpChainer(
             self.op_helper, self.input_data_nodes + [input_node]
         )
+
+
+def get_tract_dyn_axis_size_soc(
+    op_helper, input_node, axis: int
+) -> SimpleOpChainer:
+    assert (
+        input_node.rank - np.abs(axis) >= 0
+    ), f"{input_node.rank} - {np.abs(axis)}"
+    shape_tensor_name = f"{input_node.export_name}_shape"
+    index_tensor_name = f"{shape_tensor_name}_{axis}"
+    soc = (
+        SimpleOpChainer(
+            op_helper=op_helper,
+            input_data_nodes=[input_node],
+        )
+        .chain(
+            "tract_core_shape_of",
+            output_tensor_name_suffix="shape",
+        )
+        .chain(
+            "slice",
+            attrs={
+                "axes": [0],
+                "begin": [axis],
+                "end": [axis + 1],
+                "stride": [1],
+            },
+            output_tensor_name_suffix=f"sliced{axis}",
+        )
+        .chain(
+            "squeeze",
+            attrs={
+                "axes": [0],
+            },
+            force_full_output_tensor_name=index_tensor_name,
+        )
+    )
+    return soc
