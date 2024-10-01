@@ -25,10 +25,15 @@ set_seed(int(os.environ.get("SEED", 25)))
 test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
 
 
+dyn_stream_axis2 = {"input_0": {2: "S"}}
+dyn_stream_axis3 = {"input_0": {3: "S"}}
+
 test_suite.add(
     torch.rand(1, 1, 100, 64),
     audio_mdl.DeepSpeech(64, n_hidden=256),
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 
@@ -54,19 +59,25 @@ class LambdaOp(nn.Module):
 test_suite.add(
     torch.rand(1, 2, 3),
     MimicShapeOut(torch.ones),
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 test_suite.add(
     torch.rand(1, 10, 3),
     MimicShapeOut(torch.ones),
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 test_suite.add(
     torch.rand(1, 4, 3),
     MimicShapeOut(partial(torch.full, fill_value=5)),
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 
@@ -78,34 +89,44 @@ test_suite.add(
     torch.tensor([[[1, 2]], [[3, 4]], [[5, 6]]]),
     TorchFnPrimitive("repeat_interleave", opt_kwargs={"repeats": 3, "dim": 2}),
     inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 test_suite.add(
     torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
     LambdaOp(lambda x: x[..., : x.shape[-1] // 2]),
     inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={3: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+    ),
 )
 
 test_suite.add(
     torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
     LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
     inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={3: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+    ),
 )
 test_suite.add(
     torch.rand(2, 1),
     LambdaOp(lambda x: x[:, -3:]),
     inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 test_suite.add(
     torch.rand(2, 1),
     LambdaOp(lambda x: x[:, :1000]),
     inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(change_dynamic_axes, dynamic_axes={2: "S"}),
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
 )
 
 
