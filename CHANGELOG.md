@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.13.16] - 2024-10-01
+
+### Fix
+
+- `dynamic_axes` working for `Llama` model family
+
 ## [0.13.15] - 2024-09-24
 
 ### Fix
