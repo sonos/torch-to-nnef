@@ -112,6 +112,17 @@ def div_expand_repeat_build(
     shape_dim,
     inference_target,
 ):
+    if isinstance(shape_dim, int):
+        shape_dim = nnef.Identifier(
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                TensorVariable(
+                    name=f"{node.outputs[0].export_name}_expansion_dividend_axis_{idx}",
+                    data=torch.tensor(shape_dim),
+                    shape=[],
+                    dtype=torch.int32,
+                )
+            ).name
+        )
     output_tensor = op_helper.add_tensor_variable_node_as_nnef_tensor(
         TensorVariable(
             name=f"{shape_dim}_expand_divided",
