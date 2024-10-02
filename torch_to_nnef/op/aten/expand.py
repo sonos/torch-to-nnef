@@ -205,6 +205,12 @@ def _append_repeats_on_existing_dims(
     for idx, (input_dim, shape_dim) in enumerate(
         zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
+        if not inference_target.has_dynamic_axes:
+            assert isinstance(shape_dim, int), shape_dim
+            assert isinstance(input_dim, int), input_dim
+            repeats.append(int(shape_dim / input_dim))
+            continue
+
         if shape_dim in [-1, input_dim] and isinstance(
             inference_target, TractNNEF
         ):
@@ -230,28 +236,21 @@ def _append_repeats_on_existing_dims(
             )
             repeats.append(nnef.Identifier(output_tensor.name))
         else:
-            if input_dim > 1:
-                if isinstance(shape_dim, nnef.Identifier):
-                    assert input_shape_nnef_tensor is not None
-                    repeats.append(
-                        nnef.Identifier(
-                            div_expand_repeat_build(
-                                g,
-                                name_to_tensor,
-                                node,
-                                input_shape_nnef_tensor,
-                                idx,
-                                input_dim,
-                                shape_dim,
-                                inference_target,
-                            ).name
-                        )
-                    )
-                else:
-                    repeats.append(int(shape_dim / input_dim))
-            else:
-                # div per 1 hence shape_dim
-                repeats.append(shape_dim)
+            assert input_shape_nnef_tensor is not None
+            repeats.append(
+                nnef.Identifier(
+                    div_expand_repeat_build(
+                        g,
+                        name_to_tensor,
+                        node,
+                        input_shape_nnef_tensor,
+                        idx,
+                        input_dim,
+                        shape_dim,
+                        inference_target,
+                    ).name
+                )
+            )
     return repeats
 
 
