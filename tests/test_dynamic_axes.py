@@ -129,6 +129,15 @@ test_suite.add(
     ),
 )
 
+test_suite.add(
+    torch.rand(2, 1),
+    LambdaOp(lambda x: x.repeat(1, x.shape[-1])),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+    ),
+)
+
 
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",

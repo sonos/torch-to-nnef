@@ -807,6 +807,11 @@ class OpHelper:
             suffix,
         )
 
+    def cast_and_add_nnef_operation(self, **kwargs):
+        return cast_and_add_nnef_operation(
+            graph=self.g, name_to_tensor=self.name_to_tensor, **kwargs
+        )
+
     def add_single_output_op_from_ir_datas(
         self,
         nnef_op_type: str,
