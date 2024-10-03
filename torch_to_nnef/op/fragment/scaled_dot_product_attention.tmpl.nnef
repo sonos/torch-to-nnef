@@ -15,18 +15,21 @@ extension tract_registry tract_core;
   dot_qk = matmul(query, key, transposeA = false, transposeB = true);
   qshape = tract_core_shape_of(query);
   kshape = tract_core_shape_of(key);
-  % if not scale:
-    qsize = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 1}], end=[${rank}], stride=[1]), to="${dtype}");
-    scale = div(1.0, sqrt(qsize));
-  % endif
-  % if causal:
-    L = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
-    S = tract_core_cast(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
-    temp_mask_val =  tile([[1.0]], repeats=[L, S]);
-    temp_mask =  tract_core_cast(tract_core_trilu(temp_mask_val, upper=false, k=0), to="bool");
-    attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);
-  % endif
-  scaled_dot_qk = mul(dot_qk, scale) ${('+ tract_core_cast(attn_mask, to="'+dtype+'")') if attn_mask else ""}${"+ attn_bias" if causal else ""};
+% if not scale:
+  qsize = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 1}], end=[${rank}], stride=[1]), to="${dtype}");
+  scale = div(1.0, sqrt(qsize));
+% endif
+% if causal:
+  L = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
+  S = tract_core_cast(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
+  temp_mask_val =  tile([[1.0]], repeats=[L, S]);
+  temp_mask =  tract_core_cast(tract_core_trilu(temp_mask_val, upper=false, k=0), to="bool");
+  attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);
+% endif
+% if attn_mask:
+    attn_mask_casted = tract_core_cast(attn_mask, to="${dtype}");
+% endif
+  scaled_dot_qk = mul(dot_qk, scale) ${"+ attn_mask_casted" if attn_mask else ""}${"+ attn_bias" if causal else ""};
   attn_weight = softmax(scaled_dot_qk,  axes=[${rank - 1}]);
   out = matmul(attn_weight, value, transposeA = false, transposeB = false);
 }
