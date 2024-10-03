@@ -123,7 +123,7 @@ def div_expand_repeat_build(
                 )
             ).name
         )
-    output_tensor = op_helper.add_tensor_variable_node_as_nnef_tensor(
+    output_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
         TensorVariable(
             name=f"{shape_dim}_expand_divided",
             data=None,
