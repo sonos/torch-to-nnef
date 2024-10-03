@@ -701,7 +701,7 @@ class OpHelper:
                     continue
                 sh.append(dim_value)
             return input_nodes[0].dtype, tuple(sh)
-        if nnef_op_type in ["min", "max", "sub", "add"]:
+        if nnef_op_type in ["min", "max", "sub", "add", "div", "mul"]:
             # keep biggest volume input
             sh = []
             max_vol = 0
@@ -818,6 +818,7 @@ class OpHelper:
         input_nodes: T.List[Data],
         output_tensor_name_suffix: str = "",
         force_full_output_tensor_name: str = "",
+        reuse_if_name_exists: bool = False,
         **kwargs,
     ) -> TorchOp:
         """Use input_nodes Data instead of nnef.Tensor
@@ -846,6 +847,12 @@ class OpHelper:
             op_ref=None,
             call_name=None,
         )
+        if (
+            reuse_if_name_exists
+            and self.name_to_tensor.get(new_output_data.export_name) is not None
+        ):
+            return new_node
+
         kwargs["nnef_op_type"] = nnef_op_type
         assert "inputs" not in kwargs
         kwargs["inputs"] = self.data_nodes_to_nnef_tensors(input_nodes)
@@ -858,23 +865,37 @@ class SimpleOpChainer:
         self.op_helper = op_helper
         self.input_data_nodes = input_data_nodes
 
+    def clone(self):
+        return SimpleOpChainer(
+            op_helper=self.op_helper,
+            input_data_nodes=self.input_data_nodes[:],
+        )
+
     @property
     def output_name(self):
         return self.input_data_nodes[0].export_name
 
     def chain(self, nnef_op_type, **kwargs):
+        reuse_if_name_exists = (
+            kwargs.pop("reuse_if_name_exists")
+            if "reuse_if_name_exists" in kwargs
+            else False
+        )
         new_node = self.op_helper.add_single_output_op_from_ir_datas(
-            nnef_op_type, input_nodes=self.input_data_nodes, **kwargs
+            nnef_op_type,
+            input_nodes=self.input_data_nodes,
+            reuse_if_name_exists=reuse_if_name_exists,
+            **kwargs,
         )
         return SimpleOpChainer(
             self.op_helper.clone_with_new_node(new_node), new_node.outputs
         )
 
-    def add_new_input_node(self, input_node):
+    def add_new_input_node(self, input_node, index=-1):
         assert isinstance(input_node, Data)
-        return SimpleOpChainer(
-            self.op_helper, self.input_data_nodes + [input_node]
-        )
+        new_data = self.input_data_nodes[:]
+        new_data.insert(index, input_node)
+        return SimpleOpChainer(self.op_helper, new_data)
 
 
 def get_tract_dyn_axis_size_soc(
@@ -883,8 +904,7 @@ def get_tract_dyn_axis_size_soc(
     assert (
         input_node.rank - np.abs(axis) >= 0
     ), f"{input_node.rank} - {np.abs(axis)}"
-    shape_tensor_name = f"{input_node.export_name}_shape"
-    index_tensor_name = f"{shape_tensor_name}_{axis}"
+    index_tensor_name = f"{input_node.export_name}_dim{axis}"
     soc = (
         SimpleOpChainer(
             op_helper=op_helper,
@@ -892,7 +912,8 @@ def get_tract_dyn_axis_size_soc(
         )
         .chain(
             "tract_core_shape_of",
-            output_tensor_name_suffix="shape",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape",
+            reuse_if_name_exists=True,
         )
         .chain(
             "slice",
@@ -903,6 +924,7 @@ def get_tract_dyn_axis_size_soc(
                 "stride": [1],
             },
             output_tensor_name_suffix=f"sliced{axis}",
+            reuse_if_name_exists=True,
         )
         .chain(
             "squeeze",
@@ -910,6 +932,7 @@ def get_tract_dyn_axis_size_soc(
                 "axes": [0],
             },
             force_full_output_tensor_name=index_tensor_name,
+            reuse_if_name_exists=True,
         )
     )
     return soc

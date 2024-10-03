@@ -174,13 +174,22 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                             f"but was given '{axis_name}' "
                             f"in dynamic_axes={dynamic_axes}"
                         )
+                    shape = external_op.attribs["shape"]
+                    if len(shape) - 1 < abs(axis):
+                        raise DynamicShapeValue(
+                            f"axis of '{node_name}' in dynamic_axes "
+                            f"must be within rank size: {len(shape)} but "
+                            f"provided {axis}."
+                        )
+
+                    if axis < 0:  # set as positive axis for comparison
+                        axis = len(shape) - axis
+
                     external_op.attribs["shape"] = [
                         nnef.Identifier(str(axis_name))
                         if idx == axis
                         else dim_size
-                        for idx, dim_size in enumerate(
-                            external_op.attribs["shape"]
-                        )
+                        for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
                         custom_extensions.add("tract_pulse_streaming_symbol")

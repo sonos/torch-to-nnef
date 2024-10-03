@@ -262,7 +262,7 @@ def size(
 
     begin = pick_axis(input_node, axis_node.data)
 
-    index_tensor_name = f"{shape_tensor_name}_{begin}"
+    index_tensor_name = f"{input_tensor.name}_dim{begin}"
     if index_tensor_name not in name_to_tensor:
         soc = soc.chain(
             "slice",
@@ -272,7 +272,7 @@ def size(
                 "end": [begin + 1],
                 "stride": [1],
             },
-            output_tensor_name_suffix="sliced",
+            output_tensor_name_suffix=f"sliced{begin}",
         ).chain(
             "squeeze",
             attrs={
