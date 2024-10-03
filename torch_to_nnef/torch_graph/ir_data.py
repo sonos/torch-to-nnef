@@ -6,6 +6,7 @@ The goal is that these elements are:
 
 """
 
+import re
 import typing as T
 from dataclasses import dataclass
 
@@ -38,7 +39,7 @@ UNKNOWN_TRACE_SHAPE_VALUE = 321
 
 def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
-        name = name.replace(sep, "_")
+        name = re.sub(r"\s+", "_", name.replace(sep, "_"))
     return name
 
 
