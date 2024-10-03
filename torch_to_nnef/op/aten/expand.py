@@ -208,6 +208,13 @@ def _append_repeats_on_existing_dims(
         if not inference_target.has_dynamic_axes:
             assert isinstance(shape_dim, int), shape_dim
             assert isinstance(input_dim, int), input_dim
+            if shape_dim == -1:
+                repeats.append(1)
+                continue
+            if shape_dim < 0:
+                raise TorchToNNEFNotImplementedError(
+                    f"expected positive but got {shape_dim}"
+                )
             repeats.append(int(shape_dim / input_dim))
             continue
 
