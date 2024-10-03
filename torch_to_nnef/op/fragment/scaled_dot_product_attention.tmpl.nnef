@@ -1,6 +1,6 @@
 extension tract_registry tract_core;
 
-!main fragment scaled_dot_product_attention_${rank}d${"_with_scale" if scale else ""}${"_causal" if causal else ""}_${dtype}(
+!main fragment scaled_dot_product_attention_${rank}d${"_masked" if attn_mask else ""}${"_with_scale" if scale else ""}${"_causal" if causal else ""}_${dtype}(
     query: tensor<scalar>,
     key: tensor<scalar>,
     value: tensor<scalar>${"," if attn_mask or scale else ""}
@@ -26,7 +26,7 @@ extension tract_registry tract_core;
     temp_mask =  tract_core_cast(tract_core_trilu(temp_mask_val, upper=false, k=0), to="bool");
     attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);
   % endif
-  scaled_dot_qk = mul(dot_qk, scale) ${"+ attn_mask" if attn_mask else ""}${"+ attn_bias" if causal else ""};
+  scaled_dot_qk = mul(dot_qk, scale) ${'+ tract_core_cast(attn_mask, to="'+dtype+'")' if attn_mask else ""}${"+ attn_bias" if causal else ""};
   attn_weight = softmax(scaled_dot_qk,  axes=[${rank - 1}]);
   out = matmul(attn_weight, value, transposeA = false, transposeB = false);
 }
