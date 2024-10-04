@@ -292,20 +292,17 @@ def _fill_negone_with_dim_by_rank_order(
     for axis, s in enumerate(shapes):
         if isinstance(s, Data) and s.data == -1:
             s = s.data
-        if inference_target.has_dynamic_axes and not isinstance(
-            s, (int, torch.Tensor)
-        ):
-            if s.data is not None and s.data:
-                new_shapes.append(s.data)
-            else:
-                new_shapes.append(
-                    nnef.Identifier(
-                        op_helper.name_to_tensor[s.export_name].name
+        if inference_target.has_dynamic_axes:
+            if isinstance(s, Data):
+                if s.data is not None and s.data:
+                    new_shapes.append(s.data)
+                else:
+                    new_shapes.append(
+                        nnef.Identifier(
+                            op_helper.name_to_tensor[s.export_name].name
+                        )
                     )
-                )
-        elif s == -1:
-            if inference_target.has_dynamic_axes:
-                # input_node.shape[axis]
+            elif s == -1:
                 if not isinstance(inference_target, TractNNEF):
                     raise TorchToNNEFNotImplementedError(inference_target)
                 new_shapes.append(
@@ -316,7 +313,11 @@ def _fill_negone_with_dim_by_rank_order(
                     )
                 )
             else:
-                new_shapes.append(input_node.shape[axis])
+                raise TorchToNNEFNotImplementedError(
+                    "unexpected dim value: ", s
+                )
+        elif s == -1:
+            new_shapes.append(input_node.shape[axis])
         elif s > 0:
             new_shapes.append(s)
         else:
