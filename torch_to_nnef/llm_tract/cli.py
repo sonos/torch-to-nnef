@@ -65,7 +65,7 @@ def parser_cli(
         )
         parser.add_argument(
             "--compression-registry",
-            default="torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+            default="torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
             help="Compression registry to load "
             "(should be a Dict[str, Callable(model, args)]), "
             "can be specified to load arbitrary compression library.",
