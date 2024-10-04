@@ -7,7 +7,7 @@ from torch_to_nnef.op.helper import (
     cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
-    unary_output_op_without_params,
+    unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
@@ -128,7 +128,7 @@ def reduce_min(g, node, name_to_tensor, **kwargs):
 def max_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_max(g, node, name_to_tensor)
-    return unary_output_op_without_params(
+    return unary_output_op_without_attr(
         nnef_op_type="max",
         g=g,
         node=node,
@@ -141,7 +141,7 @@ def max_(g, node, name_to_tensor, null_ref, **kwargs):
 def min_(g, node, name_to_tensor, null_ref, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_min(g, node, name_to_tensor)
-    return unary_output_op_without_params(
+    return unary_output_op_without_attr(
         nnef_op_type="min",
         g=g,
         node=node,

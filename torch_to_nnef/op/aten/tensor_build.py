@@ -12,7 +12,7 @@ from torch_to_nnef.op.helper import (
     add_tensor_variable_node_as_nnef_tensor,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
-    unary_output_op_without_params,
+    unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
@@ -374,7 +374,7 @@ def copy(
 ):
     if not isinstance(inference_target, TractNNEF):
         # nnef spec include copy fragment
-        return unary_output_op_without_params(
+        return unary_output_op_without_attr(
             nnef_op_type="copy",
             g=g,
             node=node,
