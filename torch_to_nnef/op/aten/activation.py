@@ -5,7 +5,7 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     pick_axis,
     unary_input_output_op_with_constant,
-    unary_output_op_without_params,
+    unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -47,7 +47,7 @@ def softplus(**kwargs):
             " would need use of a specific fragment"
         )
     node.inputs = node.inputs[:1]
-    return unary_output_op_without_params("softplus", **kwargs)
+    return unary_output_op_without_attr("softplus", **kwargs)
 
 
 @OP_REGISTRY.register()
@@ -105,7 +105,7 @@ def hardswish(**kwargs):
 def gelu(g, node, name_to_tensor, null_ref, **kwargs):
     if len(node.inputs) == 2 and node.inputs[1].data == "tanh":
         node.inputs = node.inputs[:1]
-        unary_output_op_without_params(
+        unary_output_op_without_attr(
             "gelu_fast_approx",
             g=g,
             node=node,
@@ -113,7 +113,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
             null_ref=null_ref,
         )
         return ["gelu_fast_approx"]
-    unary_output_op_without_params(
+    unary_output_op_without_attr(
         "gelu",
         g=g,
         node=node,
@@ -126,7 +126,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 @OP_REGISTRY.register()
 def erf(g, node, name_to_tensor, null_ref, **kwargs):
     """Op should be added to tract-nnef eventualy"""
-    unary_output_op_without_params(
+    unary_output_op_without_attr(
         "erf",
         g=g,
         node=node,

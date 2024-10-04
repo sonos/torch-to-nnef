@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -53,27 +53,6 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     divisor_tensor = op_helper.get_or_add_tensor_variable_in_nnef(divisor_node)
     io_casting_with_dtype = None
-
-    int_types = (torch.int8, torch.int16, torch.int32, torch.int64)
-    if hasattr(input_node, "dtype") and input_node.dtype in int_types:
-        io_casting_with_dtype = input_node.np_dtype
-        if isinstance(inference_target, KhronosNNEF):
-            raise TorchToNNEFNotImplementedError(
-                "What NNEF compliance means in such case ?"
-            )
-        cast_to = np.float32  # default
-        if divisor_tensor.dtype == np.float16:
-            cast_to = divisor_tensor.dtype
-        (
-            input_tensor,
-            custom_fragments,
-        ) = op_helper.cast_to_if_not_dtype_and_variable(
-            node=node,
-            nnef_tensor=input_tensor,
-            cast_to=cast_to,
-            suffix="casted",
-        )
-        used_custom_fragment += custom_fragments
 
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
@@ -233,20 +212,6 @@ def mul(node, op_helper, torch_graph, **kwargs):
         if isinstance(c_node, PythonConstant):
             # because torch.ops.aten.mul(float, tensor(float)) give complex number
             c_node = c_node.into_tensor_variable()
-        if (
-            any(
-                not isinstance(nod, PythonConstant)
-                and nod.dtype.is_floating_point
-                for nod in [input_node, other_node]
-            )
-            and len({input_node.dtype, other_node.dtype}) == 2
-        ):
-            LOGGER.warning(
-                "mul: Mixing input of 2 different dtype:"
-                f" {(input_node.dtype, other_node.dtype)}"
-                " force cast to f32"
-            )
-            c_node.cast_float_inplace()
         inputs.append(op_helper.get_or_add_tensor_variable_in_nnef(c_node))
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
