@@ -1,4 +1,3 @@
-import importlib
 import typing as T
 
 import torch
@@ -31,69 +30,6 @@ def build_past_kv_list(
 
 def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
     return DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
-
-
-def _fixed_prepare_4d_causal_attention_mask_with_cache_position(
-    attention_mask: torch.Tensor,
-    sequence_length: int,
-    target_length: int,
-    dtype: torch.dtype,
-    device: torch.device,
-    min_dtype: float,
-    cache_position: torch.Tensor,
-    batch_size: int,
-):
-    """
-    SAME AS IN MOST modeling copied from llama.
-
-    Except we adapt it to be stable to parse
-
-    Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
-    `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
-    """
-    if attention_mask is not None and attention_mask.dim() == 4:
-        # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
-        causal_mask = attention_mask
-    else:
-        causal_mask = torch.full(
-            (sequence_length, target_length),
-            fill_value=min_dtype,
-            dtype=dtype,
-            device=device,
-        )
-        if sequence_length != 1:
-            causal_mask = torch.triu(causal_mask, diagonal=1)
-        # problem is default here is peculiar in PyTorch
-        # dtype torch.bool * torch.float => torch.bool
-        # dtype torch.float *= torch.bool => torch.float
-        #
-        # causal_mask *= torch.arange(
-        #     target_length, device=device
-        # ) > cache_position.reshape(-1, 1)
-        # In such case tract would interpret this as a casting to bool...
-        #  to keep that predictible we apply it in 2 steps
-        bmask_causal = torch.arange(
-            target_length, device=device
-        ) > cache_position.reshape(-1, 1)
-        causal_mask *= bmask_causal.to(causal_mask.dtype)
-        causal_mask = causal_mask[None, None, :, :].expand(
-            batch_size, 1, -1, -1
-        )
-        if attention_mask is not None:
-            causal_mask = (
-                causal_mask.clone()
-            )  # copy to contiguous memory for in-place edit
-            mask_length = attention_mask.shape[-1]
-            padding_mask = (
-                causal_mask[:, :, :, :mask_length]
-                + attention_mask[:, None, None, :]
-            )
-            padding_mask = padding_mask == 0
-            causal_mask[:, :, :, :mask_length] = causal_mask[
-                :, :, :, :mask_length
-            ].masked_fill(padding_mask, min_dtype)
-
-    return causal_mask
 
 
 class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
@@ -171,44 +107,7 @@ class BaseCausal(torch.nn.Module):
     def __init__(self, model, with_dyn_cache: bool = True):
         super().__init__()
         self.model = model
-        self.patch_transformers_module()
         self.with_dyn_cache = with_dyn_cache
-
-    def patch_transformers_module(self):
-        """patch transformers library to be predictible at parsing"""
-        module = importlib.import_module(self.model.__module__)
-        k = "_prepare_4d_causal_attention_mask_with_cache_position"
-        if hasattr(module, k):
-            attn = torch.rand(4, 4)
-            test_kwargs = {
-                "attention_mask": attn,
-                "sequence_length": 4,
-                "target_length": 4,
-                "dtype": attn.dtype,
-                "device": attn.device,
-                "min_dtype": -65000,
-                "cache_position": torch.arange(4),
-                "batch_size": 4,
-            }
-            # pylint: disable-next=protected-access
-            out = module._prepare_4d_causal_attention_mask_with_cache_position(
-                **test_kwargs
-            )
-            new_out = (
-                _fixed_prepare_4d_causal_attention_mask_with_cache_position(
-                    **test_kwargs
-                )
-            )
-            assert torch.allclose(out, new_out)
-            # pylint: disable-next=protected-access
-            module._original__prepare_4d_causal_attention_mask_with_cache_position = getattr(
-                module, k
-            )
-            setattr(
-                module,
-                k,
-                _fixed_prepare_4d_causal_attention_mask_with_cache_position,
-            )
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
