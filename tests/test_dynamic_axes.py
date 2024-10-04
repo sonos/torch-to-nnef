@@ -25,6 +25,7 @@ set_seed(int(os.environ.get("SEED", 25)))
 test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
 
 
+dyn_stream_axis1 = {"input_0": {1: "S"}}
 dyn_stream_axis2 = {"input_0": {2: "S"}}
 dyn_stream_axis3 = {"input_0": {3: "S"}}
 
@@ -116,7 +117,7 @@ test_suite.add(
     LambdaOp(lambda x: x[:, -3:]),
     inference_conditions=ge_tract_0_21_5,
     inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
     ),
 )
 
@@ -125,7 +126,25 @@ test_suite.add(
     LambdaOp(lambda x: x[:, :1000]),
     inference_conditions=ge_tract_0_21_5,
     inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis2
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
+
+test_suite.add(
+    torch.rand(2, 1),
+    LambdaOp(lambda x: x.repeat(1, x.shape[-1])),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
+
+test_suite.add(
+    torch.rand(2, 1),
+    LambdaOp(lambda x: x.expand([2, x.shape[1] * 2])),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
     ),
 )
 

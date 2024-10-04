@@ -4,26 +4,25 @@ import nnef
 import numpy as np
 import torch
 
-from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     OpHelper,
+    SimpleOpChainer,
     add_single_output_op,
-    add_tensor_variable_node_as_nnef_tensor,
-    cast_and_add_nnef_operation,
     get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
 )
 from torch_to_nnef.torch_graph import PythonConstant, TensorVariable
+from torch_to_nnef.torch_graph.ir_data import Data
 
 OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def expand(g, node, name_to_tensor, inference_target, op_helper, **kwargs):
+def expand(node, inference_target, op_helper, **kwargs):
     """
     Illustration of expand:
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
@@ -46,19 +45,23 @@ def expand(g, node, name_to_tensor, inference_target, op_helper, **kwargs):
     (input_node, shape_node) = node.inputs
 
     shapes = []
-    for dim in shape_node.data:
+    for idx, dim in enumerate(shape_node.data):
         if isinstance(dim, PythonConstant):
-            dim = dim.data
+            if inference_target.has_dynamic_axes:
+                dim = dim.into_tensor_variable()
+            else:
+                dim = dim.data
         elif isinstance(dim, TensorVariable):
             if not inference_target.has_dynamic_axes:
                 dim = int(dim.data)
-            else:
-                dim = nnef.Identifier(dim.export_name)
+        elif isinstance(dim, int) and inference_target.has_dynamic_axes:
+            dim = PythonConstant(
+                name=f"{shape_node.export_name}_{idx}", data=dim
+            ).into_tensor_variable()
         shapes.append(dim)
 
     repeats = _expand_build_repeats(
-        g,
-        name_to_tensor,
+        op_helper,
         input_node,
         shape_node,
         shapes,
@@ -107,121 +110,94 @@ def expand(g, node, name_to_tensor, inference_target, op_helper, **kwargs):
 
 
 def div_expand_repeat_build(
-    g,
-    name_to_tensor,
-    node,
-    input_shape_nnef_tensor,
-    idx,
-    input_dim,
-    shape_dim,
+    input_shape_soc: SimpleOpChainer,
+    input_dim: int,
+    shape_dim: TensorVariable,
     inference_target,
 ):
-    output_tensor = add_tensor_variable_node_as_nnef_tensor(
-        g,
-        TensorVariable(
-            name=f"{shape_dim}_expand_divided",
-            data=None,
-            shape=list(name_to_tensor[shape_dim].shape),
-            dtype=NUMPY_TO_TORCH_DTYPE[name_to_tensor[shape_dim].dtype],
-        ),
-        name_to_tensor,
-        name_suffix="",
-        prevent_variable=True,
-    )
-    if inference_target.has_dynamic_axes:
-        # repeats on non const not working in tract<=0.21.3
-        # so while correct graph notation, tract will fail
-        divisor_nnef_tensor_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
+    if not inference_target.has_dynamic_axes:
+        raise TorchToNNEFNotImplementedError()
+
+    assert isinstance(input_dim, int)
+    assert isinstance(shape_dim, TensorVariable)
+    original_name = input_shape_soc.input_data_nodes[0].export_name
+    original_name = original_name.replace("_shape", "")
+    soc = (
+        input_shape_soc.chain(
             "slice",
-            inputs=input_shape_nnef_tensor,
             attrs={
                 "axes": [0],
-                "begin": [idx],
-                "end": [idx + 1],
+                "begin": [input_dim],
+                "end": [input_dim + 1],
                 "stride": [1],
             },
-            output_tensor_name_suffix=f"axis{idx}_divisor_tensor",
+            output_tensor_name_suffix=f"sliced{input_dim}",
+            reuse_if_name_exists=True,
         )
-        divisor_nnef_tensor = add_single_output_op(  # scalar
-            g,
-            node,
-            name_to_tensor,
+        .chain(
             "squeeze",
-            inputs=(divisor_nnef_tensor_tensor,),
             attrs={"axes": [0]},
-            output_tensor_name_suffix=f"axis{idx}_divisor",
+            force_full_output_tensor_name=f"{original_name}_dim{input_dim}",
+            reuse_if_name_exists=True,
         )
-    else:
-        divisor_nnef_tensor = get_or_add_tensor_variable_in_nnef(
-            g,
-            TensorVariable(
-                name=f"{shape_dim}_expand_divisor",
-                data=torch.tensor(input_dim, dtype=torch.int32),
-                dtype=torch.int32,
-                shape=[1],
-            ),
-            name_to_tensor,
+        .add_new_input_node(shape_dim, index=0)
+        .chain(
+            "div",
+            force_consistent_inputs_shapes=False,
+            force_full_output_tensor_name=f"{shape_dim.export_name}_expand_divided{input_dim}",
         )
-    cast_and_add_nnef_operation(
-        name_to_tensor=name_to_tensor,
-        graph=g,
-        type="div",
-        inputs=(
-            name_to_tensor[shape_dim],
-            divisor_nnef_tensor,
-        ),
-        outputs=tuple([output_tensor]),
-        attribs={},
-        force_consistent_inputs_shapes=False,
     )
     if isinstance(inference_target, TractNNEF):
-        output_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
+        soc = soc.chain(
             "tract_core_cast",
-            inputs=output_tensor,
             attrs={
                 "to": "tdim",
             },
-            output_tensor_name_suffix=f"casted{idx}",
+            output_tensor_name_suffix="casted",
         )
-    return output_tensor
+    return soc.input_data_nodes[0]
 
 
 def _append_repeats_on_existing_dims(
-    g,
-    name_to_tensor,
+    op_helper,
     node,
     input_node,
     shapes,
-    input_shape_nnef_tensor,
+    input_shape_soc,
     inference_target,
 ):
     repeats = []
     for idx, (input_dim, shape_dim) in enumerate(
         zip(input_node.shape, shapes[-len(input_node.shape) :])
     ):
-        if shape_dim in [-1, input_dim] and isinstance(
-            inference_target, TractNNEF
+        if not inference_target.has_dynamic_axes:
+            assert isinstance(shape_dim, int), shape_dim
+            assert isinstance(input_dim, int), input_dim
+            if shape_dim == -1:
+                repeats.append(1)
+                continue
+            if shape_dim < 0:
+                raise TorchToNNEFNotImplementedError(
+                    f"expected positive but got {shape_dim}"
+                )
+            repeats.append(int(shape_dim / input_dim))
+            continue
+        if not isinstance(inference_target, TractNNEF):
+            raise TorchToNNEFNotImplementedError(f"{inference_target}")
+
+        if shape_dim == -1 or (
+            isinstance(shape_dim, Data) and shape_dim.data == -1
         ):
-            output_tensor = add_single_output_op(
-                g,
+            output_tensor = op_helper.add_single_output_op_from_nnef_tensors(
                 node,
-                name_to_tensor,
                 "tract_core_cast",
-                inputs=get_or_add_tensor_variable_in_nnef(
-                    g,
+                inputs=op_helper.get_or_add_tensor_variable_in_nnef(
                     TensorVariable(
                         name=f"{node.outputs[0].name}_{idx}_raw",
                         data=torch.tensor(1),
                         shape=[],
                         dtype=torch.int32,
                     ),
-                    name_to_tensor,
                 ),
                 attrs={
                     "to": "tdim",
@@ -230,56 +206,39 @@ def _append_repeats_on_existing_dims(
             )
             repeats.append(nnef.Identifier(output_tensor.name))
         else:
-            if input_dim > 1:
-                if isinstance(shape_dim, nnef.Identifier):
-                    assert input_shape_nnef_tensor is not None
-                    repeats.append(
-                        nnef.Identifier(
-                            div_expand_repeat_build(
-                                g,
-                                name_to_tensor,
-                                node,
-                                input_shape_nnef_tensor,
-                                idx,
-                                input_dim,
-                                shape_dim,
-                                inference_target,
-                            ).name
-                        )
-                    )
-                else:
-                    repeats.append(int(shape_dim / input_dim))
-            else:
-                # div per 1 hence shape_dim
-                repeats.append(shape_dim)
+            assert input_shape_soc is not None
+            repeats.append(
+                nnef.Identifier(
+                    div_expand_repeat_build(
+                        input_shape_soc.clone(),
+                        idx,
+                        shape_dim,
+                        inference_target,
+                    ).name
+                )
+            )
     return repeats
 
 
 def _expand_build_repeats(
-    g, name_to_tensor, input_node, shape_node, shapes, node, inference_target
+    op_helper, input_node, shape_node, shapes, node, inference_target
 ):
-    input_shape_nnef_tensor = None
+    input_shape_soc = None
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.has_dynamic_axes
     ):
-        input_shape_nnef_tensor = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
+        input_shape_soc = SimpleOpChainer(op_helper, [input_node]).chain(
             "tract_core_shape_of",
-            inputs=get_or_add_tensor_variable_in_nnef(
-                g, input_node, name_to_tensor
-            ),
-            output_tensor_name_suffix="shape_of_input",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape",
+            reuse_if_name_exists=True,
         )
     repeats = _append_repeats_on_existing_dims(
-        g,
-        name_to_tensor,
+        op_helper,
         node,
         input_node,
         shapes,
-        input_shape_nnef_tensor,
+        input_shape_soc,
         inference_target,
     )
 
@@ -331,7 +290,20 @@ def _fill_negone_with_dim_by_rank_order(
     """
     new_shapes = []
     for axis, s in enumerate(shapes):
-        if s == -1:
+        if isinstance(s, Data) and s.data == -1:
+            s = s.data
+        if inference_target.has_dynamic_axes and not isinstance(
+            s, (int, torch.Tensor)
+        ):
+            if s.data is not None and s.data:
+                new_shapes.append(s.data)
+            else:
+                new_shapes.append(
+                    nnef.Identifier(
+                        op_helper.name_to_tensor[s.export_name].name
+                    )
+                )
+        elif s == -1:
             if inference_target.has_dynamic_axes:
                 # input_node.shape[axis]
                 if not isinstance(inference_target, TractNNEF):
@@ -345,7 +317,7 @@ def _fill_negone_with_dim_by_rank_order(
                 )
             else:
                 new_shapes.append(input_node.shape[axis])
-        elif isinstance(s, nnef.Identifier) or s > 0:
+        elif s > 0:
             new_shapes.append(s)
         else:
             raise TorchToNNEFNotImplementedError("unexpected dim value: ", s)
