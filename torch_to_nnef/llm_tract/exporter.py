@@ -62,7 +62,7 @@ class LLMExporter:
             self.hf_model_causal
         )
 
-    def chech_wrapper_io(self):
+    def check_wrapper_io(self):
         """Checking that wrapper given consistent outputs compared to vanilla model"""
         (
             inputs,
@@ -376,7 +376,7 @@ def prep_exporter(
             LOGGER.info("check testing text post compression/f16 conversion:")
             exporter.generate_test_text()
         if wrapper_io_check:
-            exporter.chech_wrapper_io()
+            exporter.check_wrapper_io()
     return exporter
 
 
