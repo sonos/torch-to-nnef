@@ -185,7 +185,9 @@ def _append_repeats_on_existing_dims(
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(f"{inference_target}")
 
-        if shape_dim == -1:
+        if shape_dim == -1 or (
+            isinstance(shape_dim, Data) and shape_dim.data == -1
+        ):
             output_tensor = op_helper.add_single_output_op_from_nnef_tensors(
                 node,
                 "tract_core_cast",
@@ -290,7 +292,9 @@ def _fill_negone_with_dim_by_rank_order(
     for axis, s in enumerate(shapes):
         if isinstance(s, Data) and s.data == -1:
             s = s.data
-        if inference_target.has_dynamic_axes and not isinstance(s, int):
+        if inference_target.has_dynamic_axes and not isinstance(
+            s, (int, torch.Tensor)
+        ):
             if s.data is not None and s.data:
                 new_shapes.append(s.data)
             else:
