@@ -378,7 +378,7 @@ class TractBinaryDownloader:
             if machine == "x86_64":
                 return "x86_64-unknown-linux-musl"
             if machine in ["arm64", "aarch64"]:
-                return "tract-aarch64-unknown-linux-musl"
+                return "aarch64-unknown-linux-musl"
             raise NotImplementedError(
                 f"No binary prebuild for machine: {machine}"
             )
@@ -386,7 +386,7 @@ class TractBinaryDownloader:
         if sys.platform == "darwin":
             # OS X
             if machine == "x86_64":
-                return "tract-x86_64-apple-darwin"
+                return "x86_64-apple-darwin"
             if machine in ["arm64", "aarch64"]:
                 return "aarch64-apple-darwin"
             raise NotImplementedError(
@@ -414,7 +414,10 @@ class TractBinaryDownloader:
         with cd(self.extract_dir):
             archive_path = self.extract_dir / self.archive_name
             archive_gz_path = archive_path.with_suffix(".tgz")
-            urllib.request.urlretrieve(self.binary_url, archive_gz_path)
+            try:
+                urllib.request.urlretrieve(self.binary_url, archive_gz_path)
+            except urllib.error.HTTPError as exc:
+                raise RuntimeError(f"Error downloading tract at URL {self.binary_url}") from exc            
             subprocess.check_output(["tar", "-xvzf", str(archive_gz_path)])
             shutil.move(archive_path / "tract", self.extract_dir)
             shutil.rmtree(archive_path)
