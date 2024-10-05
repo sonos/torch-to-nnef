@@ -153,7 +153,7 @@ def div_expand_repeat_build(
             attrs={
                 "to": "tdim",
             },
-            output_tensor_name_suffix="casted",
+            output_tensor_name_suffix="as_tdim",
         )
     return soc.input_data_nodes[0]
 
@@ -196,13 +196,13 @@ def _append_repeats_on_existing_dims(
                         name=f"{node.outputs[0].name}_{idx}_raw",
                         data=torch.tensor(1),
                         shape=[],
-                        dtype=torch.int32,
+                        dtype=torch.int64,
                     ),
                 ),
                 attrs={
                     "to": "tdim",
                 },
-                output_tensor_name_suffix=f"{idx}_casted",
+                output_tensor_name_suffix=f"{idx}_as_tdim",
             )
             repeats.append(nnef.Identifier(output_tensor.name))
         else:
