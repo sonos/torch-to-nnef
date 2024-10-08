@@ -180,7 +180,6 @@ def causal_mask_dyn_inference_modifier(inference_target):
     return inference_target
 
 
-test_suite.reset()
 test_suite.add(
     (torch.rand(2, 10), torch.rand(1, 4, 5, 3)),
     LambdaOp(trace_tdim_through_arange_fail),
