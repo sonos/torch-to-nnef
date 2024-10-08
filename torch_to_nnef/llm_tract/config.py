@@ -36,6 +36,11 @@ class OpenELMSlugs(str, Enum):
     BIG = "apple/OpenELM-3B-Instruct"
 
 
+class MistralSLugs(str, Enum):
+    DEBUG = "mistral_debug"
+    MISTRAL_7B_V03 = "mistralai/Mistral-7B-Instruct-v0.3"
+
+
 # }
 CUSTOM_CONFIGS: T.Dict[str, T.Any] = {}
 
@@ -56,10 +61,28 @@ except (ModuleNotFoundError, ImportError) as exp:
     LOGGER.debug(
         f"Phi3 not available since too old version of transformers: {exp}"
     )
+try:
+    from transformers.models.mistral.configuration_mistral import MistralConfig
+
+    CUSTOM_CONFIGS[MistralSLugs.DEBUG] = MistralConfig(
+        vocab_size=32000,
+        hidden_size=256,
+        intermediate_size=512,
+        num_hidden_layers=4,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        hidden_act="silu",
+        model_type="mistraldebug",
+    )
+except (ModuleNotFoundError, ImportError) as exp:
+    LOGGER.debug(
+        f"Mistral not available since too old version of transformers: {exp}"
+    )
 
 REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
     "openelm": LlamaSLugs.LLAMA2_7B_BASE.value,
     "phi3debug": PHISlugs.MINI.value,
+    "mistraldebug": MistralSLugs.MISTRAL_7B_V03.value,
 }
 
 
