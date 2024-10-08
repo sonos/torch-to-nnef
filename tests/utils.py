@@ -121,6 +121,7 @@ def check_model_io_test(
     input_names=None,
     output_names=None,
     nnef_variable_naming_scheme=VariableNamingScheme.default(),
+    custom_extensions=None,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
@@ -151,6 +152,7 @@ def check_model_io_test(
             else None,
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
+            custom_extensions=custom_extensions,
         )
         dump_filepath = os.environ.get("DUMP_FILEPATH", False)
         if dump_filepath:

@@ -44,7 +44,7 @@ def slice_(
     dim = axis_node.data
 
     has_concrete_values = True
-    # we use this since by default pytorch generate max int32 value for end
+    # we use this since by default pytorch generate max int64 value for end
     if begin_node.data is not None:
         begin = pick_index_in_axis(
             input_node, dim, begin_node.data, check_is_positive=False
@@ -133,7 +133,7 @@ def tract_pre_0_21_7_slice(
     dim = axis_node.data
 
     has_concrete_values = True
-    # we use this since by default pytorch generate max int32 value for end
+    # we use this since by default pytorch generate max int64 value for end
     if begin_node.data is not None:
         begin = pick_index_in_axis(
             input_node, dim, begin_node.data, check_is_positive=False
@@ -186,7 +186,7 @@ def tract_pre_0_21_7_slice(
                 .chain(
                     "tract_core_cast",
                     attrs={"to": "TDim"},
-                    force_full_output_tensor_name=f"{real_begin_tensor_name}_casted",
+                    force_full_output_tensor_name=f"{real_begin_tensor_name}_as_tdim",
                 )
             )
             begin = nnef.Identifier(soc.output_name)

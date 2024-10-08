@@ -178,7 +178,7 @@ class TensorVariable(Data):
     def parse(cls, node_c_value: torch._C.Value) -> "TensorVariable":
         node_type = node_c_value.type()
         if node_type.kind() == INTTYPE_KIND:
-            dtype = torch.int32
+            dtype = torch.int64
         else:
             if node_type.kind() == NUMBERTYPE_KIND:
                 parent_node = node_c_value.node()

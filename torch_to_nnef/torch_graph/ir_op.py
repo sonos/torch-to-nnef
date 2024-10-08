@@ -354,7 +354,7 @@ class TorchOp:
         results = self.call_op()
 
         if isinstance(results, int):
-            results = torch.tensor(results, dtype=torch.int32)
+            results = torch.tensor(results, dtype=torch.int64)
 
         if isinstance(results, torch.Tensor):
             results = (results,)

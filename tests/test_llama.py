@@ -5,10 +5,8 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from torch_to_nnef.llm_tract.cli import (
-    BaseCausalWithDynCacheAndTriu,
-    LlamaSLugs,
-)
+from torch_to_nnef.llm_tract.config import LlamaSLugs
+from torch_to_nnef.llm_tract.models.base import BaseCausalWithDynCacheAndTriu
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS,

@@ -53,8 +53,8 @@ class LambdaOp(nn.Module):
         super().__init__()
         self.op = op
 
-    def forward(self, x):
-        return self.op(x)
+    def forward(self, *args):
+        return self.op(*args)
 
 
 test_suite.add(
@@ -149,6 +149,47 @@ test_suite.add(
 )
 
 
+def trace_tdim_through_arange_fail(inputs_embeds, dummy_past_kv):
+    sequence_length = inputs_embeds.shape[1]
+    past_seen_tokens = dummy_past_kv.shape[2]
+    # past_seen_tokens is extract from shape so TDimed
+    cache_position = torch.arange(
+        past_seen_tokens,
+        past_seen_tokens + sequence_length,
+        device=inputs_embeds.device,
+    )
+    new_past_seen_tokens = cache_position[0]
+    target_length = new_past_seen_tokens + sequence_length + 1
+    causal_mask = torch.full(
+        (sequence_length, target_length),
+        fill_value=-100,
+        dtype=torch.float32,
+    )
+    return causal_mask
+
+
+def causal_mask_dyn_inference_modifier(inference_target):
+    inference_target = change_dynamic_axes(
+        inference_target,
+        dynamic_axes={"input_0": {1: "S"}, "input_1": {2: "P"}},
+    )
+    inference_target.custom_extensions = {
+        "tract_assert P >= 0",
+        "tract_assert S >= 1",
+    }
+    return inference_target
+
+
+test_suite.reset()
+test_suite.add(
+    (torch.rand(2, 10), torch.rand(1, 4, 5, 3)),
+    LambdaOp(trace_tdim_through_arange_fail),
+    inference_conditions=lambda i: isinstance(i, TractNNEF)
+    and i.version >= "0.21.8",
+    inference_modifier=causal_mask_dyn_inference_modifier,
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
@@ -157,5 +198,9 @@ test_suite.add(
 def test_dynamic_axes_exports(id, test_input, model, inference_target):
     """Test simple models"""
     check_model_io_test(
-        model=model, test_input=test_input, inference_target=inference_target
+        model=model,
+        test_input=test_input,
+        inference_target=inference_target,
+        # for convenience of tests we assigned custom_extensions to inference target
+        custom_extensions=inference_target.custom_extensions,
     )
