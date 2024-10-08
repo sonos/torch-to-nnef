@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## [0.14.0] - 2024-10-08
+
+### Added
+
+- refactor of `llm_tract` into sub-modules
+- added support for `modes` IO dump and checks
+
+### Fix
+
+- `intel` based `mac` tract export download correct CLI
+- expand more robust
+- align correctly all dimensional 'int' value as Int64
+- force implicit mixed inputs dtype in PyTorch math operator to add explicit casting in exported graph
+- `Phi3` export correctly
+
 ## [0.13.16] - 2024-10-01
 
 ### Fix
