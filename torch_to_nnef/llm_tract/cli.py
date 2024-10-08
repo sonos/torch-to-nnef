@@ -76,6 +76,7 @@ def parser_cli(
             help="local dir containing .safetensors compatible with openELM"
             " model size specified in slug",
         )
+
         if with_export_args:
             parser.add_argument(
                 "-n",
@@ -105,6 +106,7 @@ def parser_cli(
                 "this is meant as a way to detect spurious precision problems "
                 "early",
             )
+
         if with_dump_with_tokenizer_and_conf and with_export_args:
             parser.add_argument(
                 "-dwtac",

@@ -128,7 +128,10 @@ class HFConfigHelper:
         return past_values_cache_conf
 
     def build_kv_cache_infos(
-        self, n_past_input_tokens: int, as_float16: bool = False
+        self,
+        n_past_input_tokens: int,
+        as_float16: bool = False,
+        real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
         past_values_cache_conf = self.get_past_value_cache_conf(
             n_past_input_tokens
@@ -140,12 +143,25 @@ class HFConfigHelper:
         in_cache_names = []
         out_cache_names = []
         for idx in range(past_values_cache_conf["n_kv"] * 2):
-            if idx % 2 == 0:
+            layer_idx = idx % 2
+            if layer_idx == 0:
                 node_name = f"cache_key_{int(idx / 2)}"
             else:
                 node_name = f"cache_value_{int((idx -1) / 2)}"
 
-            k_or_v = torch.rand(past_values_cache_conf["kv_shape"][idx]).float()
+            if real_kv_cache:
+                kv_dims = real_kv_cache[0].shape
+                assert kv_dims[0] == 1
+                assert kv_dims[1] == self.conf.num_kv_heads[layer_idx]
+                assert kv_dims[2] >= n_past_input_tokens
+                assert kv_dims[3] == self.conf.head_dim
+                k_or_v = torch.from_numpy(
+                    real_kv_cache[idx][:, :, :n_past_input_tokens, :]
+                ).float()
+            else:
+                k_or_v = torch.rand(
+                    past_values_cache_conf["kv_shape"][idx]
+                ).float()
             if as_float16:
                 k_or_v = k_or_v.to(torch.float16)
             past_key_values.append(k_or_v)
