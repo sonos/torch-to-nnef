@@ -15,8 +15,8 @@ fragment dyn_slice(
     output = slice(
         input,
         axes = [axis],
-        begin=[pick_index_in_axis(begin, input_axis_size)],
-        end = [pick_index_in_axis(end, input_axis_size)],
+        begin=[within_bound_index(begin, input_axis_size)],
+        end = [within_bound_index(end, input_axis_size)],
         stride = [stride]
     );
 }

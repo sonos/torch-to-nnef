@@ -100,7 +100,7 @@ def slice_(
             attrs=attrs,
             pass_quantization_params=True,
         )
-        return [fragment_name, "pick_index_in_axis"]
+        return [fragment_name, "within_bound_index"]
 
     end = min(
         end,
