@@ -4,12 +4,11 @@ import typing as T
 from pathlib import Path
 
 import torch
-from torch import _C
 from torch._tensor import _convert
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.utils import torch_version
+from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -137,18 +136,6 @@ class U8Compressor:
         """
 
 
-def select_ctx_disable_torch_fn():
-    if hasattr(_C, "DisableTorchFunctionSubclass"):  # post torch 2.0.0
-        ctx_disable_torch_fn = _C.DisableTorchFunctionSubclass()
-    elif hasattr(_C, "DisableTorchFunction"):  # pre torch 2.0.0
-        ctx_disable_torch_fn = _C.DisableTorchFunction()
-    else:
-        raise TorchToNNEFNotImplementedError(
-            f"How to disable torch function in torch=={torch_version()}"
-        )
-    return ctx_disable_torch_fn
-
-
 class QTensor(torch.Tensor):
     """Common interface for all Compressed storage"""
 
@@ -183,6 +170,7 @@ class QTensor(torch.Tensor):
         self.u8_blob = u8_blob
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
+        self.nnef_name = None
         self.requires_grad = False
 
     def decompress_to_u8(self):
@@ -201,6 +189,7 @@ class QTensor(torch.Tensor):
             super().clone(*args, **kwargs),
             qscheme=self.qscheme,
             dequant_to_dtype=self.dequant_to_dtype,
+            nnef_name=self.nnef_name,
         )
 
     def to(self, *args, **kwargs):
@@ -212,6 +201,7 @@ class QTensor(torch.Tensor):
             qscheme=self.qscheme,
             dequant_to_dtype=new_dtype,
         )
+        new_obj.nnef_name = self.nnef_name
         new_obj.requires_grad = False
         return new_obj
 
@@ -403,6 +393,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
     for named_p, param in model.named_parameters():
         if not isinstance(param, QTensor):
             continue
+        param.nnef_name = named_p
         ref_mod = model
         chunked_names = named_p.split(".")
         for mod_name in chunked_names[:-1]:

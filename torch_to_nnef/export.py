@@ -11,6 +11,7 @@ from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
+from torch_to_nnef.ntensor import apply_name_to_tensor_in_params
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.qtensor.base import apply_qtensor_in_params_set_as_ref
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
@@ -121,6 +122,7 @@ def export_model_to_nnef(
     set_lib_log_level(log_level)
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
+    apply_name_to_tensor_in_params(model)
     apply_qtensor_in_params_set_as_ref(model)
     outs = model(*args)
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)):

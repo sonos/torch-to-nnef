@@ -189,7 +189,7 @@ def add_tensor_variable_node_as_nnef_tensor(
                 outputs=nnef_tensor_ref,
                 attribs={
                     "custom_datatype": "quant_tensor",
-                    "label": nnef_tensor_ref.name,
+                    "label": q_tensor.nnef_name or nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
                 },
             )
@@ -205,7 +205,8 @@ def add_tensor_variable_node_as_nnef_tensor(
                     inputs=None,
                     outputs=nnef_tensor_ref,
                     attribs={
-                        "label": nnef_tensor_ref.name,
+                        "label": getattr(node.data, "nnef_name", None)
+                        or nnef_tensor_ref.name,
                         "shape": list(nnef_tensor_ref.shape),
                         "dtype": nnef_tensor_ref.dtype,
                     },

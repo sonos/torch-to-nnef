@@ -8,8 +8,12 @@ from collections.abc import MutableMapping
 from functools import total_ordering
 
 import torch
+from torch import _C
 
-from torch_to_nnef.exceptions import DataNodeValueError
+from torch_to_nnef.exceptions import (
+    DataNodeValueError,
+    TorchToNNEFNotImplementedError,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -176,6 +180,18 @@ class SemanticVersion:
 def torch_version() -> SemanticVersion:
     """Semantic version for torch"""
     return SemanticVersion.from_str(torch.__version__.split("+")[0])
+
+
+def select_ctx_disable_torch_fn():
+    if hasattr(_C, "DisableTorchFunctionSubclass"):  # post torch 2.0.0
+        ctx_disable_torch_fn = _C.DisableTorchFunctionSubclass()
+    elif hasattr(_C, "DisableTorchFunction"):  # pre torch 2.0.0
+        ctx_disable_torch_fn = _C.DisableTorchFunction()
+    else:
+        raise TorchToNNEFNotImplementedError(
+            f"How to disable torch function in torch=={torch_version()}"
+        )
+    return ctx_disable_torch_fn
 
 
 class NamedItem(ABC):
