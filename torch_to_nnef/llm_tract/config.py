@@ -65,11 +65,13 @@ try:
     from transformers.models.mistral.configuration_mistral import MistralConfig
 
     CUSTOM_CONFIGS[MistralSLugs.DEBUG] = MistralConfig(
-        vocab_size=32000,
+        vocab_size=32768,
         hidden_size=256,
         intermediate_size=512,
-        num_hidden_layers=4,
-        num_attention_heads=4,
+        head_dim=128,
+        sliding_window=None,
+        num_hidden_layers=1,
+        num_attention_heads=2,
         num_key_value_heads=2,
         hidden_act="silu",
         model_type="mistraldebug",
