@@ -1,11 +1,13 @@
+# same as dyn_slice but without end argument
+# this is done to avoid case with end == np.iinfo(np.int64).max
+# that is failing TDim simplification within tract 0.21.7
+# (as it should always be input_dim)
 extension tract_registry tract_core;
 
-
-fragment dyn_slice(
+fragment dyn_slice_begin(
     input: tensor<scalar>,
     axis: tensor<scalar>,
     begin: tensor<scalar>,
-    end: tensor<scalar>,
     stride: tensor<scalar>
 ) -> ( output: tensor<scalar> )
 {
@@ -16,7 +18,7 @@ fragment dyn_slice(
         input,
         axes = [axis],
         begin=[pick_index_in_axis(begin, input_axis_size)],
-        end = [pick_index_in_axis(end, input_axis_size)],
+        end = [input_axis_size],
         stride = [stride]
     );
 }
