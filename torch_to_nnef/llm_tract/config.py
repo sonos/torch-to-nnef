@@ -89,42 +89,35 @@ class HFConfigHelper:
             f"detected arch:'{conf.model_type}' using wrapper '{self.wrapper_class}'"
         )
 
-    def get_past_value_cache_conf(self, n_past_input_tokens: int):
+    def get_head_dim(self):
+        if hasattr(self.conf, "head_dim"):
+            return int(self.conf.head_dim)
+        return int(self.conf.hidden_size / self.conf.num_attention_heads)
+
+    def get_num_kv_heads(self, layer_idx: int):
+        if hasattr(self.conf, "num_kv_heads"):
+            return self.conf.num_kv_heads[layer_idx]
+        return self.conf.num_key_value_heads
+
+    def get_num_transformer_layers(self):
         if self.conf.model_type == "openelm":
-            num_hidden_layers = self.conf.num_transformer_layers
-            past_values_cache_conf = {
-                "n_kv": num_hidden_layers,
-                "kv_shape": [
-                    (
-                        1,
-                        self.conf.num_kv_heads[layer_idx],
-                        n_past_input_tokens,
-                        self.conf.head_dim,
-                    )
-                    for layer_idx in range(num_hidden_layers)
-                    for _ in range(2)  # k and v
-                ],
-            }
-        else:
-            if hasattr(self.conf, "head_dim"):
-                shape_last_dim = int(self.conf.head_dim)
-            else:
-                shape_last_dim = int(
-                    self.conf.hidden_size / self.conf.num_attention_heads
+            return self.conf.num_transformer_layers
+        return self.conf.num_hidden_layers
+
+    def get_past_value_cache_conf(self, n_past_input_tokens: int):
+        past_values_cache_conf = {
+            "n_kv": self.get_num_transformer_layers(),
+            "kv_shape": [
+                (
+                    1,
+                    self.get_num_kv_heads(layer_idx),
+                    n_past_input_tokens,
+                    self.get_head_dim(),
                 )
-            past_values_cache_conf = {
-                "n_kv": self.conf.num_hidden_layers,
-                "kv_shape": [
-                    (
-                        1,
-                        self.conf.num_key_value_heads,
-                        n_past_input_tokens,
-                        shape_last_dim,
-                    )
-                ]
-                * self.conf.num_hidden_layers
-                * 2,
-            }
+                for layer_idx in range(self.get_num_transformer_layers())
+                for _ in range(2)  # k and v
+            ],
+        }
         return past_values_cache_conf
 
     def build_kv_cache_infos(
@@ -152,9 +145,9 @@ class HFConfigHelper:
             if real_kv_cache:
                 kv_dims = real_kv_cache[0].shape
                 assert kv_dims[0] == 1
-                assert kv_dims[1] == self.conf.num_kv_heads[layer_idx]
+                assert kv_dims[1] == self.get_num_kv_heads(layer_idx)
                 assert kv_dims[2] >= n_past_input_tokens
-                assert kv_dims[3] == self.conf.head_dim
+                assert kv_dims[3] == self.get_head_dim()
                 k_or_v = torch.from_numpy(
                     real_kv_cache[idx][:, :, :n_past_input_tokens, :]
                 ).float()

@@ -81,20 +81,26 @@ def slice_(
     if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
             raise TorchToNNEFNotImplementedError(inference_target)
-        # Case with TractNNEF.version < 0.21.7 are handled upper
+        # Cases with TractNNEF.version < 0.21.7 are handled upper
+        attrs = {
+            "axis": pick_axis(input_node, dim),
+            "begin": begin,
+            "stride": stride_node.data,
+        }
+        if end == np.iinfo(np.int64).max:
+            # skip end value expression
+            fragment_name = "dyn_slice_begin"
+        else:
+            fragment_name = "dyn_slice"
+            attrs["end"] = end
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
-            "dyn_slice",
+            fragment_name,
             inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-            attrs={
-                "axis": pick_axis(input_node, dim),
-                "begin": begin,
-                "end": end,
-                "stride": stride_node.data,
-            },
+            attrs=attrs,
             pass_quantization_params=True,
         )
-        return ["dyn_slice"]
+        return [fragment_name, "within_bound_index"]
 
     end = min(
         end,

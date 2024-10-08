@@ -1,0 +1,14 @@
+extension tract_registry tract_core;
+
+# way to bypass tract limitation with regard to out of boundary
+# slices indexes
+
+fragment within_bound_index(
+    index: tensor<scalar>,
+    input_axis_size: tensor<scalar>
+) -> ( bounded_index: tensor<scalar> )
+{
+    cond = ge(index, 0);
+    offset = select(cond, 0, input_axis_size);
+    bounded_index = tract_core_cast(min(max(0, offset + index), input_axis_size), to="tdim");
+}
