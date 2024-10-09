@@ -165,6 +165,27 @@ class _RNNMixin:
                 inputs=name_to_tensor[reference_rnn_input.export_name],
                 outputs=input_shape_tensor,
             )
+            input_batch_size_slice_tensor = (
+                helper.add_tensor_variable_node_as_nnef_tensor(
+                    g,
+                    reference_rnn_input,
+                    name_to_tensor,
+                    name_suffix="batch_size_sliced",
+                    prevent_variable=True,
+                )
+            )
+            NOperation(
+                g,
+                type="slice",
+                inputs=input_shape_tensor,
+                outputs=input_batch_size_slice_tensor,
+                attribs={
+                    "axes": [0],
+                    "begin": [1],
+                    "end": [2],
+                    "stride": [1],
+                },
+            )
             input_batch_size_tensor = (
                 helper.add_tensor_variable_node_as_nnef_tensor(
                     g,
@@ -176,14 +197,11 @@ class _RNNMixin:
             )
             NOperation(
                 g,
-                type="slice",
-                inputs=input_shape_tensor,
+                type="squeeze",
+                inputs=input_batch_size_slice_tensor,
                 outputs=input_batch_size_tensor,
                 attribs={
                     "axes": [0],
-                    "begin": [1],
-                    "end": [2],
-                    "stride": [1],
                 },
             )
 
