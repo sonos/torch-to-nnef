@@ -103,4 +103,31 @@ def apply_name_to_tensor_in_params(model: torch.nn.Module):
                 requires_grad=False,
             ),
         )
+    # named buffers is not sufficient
+    # as some tensor are not registered but on-fly generated
+    for (
+        named_m,
+        ref_mod,
+    ) in model.named_modules():
+        for attr_name, attr_val in ref_mod.__dict__.items():
+            if not isinstance(attr_val, torch.Tensor):
+                continue
+            # we need to capture every thing that is a tensor
+            full_name = f"{named_m}.{attr_name}"
+            LOGGER.debug(f"apply NamedTensor: {full_name}")
+            named_tensor = NamedTensor(attr_val, nnef_name=full_name)
+            setattr(ref_mod, attr_name, named_tensor)
+
+    for named_b, buffer in model.named_buffers():
+        ref_mod = model
+        chunked_names = named_b.split(".")
+        for mod_name in chunked_names[:-1]:
+            ref_mod = getattr(ref_mod, mod_name)
+        LOGGER.debug(f"apply NamedTensor: {named_b}")
+        named_tensor = NamedTensor(buffer, nnef_name=named_b)
+        setattr(
+            ref_mod,
+            chunked_names[-1],
+            named_tensor,
+        )
     LOGGER.debug("sucessfull to apply NamedTensor everywhere")
