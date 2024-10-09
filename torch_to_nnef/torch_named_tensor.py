@@ -4,6 +4,7 @@ import torch
 from torch._tensor import _convert
 from torch.overrides import get_default_nowrap_functions
 
+from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
 
 LOGGER = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ class NamedTensor(torch.Tensor):
             return _convert(ret, torch.Tensor)
 
 
-def apply_name_to_tensor_in_params(model: torch.nn.Module):
+def apply_name_to_tensor_in_module(model: torch.nn.Module):
     """Transform torch.Tensor or Parameters into NamedTensor
 
     This is applied at export time of `torch_to_nnef`
@@ -91,6 +92,8 @@ def apply_name_to_tensor_in_params(model: torch.nn.Module):
     """
     LOGGER.debug("started to apply NamedTensor")
     for named_p, param in model.named_parameters():
+        if isinstance(param.data, (QTensorRef, QTensor)):
+            continue
         ref_mod = model
         chunked_names = named_p.split(".")
         for mod_name in chunked_names[:-1]:
@@ -115,6 +118,8 @@ def apply_name_to_tensor_in_params(model: torch.nn.Module):
         for attr_name, attr_val in ref_mod.__dict__.items():
             if not isinstance(attr_val, torch.Tensor):
                 continue
+            if isinstance(attr_val.data, (QTensorRef, QTensor)):
+                continue
             # we need to capture every thing that is a tensor
             full_name = f"{named_m}.{attr_name}"
             LOGGER.debug(f"apply NamedTensor: {full_name}")
@@ -122,6 +127,8 @@ def apply_name_to_tensor_in_params(model: torch.nn.Module):
             setattr(ref_mod, attr_name, named_tensor)
 
     for named_b, buffer in model.named_buffers():
+        if isinstance(buffer, (QTensorRef, QTensor)):
+            continue
         ref_mod = model
         chunked_names = named_b.split(".")
         for mod_name in chunked_names[:-1]:
