@@ -10,7 +10,6 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     weight_bias_and_output_tensor,
 )
-from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
@@ -77,20 +76,6 @@ def _convolution_mode(
             )
     else:
         raise TorchToNNEFNotImplementedError(padding)
-
-    # expand in stored variables export to avoid unsqueeze guessing in graph {
-    params_nodes = [weight_node]
-    if (
-        bias_node.data is not None
-        and isinstance(inference_target, TractNNEF)
-        and inference_target.version < "0.18.1"
-    ):
-        params_nodes.append(bias_node)
-    for param_node in params_nodes:
-        for _ in range(input_node.rank - param_node.rank):
-            param_node.data = param_node.data.unsqueeze(0)
-            param_node.shape = list(param_node.data.shape)
-    # }
 
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
@@ -173,20 +158,6 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
             )
         weight_node.data = weight_node.data.transpose(1, 0)
 
-    # expand in stored variables export to avoid unsqueeze guessing in graph {
-    params_nodes = [weight_node]
-    if (
-        bias_node.data is not None
-        and isinstance(inference_target, TractNNEF)
-        and inference_target.version < "0.18.1"
-    ):
-        params_nodes.append(bias_node)
-    for param_node in params_nodes:
-        for _ in range(input_node.rank - param_node.rank):
-            param_node.data = param_node.data.unsqueeze(0)
-            param_node.shape = list(param_node.data.shape)
-    # }
-
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
         node,
@@ -228,27 +199,6 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
     ) = node.inputs
 
-    # expand in stored variable export to avoid adding unsqueeze in graph {
-
-    suffix_weight = ""
-    suffix_bias = ""
-    if weight_node.data is not None:
-        if isinstance(weight_node.data, (QTensor, QTensorRef)):
-            suffix_weight = "weight_raw2d"
-        else:
-            for _ in range(input_node.rank - weight_node.rank):
-                weight_node.data = weight_node.data.unsqueeze(0)
-                weight_node.shape = list(weight_node.data.shape)
-
-    if bias_node.data is not None:
-        if isinstance(weight_node.data, (QTensor, QTensorRef)):
-            suffix_bias = "bias_raw2d"
-        else:
-            for _ in range(input_node.rank - bias_node.rank):
-                bias_node.data = bias_node.data.unsqueeze(0)
-                bias_node.shape = list(bias_node.data.shape)
-    # }
-
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
         node,
@@ -256,30 +206,9 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
         name_to_tensor,
         null_ref,
-        suffix_weight_name=suffix_weight,
-        suffix_bias_name=suffix_bias,
+        suffix_weight_name="weight_raw2d",
+        suffix_bias_name="bias_raw2d",
     )
-    rank_diff = input_node.rank - weight_node.rank
-    if suffix_weight and rank_diff > 0:
-        weight_ref = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "unsqueeze",
-            inputs=weight_ref,
-            attrs={"axes": [0] * rank_diff},
-            output_tensor_name_suffix=f"{suffix_weight}_unsqueeze",
-        )
-    if suffix_bias and input_node.rank - bias_node.rank > 0:
-        bias_ref = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "unsqueeze",
-            inputs=bias_ref,
-            attrs={"axes": [0] * (input_node.rank - bias_node.rank)},
-            output_tensor_name_suffix=f"{suffix_bias}_unsqueeze",
-        )
 
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,

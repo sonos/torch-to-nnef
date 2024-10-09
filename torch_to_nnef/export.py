@@ -14,6 +14,7 @@ from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.qtensor.base import apply_qtensor_in_params_set_as_ref
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
 
 LOGGER = log.getLogger(__name__)
 
@@ -121,6 +122,7 @@ def export_model_to_nnef(
     set_lib_log_level(log_level)
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
+    apply_name_to_tensor_in_module(model)
     apply_qtensor_in_params_set_as_ref(model)
     outs = model(*args)
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
