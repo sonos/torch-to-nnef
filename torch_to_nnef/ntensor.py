@@ -79,11 +79,14 @@ class NamedTensor(torch.Tensor):
 
 
 def apply_name_to_tensor_in_params(model: torch.nn.Module):
-    """Transform torch.Tensor Parameters into NamedTensor
+    """Transform torch.Tensor or Parameters into NamedTensor
 
     This is applied at export time of `torch_to_nnef`
     Just before doing any tracing and allow to keep
     variable naming identical to PyTorch one
+
+    This consistent naming unlock subsequent manipulations
+    such as LORA applications @ inference or such.
 
     """
     LOGGER.debug("started to apply NamedTensor")
