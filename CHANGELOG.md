@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.0] - 2024-10-09
+
+### Change
+
+- NNEF `variable` *label* values are now same as PyTorch module attributes naming, if Tensor are holded in any (sub-)modules
+
 ## [0.14.0] - 2024-10-08
 
 ### Added
