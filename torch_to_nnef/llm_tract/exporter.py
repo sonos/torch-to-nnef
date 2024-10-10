@@ -349,6 +349,9 @@ class LLMExporter:
                 "tract_assert P >= 0",
                 "tract_assert S >= 1",
                 f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
+                # information about modes
+                "tract_assert tg: S==1",  # text generation
+                "tract_assert pp: P==0",  # prompt processing
             },
         )
 
