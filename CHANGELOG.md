@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.15.1] - 2024-10-10
+
+### Fix
+
+- edge case of interaction between QTensor and NamedTensor
+- f16 mix and allclose check
+
 ## [0.15.0] - 2024-10-09
 
 ### Change
