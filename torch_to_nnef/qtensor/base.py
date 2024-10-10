@@ -320,7 +320,12 @@ class QTensorRef(torch.Tensor):
         if kwargs is None:
             kwargs = {}
 
-        if not all(issubclass(cls, t) for t in types):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.torch_named_tensor import NamedTensor
+
+        if not all(
+            issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
+        ):
             return NotImplemented
 
         with select_ctx_disable_torch_fn():
