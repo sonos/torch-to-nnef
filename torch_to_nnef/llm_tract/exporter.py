@@ -116,6 +116,8 @@ class LLMExporter:
         out_pkv = [t for kv in pkv for t in kv]
 
         def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):
+            ref = ref.float()
+            cand = cand.float()
             if not torch.allclose(
                 ref, cand, atol=1e-3 if self.as_float16 else 1e-4
             ):
@@ -436,13 +438,14 @@ class StateLessF32LayerNorm(nn.Module):
         RuntimeError: "LayerNormKernelImpl" not implemented for 'Half'
         ```
         """
+        operating_dtype = torch.float32
         return torch.nn.functional.original_layer_norm(
-            input.to(torch.float32),
+            input.to(operating_dtype),
             normalized_shape=normalized_shape,
-            weight=weight if weight is None else weight.to(torch.float32),
-            bias=bias if bias is None else bias.to(torch.float32),
+            weight=weight if weight is None else weight.to(operating_dtype),
+            bias=bias if bias is None else bias.to(operating_dtype),
             eps=eps,
-        ).to(torch.float16)
+        ).to(input.dtype)
 
 
 def prep_exporter(
