@@ -4,7 +4,6 @@ import torch
 from torch._tensor import _convert
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
 
 LOGGER = logging.getLogger(__name__)
@@ -38,9 +37,6 @@ class NamedTensor(torch.Tensor):
             super().clone(*args, **kwargs),
             nnef_name=self.nnef_name,
         )
-
-    def to(self, *args, **kwargs):
-        return self
 
     def detach(self):
         # need overwrite since nn.Paramater use it at __new__
@@ -90,6 +86,9 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
     such as LORA applications @ inference or such.
 
     """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.qtensor.base import QTensor, QTensorRef
+
     LOGGER.debug("started to apply NamedTensor")
     for named_p, param in model.named_parameters():
         if isinstance(param.data, (QTensorRef, QTensor)):
