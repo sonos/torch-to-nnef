@@ -153,7 +153,7 @@ def _print(
     print("}", file=file)
 
 
-def _write_tensor(array, filename, quantized):
+def write_nnef_tensor(array, filename, quantized):
     directory = os.path.dirname(filename)
     if directory and not os.path.exists(directory):
         os.makedirs(directory)
@@ -162,20 +162,25 @@ def _write_tensor(array, filename, quantized):
         nnef.write_tensor(file=file, tensor=array, quantized=quantized)
 
 
+def write_tensor_quantization_infos(tensor, file):
+    assert tensor.quant is not None
+    op_name = tensor.quant["op-name"]
+    attribs = ", ".join(
+        f"{k} = {_printable_value(v)}"
+        for k, v in tensor.quant.items()
+        if k != "op-name" and v is not None
+    )
+    if attribs:
+        print(
+            f'"{tensor.name}": {op_name}({attribs});',
+            file=file,
+        )
+
+
 def _write_quantization(graph, file):
     for tensor in graph.tensors:
         if tensor.quant:
-            op_name = tensor.quant["op-name"]
-            attribs = ", ".join(
-                f"{k} = {_printable_value(v)}"
-                for k, v in tensor.quant.items()
-                if k != "op-name" and v is not None
-            )
-            if attribs:
-                print(
-                    f'"{tensor.name}": {op_name}({attribs});',
-                    file=file,
-                )
+            write_tensor_quantization_infos(tensor, file)
 
 
 def _printable_value(v):
@@ -306,7 +311,7 @@ class Writer:
                     LOGGER.info(f"written qtensor: {label}")
                 else:
                     filename = op.attribs["label"] + ".dat"
-                    _write_tensor(
+                    write_nnef_tensor(
                         np.asarray(op.output.data, order="C"),
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),

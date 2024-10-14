@@ -2,17 +2,32 @@ import logging as log
 import typing as T
 from pathlib import Path
 
+import numpy as np
 import torch
+from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
-from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
+from torch_to_nnef.custom_nnef_writer import (
+    write_nnef_tensor,
+    write_tensor_quantization_infos,
+)
+from torch_to_nnef.dtypes import is_quantized_dtype
+from torch_to_nnef.exceptions import (
+    TorchToNNEFInvalidArgument,
+    TorchToNNEFNotImplementedError,
+)
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
-from torch_to_nnef.qtensor.base import apply_qtensor_in_params_set_as_ref
+from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
+from torch_to_nnef.qtensor.base import (
+    QTensor,
+    QTensorRef,
+    apply_qtensor_in_params_set_as_ref,
+)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
 from torch_to_nnef.utils import dedup_list
@@ -121,7 +136,9 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
-    if not isinstance(custom_extensions, list):
+    if custom_extensions is not None and not isinstance(
+        custom_extensions, list
+    ):
         raise TorchToNNEFInvalidArgument(
             "custom extensions should be a list, "
             "because some extensions may be order sensitive (in tract)."
@@ -266,3 +283,79 @@ def get_active_custom_fragments(graph_extractor):
 def set_lib_log_level(log_level):
     logger = log.getLogger("torch_to_nnef")
     logger.setLevel(log_level)
+
+
+_Tensor = T.TypeVar("_Tensor", bound=torch.Tensor)
+
+
+def export_tensors_from_disk_to_nnef(
+    store_filepath: Path,  # either statedict or safetensors
+    tensor_name_to_export: T.List[str],
+    output_dir: Path,
+):
+    """Main entrypoint of this library
+
+    Export any torch.Tensors list to NNEF .dat file
+    from a statedict or safetensors file
+
+    """
+    to_export = {}
+    if store_filepath.name.endswith(".safetensors"):
+        # pylint: disable-next=import-outside-toplevel
+        from safetensors import safe_open
+
+        with safe_open(store_filepath, framework="pt", device="cpu") as fh:
+            for key in fh.keys():
+                if key in tensor_name_to_export:
+                    to_export[key] = fh.get_tensor(key)
+    elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
+        res = torch.load(store_filepath)
+        if isinstance(res, torch.nn.Module):
+            for key, tensor in res.named_modules():
+                to_export[key] = tensor
+        elif hasattr(res, "items"):
+            for key, tensor in res.items():
+                to_export[key] = tensor
+        else:
+            raise TorchToNNEFNotImplementedError(type(res))
+
+    not_found = set(tensor_name_to_export).difference(to_export.keys())
+    if len(not_found) > 0:
+        raise ValueError(f"missing keys in provided file: {not_found}")
+    return export_tensors_to_nnef(to_export, output_dir)
+
+
+def export_tensors_to_nnef(
+    name_to_torch_tensors: T.Dict[str, _Tensor],
+    output_dir: Path,
+):
+    """Main entrypoint of this library
+
+    Export any torch.Tensors list to NNEF .dat file
+    """
+    assert output_dir.exists(), output_dir
+    for tensor_name, tensor in name_to_torch_tensors.items():
+        if isinstance(tensor, (QTensor, QTensorRef)):
+            if isinstance(tensor, QTensorRef):
+                tensor = tensor.q_tensor
+            tensor.write_in_file(output_dir, tensor_name)
+        else:
+            is_qtype = is_quantized_dtype(tensor.dtype)
+            np_tensor = tensor.cpu().detach().numpy()
+            if is_qtype:
+                nnef_tensor = torch_qtensor_to_ntensor(
+                    Graph(), tensor, tensor_name
+                )
+                if tensor.dtype == torch.quint8:
+                    quant_filename = output_dir / "graph.quant"
+                    with quant_filename.open("a", encoding="utf8") as fh:
+                        write_tensor_quantization_infos(nnef_tensor, fh)
+                else:
+                    # NOTE: 2024-10-14: no engine support other torch built-in Q dtype
+                    raise TorchToNNEFNotImplementedError(tensor.dtype)
+            filename = f"{tensor_name}.dat"
+            write_nnef_tensor(
+                np.asarray(np_tensor, order="C"),
+                output_dir / filename,
+                quantized=is_qtype,
+            )
