@@ -347,14 +347,14 @@ class LLMExporter:
             output_names=output_names,
             log_level=log_level,
             nnef_variable_naming_scheme=naming_scheme,
-            custom_extensions={
+            custom_extensions=[
                 "tract_assert P >= 0",
                 "tract_assert S >= 1",
                 f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
                 # information about modes
                 "tract_assert tg: S==1",  # text generation
                 "tract_assert pp: P==0",  # prompt processing
-            },
+            ],
         )
 
 

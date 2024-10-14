@@ -55,7 +55,7 @@ class InferenceTarget:
         pass
 
     def post_trace(
-        self, nnef_graph: NGraph, active_custom_extensions: T.Set[str]
+        self, nnef_graph: NGraph, active_custom_extensions: T.List[str]
     ):
         pass
 

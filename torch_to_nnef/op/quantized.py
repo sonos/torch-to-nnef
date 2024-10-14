@@ -24,7 +24,7 @@ from torch_to_nnef.op.helper import (
 OP_REGISTRY = QuantizedOpRegistry()
 
 
-def _torch_qtensor_to_ntensor(g, tensor, name):
+def torch_qtensor_to_ntensor(g, tensor, name):
     np_int_tensor = tensor.int_repr().numpy()
     np_dtype = np_int_tensor.dtype.type
     qscheme = tensor.qscheme()
@@ -71,7 +71,7 @@ def add_quantized_tensor_to_ngraph(
     name = (
         f"{node.export_name}_{tensor_name}" if tensor_name else node.export_name
     )
-    ntensor = _torch_qtensor_to_ntensor(g, qtensor, name)
+    ntensor = torch_qtensor_to_ntensor(g, qtensor, name)
     name_to_tensor[name] = ntensor
     return ntensor
 

@@ -2,19 +2,35 @@ import logging as log
 import typing as T
 from pathlib import Path
 
+import numpy as np
 import torch
+from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
-from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
+from torch_to_nnef.custom_nnef_writer import (
+    write_nnef_tensor,
+    write_tensor_quantization_infos,
+)
+from torch_to_nnef.dtypes import is_quantized_dtype
+from torch_to_nnef.exceptions import (
+    TorchToNNEFInvalidArgument,
+    TorchToNNEFNotImplementedError,
+)
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
-from torch_to_nnef.qtensor.base import apply_qtensor_in_params_set_as_ref
+from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
+from torch_to_nnef.qtensor.base import (
+    QTensor,
+    QTensorRef,
+    apply_qtensor_in_params_set_as_ref,
+)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
+from torch_to_nnef.utils import dedup_list
 
 LOGGER = log.getLogger(__name__)
 
@@ -31,7 +47,7 @@ def export_model_to_nnef(
     nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
-    custom_extensions: T.Optional[T.Set[str]] = None,
+    custom_extensions: T.Optional[T.List[str]] = None,
 ):
     """Main entrypoint of this library
 
@@ -110,7 +126,7 @@ def export_model_to_nnef(
             if specified it should create an archive bundle with all needed
             information to allows easier debug.
 
-        custom_extensions: Optional[Set[str]]
+        custom_extensions: Optional[List[str]]
             allow to add a set of extensions as defined in
             (https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
             Useful to set specific extensions like for example:
@@ -120,6 +136,13 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
+    if custom_extensions is not None and not isinstance(
+        custom_extensions, list
+    ):
+        raise TorchToNNEFInvalidArgument(
+            "custom extensions should be a list, "
+            "because some extensions may be order sensitive (in tract)."
+        )
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
     apply_name_to_tensor_in_module(model)
@@ -155,10 +178,11 @@ def export_model_to_nnef(
         nnef_graph = graph_extractor.parse()
 
         active_custom_extensions = get_active_custom_extensions(graph_extractor)
-        if custom_extensions is not None:
-            active_custom_extensions.update(custom_extensions)
-
         inference_target.post_trace(nnef_graph, active_custom_extensions)
+        if custom_extensions is not None:
+            active_custom_extensions = dedup_list(
+                active_custom_extensions + custom_extensions
+            )
 
         active_custom_fragments = get_active_custom_fragments(graph_extractor)
         custom_fragment_names = list(active_custom_fragments.keys())
@@ -237,11 +261,13 @@ def real_export_path(
 
 
 def get_active_custom_extensions(graph_extractor):
-    return {
-        ext
-        for _ in graph_extractor.activated_custom_fragment_keys
-        for ext in (FRAGMENTS[_] if isinstance(_, str) else _).extensions
-    }
+    return dedup_list(
+        [
+            ext
+            for _ in graph_extractor.activated_custom_fragment_keys
+            for ext in (FRAGMENTS[_] if isinstance(_, str) else _).extensions
+        ]
+    )
 
 
 def get_active_custom_fragments(graph_extractor):
@@ -257,3 +283,100 @@ def get_active_custom_fragments(graph_extractor):
 def set_lib_log_level(log_level):
     logger = log.getLogger("torch_to_nnef")
     logger.setLevel(log_level)
+
+
+_Tensor = T.TypeVar("_Tensor", bound=torch.Tensor)
+
+
+def _default_filter_key(key):
+    return True
+
+
+def iter_torch_tensors_from_disks(
+    store_filepath, filter_key: T.Optional[T.Callable[[str], bool]] = None
+) -> T.Iterator[T.Tuple[str, _Tensor]]:
+    if filter_key is None:
+        filter_key = _default_filter_key
+
+    if store_filepath.name.endswith(".safetensors"):
+        # pylint: disable-next=import-outside-toplevel
+        from safetensors import safe_open
+
+        with safe_open(store_filepath, framework="pt", device="cpu") as fh:
+            for key in fh.keys():
+                if filter_key(key):
+                    yield key, fh.get_tensor(key)
+    elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
+        res = torch.load(store_filepath)
+        if isinstance(res, torch.nn.Module):
+            for key, tensor in res.named_parameters():
+                if filter_key(key):
+                    yield key, tensor
+        elif hasattr(res, "items"):
+            for key, tensor in res.items():
+                if filter_key(key):
+                    yield key, tensor
+        else:
+            raise TorchToNNEFNotImplementedError(type(res))
+
+
+def export_tensors_from_disk_to_nnef(
+    store_filepath: Path,  # either statedict or safetensors
+    output_dir: Path,
+    filter_key: T.Optional[T.Callable[[str], bool]] = None,
+    fn_check_found_tensors: T.Optional[
+        T.Callable[[T.Dict[str, _Tensor]], bool]
+    ] = None,
+):
+    """Main entrypoint of this library
+
+    Export any torch.Tensors list to NNEF .dat file
+    from a statedict or safetensors file
+
+    """
+    to_export = {}
+    for key, tensor in iter_torch_tensors_from_disks(  # type: ignore
+        store_filepath, filter_key
+    ):
+        to_export[key] = tensor
+
+    if fn_check_found_tensors is not None:
+        fn_check_found_tensors(to_export)
+    return export_tensors_to_nnef(to_export, output_dir)
+
+
+def export_tensors_to_nnef(
+    name_to_torch_tensors: T.Dict[str, _Tensor],
+    output_dir: Path,
+) -> T.Dict[str, _Tensor]:
+    """Main entrypoint of this library
+
+    Export any torch.Tensors list to NNEF .dat file
+    """
+    assert output_dir.exists(), output_dir
+    for tensor_name, tensor in name_to_torch_tensors.items():
+        if isinstance(tensor, (QTensor, QTensorRef)):
+            if isinstance(tensor, QTensorRef):
+                tensor = tensor.q_tensor
+            tensor.write_in_file(output_dir, tensor_name)
+        else:
+            is_qtype = is_quantized_dtype(tensor.dtype)
+            np_tensor = tensor.cpu().detach().numpy()
+            if is_qtype:
+                nnef_tensor = torch_qtensor_to_ntensor(
+                    Graph(), tensor, tensor_name
+                )
+                if tensor.dtype == torch.quint8:
+                    quant_filename = output_dir / "graph.quant"
+                    with quant_filename.open("a", encoding="utf8") as fh:
+                        write_tensor_quantization_infos(nnef_tensor, fh)
+                else:
+                    # NOTE: 2024-10-14: no engine support other torch built-in Q dtype
+                    raise TorchToNNEFNotImplementedError(tensor.dtype)
+            filename = f"{tensor_name}.dat"
+            write_nnef_tensor(
+                np.asarray(np_tensor, order="C"),
+                output_dir / filename,
+                quantized=is_qtype,
+            )
+    return name_to_torch_tensors

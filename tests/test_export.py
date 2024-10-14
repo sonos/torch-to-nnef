@@ -6,14 +6,24 @@ import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
+import nnef
+import numpy as np
 import pytest
 import torch
+from safetensors.torch import save_file
 from torch import nn
 
 from tests.utils import INFERENCE_TARGETS_TO_TESTS
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
-from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.export import (
+    export_model_to_nnef,
+    export_tensors_from_disk_to_nnef,
+    export_tensors_to_nnef,
+)
 from torch_to_nnef.inference_target.tract import build_io
+from torch_to_nnef.qtensor.qtract import (
+    fp_to_tract_q4_0_with_min_max_calibration,
+)
 
 
 class MyDumbNN(nn.Module):
@@ -273,3 +283,92 @@ def test_without_names():
             log_level=log.INFO,
             inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
+
+
+_SAMPLES = {
+    "alpha": torch.rand((10, 20)),
+    "beta": torch.rand((12, 24)).bool(),
+    "gamma": torch.rand((12, 24)).to(torch.float16),
+}
+
+
+def _test_export_tensors_base(fn):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        fn(td, _SAMPLES)
+        for path in td.iterdir():
+            if not path.name.endswith(".dat"):
+                continue
+            with path.open("rb") as fh:
+                ntensor = nnef.read_tensor(fh)
+            variable_name = path.with_suffix("").name
+            assert np.allclose(_SAMPLES[variable_name].numpy(), ntensor)
+
+
+def test_export_tensors_to_nnef_basic():
+    def fn(td, samples):
+        export_tensors_to_nnef(samples, output_dir=td)
+
+    _test_export_tensors_base(fn)
+
+
+def test_export_tensors_to_nnef_qtensor():
+    samples = {
+        "qalpha": fp_to_tract_q4_0_with_min_max_calibration(torch.rand((2, 32)))
+    }
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        export_tensors_to_nnef(samples, output_dir=td)
+        for path in td.iterdir():
+            try:
+                with path.open("rb") as fh:
+                    _ = nnef.read_tensor(fh)
+            except ValueError as exp:
+                assert "unsupported combination of item type" in exp.args[0]
+
+            variable_name = path.with_suffix("").name
+            assert variable_name in samples
+
+
+def test_export_tensors_to_nnef_from_disk():
+    tensor_name_to_export = ["alpha", "beta"]
+
+    def fn_check_found_tensors(to_export):
+        not_found = set(tensor_name_to_export).difference(to_export.keys())
+        if len(not_found) > 0:
+            raise ValueError(f"missing keys in provided file: {not_found}")
+        return True
+
+    def fn(td, samples):
+        serial_fp = td / "s.pt"
+        torch.save(samples, serial_fp)
+        export_tensors_from_disk_to_nnef(
+            serial_fp,
+            output_dir=td,
+            filter_key=lambda x: x in tensor_name_to_export,
+            fn_check_found_tensors=fn_check_found_tensors,
+        )
+
+    _test_export_tensors_base(fn)
+
+
+def test_export_tensors_to_nnef_from_safetensors():
+    tensor_name_to_export = ["alpha", "beta"]
+
+    def fn_check_found_tensors(to_export):
+        not_found = set(tensor_name_to_export).difference(to_export.keys())
+        if len(not_found) > 0:
+            raise ValueError(f"missing keys in provided file: {not_found}")
+        return True
+
+    def fn(td, samples):
+        serial_fp = td / "model.safetensors"
+        save_file(samples, serial_fp)
+        export_tensors_from_disk_to_nnef(
+            serial_fp,
+            output_dir=td,
+            filter_key=lambda x: x in tensor_name_to_export,
+            fn_check_found_tensors=fn_check_found_tensors,
+        )
+
+    _test_export_tensors_base(fn)

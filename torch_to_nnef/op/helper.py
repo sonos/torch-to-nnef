@@ -275,6 +275,7 @@ def maybe_align_inputs_ranks(
                     new_shape = ([1] * missing_dims) + new_shape
                     unsqueeze_axes = [0] * missing_dims
 
+                    # print(nnef_tensor.name, nnef_tensor.dtype)
                     output_nnef_tensor = NTensor(
                         g,
                         name=f"{nnef_tensor.name}_aligned_rank_expanded",

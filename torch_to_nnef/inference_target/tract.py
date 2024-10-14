@@ -38,7 +38,7 @@ from torch_to_nnef.exceptions import (
     TractOnnxToNNEFError,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.utils import SemanticVersion, cd
+from torch_to_nnef.utils import SemanticVersion, cd, dedup_list
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
@@ -110,7 +110,7 @@ class TractNNEF(InferenceTarget):
             custom_extensions = apply_dynamic_shape_in_nnef(
                 self.dynamic_axes, nnef_graph, self.version
             )
-            active_custom_extensions.update(custom_extensions)
+            active_custom_extensions += custom_extensions
 
     def post_export(
         self,
@@ -153,13 +153,13 @@ class TractNNEF(InferenceTarget):
 
 
 def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
-    custom_extensions = set()
+    custom_extensions = []
     for node_name, named_dims in dynamic_axes.items():
         found_name = False
         for inp_tensor in nnef_graph.inputs:
             if inp_tensor.name == node_name:
                 found_name = True
-                # LOGGER.debug(f"found matching node element {node_name}")
+                # LOGGER.debug()
                 assert len(inp_tensor.producers) == 1
                 external_op = inp_tensor.producers[0]
                 assert external_op.type in [
@@ -192,9 +192,9 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
-                        custom_extensions.add("tract_pulse_streaming_symbol")
+                        custom_extensions.append("tract_pulse_streaming_symbol")
                     else:
-                        custom_extensions.add(f"tract_symbol {axis_name}")
+                        custom_extensions.append(f"tract_symbol {axis_name}")
                 break
         if not found_name:
             if any(
@@ -211,7 +211,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
             )
 
     LOGGER.debug("applied dynamic axes in NNEF")
-    return custom_extensions
+    return dedup_list(custom_extensions)
 
 
 def log_io_check_call_err(cmd_shell: str, serr: str):
@@ -426,7 +426,9 @@ class TractBinaryDownloader:
             try:
                 urllib.request.urlretrieve(self.binary_url, archive_gz_path)
             except urllib.error.HTTPError as exc:
-                raise RuntimeError(f"Error downloading tract at URL {self.binary_url}") from exc            
+                raise RuntimeError(
+                    f"Error downloading tract at URL {self.binary_url}"
+                ) from exc
             subprocess.check_output(["tar", "-xvzf", str(archive_gz_path)])
             shutil.move(archive_path / "tract", self.extract_dir)
             shutil.rmtree(archive_path)
