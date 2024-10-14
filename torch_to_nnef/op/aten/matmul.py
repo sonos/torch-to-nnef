@@ -206,8 +206,10 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
         name_to_tensor,
         null_ref,
-        suffix_weight_name="weight_raw2d",
-        suffix_bias_name="bias_raw2d",
+        suffix_weight_name="weight_raw2d"
+        if weight_node.data is not None
+        else "",
+        suffix_bias_name="bias_raw2d" if bias_node.data is not None else "",
     )
 
     cast_and_add_nnef_operation(

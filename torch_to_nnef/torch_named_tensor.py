@@ -120,7 +120,9 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
             if isinstance(attr_val.data, (QTensorRef, QTensor)):
                 continue
             # we need to capture every thing that is a tensor
-            full_name = f"{named_m}.{attr_name}"
+            full_name = attr_name
+            if named_m:
+                full_name = f"{named_m}.{attr_name}"
             LOGGER.debug(f"apply NamedTensor: {full_name}")
             named_tensor = NamedTensor(attr_val, nnef_name=full_name)
             setattr(ref_mod, attr_name, named_tensor)

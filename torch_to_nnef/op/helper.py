@@ -162,6 +162,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     (it avoids bloating nnef graph file with matrix values)
 
     """
+    assert name_suffix == "" or force_full_output_tensor_name is None
     if force_full_output_tensor_name:
         name = force_full_output_tensor_name
     else:
@@ -275,6 +276,7 @@ def maybe_align_inputs_ranks(
                     new_shape = ([1] * missing_dims) + new_shape
                     unsqueeze_axes = [0] * missing_dims
 
+                    # print(nnef_tensor.name, nnef_tensor.dtype)
                     output_nnef_tensor = NTensor(
                         g,
                         name=f"{nnef_tensor.name}_aligned_rank_expanded",
