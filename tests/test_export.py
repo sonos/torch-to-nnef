@@ -331,18 +331,44 @@ def test_export_tensors_to_nnef_qtensor():
 
 
 def test_export_tensors_to_nnef_from_disk():
+    tensor_name_to_export = ["alpha", "beta"]
+
+    def fn_check_found_tensors(to_export):
+        not_found = set(tensor_name_to_export).difference(to_export.keys())
+        if len(not_found) > 0:
+            raise ValueError(f"missing keys in provided file: {not_found}")
+        return True
+
     def fn(td, samples):
         serial_fp = td / "s.pt"
         torch.save(samples, serial_fp)
-        export_tensors_from_disk_to_nnef(serial_fp, ["alpha", "beta"], td)
+        export_tensors_from_disk_to_nnef(
+            serial_fp,
+            output_dir=td,
+            filter_key=lambda x: x in tensor_name_to_export,
+            fn_check_found_tensors=fn_check_found_tensors,
+        )
 
     _test_export_tensors_base(fn)
 
 
 def test_export_tensors_to_nnef_from_safetensors():
+    tensor_name_to_export = ["alpha", "beta"]
+
+    def fn_check_found_tensors(to_export):
+        not_found = set(tensor_name_to_export).difference(to_export.keys())
+        if len(not_found) > 0:
+            raise ValueError(f"missing keys in provided file: {not_found}")
+        return True
+
     def fn(td, samples):
         serial_fp = td / "model.safetensors"
         save_file(samples, serial_fp)
-        export_tensors_from_disk_to_nnef(serial_fp, ["alpha", "beta"], td)
+        export_tensors_from_disk_to_nnef(
+            serial_fp,
+            output_dir=td,
+            filter_key=lambda x: x in tensor_name_to_export,
+            fn_check_found_tensors=fn_check_found_tensors,
+        )
 
     _test_export_tensors_base(fn)

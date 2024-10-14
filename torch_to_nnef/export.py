@@ -288,10 +288,45 @@ def set_lib_log_level(log_level):
 _Tensor = T.TypeVar("_Tensor", bound=torch.Tensor)
 
 
+def _default_filter_key(key):
+    return True
+
+
+def iter_torch_tensors_from_disks(
+    store_filepath, filter_key: T.Optional[T.Callable[[str], bool]] = None
+) -> T.Iterator[T.Tuple[str, _Tensor]]:
+    if filter_key is None:
+        filter_key = _default_filter_key
+
+    if store_filepath.name.endswith(".safetensors"):
+        # pylint: disable-next=import-outside-toplevel
+        from safetensors import safe_open
+
+        with safe_open(store_filepath, framework="pt", device="cpu") as fh:
+            for key in fh.keys():
+                if filter_key(key):
+                    yield key, fh.get_tensor(key)
+    elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
+        res = torch.load(store_filepath)
+        if isinstance(res, torch.nn.Module):
+            for key, tensor in res.named_parameters():
+                if filter_key(key):
+                    yield key, tensor
+        elif hasattr(res, "items"):
+            for key, tensor in res.items():
+                if filter_key(key):
+                    yield key, tensor
+        else:
+            raise TorchToNNEFNotImplementedError(type(res))
+
+
 def export_tensors_from_disk_to_nnef(
     store_filepath: Path,  # either statedict or safetensors
-    tensor_name_to_export: T.List[str],
     output_dir: Path,
+    filter_key: T.Optional[T.Callable[[str], bool]] = None,
+    fn_check_found_tensors: T.Optional[
+        T.Callable[[T.Dict[str, _Tensor]], bool]
+    ] = None,
 ):
     """Main entrypoint of this library
 
@@ -300,35 +335,20 @@ def export_tensors_from_disk_to_nnef(
 
     """
     to_export = {}
-    if store_filepath.name.endswith(".safetensors"):
-        # pylint: disable-next=import-outside-toplevel
-        from safetensors import safe_open
+    for key, tensor in iter_torch_tensors_from_disks(  # type: ignore
+        store_filepath, filter_key
+    ):
+        to_export[key] = tensor
 
-        with safe_open(store_filepath, framework="pt", device="cpu") as fh:
-            for key in fh.keys():
-                if key in tensor_name_to_export:
-                    to_export[key] = fh.get_tensor(key)
-    elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
-        res = torch.load(store_filepath)
-        if isinstance(res, torch.nn.Module):
-            for key, tensor in res.named_modules():
-                to_export[key] = tensor
-        elif hasattr(res, "items"):
-            for key, tensor in res.items():
-                to_export[key] = tensor
-        else:
-            raise TorchToNNEFNotImplementedError(type(res))
-
-    not_found = set(tensor_name_to_export).difference(to_export.keys())
-    if len(not_found) > 0:
-        raise ValueError(f"missing keys in provided file: {not_found}")
+    if fn_check_found_tensors is not None:
+        fn_check_found_tensors(to_export)
     return export_tensors_to_nnef(to_export, output_dir)
 
 
 def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
-):
+) -> T.Dict[str, _Tensor]:
     """Main entrypoint of this library
 
     Export any torch.Tensors list to NNEF .dat file
@@ -359,3 +379,4 @@ def export_tensors_to_nnef(
                 output_dir / filename,
                 quantized=is_qtype,
             )
+    return name_to_torch_tensors
