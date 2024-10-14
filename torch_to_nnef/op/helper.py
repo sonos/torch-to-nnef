@@ -162,7 +162,6 @@ def add_tensor_variable_node_as_nnef_tensor(
     (it avoids bloating nnef graph file with matrix values)
 
     """
-    assert name_suffix == "" or force_full_output_tensor_name is None
     if force_full_output_tensor_name:
         name = force_full_output_tensor_name
     else:
