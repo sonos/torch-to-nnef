@@ -15,6 +15,7 @@ from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.qtensor.base import apply_qtensor_in_params_set_as_ref
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
+from torch_to_nnef.utils import dedup_list
 
 LOGGER = log.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def export_model_to_nnef(
     nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
-    custom_extensions: T.Optional[T.Set[str]] = None,
+    custom_extensions: T.Optional[T.List[str]] = None,
 ):
     """Main entrypoint of this library
 
@@ -110,7 +111,7 @@ def export_model_to_nnef(
             if specified it should create an archive bundle with all needed
             information to allows easier debug.
 
-        custom_extensions: Optional[Set[str]]
+        custom_extensions: Optional[List[str]]
             allow to add a set of extensions as defined in
             (https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
             Useful to set specific extensions like for example:
@@ -120,6 +121,11 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
+    if not isinstance(custom_extensions, list):
+        raise TorchToNNEFInvalidArgument(
+            "custom extensions should be a list, "
+            "because some extensions may be order sensitive (in tract)."
+        )
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
     apply_name_to_tensor_in_module(model)
@@ -155,10 +161,11 @@ def export_model_to_nnef(
         nnef_graph = graph_extractor.parse()
 
         active_custom_extensions = get_active_custom_extensions(graph_extractor)
-        if custom_extensions is not None:
-            active_custom_extensions.update(custom_extensions)
-
         inference_target.post_trace(nnef_graph, active_custom_extensions)
+        if custom_extensions is not None:
+            active_custom_extensions = dedup_list(
+                active_custom_extensions + custom_extensions
+            )
 
         active_custom_fragments = get_active_custom_fragments(graph_extractor)
         custom_fragment_names = list(active_custom_fragments.keys())
@@ -237,11 +244,13 @@ def real_export_path(
 
 
 def get_active_custom_extensions(graph_extractor):
-    return {
-        ext
-        for _ in graph_extractor.activated_custom_fragment_keys
-        for ext in (FRAGMENTS[_] if isinstance(_, str) else _).extensions
-    }
+    return dedup_list(
+        [
+            ext
+            for _ in graph_extractor.activated_custom_fragment_keys
+            for ext in (FRAGMENTS[_] if isinstance(_, str) else _).extensions
+        ]
+    )
 
 
 def get_active_custom_fragments(graph_extractor):
