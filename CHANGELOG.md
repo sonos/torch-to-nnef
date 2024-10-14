@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+## [0.15.2] - 2024-10-14
+
+### Fix
+
+- bugs with weight_and_biases operators (linear, conv, ...) with new introduced NamedTensor
+
+### Added
+
+- API to export only specific tensors
+- PEFT export cli support
+- maintain order in NNEF `custom_extensions` (as some tract extensions are order sensitive)
+
 ## [0.15.1] - 2024-10-10
 
 ### Fix
