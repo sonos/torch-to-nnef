@@ -482,7 +482,9 @@ def prep_exporter(
             LOGGER.info(f"start compresssion: {compression_method}")
             registry = dynamic_load_registry(compression_registry)
             exporter.wrapped_model = registry[compression_method](
-                exporter.wrapped_model, exporter.tokenizer, export_dirpath
+                wrapped_model=exporter.wrapped_model,
+                tokenizer=exporter.tokenizer,
+                export_dirpath=export_dirpath,
             )
             LOGGER.info(
                 f"successfully applied compression: {compression_method}"
