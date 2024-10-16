@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.15.3] - 2024-10-16
+
+### Fix
+
+- implicit casting of dtype in mixed tensor math ops (better strategy)
+
+### Change
+
+- API of `llm_tract` compress registry functions
+
 ## [0.15.2] - 2024-10-14
 
 ### Fix
