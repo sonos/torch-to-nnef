@@ -1,7 +1,5 @@
 import logging
-import operator
 import typing as T
-from functools import reduce
 
 import nnef
 import numpy as np
@@ -29,6 +27,7 @@ from torch_to_nnef.torch_graph.ir_op import TorchOp
 
 LOGGER = logging.getLogger(__name__)
 
+# unused see `_implicits_input_casting` doc (
 DTYPES_EXPECTED_IMPLICIT_CAST_ORDER = [
     torch.float64,
     torch.float16,
@@ -43,15 +42,15 @@ DTYPES_EXPECTED_IMPLICIT_CAST_ORDER = [
 NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER = [
     TORCH_TO_NUMPY_DTYPE[_] for _ in DTYPES_EXPECTED_IMPLICIT_CAST_ORDER
 ]
-# next ops does implicit cast so that
-# c = op(a, b)
-# c.dtype == DTYPES_EXPECTED_IMPLICIT_CAST_ORDER .index(
-#  min(
-#   DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(a.dtype),
-#   DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(b.dtype),
-#  )
 # )
-IMPLICIT_CAST_SUPPORTED_OPS = ["mul", "div", "add", "sub"]  # pow
+IMPLICIT_CAST_SUPPORTED_OPS = [
+    "mul",
+    "div",
+    "add",
+    "sub",
+    "rsub",
+    "pow",
+]
 
 
 class OpRegistry:
@@ -753,73 +752,32 @@ class OpHelper:
             g=self.g, node=node, name_to_tensor=self.name_to_tensor, **kwargs
         )
 
-    def _scalar_value_must_align_to_other_inputs_dtype(
-        self, node, nnef_op_type, inputs
-    ):
-        """Allow operation with scalar to express implicit casting in final graph
+    def unary_output_op_without_attr(self, nnef_op_type, node):
+        self.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_type=nnef_op_type,
+            inputs=self.data_nodes_to_nnef_tensors(node.inputs),
+        )
 
-        By example the Python value `6.0` maps to `torch.float64`
-        but if you multiply by a tensor of dtype: torch.float32 (with size > 1),
-        It would result in a torch.float32 output.
+    def _implicits_input_casting(self, node, nnef_op_type, inputs):
+        """Express implicit casting of inputs with different dtype in final graph
 
-        Note that if the Python scalar was a PyTorch tensor of 1 element it would be
-        results in the same dtype behavior
-        but if both where of tensor with size > 1, a different logic apply
-        (see _maybe_align_implicit_dtypes_input_tensors)
+        Those known implicit casting rules have been observed in math operators
+        and tested empirically on PyTorch 2.2:
 
-        Those casting need to be expressed in graph to keep deterministic downstream inference engine
-        (likely, most do not support such implicit casting, or use variations)
-        """
-        if (
-            isinstance(inputs, (list, tuple))
-            and len(inputs) > 1
-            and any(reduce(operator.mul, i.shape, 1) == 1 for i in inputs)
-            # avoid for mixed dtypes int/float alignment --> think 'tract_core_gather'/'gather'...
-            and all(np.issubdtype(i.dtype, np.floating) for i in inputs)
-        ):
-            eligible_dtypes = []
-            to_cast_indices = []
-            for idx, inp in enumerate(inputs):
-                if reduce(operator.mul, inp.shape, 1) == 1:
-                    to_cast_indices.append(idx)
-                    continue
-                eligible_dtypes.append(inp.dtype)
-            if nnef_op_type == "select":
-                eligible_dtypes = eligible_dtypes[1:]
-            etypes = set(eligible_dtypes)
-            if len(etypes) == 0:
-                return inputs
-            if len(etypes) != 1:
-                raise TorchToNNEFNotImplementedError(
-                    f"potential conflicting dtypes {etypes} in '{nnef_op_type}'"
-                )
-            new_dtype = etypes.pop()
-            to_str = numpy_dtype_to_tract_str(new_dtype)
-            for idx in to_cast_indices:
-                to_cast_nnef_tensor = inputs[idx]
-                if to_cast_nnef_tensor.dtype != new_dtype:
-                    LOGGER.debug(
-                        f"cast align input: {to_cast_nnef_tensor} to {to_str}"
-                    )
-                    out = self.add_single_output_op_from_nnef_tensors(
-                        node=node,
-                        nnef_op_type="tract_core_cast",
-                        inputs=to_cast_nnef_tensor,
-                        attrs={"to": to_str},
-                        force_full_output_tensor_name=f"{inputs[idx].name}_as_{to_str}",
-                    )
-                    inputs[idx] = out
-        return inputs
+        - if Python constant then should align with
+          the other inputs torch tensors dtype whathever it is
+        - if inputs contains >=1 tensor but all with only 1 element
+          => take first tensor dtype as ref dtype
+        - if inputs contains >= 1 tensor with size > 1
+          => take among tensor of size > 1 following implicit casting order
+            (specific ranked dtype list DTYPES_EXPECTED_IMPLICIT_CAST_ORDER)
 
-    def _maybe_align_implicit_dtypes_input_tensors(
-        self, node, nnef_op_type, inputs
-    ):
-        """Allow some operations with different dtype to express implicit casting in final graph
-
-        In case you do arithmetic with different dtype,
-        PyTorch provide implicit conversion rules.
 
         By example:
+
+        >>> torch.mul(1, torch.rand(10)).dtype
+        # torch.float32
         >>> torch.mul(torch.arange(10).to(torch.float64), torch.rand(10)).dtype
         # torch.float64
         >>> torch.mul(torch.arange(10).to(torch.bool), torch.rand(10)).dtype
@@ -828,17 +786,21 @@ class OpHelper:
         # torch.float32
         ...
 
-        Those casting need to be expressed in graph to keep deterministic downstream inference engine
+        We need to express those implicit casting in graph to keep
+        deterministic downstream inference engine
         (likely, most do not support such implicit casting, or use variations)
+
+        Implementation: Instead of ensuring all the rules are good,
+        we leverage the traced outputs dtype for some selected operators
+
+        NOTE: For operators such as remainder rules implementation will
+        be needed
+        (but we do not yet support implicit dtype cast for such unusual op)
+
         """
         if nnef_op_type not in IMPLICIT_CAST_SUPPORTED_OPS:
             return inputs
-        final_dtype = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[
-            min(
-                NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(i.dtype)
-                for i in inputs
-            )
-        ]
+        final_dtype = TORCH_TO_NUMPY_DTYPE[node.outputs[0].dtype]
         inputs = list(inputs)
         for idx, inp in enumerate(inputs):
             if inp.dtype != final_dtype:
@@ -853,13 +815,6 @@ class OpHelper:
                 inputs[idx] = out
         return tuple(inputs)
 
-    def unary_output_op_without_attr(self, nnef_op_type, node):
-        self.add_single_output_op_from_nnef_tensors(
-            node,
-            nnef_op_type=nnef_op_type,
-            inputs=self.data_nodes_to_nnef_tensors(node.inputs),
-        )
-
     def add_single_output_op_from_nnef_tensors(
         self,
         node,
@@ -870,12 +825,7 @@ class OpHelper:
         if not isinstance(inputs, (list, tuple)):
             inputs = (inputs,)
         if isinstance(self.inference_target, TractNNEF):
-            inputs = self._scalar_value_must_align_to_other_inputs_dtype(
-                node, nnef_op_type, inputs
-            )
-            inputs = self._maybe_align_implicit_dtypes_input_tensors(
-                node, nnef_op_type, inputs
-            )
+            inputs = self._implicits_input_casting(node, nnef_op_type, inputs)
         return add_single_output_op(
             node=node,
             nnef_op_type=nnef_op_type,

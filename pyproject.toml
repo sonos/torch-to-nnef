@@ -137,8 +137,13 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest]
-addopts = "-p no:warnings -s"
+addopts = "--strict-markers -p no:warnings -s"
 
+[tool.pytest.ini_options]
+markers = [
+    "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
+    "serial",
+]
 
 [tool.pylint.master]
 extension-pkg-whitelist = ["torch", "numpy"]

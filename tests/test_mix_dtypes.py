@@ -26,18 +26,30 @@ def is_tract(i):
     return isinstance(i, TractNNEF)
 
 
+class OpWithConstant(torch.nn.Module):
+    def __init__(self, op, const):
+        super().__init__()
+        self.op = op
+        self.const = const
+
+    def forward(self, x):
+        return getattr(torch, self.op)(self.const, x)
+
+
 test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
 
 _base_tensor = torch.arange(6).reshape(2, 3)
 base_tensor = _base_tensor[:]
 for op in IMPLICIT_CAST_SUPPORTED_OPS:
+    if op in ["rsub", "pow"]:
+        continue
     for idx, dtype in enumerate(DTYPES_EXPECTED_IMPLICIT_CAST_ORDER):
         for other_dtype in DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[idx:]:
             if dtype == other_dtype == torch.bool:
                 continue
-            if (
-                dtype == torch.bool or other_dtype == torch.bool
-            ) and op == "sub":
+            if (dtype == torch.bool or other_dtype == torch.bool) and op in [
+                "sub"
+            ]:
                 continue
             if op == "div":
                 base_tensor = _base_tensor[:] + 1
@@ -49,13 +61,20 @@ for op in IMPLICIT_CAST_SUPPORTED_OPS:
             if op == "div":
                 base_tensor = _base_tensor[:]
 
+            test_suite.add(
+                (base_tensor.to(dtype)),
+                OpWithConstant(op, 2.0),
+                inference_conditions=is_tract,
+            )
 
+
+@pytest.mark.ci_skip
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
     ids=test_suite.ids,
 )
-def test_dynamic_axes_exports(id, test_input, model, inference_target):
+def test_mix_dtype_inputs_ops(id, test_input, model, inference_target):
     """Test simple models"""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
