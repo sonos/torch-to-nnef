@@ -456,6 +456,7 @@ def prep_exporter(
     compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
     test_display_token_gens: bool = False,
     wrapper_io_check: bool = True,
+    export_dirpath: T.Optional[Path] = None,
     log_level: int = log.INFO,
 ) -> LLMExporter:
     """Util to prepare export (loading/f16/compression/...) LLM model"""
@@ -480,9 +481,8 @@ def prep_exporter(
         if compression_method:
             LOGGER.info(f"start compresssion: {compression_method}")
             registry = dynamic_load_registry(compression_registry)
-            inps, *_ = exporter.generate_inputs_io_names_and_dynaxes()
             exporter.wrapped_model = registry[compression_method](
-                exporter.wrapped_model, inps
+                exporter.wrapped_model, exporter.tokenizer, export_dirpath
             )
             LOGGER.info(
                 f"successfully applied compression: {compression_method}"
@@ -528,6 +528,7 @@ def dump_llm(
         compression_registry=compression_registry,
         test_display_token_gens=test_display_token_gens,
         wrapper_io_check=wrapper_io_check,
+        export_dirpath=export_dirpath,
         log_level=log_level,
     )
     with torch.no_grad():

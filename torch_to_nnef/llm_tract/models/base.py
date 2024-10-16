@@ -32,7 +32,16 @@ def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
     return DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
 
 
-class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
+class TorchToNNEFWrappedLLM(torch.nn.Module):
+    """Base module class for all LLM wrapping
+
+    These wrapper are needed to ensure deterministic inputs/outputs
+    graph signature and allow some modeling optimization of few architecture.
+
+    """
+
+
+class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     """Assume common AutoModelForCausalLM arch.
 
     with :
@@ -103,7 +112,7 @@ class BaseCausalWithDynCacheAndTriu(torch.nn.Module):
         return [logits] + kv_cache_flat_list
 
 
-class BaseCausal(torch.nn.Module):
+class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(self, model, with_dyn_cache: bool = True):
         super().__init__()
         self.model = model

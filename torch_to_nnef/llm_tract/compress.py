@@ -1,9 +1,8 @@
-import typing as T
-
 import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.llm_tract.models.base import TorchToNNEFWrappedLLM
 from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -13,10 +12,10 @@ LOGGER = log.getLogger(__name__)
 
 
 def quantize_weights_min_max_Q4_0(
-    hf_model_causal: nn.Module, args: T.Tuple[T.Any, ...]
+    wrapped_model: TorchToNNEFWrappedLLM, **kwargs
 ):
     with torch.no_grad():
-        for name, mod in hf_model_causal.named_modules():
+        for name, mod in wrapped_model.named_modules():
             if isinstance(mod, (nn.Linear)):
                 # NOTE: nn.Embedding will likely need per channel implem in Tract
                 LOGGER.info(f"quantize layer: {name}")
@@ -33,7 +32,7 @@ def quantize_weights_min_max_Q4_0(
                     nn.Parameter(q_weight, requires_grad=False),
                 )
 
-    return hf_model_causal
+    return wrapped_model
 
 
 def dynamic_load_registry(compression_registry_full_path: str):
