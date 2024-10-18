@@ -484,7 +484,11 @@ def prep_exporter(
             exporter.wrapped_model = registry[compression_method](
                 wrapped_model=exporter.wrapped_model,
                 tokenizer=exporter.tokenizer,
+                # may be usefull to dump compression evaluations results
                 export_dirpath=export_dirpath,
+                # may be usefull to perform internal evaluations
+                # when more data than just llm torch is available
+                local_dir=local_dir,
             )
             LOGGER.info(
                 f"successfully applied compression: {compression_method}"
