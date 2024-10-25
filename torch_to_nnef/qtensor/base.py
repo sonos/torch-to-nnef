@@ -258,6 +258,21 @@ class QTensor(torch.Tensor):
         """very important to keep access to all special attr of QTensor"""
         return self
 
+    @data.setter
+    def data(self, new_data):
+        """Only support device change"""
+        if new_data.device != self.data.device:
+            device = new_data.device
+            self.u8_blob = self.u8_blob.to(device)
+            for attr_name, attr_value in self.qscheme.__dict__.items():
+                if isinstance(attr_value, torch.Tensor):
+                    setattr(self, attr_name, attr_value.to(device))
+            self.u8_blob = self.u8_blob.to(device)
+        else:
+            raise TorchToNNEFNotImplementedError(
+                f"Trying to alter a QTensor.data: {self}"
+            )
+
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         """Called at NNEF write time.
 
@@ -290,6 +305,17 @@ class QTensorRef(torch.Tensor):
     @property
     def data(self):
         return self
+
+    @data.setter
+    def data(self, new_data):
+        """Only support device change"""
+        if new_data.device != self.data.device:
+            device = new_data.device
+            self.q_tensor = self.q_tensor.to(device)
+        else:
+            raise TorchToNNEFNotImplementedError(
+                f"Trying to alter a QTensorRef.data: {self}"
+            )
 
     def clone(self, *args, **kwargs):
         return self.__class__(

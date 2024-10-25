@@ -208,3 +208,22 @@ def test_u8_compressors():
             dummy_compressor1.decompress_times[1]
             > dummy_compressor2.decompress_times[1]
         )
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+)
+def test_quantize_with_tract_q4_0_assign_to(inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        test_input = torch.arange(960).float().reshape(10, 96)
+        test_input[0, :] = 1
+        model = nn.Linear(96, 16, bias=False).eval()
+        model.weight[:, :] = torch.arange(16 * 96).float().reshape(16, 96)
+        original_weight = model.weight
+
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
