@@ -23,7 +23,7 @@ def quantize_weights_min_max_Q4_0(
         to_quantize_module_classes, tuple
     ), to_quantize_module_classes
     assert all(
-        isinstance(_, nn.Module) for _ in to_quantize_module_classes
+        issubclass(_, nn.Module) for _ in to_quantize_module_classes
     ), to_quantize_module_classes
     with torch.no_grad():
         for name, mod in wrapped_model.named_modules():
