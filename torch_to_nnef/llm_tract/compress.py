@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 from torch import nn
 
@@ -14,10 +16,18 @@ LOGGER = log.getLogger(__name__)
 def quantize_weights_min_max_Q4_0(
     wrapped_model: TorchToNNEFWrappedLLM, **kwargs
 ):
+    to_quantize_module_classes = kwargs.get(
+        "to_quantize_module_classes", (nn.Linear,)
+    )
+    assert isinstance(
+        to_quantize_module_classes, tuple
+    ), to_quantize_module_classes
+    assert all(
+        isinstance(_, nn.Module) for _ in to_quantize_module_classes
+    ), to_quantize_module_classes
     with torch.no_grad():
         for name, mod in wrapped_model.named_modules():
-            if isinstance(mod, (nn.Linear)):
-                # NOTE: nn.Embedding will likely need per channel implem in Tract
+            if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info(f"quantize layer: {name}")
                 try:
                     q_weight = fp_to_tract_q4_0_with_min_max_calibration(
@@ -31,7 +41,6 @@ def quantize_weights_min_max_Q4_0(
                     "weight",
                     nn.Parameter(q_weight, requires_grad=False),
                 )
-
     return wrapped_model
 
 
@@ -43,4 +52,10 @@ def dynamic_load_registry(compression_registry_full_path: str):
     return registry
 
 
-DEFAULT_COMPRESSION = {"min_max_q4_0": quantize_weights_min_max_Q4_0}
+DEFAULT_COMPRESSION = {
+    "min_max_q4_0": quantize_weights_min_max_Q4_0,
+    "min_max_q4_0_with_embeddings": partial(
+        quantize_weights_min_max_Q4_0,
+        to_quantize_module_classes=(nn.Linear, nn.Embedding),
+    ),
+}
