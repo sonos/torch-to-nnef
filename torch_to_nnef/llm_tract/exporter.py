@@ -478,21 +478,23 @@ def prep_exporter(
                 raise exp
         if test_display_token_gens:
             exporter.generate_test_text()
-        if compression_method:
-            LOGGER.info(f"start compresssion: {compression_method}")
-            registry = dynamic_load_registry(compression_registry)
-            exporter.wrapped_model = registry[compression_method](
-                wrapped_model=exporter.wrapped_model,
-                tokenizer=exporter.tokenizer,
-                # may be usefull to dump compression evaluations results
-                export_dirpath=export_dirpath,
-                # may be usefull to perform internal evaluations
-                # when more data than just llm torch is available
-                local_dir=local_dir,
-            )
-            LOGGER.info(
-                f"successfully applied compression: {compression_method}"
-            )
+    # compression method may sometime need
+    # gradient optimization so avoid context manager no_grad
+    if compression_method:
+        LOGGER.info(f"start compresssion: {compression_method}")
+        registry = dynamic_load_registry(compression_registry)
+        exporter.wrapped_model = registry[compression_method](
+            wrapped_model=exporter.wrapped_model,
+            tokenizer=exporter.tokenizer,
+            # may be usefull to dump compression evaluations results
+            export_dirpath=export_dirpath,
+            # may be usefull to perform internal evaluations
+            # when more data than just llm torch is available
+            local_dir=local_dir,
+        )
+        LOGGER.info(f"successfully applied compression: {compression_method}")
+
+    with torch.no_grad():
         if as_float16:
             exporter.apply_f16_fixes()
 
