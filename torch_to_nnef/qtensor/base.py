@@ -33,8 +33,8 @@ class QScheme(abc.ABC):
         Each QScheme may implement support for specific device
         switching for internal quant/dequant
         (like GPU, ...)
+        allowing faster computation
         """
-        raise NotImplementedError()
 
 
 class QScalePerGroupF16(QScheme):
@@ -154,8 +154,9 @@ class U8Compressor:
 
         Each compressor may implement support for specific device
         (like GPU, ...)
+
+        Allowing faster computation
         """
-        raise NotImplementedError()
 
 
 class QTensor(torch.Tensor):
