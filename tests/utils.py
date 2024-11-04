@@ -41,6 +41,10 @@ if "T2N_TEST_TRACT_PATH" in os.environ:
 elif "T2N_TEST_TRACT_VERSION" in os.environ:
     _tract_inf = TractNNEF(os.environ["T2N_TEST_TRACT_VERSION"])
     TRACT_INFERENCES_TO_TESTS = [_tract_inf]
+elif "T2N_TEST_SKIP_TRACT" in os.environ and bool(
+    os.environ["T2N_TEST_SKIP_TRACT"]
+):
+    TRACT_INFERENCES_TO_TESTS = []
 
 
 INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
