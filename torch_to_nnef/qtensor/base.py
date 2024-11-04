@@ -1,10 +1,12 @@
 import abc
 import logging
 import typing as T
+import warnings
 from pathlib import Path
 
 import torch
 from torch._tensor import _convert
+from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
@@ -23,6 +25,15 @@ class QScheme(abc.ABC):
 
     @abc.abstractmethod
     def dequantize(self, u8_tensor, target_dtype):
+        raise NotImplementedError()
+
+    def to_device(self, new_device):
+        """specific device handling.
+
+        Each QScheme may implement support for specific device
+        switching for internal quant/dequant
+        (like GPU, ...)
+        """
         raise NotImplementedError()
 
 
@@ -44,6 +55,9 @@ class QScalePerGroupF16(QScheme):
         self.group_size: int = group_size
         self.scale = scale
         self.n_bits = n_bits  # needed for bit-shift before packing
+
+    def to_device(self, new_device):
+        self.scale = self.scale.to(new_device)
 
     def quantize_as_torch(self, fp_tensor):
         raise TorchToNNEFNotImplementedError(
@@ -135,6 +149,14 @@ class U8Compressor:
             tensor decompressed with dtype torch.uint8
         """
 
+    def to_device(self, new_device):
+        """specific device handling.
+
+        Each compressor may implement support for specific device
+        (like GPU, ...)
+        """
+        raise NotImplementedError()
+
 
 class QTensor(torch.Tensor):
     """Common interface for all Compressed storage"""
@@ -193,17 +215,63 @@ class QTensor(torch.Tensor):
         )
 
     def to(self, *args, **kwargs):
-        new_dtype = kwargs.get("dtype") or args[0] if args else None
-        if new_dtype is None:
+        new_dtype = kwargs.get("dtype")
+        new_device = kwargs.get("device")
+        if args:
+            # NOTE: identification of arg kind
+            # can be:
+            # - dtype
+            # - device
+            # - other torch.Tensor
+            # Ignoring non_blocking, copy, memory_format args
+            for arg in args:
+                if isinstance(arg, (torch.device, str)):
+                    new_device = arg
+                elif isinstance(arg, torch.dtype):
+                    new_dtype = arg
+                elif isinstance(arg, torch.Tensor):
+                    new_dtype = arg.dtype
+                    new_device = arg.device
+                elif isinstance(arg, (type(None), bool)):
+                    # other args
+                    continue
+                else:
+                    raise TorchToNNEFNotImplementedError(arg)
+
+        if self.dtype == new_dtype:
+            new_dtype = None
+
+        # some device such as (cpu, 0) may transform to cpu only
+        new_device = torch.tensor([0.0]).to(new_device).device
+        if new_device == self.data.device:
+            new_device = None
+
+        if new_dtype is None and new_device is None:
             return self
+
         new_obj = self.__class__(
-            self.u8_blob,
+            self.dequantize(),
             qscheme=self.qscheme,
             dequant_to_dtype=new_dtype,
         )
+        # safety assign
+        if not torch.all(new_obj.u8_blob == self.u8_blob):
+            new_obj.u8_blob = self.u8_blob
+
+        if new_device is not None:
+            new_obj.to_device(new_device)
         new_obj.nnef_name = self.nnef_name
         new_obj.requires_grad = False
         return new_obj
+
+    def to_device(self, new_device):
+        """specific device handling"""
+        self.qscheme = self.qscheme.to_device(new_device)
+        self.u8_compressors = [
+            u8_compressor.to_device(new_device)
+            for u8_compressor in self.u8_compressors
+        ]
+        self.u8_blob = self.u8_blob.to(new_device)
 
     def detach(self):
         # need overwrite since nn.Paramater use it at __new__
@@ -261,17 +329,11 @@ class QTensor(torch.Tensor):
     @data.setter
     def data(self, new_data):
         """Only support device change"""
-        if new_data.device != self.data.device:
-            device = new_data.device
-            self.u8_blob = self.u8_blob.to(device)
-            for attr_name, attr_value in self.qscheme.__dict__.items():
-                if isinstance(attr_value, torch.Tensor):
-                    setattr(self, attr_name, attr_value.to(device))
-            self.u8_blob = self.u8_blob.to(device)
-        else:
-            raise TorchToNNEFNotImplementedError(
-                f"Trying to alter a QTensor.data: {self}"
-            )
+        if isinstance(new_data, self.__class__) and torch.all(self == new_data):
+            return
+        raise TorchToNNEFNotImplementedError(
+            f"Trying to alter a QTensor.data: {self}"
+        )
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         """Called at NNEF write time.
@@ -292,7 +354,9 @@ class QTensorRef(torch.Tensor):
         *args,
         **kwargs,
     ):
-        return super().__new__(cls, fp_tensor, *args, **kwargs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=TracerWarning)
+            return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(
         self,
@@ -308,14 +372,9 @@ class QTensorRef(torch.Tensor):
 
     @data.setter
     def data(self, new_data):
-        """Only support device change"""
-        if new_data.device != self.data.device:
-            device = new_data.device
-            self.q_tensor = self.q_tensor.to(device)
-        else:
-            raise TorchToNNEFNotImplementedError(
-                f"Trying to alter a QTensorRef.data: {self}"
-            )
+        raise TorchToNNEFNotImplementedError(
+            f"Trying to alter a QTensorRef.data: {self}"
+        )
 
     def clone(self, *args, **kwargs):
         return self.__class__(
@@ -324,6 +383,7 @@ class QTensorRef(torch.Tensor):
         )
 
     def to(self, *args, **kwargs):
+        self.q_tensor = self.q_tensor.to(*args, **kwargs)
         return self
 
     def detach(self):
