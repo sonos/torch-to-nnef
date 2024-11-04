@@ -18,7 +18,7 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFInvalidArgument,
     TorchToNNEFNotImplementedError,
 )
-from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
+from torch_to_nnef.inference_target import InferenceTarget
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
@@ -201,7 +201,7 @@ def export_model_to_nnef(
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
-            target_tract=isinstance(inference_target, TractNNEF),
+            inference_target=inference_target,
         )(nnef_graph, str(nnef_exp_file_path))
         if len(active_custom_extensions) > 0:
             LOGGER.info(

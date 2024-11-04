@@ -780,7 +780,7 @@ test_suite.add(
 
 
 def test_should_fail_since_no_input():
-    inference_target = INFERENCE_TARGETS_TO_TESTS[0]
+    inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
@@ -798,7 +798,7 @@ def test_should_fail_since_no_input():
 
 
 def test_should_fail_since_false_output():
-    inference_target = INFERENCE_TARGETS_TO_TESTS[0]
+    inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:
         test_input = torch.rand(1, 10, 100)
         model = nn.Sequential(nn.Conv1d(10, 20, 3))

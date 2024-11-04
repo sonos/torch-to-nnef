@@ -1,4 +1,6 @@
+import json
 import logging as log
+import shutil
 import subprocess
 import tempfile
 import typing as T
@@ -56,7 +58,13 @@ class KhronosNNEF(InferenceTarget):
                     subprocess.check_output(
                         ["tar", "-xvzf", str(exported_filepath)]
                     )
-                nnef_mod = NNEFModule(td)
+                try:
+                    nnef_mod = NNEFModule(td)
+                except Exception as exp:
+                    self._maybe_dump_debug_bundle(
+                        debug_bundle_path, td, exported_filepath
+                    )
+                    raise exp
                 interpreter_outs = nnef_mod(*args)
                 reference_outs = model(*args)
                 if not isinstance(reference_outs, tuple):
@@ -65,6 +73,31 @@ class KhronosNNEF(InferenceTarget):
                     zip(reference_outs, interpreter_outs)
                 ):
                     if not torch.allclose(ref, obs, equal_nan=True):
-                        raise KhronosInterpreterDiffValueError(
-                            f"outputs[{idx}] is different expected:{ref} but got: {obs}"
+                        self._maybe_dump_debug_bundle(
+                            debug_bundle_path, td, exported_filepath
                         )
+                        raise KhronosInterpreterDiffValueError(
+                            f"outputs[{idx}] is different expected:{ref} "
+                            f"but got: {obs}"
+                        )
+
+    def _maybe_dump_debug_bundle(
+        self,
+        debug_bundle_path: T.Optional[Path],
+        td: str,
+        exported_filepath: Path,
+    ):
+        if debug_bundle_path:
+            debug_bundle_path.mkdir(exist_ok=True, parents=True)
+            with (debug_bundle_path / "engine.json").open(
+                "w", encoding="utf8"
+            ) as fh:
+                json.dump(
+                    {
+                        "inference_target": str(self.__class__.__name__),
+                        "inference_version": self.version.to_str(),
+                    },
+                    fh,
+                )
+            shutil.copytree(td, debug_bundle_path / "nnef")
+            shutil.copy(exported_filepath, debug_bundle_path / "nnef")

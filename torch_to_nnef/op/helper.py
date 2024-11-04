@@ -576,7 +576,7 @@ def weight_bias_and_output_tensor(
     )
 
     bias_ref = null_ref
-    if bias_node.data is not None:
+    if isinstance(bias_node, TensorVariable) and bias_node.shape:
         if suffix_bias_name == "":
             suffix_bias_name = "bias" if bias_node.data is not None else ""
         bias_ref = get_or_add_tensor_variable_in_nnef(

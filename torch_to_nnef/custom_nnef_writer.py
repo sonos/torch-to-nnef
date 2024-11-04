@@ -22,6 +22,10 @@ from nnef_tools.io.nnef.helpers import tgz_compress
 from nnef_tools.model import Tensor
 from nnef_tools.utils.types import as_str, from_numpy
 
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.inference_target.khronos import KhronosNNEF
+from torch_to_nnef.inference_target.tract import TractNNEF
+
 LOGGER = logging.getLogger(__name__)
 
 _DtypeFromNumpy = {
@@ -290,7 +294,7 @@ class Writer:
         generate_custom_fragments=False,
         version_custom_fragments=True,
         annotate_shapes=False,
-        target_tract: bool = False,
+        inference_target: InferenceTarget = KhronosNNEF.latest(),
     ):
         self._compression = compression
         self._extensions = extensions or []
@@ -299,7 +303,7 @@ class Writer:
         self._generate_custom_fragments = generate_custom_fragments
         self._version_custom_fragments = version_custom_fragments
         self._annotate_shapes = annotate_shapes
-        self._target_tract = target_tract
+        self._inference_target = inference_target
 
     def _write_tensors_from_operators(self, graph, folder):
         for op in graph.operations:
@@ -348,7 +352,9 @@ class Writer:
                     fragments += "\n"
                 fragments += customs
 
-            if len(fragments) and not self._target_tract:
+            if len(fragments) and not isinstance(
+                self._inference_target, TractNNEF
+            ):
                 if "KHR_enable_fragment_definitions" not in self._extensions:
                     self._extensions.append("KHR_enable_fragment_definitions")
                 if "KHR_enable_operator_expressions" not in self._extensions:
