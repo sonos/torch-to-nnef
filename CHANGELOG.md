@@ -3,6 +3,27 @@
 
 ## Unreleased
 
+## [0.15.4] - 2024-11-04
+
+### Fix
+
+- test suite working again for KhronosNNEF (full test suite green)
+- hide some warning
+
+### Change
+
+- `export_tensors_to_nnef`, `export_tensors_from_disk_to_nnef` as root module access
+- allow compression method to use gradients if needed
+- expose ability to manage device in QTensor mechanism with `.to_device` in `QScheme` & `U8Compressor`
+- better collision handling of tensor with different dtype in `QTensorTractScaleOnly`
+
+### Added
+
+- dump debug bundle with `KhronosNNEF` inference_target
+- new option in cli `--no-verify` skip all correctness checks of exported LLM model
+- new option in cli `--sample-generation-total-size` Number of tokens to generate in total for reference 'modes' samples npz dumped
+- new option in compress quantization `min_max_q4_0_with_embeddings`
+
 ## [0.15.3] - 2024-10-16
 
 ### Fix
