@@ -56,6 +56,9 @@ def change_dynamic_axes(it, dynamic_axes):
 
 
 class TestSuiteInferenceExactnessBuilder:
+    # https://docs.pytest.org/en/stable/example/pythoncollection.html#customizing-test-collection
+    __test__ = False
+
     def __init__(self, inference_targets: T.List[InferenceTarget]):
         self.test_samples = []
         self.inference_targets = inference_targets
