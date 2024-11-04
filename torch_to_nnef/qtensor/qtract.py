@@ -1,12 +1,17 @@
+import filecmp
 import platform
 import struct
+import tempfile
 import typing as T
 from pathlib import Path
 
 import numpy as np
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.exceptions import (
+    TorchToNNEFImpossibleQuantization,
+    TorchToNNEFNotImplementedError,
+)
 from torch_to_nnef.qtensor.base import (
     QScalePerGroupF16,
     QTensor,
@@ -152,6 +157,22 @@ class QTensorTractScaleOnly(QTensorTract):
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         path = Path(dirpath) / f"{label}.dat"
+        if path.exists():
+            # already created a variable dump with that name.
+            # check we would produce identical serialized data
+            with tempfile.TemporaryDirectory() as _td:
+                td = Path(_td)
+                self.write_in_file(td, label)
+                new_path = td / f"{label}.dat"
+                assert new_path.exists(), new_path
+                if filecmp.cmp(path, new_path):
+                    return
+            raise TorchToNNEFNotImplementedError(
+                "At least 2 variables in the NNEF graph, "
+                f"share same Parameters: '{label}' but they try "
+                "to use different data-type (likely quantization format). "
+                "This variable collision as no resolution strategy yet."
+            )
         assert not path.exists(), path
         bin_header = self._build_binary_dat_header()
         bin_content = self._build_binary_dat_content()
