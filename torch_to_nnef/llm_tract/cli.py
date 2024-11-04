@@ -115,6 +115,14 @@ def parser_cli(
                 help="dump tokenizer and conf at same dir as model",
             )
         parser.add_argument(
+            "-sgts",
+            "--sample-generation-total-size",
+            type=int,
+            default=6,
+            help="Number of tokens to generate in total "
+            "for reference 'modes' samples npz dumped ",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",

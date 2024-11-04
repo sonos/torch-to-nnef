@@ -50,7 +50,7 @@ def parser_cli(
         "--patterns",
         nargs="+",
         default=PATTERN_LORA,
-        help="regex patterns to cach for extract "
+        help="regex patterns capturing parameters name in nn.Module to extract "
         "PEFT matrices by torch naming, should contains: "
         f"{NAME_PLACEHOLDER} to map original matrix",
     )

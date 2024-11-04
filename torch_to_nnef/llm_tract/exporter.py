@@ -281,8 +281,13 @@ class LLMExporter:
         log_level=log.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
+        sample_generation_total_size: int = 0,
     ):
         assert not export_dirpath.exists(), export_dirpath
+        assert (
+            sample_generation_total_size == 0
+            or sample_generation_total_size >= 2
+        )
         assert (  # mutualy exclusive arguments
             (tract_specific_path is None and tract_specific_version is None)
             or tract_specific_path is None
@@ -317,10 +322,12 @@ class LLMExporter:
         test_dir = export_dirpath / "tests"
         test_dir.mkdir(parents=True)
 
-        if check_inference_modes:
+        if check_inference_modes and sample_generation_total_size > 1:
             modes = [
                 p.with_suffix("").name.replace("_io", "")
-                for p in self.dump_all_io_npz_kind(test_dir)
+                for p in self.dump_all_io_npz_kind(
+                    test_dir, size=sample_generation_total_size
+                )
             ]
             with (export_dirpath / "modes.json").open(
                 "w", encoding="utf8"
@@ -521,6 +528,7 @@ def dump_llm(
     check_inference_modes: bool = True,
     wrapper_io_check: bool = True,
     log_level: int = log.INFO,
+    sample_generation_total_size: int = 0,
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
     export_dirpath = Path(export_dirpath)
@@ -548,5 +556,6 @@ def dump_llm(
             log_level=log_level,
             dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
             check_inference_modes=check_inference_modes,
+            sample_generation_total_size=sample_generation_total_size,
         )
     return export_dirpath, exporter
