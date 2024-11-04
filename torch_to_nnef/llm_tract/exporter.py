@@ -282,12 +282,10 @@ class LLMExporter:
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         sample_generation_total_size: int = 0,
+        no_verify: bool = False,
     ):
         assert not export_dirpath.exists(), export_dirpath
-        assert (
-            sample_generation_total_size == 0
-            or sample_generation_total_size >= 2
-        )
+        assert sample_generation_total_size >= 2
         assert (  # mutualy exclusive arguments
             (tract_specific_path is None and tract_specific_version is None)
             or tract_specific_path is None
@@ -317,12 +315,17 @@ class LLMExporter:
         else:
             inference_target = TractNNEF.latest()
         inference_target.dynamic_axes = dynamic_axes
+        if no_verify:
+            LOGGER.info(
+                "tract inference is not checked because 'no_verify=True'"
+            )
+        inference_target.check_io = not no_verify
 
         # Add io.npz test in exproted dir for dbg purpose
         test_dir = export_dirpath / "tests"
         test_dir.mkdir(parents=True)
 
-        if check_inference_modes and sample_generation_total_size > 1:
+        if check_inference_modes:
             modes = [
                 p.with_suffix("").name.replace("_io", "")
                 for p in self.dump_all_io_npz_kind(
@@ -528,10 +531,19 @@ def dump_llm(
     check_inference_modes: bool = True,
     wrapper_io_check: bool = True,
     log_level: int = log.INFO,
-    sample_generation_total_size: int = 0,
+    sample_generation_total_size: int = 6,
+    no_verify: bool = False,
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
     export_dirpath = Path(export_dirpath)
+    if no_verify and wrapper_io_check:
+        LOGGER.info("force disable 'wrapper_io_check' because 'no_verify=True'")
+        wrapper_io_check = False
+    if no_verify and test_display_token_gens:
+        LOGGER.info(
+            "force disable 'test_display_token_gens' because 'no_verify=True'"
+        )
+        test_display_token_gens = False
     if export_dirpath.exists():
         raise ValueError(
             f"'export_dirpath' should not exist but found: '{export_dirpath}'"
@@ -557,5 +569,6 @@ def dump_llm(
             dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
             check_inference_modes=check_inference_modes,
             sample_generation_total_size=sample_generation_total_size,
+            no_verify=no_verify,
         )
     return export_dirpath, exporter

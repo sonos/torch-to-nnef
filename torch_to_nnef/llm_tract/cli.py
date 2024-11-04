@@ -123,6 +123,13 @@ def parser_cli(
             "for reference 'modes' samples npz dumped ",
         )
         parser.add_argument(
+            "-nv",
+            "--no-verify",
+            action="store_true",
+            help="skip all correctness checks of exported model "
+            "also take opportunity to reduce RAM usage",
+        )
+        parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
