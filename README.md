@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file MD001 MD013 MD014 MD024 -->
 # ![Torch to NNEF](./docs/img/torch_to_nnef.png)
 
-[![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml) ![python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+[![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml) ![python](https://img.shields.io/badge/python-%3E=3.9-green)
 
 Any PyTorch Model or Tensor to NNEF file format.
 
