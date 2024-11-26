@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file MD001 MD013 MD014 MD024 -->
 # ![Torch to NNEF](./docs/img/torch_to_nnef.png)
 
-[![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml)
+[![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml) ![python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 
 Any PyTorch Model or Tensor to NNEF file format.
 
@@ -255,7 +255,6 @@ export_llm_to_tract \
   --compression-registry "experimental_compressors.registery.MY_CUSTOM_COMPRESSIOn_REGISTRY" \
   -c "gptq_q4_0"
 ```
-
 
 ## Bug report & Contributions
 
