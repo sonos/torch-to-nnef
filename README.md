@@ -66,7 +66,7 @@ export_model_to_nnef(
     file_path_export=Path("mybeautifulmodel.nnef.tgz"), # target NNEF filepath
     inference_target=TractNNEF( # inference engine to target
         version="0.21.5", # tract version (to ensure compatible operators)
-        check_io=True, # default False need tract installed on machine
+        check_io=True, # default False (tract binary will be installed on the machine on fly)
         dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
         # that named dimension need to be single letter symbol (due to tract spec)
     ),
