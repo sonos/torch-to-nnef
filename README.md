@@ -28,7 +28,9 @@ We aim to support PyTorch > 1.8.0 with tract last 3 major releases (>= 1.19.16 t
 ## Install
 
 For now you can either use internal SONOS artifactory repository:
+
 `https://user:pass@redacted.com/artifactory/api/pypi/pypi-local/simple`
+
 Then use:
 
 ```bash
