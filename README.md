@@ -6,7 +6,7 @@
 Any PyTorch Model or Tensor to NNEF file format.
 
 > [!IMPORTANT]
-> This project is still in it's early stage, if you encounter any bug please follow `Bug report` section instructions
+> This project is still in it's early stage, if you encounter any bug please follow [Bug report](#bug-report-&-contributions)  section instructions
 
 ## Goals & Scope
 
@@ -257,6 +257,6 @@ export_llm_to_tract \
   -c "gptq_q4_0"
 ```
 
-## Bug report & Contributions
+## [Bug report & Contributions]
 
 Please refer to [this page](./CONTRIBUTING.md)
