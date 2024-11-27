@@ -67,7 +67,10 @@ export_model_to_nnef(
     inference_target=TractNNEF( # inference engine to target
         version="0.21.5", # tract version (to ensure compatible operators)
         check_io=True, # default False (tract binary will be installed on the machine on fly)
-        dynamic_axes={"input": {2: "S"}}, # follow onnx export convention with additional constraint
+        # if needed you can also set dynamic dimensions (that can vary at inference)
+        # with following option:
+        # dynamic_axes={"input": {2: "S"}},
+        # this follow PyTorch ONNX export convention with additional constraint
         # that named dimension need to be single letter symbol (due to tract spec)
     ),
     input_names=["input"],
