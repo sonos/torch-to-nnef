@@ -44,14 +44,14 @@ black = { version = "^22.3.0", optional = true }
 flake8 = { version = "^3.9.2", optional = true }
 flake8-docstrings = { version = "^1.6.0", optional = true }
 isort = { version = "^5.8.0", optional = true }
-mypy = { version = "^0.900", optional = true }
-pytest = { version = "^6.2.4", optional = true }
-pytest-cov = { version = "^2.12.0", optional = true }
+mypy = { version = "^1.13", optional = true }
+pytest = { version = "^8.3.3", optional = true }
+pytest-cov = { version = "^6.0.0", optional = true }
 sentencepiece = { version = "^0.2.0", optional = true }
 toml = { version = "^0.10.2", optional = true }
 torchaudio = { version = "^2.2.0", optional = true }
 torchvision = { version = "^0.17.0", optional = true }
-tox = { version = "^3.20.1", optional = true }
+tox = { version = "^4.23.2", optional = true }
 tokenizers = { version = ">=0.13.3", optional = true }
 transformers = { version = "^4.35.2", optional = true }
 twine = { version = "^3.3.0", optional = true }
@@ -88,7 +88,7 @@ test = [
 ]
 
 [tool.poetry.group.dev.dependencies]
-tox = "^3.20.1"
+tox = "^4.23.2"
 pre-commit = "^2.12.0"
 virtualenv = "^20.2.2"
 pip = "^24.0"
