@@ -1,4 +1,5 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
@@ -96,7 +97,13 @@ def relu6(**kwargs):
 
 
 @OP_REGISTRY.register()
-def hardswish(**kwargs):
+def hardswish(inference_target, **kwargs):
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.19.9"
+    ):
+        unary_input_output_op_with_constant("tract_core_hard_swish", **kwargs)
+        return ["tract_core"]
     unary_input_output_op_with_constant("hardswish", **kwargs)
     return ["relu6", "hardswish"]
 
@@ -124,8 +131,20 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def erf(g, node, name_to_tensor, null_ref, **kwargs):
+def erf(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     """Op should be added to tract-nnef eventualy"""
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.19.9"
+    ):
+        unary_input_output_op_with_constant(
+            "tract_core_erf",
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+        return ["tract_core"]
     unary_output_op_without_attr(
         "erf",
         g=g,
