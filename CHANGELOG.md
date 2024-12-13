@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.5] - 2024-12-13
+
+### Change
+
+- `erf`, `hardswish` use tract NNEF core component if inference targeted.
+
 ## [0.15.4] - 2024-11-04
 
 ### Fix
