@@ -149,7 +149,9 @@ def permute(g, node, name_to_tensor, **kwargs):
 def unsqueeze(g, node, name_to_tensor, **kwargs):
     (input_node, axis_node) = node.inputs
 
-    dim = axis_node.data
+    axis = pick_axis(input_node, axis_node.data)
+    if axis_node.data < 0:
+        axis += 1
     add_single_output_op(
         g,
         node,
@@ -158,7 +160,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
         inputs=get_or_add_tensor_variable_in_nnef(
             g, input_node, name_to_tensor
         ),
-        attrs={"axes": [pick_axis(input_node, dim)]},
+        attrs={"axes": [axis]},
         pass_quantization_params=True,
     )
 

@@ -156,6 +156,7 @@ for op in [
     partial(torch.permute, dims=[1, 0]),
     partial(torch.reshape, shape=(2, 5, 2)),
     partial(torch.unsqueeze, dim=1),
+    partial(torch.unsqueeze, dim=-1),
     partial(torch.clamp, min=5.0, max=20.0),
     partial(torch.clamp, min=10.0),
     partial(torch.clamp, max=11.0),
