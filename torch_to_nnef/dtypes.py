@@ -81,8 +81,8 @@ STR_TO_NUMPY_DTYPE = {
     "ComplexFloat": np.complex64,
     "TDim": np.bool_,
     "tdim": np.bool_,
-    "U16": np.uint16,
-    "u16": np.uint16,
+    "UInt16": np.uint16,
+    "uint16": np.uint16,
 }
 
 NUMPY_DTYPE_TO_STR = {v: k for k, v in STR_TO_NUMPY_DTYPE.items()}

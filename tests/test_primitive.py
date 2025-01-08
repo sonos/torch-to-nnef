@@ -777,6 +777,25 @@ test_suite.add(
 #         TernaryPrimitive(torch.masked_fill)
 #     )
 # ]
+#
+
+
+class GatherMod(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, x, y):
+        return torch.gather(x, 1, y)
+
+
+test_suite.add(
+    (
+        torch.arange(15).reshape(1, 5, 3).float(),  # input=(b×n×p)
+        torch.tensor([[[1, 2]]]),  # batch2=(b×m×p)
+    ),
+    GatherMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 def test_should_fail_since_no_input():

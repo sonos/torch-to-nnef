@@ -313,6 +313,44 @@ def select(node, op_helper, **kwargs):
     )
 
 
+@OP_REGISTRY.register()
+def gather(node, op_helper, inference_target, **kwargs):
+    # gather
+    input_node, dim_node, indexes_node, *_ = node.inputs
+    # input_node = TensorVariable([?], shape=(169,4))
+    # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
+    if indexes_node.data is not None and len(indexes_node.data) > 1:
+        if not all(
+            (isinstance(idx, PythonConstant) and idx.data is None)
+            for idx in indexes_node.data[:-1]
+        ):
+            raise TorchToNNEFNotImplementedError(
+                "index dim>1 implemented only with all prior dim slice being [:]"
+            )
+
+    custom_fragments = []
+    if isinstance(inference_target, TractNNEF):
+        op_name = "tract_core_gather_elements"
+        custom_fragments += ["tract_core"]
+    else:
+        raise TorchToNNEFNotImplementedError()
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        op_name,
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return custom_fragments
+
+
 @OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(node, op_helper, inference_target, **kwargs):
     """
