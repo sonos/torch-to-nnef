@@ -3,6 +3,8 @@ import typing as T
 import numpy as np
 import torch
 
+from torch_to_nnef.utils import torch_version
+
 NUMPY_TO_TORCH_DTYPE = {
     np.int8: torch.int8,
     np.int16: torch.int16,
@@ -23,6 +25,9 @@ NUMPY_TO_TORCH_DTYPE = {
     # np.short: torch.short,
     # np.long: torch.long,
 }
+if torch_version() >= "2.4.0":
+    NUMPY_TO_TORCH_DTYPE[np.uint16] = torch.uint16
+
 TORCH_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_TO_TORCH_DTYPE.items()}
 # In both direction it's not a mapping 1<->1 so update is needed
 TORCH_TO_NUMPY_DTYPE.update(
@@ -76,7 +81,10 @@ STR_TO_NUMPY_DTYPE = {
     "ComplexFloat": np.complex64,
     "TDim": np.bool_,
     "tdim": np.bool_,
+    "U16": np.uint16,
+    "u16": np.uint16,
 }
+
 NUMPY_DTYPE_TO_STR = {v: k for k, v in STR_TO_NUMPY_DTYPE.items()}
 NUMPY_DTYPE_TO_STR.update({int: "Long"})
 
@@ -94,6 +102,8 @@ TORCH_DTYPE_TO_NNEF_STR = {
     torch.float64: "scalar",
     torch.bool: "logical",
 }
+if torch_version() >= "2.4.0":
+    TORCH_DTYPE_TO_NNEF_STR[torch.uint16] = "integer"
 
 TORCH_DTYPE_TO_TRACT_STR = {
     torch.int8: "i8",
@@ -108,6 +118,9 @@ TORCH_DTYPE_TO_TRACT_STR = {
     torch.complex128: "complexf128",
     torch.bool: "bool",
 }
+
+if torch_version() >= "2.4.0":
+    TORCH_DTYPE_TO_TRACT_STR[torch.uint16] = "u16"
 
 
 def str_to_torch_dtype(torch_type_str: str):
