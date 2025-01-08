@@ -15,9 +15,12 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
-    (input_node, axis_node, keep_dim_node) = node.inputs
-
-    keep_dim = keep_dim_node.data
+    if len(node.inputs) == 2:
+        (input_node, axis_node) = node.inputs
+        keep_dim = False
+    else:
+        (input_node, axis_node, keep_dim_node) = node.inputs
+        keep_dim = keep_dim_node.data
 
     onode = node.outputs[output_idx]
     out = add_tensor_variable_node_as_nnef_tensor(
@@ -42,7 +45,10 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
     if isinstance(axis_node.data, int):
         axes = [pick_axis(input_node, axis_node.data)]
     else:
-        axes = [pick_axis(input_node, _) for _ in axis_node.data]
+        if axis_node.data is None:
+            axes = [pick_axis(input_node, _) for _ in range(input_node.rank)]
+        else:
+            axes = [pick_axis(input_node, _) for _ in axis_node.data]
     #  }
     attribs = {"axes": axes}
     cast_and_add_nnef_operation(

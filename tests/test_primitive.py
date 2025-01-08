@@ -811,6 +811,12 @@ if torch_version() >= "2.4.0":
         inference_conditions=skip_khronos_interpreter,
     )
 
+test_suite.add(
+    (torch.rand(13, 10, 1),),
+    TensorFnPrimitive("sum", {}),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
