@@ -819,6 +819,22 @@ test_suite.add(
 )
 
 
+# MONITORING:
+# bug in PyTorch with respect to .view(dtype) not serializing well
+# E               '0 INTERNAL ASSERT FAILED at "../torch/csrc/jit/ir/alias_analysis.cpp":617,
+#                    ... please report a bug to PyTorch. We don't have an op
+#                    ... for aten::view but it isn't a special case.  Argument types: Tensor, int,
+# E
+# E               Candidates:
+# E                       aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)
+# E                       aten::view.dtype(Tensor(a) self, ScalarType dtype) -> Tensor(a)'
+# test_suite.add(
+#     (torch.arange(10),),
+#     TensorFnPrimitive("view", args=[torch.int16]),
+#     inference_conditions=skip_khronos_interpreter,
+# )
+
+
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:
