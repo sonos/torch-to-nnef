@@ -2,6 +2,7 @@ import logging
 import typing as T
 
 import numpy as np
+import torch
 from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
@@ -122,20 +123,34 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
     ) = node.inputs
 
     onode = node.outputs[0]
-    if isinstance(inference_target, KhronosNNEF):
-        raise TorchToNNEFNotImplementedError("`to` with KhronosNNEF ?")
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(f"`to` with {inference_target} ?")
     LOGGER.debug(
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
+    input_nnef = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
+        # simulate a reinterpret_cast as implicitly done in PyTorch
+        input_nnef = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=input_nnef,
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
+
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         "tract_core_cast",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=input_nnef,
         attrs={
             "to": TORCH_DTYPE_TO_TRACT_STR[onode.dtype],
             # "shape": list(onode.shape),

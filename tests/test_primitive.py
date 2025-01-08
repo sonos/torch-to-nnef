@@ -15,6 +15,7 @@ from torch_to_nnef.exceptions import TorchToNNEFError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
+from torch_to_nnef.utils import torch_version
 
 from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
@@ -777,7 +778,6 @@ test_suite.add(
 #         TernaryPrimitive(torch.masked_fill)
 #     )
 # ]
-#
 
 
 class GatherMod(nn.Module):
@@ -790,12 +790,26 @@ class GatherMod(nn.Module):
 
 test_suite.add(
     (
-        torch.arange(15).reshape(1, 5, 3).float(),  # input=(b×n×p)
-        torch.tensor([[[1, 2]]]),  # batch2=(b×m×p)
+        torch.arange(15).reshape(1, 5, 3).float(),
+        torch.tensor([[[1, 2], [3, 0], [0, 0]]]),
     ),
     GatherMod(),
     inference_conditions=skip_khronos_interpreter,
 )
+
+
+class UInt16Casty(nn.Module):
+    def forward(self, x):
+        return x.to(torch.uint16)
+
+
+if torch_version() >= "2.4.0":
+    inp = torch.arange(15).reshape(1, 5, 3).float() - 7
+    test_suite.add(
+        (inp,),
+        UInt16Casty(),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 
 def test_should_fail_since_no_input():
