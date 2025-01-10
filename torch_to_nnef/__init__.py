@@ -2,7 +2,7 @@
 
 __author__ = """Julien Balian"""
 __email__ = "julien.balian@sonos.com"
-__version__ = "0.15.5"
+__version__ = "0.15.6"
 
 from torch_to_nnef.export import (
     export_model_to_nnef,
