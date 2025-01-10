@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+## [0.15.6] - 2025-01-10
+
+### Fix
+
+- `unsqueeze` on dim -1
+- `sum` without arguments
+
+### Added
+
+- `uint16` support (since PyTorch 2.4)
+- `gather`, `sort`, `argsort`, `topk` PyTorch operators support
+
 ## [0.15.5] - 2024-12-13
 
 ### Change
@@ -298,9 +310,9 @@
 
 ### Added
 
-- (_alpha_) `scripts/generate_qtensor_gguf_matmul.py` to generate unit tests with [GGUF](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md) format for tract
-- (_alpha_) `[gguf]` feature gate to support export to **GGUF** format and quantization
-- (_alpha_) Support 2 new quantization tensor type (implemented as module for now):
+- (*alpha*) `scripts/generate_qtensor_gguf_matmul.py` to generate unit tests with [GGUF](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md) format for tract
+- (*alpha*) `[gguf]` feature gate to support export to **GGUF** format and quantization
+- (*alpha*) Support 2 new quantization tensor type (implemented as module for now):
   - `QTensorGGUF` support almost all **GGUF** data types -> with export prototype working
   - `QTensorSepParamsWithPack` more flexible than **GGUF** format, with support of classical per group with different sizes, per channel, per weight quantisation scheme at different bit-width 1, 2, 3, 4, 8 (useful for experimentation/accuracy simulation)
 - move `[dev]` dependencies as a poetry **group**, to avoid exposition as packaged optional feature
