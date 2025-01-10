@@ -304,8 +304,9 @@ class QTensor(torch.Tensor):
             new_kwargs = kwargs
             if func not in get_default_nowrap_functions().union(
                 {cls.__repr__}
-            ) and "'__set__'" not in str(
-                func
+            ) and all(
+                _ not in str(func)
+                for _ in ["'__set__'", "Tensor.__reduce_ex__"]
             ):  # class should not be expanded for setattr
                 new_args = [
                     a.decompress() if isinstance(a, cls) else a for a in args

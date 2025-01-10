@@ -32,6 +32,9 @@ class NamedTensor(torch.Tensor):
         super().__init__()
         self.nnef_name = nnef_name
 
+    def __repr__(self) -> str:
+        return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
+
     @property
     def data(self):
         return self

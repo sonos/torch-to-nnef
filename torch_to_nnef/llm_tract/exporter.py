@@ -325,7 +325,11 @@ class LLMExporter:
         test_dir = export_dirpath / "tests"
         test_dir.mkdir(parents=True)
 
-        if check_inference_modes:
+        if check_inference_modes and sample_generation_total_size > 0:
+            LOGGER.info(
+                "'inference mode' evaluation started with "
+                f"sample_generation_total_size={sample_generation_total_size}"
+            )
             modes = [
                 p.with_suffix("").name.replace("_io", "")
                 for p in self.dump_all_io_npz_kind(
@@ -336,6 +340,9 @@ class LLMExporter:
                 "w", encoding="utf8"
             ) as fh:
                 json.dump({"pytorch_supported_modes": modes}, fh)
+            LOGGER.info("'inference mode' evaluation data generated")
+        else:
+            LOGGER.info("'inference mode' evaluation skipped")
 
         if dump_with_tokenizer_and_conf:
             self.hf_model_causal.config.save_pretrained(export_dirpath)
