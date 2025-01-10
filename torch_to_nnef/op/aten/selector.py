@@ -1,4 +1,5 @@
 import logging
+from copy import copy
 
 import nnef
 import numpy as np
@@ -7,6 +8,8 @@ from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    SimpleOpChainer,
+    cast_and_add_nnef_operation,
     get_tract_dyn_axis_size_soc,
     pick_axis,
     pick_index_in_axis,
@@ -492,3 +495,168 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
             false_nnef_tensor,
         ],
     )
+
+
+@OP_REGISTRY.register()
+def argsort(node, op_helper, inference_target, **kwargs):
+    assert isinstance(
+        inference_target, TractNNEF
+    ), "not supported by Khronos spec"
+    input_node, dim_node, descending_node = node.inputs
+    input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    assert isinstance(descending_node.data, bool), descending_node
+    assert isinstance(dim_node, PythonConstant), dim_node
+    assert isinstance(dim_node.data, int), dim_node
+    dim = pick_axis(input_node, dim_node.data)
+    if inference_target.has_dynamic_axes:
+        shape_tensor_name = f"{input_nnef.name}_shape"
+        soc = SimpleOpChainer(
+            op_helper=op_helper, input_data_nodes=[input_node]
+        )
+        soc = soc.chain(
+            "tract_core_shape_of",
+            force_full_output_tensor_name=shape_tensor_name,
+        )
+
+        index_tensor_name = f"{input_nnef.name}_dim{dim}"
+        if index_tensor_name not in op_helper.name_to_tensor:
+            soc = soc.chain(
+                "slice",
+                attrs={
+                    "axes": [0],
+                    "begin": [dim],
+                    "end": [dim + 1],
+                    "stride": [1],
+                },
+                output_tensor_name_suffix=f"sliced{dim}",
+            ).chain(
+                "squeeze",
+                attrs={
+                    "axes": [0],
+                },
+                force_full_output_tensor_name=index_tensor_name,
+            )
+        dim_size = nnef.Identifier(index_tensor_name)
+    else:
+        dim_size = input_nnef.shape[dim]
+
+    output_tensors = []
+    out_node = copy(node.outputs[0])
+    out_node.dtype = input_node.dtype
+    out = op_helper.get_or_add_tensor_variable_in_nnef(
+        out_node,
+        name_suffix="values",
+        prevent_variable=True,
+    )
+    output_tensors.append(out)
+    out = op_helper.get_or_add_tensor_variable_in_nnef(
+        node.outputs[0],
+        prevent_variable=True,
+    )
+    output_tensors.append(out)
+
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type="tract_core_topk",
+        inputs=(input_nnef,),
+        outputs=tuple(output_tensors),
+        attribs={"k": dim_size, "axis": dim, "largest": descending_node.data},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def sort(node, op_helper, inference_target, **kwargs):
+    assert isinstance(
+        inference_target, TractNNEF
+    ), "not supported by Khronos spec"
+    input_node, dim_node, descending_node = node.inputs
+    input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    assert isinstance(descending_node.data, bool), descending_node
+    assert isinstance(dim_node, PythonConstant), dim_node
+    assert isinstance(dim_node.data, int), dim_node
+    dim = pick_axis(input_node, dim_node.data)
+    if inference_target.has_dynamic_axes:
+        shape_tensor_name = f"{input_nnef.name}_shape"
+        soc = SimpleOpChainer(
+            op_helper=op_helper, input_data_nodes=[input_node]
+        )
+        soc = soc.chain(
+            "tract_core_shape_of",
+            force_full_output_tensor_name=shape_tensor_name,
+        )
+
+        index_tensor_name = f"{input_nnef.name}_dim{dim}"
+        if index_tensor_name not in op_helper.name_to_tensor:
+            soc = soc.chain(
+                "slice",
+                attrs={
+                    "axes": [0],
+                    "begin": [dim],
+                    "end": [dim + 1],
+                    "stride": [1],
+                },
+                output_tensor_name_suffix=f"sliced{dim}",
+            ).chain(
+                "squeeze",
+                attrs={
+                    "axes": [0],
+                },
+                force_full_output_tensor_name=index_tensor_name,
+            )
+        dim_size = nnef.Identifier(index_tensor_name)
+    else:
+        dim_size = input_nnef.shape[dim]
+
+    output_tensors = [
+        op_helper.get_or_add_tensor_variable_in_nnef(
+            node.outputs[_],
+            prevent_variable=True,
+        )
+        for _ in range(2)
+    ]
+
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type="tract_core_topk",
+        inputs=(input_nnef,),
+        outputs=tuple(output_tensors),
+        attribs={"k": dim_size, "axis": dim, "largest": descending_node.data},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def topk(node, op_helper, inference_target, **kwargs):
+    assert isinstance(
+        inference_target, TractNNEF
+    ), "not supported by Khronos spec"
+    input_node, k_node, dim_node, largest_node, sorted_node = node.inputs
+    input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    assert isinstance(largest_node.data, bool), largest_node
+    assert isinstance(dim_node, PythonConstant), dim_node
+    assert isinstance(dim_node.data, int), dim_node
+    assert isinstance(k_node.data, int), k_node
+    if not sorted_node.data:
+        raise TorchToNNEFNotImplementedError("non sorted topk not implemented")
+    dim = pick_axis(input_node, dim_node.data)
+
+    output_tensors = [
+        op_helper.get_or_add_tensor_variable_in_nnef(
+            node.outputs[_],
+            prevent_variable=True,
+        )
+        for _ in range(2)
+    ]
+
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type="tract_core_topk",
+        inputs=(input_nnef,),
+        outputs=tuple(output_tensors),
+        attribs={"k": k_node.data, "axis": dim, "largest": largest_node.data},
+    )
+    return ["tract_core"]
