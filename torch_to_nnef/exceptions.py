@@ -18,6 +18,10 @@ class TorchToNNEFInvalidArgument(ValueError, TorchToNNEFError):
     """specification of torch_to_nnef export not respected"""
 
 
+class TorchToNNEFNotFoundFile(ValueError, TorchToNNEFError):
+    """specification of torch_to_nnef export not respected"""
+
+
 class TorchToNNEFNotImplementedError(NotImplementedError, TorchToNNEFError):
     pass
 
