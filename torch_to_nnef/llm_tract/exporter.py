@@ -2,6 +2,7 @@ import json
 import os
 import typing as T
 from pathlib import Path
+import shutil
 
 import numpy as np
 import torch
@@ -575,6 +576,34 @@ def load_tokenizer(
     return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
+def _try_load_peft(dir_path, kwargs, exp):
+    # pylint: disable-next=import-outside-toplevel
+    from peft import PeftModel
+
+    # likely an embedding issue with added tokens
+    with (dir_path / "adapter_config.json").open("r", encoding="utf8") as fh:
+        dic = json.load(fh)
+    hf_model_causal = AutoModelForCausalLM.from_pretrained(
+        dic["base_model_name_or_path"], **kwargs
+    )
+    msg = "Error(s) in loading state_dict for"
+    if exp.args[0].startswith(msg) and "size mismatch for" in exp.args[0]:
+        new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
+        hf_model_causal.resize_token_embeddings(new_tokenizer_len)
+        print("new_tokenizer_len:", new_tokenizer_len)
+
+    hf_model_causal = PeftModel.from_pretrained(hf_model_causal, dir_path)
+    LOGGER.info("loaded a PEFT model with resized token embeddings")
+    return hf_model_causal
+
+
+def assert_model_safetensors_exists(dir_path):
+    assert (
+        "model" in p.name and p.name.endswith(".safetensors")
+        for p in dir_path.iterdir()
+    ), dir_path
+
+
 def load_peft_model(local_dir, kwargs):
     """Load PEFT adapted models.
 
@@ -586,38 +615,34 @@ def load_peft_model(local_dir, kwargs):
     """
     dir_path = find_subdir_with_filename_in(local_dir, "adapter_config.json")
     assert dir_path.is_dir(), dir_path
-    assert (dir_path / "adapter_model.safetensors").is_file(), dir_path
+    assert_model_safetensors_exists(dir_path)
 
     while True:
         try:
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
                 dir_path, **kwargs
             )
+        except ValueError as exp:
+            msg = "Should have a `model_type` key in its config.json,"
+            if msg in exp.args[0]:
+                return _try_load_peft(dir_path, kwargs, exp)
+            raise exp
+        except OSError as exp:
+            if all(
+                exp.args[0] in _
+                for _ in ["OSError: Error no file named", "found in directory"]
+            ):
+                print("here")
+                __import__("ipdb").set_trace()
+                continue
+            raise exp
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
                 exp.args[0].startswith(msg)
                 and "size mismatch for" in exp.args[0]
             ):
-                # likely an embedding issue with added tokens
-                with (dir_path / "adapter_config.json").open(
-                    "r", encoding="utf8"
-                ) as fh:
-                    dic = json.load(fh)
-                hf_model_causal = AutoModelForCausalLM.from_pretrained(
-                    dic["base_model_name_or_path"], **kwargs
-                )
-                new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
-                hf_model_causal.resize_token_embeddings(new_tokenizer_len)
-                print("new_tokenizer_len:", new_tokenizer_len)
-                # pylint: disable-next=import-outside-toplevel
-                from peft import PeftModel
-
-                hf_model_causal = PeftModel.from_pretrained(
-                    hf_model_causal, dir_path
-                )
-                LOGGER.info("loaded a PEFT model with resized token embeddings")
-                return hf_model_causal
+                return _try_load_peft(dir_path, kwargs, exp)
             raise exp
         except TypeError as exp:
             msg = "__init__() got an unexpected keyword argument '"
@@ -656,7 +681,7 @@ def load_model(
         try:
             dir_path = find_subdir_with_filename_in(local_dir, "config.json")
             assert dir_path.is_dir(), dir_path
-            assert (dir_path / "model.safetensors").is_file(), dir_path
+            assert_model_safetensors_exists(dir_path)
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
                 dir_path, **kwargs
             )
