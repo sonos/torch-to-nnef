@@ -733,8 +733,12 @@ def dump_llm(
     as_float16: bool = False,
     *args,
     **kwargs,
-) -> T.Tuple[Path, LLMExporter]:
+) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
     exporter = LLMExporter.load(model_slug, local_dir, as_float16)
     exporter.dump(*args, **kwargs)
-    return kwargs.get("export_dirpath", args[0] if args else None), exporter
+    export_path = kwargs.get("export_dirpath", args[0] if args else None)
+    return (
+        Path(export_path) if export_path else None,
+        exporter,
+    )
