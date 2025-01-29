@@ -6,7 +6,6 @@ import numpy as np
 from torch_to_nnef.llm_tract.config import LlamaSLugs
 from torch_to_nnef.llm_tract.exporter import (
     LLMExporter,
-    dump_llm_from_exporter,
 )
 
 from .utils import TRACT_INFERENCES_TO_TESTS
@@ -32,8 +31,7 @@ def test_llama_export_io_npz_from_LLMExporter():
     )
     with tempfile.TemporaryDirectory() as td:
         export_dirpath = Path(td) / "dump_here"
-        dump_llm_from_exporter(
-            exporter=new_llm_exporter,
+        new_llm_exporter.dump(
             # compression_method="min_max_q4_0",
             export_dirpath=export_dirpath,
         )

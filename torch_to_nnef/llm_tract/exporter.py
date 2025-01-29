@@ -108,17 +108,20 @@ class LLMExporter:
             self.hf_model_causal
         )
 
+    def __repr__(self):
+        n_params = self.model_n_params
+        model_name = self.hf_model_causal.config._name_or_path
+        tokenizer_name = self.tokenizer.name_or_path
+        vocab_size = self.tokenizer.vocab_size
+        return (
+            f"<{self.__class__.__name__} "
+            f"model={model_name}(n_params={n_params:,}) "
+            f"tokenizer={tokenizer_name}(vocab_size={vocab_size:,})>"
+        )
+
     @property
     def model_n_params(self) -> int:
         return sum([_.numel() for _ in self.hf_model_causal.parameters()])
-
-    def __repr__(self):
-        n_params = self.model_n_params
-        return (
-            f"<{self.__class__.__name__} "
-            f"model={self.hf_model_causal.config._name_or_path}(n_params={n_params:,}) "
-            f"tokenizer={self.tokenizer.name_or_path}(vocab_size={self.tokenizer.vocab_size:,})>"
-        )
 
     @staticmethod
     def load(
@@ -126,6 +129,7 @@ class LLMExporter:
         local_dir: T.Optional[Path] = None,
         as_float16: bool = False,
     ):
+        """Load from either huggingface model slug hub or local_dir"""
         if as_float16 and torch_version() < "2.0.0":
             LOGGER.warning(
                 "float16 with CPU backend is limited in PyTorch 1.X "
@@ -327,6 +331,53 @@ class LLMExporter:
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
+    def prepare(
+        self,
+        compression_method: T.Optional[str] = None,
+        compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+        test_display_token_gens: bool = False,
+        wrapper_io_check: bool = True,
+        export_dirpath: T.Optional[Path] = None,
+        log_level: int = log.INFO,
+    ):
+        """Util to prepare export (f16/compression/checks...) LLM model"""
+        log.getLogger().setLevel(log_level)
+        with torch.no_grad():
+            if test_display_token_gens:
+                self.generate_test_text()
+
+        # compression method may sometime need
+        # gradient optimization so avoid context manager no_grad
+        if compression_method:
+            LOGGER.info(f"start compresssion: {compression_method}")
+            registry = dynamic_load_registry(compression_registry)
+            self.wrapped_model = registry[compression_method](
+                wrapped_model=self.wrapped_model,
+                tokenizer=self.tokenizer,
+                # may be usefull to dump compression evaluations results
+                export_dirpath=export_dirpath,
+                # may be usefull to perform internal evaluations
+                # when more data than just llm torch is available
+                local_dir=self.local_dir,
+            )
+            LOGGER.info(
+                f"successfully applied compression: {compression_method}"
+            )
+
+        with torch.no_grad():
+            if self.as_float16:
+                self.apply_f16_fixes()
+
+            if test_display_token_gens and (
+                compression_method or self.as_float16
+            ):
+                LOGGER.info(
+                    "check testing text post compression/f16 conversion:"
+                )
+                self.generate_test_text()
+            if wrapper_io_check:
+                self.check_wrapper_io()
+
     def export_model(
         self,
         export_dirpath: Path,
@@ -425,12 +476,66 @@ class LLMExporter:
                 custom_extensions=[
                     "tract_assert P >= 0",
                     "tract_assert S >= 1",
-                    f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
+                    "tract_assert S+P < "
+                    f"{self.model_infos.max_position_embeddings}",
                     # information about modes
                     "tract_assert tg: S==1",  # text generation
                     "tract_assert pp: P==0",  # prompt processing
                 ],
             )
+
+    def dump(
+        self,
+        export_dirpath: T.Union[str, Path],
+        tract_specific_path: T.Optional[Path] = None,
+        tract_specific_version: T.Optional[str] = None,
+        compression_method: T.Optional[str] = None,
+        compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
+        test_display_token_gens: bool = False,
+        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        dump_with_tokenizer_and_conf: bool = False,
+        check_inference_modes: bool = True,
+        wrapper_io_check: bool = True,
+        log_level: int = log.INFO,
+        sample_generation_total_size: int = 6,
+        no_verify: bool = False,
+    ):
+        export_dirpath = Path(export_dirpath)
+        if no_verify and wrapper_io_check:
+            LOGGER.info(
+                "force disable 'wrapper_io_check' because 'no_verify=True'"
+            )
+            wrapper_io_check = False
+        if no_verify and test_display_token_gens:
+            LOGGER.info(
+                "force disable 'test_display_token_gens' because "
+                "'no_verify=True'"
+            )
+            test_display_token_gens = False
+        if export_dirpath.exists():
+            raise ValueError(
+                "'export_dirpath' should not exist but "
+                f"found: '{export_dirpath}'"
+            )
+        self.prepare(
+            compression_method=compression_method,
+            compression_registry=compression_registry,
+            test_display_token_gens=test_display_token_gens,
+            wrapper_io_check=wrapper_io_check,
+            export_dirpath=export_dirpath,
+            log_level=log_level,
+        )
+        self.export_model(
+            export_dirpath,
+            naming_scheme=naming_scheme,
+            tract_specific_path=tract_specific_path,
+            tract_specific_version=tract_specific_version,
+            log_level=log_level,
+            dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
+            check_inference_modes=check_inference_modes,
+            sample_generation_total_size=sample_generation_total_size,
+            no_verify=no_verify,
+        )
 
 
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
@@ -592,103 +697,6 @@ class StateLessF32LayerNorm(nn.Module):
         ).to(input.dtype)
 
 
-def prep_exporter(
-    exporter: LLMExporter,
-    compression_method: T.Optional[str] = None,
-    compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
-    test_display_token_gens: bool = False,
-    wrapper_io_check: bool = True,
-    export_dirpath: T.Optional[Path] = None,
-    log_level: int = log.INFO,
-) -> LLMExporter:
-    """Util to prepare export (loading/f16/compression/...) LLM model"""
-    log.getLogger().setLevel(log_level)
-    with torch.no_grad():
-        if test_display_token_gens:
-            exporter.generate_test_text()
-
-    # compression method may sometime need
-    # gradient optimization so avoid context manager no_grad
-    if compression_method:
-        LOGGER.info(f"start compresssion: {compression_method}")
-        registry = dynamic_load_registry(compression_registry)
-        exporter.wrapped_model = registry[compression_method](
-            wrapped_model=exporter.wrapped_model,
-            tokenizer=exporter.tokenizer,
-            # may be usefull to dump compression evaluations results
-            export_dirpath=export_dirpath,
-            # may be usefull to perform internal evaluations
-            # when more data than just llm torch is available
-            local_dir=exporter.local_dir,
-        )
-        LOGGER.info(f"successfully applied compression: {compression_method}")
-
-    with torch.no_grad():
-        if exporter.as_float16:
-            exporter.apply_f16_fixes()
-
-        if test_display_token_gens and (
-            compression_method or exporter.as_float16
-        ):
-            LOGGER.info("check testing text post compression/f16 conversion:")
-            exporter.generate_test_text()
-        if wrapper_io_check:
-            exporter.check_wrapper_io()
-    return exporter
-
-
-def dump_llm_from_exporter(
-    exporter: LLMExporter,
-    export_dirpath: T.Union[str, Path],
-    tract_specific_path: T.Optional[Path] = None,
-    tract_specific_version: T.Optional[str] = None,
-    compression_method: T.Optional[str] = None,
-    compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
-    test_display_token_gens: bool = False,
-    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-    dump_with_tokenizer_and_conf: bool = False,
-    check_inference_modes: bool = True,
-    wrapper_io_check: bool = True,
-    log_level: int = log.INFO,
-    sample_generation_total_size: int = 6,
-    no_verify: bool = False,
-):
-    export_dirpath = Path(export_dirpath)
-    if no_verify and wrapper_io_check:
-        LOGGER.info("force disable 'wrapper_io_check' because 'no_verify=True'")
-        wrapper_io_check = False
-    if no_verify and test_display_token_gens:
-        LOGGER.info(
-            "force disable 'test_display_token_gens' because 'no_verify=True'"
-        )
-        test_display_token_gens = False
-    if export_dirpath.exists():
-        raise ValueError(
-            f"'export_dirpath' should not exist but found: '{export_dirpath}'"
-        )
-    exporter = prep_exporter(
-        exporter=exporter,
-        compression_method=compression_method,
-        compression_registry=compression_registry,
-        test_display_token_gens=test_display_token_gens,
-        wrapper_io_check=wrapper_io_check,
-        export_dirpath=export_dirpath,
-        log_level=log_level,
-    )
-    exporter.export_model(
-        export_dirpath,
-        naming_scheme=naming_scheme,
-        tract_specific_path=tract_specific_path,
-        tract_specific_version=tract_specific_version,
-        log_level=log_level,
-        dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
-        check_inference_modes=check_inference_modes,
-        sample_generation_total_size=sample_generation_total_size,
-        no_verify=no_verify,
-    )
-    return export_dirpath, exporter
-
-
 def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -698,4 +706,5 @@ def dump_llm(
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
     exporter = LLMExporter.load(model_slug, local_dir, as_float16)
-    return dump_llm_from_exporter(exporter=exporter, *args, **kwargs)
+    exporter.dump(*args, **kwargs)
+    return kwargs.get("export_dirpath", args[0]), exporter
