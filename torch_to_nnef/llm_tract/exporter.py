@@ -712,4 +712,4 @@ def dump_llm(
     """Util to export LLM model"""
     exporter = LLMExporter.load(model_slug, local_dir, as_float16)
     exporter.dump(*args, **kwargs)
-    return kwargs.get("export_dirpath", args[0]), exporter
+    return kwargs.get("export_dirpath", args[0] if args else None), exporter
