@@ -637,7 +637,7 @@ def dump_llm(
         LOGGER.info(
             "force disable 'test_display_token_gens' because 'no_verify=True'"
         )
-        test_display_token_gens = Falsen_gens = False
+        test_display_token_gens = False
     if export_dirpath.exists():
         raise ValueError(
             f"'export_dirpath' should not exist but found: '{export_dirpath}'"
