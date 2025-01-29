@@ -331,7 +331,7 @@ class LLMExporter:
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
-    def prepare(
+    def _prepare(
         self,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
@@ -340,7 +340,7 @@ class LLMExporter:
         export_dirpath: T.Optional[Path] = None,
         log_level: int = log.INFO,
     ):
-        """Util to prepare export (f16/compression/checks...) LLM model"""
+        """Prepare model to export (f16/compression/checks...)"""
         log.getLogger().setLevel(log_level)
         with torch.no_grad():
             if test_display_token_gens:
@@ -378,7 +378,7 @@ class LLMExporter:
             if wrapper_io_check:
                 self.check_wrapper_io()
 
-    def export_model(
+    def _export_model(
         self,
         export_dirpath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
@@ -392,6 +392,10 @@ class LLMExporter:
         sample_generation_total_size: int = 0,
         no_verify: bool = False,
     ):
+        """Export model has is currently in self.hf_model_causal
+
+        and dump some npz tests to check io latter-on
+        """
         with torch.no_grad():
             assert not export_dirpath.exists(), export_dirpath
             assert sample_generation_total_size >= 2
@@ -500,6 +504,7 @@ class LLMExporter:
         sample_generation_total_size: int = 6,
         no_verify: bool = False,
     ):
+        """prepare and export model to NNEF"""
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(
@@ -517,7 +522,7 @@ class LLMExporter:
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"
             )
-        self.prepare(
+        self._prepare(
             compression_method=compression_method,
             compression_registry=compression_registry,
             test_display_token_gens=test_display_token_gens,
@@ -525,7 +530,7 @@ class LLMExporter:
             export_dirpath=export_dirpath,
             log_level=log_level,
         )
-        self.export_model(
+        self._export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
             tract_specific_path=tract_specific_path,
