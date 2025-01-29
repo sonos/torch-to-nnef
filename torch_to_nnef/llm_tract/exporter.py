@@ -8,7 +8,10 @@ import torch
 from torch import nn
 from transformers import GenerationConfig
 
-from torch_to_nnef.exceptions import TorchToNNEFConsistencyError
+from torch_to_nnef.exceptions import (
+    TorchToNNEFConsistencyError,
+    TorchToNNEFNotFoundFile,
+)
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCli, TractNNEF, build_io
 from torch_to_nnef.llm_tract.compress import dynamic_load_registry
@@ -378,11 +381,15 @@ class LLMExporter:
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
     """Find a subdir with filename in it"""
     found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
-    if 1 < len(found_dirs):
-        raise ValueError(
+    if not (0 < len(found_dirs) < 2):
+        raise TorchToNNEFNotFoundFile(
             f"Found {len(found_dirs)} dirs for with '{filename}' file. "
             f"found_dirs={found_dirs}. "
-            "Unable to decide which one should selected..."
+            + (
+                "Unable to decide which one should selected..."
+                if len(found_dirs) > 1
+                else "Is it a valid model directory ?"
+            )
         )
     return found_dirs.pop()
 
@@ -403,6 +410,68 @@ def load_tokenizer(
     return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
+def load_peft_model(local_dir, kwargs):
+    """Load PEFT adapted models.
+
+    Try to avoid direct reference to tokenizer object/config
+    to limit dependencies of the function
+
+    While also trying to be robust to 'wrong' key/values
+
+    """
+    dir_path = find_subdir_with_filename_in(local_dir, "adapter_config.json")
+    assert dir_path.is_dir(), dir_path
+    assert (dir_path / "adapter_model.safetensors").is_file(), dir_path
+
+    while True:
+        try:
+            hf_model_causal = AutoModelForCausalLM.from_pretrained(
+                dir_path, **kwargs
+            )
+        except RuntimeError as exp:
+            msg = "Error(s) in loading state_dict for"
+            if (
+                exp.args[0].startswith(msg)
+                and "size mismatch for" in exp.args[0]
+            ):
+                # likely an embedding issue with added tokens
+                with (dir_path / "adapter_config.json").open(
+                    "r", encoding="utf8"
+                ) as fh:
+                    dic = json.load(fh)
+                hf_model_causal = AutoModelForCausalLM.from_pretrained(
+                    dic["base_model_name_or_path"], **kwargs
+                )
+                new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
+                hf_model_causal.resize_token_embeddings(new_tokenizer_len)
+                print("new_tokenizer_len:", new_tokenizer_len)
+                # pylint: disable-next=import-outside-toplevel
+                from peft import PeftModel
+
+                hf_model_causal = PeftModel.from_pretrained(
+                    hf_model_causal, dir_path
+                )
+                LOGGER.info("loaded a PEFT model with resized token embeddings")
+                return hf_model_causal
+            raise exp
+        except TypeError as exp:
+            msg = "__init__() got an unexpected keyword argument '"
+            if exp.args[0].startswith(msg):
+                with (dir_path / "adapter_config.json").open(
+                    "r", encoding="utf8"
+                ) as fh:
+                    dic = json.load(fh)
+                key = exp.args[0].split(msg)[-1][:-1]
+                del dic[key]
+                with (dir_path / "adapter_config.json").open(
+                    "w", encoding="utf8"
+                ) as fh:
+                    json.dump(dic, fh, indent=2)
+                continue
+            raise exp
+        return hf_model_causal
+
+
 def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -419,16 +488,19 @@ def load_model(
         )
         LOGGER.info(f"load custom config: '{hf_model_slug}'")
     elif local_dir:
-        dir_path = find_subdir_with_filename_in(local_dir, "config.json")
-        assert dir_path.is_dir(), dir_path
-        assert (dir_path / "model.safetensors").is_file(), dir_path
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            dir_path, **kwargs
-        )
-        LOGGER.info(
-            f"load '{hf_model_causal.config.model_type}' "
-            f"from local directory: {dir_path}"
-        )
+        try:
+            dir_path = find_subdir_with_filename_in(local_dir, "config.json")
+            assert dir_path.is_dir(), dir_path
+            assert (dir_path / "model.safetensors").is_file(), dir_path
+            hf_model_causal = AutoModelForCausalLM.from_pretrained(
+                dir_path, **kwargs
+            )
+            LOGGER.info(
+                f"load '{hf_model_causal.config.model_type}' "
+                f"from local directory: {dir_path}"
+            )
+        except TorchToNNEFNotFoundFile:
+            hf_model_causal = load_peft_model(local_dir, kwargs)
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
             hf_model_slug, **kwargs
