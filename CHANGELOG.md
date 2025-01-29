@@ -3,6 +3,14 @@
 
 ## Unreleased
 
+## [0.15.7] - 2025-01-29
+
+### Fix
+
+- LLM cli export: `PEFT` better support
+- LLM cli export: multiple `.safetensors` support
+- `LLMExporter` decoupled and better supported
+
 ## [0.15.6] - 2025-01-10
 
 ### Fix
