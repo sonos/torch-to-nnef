@@ -331,7 +331,7 @@ class LLMExporter:
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
-    def _prepare(
+    def prepare(
         self,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
@@ -378,7 +378,7 @@ class LLMExporter:
             if wrapper_io_check:
                 self.check_wrapper_io()
 
-    def _export_model(
+    def export_model(
         self,
         export_dirpath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
@@ -522,7 +522,7 @@ class LLMExporter:
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"
             )
-        self._prepare(
+        self.prepare(
             compression_method=compression_method,
             compression_registry=compression_registry,
             test_display_token_gens=test_display_token_gens,
@@ -530,7 +530,7 @@ class LLMExporter:
             export_dirpath=export_dirpath,
             log_level=log_level,
         )
-        self._export_model(
+        self.export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
             tract_specific_path=tract_specific_path,
