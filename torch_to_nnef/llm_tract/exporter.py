@@ -2,6 +2,7 @@ import json
 import os
 import typing as T
 from pathlib import Path
+import shutil
 
 import numpy as np
 import torch
@@ -66,32 +67,90 @@ typically measured in volts.
 )
 
 
+def _load_exporter_from(
+    hf_model_slug: T.Optional[str] = None,
+    local_dir: T.Optional[Path] = None,
+    as_float16: bool = False,
+):
+    local_dir = Path(local_dir) if local_dir else None
+    assert hf_model_slug is not None or local_dir is not None
+    hf_model_causal = load_model(
+        hf_model_slug, local_dir, as_float16=as_float16
+    )
+    tokenizer = load_tokenizer(
+        hf_model_causal.config,
+        hf_model_slug=hf_model_slug,
+        local_dir=local_dir,
+    )
+    return LLMExporter(
+        hf_model_causal, tokenizer, as_float16=as_float16, local_dir=local_dir
+    )
+
+
 class LLMExporter:
     def __init__(
         self,
-        hf_model_slug: T.Optional[str] = None,
-        local_dir: T.Optional[Path] = None,
+        hf_model_causal: nn.Module,
+        tokenizer: AutoTokenizer,
         as_float16: bool = False,
+        local_dir: T.Optional[Path] = None,
     ):
-        local_dir = Path(local_dir) if local_dir else None
-        assert hf_model_slug is not None or local_dir is not None
-        self.hf_model_causal = load_model(
-            hf_model_slug, local_dir, as_float16=as_float16
-        )
-        self.tokenizer = load_tokenizer(
-            self.hf_model_causal.config,
-            hf_model_slug=hf_model_slug,
-            local_dir=local_dir,
-        )
+        self.hf_model_causal = hf_model_causal
+        self.tokenizer = tokenizer
         self.as_float16 = as_float16
+        self.local_dir = local_dir
 
         self.model_infos = HFConfigHelper(
-            hf_model_slug, self.hf_model_causal.config
+            self.hf_model_causal.config._name_or_path,
+            self.hf_model_causal.config,
         )
 
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal
         )
+
+    def __repr__(self):
+        n_params = self.model_n_params
+        model_name = self.hf_model_causal.config._name_or_path
+        tokenizer_name = self.tokenizer.name_or_path
+        vocab_size = self.tokenizer.vocab_size
+        return (
+            f"<{self.__class__.__name__} "
+            f"model={model_name}(n_params={n_params:,}) "
+            f"tokenizer={tokenizer_name}(vocab_size={vocab_size:,})>"
+        )
+
+    @property
+    def model_n_params(self) -> int:
+        return sum([_.numel() for _ in self.hf_model_causal.parameters()])
+
+    @staticmethod
+    def load(
+        model_slug: T.Optional[str] = None,
+        local_dir: T.Optional[Path] = None,
+        as_float16: bool = False,
+    ):
+        """Load from either huggingface model slug hub or local_dir"""
+        if as_float16 and torch_version() < "2.0.0":
+            LOGGER.warning(
+                "float16 with CPU backend is limited in PyTorch 1.X "
+                "(if issues, try to use torch>2.0)"
+            )
+        with torch.no_grad():
+            try:
+                exporter = _load_exporter_from(
+                    model_slug, local_dir, as_float16
+                )
+            except OSError as exp:
+                if "gated repo" in exp.args[0]:
+                    print(exp.args[0])
+                    login()
+                    exporter = _load_exporter_from(
+                        model_slug, local_dir, as_float16
+                    )
+                else:
+                    raise exp
+        return exporter
 
     def check_wrapper_io(self):
         """Checking that wrapper given consistent outputs compared to vanilla model"""
@@ -273,6 +332,53 @@ class LLMExporter:
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
+    def prepare(
+        self,
+        compression_method: T.Optional[str] = None,
+        compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+        test_display_token_gens: bool = False,
+        wrapper_io_check: bool = True,
+        export_dirpath: T.Optional[Path] = None,
+        log_level: int = log.INFO,
+    ):
+        """Prepare model to export (f16/compression/checks...)"""
+        log.getLogger().setLevel(log_level)
+        with torch.no_grad():
+            if test_display_token_gens:
+                self.generate_test_text()
+
+        # compression method may sometime need
+        # gradient optimization so avoid context manager no_grad
+        if compression_method:
+            LOGGER.info(f"start compresssion: {compression_method}")
+            registry = dynamic_load_registry(compression_registry)
+            self.wrapped_model = registry[compression_method](
+                wrapped_model=self.wrapped_model,
+                tokenizer=self.tokenizer,
+                # may be usefull to dump compression evaluations results
+                export_dirpath=export_dirpath,
+                # may be usefull to perform internal evaluations
+                # when more data than just llm torch is available
+                local_dir=self.local_dir,
+            )
+            LOGGER.info(
+                f"successfully applied compression: {compression_method}"
+            )
+
+        with torch.no_grad():
+            if self.as_float16:
+                self.apply_f16_fixes()
+
+            if test_display_token_gens and (
+                compression_method or self.as_float16
+            ):
+                LOGGER.info(
+                    "check testing text post compression/f16 conversion:"
+                )
+                self.generate_test_text()
+            if wrapper_io_check:
+                self.check_wrapper_io()
+
     def export_model(
         self,
         export_dirpath: Path,
@@ -287,94 +393,154 @@ class LLMExporter:
         sample_generation_total_size: int = 0,
         no_verify: bool = False,
     ):
-        assert not export_dirpath.exists(), export_dirpath
-        assert sample_generation_total_size >= 2
-        assert (  # mutualy exclusive arguments
-            (tract_specific_path is None and tract_specific_version is None)
-            or tract_specific_path is None
-            or tract_specific_version is None
-        )
-        (
-            inputs,
-            input_names,
-            output_names,
-            dynamic_axes,
-        ) = self.generate_inputs_io_names_and_dynaxes()
+        """Export model has is currently in self.hf_model_causal
 
-        LOGGER.info("start export with 'torch_to_nnef'")
-        if tract_specific_version:
-            inference_target = TractNNEF(
-                SemanticVersion.from_str(tract_specific_version)
-                if isinstance(tract_specific_version, str)
-                else tract_specific_version
+        and dump some npz tests to check io latter-on
+        """
+        with torch.no_grad():
+            assert not export_dirpath.exists(), export_dirpath
+            assert sample_generation_total_size >= 2
+            assert (  # mutualy exclusive arguments
+                (tract_specific_path is None and tract_specific_version is None)
+                or tract_specific_path is None
+                or tract_specific_version is None
             )
-        if tract_specific_path:
-            tract_cli_path = Path(tract_specific_path)
-            assert tract_cli_path.exists(), tract_cli_path
-            tract_cli = TractCli(tract_cli_path)
-            inference_target = TractNNEF(
-                tract_cli.version, specific_tract_binary_path=tract_cli_path
-            )
-        else:
-            inference_target = TractNNEF.latest()
-        inference_target.dynamic_axes = dynamic_axes
-        if no_verify:
-            LOGGER.info(
-                "tract inference is not checked because 'no_verify=True'"
-            )
-        inference_target.check_io = not no_verify
+            (
+                inputs,
+                input_names,
+                output_names,
+                dynamic_axes,
+            ) = self.generate_inputs_io_names_and_dynaxes()
 
-        # Add io.npz test in exproted dir for dbg purpose
-        test_dir = export_dirpath / "tests"
-        test_dir.mkdir(parents=True)
-
-        if check_inference_modes and sample_generation_total_size > 0:
-            LOGGER.info(
-                "'inference mode' evaluation started with "
-                f"sample_generation_total_size={sample_generation_total_size}"
-            )
-            modes = [
-                p.with_suffix("").name.replace("_io", "")
-                for p in self.dump_all_io_npz_kind(
-                    test_dir, size=sample_generation_total_size
+            LOGGER.info("start export with 'torch_to_nnef'")
+            if tract_specific_version:
+                inference_target = TractNNEF(
+                    SemanticVersion.from_str(tract_specific_version)
+                    if isinstance(tract_specific_version, str)
+                    else tract_specific_version
                 )
-            ]
-            with (export_dirpath / "modes.json").open(
-                "w", encoding="utf8"
-            ) as fh:
-                json.dump({"pytorch_supported_modes": modes}, fh)
-            LOGGER.info("'inference mode' evaluation data generated")
-        else:
-            LOGGER.info("'inference mode' evaluation skipped")
+            if tract_specific_path:
+                tract_cli_path = Path(tract_specific_path)
+                assert tract_cli_path.exists(), tract_cli_path
+                tract_cli = TractCli(tract_cli_path)
+                inference_target = TractNNEF(
+                    tract_cli.version, specific_tract_binary_path=tract_cli_path
+                )
+            else:
+                inference_target = TractNNEF.latest()
+            inference_target.dynamic_axes = dynamic_axes
+            if no_verify:
+                LOGGER.info(
+                    "tract inference is not checked because 'no_verify=True'"
+                )
+            inference_target.check_io = not no_verify
 
-        if dump_with_tokenizer_and_conf:
-            self.hf_model_causal.config.save_pretrained(export_dirpath)
-            self.tokenizer.save_pretrained(export_dirpath)
+            # Add io.npz test in exproted dir for dbg purpose
+            test_dir = export_dirpath / "tests"
+            test_dir.mkdir(parents=True)
 
-        build_io(
-            self.wrapped_model,
-            inputs,
-            io_npz_path=test_dir / "export_io.npz",
-            input_names=input_names,
-            output_names=output_names,
-        )
-        export_model_to_nnef(
-            model=self.wrapped_model,
-            args=inputs,
-            inference_target=inference_target,
-            file_path_export=export_dirpath / "model.nnef.tgz",
-            input_names=input_names,
-            output_names=output_names,
+            if check_inference_modes and sample_generation_total_size > 0:
+                LOGGER.info(
+                    "'inference mode' evaluation started with "
+                    f"sample_generation_total_size={sample_generation_total_size}"
+                )
+                modes = [
+                    p.with_suffix("").name.replace("_io", "")
+                    for p in self.dump_all_io_npz_kind(
+                        test_dir, size=sample_generation_total_size
+                    )
+                ]
+                with (export_dirpath / "modes.json").open(
+                    "w", encoding="utf8"
+                ) as fh:
+                    json.dump({"pytorch_supported_modes": modes}, fh)
+                LOGGER.info("'inference mode' evaluation data generated")
+            else:
+                LOGGER.info("'inference mode' evaluation skipped")
+
+            if dump_with_tokenizer_and_conf:
+                self.hf_model_causal.config.save_pretrained(export_dirpath)
+                self.tokenizer.save_pretrained(export_dirpath)
+
+            build_io(
+                self.wrapped_model,
+                inputs,
+                io_npz_path=test_dir / "export_io.npz",
+                input_names=input_names,
+                output_names=output_names,
+            )
+            export_model_to_nnef(
+                model=self.wrapped_model,
+                args=inputs,
+                inference_target=inference_target,
+                file_path_export=export_dirpath / "model.nnef.tgz",
+                input_names=input_names,
+                output_names=output_names,
+                log_level=log_level,
+                nnef_variable_naming_scheme=naming_scheme,
+                custom_extensions=[
+                    "tract_assert P >= 0",
+                    "tract_assert S >= 1",
+                    "tract_assert S+P < "
+                    f"{self.model_infos.max_position_embeddings}",
+                    # information about modes
+                    "tract_assert tg: S==1",  # text generation
+                    "tract_assert pp: P==0",  # prompt processing
+                ],
+            )
+
+    def dump(
+        self,
+        export_dirpath: T.Union[str, Path],
+        tract_specific_path: T.Optional[Path] = None,
+        tract_specific_version: T.Optional[str] = None,
+        compression_method: T.Optional[str] = None,
+        compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
+        test_display_token_gens: bool = False,
+        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        dump_with_tokenizer_and_conf: bool = False,
+        check_inference_modes: bool = True,
+        wrapper_io_check: bool = True,
+        log_level: int = log.INFO,
+        sample_generation_total_size: int = 6,
+        no_verify: bool = False,
+    ):
+        """prepare and export model to NNEF"""
+        export_dirpath = Path(export_dirpath)
+        if no_verify and wrapper_io_check:
+            LOGGER.info(
+                "force disable 'wrapper_io_check' because 'no_verify=True'"
+            )
+            wrapper_io_check = False
+        if no_verify and test_display_token_gens:
+            LOGGER.info(
+                "force disable 'test_display_token_gens' because "
+                "'no_verify=True'"
+            )
+            test_display_token_gens = False
+        if export_dirpath.exists():
+            raise ValueError(
+                "'export_dirpath' should not exist but "
+                f"found: '{export_dirpath}'"
+            )
+        self.prepare(
+            compression_method=compression_method,
+            compression_registry=compression_registry,
+            test_display_token_gens=test_display_token_gens,
+            wrapper_io_check=wrapper_io_check,
+            export_dirpath=export_dirpath,
             log_level=log_level,
-            nnef_variable_naming_scheme=naming_scheme,
-            custom_extensions=[
-                "tract_assert P >= 0",
-                "tract_assert S >= 1",
-                f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
-                # information about modes
-                "tract_assert tg: S==1",  # text generation
-                "tract_assert pp: P==0",  # prompt processing
-            ],
+        )
+        self.export_model(
+            export_dirpath,
+            naming_scheme=naming_scheme,
+            tract_specific_path=tract_specific_path,
+            tract_specific_version=tract_specific_version,
+            log_level=log_level,
+            dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
+            check_inference_modes=check_inference_modes,
+            sample_generation_total_size=sample_generation_total_size,
+            no_verify=no_verify,
         )
 
 
@@ -410,6 +576,34 @@ def load_tokenizer(
     return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
 
 
+def _try_load_peft(dir_path, kwargs, exp):
+    # pylint: disable-next=import-outside-toplevel
+    from peft import PeftModel
+
+    # likely an embedding issue with added tokens
+    with (dir_path / "adapter_config.json").open("r", encoding="utf8") as fh:
+        dic = json.load(fh)
+    hf_model_causal = AutoModelForCausalLM.from_pretrained(
+        dic["base_model_name_or_path"], **kwargs
+    )
+    msg = "Error(s) in loading state_dict for"
+    if exp.args[0].startswith(msg) and "size mismatch for" in exp.args[0]:
+        new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
+        hf_model_causal.resize_token_embeddings(new_tokenizer_len)
+        print("new_tokenizer_len:", new_tokenizer_len)
+
+    hf_model_causal = PeftModel.from_pretrained(hf_model_causal, dir_path)
+    LOGGER.info("loaded a PEFT model with resized token embeddings")
+    return hf_model_causal
+
+
+def assert_model_safetensors_exists(dir_path):
+    assert (
+        "model" in p.name and p.name.endswith(".safetensors")
+        for p in dir_path.iterdir()
+    ), dir_path
+
+
 def load_peft_model(local_dir, kwargs):
     """Load PEFT adapted models.
 
@@ -421,38 +615,34 @@ def load_peft_model(local_dir, kwargs):
     """
     dir_path = find_subdir_with_filename_in(local_dir, "adapter_config.json")
     assert dir_path.is_dir(), dir_path
-    assert (dir_path / "adapter_model.safetensors").is_file(), dir_path
+    assert_model_safetensors_exists(dir_path)
 
     while True:
         try:
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
                 dir_path, **kwargs
             )
+        except ValueError as exp:
+            msg = "Should have a `model_type` key in its config.json,"
+            if msg in exp.args[0]:
+                return _try_load_peft(dir_path, kwargs, exp)
+            raise exp
+        except OSError as exp:
+            if all(
+                exp.args[0] in _
+                for _ in ["OSError: Error no file named", "found in directory"]
+            ):
+                print("here")
+                __import__("ipdb").set_trace()
+                continue
+            raise exp
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
                 exp.args[0].startswith(msg)
                 and "size mismatch for" in exp.args[0]
             ):
-                # likely an embedding issue with added tokens
-                with (dir_path / "adapter_config.json").open(
-                    "r", encoding="utf8"
-                ) as fh:
-                    dic = json.load(fh)
-                hf_model_causal = AutoModelForCausalLM.from_pretrained(
-                    dic["base_model_name_or_path"], **kwargs
-                )
-                new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
-                hf_model_causal.resize_token_embeddings(new_tokenizer_len)
-                print("new_tokenizer_len:", new_tokenizer_len)
-                # pylint: disable-next=import-outside-toplevel
-                from peft import PeftModel
-
-                hf_model_causal = PeftModel.from_pretrained(
-                    hf_model_causal, dir_path
-                )
-                LOGGER.info("loaded a PEFT model with resized token embeddings")
-                return hf_model_causal
+                return _try_load_peft(dir_path, kwargs, exp)
             raise exp
         except TypeError as exp:
             msg = "__init__() got an unexpected keyword argument '"
@@ -491,7 +681,7 @@ def load_model(
         try:
             dir_path = find_subdir_with_filename_in(local_dir, "config.json")
             assert dir_path.is_dir(), dir_path
-            assert (dir_path / "model.safetensors").is_file(), dir_path
+            assert_model_safetensors_exists(dir_path)
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
                 dir_path, **kwargs
             )
@@ -537,117 +727,14 @@ class StateLessF32LayerNorm(nn.Module):
         ).to(input.dtype)
 
 
-def prep_exporter(
-    model_slug: T.Optional[str] = None,
-    local_dir: T.Optional[Path] = None,
-    as_float16: bool = False,
-    compression_method: T.Optional[str] = None,
-    compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
-    test_display_token_gens: bool = False,
-    wrapper_io_check: bool = True,
-    export_dirpath: T.Optional[Path] = None,
-    log_level: int = log.INFO,
-) -> LLMExporter:
-    """Util to prepare export (loading/f16/compression/...) LLM model"""
-    log.getLogger().setLevel(log_level)
-    if as_float16 and torch_version() < "2.0.0":
-        LOGGER.warning(
-            "float16 with CPU backend is limited in PyTorch 1.X "
-            "(if issues, try to use torch>2.0)"
-        )
-    with torch.no_grad():
-        try:
-            exporter = LLMExporter(model_slug, local_dir, as_float16)
-        except OSError as exp:
-            if "gated repo" in exp.args[0]:
-                print(exp.args[0])
-                login()
-                exporter = LLMExporter(model_slug, local_dir, as_float16)
-            else:
-                raise exp
-        if test_display_token_gens:
-            exporter.generate_test_text()
-    # compression method may sometime need
-    # gradient optimization so avoid context manager no_grad
-    if compression_method:
-        LOGGER.info(f"start compresssion: {compression_method}")
-        registry = dynamic_load_registry(compression_registry)
-        exporter.wrapped_model = registry[compression_method](
-            wrapped_model=exporter.wrapped_model,
-            tokenizer=exporter.tokenizer,
-            # may be usefull to dump compression evaluations results
-            export_dirpath=export_dirpath,
-            # may be usefull to perform internal evaluations
-            # when more data than just llm torch is available
-            local_dir=local_dir,
-        )
-        LOGGER.info(f"successfully applied compression: {compression_method}")
-
-    with torch.no_grad():
-        if as_float16:
-            exporter.apply_f16_fixes()
-
-        if test_display_token_gens and (compression_method or as_float16):
-            LOGGER.info("check testing text post compression/f16 conversion:")
-            exporter.generate_test_text()
-        if wrapper_io_check:
-            exporter.check_wrapper_io()
-    return exporter
-
-
 def dump_llm(
-    export_dirpath: T.Union[str, Path],
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
-    tract_specific_path: T.Optional[Path] = None,
-    tract_specific_version: T.Optional[str] = None,
     as_float16: bool = False,
-    compression_method: T.Optional[str] = None,
-    compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
-    test_display_token_gens: bool = False,
-    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-    dump_with_tokenizer_and_conf: bool = False,
-    check_inference_modes: bool = True,
-    wrapper_io_check: bool = True,
-    log_level: int = log.INFO,
-    sample_generation_total_size: int = 6,
-    no_verify: bool = False,
+    *args,
+    **kwargs,
 ) -> T.Tuple[Path, LLMExporter]:
     """Util to export LLM model"""
-    export_dirpath = Path(export_dirpath)
-    if no_verify and wrapper_io_check:
-        LOGGER.info("force disable 'wrapper_io_check' because 'no_verify=True'")
-        wrapper_io_check = False
-    if no_verify and test_display_token_gens:
-        LOGGER.info(
-            "force disable 'test_display_token_gens' because 'no_verify=True'"
-        )
-        test_display_token_gens = False
-    if export_dirpath.exists():
-        raise ValueError(
-            f"'export_dirpath' should not exist but found: '{export_dirpath}'"
-        )
-    exporter = prep_exporter(
-        model_slug=model_slug,
-        local_dir=local_dir,
-        as_float16=as_float16,
-        compression_method=compression_method,
-        compression_registry=compression_registry,
-        test_display_token_gens=test_display_token_gens,
-        wrapper_io_check=wrapper_io_check,
-        export_dirpath=export_dirpath,
-        log_level=log_level,
-    )
-    with torch.no_grad():
-        exporter.export_model(
-            export_dirpath,
-            naming_scheme=naming_scheme,
-            tract_specific_path=tract_specific_path,
-            tract_specific_version=tract_specific_version,
-            log_level=log_level,
-            dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
-            check_inference_modes=check_inference_modes,
-            sample_generation_total_size=sample_generation_total_size,
-            no_verify=no_verify,
-        )
-    return export_dirpath, exporter
+    exporter = LLMExporter.load(model_slug, local_dir, as_float16)
+    exporter.dump(*args, **kwargs)
+    return kwargs.get("export_dirpath", args[0] if args else None), exporter

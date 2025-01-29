@@ -13,15 +13,20 @@ inference_targets = [
 ]
 
 
-# @pytest.mark.parametrize(
-#     "id,inference_target",
-#     inference_targets,
-#     ids=[_[0] for _ in inference_targets],
-# )inference_target
+def test_llama_export_io_npz_from_LLMExporter():
+    llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
+    new_llm_exporter = LLMExporter(
+        llm_exporter.hf_model_causal,
+        llm_exporter.tokenizer,
+        as_float16=False,
+    )
+    with tempfile.TemporaryDirectory() as td:
+        export_dirpath = Path(td) / "dump_here"
+        new_llm_exporter.dump(export_dirpath=export_dirpath)
 
 
 def test_llama_export_io_npz():
-    llm_exporter = LLMExporter(LlamaSLugs.DUMMY.value)
+    llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         total_tokens = 6
