@@ -4,22 +4,13 @@ from pathlib import Path
 import numpy as np
 
 from torch_to_nnef.llm_tract.config import LlamaSLugs
-from torch_to_nnef.llm_tract.exporter import (
-    LLMExporter,
-)
+from torch_to_nnef.llm_tract.exporter import LLMExporter
 
 from .utils import TRACT_INFERENCES_TO_TESTS
 
 inference_targets = [
     (str(_), _) for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.5"
 ]
-
-
-# @pytest.mark.parametrize(
-#     "id,inference_target",
-#     inference_targets,
-#     ids=[_[0] for _ in inference_targets],
-# )inference_target
 
 
 def test_llama_export_io_npz_from_LLMExporter():
@@ -31,10 +22,7 @@ def test_llama_export_io_npz_from_LLMExporter():
     )
     with tempfile.TemporaryDirectory() as td:
         export_dirpath = Path(td) / "dump_here"
-        new_llm_exporter.dump(
-            # compression_method="min_max_q4_0",
-            export_dirpath=export_dirpath,
-        )
+        new_llm_exporter.dump(export_dirpath=export_dirpath)
 
 
 def test_llama_export_io_npz():
