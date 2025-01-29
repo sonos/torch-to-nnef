@@ -34,7 +34,8 @@ try:
     )
 except (ModuleNotFoundError, ImportError) as exp:
     raise ValueError(
-        "Should be used with 'torch_to_nnef[llm_tract]' enabled") from exp
+        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
+    ) from exp
 
 LOGGER = log.getLogger(__name__)
 
@@ -60,7 +61,9 @@ the force acting on an electric charge.
 Electric potential is the work done to move an electric charge
 from one point to another within an electric field,
 typically measured in volts.
-""".strip().replace("\n", " ")
+""".strip().replace(
+    "\n", " "
+)
 
 
 def load_exporter_from_disk(
@@ -71,7 +74,8 @@ def load_exporter_from_disk(
     local_dir = Path(local_dir) if local_dir else None
     assert hf_model_slug is not None or local_dir is not None
     hf_model_causal = load_model(
-        hf_model_slug, local_dir, as_float16=as_float16)
+        hf_model_slug, local_dir, as_float16=as_float16
+    )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
         hf_model_slug=hf_model_slug,
@@ -92,11 +96,13 @@ class LLMExporter:
         self.as_float16 = as_float16
 
         self.model_infos = HFConfigHelper(
-            self.hf_model_causal.config._name_or_path, self.hf_model_causal.config
+            self.hf_model_causal.config._name_or_path,
+            self.hf_model_causal.config,
         )
 
         self.wrapped_model = self.model_infos.wrapper_class(
-            self.hf_model_causal)
+            self.hf_model_causal
+        )
 
     def check_wrapper_io(self):
         """Checking that wrapper given consistent outputs compared to vanilla model"""
@@ -126,7 +132,9 @@ class LLMExporter:
         def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):
             ref = ref.float()
             cand = cand.float()
-            if not torch.allclose(ref, cand, atol=1e-3 if self.as_float16 else 1e-4):
+            if not torch.allclose(
+                ref, cand, atol=1e-3 if self.as_float16 else 1e-4
+            ):
                 msg = (
                     f"Model: {self.hf_model_causal.__class__} wrapped "
                     f"with: {self.wrapped_model.__class__}, "
@@ -139,7 +147,9 @@ class LLMExporter:
                 raise TorchToNNEFConsistencyError(msg)
 
         err_check("logits", wrapped_outs[0], outs["logits"])
-        for kv_name, ref, cand in zip(out_cache_names, out_pkv, wrapped_outs[1:]):
+        for kv_name, ref, cand in zip(
+            out_cache_names, out_pkv, wrapped_outs[1:]
+        ):
             err_check(kv_name, ref, cand)
         LOGGER.info(
             f"In PyTorch wrapped_model:{self.model_infos.wrapper_class} "
@@ -168,10 +178,11 @@ class LLMExporter:
         input_names = ["input_ids"] + in_cache_names
         output_names = ["outputs"] + out_cache_names
         inputs = tuple(
-            [test_input.input_ids[:, :n_input_tokens]] + past_key_values)
-        assert len(inputs) == len(input_names) == len(output_names), (
-            f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
+            [test_input.input_ids[:, :n_input_tokens]] + past_key_values
         )
+        assert (
+            len(inputs) == len(input_names) == len(output_names)
+        ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
         return (
             inputs,
             input_names,
@@ -194,7 +205,9 @@ class LLMExporter:
             output_names=output_names,
         )
 
-    def dump_all_io_npz_kind(self, io_npz_dirpath: Path, size: int = 6) -> T.List[Path]:
+    def dump_all_io_npz_kind(
+        self, io_npz_dirpath: Path, size: int = 6
+    ) -> T.List[Path]:
         """Realistic dump of IO's"""
         half = size // 2
         prompt_npz_filepath = io_npz_dirpath / "prompt_io.npz"
@@ -210,9 +223,13 @@ class LLMExporter:
                 layer_idx = int(k.replace("out_cache_key_", ""))
                 out_kv[layer_idx] = [v, res[f"out_cache_value_{layer_idx}"]]
         real_kv_cache = [
-            _ for idx in range(max(list(out_kv.keys())) + 1) for _ in out_kv[idx]
+            _
+            for idx in range(max(list(out_kv.keys())) + 1)
+            for _ in out_kv[idx]
         ]
-        prompt_with_past_npz_filepath = io_npz_dirpath / "prompt_with_past_io.npz"
+        prompt_with_past_npz_filepath = (
+            io_npz_dirpath / "prompt_with_past_io.npz"
+        )
         try:
             self.build_io_npz(
                 prompt_with_past_npz_filepath,
@@ -272,7 +289,9 @@ class LLMExporter:
         export_dirpath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
         tract_specific_path: T.Optional[Path] = None,
-        tract_specific_version: T.Optional[T.Union[SemanticVersion, str]] = None,
+        tract_specific_version: T.Optional[
+            T.Union[SemanticVersion, str]
+        ] = None,
         log_level=log.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
@@ -312,7 +331,8 @@ class LLMExporter:
         inference_target.dynamic_axes = dynamic_axes
         if no_verify:
             LOGGER.info(
-                "tract inference is not checked because 'no_verify=True'")
+                "tract inference is not checked because 'no_verify=True'"
+            )
         inference_target.check_io = not no_verify
 
         # Add io.npz test in exproted dir for dbg purpose
@@ -330,7 +350,9 @@ class LLMExporter:
                     test_dir, size=sample_generation_total_size
                 )
             ]
-            with (export_dirpath / "modes.json").open("w", encoding="utf8") as fh:
+            with (export_dirpath / "modes.json").open(
+                "w", encoding="utf8"
+            ) as fh:
                 json.dump({"pytorch_supported_modes": modes}, fh)
             LOGGER.info("'inference mode' evaluation data generated")
         else:
@@ -415,10 +437,14 @@ def load_peft_model(local_dir, kwargs):
     while True:
         try:
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
-                dir_path, **kwargs)
+                dir_path, **kwargs
+            )
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
-            if exp.args[0].startswith(msg) and "size mismatch for" in exp.args[0]:
+            if (
+                exp.args[0].startswith(msg)
+                and "size mismatch for" in exp.args[0]
+            ):
                 # likely an embedding issue with added tokens
                 with (dir_path / "adapter_config.json").open(
                     "r", encoding="utf8"
@@ -434,7 +460,8 @@ def load_peft_model(local_dir, kwargs):
                 from peft import PeftModel
 
                 hf_model_causal = PeftModel.from_pretrained(
-                    hf_model_causal, dir_path)
+                    hf_model_causal, dir_path
+                )
                 LOGGER.info("loaded a PEFT model with resized token embeddings")
                 return hf_model_causal
             raise exp
@@ -477,7 +504,8 @@ def load_model(
             assert dir_path.is_dir(), dir_path
             assert (dir_path / "model.safetensors").is_file(), dir_path
             hf_model_causal = AutoModelForCausalLM.from_pretrained(
-                dir_path, **kwargs)
+                dir_path, **kwargs
+            )
             LOGGER.info(
                 f"load '{hf_model_causal.config.model_type}' "
                 f"from local directory: {dir_path}"
@@ -486,9 +514,11 @@ def load_model(
             hf_model_causal = load_peft_model(local_dir, kwargs)
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            hf_model_slug, **kwargs)
-        LOGGER.info(f"load default trained model from huggingface: '{
-                    hf_model_slug}'")
+            hf_model_slug, **kwargs
+        )
+        LOGGER.info(
+            f"load default trained model from huggingface: '{hf_model_slug}'"
+        )
     return hf_model_causal
 
 
@@ -539,13 +569,15 @@ def prep_exporter(
     with torch.no_grad():
         try:
             exporter = load_exporter_from_disk(
-                model_slug, local_dir, as_float16)
+                model_slug, local_dir, as_float16
+            )
         except OSError as exp:
             if "gated repo" in exp.args[0]:
                 print(exp.args[0])
                 login()
                 exporter = load_exporter_from_disk(
-                    model_slug, local_dir, as_float16)
+                    model_slug, local_dir, as_float16
+                )
             else:
                 raise exp
         if test_display_token_gens:
@@ -603,8 +635,9 @@ def dump_llm(
         wrapper_io_check = False
     if no_verify and test_display_token_gens:
         LOGGER.info(
-            "force disable 'test_display_token_gens' because 'no_verify=True'")
-        test_display_token_gens = False
+            "force disable 'test_display_token_gens' because 'no_verify=True'"
+        )
+        test_display_token_gens = Falsen_gens = False
     if export_dirpath.exists():
         raise ValueError(
             f"'export_dirpath' should not exist but found: '{export_dirpath}'"
