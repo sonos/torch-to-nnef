@@ -2,7 +2,6 @@ import json
 import os
 import typing as T
 from pathlib import Path
-import shutil
 
 import numpy as np
 import torch
@@ -504,6 +503,7 @@ class LLMExporter:
         log_level: int = log.INFO,
         sample_generation_total_size: int = 6,
         no_verify: bool = False,
+        ignore_already_exist_dir: bool = False,
     ):
         """prepare and export model to NNEF"""
         export_dirpath = Path(export_dirpath)
@@ -518,7 +518,7 @@ class LLMExporter:
                 "'no_verify=True'"
             )
             test_display_token_gens = False
-        if export_dirpath.exists():
+        if export_dirpath.exists() and not ignore_already_exist_dir:
             raise ValueError(
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"

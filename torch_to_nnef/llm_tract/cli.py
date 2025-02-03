@@ -1,8 +1,9 @@
-""" Export any huggingface transformers LLM to tract NNEF
+"""Export any huggingface transformers LLM to tract NNEF
 
 With options to compress it to Q4_0 and use float16
 
 """
+
 import argparse
 import typing as T
 
@@ -121,6 +122,12 @@ def parser_cli(
             default=6,
             help="Number of tokens to generate in total "
             "for reference 'modes' samples npz dumped ",
+        )
+        parser.add_argument(
+            "-iaed",
+            "--ignore-already-exist-dir",
+            action="store_true",
+            help="ignore already existing export dir",
         )
         parser.add_argument(
             "-nv",
