@@ -835,11 +835,9 @@ test_suite.add(
 # )
 
 
-def tract_post_0_21_9(i):
-    return isinstance(i, TractNNEF) and i.version >= "0.21.9"
+def tract_post_0_21_10(i):
+    return isinstance(i, TractNNEF) and i.version >= "0.21.10"
 
-
-test_suite.reset()
 
 for axis in [0, 1, -1]:
     shape = (1, 2, 5)
@@ -847,18 +845,18 @@ for axis in [0, 1, -1]:
     test_suite.add(
         (inp,),
         TensorFnPrimitive("argsort", {}),
-        inference_conditions=tract_post_0_21_9,
+        inference_conditions=tract_post_0_21_10,
     )
     test_suite.add(
         (inp,),
         TensorFnPrimitive("sort", {}),
-        inference_conditions=tract_post_0_21_9,
+        inference_conditions=tract_post_0_21_10,
     )
     for dim, s in enumerate(shape):
         test_suite.add(
             (inp,),
             TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
-            inference_conditions=tract_post_0_21_9,
+            inference_conditions=tract_post_0_21_10,
         )
 
 
