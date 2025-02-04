@@ -109,7 +109,7 @@ def hardswish(inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def gelu(g, node, name_to_tensor, null_ref, **kwargs):
+def gelu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     if len(node.inputs) == 2 and node.inputs[1].data == "tanh":
         node.inputs = node.inputs[:1]
         unary_output_op_without_attr(
@@ -120,6 +120,15 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
             null_ref=null_ref,
         )
         return ["gelu_fast_approx"]
+    if isinstance(inference_target, TractNNEF):
+        unary_output_op_without_attr(
+            "tract_gelu",
+            g=g,
+            node=node,
+            name_to_tensor=name_to_tensor,
+            null_ref=null_ref,
+        )
+        return ["tract_gelu"]
     unary_output_op_without_attr(
         "gelu",
         g=g,
@@ -127,7 +136,7 @@ def gelu(g, node, name_to_tensor, null_ref, **kwargs):
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
     )
-    return ["erf", "gelu"]
+    return ["gelu"]
 
 
 @OP_REGISTRY.register()

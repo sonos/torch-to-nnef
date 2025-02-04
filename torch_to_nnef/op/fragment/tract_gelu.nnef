@@ -1,0 +1,7 @@
+extension tract_registry tract_core;
+
+# This is an approximation of GELU using approximate of ERF
+fragment tract_gelu( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = 0.5 * x * ( 1.0 + tract_core_erf(x * 0.7071067811865475));
+}
