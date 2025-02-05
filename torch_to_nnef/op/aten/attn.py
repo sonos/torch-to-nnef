@@ -89,7 +89,7 @@ def scaled_dot_product_attention(
         causal=is_causal,
         rank=key_node.rank,
         dtype=dtype_str,
-        softmax_qk_dtype=(
+        inner_dtype=(
             "f32"
             if inference_target.force_attention_softmax_in_f32
             else dtype_str
