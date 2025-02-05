@@ -1,6 +1,6 @@
 extension tract_registry tract_core;
 
-!main fragment scaled_dot_product_attention_${rank}d${"_masked" if attn_mask else ""}${"_with_scale" if scale else ""}${"_causal" if causal else ""}_${dtype}${"" if  softmax_qk_dtype == dtype else "_sf32"}(
+!main fragment scaled_dot_product_attention_${rank}d${"_masked" if attn_mask else ""}${"_with_scale" if scale else ""}${"_causal" if causal else ""}_${dtype}${"" if  inner_dtype == dtype else "_df32"}(
     query: tensor<scalar>,
     key: tensor<scalar>,
     value: tensor<scalar>${"," if attn_mask or scale else ""}
@@ -12,15 +12,16 @@ extension tract_registry tract_core;
   % endif
 ) -> (out : tensor<scalar>) {
   # https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-% if softmax_qk_dtype != dtype:
-  key = tract_core_cast(key, to="${softmax_qk_dtype}");
-  query = tract_core_cast(query, to="${softmax_qk_dtype}");
+% if inner_dtype != dtype:
+  key = tract_core_cast(key, to="${inner_dtype}");
+  query = tract_core_cast(query, to="${inner_dtype}");
+  value = tract_core_cast(value, to="${inner_dtype}");
 % endif
   dot_qk = matmul(query, key, transposeA = false, transposeB = true);
   qshape = tract_core_shape_of(query);
   kshape = tract_core_shape_of(key);
 % if not scale:
-  qsize = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 1}], end=[${rank}], stride=[1]), to="${softmax_qk_dtype}");
+  qsize = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 1}], end=[${rank}], stride=[1]), to="${inner_dtype}");
   scale = div(1.0, sqrt(qsize));
 % endif
 % if causal:
@@ -28,15 +29,15 @@ extension tract_registry tract_core;
   S = tract_core_cast(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
   temp_mask_val =  tile([[1.0]], repeats=[L, S]);
   temp_mask =  tract_core_cast(tract_core_trilu(temp_mask_val, upper=false, k=0), to="bool");
-  attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${softmax_qk_dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);
+  attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${inner_dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);
 % endif
 % if attn_mask:
-  attn_mask_as_${softmax_qk_dtype} = tract_core_cast(attn_mask, to="${softmax_qk_dtype}");
+  attn_mask_as_${inner_dtype} = tract_core_cast(attn_mask, to="${inner_dtype}");
 % endif
-  scaled_dot_qk = mul(dot_qk, scale) ${("+ attn_mask_as_"+softmax_qk_dtype) if attn_mask else ""}${"+ attn_bias" if causal else ""};
+  scaled_dot_qk = mul(dot_qk, scale) ${("+ attn_mask_as_"+inner_dtype) if attn_mask else ""}${"+ attn_bias" if causal else ""};
   attn_weight = softmax(scaled_dot_qk,  axes=[${rank - 1}]);
-% if softmax_qk_dtype != dtype:
-  attn_weight = tract_core_cast(attn_weight, to="${dtype}");
-% endif
   out = matmul(attn_weight, value, transposeA = false, transposeB = false);
+% if inner_dtype != dtype:
+  out = tract_core_cast(out, to="${dtype}");
+% endif
 }
