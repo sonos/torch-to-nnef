@@ -45,7 +45,7 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
 LOGGER = logging.getLogger(__name__)
 
 
-class TractFeatureFlag(enum.Enum):
+class TractFeatureFlag(str, enum.Enum):
     DEFAULT = "default"
     COMPLEX = "complex"
 
@@ -67,14 +67,16 @@ class TractNNEF(InferenceTarget):
     def __init__(
         self,
         version: T.Union[str, SemanticVersion],
-        feature_flags: T.Optional[T.Set[str]] = None,
+        feature_flags: T.Optional[T.Set[TractFeatureFlag]] = None,
         check_io: bool = True,
         dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] = None,
         specific_tract_binary_path: T.Optional[Path] = None,
+        force_attention_softmax_in_f32: bool = True,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
+        self.force_attention_softmax_in_f32 = force_attention_softmax_in_f32
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
@@ -326,6 +328,7 @@ class TractCli:
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
+
                         raise TractError(cmd_shell, err_filtered)
                     return True
                 log_io_check_call_err(cmd_shell, serr)

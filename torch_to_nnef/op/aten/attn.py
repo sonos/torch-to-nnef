@@ -2,7 +2,9 @@
 
 import torch
 
+from torch_to_nnef import inference_target
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.fragment import TMPL_FRAGMENTS
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -15,7 +17,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
+def scaled_dot_product_attention(
+    g, node, name_to_tensor, inference_target, **kwargs
+):
     """
     reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     """
@@ -32,6 +36,12 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     if dropout_p_node.data != 0.0:
         raise TorchToNNEFNotImplementedError(
             "scaled_dot_product_attention with > 0 dropout_p not implemented"
+        )
+
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(
+            "Only support tract since float casting"
+            " is important for overflow"
         )
 
     query_tensor = get_or_add_tensor_variable_in_nnef(
@@ -79,6 +89,11 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
         causal=is_causal,
         rank=key_node.rank,
         dtype=dtype_str,
+        softmax_qk_dtype=(
+            "f32"
+            if inference_target.force_attention_softmax_in_f32
+            else dtype_str
+        ),
         attn_mask=has_masked_attn,
     )
 
