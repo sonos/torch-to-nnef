@@ -186,9 +186,9 @@ def export_model_to_nnef(
                 active_custom_extensions + custom_extensions
             )
 
-        active_custom_fragments = get_active_custom_fragments(graph_extractor)
+        active_custom_fragments = inference_target.specific_fragments(model)
         active_custom_fragments.update(
-            inference_target.specific_fragments(model)
+            get_active_custom_fragments(graph_extractor)
         )
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level

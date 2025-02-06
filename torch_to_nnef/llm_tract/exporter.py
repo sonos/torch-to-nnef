@@ -538,9 +538,9 @@ class LLMExporter:
         tract_specific_properties = tract_specific_properties or {}
         tract_specific_properties.update(
             {
-                "hf_model_slug": self.model_infos.model_slug,
                 "hf_model_type": self.model_infos.conf.model_type,
-                "as_float16": self.as_float16,
+                "n_parameters": str(self.model_n_params),
+                "as_float16": "1" if self.as_float16 else "0",
                 "compression_method": compression_method,
                 "compression_registry": compression_registry,
             }
