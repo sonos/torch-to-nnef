@@ -376,7 +376,9 @@ def pick_index_in_axis(
     Because in case of tract out of bound is not supported !
 
     """
-    if not isinstance(index, int):
+    if not isinstance(index, int) and not (
+        isinstance(index, float) and index.is_integer()
+    ):
         if isinstance(index, torch.Tensor):
             index = index.tolist()
         else:
@@ -386,7 +388,7 @@ def pick_index_in_axis(
     new_index = input_node.shape[rank] + index
     if check_is_positive:
         assert new_index >= 0, new_index
-    return new_index
+    return int(new_index)
 
 
 def unary_output_op_without_attr(
@@ -398,9 +400,11 @@ def unary_output_op_without_attr(
         name_to_tensor,
         nnef_op_type=nnef_op_type,
         inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            if _ and not (isinstance(_.data, str) and _.data == "none")
-            else null_ref
+            (
+                get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+                if _ and not (isinstance(_.data, str) and _.data == "none")
+                else null_ref
+            )
             for _ in node.inputs
         ],
     )
@@ -697,9 +701,11 @@ class OpHelper:
 
     def data_nodes_to_nnef_tensors(self, data_nodes):
         return [
-            self.get_or_add_tensor_variable_in_nnef(node=dn)
-            if dn and not (isinstance(dn.data, str) and dn.data == "none")
-            else self.null_ref
+            (
+                self.get_or_add_tensor_variable_in_nnef(node=dn)
+                if dn and not (isinstance(dn.data, str) and dn.data == "none")
+                else self.null_ref
+            )
             for dn in data_nodes
         ]
 

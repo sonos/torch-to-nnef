@@ -50,6 +50,13 @@ class TractFeatureFlag(str, enum.Enum):
     COMPLEX = "complex"
 
 
+class TractCheckTolerance(str, enum.Enum):
+    EXACT = "exact"
+    APPROXIMATE = "approximate"
+    CLOSE = "close"
+    SUPER = "super"
+
+
 class TractNNEF(InferenceTarget):
     OFFICIAL_SUPPORTED_VERSIONS = [
         SemanticVersion.from_str(version)
@@ -72,11 +79,13 @@ class TractNNEF(InferenceTarget):
         dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] = None,
         specific_tract_binary_path: T.Optional[Path] = None,
         force_attention_softmax_in_f32: bool = True,
+        check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
         self.force_attention_softmax_in_f32 = force_attention_softmax_in_f32
+        self.check_io_tolerance = check_io_tolerance
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
@@ -141,6 +150,7 @@ class TractNNEF(InferenceTarget):
                     input_names=input_names,
                     output_names=output_names,
                     tract_cli=self.tract_cli,
+                    check_tolerance=self.check_io_tolerance,
                 )
             else:
                 assert_io_and_debug_bundle(
@@ -151,6 +161,7 @@ class TractNNEF(InferenceTarget):
                     input_names=input_names,
                     output_names=output_names,
                     tract_cli=self.tract_cli,
+                    check_tolerance=self.check_io_tolerance,
                 )
 
 
@@ -188,9 +199,11 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         axis = len(shape) - axis
 
                     external_op.attribs["shape"] = [
-                        nnef.Identifier(str(axis_name))
-                        if idx == axis
-                        else dim_size
+                        (
+                            nnef.Identifier(str(axis_name))
+                            if idx == axis
+                            else dim_size
+                        )
                         for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
@@ -275,6 +288,7 @@ class TractCli:
         nnef_path: Path,
         io_npz_path: Path,
         raise_exception=True,
+        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         extra_param = (
             ["--nnef-tract-extra"] if "0.20.20" <= self.version else []
@@ -311,7 +325,7 @@ class TractCli:
             ]
         cmd_ += ["--allow-float-casts"]
         if self.version >= "0.21.7":
-            cmd_ += ["--approx", "approximate"]
+            cmd_ += ["--approx", check_tolerance.value]
         cmd = [str(c) for c in cmd_]
         cmd_shell = " ".join(_ for _ in cmd)
         with subprocess.Popen(
@@ -591,6 +605,7 @@ def assert_io(
     io_npz_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
+    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
     """simple assertion without debug bundle.
 
@@ -623,6 +638,7 @@ def assert_io(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=raise_exception,
+                check_tolerance=check_tolerance,
             ):
                 LOGGER.info(
                     f"IO bit match between tract and PyTorch for {nnef_file_path}"
@@ -640,6 +656,7 @@ def assert_io_and_debug_bundle(
     debug_bundle_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
+    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -663,6 +680,7 @@ def assert_io_and_debug_bundle(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=raise_exception,
+                check_tolerance=check_tolerance,
             )
             LOGGER.info(
                 f"IO bit match between tract and PyTorch for {nnef_file_path}"
