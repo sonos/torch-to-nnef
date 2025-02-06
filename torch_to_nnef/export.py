@@ -1,6 +1,8 @@
 import logging as log
 import typing as T
 from pathlib import Path
+import contextlib
+
 
 import numpy as np
 import torch
@@ -30,7 +32,7 @@ from torch_to_nnef.qtensor.base import (
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
-from torch_to_nnef.utils import dedup_list
+from torch_to_nnef.utils import dedup_list, torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -215,13 +217,31 @@ def export_model_to_nnef(
         exported_filepath = file_path_export.parent / (
             nnef_exp_file_path.name + ".tgz"
         )
-        inference_target.post_export(
-            model,
-            nnef_graph,
-            args,
-            exported_filepath,
-            debug_bundle_path=debug_bundle_path,
-        )
+        with fixed_backend():
+            inference_target.post_export(
+                model,
+                nnef_graph,
+                args,
+                exported_filepath,
+                debug_bundle_path=debug_bundle_path,
+            )
+
+
+@contextlib.contextmanager
+def fixed_backend():
+    """Controled backend in order to limit volatility of kernel selection
+
+    Useful in case of checks between PyTorch and targeted inference
+    outputs.
+
+    """
+    if torch_version() >= "2.3.0":
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        with sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):
+            yield None
+    else:
+        yield None
 
 
 def check_io_names(
