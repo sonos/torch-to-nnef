@@ -386,6 +386,7 @@ class LLMExporter:
         tract_specific_version: T.Optional[
             T.Union[SemanticVersion, str]
         ] = None,
+        tract_specific_properties: T.Optional[str] = None,
         log_level=log.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
@@ -428,6 +429,7 @@ class LLMExporter:
             else:
                 inference_target = TractNNEF.latest()
             inference_target.dynamic_axes = dynamic_axes
+            inference_target.specific_properties = tract_specific_properties
             if no_verify:
                 LOGGER.info(
                     "tract inference is not checked because 'no_verify=True'"
@@ -493,6 +495,7 @@ class LLMExporter:
         export_dirpath: T.Union[str, Path],
         tract_specific_path: T.Optional[Path] = None,
         tract_specific_version: T.Optional[str] = None,
+        tract_specific_properties: T.Optional[str] = None,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
@@ -523,6 +526,7 @@ class LLMExporter:
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"
             )
+
         self.prepare(
             compression_method=compression_method,
             compression_registry=compression_registry,
@@ -531,11 +535,22 @@ class LLMExporter:
             export_dirpath=export_dirpath,
             log_level=log_level,
         )
+        tract_specific_properties = tract_specific_properties or {}
+        tract_specific_properties.update(
+            {
+                "hf_model_slug": self.model_infos.model_slug,
+                "hf_model_type": self.model_infos.conf.model_type,
+                "as_float16": self.as_float16,
+                "compression_method": compression_method,
+                "compression_registry": compression_registry,
+            }
+        )
         self.export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
             tract_specific_path=tract_specific_path,
             tract_specific_version=tract_specific_version,
+            tract_specific_properties=tract_specific_properties,
             log_level=log_level,
             dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
             check_inference_modes=check_inference_modes,

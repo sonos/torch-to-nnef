@@ -187,7 +187,9 @@ def export_model_to_nnef(
             )
 
         active_custom_fragments = get_active_custom_fragments(graph_extractor)
-        custom_fragment_names = list(active_custom_fragments.keys())
+        active_custom_fragments.update(
+            inference_target.specific_fragments(model)
+        )
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level
         )
@@ -195,16 +197,12 @@ def export_model_to_nnef(
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
-            fragment_dependencies={
-                # this trick ensure all requested fragment are exported
-                _: custom_fragment_names
-                for _ in custom_fragment_names
-            },
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
             inference_target=inference_target,
         )(nnef_graph, str(nnef_exp_file_path))
+
         if len(active_custom_extensions) > 0:
             LOGGER.info(
                 "The exported NNEF model need special custom extensions "

@@ -99,12 +99,14 @@ def _print(
 
         inputs = (
             (
-                from_numpy(item.data)
-                if item.producer is None
-                else nnef.Identifier(as_str(item.name))
+                (
+                    from_numpy(item.data)
+                    if item.producer is None
+                    else nnef.Identifier(as_str(item.name))
+                )
+                if isinstance(item, Tensor)
+                else item
             )
-            if isinstance(item, Tensor)
-            else item
             for item in op.inputs
         )
         inputs = (
@@ -290,7 +292,6 @@ class Writer:
         compression=None,
         extensions=None,
         fragments=None,
-        fragment_dependencies=None,
         generate_custom_fragments=False,
         version_custom_fragments=True,
         annotate_shapes=False,
@@ -299,7 +300,6 @@ class Writer:
         self._compression = compression
         self._extensions = extensions or []
         self._fragments = fragments or {}
-        self._fragment_dependencies = fragment_dependencies or {}
         self._generate_custom_fragments = generate_custom_fragments
         self._version_custom_fragments = version_custom_fragments
         self._annotate_shapes = annotate_shapes
@@ -334,14 +334,7 @@ class Writer:
 
             self._write_tensors_from_operators(graph, folder)
 
-            used_operators = self._used_operators(
-                graph, self._fragment_dependencies
-            )
-            fragments = "".join(
-                text
-                for name, text in self._fragments.items()
-                if name in used_operators
-            )
+            fragments = "".join(text for _, text in self._fragments.items())
             if self._generate_custom_fragments:
                 customs = _generate_custom_fragments(
                     graph,

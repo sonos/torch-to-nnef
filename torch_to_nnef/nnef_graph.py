@@ -1,6 +1,5 @@
 import logging
 import typing as T
-from datetime import datetime
 
 import numpy as np
 import torch
@@ -15,7 +14,6 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
-from torch_to_nnef.model_wrapper import WrapStructIO
 from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
@@ -69,15 +67,8 @@ class TorchToNGraphExtractor:
         self._forced_outputs_names = forced_outputs_names
         self._check_io_names_qte_match = check_io_names_qte_match
         self._inference_target = inference_target
-        datestr = datetime.now().strftime("%Y_%m_%d")
-        model_slug = self.smart_graph_name(model)
-        self.g = NGraph(f"net_{model_slug}_{datestr}")
+        self.g = NGraph("network")
         self.activated_custom_fragment_keys: T.Set[str] = set()
-
-    def smart_graph_name(self, model):
-        if isinstance(model, WrapStructIO):
-            model = model.model
-        return str(model.__class__.__name__).replace(".", "_").lower()
 
     def _op_nodes_to_nnef_operation(self, node, name_to_tensor, null_ref):
         if node.kind.startswith("aten::"):

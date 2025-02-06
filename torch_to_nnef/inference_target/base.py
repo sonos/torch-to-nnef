@@ -46,6 +46,10 @@ class InferenceTarget:
     def has_dynamic_axes(self) -> bool:
         return False
 
+    def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
+        """Optional custom fragments to pass"""
+        return {}
+
     def pre_trace(
         self,
         model: nn.Module,

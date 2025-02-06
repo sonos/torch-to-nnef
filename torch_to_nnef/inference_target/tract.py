@@ -18,6 +18,7 @@ import typing as T
 import urllib.request
 from functools import cached_property
 from pathlib import Path
+from datetime import datetime
 
 import nnef
 import numpy as np
@@ -38,7 +39,7 @@ from torch_to_nnef.exceptions import (
     TractOnnxToNNEFError,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.utils import SemanticVersion, cd, dedup_list
+from torch_to_nnef.utils import SemanticVersion, cd, dedup_list, torch_version
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
@@ -80,12 +81,14 @@ class TractNNEF(InferenceTarget):
         specific_tract_binary_path: T.Optional[Path] = None,
         force_attention_softmax_in_f32: bool = True,
         check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
+        specific_properties: T.Optional[T.Dict[str, str]] = None,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
         self.force_attention_softmax_in_f32 = force_attention_softmax_in_f32
         self.check_io_tolerance = check_io_tolerance
+        self.specific_properties = specific_properties
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
@@ -101,6 +104,47 @@ class TractNNEF(InferenceTarget):
         LOGGER.info(f"use tract:{tract_cli.tract_path.absolute()}")
         self.tract_cli = tract_cli
         assert tract_cli.version == self.version
+
+    def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
+        """Optional custom fragments to pass"""
+        from torch_to_nnef import __version__
+
+        items = {
+            "tract_target_version": self.version.to_str(),
+            "torch_to_nnef_version": __version__,
+            "torch_version": torch_version().to_str(),
+        }
+
+        try:
+            import transformers
+
+            items["transformers_version"] = transformers.__version__
+        except ImportError:
+            pass
+
+        items["export_date"] = str(datetime.now())
+
+        from torch_to_nnef.model_wrapper import WrapStructIO
+
+        if isinstance(model, WrapStructIO):
+            model = model.model
+        items["exported_py_class"] = model.__class__.__name__
+
+        if self.specific_properties is not None:
+            items.update(self.specific_properties)
+
+        properties = ",\n".join(
+            [f'    ("{k}", "{v}")' for k, v in items.items()]
+        )
+        return {
+            "tract_core_properties": (
+                "fragment tract_core_properties(\n"
+                ") -> (properties: (string, tensor<scalar>)[])\n"
+                "{\n"
+                f"  properties = [\n{properties}\n  ];\n"
+                "}\n\n"
+            )
+        }
 
     @property
     def has_dynamic_axes(self) -> bool:
