@@ -18,6 +18,7 @@ import typing as T
 import urllib.request
 from functools import cached_property
 from pathlib import Path
+from datetime import datetime
 
 import nnef
 import numpy as np
@@ -38,16 +39,23 @@ from torch_to_nnef.exceptions import (
     TractOnnxToNNEFError,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.utils import SemanticVersion, cd, dedup_list
+from torch_to_nnef.utils import SemanticVersion, cd, dedup_list, torch_version
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "svc" / "tract"
 LOGGER = logging.getLogger(__name__)
 
 
-class TractFeatureFlag(enum.Enum):
+class TractFeatureFlag(str, enum.Enum):
     DEFAULT = "default"
     COMPLEX = "complex"
+
+
+class TractCheckTolerance(str, enum.Enum):
+    EXACT = "exact"
+    APPROXIMATE = "approximate"
+    CLOSE = "close"
+    SUPER = "super"
 
 
 class TractNNEF(InferenceTarget):
@@ -56,7 +64,6 @@ class TractNNEF(InferenceTarget):
         for version in [
             "0.21.7",
             "0.20.22",
-            "0.19.16",
         ]
     ]
 
@@ -67,14 +74,22 @@ class TractNNEF(InferenceTarget):
     def __init__(
         self,
         version: T.Union[str, SemanticVersion],
-        feature_flags: T.Optional[T.Set[str]] = None,
+        feature_flags: T.Optional[T.Set[TractFeatureFlag]] = None,
         check_io: bool = True,
         dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] = None,
         specific_tract_binary_path: T.Optional[Path] = None,
+        check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
+        specific_properties: T.Optional[T.Dict[str, str]] = None,
+        force_attention_inner_in_f32: bool = False,
+        force_linear_accumulation_in_f32: bool = False,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
+        self.check_io_tolerance = check_io_tolerance
+        self.specific_properties = specific_properties
+        self.force_attention_inner_in_f32 = force_attention_inner_in_f32
+        self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
@@ -90,6 +105,47 @@ class TractNNEF(InferenceTarget):
         LOGGER.info(f"use tract:{tract_cli.tract_path.absolute()}")
         self.tract_cli = tract_cli
         assert tract_cli.version == self.version
+
+    def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
+        """Optional custom fragments to pass"""
+        from torch_to_nnef import __version__
+
+        items = {
+            "tract_target_version": self.version.to_str(),
+            "torch_to_nnef_version": __version__,
+            "torch_version": torch_version().to_str(),
+        }
+
+        try:
+            import transformers
+
+            items["transformers_version"] = transformers.__version__
+        except ImportError:
+            pass
+
+        items["export_date"] = str(datetime.now())
+
+        from torch_to_nnef.model_wrapper import WrapStructIO
+
+        if isinstance(model, WrapStructIO):
+            model = model.model
+        items["exported_py_class"] = model.__class__.__name__
+
+        if self.specific_properties is not None:
+            items.update(self.specific_properties)
+
+        properties = ",\n".join(
+            [f'    ("{k}", "{v}")' for k, v in items.items()]
+        )
+        return {
+            "tract_core_properties": (
+                "fragment tract_core_properties(\n"
+                ") -> (properties: (string, tensor<scalar>)[])\n"
+                "{\n"
+                f"  properties = [\n{properties}\n  ];\n"
+                "}\n\n"
+            )
+        }
 
     @property
     def has_dynamic_axes(self) -> bool:
@@ -139,6 +195,7 @@ class TractNNEF(InferenceTarget):
                     input_names=input_names,
                     output_names=output_names,
                     tract_cli=self.tract_cli,
+                    check_tolerance=self.check_io_tolerance,
                 )
             else:
                 assert_io_and_debug_bundle(
@@ -149,6 +206,7 @@ class TractNNEF(InferenceTarget):
                     input_names=input_names,
                     output_names=output_names,
                     tract_cli=self.tract_cli,
+                    check_tolerance=self.check_io_tolerance,
                 )
 
 
@@ -186,9 +244,11 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         axis = len(shape) - axis
 
                     external_op.attribs["shape"] = [
-                        nnef.Identifier(str(axis_name))
-                        if idx == axis
-                        else dim_size
+                        (
+                            nnef.Identifier(str(axis_name))
+                            if idx == axis
+                            else dim_size
+                        )
                         for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
@@ -273,6 +333,7 @@ class TractCli:
         nnef_path: Path,
         io_npz_path: Path,
         raise_exception=True,
+        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         extra_param = (
             ["--nnef-tract-extra"] if "0.20.20" <= self.version else []
@@ -309,7 +370,7 @@ class TractCli:
             ]
         cmd_ += ["--allow-float-casts"]
         if self.version >= "0.21.7":
-            cmd_ += ["--approx", "approximate"]
+            cmd_ += ["--approx", check_tolerance.value]
         cmd = [str(c) for c in cmd_]
         cmd_shell = " ".join(_ for _ in cmd)
         with subprocess.Popen(
@@ -326,6 +387,7 @@ class TractCli:
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
+
                         raise TractError(cmd_shell, err_filtered)
                     return True
                 log_io_check_call_err(cmd_shell, serr)
@@ -588,6 +650,7 @@ def assert_io(
     io_npz_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
+    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
     """simple assertion without debug bundle.
 
@@ -620,6 +683,7 @@ def assert_io(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=raise_exception,
+                check_tolerance=check_tolerance,
             ):
                 LOGGER.info(
                     f"IO bit match between tract and PyTorch for {nnef_file_path}"
@@ -637,6 +701,7 @@ def assert_io_and_debug_bundle(
     debug_bundle_path: T.Optional[Path] = None,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
+    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -660,6 +725,7 @@ def assert_io_and_debug_bundle(
                 nnef_file_path,
                 io_npz_path,
                 raise_exception=raise_exception,
+                check_tolerance=check_tolerance,
             )
             LOGGER.info(
                 f"IO bit match between tract and PyTorch for {nnef_file_path}"

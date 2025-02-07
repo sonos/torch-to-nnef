@@ -1,6 +1,8 @@
 import logging as log
 import typing as T
 from pathlib import Path
+import contextlib
+
 
 import numpy as np
 import torch
@@ -30,7 +32,7 @@ from torch_to_nnef.qtensor.base import (
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
-from torch_to_nnef.utils import dedup_list
+from torch_to_nnef.utils import dedup_list, torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -184,8 +186,10 @@ def export_model_to_nnef(
                 active_custom_extensions + custom_extensions
             )
 
-        active_custom_fragments = get_active_custom_fragments(graph_extractor)
-        custom_fragment_names = list(active_custom_fragments.keys())
+        active_custom_fragments = inference_target.specific_fragments(model)
+        active_custom_fragments.update(
+            get_active_custom_fragments(graph_extractor)
+        )
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level
         )
@@ -193,16 +197,12 @@ def export_model_to_nnef(
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
-            fragment_dependencies={
-                # this trick ensure all requested fragment are exported
-                _: custom_fragment_names
-                for _ in custom_fragment_names
-            },
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,  # using version sometime create conflict with ops
             inference_target=inference_target,
         )(nnef_graph, str(nnef_exp_file_path))
+
         if len(active_custom_extensions) > 0:
             LOGGER.info(
                 "The exported NNEF model need special custom extensions "
@@ -215,13 +215,31 @@ def export_model_to_nnef(
         exported_filepath = file_path_export.parent / (
             nnef_exp_file_path.name + ".tgz"
         )
-        inference_target.post_export(
-            model,
-            nnef_graph,
-            args,
-            exported_filepath,
-            debug_bundle_path=debug_bundle_path,
-        )
+        with fixed_backend():
+            inference_target.post_export(
+                model,
+                nnef_graph,
+                args,
+                exported_filepath,
+                debug_bundle_path=debug_bundle_path,
+            )
+
+
+@contextlib.contextmanager
+def fixed_backend():
+    """Controled backend in order to limit volatility of kernel selection
+
+    Useful in case of checks between PyTorch and targeted inference
+    outputs.
+
+    """
+    if torch_version() >= "2.3.0":
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        with sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):
+            yield None
+    else:
+        yield None
 
 
 def check_io_names(

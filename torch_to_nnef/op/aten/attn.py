@@ -2,7 +2,9 @@
 
 import torch
 
+from torch_to_nnef import inference_target
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.fragment import TMPL_FRAGMENTS
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -15,7 +17,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 @OP_REGISTRY.register()
-def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
+def scaled_dot_product_attention(
+    g, node, name_to_tensor, inference_target, **kwargs
+):
     """
     reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     """
@@ -32,6 +36,13 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     if dropout_p_node.data != 0.0:
         raise TorchToNNEFNotImplementedError(
             "scaled_dot_product_attention with > 0 dropout_p not implemented"
+        )
+
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(
+            "Only support tract since: "
+            " type casting is need, "
+            " and getting shape of tensor is important too "
         )
 
     query_tensor = get_or_add_tensor_variable_in_nnef(
@@ -60,7 +71,8 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     if has_masked_attn:
         if attn_mask_node.dtype not in [torch.float32, torch.float16]:
             raise TorchToNNEFNotImplementedError(
-                "scaled_dot_product_attention with attn_mask_node non float not implemented"
+                "scaled_dot_product_attention with attn_mask_node "
+                "non float not implemented"
             )
         attn_mask_tensor = get_or_add_tensor_variable_in_nnef(
             g, attn_mask_node, name_to_tensor
@@ -73,12 +85,20 @@ def scaled_dot_product_attention(g, node, name_to_tensor, **kwargs):
     if query_node.dtype == torch.float16:
         dtype_str = "f16"
 
-    tmpl = TMPL_FRAGMENTS["scaled_dot_product_attention"]
+    tmpl_fragment_name = "scaled_dot_product_attention"
+    if inference_target.version < "0.21.10":
+        tmpl_fragment_name = f"legacy_{tmpl_fragment_name}"
+    tmpl = TMPL_FRAGMENTS[tmpl_fragment_name]
     fragment = tmpl.into_concrete_fragment(
         scale=scale,
         causal=is_causal,
         rank=key_node.rank,
         dtype=dtype_str,
+        inner_dtype=(
+            "f32"
+            if inference_target.force_attention_inner_in_f32
+            else dtype_str
+        ),
         attn_mask=has_masked_attn,
     )
 

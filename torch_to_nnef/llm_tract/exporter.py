@@ -13,7 +13,12 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotFoundFile,
 )
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli, TractNNEF, build_io
+from torch_to_nnef.inference_target.tract import (
+    TractCheckTolerance,
+    TractCli,
+    TractNNEF,
+    build_io,
+)
 from torch_to_nnef.llm_tract.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
@@ -82,7 +87,10 @@ def _load_exporter_from(
         local_dir=local_dir,
     )
     return LLMExporter(
-        hf_model_causal, tokenizer, as_float16=as_float16, local_dir=local_dir
+        hf_model_causal,
+        tokenizer,
+        as_float16=as_float16,
+        local_dir=local_dir,
     )
 
 
@@ -107,6 +115,7 @@ class LLMExporter:
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal
         )
+        self._inference_target_options = {}
 
     def __repr__(self):
         n_params = self.model_n_params
@@ -318,6 +327,9 @@ class LLMExporter:
         text = self.tokenizer.decode(iids[0])
         LOGGER.info(f"generated text: {text}")
 
+    def _update_inference_target_options(self, inference_target):
+        inference_target.__dict__.update(self._inference_target_options)
+
     def apply_f16_fixes(self):
         """Align float dtype arguments in few graph ops
 
@@ -330,6 +342,11 @@ class LLMExporter:
 
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
+        if self.model_infos.conf.model_type == "qwen2":
+            self._inference_target_options = {
+                "force_attention_inner_in_f32": True,
+                "force_linear_accumulation_in_f32": True,
+            }
 
     def prepare(
         self,
@@ -386,11 +403,13 @@ class LLMExporter:
         tract_specific_version: T.Optional[
             T.Union[SemanticVersion, str]
         ] = None,
+        tract_specific_properties: T.Optional[str] = None,
         log_level=log.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         sample_generation_total_size: int = 0,
         no_verify: bool = False,
+        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         """Export model has is currently in self.hf_model_causal
 
@@ -428,6 +447,9 @@ class LLMExporter:
             else:
                 inference_target = TractNNEF.latest()
             inference_target.dynamic_axes = dynamic_axes
+            inference_target.specific_properties = tract_specific_properties
+            inference_target.check_io_tolerance = tract_check_io_tolerance
+            self._update_inference_target_options(inference_target)
             if no_verify:
                 LOGGER.info(
                     "tract inference is not checked because 'no_verify=True'"
@@ -493,6 +515,7 @@ class LLMExporter:
         export_dirpath: T.Union[str, Path],
         tract_specific_path: T.Optional[Path] = None,
         tract_specific_version: T.Optional[str] = None,
+        tract_specific_properties: T.Optional[str] = None,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
@@ -504,8 +527,19 @@ class LLMExporter:
         sample_generation_total_size: int = 6,
         no_verify: bool = False,
         ignore_already_exist_dir: bool = False,
+        force_f32_attention: T.Optional[bool] = None,
+        force_f32_linear_accumulator: T.Optional[bool] = None,
+        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         """prepare and export model to NNEF"""
+        if force_f32_attention:
+            self._inference_target_options["force_attention_inner_in_f32"] = (
+                True
+            )
+        if force_f32_linear_accumulator:
+            self._inference_target_options[
+                "force_linear_accumulation_in_f32"
+            ] = True
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(
@@ -523,6 +557,7 @@ class LLMExporter:
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"
             )
+
         self.prepare(
             compression_method=compression_method,
             compression_registry=compression_registry,
@@ -531,16 +566,45 @@ class LLMExporter:
             export_dirpath=export_dirpath,
             log_level=log_level,
         )
+        tract_specific_properties = tract_specific_properties or {}
+        tract_specific_properties.update(
+            {
+                "hf_model_type": self.model_infos.conf.model_type,
+                "n_parameters": str(self.model_n_params),
+                "as_float16": "1" if self.as_float16 else "0",
+            }
+        )
+        if compression_method is not None:
+            tract_specific_properties.update(
+                {
+                    "compression_method": compression_method,
+                    "compression_registry": compression_registry,
+                }
+            )
+        if not self.hf_model_causal.config._name_or_path.startswith("/tmp"):
+            tract_specific_properties["name_or_path"] = (
+                self.hf_model_causal.config._name_or_path
+            )
+        if hasattr(self.hf_model_causal, "peft_config"):
+            for k, conf in self.hf_model_causal.peft_config.items():
+                tract_specific_properties[f"peft_{k}_type"] = (
+                    self.hf_model_causal.peft_config[k].peft_type.value
+                )
+                tract_specific_properties[f"peft_{k}_target_modules"] = (
+                    ",".join(self.hf_model_causal.peft_config[k].target_modules)
+                )
         self.export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
             tract_specific_path=tract_specific_path,
             tract_specific_version=tract_specific_version,
+            tract_specific_properties=tract_specific_properties,
             log_level=log_level,
             dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
             check_inference_modes=check_inference_modes,
             sample_generation_total_size=sample_generation_total_size,
             no_verify=no_verify,
+            tract_check_io_tolerance=tract_check_io_tolerance,
         )
 
 
@@ -736,6 +800,10 @@ def dump_llm(
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
     exporter = LLMExporter.load(model_slug, local_dir, as_float16)
+    if isinstance(kwargs.get("tract_check_io_tolerance"), str):
+        kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
+            kwargs["tract_check_io_tolerance"]
+        )
     exporter.dump(*args, **kwargs)
     export_path = kwargs.get("export_dirpath", args[0] if args else None)
     return (

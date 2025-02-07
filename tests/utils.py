@@ -151,12 +151,14 @@ def check_model_io_test(
             output_names=output_names,
             log_level=log.INFO,
             debug_bundle_path=(
-                Path.cwd()
-                / "failed_tests"
-                / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
-            )
-            if os.environ.get("DEBUG", False)
-            else None,
+                (
+                    Path.cwd()
+                    / "failed_tests"
+                    / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
+                )
+                if os.environ.get("DEBUG", False)
+                else None
+            ),
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
