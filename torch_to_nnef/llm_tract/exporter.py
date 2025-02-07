@@ -110,6 +110,7 @@ class LLMExporter:
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal
         )
+        self._inference_target_options = {}
 
     def __repr__(self):
         n_params = self.model_n_params
@@ -321,6 +322,9 @@ class LLMExporter:
         text = self.tokenizer.decode(iids[0])
         LOGGER.info(f"generated text: {text}")
 
+    def _update_inference_target_options(self, inference_target):
+        inference_target.__dict__.update(self._inference_target_options)
+
     def apply_f16_fixes(self):
         """Align float dtype arguments in few graph ops
 
@@ -333,6 +337,11 @@ class LLMExporter:
 
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
+        if self.model_infos.conf.model_type == "qwen2":
+            self._inference_target_options = {
+                "force_attention_inner_in_f32": True,
+                "force_linear_accumulation_in_f32": True,
+            }
 
     def prepare(
         self,
@@ -433,6 +442,7 @@ class LLMExporter:
                 inference_target = TractNNEF.latest()
             inference_target.dynamic_axes = dynamic_axes
             inference_target.specific_properties = tract_specific_properties
+            self._update_inference_target_options(inference_target)
             if no_verify:
                 LOGGER.info(
                     "tract inference is not checked because 'no_verify=True'"

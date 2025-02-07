@@ -80,14 +80,16 @@ class TractNNEF(InferenceTarget):
         specific_tract_binary_path: T.Optional[Path] = None,
         check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         specific_properties: T.Optional[T.Dict[str, str]] = None,
-        force_attention_inner_in_f32: bool = True,
+        force_attention_inner_in_f32: bool = False,
+        force_linear_accumulation_in_f32: bool = False,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
-        self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.check_io_tolerance = check_io_tolerance
         self.specific_properties = specific_properties
+        self.force_attention_inner_in_f32 = force_attention_inner_in_f32
+        self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
