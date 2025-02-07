@@ -8,6 +8,7 @@ import argparse
 import typing as T
 
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.llm_tract.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import LlamaSLugs, OpenELMSlugs, PHISlugs
 from torch_to_nnef.llm_tract.exporter import dump_llm
@@ -76,6 +77,28 @@ def parser_cli(
             "--local-dir",
             help="local dir containing .safetensors compatible with openELM"
             " model size specified in slug",
+        )
+
+        parser.add_argument(
+            "-f32-attn",
+            "--force-f32-attention",
+            action="store_true",
+            help="force f32 to happen in f32 even if f16 in rest of network",
+        )
+
+        parser.add_argument(
+            "-f32-lin-acc",
+            "--force-f32-linear-accumulator",
+            action="store_true",
+            help="force f32 to happen in linear(f16,f16)",
+        )
+
+        parser.add_argument(
+            "-tt",
+            "--tract-check-io-tolerance",
+            default=TractCheckTolerance.APPROXIMATE.value,
+            choices=[t.value for t in TractCheckTolerance],
+            help="tract check io tolerance level",
         )
 
         if with_export_args:

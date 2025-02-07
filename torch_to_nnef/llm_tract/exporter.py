@@ -13,7 +13,12 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotFoundFile,
 )
 from torch_to_nnef.export import export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCli, TractNNEF, build_io
+from torch_to_nnef.inference_target.tract import (
+    TractCheckTolerance,
+    TractCli,
+    TractNNEF,
+    build_io,
+)
 from torch_to_nnef.llm_tract.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
@@ -404,6 +409,7 @@ class LLMExporter:
         check_inference_modes: bool = True,
         sample_generation_total_size: int = 0,
         no_verify: bool = False,
+        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         """Export model has is currently in self.hf_model_causal
 
@@ -442,6 +448,7 @@ class LLMExporter:
                 inference_target = TractNNEF.latest()
             inference_target.dynamic_axes = dynamic_axes
             inference_target.specific_properties = tract_specific_properties
+            inference_target.check_io_tolerance = tract_check_io_tolerance
             self._update_inference_target_options(inference_target)
             if no_verify:
                 LOGGER.info(
@@ -520,8 +527,19 @@ class LLMExporter:
         sample_generation_total_size: int = 6,
         no_verify: bool = False,
         ignore_already_exist_dir: bool = False,
+        force_f32_attention: T.Optional[bool] = None,
+        force_f32_linear_accumulator: T.Optional[bool] = None,
+        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         """prepare and export model to NNEF"""
+        if force_f32_attention:
+            self._inference_target_options["force_attention_inner_in_f32"] = (
+                True
+            )
+        if force_f32_linear_accumulator:
+            self._inference_target_options[
+                "force_linear_accumulation_in_f32"
+            ] = True
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(
@@ -586,6 +604,7 @@ class LLMExporter:
             check_inference_modes=check_inference_modes,
             sample_generation_total_size=sample_generation_total_size,
             no_verify=no_verify,
+            tract_check_io_tolerance=tract_check_io_tolerance,
         )
 
 
@@ -781,6 +800,10 @@ def dump_llm(
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
     exporter = LLMExporter.load(model_slug, local_dir, as_float16)
+    if isinstance(kwargs.get("tract_check_io_tolerance"), str):
+        kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
+            kwargs["tract_check_io_tolerance"]
+        )
     exporter.dump(*args, **kwargs)
     export_path = kwargs.get("export_dirpath", args[0] if args else None)
     return (
