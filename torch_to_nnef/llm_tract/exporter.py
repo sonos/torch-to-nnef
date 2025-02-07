@@ -82,7 +82,10 @@ def _load_exporter_from(
         local_dir=local_dir,
     )
     return LLMExporter(
-        hf_model_causal, tokenizer, as_float16=as_float16, local_dir=local_dir
+        hf_model_causal,
+        tokenizer,
+        as_float16=as_float16,
+        local_dir=local_dir,
     )
 
 
@@ -541,10 +544,27 @@ class LLMExporter:
                 "hf_model_type": self.model_infos.conf.model_type,
                 "n_parameters": str(self.model_n_params),
                 "as_float16": "1" if self.as_float16 else "0",
-                "compression_method": compression_method,
-                "compression_registry": compression_registry,
             }
         )
+        if compression_method is not None:
+            tract_specific_properties.update(
+                {
+                    "compression_method": compression_method,
+                    "compression_registry": compression_registry,
+                }
+            )
+        if not self.hf_model_causal.config._name_or_path.startswith("/tmp"):
+            tract_specific_properties["name_or_path"] = (
+                self.hf_model_causal.config._name_or_path
+            )
+        if hasattr(self.hf_model_causal, "peft_config"):
+            for k, conf in self.hf_model_causal.peft_config.items():
+                tract_specific_properties[f"peft_{k}_type"] = (
+                    self.hf_model_causal.peft_config[k].peft_type.value
+                )
+                tract_specific_properties[f"peft_{k}_target_modules"] = (
+                    ",".join(self.hf_model_causal.peft_config[k].target_modules)
+                )
         self.export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
