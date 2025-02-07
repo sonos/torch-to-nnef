@@ -1,5 +1,7 @@
 import typing as T
 
+import torch
+
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
@@ -11,6 +13,7 @@ from torch_to_nnef.op.helper import (
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.utils import LOGGER
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -192,7 +195,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def linear(g, node, name_to_tensor, null_ref, **kwargs):
+def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     (
         input_node,
         weight_node,
@@ -206,11 +209,82 @@ def linear(g, node, name_to_tensor, null_ref, **kwargs):
         bias_node,
         name_to_tensor,
         null_ref,
-        suffix_weight_name="weight_raw2d"
-        if weight_node.data is not None
-        else "",
+        suffix_weight_name=(
+            "weight_raw2d" if weight_node.data is not None else ""
+        ),
         suffix_bias_name="bias_raw2d" if bias_node.data is not None else "",
     )
+
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.force_linear_accumulation_in_f32
+        and weight_node.dtype != torch.float32
+    ):
+        if inference_target.version < "0.21.10":
+            LOGGER.warning(
+                "linear can not yet have "
+                "accumulation in f32 (waiting tract>=0.21.10)"
+                " fallback to f16"
+            )
+        else:
+            if input_node.rank == 3:
+                expr = "bij,kj->bik"
+                if weight_node.rank != 2:
+                    raise TorchToNNEFNotImplementedError(weight_node.rank)
+            elif input_node.rank == 4:
+                expr = "bcij,ckj->bcik"
+                if weight_node.rank != 3:
+                    raise TorchToNNEFNotImplementedError(weight_node.rank)
+            else:
+                raise TorchToNNEFNotImplementedError(node.inputs[0].rank)
+
+            intermediate_output = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_einsum",
+                inputs=[
+                    get_or_add_tensor_variable_in_nnef(
+                        g, input_node, name_to_tensor
+                    ),
+                    weight_ref,
+                ],
+                ensure_tuple=False,
+                force_consistent_inputs_shapes=False,
+                attrs={"expr": expr, "acc": "f32", "output": ""},
+                output_tensor_name_suffix="_linear",
+            )
+
+            if bias_ref is not None:
+                bias_ref = add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "tract_core_cast",
+                    inputs=bias_ref,
+                    attrs={"to": "f32"},
+                    output_tensor_name_suffix="_biasf32",
+                )
+                intermediate_output = add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "add",
+                    inputs=[intermediate_output, bias_ref],
+                    force_consistent_inputs_shapes=False,
+                    output_tensor_name_suffix="_biased",
+                )
+
+            cast_and_add_nnef_operation(
+                name_to_tensor=name_to_tensor,
+                graph=g,
+                type="tract_core_cast",
+                name=f"{node.outputs[0].export_name}_op",
+                inputs=intermediate_output,
+                outputs=output_tensor,
+                attribs={"to": TORCH_DTYPE_TO_TRACT_STR[input_node.dtype]},
+            )
+            return ["tract_core"]
 
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
