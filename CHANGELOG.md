@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.15.8] - 2025-02-07
+
+### Added
+
+- TractNNEF now dump: `tract_properties` in graph.nnef with metadata infos and possible additional custom infos can be passed with `specific_properties`
+- TractNNEF: control over check io precision with `check_io_tolerance` parameters (exposed in llm cli)
+- TractNNEF: has now `force_attention_inner_in_f32` that force f32 compute for SDPA in tract
+- TractNNEF: has now `force_linear_accumulation_in_f32` that should be active after tract release `0.21.10` and allow accumulation in f32 for linears (opt-in)
+- cli llm: export of specific model like qwen force f32 parameters defined upper by default (for others architectures those are exposed in cli directly)
+
 ## [0.15.7] - 2025-01-29
 
 ### Fix
