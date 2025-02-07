@@ -64,7 +64,6 @@ class TractNNEF(InferenceTarget):
         for version in [
             "0.21.7",
             "0.20.22",
-            "0.19.16",
         ]
     ]
 
@@ -79,14 +78,14 @@ class TractNNEF(InferenceTarget):
         check_io: bool = True,
         dynamic_axes: T.Optional[T.Dict[str, T.Dict[int, str]]] = None,
         specific_tract_binary_path: T.Optional[Path] = None,
-        force_attention_softmax_in_f32: bool = True,
         check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         specific_properties: T.Optional[T.Dict[str, str]] = None,
+        force_attention_inner_in_f32: bool = True,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
-        self.force_attention_softmax_in_f32 = force_attention_softmax_in_f32
+        self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.check_io_tolerance = check_io_tolerance
         self.specific_properties = specific_properties
         if self.feature_flags:

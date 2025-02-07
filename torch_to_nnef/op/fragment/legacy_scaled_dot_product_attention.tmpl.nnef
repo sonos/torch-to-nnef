@@ -12,7 +12,12 @@ extension tract_registry tract_core;
   % endif
 ) -> (out : tensor<scalar>) {
   # https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-  dot_qk = tract_core_einsum(inputs=[query, key], expr="${"bcij,bckj->bcik" if rank == 4 else "bij,bkj->bik"}", acc="${inner_dtype}");
+% if inner_dtype != dtype:
+  key = tract_core_cast(key, to="${inner_dtype}");
+  query = tract_core_cast(query, to="${inner_dtype}");
+  value = tract_core_cast(value, to="${inner_dtype}");
+% endif
+  dot_qk = matmul(query, key, transposeA = false, transposeB = true);
   qshape = tract_core_shape_of(query);
   kshape = tract_core_shape_of(key);
 % if not scale:
@@ -31,5 +36,8 @@ extension tract_registry tract_core;
 % endif
   scaled_dot_qk = mul(dot_qk, scale) ${("+ attn_mask_as_"+inner_dtype) if attn_mask else ""}${"+ attn_bias" if causal else ""};
   attn_weight = softmax(scaled_dot_qk,  axes=[${rank - 1}]);
-  out = tract_core_einsum(inputs=[attn_weight, value], expr="${"bcij,bcjk->bcik" if rank == 4 else "bij,bjk->bik"}", acc="${dtype}");
+  out = matmul(attn_weight, value, transposeA = false, transposeB = false);
+% if inner_dtype != dtype:
+  out = tract_core_cast(out, to="${dtype}");
+% endif
 }
