@@ -9,7 +9,7 @@ from torch_to_nnef.llm_tract.config import LlamaSLugs
 from torch_to_nnef.llm_tract.models.base import BaseCausalWithDynCacheAndTriu
 
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     change_dynamic_axes,
     check_model_io_test,
@@ -19,7 +19,7 @@ from .utils import (  # noqa: E402
 set_seed(int(os.environ.get("SEED", 25)))
 
 test_suite = TestSuiteInferenceExactnessBuilder(
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.5"]
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.5"]
 )
 
 

@@ -10,7 +10,7 @@ from torch import nn
 from transformers.generation.utils import DynamicCache
 from transformers.models.phi import configuration_phi, modeling_phi
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch_to_nnef.export import export_model_to_nnef
 
 
@@ -60,7 +60,7 @@ if hasattr(
 
     @pytest.mark.parametrize(
         "inference_target",
-        [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version >= "0.21.4"],
+        [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.21.4"],
     )
     def test_phi_spda_attn(inference_target):
         mod = DummyModel()

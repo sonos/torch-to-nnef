@@ -14,7 +14,11 @@ from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 
-from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from .utils import (
+    TRACT_INFERENCES_TO_TESTS_APPROX_EXACT,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    check_model_io_test,
+)
 
 
 def test_quantize_with_tract_q4_0_and_manipulate_tensor():
@@ -43,7 +47,7 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_basic(inference_target):
     """basic quantization values"""
@@ -74,7 +78,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_controled(inference_target):
     """basic quantization values"""
@@ -103,7 +107,7 @@ def test_quantize_with_tract_q4_0_controled(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_rounding2(inference_target):
     """basic quantization values"""
@@ -131,7 +135,7 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_arange(inference_target):
     """basic quantization values"""
@@ -212,7 +216,7 @@ def test_u8_compressors():
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_assign_to(inference_target):
     """basic quantization values"""

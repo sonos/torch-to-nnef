@@ -13,7 +13,7 @@ from torch_to_nnef.inference_target import TractNNEF
 
 from .test_primitive import TernaryPrimitive
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
@@ -21,7 +21,7 @@ from .utils import (  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 0)))
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
 n_heads = 8

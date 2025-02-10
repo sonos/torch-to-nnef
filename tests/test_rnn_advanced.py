@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from transformers.models.deprecated.tvlt.modeling_tvlt import deepcopy
 
-from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class LSTMWrapper(nn.Module):
@@ -17,7 +17,7 @@ class LSTMWrapper(nn.Module):
         return y, hnew, cnew
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_lstm_states(inference_target):
     seqlen = 10
     batch = 16
@@ -46,7 +46,7 @@ def test_manage_lstm_states(inference_target):
     )
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_lstm_states_multi_layers(inference_target):
     seqlen = 10
     batch = 16
@@ -100,11 +100,11 @@ def _test_mono_states_rnn(cls, inference_target):
     )
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_gru_states(inference_target):
     _test_mono_states_rnn(nn.GRU, inference_target)
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_rnn_states(inference_target):
     _test_mono_states_rnn(nn.RNN, inference_target)

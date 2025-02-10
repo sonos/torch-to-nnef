@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn import functional as f
 from torch.nn import init
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import build_io
 
@@ -62,7 +62,7 @@ class SqueezeExcitationBlock1d(nn.Module):
         init.constant_(self.linear_up.bias, 2)
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS)
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_export(inference_target):
     """Test simple export"""
     test_input = torch.rand(1, 2, 10, 20)

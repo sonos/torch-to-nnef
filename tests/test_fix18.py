@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import torch
 
-from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 # add unit test for https://github.com/{project}/issues/18
@@ -28,7 +28,7 @@ def test_issue18_export():
     Should work starting with tract 0.18.0
 
     """
-    latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS[0])
+    latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
     latest_tract_inference.dynamic_axes = {
         "input_0": {1: "S"},
     }

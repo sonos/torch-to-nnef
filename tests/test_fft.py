@@ -4,7 +4,7 @@ from torch import nn
 from torchaudio import transforms
 
 from tests.utils import (
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
@@ -49,7 +49,7 @@ class MySTFT(nn.Module):
         return torch.view_as_real(spec_f)
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 
 def cond_tract_gt_0_20_7(i) -> bool:

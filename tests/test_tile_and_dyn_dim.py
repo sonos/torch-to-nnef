@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class MyModel(nn.Module):
@@ -36,7 +36,7 @@ class ReducedForm(nn.Module):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
 )
 def test_tile_and_dyn_dims(inference_target):
     inference_target = deepcopy(inference_target)

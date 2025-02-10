@@ -6,10 +6,10 @@ import numpy as np
 from torch_to_nnef.llm_tract.config import LlamaSLugs
 from torch_to_nnef.llm_tract.exporter import LLMExporter
 
-from .utils import TRACT_INFERENCES_TO_TESTS
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
 inference_targets = [
-    (str(_), _) for _ in TRACT_INFERENCES_TO_TESTS if _.version > "0.21.5"
+    (str(_), _) for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.5"
 ]
 
 

@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
@@ -77,7 +77,7 @@ class LostDimPad(nn.Module):
         return x
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 test_suite.add(torch.rand(5, 10, 4), DynamicDoubleBatchRank())
 test_suite.add(torch.rand(5, 10, 4), SelectNotFirstOutput())

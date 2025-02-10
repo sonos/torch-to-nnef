@@ -12,7 +12,7 @@ from torch.quantization import quantize_fx
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
@@ -29,7 +29,7 @@ set_seed(int(os.environ.get("SEED", 2)))  # 3 fail
 # with tract 0.18 quantization work only for PyTorch 1.X
 # we do not test PyTorch 1.X anymore (only 2.X)
 test_suite = TestSuiteInferenceExactnessBuilder(
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version >= "0.19.0"]
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.19.0"]
 )
 
 
@@ -241,7 +241,7 @@ def cond_ge_tract_0_21_3(i):  # tract PR on quant accuracy merged
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 )
 def test_quantize_dummy_add(inference_target):
     _test_math_binary("add", [0, 2, 4, 8, 16, 8], inference_target)
@@ -249,7 +249,7 @@ def test_quantize_dummy_add(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 )
 def test_quantize_dummy_mul(inference_target):
     _test_math_binary("mul", [0, 2, 4, 8, 16, 8], inference_target)
@@ -257,7 +257,7 @@ def test_quantize_dummy_mul(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 )
 def test_quantize_dummy_mul_1(inference_target):
     _test_math_binary("mul", [0, 1.51, 4, 8, 34.3, 8], inference_target)
@@ -265,7 +265,7 @@ def test_quantize_dummy_mul_1(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 )
 def test_quantize_dummy_max_relu(inference_target):
     qcheck(
@@ -277,7 +277,7 @@ def test_quantize_dummy_max_relu(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 )
 def test_quantize_deq_req_sigmoid(inference_target):
     qcheck(
@@ -293,7 +293,7 @@ def test_quantize_deq_req_sigmoid(inference_target):
 
 # @pytest.mark.parametrize(
 #     "inference_target",
-#     [_ for _ in TRACT_INFERENCES_TO_TESTS if cond_ge_tract_0_21_3(_)],
+#     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if cond_ge_tract_0_21_3(_)],
 # )
 # def test_quantized_sigmoid(inference_target):
 #     qcheck(

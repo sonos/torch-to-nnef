@@ -12,7 +12,7 @@ from torch_to_nnef.inference_target import TractNNEF
 
 from .test_primitive import TorchFnPrimitive
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     change_dynamic_axes,
     check_model_io_test,
@@ -22,7 +22,7 @@ from .utils import (  # noqa: E402
 set_seed(int(os.environ.get("SEED", 25)))
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 
 dyn_stream_axis1 = {"input_0": {1: "S"}}

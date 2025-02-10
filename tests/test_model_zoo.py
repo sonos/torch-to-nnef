@@ -16,7 +16,7 @@ from tests.shifted_window_attention_patch import (
 from torch_to_nnef.inference_target import TractNNEF
 
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     remove_weight_norm,
@@ -25,7 +25,7 @@ from .utils import (  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 25)))
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 test_suite.add(
     torch.rand(1, 3, 224, 224),

@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from .utils import (  # noqa: E402
-    TRACT_INFERENCES_TO_TESTS,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
@@ -24,7 +24,7 @@ class Mul(nn.Module):
         return x * 2
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS)
+test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
 
 test_suite.add(torch.randint(0, 4, (2, 4), dtype=torch.int32), Mul())
 test_suite.add(torch.rand((2, 4), dtype=torch.float64), Mul())

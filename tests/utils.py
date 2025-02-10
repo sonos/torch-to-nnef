@@ -19,11 +19,15 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
-from torch_to_nnef.inference_target.tract import TractCli, build_io
+from torch_to_nnef.inference_target.tract import (
+    TractCheckTolerance,
+    TractCli,
+    build_io,
+)
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
-TRACT_INFERENCES_TO_TESTS = [
+TRACT_INFERENCES_TO_TESTS_APPROX = [
     # we maintain last 3 majors of tract
     TractNNEF(v)
     for v in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS
@@ -37,17 +41,21 @@ if "T2N_TEST_TRACT_PATH" in os.environ:
     _tract_inf = TractNNEF(
         _tract_cli.version, specific_tract_binary_path=_tract_cli_path
     )
-    TRACT_INFERENCES_TO_TESTS = [_tract_inf]
+    TRACT_INFERENCES_TO_TESTS_APPROX = [_tract_inf]
 elif "T2N_TEST_TRACT_VERSION" in os.environ:
     _tract_inf = TractNNEF(os.environ["T2N_TEST_TRACT_VERSION"])
-    TRACT_INFERENCES_TO_TESTS = [_tract_inf]
+    TRACT_INFERENCES_TO_TESTS_APPROX = [_tract_inf]
 elif "T2N_TEST_SKIP_TRACT" in os.environ and bool(
     os.environ["T2N_TEST_SKIP_TRACT"]
 ):
-    TRACT_INFERENCES_TO_TESTS = []
+    TRACT_INFERENCES_TO_TESTS_APPROX = []
 
 
-INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS + [
+TRACT_INFERENCES_TO_TESTS_APPROX_EXACT = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)
+for _ in TRACT_INFERENCES_TO_TESTS_APPROX_EXACT:
+    _.check_io_tolerance = TractCheckTolerance.EXACT
+
+INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS_APPROX + [
     KhronosNNEF(v) for v in KhronosNNEF.OFFICIAL_SUPPORTED_VERSIONS
 ]
 

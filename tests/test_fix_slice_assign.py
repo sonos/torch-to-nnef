@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch import nn
 
-from .utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class RelPosEncXL(nn.Module):
@@ -209,7 +209,7 @@ class AssignSliceIssue(nn.Module):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version >= "0.21.2"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.21.2"],
 )
 def test_export_assign_slice(inference_target):
     """Test simple models"""

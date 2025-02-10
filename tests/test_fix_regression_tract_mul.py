@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS, check_model_io_test
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class MyModule(torch.nn.Module):
@@ -19,7 +19,7 @@ class MyModule(torch.nn.Module):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS if _.version != "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version != "0.21.6"],
 )
 def test_issue_tract_mul_export(inference_target):
     """Test issue mul not behaving as expected
