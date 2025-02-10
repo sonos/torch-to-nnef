@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.9] - 2025-02-10
+
+### Added
+
+- ready to support tract 0.21.9 (once regression tract side solved)
+
 ## [0.15.8] - 2025-02-07
 
 ### Added
