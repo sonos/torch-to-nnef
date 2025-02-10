@@ -25,8 +25,8 @@ extension tract_registry tract_core;
   scale = div(1.0, sqrt(qsize));
 % endif
 % if causal:
-  L = tract_core_cast(slice(qshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
-  S = tract_core_cast(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), to="tdim");
+  L = tract_core_cast(squeeze(slice(qshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), axes=[0]), to="tdim");
+  S = tract_core_cast(squeeze(slice(kshape, axes=[0], begin=[${rank - 2}], end=[${rank -1}], stride=[1]), axes=[0]), to="tdim");
   temp_mask_val =  tile([[1.0]], repeats=[L, S]);
   temp_mask =  tract_core_cast(tract_core_trilu(temp_mask_val, upper=false, k=0), to="bool");
   attn_bias = unsqueeze(tract_core_cast(select(temp_mask, 0.0, -inf), to="${inner_dtype}"), axes=[${"0" if rank == 3 else "0, 0"}]);

@@ -173,10 +173,10 @@ def causal_mask_dyn_inference_modifier(inference_target):
         inference_target,
         dynamic_axes={"input_0": {1: "S"}, "input_1": {2: "P"}},
     )
-    inference_target.custom_extensions = {
+    inference_target.custom_extensions = [
         "tract_assert P >= 0",
         "tract_assert S >= 1",
-    }
+    ]
     return inference_target
 
 
@@ -201,7 +201,9 @@ def test_dynamic_axes_exports(id, test_input, model, inference_target):
         test_input=test_input,
         inference_target=inference_target,
         # for convenience of tests we assigned custom_extensions to inference target
-        custom_extensions=inference_target.custom_extensions
-        if hasattr(inference_target, "custom_extensions")
-        else None,
+        custom_extensions=(
+            inference_target.custom_extensions
+            if hasattr(inference_target, "custom_extensions")
+            else None
+        ),
     )

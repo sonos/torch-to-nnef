@@ -23,11 +23,11 @@ For example, `TractNNEF` unlock [tract](https://github.com/sonos/tract/) operato
 
 This package strives to have minimum dependencies (to allow easy integration in other project).
 
-We aim to support PyTorch > 1.8.0 with tract last 3 major releases (>= 1.19.16 to date) over Linux and MacOS systems.
+We aim to support PyTorch > 1.8.0 with tract last 2 major releases (>= 0.20.22 to date) over Linux and MacOS systems.
 
 ## Install
 
-For now you can either use internal SONOS artifactory repository:
+For now you can either use internal SONOS Artifactory repository:
 
 `https://user:pass@redacted.com/artifactory/api/pypi/pypi-local/simple`
 
