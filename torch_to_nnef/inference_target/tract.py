@@ -328,6 +328,12 @@ class TractCli:
             stderr=subprocess.STDOUT,
         )
 
+    def run(self, args):
+        cmd_ = [
+            self.tract_path,
+        ] + args
+        return subprocess.check_call(cmd_)
+
     def assert_io(
         self,
         nnef_path: Path,

@@ -137,6 +137,7 @@ def check_model_io_test(
     output_names=None,
     nnef_variable_naming_scheme=VariableNamingScheme.default(),
     custom_extensions=None,
+    callback=None,
 ):
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
@@ -171,9 +172,12 @@ def check_model_io_test(
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
         )
+        export_path = export_path.with_suffix(".nnef.tgz")
         dump_filepath = os.environ.get("DUMP_FILEPATH", False)
         if dump_filepath:
             shutil.copy(export_path.with_suffix(".nnef.tgz"), dump_filepath)
+        if callback is not None:
+            callback(inference_target, export_path)
 
 
 def remove_weight_norm(module):
