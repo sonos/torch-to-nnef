@@ -1,4 +1,5 @@
-""" Export any PEFT weights (LORA, ...) from .pt, .bin, .safetensors to NNEF """
+"""Export any PEFT weights (LORA, ...) from .pt, .bin, .safetensors to NNEF"""
+
 import argparse
 import json
 import re

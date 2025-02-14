@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.10] - 2025-02-14
+
+### Change
+
+- packaging/building project with `uv` (`poetry` deprecated since latest uv version are better)
+
 ## [0.15.9] - 2025-02-10
 
 ### Added

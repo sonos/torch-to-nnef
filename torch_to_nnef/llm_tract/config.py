@@ -165,7 +165,7 @@ class HFConfigHelper:
             if layer_idx == 0:
                 node_name = f"cache_key_{int(idx / 2)}"
             else:
-                node_name = f"cache_value_{int((idx -1) / 2)}"
+                node_name = f"cache_value_{int((idx - 1) / 2)}"
 
             if real_kv_cache:
                 kv_dims = real_kv_cache[0].shape

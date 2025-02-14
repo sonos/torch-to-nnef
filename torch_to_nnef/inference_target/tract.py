@@ -16,9 +16,9 @@ import sys
 import tempfile
 import typing as T
 import urllib.request
+from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from datetime import datetime
 
 import nnef
 import numpy as np
@@ -26,8 +26,10 @@ import torch
 from nnef_tools.model import Graph as NGraph
 from torch import nn
 from torch.onnx import TrainingMode  # type: ignore
-from torch.onnx.utils import _validate_dynamic_axes  # type: ignore
-from torch.onnx.utils import select_model_mode_for_export  # type: ignore
+from torch.onnx.utils import (
+    _validate_dynamic_axes,  # type: ignore
+    select_model_mode_for_export,  # type: ignore
+)
 
 from torch_to_nnef.collect_env import dump_environment_versions
 from torch_to_nnef.exceptions import (
@@ -393,7 +395,6 @@ class TractCli:
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
-
                         raise TractError(cmd_shell, err_filtered)
                     return True
                 log_io_check_call_err(cmd_shell, serr)
@@ -531,9 +532,9 @@ def build_io(
     if output_names is None:
         output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
 
-    assert len(input_names) == len(
-        tup_inputs
-    ), f"{len(input_names)} != {len(tup_inputs)}"
+    assert len(input_names) == len(tup_inputs), (
+        f"{len(input_names)} != {len(tup_inputs)}"
+    )
     assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:

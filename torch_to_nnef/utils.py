@@ -117,7 +117,10 @@ def flatten_dict_tuple_or_list(
             return flatten_dict_tuple_or_list(
                 obj[0], collected_types, collected_idxes, 0
             ) + flatten_dict_tuple_or_list(
-                obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
+                obj[1:],
+                collected_types[:-1],
+                collected_idxes[:-1],
+                current_idx,
             )
         return (
             (tuple(collected_types), tuple(collected_idxes), obj[0]),

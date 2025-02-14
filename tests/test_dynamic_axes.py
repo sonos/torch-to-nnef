@@ -22,7 +22,9 @@ from .utils import (  # noqa: E402
 set_seed(int(os.environ.get("SEED", 25)))
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    TRACT_INFERENCES_TO_TESTS_APPROX
+)
 
 
 dyn_stream_axis1 = {"input_0": {1: "S"}}

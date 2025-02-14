@@ -78,9 +78,9 @@ def unbind(g, node, name_to_tensor, **kwargs):
 def chunk(g, node, name_to_tensor, **kwargs):
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
-    assert (
-        len({tuple(o.shape) for o in node.outputs}) == 1
-    ), "all chunk are not equal"
+    assert len({tuple(o.shape) for o in node.outputs}) == 1, (
+        "all chunk are not equal"
+    )
     n_elements = node.outputs[0].shape[axis_node.data]
     current_dim_elm_idx = 0
     inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)

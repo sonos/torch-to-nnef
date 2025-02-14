@@ -205,18 +205,20 @@ class _RNNMixin:
                 },
             )
 
-        initial_state_ready_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
-            name_suffix=var_name,
-            # build imaginary node to fill data correctly
-            node=helper.TensorVariable(
-                name=node.outputs[0].name,
-                data=torch_tensor,
-                shape=list(torch_tensor.shape),
-                dtype=torch_tensor.dtype,
-            ),
-            g=g,
-            name_to_tensor=name_to_tensor,
-            prevent_variable=True,
+        initial_state_ready_tensor = (
+            helper.add_tensor_variable_node_as_nnef_tensor(
+                name_suffix=var_name,
+                # build imaginary node to fill data correctly
+                node=helper.TensorVariable(
+                    name=node.outputs[0].name,
+                    data=torch_tensor,
+                    shape=list(torch_tensor.shape),
+                    dtype=torch_tensor.dtype,
+                ),
+                g=g,
+                name_to_tensor=name_to_tensor,
+                prevent_variable=True,
+            )
         )
         NOperation(
             g,
@@ -258,19 +260,19 @@ class _RNNMixin:
             **tensor_params_kwargs,
         ).items():
             if isinstance(item, torch.Tensor):
-                name_to_nnef_variable[
-                    var_name
-                ] = helper.add_tensor_variable_node_as_nnef_tensor(
-                    name_suffix=var_name,
-                    # build imaginary node to fill data correctly
-                    node=helper.TensorVariable(
-                        name=node.outputs[0].name,
-                        data=item,
-                        shape=list(item.shape),
-                        dtype=item.dtype,
-                    ),
-                    g=g,
-                    name_to_tensor=name_to_tensor,
+                name_to_nnef_variable[var_name] = (
+                    helper.add_tensor_variable_node_as_nnef_tensor(
+                        name_suffix=var_name,
+                        # build imaginary node to fill data correctly
+                        node=helper.TensorVariable(
+                            name=node.outputs[0].name,
+                            data=item,
+                            shape=list(item.shape),
+                            dtype=item.dtype,
+                        ),
+                        g=g,
+                        name_to_tensor=name_to_tensor,
+                    )
                 )
             elif isinstance(item, tuple):
                 assert len(item) == 2, item
@@ -309,16 +311,16 @@ class _RNNMixin:
                     )
                     name_to_nnef_variable[var_name] = input_layer_states_tensor
                 else:
-                    name_to_nnef_variable[
-                        var_name
-                    ] = self._translate_state_variable_load_and_prep(
-                        g,
-                        node,
-                        name_to_tensor,
-                        var_name,
-                        tensor_variable,
-                        torch_tensor,
-                        input_tensor,
+                    name_to_nnef_variable[var_name] = (
+                        self._translate_state_variable_load_and_prep(
+                            g,
+                            node,
+                            name_to_tensor,
+                            var_name,
+                            tensor_variable,
+                            torch_tensor,
+                            input_tensor,
+                        )
                     )
             else:
                 raise NotImplementedError(item)

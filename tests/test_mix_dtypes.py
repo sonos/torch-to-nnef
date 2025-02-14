@@ -36,7 +36,9 @@ class OpWithConstant(torch.nn.Module):
         return getattr(torch, self.op)(self.const, x)
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    TRACT_INFERENCES_TO_TESTS_APPROX
+)
 
 _base_tensor = torch.arange(6).reshape(2, 3)
 base_tensor = _base_tensor[:]

@@ -134,7 +134,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor, inference_target):
             qzerop = weight.q_zero_point()
         else:
             raise TorchToNNEFNotImplementedError(
-                f"not suported quantization scheme {qscheme }"
+                f"not suported quantization scheme {qscheme}"
             )
 
         bias_ref = NTensor(

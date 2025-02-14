@@ -110,7 +110,12 @@ def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
 
     # Dilation is available
     _pooling_op(
-        "avg_pool", inputs_name_tuple, g, node, name_to_tensor, inference_target
+        "avg_pool",
+        inputs_name_tuple,
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
     )
 
 

@@ -1,8 +1,7 @@
+import contextlib
 import logging as log
 import typing as T
 from pathlib import Path
-import contextlib
-
 
 import numpy as np
 import torch

@@ -57,9 +57,9 @@ def unflatten(
     **kwargs,
 ):
     (input_node, axis_node, new_shape_chunk_node) = node.inputs
-    assert isinstance(
-        axis_node, PythonConstant
-    ), "axis is supposed to be static"
+    assert isinstance(axis_node, PythonConstant), (
+        "axis is supposed to be static"
+    )
 
     rank_data = pick_axis(input_node, axis_node.data)
 

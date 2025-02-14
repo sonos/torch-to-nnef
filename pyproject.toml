@@ -1,123 +1,101 @@
-[tool]
-[tool.poetry]
+[project]
 name = "torch_to_nnef"
 version = "0.15.9"
-homepage = "https://github.com/sonos/torch-to-nnef"
 description = "Any PyTorch Model to NNEF file format."
-authors = ["Julien Balian <julien.balian@sonos.com>"]
+authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+requires-python = ">=3.9.0,<4.0"
 readme = "README.md"
 classifiers = [
-    'Development Status :: 2 - Beta',
-    'Intended Audience :: Developers',
-    'Natural Language :: English',
-    'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
-packages = [{ include = "torch_to_nnef" }]
-include = ["CHANGELOG.md"]
+dependencies = [
+    "numpy>=1.26.0,<2",
+    "torch>=1.8.0,<3",
+    "nnef_tools>=1.0.7,<2",
+    "nnef>=1.0.7,<2",
+    "mako>=1.0.0,<2.0",
+    "toml>=0.10.2,<0.11",
+    "tox>=4.23.2,<5",
+    "twine>=3.3.0,<4",
+    "virtualenv>=20.2.2,<21",
+]
 
-[[tool.poetry.source]]
-name = "pypi-public"
-url = "https://pypi.org/simple/"
-
-[tool.poetry.dependencies]
-python = ">=3.9.0,<4.0"
-
-# real deps {
-numpy = ">=1.26.0,<2"
-torch = ">=1.8.0,<3"
-
-nnef_tools = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef_tools-pyproject", rev = "c1aac75" }
-nnef = { git = "https://github.com/KhronosGroup/NNEF-Tools.git", subdirectory = "nnef-pyproject", rev = "c1aac75" }
-
-mako = ">=1.0.0,<2.0" # template engine for fragments
-
-# }
-
-# pip install -e "git+https://github.com/KhronosGroup/NNEF-Tools.git@47b496168bd83736ad2fdf40a1193f26a4987c98#egg=nnef&subdirectory=./parser/python"
-
-peft = { version = "*", optional = true }
-black = { version = "^22.3.0", optional = true }
-flake8 = { version = "^3.9.2", optional = true }
-flake8-docstrings = { version = "^1.6.0", optional = true }
-isort = { version = "^5.8.0", optional = true }
-mypy = { version = "^1.13", optional = true }
-pytest = { version = "^8.3.3", optional = true }
-pytest-cov = { version = "^6.0.0", optional = true }
-sentencepiece = { version = "^0.2.0", optional = true }
-toml = { version = "^0.10.2", optional = true }
-torchaudio = { version = "^2.2.0", optional = true }
-torchvision = { version = "^0.17.0", optional = true }
-tox = { version = "^4.23.2", optional = true }
-tokenizers = { version = ">=0.13.3", optional = true }
-transformers = { version = "^4.35.2", optional = true }
-twine = { version = "^3.3.0", optional = true }
-virtualenv = { version = "^20.2.2", optional = true }
-huggingface-hub = { version = ">0.24", optional = true }
-protobuf = { version = ">5.27", optional = true }
-
-[tool.poetry.scripts]
-export_llm_to_tract = "torch_to_nnef.llm_tract.cli:main"
-export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
-
-[tool.poetry.extras]
+[project.optional-dependencies]
 llm_tract = [
-    "tokenizers",
-    "transformers",
-    "sentencepiece",
-    "huggingface-hub",
-    "protobuf",
+    "tokenizers>=0.13.3",
+    "transformers>=4.35.2,<5",
+    "sentencepiece>=0.2.0,<0.3",
+    "huggingface-hub>0.24",
+    "protobuf>5.27",
 ]
 test = [
-    "pytest",
-    "black",
-    "isort",
-    "mypy",
-    "flake8",
-    "flake8-docstrings",
-    "pytest-cov",
-    "torchvision",
-    "torchaudio",
-    "tokenizers",
-    "transformers",
-    "sentencepiece",
+    "pytest>=8.3.3,<9",
+    "ruff<1.0",
+    "isort>=5.8.0,<6",
+    "mypy~=1.13",
+    "flake8>=3.9.2,<4",
+    "flake8-docstrings>=1.6.0,<2",
+    "pytest-cov>=6.0.0,<7",
+    "torchvision>=0.17.0,<0.18",
+    "torchaudio>=2.2.0,<3",
+    "tokenizers>=0.13.3",
+    "transformers>=4.35.2,<5",
+    "sentencepiece>=0.2.0,<0.3",
     "peft",
 ]
 
-[tool.poetry.group.dev.dependencies]
-tox = "^4.23.2"
-pre-commit = "^2.12.0"
-virtualenv = "^20.2.2"
-pip = "^24.0"
-twine = "^3.3.0"               # ?
-toml = "^0.10.2"
-bump2version = "^1.0.1"
-ipdb = "^0.13.9"
-rich = { version = "^13.7.1" }
-# pip install -e "git+https://github.com/JulienBalianSonos/ggml.git@f687a7c175a889d2502365ee484f887b4d1c77d5#egg=ggml&subdirectory=examples/python"
+[project.urls]
+Homepage = "https://github.com/sonos/torch-to-nnef"
 
+[project.scripts]
+export_llm_to_tract = "torch_to_nnef.llm_tract.cli:main"
+export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
 
-[tool.black]
+[dependency-groups]
+dev = [
+    "tox>=4.23.2,<5",
+    "pre-commit>=2.12.0,<3",
+    "virtualenv>=20.2.2,<21",
+    "pip~=24.0",
+    "twine>=3.3.0,<4",
+    "toml>=0.10.2,<0.11",
+    "bump2version>=1.0.1,<2",
+    "ipdb>=0.13.9,<0.14",
+    "rich>=13.7.1,<14",
+]
+
+[tool.uv]
+
+[[tool.uv.index]]
+name = "pypi-public"
+url = "https://pypi.org/simple/"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "torch_to_nnef",
+    "CHANGELOG.md",
+]
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "torch_to_nnef",
+    "CHANGELOG.md",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
 line-length = 80
-target-version = ['py38', 'py39', 'py311']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+target-version = 'py38'
 
 [tool.isort]
 multi_line_output = 3
@@ -129,12 +107,6 @@ skip_gitignore = true
 profile = "black"
 line_length = 80
 skip = [".gitignore", ".dockerignore"]
-# you can skip files as below
-#skip_glob = docs/conf.py
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.pytest]
 addopts = "--strict-markers -p no:warnings -s"

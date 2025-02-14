@@ -51,11 +51,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install uv
 
       - name: Build wheels and source tarball
         run: >-
-          poetry build
+          uv build
 
       - name: show temporary files
         run: >-
@@ -79,8 +79,7 @@ jobs:
             USERNAME: ${{ secrets.SNIPS_PM_USER }}
             PASSWORD: ${{ secrets.SNIPS_PM_PASSWORD }}
         run: |
-          poetry config repositories.snips "$REPOSITORY"
-          poetry publish --repository snips --username "$USERNAME" --password "$PASSWORD"
+          uv publish --publish-url "$REPOSITORY" --username "$USERNAME" --password "$PASSWORD"
 
       - name: publish to SONOS python registry
         shell: bash
@@ -89,5 +88,4 @@ jobs:
             USERNAME: ${{ secrets.SONOS_PM_USER }}
             PASSWORD: ${{ secrets.SONOS_PM_PASSWORD }}
         run: |
-          poetry config repositories.sonos "$REPOSITORY"
-          poetry publish --repository sonos --username "$USERNAME" --password "$PASSWORD"
+          uv publish --publish-url "$REPOSITORY" --username "$USERNAME" --password "$PASSWORD"
