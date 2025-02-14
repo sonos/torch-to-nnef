@@ -37,7 +37,7 @@ llm_tract = [
 ]
 test = [
     "pytest>=8.3.3,<9",
-    "black>=22.3.0,<23",
+    "ruff<1.0",
     "isort>=5.8.0,<6",
     "mypy~=1.13",
     "flake8>=3.9.2,<4",
@@ -93,24 +93,9 @@ include = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.black]
+[tool.ruff]
 line-length = 80
-target-version = ['py38', 'py39', 'py311']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+target-version = 'py38'
 
 [tool.isort]
 multi_line_output = 3

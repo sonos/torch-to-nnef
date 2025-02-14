@@ -15,8 +15,8 @@ from torch_to_nnef.qtensor.qtract import (
 )
 
 from .utils import (
-    TRACT_INFERENCES_TO_TESTS_EXACT,
     TRACT_INFERENCES_TO_TESTS_APPROX,
+    TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
 )
 
