@@ -395,7 +395,6 @@ class TractCli:
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
-
                         raise TractError(cmd_shell, err_filtered)
                     return True
                 log_io_check_call_err(cmd_shell, serr)
@@ -533,9 +532,9 @@ def build_io(
     if output_names is None:
         output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
 
-    assert len(input_names) == len(
-        tup_inputs
-    ), f"{len(input_names)} != {len(tup_inputs)}"
+    assert len(input_names) == len(tup_inputs), (
+        f"{len(input_names)} != {len(tup_inputs)}"
+    )
     assert len(output_names) == len(test_outputs)
 
     if io_npz_path is not None:

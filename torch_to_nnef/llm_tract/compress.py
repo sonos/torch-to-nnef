@@ -19,12 +19,12 @@ def quantize_weights_min_max_Q4_0(
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
-    assert isinstance(
-        to_quantize_module_classes, tuple
-    ), to_quantize_module_classes
-    assert all(
-        issubclass(_, nn.Module) for _ in to_quantize_module_classes
-    ), to_quantize_module_classes
+    assert isinstance(to_quantize_module_classes, tuple), (
+        to_quantize_module_classes
+    )
+    assert all(issubclass(_, nn.Module) for _ in to_quantize_module_classes), (
+        to_quantize_module_classes
+    )
     with torch.no_grad():
         for name, mod in wrapped_model.named_modules():
             if isinstance(mod, to_quantize_module_classes):

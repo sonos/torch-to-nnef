@@ -499,9 +499,9 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def argsort(node, op_helper, inference_target, **kwargs):
-    assert isinstance(
-        inference_target, TractNNEF
-    ), "not supported by Khronos spec"
+    assert isinstance(inference_target, TractNNEF), (
+        "not supported by Khronos spec"
+    )
     input_node, dim_node, descending_node = node.inputs
     input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     assert isinstance(descending_node.data, bool), descending_node
@@ -568,9 +568,9 @@ def argsort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def sort(node, op_helper, inference_target, **kwargs):
-    assert isinstance(
-        inference_target, TractNNEF
-    ), "not supported by Khronos spec"
+    assert isinstance(inference_target, TractNNEF), (
+        "not supported by Khronos spec"
+    )
     input_node, dim_node, descending_node = node.inputs
     input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     assert isinstance(descending_node.data, bool), descending_node
@@ -630,9 +630,9 @@ def sort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def topk(node, op_helper, inference_target, **kwargs):
-    assert isinstance(
-        inference_target, TractNNEF
-    ), "not supported by Khronos spec"
+    assert isinstance(inference_target, TractNNEF), (
+        "not supported by Khronos spec"
+    )
     input_node, k_node, dim_node, largest_node, sorted_node = node.inputs
     input_nnef = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     assert isinstance(largest_node.data, bool), largest_node

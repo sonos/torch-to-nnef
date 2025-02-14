@@ -73,7 +73,7 @@ class TorchModuleTracer:
             except RuntimeError as exp:
                 raise TorchJitTraceFailed(
                     "Unable to trace with jit one of following submodule:"
-                    f"{[(k, v.__class__) for k,v in self.mod.named_children()]} "
+                    f"{[(k, v.__class__) for k, v in self.mod.named_children()]} "
                     f"with original error:\n\n'{exp}'\n\n"
                     "This maybe due to provided input dimension. "
                     "If not, you can aleviate this issue by applying a special hook"

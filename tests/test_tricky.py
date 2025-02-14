@@ -77,7 +77,9 @@ class LostDimPad(nn.Module):
         return x
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    TRACT_INFERENCES_TO_TESTS_APPROX
+)
 
 test_suite.add(torch.rand(5, 10, 4), DynamicDoubleBatchRank())
 test_suite.add(torch.rand(5, 10, 4), SelectNotFirstOutput())

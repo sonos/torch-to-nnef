@@ -68,9 +68,9 @@ class OpRegistry:
             if torch_op_ids is None:
                 torch_op_ids = [decorated.__name__]
             for torch_id in torch_op_ids:
-                assert (
-                    torch_id not in self._registry
-                ), f"'{torch_id}' already in registry"
+                assert torch_id not in self._registry, (
+                    f"'{torch_id}' already in registry"
+                )
                 self._registry[torch_id] = decorated
             return decorated
 
@@ -647,9 +647,9 @@ def get_list_of_int(
             "Extracting int list from ", data_node
         )
 
-    assert all(
-        isinstance(_, (nnef.Identifier, int)) for _ in int_list
-    ), int_list
+    assert all(isinstance(_, (nnef.Identifier, int)) for _ in int_list), (
+        int_list
+    )
     return int_list
 
 
@@ -749,7 +749,10 @@ class OpHelper:
                     sh = list(inode.shape)
             return (input_nodes[0].dtype, sh)
         if nnef_op_type == "tract_core_cast":
-            return (str_to_torch_dtype(attrs["to"]), list(input_nodes[0].shape))
+            return (
+                str_to_torch_dtype(attrs["to"]),
+                list(input_nodes[0].shape),
+            )
 
         raise NotImplementedError(nnef_op_type)
 
@@ -951,9 +954,9 @@ class SimpleOpChainer:
 def get_tract_dyn_axis_size_soc(
     op_helper, input_node, axis: int
 ) -> SimpleOpChainer:
-    assert (
-        input_node.rank - np.abs(axis) >= 0
-    ), f"{input_node.rank} - {np.abs(axis)}"
+    assert input_node.rank - np.abs(axis) >= 0, (
+        f"{input_node.rank} - {np.abs(axis)}"
+    )
     index_tensor_name = f"{input_node.export_name}_dim{axis}"
     soc = (
         SimpleOpChainer(

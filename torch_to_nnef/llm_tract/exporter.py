@@ -66,9 +66,7 @@ the force acting on an electric charge.
 Electric potential is the work done to move an electric charge
 from one point to another within an electric field,
 typically measured in volts.
-""".strip().replace(
-    "\n", " "
-)
+""".strip().replace("\n", " ")
 
 
 def _load_exporter_from(
@@ -236,9 +234,9 @@ class LLMExporter:
         inputs = tuple(
             [test_input.input_ids[:, :n_input_tokens]] + past_key_values
         )
-        assert (
-            len(inputs) == len(input_names) == len(output_names)
-        ), f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
+        assert len(inputs) == len(input_names) == len(output_names), (
+            f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
+        )
         return (
             inputs,
             input_names,
@@ -442,7 +440,8 @@ class LLMExporter:
                 assert tract_cli_path.exists(), tract_cli_path
                 tract_cli = TractCli(tract_cli_path)
                 inference_target = TractNNEF(
-                    tract_cli.version, specific_tract_binary_path=tract_cli_path
+                    tract_cli.version,
+                    specific_tract_binary_path=tract_cli_path,
                 )
             else:
                 inference_target = TractNNEF.latest()

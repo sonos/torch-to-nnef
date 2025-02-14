@@ -126,7 +126,8 @@ def cond_diff_tract_0_21_0(i):
 # SEED selected so that it's exact
 test_suite.add(
     *build_test_tup(
-        nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)), shape=(1, 2, 1)
+        nn.Sequential(nn.Conv1d(2, 1, 1, stride=1, bias=False)),
+        shape=(1, 2, 1),
     ),
     test_name="single_conv1d_with_kernel_1_no_bias",
     inference_conditions=cond_diff_tract_0_21_0,

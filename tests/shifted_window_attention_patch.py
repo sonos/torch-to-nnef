@@ -1,4 +1,4 @@
-""" A patch to ShiftedWindowAttention so that jit pass it correctly.
+"""A patch to ShiftedWindowAttention so that jit pass it correctly.
 
 Indeed in torchvision 0.13.1 : ShiftedWindowAttention
 call shifted_window_attention in forward pass
@@ -22,6 +22,7 @@ Doing so original mask compute for more memory (which may have been the origin
 of this decision, since at training time GPU mem are often limited.)
 
 """
+
 from typing import Callable, List, Optional
 
 import torch
@@ -275,7 +276,9 @@ class ExportableShiftedWindowAttention(nn.Module):
             self.input_shape = x.shape
 
         N = self.window_size[0] * self.window_size[1]
-        relative_position_bias = self.relative_position_bias_table[self.relative_position_index]  # type: ignore[index]
+        relative_position_bias = self.relative_position_bias_table[
+            self.relative_position_index
+        ]  # type: ignore[index]
         relative_position_bias = relative_position_bias.view(N, N, -1)
         relative_position_bias = (
             relative_position_bias.permute(2, 0, 1).contiguous().unsqueeze(0)
@@ -300,7 +303,6 @@ class ExportableShiftedWindowAttention(nn.Module):
 
 
 class ExportableSwinTransformerBlock(SwinTransformerBlock):
-
     """Important to overwrite as well due attn_layer default"""
 
     # pylint: disable-next=useless-parent-delegation

@@ -124,9 +124,9 @@ class TorchModuleIRGraph:
         for dnode in self.data_nodes:
             if dnode.is_container:
                 for subdnode in dnode.iter():
-                    assert self.data_nodes.contains(
-                        subdnode, strict=True
-                    ), f"not referenced correctly sub item: {subdnode}"
+                    assert self.data_nodes.contains(subdnode, strict=True), (
+                        f"not referenced correctly sub item: {subdnode}"
+                    )
 
     def _check_io_rely_on_data_nodes(self):
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
@@ -223,9 +223,9 @@ class TorchModuleIRGraph:
                     parent_attr_name = parent.s("name")
                     parent_scope = attr_to_scope[parent_attr_name]
                     attr_scope = parent_scope.split("/")[-1]
-                    attr_to_scope[
-                        attr_name
-                    ] = f"{parent_scope}/{attr_scope}.{attr_name}"
+                    attr_to_scope[attr_name] = (
+                        f"{parent_scope}/{attr_scope}.{attr_name}"
+                    )
                 else:
                     attr_to_scope[attr_name] = f"__module.{attr_name}"
                 # We don't need classtype nodes; scope will provide this information

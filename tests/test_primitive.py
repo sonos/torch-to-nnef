@@ -289,7 +289,10 @@ for op in [
     (lambda x, y: x | y),  # or
 ]:
     test_suite.add(
-        (torch.tensor([True, False, True]), torch.tensor([True, False, False])),
+        (
+            torch.tensor([True, False, True]),
+            torch.tensor([True, False, False]),
+        ),
         BinaryPrimitive(op),
     )
 

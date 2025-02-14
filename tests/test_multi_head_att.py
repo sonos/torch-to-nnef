@@ -21,7 +21,9 @@ from .utils import (  # noqa: E402
 
 set_seed(int(os.environ.get("SEED", 0)))
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    TRACT_INFERENCES_TO_TESTS_APPROX
+)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
 n_heads = 8
