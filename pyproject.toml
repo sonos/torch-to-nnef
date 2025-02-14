@@ -95,7 +95,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 80
-target-version = 'py38'
+target-version = 'py39'
 
 [tool.isort]
 multi_line_output = 3
