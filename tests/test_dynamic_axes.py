@@ -10,7 +10,7 @@ from torchaudio import models as audio_mdl
 
 from torch_to_nnef.inference_target import TractNNEF
 
-from .test_primitive import TorchFnPrimitive
+from .wrapper import TorchFnPrimitive
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,

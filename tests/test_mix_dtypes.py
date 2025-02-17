@@ -5,7 +5,7 @@ import os
 import pytest
 import torch
 
-from tests.test_primitive import TorchFnPrimitive
+from tests.wrapper import TorchFnPrimitive
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     DTYPES_EXPECTED_IMPLICIT_CAST_ORDER,

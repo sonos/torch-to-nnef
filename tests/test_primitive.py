@@ -17,6 +17,15 @@ from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.utils import torch_version
 
+from .wrapper import (
+    Einsum,
+    UnaryPrimitive,
+    BinaryPrimitive,
+    TernaryPrimitive,
+    TensorFnPrimitive,
+    TorchFnPrimitive,
+    ListInputPrim,
+)
 from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
@@ -25,84 +34,6 @@ from .utils import (  # noqa: E402
 )
 
 set_seed(int(os.environ.get("SEED", 25)))
-
-
-class UnaryPrimitive(nn.Module):
-    def __init__(self, op):
-        super().__init__()
-        self.op = op
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x):
-        return self.op(x)
-
-
-class BinaryPrimitive(nn.Module):
-    def __init__(self, op):
-        super().__init__()
-        self.op = op
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x1, x2):
-        return self.op(x1, x2)
-
-
-class TernaryPrimitive(nn.Module):
-    def __init__(self, op):
-        super().__init__()
-        self.op = op
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x1, x2, x3):
-        return self.op(x1, x2, x3)
-
-
-class TensorFnPrimitive(nn.Module):
-    def __init__(self, op, kwargs=None, args=None):
-        super().__init__()
-        self.op = op
-        self.args = args or tuple()
-        self.kwargs = kwargs or {}
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x):
-        return getattr(x, self.op)(*self.args, **self.kwargs)
-
-
-class TorchFnPrimitive(nn.Module):
-    def __init__(self, op, opt_kwargs=None):
-        super().__init__()
-        self.op = op
-        self.opt_kwargs = opt_kwargs
-
-    def extra_repr(self):
-        return f"torch.op={self.op}"
-
-    def forward(self, *args, **kwargs):
-        if self.opt_kwargs is not None:
-            kwargs.update(self.opt_kwargs)
-        return getattr(torch, self.op)(*args, **kwargs)
-
-
-class ListInputPrim(nn.Module):
-    def __init__(self, op, y):
-        super().__init__()
-        self.y = y
-        self.op = op
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x):
-        return self.op([x, self.y], dim=1)
 
 
 test_suite = TestSuiteInferenceExactnessBuilder(INFERENCE_TARGETS_TO_TESTS)
@@ -577,22 +508,12 @@ test_suite.add(
 )
 
 
-class _EinSTest(nn.Module):
-    def __init__(self, expr: str, tensors: T.List[torch.Tensor]):
-        super().__init__()
-        self.expr = expr
-        self.tensors = tensors
-
-    def forward(self, a):
-        return torch.einsum(self.expr, a, *self.tensors)
-
-
 def _eintest_gen(expr: str, tensors):
     a = tensors[0]
     others = tensors[1:]
     return (
         a,
-        _EinSTest(expr, others),
+        Einsum(expr, others),
     )
 
 
