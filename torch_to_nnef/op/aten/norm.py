@@ -61,7 +61,9 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     # }
 
     upcast_f32 = (
-        input_node.dtype == torch.float16 and inference_target.force_norm_in_f32
+        isinstance(inference_target, TractNNEF)
+        and input_node.dtype == torch.float16
+        and inference_target.force_norm_in_f32
     )
     if upcast_f32:
         running_mean_node.data = running_mean_node.data.float()
