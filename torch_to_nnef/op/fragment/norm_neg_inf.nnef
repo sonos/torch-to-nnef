@@ -1,0 +1,4 @@
+fragment norm_neg_inf( input: tensor<scalar>, axes: integer[]) -> ( output: tensor<scalar> )
+{
+     output = min_reduce(abs(input, axes = axes), axes=axes);
+}

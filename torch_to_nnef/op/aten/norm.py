@@ -1,3 +1,4 @@
+import math
 import torch
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
@@ -171,13 +172,20 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
         custom_fragments.append("tract_core")
 
     use_norm_spe_norm = p_node.data in [1, 2]
+    ord = float(p_node.data)
     custom_fragment_name = (
         f"norm_p{p_node.data}" if use_norm_spe_norm else "norm_pn"
     )
     attrs = {"axes": [pick_axis(input_node, dim) for dim in axes_node.data]}
     if not use_norm_spe_norm:
         assert isinstance(p_node.data, (float, int))
-        attrs["ord"] = float(p_node.data)
+        attrs["ord"] = ord
+    if ord == math.inf:
+        custom_fragment_name = "norm_pinf"
+        del attrs["ord"]
+    elif ord == -math.inf:
+        custom_fragment_name = "norm_neg_inf"
+        del attrs["ord"]
     out = add_single_output_op(
         g,
         node,
