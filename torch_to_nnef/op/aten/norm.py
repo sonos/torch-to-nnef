@@ -1,3 +1,5 @@
+import torch
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -58,13 +60,21 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                 param_node.shape = list(param_node.data.shape)
     # }
 
-    weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
+    upcast_f32 = (
+        input_node.dtype == torch.float16 and inference_target.force_norm_in_f32
+    )
+    if upcast_f32:
+        running_mean_node.data = running_mean_node.data.float()
+        running_var_node.data = running_var_node.data.float()
+        # output_tensor.dtype is based on weight_node
+    weight_ref, bias_ref, output_ref = weight_bias_and_output_tensor(
         g,
         node,
         weight_node,
         bias_node,
         name_to_tensor,
         null_ref,
+        suffix_out_name="_f32" if upcast_f32 else "",
     )
     running_mean_ref = add_tensor_variable_node_as_nnef_tensor(
         name_suffix="running_mean",
@@ -79,21 +89,48 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         name_to_tensor=name_to_tensor,
     )
 
+    base_inp_ref = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    custom_fragments = []
+    if upcast_f32:
+        inp_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=base_inp_ref,
+            attrs={"to": "f32"},
+            output_tensor_name_suffix="_ucast_f32",
+        )
+        custom_fragments.append("tract_core")
+    else:
+        inp_ref = base_inp_ref
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
         type="batch_normalization",
         name=f"{node.outputs[0].export_name}_op",
         inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            inp_ref,
             running_mean_ref,
             running_var_ref,
             bias_ref,
             weight_ref,
         ),
-        outputs=output_tensor,
+        outputs=output_ref,
         attribs={"epsilon": eps_node.data},
     )
+    if upcast_f32:
+        inp_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=output_ref,
+            attrs={"to": TORCH_DTYPE_TO_TRACT_STR[node.outputs[0].dtype]},
+        )
+    return custom_fragments
 
 
 @OP_REGISTRY.register(["norm", "linalg_vector_norm", "linalg_norm"])
