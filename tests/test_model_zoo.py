@@ -192,10 +192,18 @@ def inference_modifier_tract_tol_arm(inference_target):
     return inference_target
 
 
+def tract_upper_than_21_7_or_not_arm(inference_target):
+    return (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.21.7"
+    ) or "arm" not in platform.uname().machine.lower()
+
+
 test_suite.add(
     tuple(inputs.values()),
     ALBERTModel(),
     test_name="albert",
+    inference_conditions=tract_upper_than_21_7_or_not_arm,
     inference_modifier=inference_modifier_tract_tol_arm,
 )
 
