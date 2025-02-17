@@ -1,0 +1,4 @@
+fragment norm_pn( input: tensor<scalar>, axes: integer[], ord: integer) -> ( output: tensor<scalar> )
+{
+     output = pow(sum_reduce(pow(input, ord), axes = axes), (1.0/ ord));
+}

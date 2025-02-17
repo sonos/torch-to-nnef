@@ -1,3 +1,4 @@
+import math
 import torch
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
@@ -147,10 +148,6 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
         input_node, p_node, axes_node, keep_dim_node = node.inputs
     if p_node.data is None:
         p_node.data = 2
-    if p_node.data not in [1, 2]:
-        raise TorchToNNEFNotImplementedError(
-            "norm with p only supported for 1 and 2"
-        )
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -174,14 +171,28 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
         )
         custom_fragments.append("tract_core")
 
-    custom_fragment_name = f"norm_p{p_node.data}"
+    use_norm_spe_norm = p_node.data in [1, 2]
+    ord = float(p_node.data)
+    custom_fragment_name = (
+        f"norm_p{p_node.data}" if use_norm_spe_norm else "norm_pn"
+    )
+    attrs = {"axes": [pick_axis(input_node, dim) for dim in axes_node.data]}
+    if not use_norm_spe_norm:
+        assert isinstance(p_node.data, (float, int))
+        attrs["ord"] = ord
+    if ord == math.inf:
+        custom_fragment_name = "norm_pinf"
+        del attrs["ord"]
+    elif ord == -math.inf:
+        custom_fragment_name = "norm_neg_inf"
+        del attrs["ord"]
     out = add_single_output_op(
         g,
         node,
         name_to_tensor,
         custom_fragment_name,
         inputs=input_tensor,
-        attrs={"axes": [pick_axis(input_node, dim) for dim in axes_node.data]},
+        attrs=attrs,
         output_tensor_name_suffix="_norm"
         if (not keep_dim_node.data or upcast_f32)
         else "",

@@ -1,0 +1,4 @@
+fragment norm_pinf( input: tensor<scalar>, axes: integer[]) -> ( output: tensor<scalar> )
+{
+     output = max_reduce(abs(input, axes = axes), axes=axes);
+}
