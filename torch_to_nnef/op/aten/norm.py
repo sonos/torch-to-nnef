@@ -136,7 +136,7 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register(["norm", "linalg_vector_norm", "linalg_norm"])
-def norm(g, node, name_to_tensor, **kwargs):
+def norm(g, node, name_to_tensor, inference_target, **kwargs):
     """
     NOTE this is only the normed vector
     """
@@ -155,6 +155,25 @@ def norm(g, node, name_to_tensor, **kwargs):
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
+    upcast_f32 = (
+        p_node.data != 1
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.force_norm_in_f32
+        and input_node.dtype == torch.float16
+    )
+    custom_fragments = []
+    if upcast_f32:
+        input_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=input_tensor,
+            attrs={"to": "f32"},
+            output_tensor_name_suffix="_ucast_f32",
+        )
+        custom_fragments.append("tract_core")
+
     custom_fragment_name = f"norm_p{p_node.data}"
     out = add_single_output_op(
         g,
@@ -163,8 +182,22 @@ def norm(g, node, name_to_tensor, **kwargs):
         custom_fragment_name,
         inputs=input_tensor,
         attrs={"axes": [pick_axis(input_node, dim) for dim in axes_node.data]},
-        output_tensor_name_suffix="_norm" if not keep_dim_node.data else "",
+        output_tensor_name_suffix="_norm"
+        if (not keep_dim_node.data or upcast_f32)
+        else "",
     )
+    if upcast_f32:
+        out = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=out,
+            attrs={"to": "f16"},
+            output_tensor_name_suffix=""
+            if keep_dim_node.data
+            else "_downcast_f16",
+        )
     if not keep_dim_node.data:
         add_single_output_op(
             g,

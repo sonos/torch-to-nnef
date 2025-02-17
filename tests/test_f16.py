@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tests.wrapper import TernaryPrimitive
+from tests.wrapper import TernaryPrimitive, TensorFnPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -41,6 +41,10 @@ bn_test_suite = TestSuiteInferenceExactnessBuilder(
 bn_test_suite.add(
     (torch.arange(12).reshape(1, 3, 4).half()),
     nn.BatchNorm1d(3),
+)
+bn_test_suite.add(
+    (torch.arange(12).reshape(1, 3, 4).half()),
+    TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
 )
 
 
