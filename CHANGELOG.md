@@ -6,6 +6,7 @@
 ### Added
 
 - upcast to f32 norm operations if f16 inputs such as `BatchNorm`, `norm_p2`, `group_norm`, `weight_norm`
+- more tract default properties among which export command, python version, (and opt-out) username, hostname, OS info (uname -a)
 
 ## [0.15.10] - 2025-02-14
 
