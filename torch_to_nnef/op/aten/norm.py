@@ -355,7 +355,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def _weight_norm(g, node, name_to_tensor, **kwargs):
+def _weight_norm(g, node, name_to_tensor, inference_target, **kwargs):
     """
     https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/WeightNorm.cpp#L82
 
@@ -365,7 +365,6 @@ def _weight_norm(g, node, name_to_tensor, **kwargs):
     Note:
         this is a form of unit norm with scale g
     """
-    #
     (
         vin_node,
         gin_node,
@@ -374,13 +373,33 @@ def _weight_norm(g, node, name_to_tensor, **kwargs):
 
     assert isinstance(dim_node.data, int)
 
-    add_single_output_op(
+    upcast_f32 = (
+        isinstance(inference_target, TractNNEF)
+        and vin_node.dtype == torch.float16
+        and inference_target.force_norm_in_f32
+    )
+    custom_fragments = ["weight_norm"]
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, vin_node, name_to_tensor)
+    if upcast_f32:
+        gin_node.data = gin_node.data.float()
+        inp_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=inp_ref,
+            attrs={"to": "f32"},
+            output_tensor_name_suffix="upcast_f32",
+        )
+        custom_fragments.append("tract_core")
+
+    out_ref = add_single_output_op(
         g=g,
         name_to_tensor=name_to_tensor,
         node=node,
         nnef_op_type="weight_norm",
         inputs=(
-            get_or_add_tensor_variable_in_nnef(g, vin_node, name_to_tensor),
+            inp_ref,
             get_or_add_tensor_variable_in_nnef(g, gin_node, name_to_tensor),
         ),
         attrs={
@@ -388,5 +407,15 @@ def _weight_norm(g, node, name_to_tensor, **kwargs):
                 i for i, _ in enumerate(vin_node.shape) if i != dim_node.data
             ],
         },
+        output_tensor_name_suffix="_f32" if upcast_f32 else "",
     )
-    return ["weight_norm"]
+    if upcast_f32:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=out_ref,
+            attrs={"to": "f16"},
+        )
+    return custom_fragments

@@ -13,6 +13,7 @@ from tests.utils import (
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 
 FORCE_F32_INFERENCES = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)
@@ -23,6 +24,12 @@ for inf in FORCE_F32_INFERENCES:
 attn_test_suite = TestSuiteInferenceExactnessBuilder(
     FORCE_F32_INFERENCES + TRACT_INFERENCES_TO_TESTS_APPROX
 )
+
+
+def set_inference_supper(inference_target):
+    new_inference_target = deepcopy(inference_target)
+    new_inference_target.check_io = False
+    return new_inference_target
 
 
 attn_test_suite.add(
@@ -53,6 +60,26 @@ bn_test_suite.add(
     torch.arange(12).reshape(1, 6, 2).half(),
     gn,
 )
+
+try:
+    from torch.nn.utils import weight_norm as wn
+
+    bn_test_suite.add(
+        torch.rand(1, 1, 5, 5).half(),
+        wn(
+            nn.Conv2d(
+                in_channels=1,
+                out_channels=1,
+                kernel_size=3,
+                padding=1,
+                bias=False,
+            ).half(),
+            dim=2,
+        ),
+        inference_modifier=set_inference_supper,
+    )
+except ImportError as exp:
+    print("not yet weight_norm import:", exp)
 
 
 def check_contains_f32_upcast_attn(inference_target, path):
