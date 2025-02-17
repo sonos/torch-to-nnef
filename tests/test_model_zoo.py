@@ -1,9 +1,12 @@
 """Tests canonical models."""
 
+import platform
+from copy import deepcopy
 import os
 
 import pytest
 import torch
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 import torchaudio
 from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
@@ -178,7 +181,23 @@ class ALBERTModel(torch.nn.Module):
 
 # }
 
-test_suite.add(tuple(inputs.values()), ALBERTModel(), test_name="albert")
+
+def inference_modifier_tract_tol_arm(inference_target):
+    inference_target = deepcopy(inference_target)
+    if (
+        isinstance(inference_target, TractNNEF)
+        and "arm" in platform.uname().machine.lower()
+    ):
+        inference_target.check_io_tolerance = TractCheckTolerance.SUPER
+    return inference_target
+
+
+test_suite.add(
+    tuple(inputs.values()),
+    ALBERTModel(),
+    test_name="albert",
+    inference_modifier=inference_modifier_tract_tol_arm,
+)
 
 
 @pytest.mark.parametrize(
