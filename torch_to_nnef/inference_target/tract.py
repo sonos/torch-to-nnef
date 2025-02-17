@@ -516,7 +516,7 @@ class TractBinaryDownloader:
                 raise RuntimeError(
                     f"Error downloading tract at URL {self.binary_url}"
                 ) from exc
-            subprocess.check_output(["tar", "-xvzf", str(archive_gz_path)])
+            subprocess.check_output(["tar", "-xzf", str(archive_gz_path)])
             shutil.move(archive_path / "tract", self.extract_dir)
             shutil.rmtree(archive_path)
             archive_gz_path.unlink()
@@ -654,7 +654,7 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
     if not sucessfull_export:
         return False
     with cd(target_folder):
-        subprocess.check_output(["tar", "-xvf", str(nnef_path)])
+        subprocess.check_output(["tar", "-xf", str(nnef_path)])
     return True
 
 
@@ -789,7 +789,7 @@ def assert_io_and_debug_bundle(
                     no_suffix_debug_bundle_torch_to_nnef_path
                     / "model.nnef.tgz",
                 )
-                subprocess.check_output(["tar", "-xvzf", str(nnef_file_path)])
+                subprocess.check_output(["tar", "-xzf", str(nnef_file_path)])
                 if io_npz_path:
                     shutil.copy(
                         io_npz_path,
