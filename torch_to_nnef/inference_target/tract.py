@@ -31,7 +31,13 @@ from torch.onnx.utils import (
     select_model_mode_for_export,  # type: ignore
 )
 
-from torch_to_nnef.collect_env import dump_environment_versions
+from torch_to_nnef.collect_env import (
+    dump_environment_versions,
+    get_hostname,
+    get_os,
+    get_user,
+    python_version,
+)
 from torch_to_nnef.exceptions import (
     DynamicShapeValue,
     IOPytorchTractNotISOError,
@@ -82,6 +88,7 @@ class TractNNEF(InferenceTarget):
         specific_tract_binary_path: T.Optional[Path] = None,
         check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         specific_properties: T.Optional[T.Dict[str, str]] = None,
+        dump_identity_properties: bool = True,
         force_attention_inner_in_f32: bool = False,
         force_linear_accumulation_in_f32: bool = False,
         force_norm_in_f32: bool = False,
@@ -94,6 +101,7 @@ class TractNNEF(InferenceTarget):
         self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         self.force_norm_in_f32 = force_norm_in_f32
+        self.dump_identity_properties = dump_identity_properties
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
@@ -127,6 +135,12 @@ class TractNNEF(InferenceTarget):
         except ImportError:
             pass
 
+        if self.dump_identity_properties:
+            items["os"] = get_os()
+            items["hostname"] = get_hostname()
+            items["user"] = get_user()
+
+        items["py_version"] = python_version()
         items["export_date"] = str(datetime.now())
 
         from torch_to_nnef.model_wrapper import WrapStructIO
@@ -134,7 +148,8 @@ class TractNNEF(InferenceTarget):
         if isinstance(model, WrapStructIO):
             model = model.model
         items["exported_py_class"] = model.__class__.__name__
-
+        if sys.argv:
+            items["export_cmd"] = " ".join(sys.argv)
         if self.specific_properties is not None:
             items.update(self.specific_properties)
 
@@ -256,7 +271,8 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
-                        custom_extensions.append("tract_pulse_streaming_symbol")
+                        custom_extensions.append(
+                            "tract_pulse_streaming_symbol")
                     else:
                         custom_extensions.append(f"tract_symbol {axis_name}")
                 break

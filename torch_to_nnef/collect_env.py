@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 from platform import machine
+import pwd
 
 
 def run_lambda(command):
@@ -84,6 +85,21 @@ def get_windows_version():
 
 def get_lsb_version():
     return run_and_parse_first_match("lsb_release -a", r"Description:\t(.*)")
+
+
+def get_hostname():
+    return platform.node()
+
+
+def get_user():
+    try:
+        return pwd.getpwuid(os.getuid()).pw_name
+    except Exception:
+        return ""
+
+
+def get_uname() -> str:
+    return subprocess.check_output(["uname", "-a"]).decode("utf8")
 
 
 def get_os() -> str:
