@@ -1,5 +1,6 @@
 """Tests export quantized models."""
 
+import sys
 import os
 import typing as T
 
@@ -17,6 +18,13 @@ from .utils import (  # noqa: E402
     check_model_io_test,
     set_seed,
 )
+
+if sys.platform.startswith("darwin"):
+    # E   RuntimeError: Didn't find engine for operation quantized: : linear_prepack NoQEngine
+    pytest.skip(
+        "skipping darwin unsuported 'test_quantized' kernels tests",
+        allow_module_level=True,
+    )
 
 #
 # in some case bug may happen with random at specific seed
