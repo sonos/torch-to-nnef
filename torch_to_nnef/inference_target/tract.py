@@ -34,7 +34,7 @@ from torch.onnx.utils import (
 from torch_to_nnef.collect_env import (
     dump_environment_versions,
     get_hostname,
-    get_os,
+    get_uname,
     get_user,
     python_version,
 )
@@ -136,7 +136,7 @@ class TractNNEF(InferenceTarget):
             pass
 
         if self.dump_identity_properties:
-            items["os"] = get_os()
+            items["os"] = get_uname()
             items["hostname"] = get_hostname()
             items["user"] = get_user()
 
