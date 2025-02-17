@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tests.wrapper import TernaryPrimitive, UnaryPrimitive
+from tests.wrapper import TernaryPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -107,4 +107,17 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
         test_input=test_input,
         inference_target=inference_target,
         callback=check_contains_f32_upcast_bn,
+    )
+
+
+def test_layer_norm_f16_unsupported_in_torch():
+    """Check no layer norm support for f16"""
+    with pytest.raises(RuntimeError) as excinfo:
+        check_model_io_test(
+            nn.LayerNorm(4, 3),
+            test_input=(torch.arange(12).reshape(1, 3, 4).half()),
+            inference_target=FORCE_F32_INFERENCES[0],
+        )
+    assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
+        excinfo.value
     )
