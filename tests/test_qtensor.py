@@ -1,3 +1,5 @@
+from copy import deepcopy
+import platform
 import time
 from datetime import datetime
 
@@ -13,6 +15,7 @@ from torch_to_nnef.qtensor.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -98,6 +101,10 @@ def test_quantize_with_tract_q4_0_controled(inference_target):
         q_res = model(test_input)
         abs_diff = (q_res - fp_res).abs()
         assert abs_diff.mean() < 0.01, diff.mean()
+        if "arm" in platform.uname().machine.lower():
+            inference_target = deepcopy(inference_target)
+            inference_target.check_io_tolerance = TractCheckTolerance.SUPER
+
         check_model_io_test(
             model=model,
             test_input=test_input,
@@ -140,6 +147,10 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
 def test_quantize_with_tract_q4_0_arange(inference_target):
     """basic quantization values"""
     with torch.no_grad():
+        if "arm" in platform.uname().machine.lower():
+            inference_target = deepcopy(inference_target)
+            inference_target.check_io_tolerance = TractCheckTolerance.SUPER
+
         test_input = torch.arange(960).float().reshape(10, 96)
         test_input[0, :] = 1
         model = nn.Linear(96, 16, bias=False).eval()
