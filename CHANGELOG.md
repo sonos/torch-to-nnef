@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+## [0.15.11] - 2025-02-17
+
 ### Added
 
 - support p norm with p != 1 or 2 (including inf and -inf norms)
