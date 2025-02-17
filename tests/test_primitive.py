@@ -145,6 +145,7 @@ for op in [
     TensorFnPrimitive("norm", kwargs=dict(p=-2, dim=1, keepdim=True)),
     TensorFnPrimitive("norm", kwargs=dict(p=torch.inf, dim=1, keepdim=True)),
     TensorFnPrimitive("norm", kwargs=dict(p=-torch.inf, dim=1, keepdim=True)),
+    TensorFnPrimitive("norm", kwargs=dict(p="fro", dim=1, keepdim=True)),
     partial(
         nn.functional.pad,
         pad=[0, 0, 0, 0, 0, 1],
