@@ -259,7 +259,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
 
 
 @OP_REGISTRY.register()
-def group_norm(g, node, name_to_tensor, **kwargs):
+def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
     """
     It is a special case of NNEF batch_normalization
     with variance and mean being tensor
@@ -272,6 +272,10 @@ def group_norm(g, node, name_to_tensor, **kwargs):
         eps_node,
         _,  # is_affine_node
     ) = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(
+            "use tract_core_cast in 'group_norm' fragment"
+        )
     for nd in [offset_node, scale_node]:
         for _ in range(input_node.rank - nd.rank - 1):
             if isinstance(nd.data, QTensorTract):
@@ -280,6 +284,15 @@ def group_norm(g, node, name_to_tensor, **kwargs):
                 )
             nd.data = nd.data.unsqueeze(-1)
         nd.shape = list(nd.data.shape)
+
+    upcast_f32 = (
+        isinstance(inference_target, TractNNEF)
+        and input_node.dtype == torch.float16
+        and inference_target.force_norm_in_f32
+    )
+    if upcast_f32:
+        offset_node.data = offset_node.data.float()
+        scale_node.data = scale_node.data.float()
 
     offset_ref = add_tensor_variable_node_as_nnef_tensor(
         name_suffix="offset",
@@ -294,15 +307,30 @@ def group_norm(g, node, name_to_tensor, **kwargs):
         name_to_tensor=name_to_tensor,
     )
 
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    custom_fragments = []
+    if upcast_f32:
+        inp_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=inp_ref,
+            attrs={"to": "f32"},
+            output_tensor_name_suffix="_ucast_f32",
+        )
+        custom_fragments.append("tract_core")
+
     # x.reshape(3, 1* 2* 2).mean_or_std(dim=1).repeat(2, 1).t().reshape(6)
-    add_single_output_op(
+    custom_fragments.append("group_norm")
+    out_ref = add_single_output_op(
         g=g,
         name_to_tensor=name_to_tensor,
         node=node,
         nnef_op_type="group_norm",
         # name=f"{node.outputs[0].export_name}_op",
         inputs=(
-            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor),
+            inp_ref,
             offset_ref,
             scale_ref,
         ),
@@ -312,8 +340,18 @@ def group_norm(g, node, name_to_tensor, **kwargs):
             "batch_size": input_node.shape[0],
             "num_channels": input_node.shape[1],
         },
+        output_tensor_name_suffix="_f32" if upcast_f32 else "",
     )
-    return ["group_norm"]
+    if upcast_f32:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=out_ref,
+            attrs={"to": "f16"},
+        )
+    return custom_fragments
 
 
 @OP_REGISTRY.register()

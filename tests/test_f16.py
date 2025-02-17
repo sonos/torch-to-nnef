@@ -46,6 +46,13 @@ bn_test_suite.add(
     (torch.arange(12).reshape(1, 3, 4).half()),
     TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
 )
+gn = nn.GroupNorm(num_groups=3, num_channels=6, eps=0.0)
+gn.requires_grad_ = False
+gn.eval()
+bn_test_suite.add(
+    torch.arange(12).reshape(1, 6, 2).half(),
+    gn,
+)
 
 
 def check_contains_f32_upcast_attn(inference_target, path):
@@ -83,16 +90,19 @@ def test_upcast_f32_attn(id, test_input, model, inference_target):
     )
 
 
-def check_contains_f32_upcast_bn(inference_target, path):
+def check_contains_f32_upcast_norm(inference_target, path):
     assert path.exists()
     graph_filename = "graph.nnef"
     subprocess.check_call(["tar", "-xzf", path, graph_filename])
     graph_filepath = Path(graph_filename)
     graph_content = graph_filepath.read_text()
     try:
-        elms_to_be_found = ["tract_core_cast", "to = 'f32'", "to = 'f16'"]
+        elms_to_be_found = ["to = 'f32'", "to = 'f16'"]
         if inference_target.force_norm_in_f32:
-            assert all(elm in graph_content for elm in elms_to_be_found)
+            assert all(
+                elm in graph_content
+                for elm in elms_to_be_found + ["tract_core_cast"]
+            )
         else:
             assert not any(elm in graph_content for elm in elms_to_be_found)
     finally:
@@ -110,7 +120,7 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        callback=check_contains_f32_upcast_bn,
+        callback=check_contains_f32_upcast_norm,
     )
 
 
