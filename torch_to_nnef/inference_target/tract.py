@@ -815,7 +815,7 @@ def assert_io_and_debug_bundle(
                     subprocess.check_output(
                         [
                             "tar",
-                            "-cvzf",
+                            "-cvf",
                             str(debug_bundle_path.absolute()),
                             str(no_suffix_debug_bundle_path.name),
                         ]

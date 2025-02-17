@@ -56,7 +56,7 @@ class KhronosNNEF(InferenceTarget):
                 # so uncompress here to avoid issue
                 with cd(td):
                     subprocess.check_output(
-                        ["tar", "-xvzf", str(exported_filepath)]
+                        ["tar", "-xzf", str(exported_filepath)]
                     )
                 try:
                     nnef_mod = NNEFModule(td)
