@@ -1990,7 +1990,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.15.9"
+version = "0.15.10"
 source = { editable = "." }
 dependencies = [
     { name = "mako" },

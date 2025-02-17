@@ -564,6 +564,7 @@ def weight_bias_and_output_tensor(
     null_ref,
     suffix_weight_name="",
     suffix_bias_name="",
+    suffix_out_name="",
 ):
     if suffix_weight_name == "":
         if (
@@ -592,6 +593,8 @@ def weight_bias_and_output_tensor(
 
     out_node = node.outputs[0]
     out_tensor_name = out_node.export_name
+    if suffix_out_name:
+        out_tensor_name += suffix_out_name
     output_tensor = NTensor(
         graph=g,
         name=out_tensor_name,

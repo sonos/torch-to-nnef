@@ -3,24 +3,13 @@ import torch
 from torch import nn
 from torchaudio import transforms
 
+from tests.wrapper import UnaryPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
 from torch_to_nnef.inference_target import TractNNEF
-
-
-class UnaryPrimitive(nn.Module):
-    def __init__(self, op):
-        super().__init__()
-        self.op = op
-
-    def extra_repr(self):
-        return f"op={self.op}"
-
-    def forward(self, x):
-        return self.op(x)
 
 
 class MyFFT(nn.Module):

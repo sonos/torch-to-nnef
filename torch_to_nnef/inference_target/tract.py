@@ -84,6 +84,7 @@ class TractNNEF(InferenceTarget):
         specific_properties: T.Optional[T.Dict[str, str]] = None,
         force_attention_inner_in_f32: bool = False,
         force_linear_accumulation_in_f32: bool = False,
+        force_norm_in_f32: bool = False,
     ):
         super().__init__(version, check_io)
         self.feature_flags = feature_flags or set()
@@ -92,6 +93,7 @@ class TractNNEF(InferenceTarget):
         self.specific_properties = specific_properties
         self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
+        self.force_norm_in_f32 = force_norm_in_f32
         if self.feature_flags:
             LOGGER.info(f"use tract features flags: {self.feature_flags}")
 
