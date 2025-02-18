@@ -5,10 +5,10 @@ test: format lint unittest
 
 format:
 	isort $(sources) tests
-	black $(sources) tests
+	ruff format $(sources) tests
 
 lint:
-	flake8 $(sources) tests
+	ruff check $(sources) tests
 	mypy $(sources) tests
 
 unittest:
