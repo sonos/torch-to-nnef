@@ -4,6 +4,7 @@ from copy import copy
 import nnef
 import numpy as np
 
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -14,6 +15,7 @@ from torch_to_nnef.op.helper import (
     pick_axis,
     pick_index_in_axis,
 )
+from torch_to_nnef.qtensor.base import QTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 LOGGER = logging.getLogger(__name__)
@@ -417,9 +419,12 @@ def embedding(node, op_helper, inference_target, **kwargs):
     ) = node.inputs
 
     custom_fragments = []
+    attrs = {"axis": 0}
     if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+        if isinstance(weight_node.data, QTensorRef):
+            attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
     else:
         op_name = "gather"
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -428,7 +433,7 @@ def embedding(node, op_helper, inference_target, **kwargs):
         inputs=op_helper.data_nodes_to_nnef_tensors(
             [weight_node, indices_node]
         ),
-        attrs={"axis": 0},
+        attrs=attrs,
     )
     return custom_fragments
 

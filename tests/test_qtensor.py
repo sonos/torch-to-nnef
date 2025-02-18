@@ -242,3 +242,29 @@ def test_quantize_with_tract_q4_0_assign_to(inference_target):
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
         model.to(torch.device("cpu", 0))  # goal to assign new device
+
+
+@pytest.mark.parametrize(
+    "inference_target",
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.10"],
+)
+def test_quantize_with_tract_q4_0_embedding(inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        test_input = torch.arange(6)
+        test_input[:3] = 3
+        x = 6
+        y = 32
+        model = nn.Embedding(x, y).eval()
+        original_weight = (torch.arange(
+            x * y).reshape(x, y).float() * 2).half()
+
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+        )
