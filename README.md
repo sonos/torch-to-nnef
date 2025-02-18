@@ -37,6 +37,8 @@ Then use:
 $ pip install torch_to_nnef
 $ # or
 $ poetry add torch_to_nnef
+$ # or
+$ uv add torch_to_nnef
 ```
 
 Or reference this GitHub project via your preferred package manager.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This is a shim to hopefully allow Github to detect the package, build is done with poetry
+# This is a shim to hopefully allow Github to detect the package, build is done with uv
 
 import setuptools
 
