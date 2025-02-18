@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-import typing as T
 from functools import partial
 from pathlib import Path
 

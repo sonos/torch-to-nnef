@@ -40,8 +40,6 @@ test = [
     "ruff<1.0",
     "isort>=5.8.0,<6",
     "mypy~=1.13",
-    "flake8>=3.9.2,<4",
-    "flake8-docstrings>=1.6.0,<2",
     "pytest-cov>=6.0.0,<7",
     "torchvision>=0.17.0,<0.18",
     "torchaudio>=2.2.0,<3",
@@ -78,16 +76,10 @@ name = "pypi-public"
 url = "https://pypi.org/simple/"
 
 [tool.hatch.build.targets.sdist]
-include = [
-    "torch_to_nnef",
-    "CHANGELOG.md",
-]
+include = ["torch_to_nnef", "CHANGELOG.md"]
 
 [tool.hatch.build.targets.wheel]
-include = [
-    "torch_to_nnef",
-    "CHANGELOG.md",
-]
+include = ["torch_to_nnef", "CHANGELOG.md"]
 
 [build-system]
 requires = ["hatchling"]

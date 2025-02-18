@@ -13,7 +13,6 @@ from tests.utils import (
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 
 FORCE_F32_INFERENCES = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)

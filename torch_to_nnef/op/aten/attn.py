@@ -2,7 +2,6 @@
 
 import torch
 
-from torch_to_nnef import inference_target
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.fragment import TMPL_FRAGMENTS

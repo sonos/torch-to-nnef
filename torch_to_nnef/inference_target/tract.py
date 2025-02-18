@@ -271,8 +271,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         for idx, dim_size in enumerate(shape)
                     ]
                     if tract_version < "0.18.2":
-                        custom_extensions.append(
-                            "tract_pulse_streaming_symbol")
+                        custom_extensions.append("tract_pulse_streaming_symbol")
                     else:
                         custom_extensions.append(f"tract_symbol {axis_name}")
                 break
