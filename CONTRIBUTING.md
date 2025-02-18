@@ -52,20 +52,20 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
 1. Fork the `torch_to_nnef` repo on GitHub.
 2. Clone your fork locally
 
-    ```
+    ```bash
     git clone git@github.com:sonos/torch_to_nnef.git
     ```
 
 3. Ensure [uv](https://github.com/astral-sh/uv) is installed.
 4. Install dependencies and start your virtualenv:
 
-    ```
-    uv install -E test -E doc -E dev
+    ```bash
+    uv pip install --extra test --extra doc --extra dev
     ```
 
 5. Create a branch for local development:
 
-    ```
+    ```bash
     git checkout -b name-of-your-bugfix-or-feature
     ```
 
@@ -74,13 +74,13 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
 6. When you're done making changes, check that your changes pass the
    tests, including testing other Python versions, with tox:
 
-    ```
+    ```bash
     uv run tox
     ```
 
 7. Commit your changes and push your branch to GitHub:
 
-    ```
+    ```bash
     git add .
     git commit -m "Your detailed description of your changes."
     git push origin name-of-your-bugfix-or-feature
@@ -102,7 +102,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 ## Tips
 
-```
+```bash
 uv run pytest tests/test_torch_to_nnef.py
 ```
 
@@ -114,7 +114,7 @@ A reminder for the maintainers on how to deploy.
 Make sure all your changes are committed (including an entry in CHANGELOG.md).
 Then run:
 
-```
+```bash
 uv run bump2version patch # possible: major / minor / patch
 git push
 git push --tags

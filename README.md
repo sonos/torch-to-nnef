@@ -99,7 +99,7 @@ Export any PyTorch Tensor or *InterenceTarget* compatible QTensor in a Python sc
 Either directly from disk:
 
 ```python
-# exemple extracted from torch_to_nnef/peft/cli.py
+# example extracted from torch_to_nnef/peft/cli.py
 from pathlib import Path
 import re
 from torch_to_nnef import export_tensors_from_disk_to_nnef
