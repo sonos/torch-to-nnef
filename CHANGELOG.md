@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.14] - 2025-02-19
+
+### Fix
+
+- another compress import issue
+
 ## [0.15.13] - 2025-02-19
 
 ### Fix

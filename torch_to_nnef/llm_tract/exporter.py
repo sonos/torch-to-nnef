@@ -367,7 +367,7 @@ class LLMExporter:
             LOGGER.info(f"start compresssion: {compression_method}")
             registry = dynamic_load_registry(compression_registry)
             self.wrapped_model = registry[compression_method](
-                wrapped_model=self.wrapped_model,
+                self.wrapped_model,
                 tokenizer=self.tokenizer,
                 # may be usefull to dump compression evaluations results
                 export_dirpath=export_dirpath,
