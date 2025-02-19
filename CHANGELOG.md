@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.13] - 2025-02-19
+
+### Fix
+
+- wrong default for compress registry llm_tract cli
+
 ## [0.15.12] - 2025-02-19
 
 ### Change
