@@ -19,7 +19,7 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
-from torch_to_nnef.llm_tract.compress import dynamic_load_registry
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
