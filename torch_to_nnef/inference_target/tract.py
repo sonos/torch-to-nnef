@@ -153,8 +153,18 @@ class TractNNEF(InferenceTarget):
         if self.specific_properties is not None:
             items.update(self.specific_properties)
 
+        def fmt(obj):
+            """minimal safety fmt"""
+            return (
+                str(obj)
+                .replace("\n", " ")
+                .replace('"', "'")
+                .replace("\\", " ")
+                .strip()
+            )
+
         properties = ",\n".join(
-            [f'    ("{k}", "{v}")' for k, v in items.items()]
+            [f'    ("{fmt(k)}", "{fmt(v)}")' for k, v in items.items()]
         )
         return {
             "tract_core_properties": (
