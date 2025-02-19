@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.15] - 2025-02-19
+
+### Fix
+
+- Format safety in tract_properties (avoid caret return escape and other closing quote)
+
 ## [0.15.14] - 2025-02-19
 
 ### Fix
