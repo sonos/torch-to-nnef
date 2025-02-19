@@ -3,6 +3,17 @@
 
 ## Unreleased
 
+## [0.15.12] - 2025-02-19
+
+### Change
+
+- move `torch_to_nnef.llm_tract.compress` to `torch_to_nnef.compress` as it is generic
+
+### Fix
+
+- test suite pass again on Darwin OS
+- some remaining trace of `flake8`,`black` to `ruff`
+
 ## [0.15.11] - 2025-02-17
 
 ### Added
