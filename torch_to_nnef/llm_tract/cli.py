@@ -9,7 +9,7 @@ import typing as T
 
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.llm_tract.compress import dynamic_load_registry
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import LlamaSLugs, OpenELMSlugs, PHISlugs
 from torch_to_nnef.llm_tract.exporter import dump_llm
 from torch_to_nnef.log import log
