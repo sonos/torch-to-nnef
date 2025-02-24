@@ -430,12 +430,13 @@ class LLMExporter:
 
             LOGGER.info("start export with 'torch_to_nnef'")
             if tract_specific_version:
+                assert tract_specific_path is None, "set either version or path"
                 inference_target = TractNNEF(
                     SemanticVersion.from_str(tract_specific_version)
                     if isinstance(tract_specific_version, str)
                     else tract_specific_version
                 )
-            if tract_specific_path:
+            elif tract_specific_path:
                 tract_cli_path = Path(tract_specific_path)
                 assert tract_cli_path.exists(), tract_cli_path
                 tract_cli = TractCli(tract_cli_path)
@@ -448,6 +449,7 @@ class LLMExporter:
             inference_target.dynamic_axes = dynamic_axes
             inference_target.specific_properties = tract_specific_properties
             inference_target.check_io_tolerance = tract_check_io_tolerance
+
             self._update_inference_target_options(inference_target)
             if no_verify:
                 LOGGER.info(
