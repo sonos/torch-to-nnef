@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.15.16] - 2025-02-24
+
+### Fix
+
+- Avoid auto log settings except in cli's
+
+### Added
+
+- f32 norm options in llm cli
+
 ## [0.15.15] - 2025-02-19
 
 ### Fix
