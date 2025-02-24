@@ -528,17 +528,22 @@ class LLMExporter:
         ignore_already_exist_dir: bool = False,
         force_f32_attention: T.Optional[bool] = None,
         force_f32_linear_accumulator: T.Optional[bool] = None,
+        force_f32_normalization: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
     ):
         """prepare and export model to NNEF"""
-        if force_f32_attention:
+        if force_f32_attention is not None:
             self._inference_target_options["force_attention_inner_in_f32"] = (
-                True
+                force_f32_attention
             )
-        if force_f32_linear_accumulator:
+        if force_f32_linear_accumulator is not None:
             self._inference_target_options[
                 "force_linear_accumulation_in_f32"
-            ] = True
+            ] = force_f32_linear_accumulator
+        if force_f32_normalization is not None:
+            self._inference_target_options["force_norm_in_f32"] = (
+                force_f32_normalization
+            )
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(
@@ -794,7 +799,6 @@ def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     as_float16: bool = False,
-    /,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:

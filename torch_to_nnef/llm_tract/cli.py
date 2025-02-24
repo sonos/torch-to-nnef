@@ -95,6 +95,14 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "-f32-norm",
+            "--force-f32-normalization",
+            action="store_true",
+            help="force f32 to happen in all builtin torch normalization layers"
+            "(batch_norm, norm, linalg_vector_norm, linalg_norm, layer_norm, group_norm, weight_norm)",
+        )
+
+        parser.add_argument(
             "-tt",
             "--tract-check-io-tolerance",
             default=TractCheckTolerance.APPROXIMATE.value,
