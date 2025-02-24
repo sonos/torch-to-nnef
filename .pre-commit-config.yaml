@@ -28,7 +28,7 @@ repos:
     - id: pyupgrade
       args: ['--py37-plus']
   - repo: git@github.com:PyCQA/prospector.git
-    rev: v1.8.3
+    rev: v1.14.1
     hooks:
       - id: prospector
         types: [python]

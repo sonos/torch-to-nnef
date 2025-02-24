@@ -2,11 +2,11 @@ import json
 import os
 import typing as T
 from pathlib import Path
+import logging
 
 import numpy as np
 import torch
 from torch import nn
-from transformers import GenerationConfig
 
 from torch_to_nnef.exceptions import (
     TorchToNNEFConsistencyError,
@@ -25,11 +25,11 @@ from torch_to_nnef.llm_tract.config import (
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
     HFConfigHelper,
 )
-from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, torch_version
 
 try:
+    from transformers import GenerationConfig
     from huggingface_hub import login
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -42,7 +42,7 @@ except (ModuleNotFoundError, ImportError) as exp:
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
 
-LOGGER = log.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 # NOTE: this assume LLM exported will always 'speak' english
 # which may not be the case in the future
@@ -113,7 +113,7 @@ class LLMExporter:
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal
         )
-        self._inference_target_options = {}
+        self._inference_target_options: T.Dict[str, T.Any] = {}
 
     def __repr__(self):
         n_params = self.model_n_params
@@ -128,7 +128,7 @@ class LLMExporter:
 
     @property
     def model_n_params(self) -> int:
-        return sum([_.numel() for _ in self.hf_model_causal.parameters()])
+        return sum(_.numel() for _ in self.hf_model_causal.parameters())
 
     @staticmethod
     def load(
@@ -197,7 +197,7 @@ class LLMExporter:
                     f"avg diff: {(ref - cand).abs().mean():0.4f}. "
                     "Likely need a torch_to_nnef fix."
                 )
-                log.error(msg)
+                LOGGER.error(msg)
                 raise TorchToNNEFConsistencyError(msg)
 
         err_check("logits", wrapped_outs[0], outs["logits"])
@@ -346,17 +346,17 @@ class LLMExporter:
                 "force_linear_accumulation_in_f32": True,
             }
 
-    def prepare(
+    def prepare(  # pylint: disable=too-many-positional-arguments
         self,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
         wrapper_io_check: bool = True,
         export_dirpath: T.Optional[Path] = None,
-        log_level: int = log.INFO,
+        log_level: int = logging.INFO,
     ):
         """Prepare model to export (f16/compression/checks...)"""
-        log.getLogger().setLevel(log_level)
+        logging.getLogger().setLevel(log_level)
         with torch.no_grad():
             if test_display_token_gens:
                 self.generate_test_text()
@@ -393,7 +393,7 @@ class LLMExporter:
             if wrapper_io_check:
                 self.check_wrapper_io()
 
-    def export_model(
+    def export_model(  # pylint: disable=too-many-positional-arguments
         self,
         export_dirpath: Path,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
@@ -401,8 +401,8 @@ class LLMExporter:
         tract_specific_version: T.Optional[
             T.Union[SemanticVersion, str]
         ] = None,
-        tract_specific_properties: T.Optional[str] = None,
-        log_level=log.INFO,
+        tract_specific_properties: T.Optional[T.Dict[str, str]] = None,
+        log_level=logging.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         sample_generation_total_size: int = 0,
@@ -509,12 +509,12 @@ class LLMExporter:
                 ],
             )
 
-    def dump(
+    def dump(  # pylint: disable=too-many-positional-arguments
         self,
         export_dirpath: T.Union[str, Path],
         tract_specific_path: T.Optional[Path] = None,
         tract_specific_version: T.Optional[str] = None,
-        tract_specific_properties: T.Optional[str] = None,
+        tract_specific_properties: T.Optional[T.Dict[str, str]] = None,
         compression_method: T.Optional[str] = None,
         compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
@@ -522,7 +522,7 @@ class LLMExporter:
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         wrapper_io_check: bool = True,
-        log_level: int = log.INFO,
+        log_level: int = logging.INFO,
         sample_generation_total_size: int = 6,
         no_verify: bool = False,
         ignore_already_exist_dir: bool = False,
@@ -585,7 +585,7 @@ class LLMExporter:
                 self.hf_model_causal.config._name_or_path
             )
         if hasattr(self.hf_model_causal, "peft_config"):
-            for k, conf in self.hf_model_causal.peft_config.items():
+            for k, _conf in self.hf_model_causal.peft_config.items():
                 tract_specific_properties[f"peft_{k}_type"] = (
                     self.hf_model_causal.peft_config[k].peft_type.value
                 )
@@ -765,7 +765,7 @@ def load_model(
 
 
 class StateLessF32LayerNorm(nn.Module):
-    def forward(
+    def forward(  # pylint: disable=too-many-positional-arguments
         self,
         input: torch.Tensor,  # pylint: disable=redefined-builtin
         normalized_shape: T.List[int],
@@ -794,6 +794,7 @@ def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     as_float16: bool = False,
+    /,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:

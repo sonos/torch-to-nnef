@@ -6,19 +6,20 @@ With options to compress it to Q4_0 and use float16
 
 import argparse
 import typing as T
+import logging
 
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import LlamaSLugs, OpenELMSlugs, PHISlugs
 from torch_to_nnef.llm_tract.exporter import dump_llm
-from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.log import init_log
 
-LOGGER = log.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
-def parser_cli(
+def parser_cli(  # pylint: disable=too-many-positional-arguments
     fn_parser_adder: T.Optional[
         T.Callable[[argparse.ArgumentParser], None]
     ] = None,
@@ -202,6 +203,7 @@ def parser_cli(
 
 
 def main():
+    log = init_log()
     args = parser_cli()
     log_level = log.INFO
     if args.verbose:

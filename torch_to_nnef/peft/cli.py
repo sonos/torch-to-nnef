@@ -8,6 +8,7 @@ import tempfile
 import typing as T
 from collections import defaultdict
 from pathlib import Path
+import logging
 
 import torch
 
@@ -16,10 +17,10 @@ from torch_to_nnef.export import (
     iter_torch_tensors_from_disks,
     set_lib_log_level,
 )
-from torch_to_nnef.log import log
 from torch_to_nnef.utils import cd
+from torch_to_nnef.log import init_log
 
-LOGGER = log.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 NAME_PLACEHOLDER = "(?P<name>.*)"
 DEFAULT_METHOD_TYPE = "LoRA"
@@ -87,6 +88,7 @@ def parser_cli(
     return parser.parse_args()
 
 
+# pylint: disable-next=too-many-positional-arguments
 def export_peft(
     read_filepath: Path,
     output_archive: Path,
@@ -182,6 +184,7 @@ def export_peft(
 
 
 def main():
+    log = init_log()
     args = parser_cli()
     log_level = log.INFO
     if args.verbose:

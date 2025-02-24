@@ -2,6 +2,7 @@
 import typing as T
 from enum import Enum
 from functools import partial
+import logging
 
 import torch
 
@@ -9,9 +10,8 @@ from torch_to_nnef.llm_tract.models.base import (
     BaseCausal,
     BaseCausalWithDynCacheAndTriu,
 )
-from torch_to_nnef.log import log
 
-LOGGER = log.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 # collection of tested examples for cli {

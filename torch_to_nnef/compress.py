@@ -1,15 +1,15 @@
 from functools import partial
+import logging
 
 import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.log import log
 from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 
-LOGGER = log.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
