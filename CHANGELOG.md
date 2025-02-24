@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.15.17] - 2025-02-24
+
+### Fix
+
+- correct branching in tract selection cmd llm export
+
 ## [0.15.16] - 2025-02-24
 
 ### Fix
