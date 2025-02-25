@@ -427,14 +427,24 @@ def embedding(node, op_helper, inference_target, **kwargs):
             attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
     else:
         op_name = "gather"
-    op_helper.add_single_output_op_from_nnef_tensors(
+
+    apply_squeeze = indices_node.rank == 1
+    out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         op_name,
         inputs=op_helper.data_nodes_to_nnef_tensors(
             [weight_node, indices_node]
         ),
         attrs=attrs,
+        output_tensor_name_suffix="pre_squeeze",
     )
+    if apply_squeeze:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "squeeze",
+            inputs=out,
+            attrs={"axes": [0]},
+        )
     return custom_fragments
 
 
