@@ -436,7 +436,7 @@ def embedding(node, op_helper, inference_target, **kwargs):
             [weight_node, indices_node]
         ),
         attrs=attrs,
-        output_tensor_name_suffix="pre_squeeze",
+        output_tensor_name_suffix="pre_squeeze" if apply_squeeze else "",
     )
     if apply_squeeze:
         op_helper.add_single_output_op_from_nnef_tensors(
