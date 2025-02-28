@@ -3,6 +3,13 @@
 
 ## Unreleased
 
+## [0.15.18] - 2025-02-28
+
+### Fix
+
+- PEFT loading from tract llm cli regression
+- using embedding gather with 1d tensor indices input
+
 ## [0.15.17] - 2025-02-24
 
 ### Fix
