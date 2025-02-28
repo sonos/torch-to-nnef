@@ -759,7 +759,7 @@ def load_model(
                 f"load '{hf_model_causal.config.model_type}' "
                 f"from local directory: {dir_path}"
             )
-        except TorchToNNEFNotFoundFile:
+        except (TorchToNNEFNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
