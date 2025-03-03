@@ -3,6 +3,7 @@ import os
 import typing as T
 from pathlib import Path
 import logging
+from collections import Counter
 
 import numpy as np
 import torch
@@ -23,6 +24,7 @@ from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
+    DtypeStr,
     HFConfigHelper,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
@@ -68,26 +70,52 @@ from one point to another within an electric field,
 typically measured in volts.
 """.strip().replace("\n", " ")
 
+HALF_TYPES = [torch.float16, torch.bfloat16]
+
+
+def is_forced_half_precision_model(
+    force_inputs_dtype: T.Optional[DtypeStr],
+    force_module_dtype: T.Optional[DtypeStr],
+) -> bool:
+    return (
+        force_inputs_dtype is not None
+        and DtypeStr(force_inputs_dtype).torch_dtype in HALF_TYPES
+    ) or (
+        force_module_dtype is not None
+        and DtypeStr(force_module_dtype).torch_dtype in HALF_TYPES
+    )
+
 
 def _load_exporter_from(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
-    as_float16: bool = False,
+    force_module_dtype: T.Optional[DtypeStr] = None,
+    force_inputs_dtype: T.Optional[DtypeStr] = None,
 ):
+    if (
+        is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
+        and torch_version() < "2.0.0"
+    ):
+        LOGGER.warning(
+            "float16 with CPU backend is limited in PyTorch 1.X "
+            "(if issues, try to use torch>2.0)"
+        )
     local_dir = Path(local_dir) if local_dir else None
     assert hf_model_slug is not None or local_dir is not None
     hf_model_causal = load_model(
-        hf_model_slug, local_dir, as_float16=as_float16
+        hf_model_slug, local_dir, force_module_dtype=force_module_dtype
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
         hf_model_slug=hf_model_slug,
         local_dir=local_dir,
     )
+
     return LLMExporter(
         hf_model_causal,
         tokenizer,
-        as_float16=as_float16,
+        force_module_dtype=force_module_dtype,
+        force_inputs_dtype=force_inputs_dtype,
         local_dir=local_dir,
     )
 
@@ -97,12 +125,12 @@ class LLMExporter:
         self,
         hf_model_causal: nn.Module,
         tokenizer: AutoTokenizer,
-        as_float16: bool = False,
         local_dir: T.Optional[Path] = None,
+        force_module_dtype: T.Optional[DtypeStr] = None,
+        force_inputs_dtype: T.Optional[DtypeStr] = None,
     ):
         self.hf_model_causal = hf_model_causal
         self.tokenizer = tokenizer
-        self.as_float16 = as_float16
         self.local_dir = local_dir
 
         self.model_infos = HFConfigHelper(
@@ -114,6 +142,48 @@ class LLMExporter:
             self.hf_model_causal
         )
         self._inference_target_options: T.Dict[str, T.Any] = {}
+        force_module_dtype = (
+            DtypeStr(force_module_dtype) if force_module_dtype else None
+        )
+        force_inputs_dtype = (
+            DtypeStr(force_inputs_dtype) if force_inputs_dtype else None
+        )
+        self.force_module_dtype = force_module_dtype
+        if (
+            force_module_dtype
+            and force_inputs_dtype is None
+            and force_module_dtype.torch_dtype in HALF_TYPES
+        ):
+            LOGGER.info(f"request inputs aligned dtype: '{force_module_dtype}'")
+            force_inputs_dtype = DtypeStr.FLOAT16
+        self.force_inputs_dtype = force_inputs_dtype
+
+    @property
+    def is_forced_half_precision_model(self) -> bool:
+        return is_forced_half_precision_model(
+            self.force_module_dtype, self.force_inputs_dtype
+        )
+
+    @property
+    def is_weight_dominant_half_precision_model(self) -> bool:
+        ct = Counter(p.dtype for p in self.wrapped_model.parameters())
+        return ct.most_common()[0] in HALF_TYPES
+
+    @property
+    def inputs_dtype(self) -> torch.dtype:
+        if self.force_inputs_dtype is None:
+            if self.is_weight_dominant_half_precision_model:
+                return torch.float16
+            else:
+                return torch.float32
+        return self.force_inputs_dtype.torch_dtype
+
+    @property
+    def is_half_precision_model(self) -> bool:
+        return (
+            self.is_forced_half_precision_model
+            or self.is_weight_dominant_half_precision_model
+        )
 
     def __repr__(self):
         n_params = self.model_n_params
@@ -134,26 +204,22 @@ class LLMExporter:
     def load(
         model_slug: T.Optional[str] = None,
         local_dir: T.Optional[Path] = None,
-        as_float16: bool = False,
+        **kwargs,
     ):
         """Load from either huggingface model slug hub or local_dir"""
-        if as_float16 and torch_version() < "2.0.0":
-            LOGGER.warning(
-                "float16 with CPU backend is limited in PyTorch 1.X "
-                "(if issues, try to use torch>2.0)"
-            )
         with torch.no_grad():
+            exporter_from_kwargs = {
+                "hf_model_slug": model_slug,
+                "local_dir": local_dir,
+                **kwargs,
+            }
             try:
-                exporter = _load_exporter_from(
-                    model_slug, local_dir, as_float16
-                )
+                exporter = _load_exporter_from(**exporter_from_kwargs)
             except OSError as exp:
                 if "gated repo" in exp.args[0]:
                     print(exp.args[0])
                     login()
-                    exporter = _load_exporter_from(
-                        model_slug, local_dir, as_float16
-                    )
+                    exporter = _load_exporter_from(**exporter_from_kwargs)
                 else:
                     raise exp
         return exporter
@@ -187,7 +253,9 @@ class LLMExporter:
             ref = ref.float()
             cand = cand.float()
             if not torch.allclose(
-                ref, cand, atol=1e-3 if self.as_float16 else 1e-4
+                ref,
+                cand,
+                atol=1e-3 if self.is_half_precision_model else 1e-4,
             ):
                 msg = (
                     f"Model: {self.hf_model_causal.__class__} wrapped "
@@ -225,7 +293,7 @@ class LLMExporter:
             dynamic_axes,
         ) = self.model_infos.build_kv_cache_infos(
             n_past_input_tokens=n_past_input_tokens,
-            as_float16=self.as_float16,
+            force_inputs_dtype=self.inputs_dtype,
             real_kv_cache=real_kv_cache,
         )
 
@@ -328,7 +396,7 @@ class LLMExporter:
     def _update_inference_target_options(self, inference_target):
         inference_target.__dict__.update(self._inference_target_options)
 
-    def apply_f16_fixes(self):
+    def apply_half_precision_fixes(self):
         """Align float dtype arguments in few graph ops
 
         Indeed all LLM are trained using GPU/TPU/CPU kernels
@@ -380,11 +448,11 @@ class LLMExporter:
             )
 
         with torch.no_grad():
-            if self.as_float16:
-                self.apply_f16_fixes()
+            if self.is_half_precision_model:
+                self.apply_half_precision_fixes()
 
             if test_display_token_gens and (
-                compression_method or self.as_float16
+                compression_method or self.is_half_precision_model
             ):
                 LOGGER.info(
                     "check testing text post compression/f16 conversion:"
@@ -577,7 +645,16 @@ class LLMExporter:
             {
                 "hf_model_type": self.model_infos.conf.model_type,
                 "n_parameters": str(self.model_n_params),
-                "as_float16": "1" if self.as_float16 else "0",
+                # provide is_half_precision_model
+                "is_half_precision_model": "1"
+                if self.is_half_precision_model
+                else "0",
+                "forced_module_dtype": self.force_module_dtype.value
+                if self.force_module_dtype
+                else "",
+                "inputs_dtype": DtypeStr.from_torch_dtype(
+                    self.inputs_dtype
+                ).value,
             }
         )
         if compression_method is not None:
@@ -697,15 +774,6 @@ def load_peft_model(local_dir, kwargs):
             if msg in exp.args[0]:
                 return _try_load_peft(dir_path, kwargs, exp)
             raise exp
-        except OSError as exp:
-            if all(
-                exp.args[0] in _
-                for _ in ["OSError: Error no file named", "found in directory"]
-            ):
-                print("here")
-                __import__("ipdb").set_trace()
-                continue
-            raise exp
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
@@ -735,11 +803,11 @@ def load_peft_model(local_dir, kwargs):
 def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
-    as_float16: bool = False,
+    force_module_dtype: T.Optional[DtypeStr] = None,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
-    if as_float16:
-        kwargs["torch_dtype"] = "float16"
+    if force_module_dtype is not None:
+        kwargs["torch_dtype"] = DtypeStr(force_module_dtype).torch_dtype
 
     custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
     if custom_config is not None:
@@ -768,6 +836,11 @@ def load_model(
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
         )
+    if force_module_dtype is not None:
+        hf_model_causal = hf_model_causal.to(
+            DtypeStr(force_module_dtype).torch_dtype
+        )
+        LOGGER.info(f"force casted model internals to: '{force_module_dtype}'")
     return hf_model_causal
 
 
@@ -800,12 +873,18 @@ class StateLessF32LayerNorm(nn.Module):
 def dump_llm(
     model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
-    as_float16: bool = False,
+    force_module_dtype: T.Optional[DtypeStr] = None,
+    force_inputs_dtype: T.Optional[DtypeStr] = None,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
-    exporter = LLMExporter.load(model_slug, local_dir, as_float16)
+    exporter = LLMExporter.load(
+        model_slug,
+        local_dir,
+        force_module_dtype=force_module_dtype,
+        force_inputs_dtype=force_inputs_dtype,
+    )
     if isinstance(kwargs.get("tract_check_io_tolerance"), str):
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
             kwargs["tract_check_io_tolerance"]

@@ -14,6 +14,27 @@ from torch_to_nnef.llm_tract.models.base import (
 LOGGER = logging.getLogger(__name__)
 
 
+class DtypeStr(str, Enum):
+    FLOAT32 = "f32"
+    FLOAT16 = "f16"
+    BFLOAT16 = "bf16"
+
+    @property
+    def torch_dtype(self) -> torch.dtype:
+        return {
+            self.FLOAT32: torch.float32,
+            self.FLOAT16: torch.float16,
+            self.BFLOAT16: torch.bfloat16,
+        }[self.value]
+
+    @classmethod
+    def from_torch_dtype(cls, dtype: torch.dtype):
+        for ds in DtypeStr:
+            if ds.torch_dtype == dtype:
+                return ds
+        raise NotImplementedError(dtype)
+
+
 # collection of tested examples for cli {
 class PHISlugs(str, Enum):
     DEBUG = "phi_debug"
@@ -148,7 +169,7 @@ class HFConfigHelper:
     def build_kv_cache_infos(
         self,
         n_past_input_tokens: int,
-        as_float16: bool = False,
+        force_inputs_dtype: T.Optional[torch.dtype] = None,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
         past_values_cache_conf = self.get_past_value_cache_conf(
@@ -180,8 +201,8 @@ class HFConfigHelper:
                 k_or_v = torch.rand(
                     past_values_cache_conf["kv_shape"][idx]
                 ).float()
-            if as_float16:
-                k_or_v = k_or_v.to(torch.float16)
+            if force_inputs_dtype is not None:
+                k_or_v = k_or_v.to(force_inputs_dtype)
             past_key_values.append(k_or_v)
             in_cache_name = f"in_{node_name}"
             in_cache_names.append(in_cache_name)
