@@ -165,14 +165,20 @@ class LLMExporter:
         )
 
     @property
-    def is_weight_dominant_half_precision_model(self) -> bool:
-        ct = Counter(p.dtype for p in self.wrapped_model.parameters())
-        return ct.most_common()[0] in HALF_TYPES
+    def main_weight_dtype(self) -> torch.dtype:
+        ct = Counter()
+        for p in self.wrapped_model.parameters():
+            ct[p.dtype] += p.numel()
+        return ct.most_common()[0][0]
+
+    @property
+    def is_mainly_weight_half_precision(self) -> bool:
+        return self.main_weight_dtype in HALF_TYPES
 
     @property
     def inputs_dtype(self) -> torch.dtype:
         if self.force_inputs_dtype is None:
-            if self.is_weight_dominant_half_precision_model:
+            if self.is_mainly_weight_half_precision:
                 return torch.float16
             else:
                 return torch.float32
@@ -182,7 +188,7 @@ class LLMExporter:
     def is_half_precision_model(self) -> bool:
         return (
             self.is_forced_half_precision_model
-            or self.is_weight_dominant_half_precision_model
+            or self.is_mainly_weight_half_precision
         )
 
     def __repr__(self):
@@ -645,10 +651,9 @@ class LLMExporter:
             {
                 "hf_model_type": self.model_infos.conf.model_type,
                 "n_parameters": str(self.model_n_params),
-                # provide is_half_precision_model
-                "is_half_precision_model": "1"
-                if self.is_half_precision_model
-                else "0",
+                "main_base_weight_dtype": DtypeStr.from_torch_dtype(
+                    self.main_weight_dtype
+                ).value,
                 "forced_module_dtype": self.force_module_dtype.value
                 if self.force_module_dtype
                 else "",
