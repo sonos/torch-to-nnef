@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.0] - 2025-03-03
+
+### Change
+
+- Breaking change `-f16`,`--as-float16` removed and replaced by `--force-module-dtype`, `--force-inputs-dtype` that re-express this
+
 ## [0.15.18] - 2025-02-28
 
 ### Fix
