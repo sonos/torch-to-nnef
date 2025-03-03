@@ -20,7 +20,6 @@ def test_llama_export_io_npz_from_LLMExporter():
     new_llm_exporter = LLMExporter(
         llm_exporter.hf_model_causal,
         llm_exporter.tokenizer,
-        as_float16=False,
     )
     with tempfile.TemporaryDirectory() as td:
         export_dirpath = Path(td) / "dump_here"

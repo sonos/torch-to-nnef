@@ -11,7 +11,12 @@ import logging
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.compress import dynamic_load_registry
-from torch_to_nnef.llm_tract.config import LlamaSLugs, OpenELMSlugs, PHISlugs
+from torch_to_nnef.llm_tract.config import (
+    DtypeStr,
+    LlamaSLugs,
+    OpenELMSlugs,
+    PHISlugs,
+)
 from torch_to_nnef.llm_tract.exporter import dump_llm
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.log import init_log
@@ -52,19 +57,33 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
                 "-e",
                 "--export-dirpath",
                 required=True,
-                help="export dir path to dump tokenizer infos, model config.json, model.nnef.tgz",
+                help="export dir path to dump tokenizer infos, model "
+                "config.json, model.nnef.tgz",
             )
 
         parser.add_argument(
             "-s",
             "--model-slug",
-            help=f"huggingface slug (web-page 'endpoint') to export by example ({slug_examples})",
+            help="huggingface slug (web-page 'endpoint') to "
+            f"export by example ({slug_examples})",
         )
         parser.add_argument(
-            "-f16",
-            "--as-float16",
-            action="store_true",
-            help="float in 16 bits",
+            "-dt",
+            "--force-module-dtype",
+            choices=[ds.value for ds in DtypeStr],
+            help="apply `model = model.to(force_module_dtype)` ."
+            " If `force-module-dtype` is float16 or bfloat16 "
+            " flag `input-as-float16` is automatically applied."
+            " If force-module-dtype is unset no `.to` will be applied "
+            "(which may be wished for mixed-precision model)",
+        )
+        parser.add_argument(
+            "-idt",
+            "--force-inputs-dtype",
+            choices=[ds.value for ds in DtypeStr],
+            help="Force inputs float dtype (and ONLY the input)"
+            "in case your model is custom mixed precision "
+            "else we encourage you to use directly `--force-module-dtype`",
         )
         parser.add_argument(
             "--compression-registry",
@@ -99,7 +118,8 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "--force-f32-normalization",
             action="store_true",
             help="force f32 to happen in all builtin torch normalization layers"
-            "(batch_norm, norm, linalg_vector_norm, linalg_norm, layer_norm, group_norm, weight_norm)",
+            "(batch_norm, norm, linalg_vector_norm, linalg_norm, layer_norm, "
+            "group_norm, weight_norm)",
         )
 
         parser.add_argument(
