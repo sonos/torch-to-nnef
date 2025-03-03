@@ -71,8 +71,8 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "-dt",
             "--force-module-dtype",
             choices=[ds.value for ds in DtypeStr],
-            help="apply model = model.to(force_dtype) ."
-            " If force-module-dtype is float16 or bfloat16 "
+            help="apply `model = model.to(force_module_dtype)` ."
+            " If `force-module-dtype` is float16 or bfloat16 "
             " flag `input-as-float16` is automatically applied."
             " If force-module-dtype is unset no `.to` will be applied "
             "(which may be wished for mixed-precision model)",
