@@ -8,6 +8,7 @@ import typing as T
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+import inspect
 
 import numpy as np
 import torch as Torch
@@ -138,7 +139,21 @@ def check_model_io_test(
     nnef_variable_naming_scheme=VariableNamingScheme.default(),
     custom_extensions=None,
     callback=None,
+    unit_test_naming=None,
 ):
+    dbg_dirname = datetime.now().strftime("%Y_%m_%d")
+    if unit_test_naming:
+        dbg_dirname = f"{dbg_dirname}_{unit_test_naming}"
+    else:
+        caller_fn_name = inspect.stack()[1][3]
+        if caller_fn_name.startswith("test_"):
+            dbg_dirname = f"{dbg_dirname}_{caller_fn_name}"
+    dbg_path = Path.cwd() / "failed_tests" / dbg_dirname
+
+    idx = 0
+    while dbg_path.exists():
+        idx += 1
+        dbg_path = Path.cwd() / "failed_tests" / f"{dbg_dirname}_{idx}"
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -160,13 +175,7 @@ def check_model_io_test(
             output_names=output_names,
             log_level=log.INFO,
             debug_bundle_path=(
-                (
-                    Path.cwd()
-                    / "failed_tests"
-                    / datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
-                )
-                if os.environ.get("DEBUG", False)
-                else None
+                dbg_path if os.environ.get("DEBUG", False) else None
             ),
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
