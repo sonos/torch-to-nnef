@@ -85,7 +85,7 @@ def scaled_dot_product_attention(
         dtype_str = "f16"
 
     tmpl_fragment_name = "scaled_dot_product_attention"
-    if inference_target.version < "0.21.10":
+    if inference_target.version < "0.21.11":
         tmpl_fragment_name = f"legacy_{tmpl_fragment_name}"
     tmpl = TMPL_FRAGMENTS[tmpl_fragment_name]
     fragment = tmpl.into_concrete_fragment(
