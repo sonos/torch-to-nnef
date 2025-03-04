@@ -231,7 +231,7 @@ class MyCustomHandler(ModuleInfoExtractor):
     ):
         # here your custom logic to implement NNEF module subgraph
         # you can take inspiration from `torch_to_nnef.op.primitive`
-        # or aready written custom extractors such as
+        # or already written custom extractors such as
         # `torch_to_nnef.op.custom_extractors.LSTMExtractor`
         pass
 ```
@@ -250,7 +250,7 @@ def quantize_weights_gptq_Q4_0(
   # your custom code that replace some torch.Tensor by child class of torch_to_nnef.qtensor.base.QTensor
   return wrapped_model
 
-MY_CUSTOM_COMPRESSIOn_REGISTRY = {
+MY_CUSTOM_COMPRESSION_REGISTRY = {
     "gptq_q4_0": quantize_weights_gptq_Q4_0,
 }
 ```
@@ -262,7 +262,7 @@ Once done you can directly call your registred function with:
 export_llm_to_tract \
   -s ... \
   -e ... \
-  --compression-registry "experimental_compressors.registery.MY_CUSTOM_COMPRESSIOn_REGISTRY" \
+  --compression-registry "experimental_compressors.registery.MY_CUSTOM_COMPRESSION_REGISTRY" \
   -c "gptq_q4_0"
 ```
 
