@@ -86,12 +86,12 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "else we encourage you to use directly `--force-module-dtype`",
         )
         parser.add_argument(
-            "-pm",
-            "--peft-merge",
+            "-mp",
+            "--merge-peft",
             action="store_true",
             help="If provided model is `PeftModel` from `peft`. "
             "If weight are not yet merged it will call/replace "
-            "model with .merge_and_unload ",
+            "model with .merge_and_unload() ",
         )
         parser.add_argument(
             "--compression-registry",

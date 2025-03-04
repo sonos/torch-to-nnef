@@ -91,7 +91,7 @@ def _load_exporter_from(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
-    peft_merge: T.Optional[bool] = None,
+    merge_peft: T.Optional[bool] = None,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -107,7 +107,7 @@ def _load_exporter_from(
         hf_model_slug,
         local_dir,
         force_module_dtype=force_module_dtype,
-        peft_merge=peft_merge,
+        merge_peft=merge_peft,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
@@ -682,7 +682,7 @@ class LLMExporter:
                 from peft import PeftModel
 
                 tract_specific_properties["peft_merged"] = (
-                    "1" if isinstance(self.hf_model_causal, PeftModel) else "1"
+                    "0" if isinstance(self.hf_model_causal, PeftModel) else "1"
                 )
             except ImportError:
                 pass
@@ -821,7 +821,7 @@ def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
-    peft_merge: T.Optional[bool] = None,
+    merge_peft: T.Optional[bool] = None,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if force_module_dtype is not None:
@@ -855,7 +855,7 @@ def load_model(
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
         )
-    if peft_merge:
+    if merge_peft:
         # pylint: disable-next=import-outside-toplevel
         from peft import PeftModel
 
@@ -906,7 +906,7 @@ def dump_llm(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
-    peft_merge: T.Optional[bool] = None,
+    merge_peft: T.Optional[bool] = None,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
@@ -916,7 +916,7 @@ def dump_llm(
         local_dir,
         force_module_dtype=force_module_dtype,
         force_inputs_dtype=force_inputs_dtype,
-        peft_merge=peft_merge,
+        merge_peft=merge_peft,
     )
     if isinstance(kwargs.get("tract_check_io_tolerance"), str):
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
