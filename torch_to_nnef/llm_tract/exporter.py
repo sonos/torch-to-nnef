@@ -91,6 +91,7 @@ def _load_exporter_from(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
+    merge_peft: T.Optional[bool] = None,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -103,7 +104,10 @@ def _load_exporter_from(
     local_dir = Path(local_dir) if local_dir else None
     assert hf_model_slug is not None or local_dir is not None
     hf_model_causal = load_model(
-        hf_model_slug, local_dir, force_module_dtype=force_module_dtype
+        hf_model_slug,
+        local_dir,
+        force_module_dtype=force_module_dtype,
+        merge_peft=merge_peft,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
@@ -674,6 +678,14 @@ class LLMExporter:
                 self.hf_model_causal.config._name_or_path
             )
         if hasattr(self.hf_model_causal, "peft_config"):
+            try:
+                from peft import PeftModel
+
+                tract_specific_properties["peft_merged"] = (
+                    "0" if isinstance(self.hf_model_causal, PeftModel) else "1"
+                )
+            except ImportError:
+                pass
             for k, _conf in self.hf_model_causal.peft_config.items():
                 tract_specific_properties[f"peft_{k}_type"] = (
                     self.hf_model_causal.peft_config[k].peft_type.value
@@ -809,6 +821,7 @@ def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
+    merge_peft: T.Optional[bool] = None,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if force_module_dtype is not None:
@@ -834,6 +847,7 @@ def load_model(
             )
         except (TorchToNNEFNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
+
     else:
         hf_model_causal = AutoModelForCausalLM.from_pretrained(
             hf_model_slug, **kwargs
@@ -841,6 +855,18 @@ def load_model(
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
         )
+    if merge_peft:
+        # pylint: disable-next=import-outside-toplevel
+        from peft import PeftModel
+
+        if isinstance(hf_model_causal, PeftModel):
+            hf_model_causal = hf_model_causal.merge_and_unload()
+        else:
+            LOGGER.warning(
+                f"no 'Peft' model found: {hf_model_causal.__class__} "
+                "(so no merge applied)"
+            )
+
     if force_module_dtype is not None:
         hf_model_causal = hf_model_causal.to(
             DtypeStr(force_module_dtype).torch_dtype
@@ -880,6 +906,7 @@ def dump_llm(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
+    merge_peft: T.Optional[bool] = None,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
@@ -889,6 +916,7 @@ def dump_llm(
         local_dir,
         force_module_dtype=force_module_dtype,
         force_inputs_dtype=force_inputs_dtype,
+        merge_peft=merge_peft,
     )
     if isinstance(kwargs.get("tract_check_io_tolerance"), str):
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
