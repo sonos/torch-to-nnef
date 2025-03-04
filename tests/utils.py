@@ -141,19 +141,21 @@ def check_model_io_test(
     callback=None,
     unit_test_naming=None,
 ):
-    dbg_dirname = datetime.now().strftime("%Y_%m_%d")
+    unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
-        dbg_dirname = f"{dbg_dirname}_{unit_test_naming}"
+        unittest_slug = f"{unittest_slug}_{unit_test_naming}"
     else:
         caller_fn_name = inspect.stack()[1][3]
         if caller_fn_name.startswith("test_"):
-            dbg_dirname = f"{dbg_dirname}_{caller_fn_name}"
-    dbg_path = Path.cwd() / "failed_tests" / dbg_dirname
+            unittest_slug = f"{unittest_slug}_{caller_fn_name}"
+    dbg_path = Path.cwd() / "failed_tests" / unittest_slug
 
     idx = 0
     while dbg_path.exists():
         idx += 1
-        dbg_path = Path.cwd() / "failed_tests" / f"{dbg_dirname}_{idx}"
+        dbg_path = Path.cwd() / "failed_tests" / f"{unittest_slug}_{idx}"
+    if idx > 0:
+        unittest_slug = f"{unittest_slug}_{idx}"
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -182,9 +184,18 @@ def check_model_io_test(
             custom_extensions=custom_extensions,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
-        dump_filepath = os.environ.get("DUMP_FILEPATH", False)
-        if dump_filepath:
-            shutil.copy(export_path.with_suffix(".nnef.tgz"), dump_filepath)
+        dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
+        if dump_dirpath:
+            dump_dirpath = Path(dump_dirpath)
+            dump_dirpath.mkdir(exist_ok=True, parents=True)
+            shutil.copy(
+                export_path,
+                (dump_dirpath / unittest_slug).with_suffix(".nnef.tgz"),
+            )
+            shutil.copy(
+                io_npz_path,
+                (dump_dirpath / unittest_slug).with_suffix(".io.npz"),
+            )
         if callback is not None:
             callback(inference_target, export_path)
 
