@@ -148,9 +148,11 @@ def check_model_io_test(
     if unit_test_naming:
         unittest_slug = f"{unittest_slug}_{unit_test_naming}"
     else:
-        caller_fn_name = inspect.stack()[1][3]
-        if caller_fn_name.startswith("test_"):
-            unittest_slug = f"{unittest_slug}_{caller_fn_name}"
+        for _ in range(5):  # up to 5 deep fn call stacking
+            caller_fn_name = inspect.stack()[_ + 1][3]
+            if caller_fn_name.startswith("test_"):
+                unittest_slug = f"{unittest_slug}_{caller_fn_name}"
+                break
     dbg_base_dir = Path(dump_dirpath) if dump_dirpath else Path.cwd()
     dbg_base_dir.mkdir(exist_ok=True, parents=True)
     dbg_path = dbg_base_dir / "failed_tests" / unittest_slug
