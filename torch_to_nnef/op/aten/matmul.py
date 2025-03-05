@@ -220,10 +220,10 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         and inference_target.force_linear_accumulation_in_f32
         and weight_node.dtype != torch.float32
     ):
-        if inference_target.version < "0.21.10":
+        if inference_target.version < "0.21.11":
             LOGGER.warning(
                 "linear can not yet have "
-                "accumulation in f32 (waiting tract>=0.21.10)"
+                "accumulation in f32 (waiting tract>=0.21.11)"
                 " fallback to f16"
             )
         else:

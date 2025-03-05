@@ -22,7 +22,7 @@ tract_latest.force_linear_accumulation_in_f32 = True
 
 test_suite = TestSuiteInferenceExactnessBuilder([tract_latest])
 
-if tract_latest.version >= "0.21.10":
+if tract_latest.version >= "0.21.11":
     mod = nn.Linear(3, 4)
     mod = mod.half()
     test_suite.add(torch.arange(6).reshape(1, 2, 3).half(), mod)
