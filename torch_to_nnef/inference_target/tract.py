@@ -63,7 +63,9 @@ class TractCheckTolerance(str, enum.Enum):
     EXACT = "exact"
     APPROXIMATE = "approximate"
     CLOSE = "close"
+    VERY = "very"
     SUPER = "super"
+    ULTRA = "ultra"
 
 
 class TractNNEF(InferenceTarget):
@@ -94,6 +96,25 @@ class TractNNEF(InferenceTarget):
         force_norm_in_f32: bool = False,
     ):
         super().__init__(version, check_io)
+        if (
+            check_io_tolerance != TractCheckTolerance.APPROXIMATE
+            and self.version < "0.21.7"
+        ):
+            LOGGER.warning(
+                f"check_io_tolerance='{check_io_tolerance}' can NOT be applied "
+                "on tract version prior 0.21.7 (please use newer version)"
+            )
+        if (
+            check_io_tolerance
+            in [TractCheckTolerance.VERY, TractCheckTolerance.ULTRA]
+            and self.version == "0.21.7"
+        ):
+            LOGGER.warning(
+                f"tract version 0.21.7 have not check_io_tolerance='{check_io_tolerance}' "
+                "falling-back to 'super' (use newer version to solve this)"
+            )
+            check_io_tolerance = TractCheckTolerance.SUPER
+
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
         self.check_io_tolerance = check_io_tolerance
