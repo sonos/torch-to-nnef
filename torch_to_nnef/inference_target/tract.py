@@ -841,7 +841,7 @@ def assert_io_and_debug_bundle(
                 extension in debug_bundle_path.suffix
                 for extension in ["tgz", "tar.gz"]
             ):
-                with no_suffix_debug_bundle_path.parent:
+                with cd(no_suffix_debug_bundle_path.parent):
                     subprocess.check_output(
                         [
                             "tar",
