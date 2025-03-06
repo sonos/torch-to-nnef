@@ -384,11 +384,10 @@ class TractCli:
         ] + args
         return subprocess.check_call(cmd_)
 
-    def assert_io(
+    def assert_io_cmd_str(
         self,
         nnef_path: Path,
         io_npz_path: Path,
-        raise_exception=True,
         check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         extra_param = (
@@ -427,7 +426,20 @@ class TractCli:
         cmd_ += ["--allow-float-casts"]
         if self.version >= "0.21.7":
             cmd_ += ["--approx", check_tolerance.value]
-        cmd = [str(c) for c in cmd_]
+        return [str(c) for c in cmd_]
+
+    def assert_io(
+        self,
+        nnef_path: Path,
+        io_npz_path: Path,
+        raise_exception=True,
+        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
+    ):
+        cmd = self.assert_io_cmd_str(
+            nnef_path=nnef_path,
+            io_npz_path=io_npz_path,
+            check_tolerance=check_tolerance,
+        )
         cmd_shell = " ".join(_ for _ in cmd)
         with subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -837,6 +849,16 @@ def assert_io_and_debug_bundle(
                 raise_export_error=False,
                 tract_cli=tract_cli,
             )
+            run_sh_path = no_suffix_debug_bundle_torch_to_nnef_path / "run.sh"
+            with run_sh_path.open("w") as fh:
+                cmd = tract_cli.assert_io_cmd_str(
+                    nnef_path=Path("./model.nnef.tgz"),
+                    io_npz_path=Path("./io.npz"),
+                    check_tolerance=check_tolerance,
+                )
+                fh.write("${1:-%s} " % cmd[0])
+                fh.write(" ".join(cmd[1:]))
+            subprocess.check_call(["chmod", "+x", run_sh_path])
             if any(
                 extension in debug_bundle_path.suffix
                 for extension in ["tgz", "tar.gz"]
