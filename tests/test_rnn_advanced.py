@@ -108,3 +108,46 @@ def test_manage_gru_states(inference_target):
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_rnn_states(inference_target):
     _test_mono_states_rnn(nn.RNN, inference_target)
+
+
+class EncoderJoin(nn.Module):
+    def __init__(self, nin, nout, n_layers: int = 1, batch_first: bool = True):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            nin,
+            nout,
+            batch_first=batch_first,
+            num_layers=n_layers,
+        )
+
+    def forward(self, x, y):
+        _, (x1, _) = self.lstm(x)
+        _, (x2, _) = self.lstm(y)
+        return torch.cat([x1.squeeze(0), x2.squeeze(0)], dim=1)
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_complex_encoder(inference_target):
+    seqlen = 10
+    batch = 16
+    inputs = 2
+    outputs = 4
+
+    module = EncoderJoin(inputs, outputs, 3)
+
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "i1": {1: "S", 0: "B"},
+        "i2": {1: "C", 0: "B"},
+    }
+
+    check_model_io_test(
+        model=module,
+        test_input=(
+            torch.rand(batch, seqlen, inputs),
+            torch.rand(batch, seqlen, inputs),
+        ),
+        input_names=["i1", "i2"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
