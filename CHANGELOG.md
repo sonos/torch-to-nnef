@@ -3,6 +3,19 @@
 
 ## Unreleased
 
+## [0.16.1] - 2025-03-06
+
+### Added
+
+- export with `tract_llm` merge PEFT option is set
+- CI now fail-fast
+- VERSION is set at project root to help compare with str
+- better test_suite naming for dump and debug
+
+### Change
+
+- export with `tract_llm` will use `num-logits-to-keep` avoiding useless compute at inference
+
 ## [0.16.0] - 2025-03-03
 
 ### Change
