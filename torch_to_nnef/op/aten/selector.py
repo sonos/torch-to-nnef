@@ -44,24 +44,31 @@ def slice_(
             **kwargs,
         )
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
-
     # we assert for now all node except first are all constant
     dim = axis_node.data
 
     has_concrete_values = True
     # we use this since by default pytorch generate max int64 value for end
     if begin_node.data is not None:
-        begin = pick_index_in_axis(
-            input_node, dim, begin_node.data, check_is_positive=False
-        )
+        if begin_node.data >= 0:
+            begin = pick_index_in_axis(
+                input_node, dim, begin_node.data, check_is_positive=False
+            )
+        else:
+            begin = begin_node.data
+            has_concrete_values = False
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_index_in_axis(
-            input_node, dim, end_node.data, check_is_positive=False
-        )
+        if end_node.data >= 0:
+            end = pick_index_in_axis(
+                input_node, dim, end_node.data, check_is_positive=False
+            )
+        else:
+            has_concrete_values = False
+            end = end_node.data
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
