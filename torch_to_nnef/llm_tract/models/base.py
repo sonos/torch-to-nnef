@@ -52,9 +52,12 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
     with_dyn_cache: bool = True
 
-    def __init__(self, model: AutoModelForCausalLM):
+    def __init__(
+        self, model: AutoModelForCausalLM, num_logits_to_keep: int = 1
+    ):
         super().__init__()
         self.model = model
+        self.num_logits_to_keep = num_logits_to_keep
 
     def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
@@ -104,7 +107,9 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
             cache_position=cache_position,
         )
         hidden_states = outputs[0]
-        logits = self.model.lm_head(hidden_states)
+        logits = self.model.lm_head(
+            hidden_states[:, -self.num_logits_to_keep :, :]
+        )
 
         # Extract cache {
         kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
@@ -113,10 +118,13 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
 
 class BaseCausal(TorchToNNEFWrappedLLM):
-    def __init__(self, model, with_dyn_cache: bool = True):
+    def __init__(
+        self, model, with_dyn_cache: bool = True, num_logits_to_keep: int = 1
+    ):
         super().__init__()
         self.model = model
         self.with_dyn_cache = with_dyn_cache
+        self.num_logits_to_keep = num_logits_to_keep
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
@@ -128,7 +136,10 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             past_key_values = build_past_kv_list(args)
 
         out_dic = self.model(
-            input_ids, past_key_values=past_key_values, use_cache=True
+            input_ids,
+            past_key_values=past_key_values,
+            use_cache=True,
+            num_logits_to_keep=self.num_logits_to_keep,
         )
 
         if self.with_dyn_cache:
