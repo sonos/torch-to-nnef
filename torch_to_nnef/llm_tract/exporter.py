@@ -261,7 +261,7 @@ class LLMExporter:
             past_key_values=past_key_values,
             use_cache=True,
             return_dict=True,
-            num_logits_to_keep=1,
+            **self.wrapped_model.forward_kwargs,
         )
 
         pkv = outs["past_key_values"]

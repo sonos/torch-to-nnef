@@ -1,6 +1,9 @@
 import typing as T
 
+import logging
 import torch
+
+import inspect
 
 try:
     from transformers import AutoModelForCausalLM
@@ -9,6 +12,8 @@ except ImportError as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
+
+LOGGER = logging.getLogger(__name__)
 
 
 def build_past_kv_list(
@@ -125,6 +130,18 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self.model = model
         self.with_dyn_cache = with_dyn_cache
         self.num_logits_to_keep = num_logits_to_keep
+        sign = inspect.signature(model.forward)
+        fkwargs = {}
+        if "logits_to_keep" in sign.parameters:
+            fkwargs["logits_to_keep"] = self.num_logits_to_keep
+        elif "num_logits_to_keep" in sign.parameters:
+            fkwargs["num_logits_to_keep"] = self.num_logits_to_keep
+        else:
+            LOGGER.warning(
+                f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
+                "so we inference exported may be suboptimal "
+            )
+        self.forward_kwargs = fkwargs
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
@@ -139,7 +156,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             input_ids,
             past_key_values=past_key_values,
             use_cache=True,
-            num_logits_to_keep=self.num_logits_to_keep,
+            **self.forward_kwargs,
         )
 
         if self.with_dyn_cache:
