@@ -46,6 +46,10 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
 
     """
 
+    def __init__(self):
+        super().__init__()
+        self.forward_kwargs = {}
+
 
 class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     """Assume common AutoModelForCausalLM arch.
