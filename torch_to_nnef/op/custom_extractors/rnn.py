@@ -69,7 +69,9 @@ class _RNNMixin:
 
         input_tensor.name += "_batch_first"
         out_transpose_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
-            g, node.outputs[0], name_to_tensor
+            g,
+            node.outputs[0],
+            name_to_tensor,
         )
         NOperation(
             g,

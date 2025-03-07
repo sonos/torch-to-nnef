@@ -108,3 +108,86 @@ def test_manage_gru_states(inference_target):
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_manage_rnn_states(inference_target):
     _test_mono_states_rnn(nn.RNN, inference_target)
+
+
+class PickHt(nn.Module):
+    def __init__(self, nin, nout, n_layers: int = 1, batch_first: bool = True):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            nin,
+            nout,
+            batch_first=batch_first,
+            num_layers=n_layers,
+        )
+
+    def forward(self, x):
+        _, (ht, _) = self.lstm(x)
+        return ht.squeeze(0)
+
+
+@pytest.mark.parametrize(
+    "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX[:1]
+)
+def test_pick_ht(inference_target):
+    seqlen = 10
+    batch = 16
+    inputs = 2
+    outputs = 4
+
+    module = PickHt(inputs, outputs, 1)
+
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "i1": {1: "S", 0: "B"},
+    }
+
+    check_model_io_test(
+        model=module,
+        test_input=(torch.rand(batch, seqlen, inputs),),
+        input_names=["i1"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
+
+
+class EncoderJoin(nn.Module):
+    def __init__(self, nin, nout, n_layers: int = 1, batch_first: bool = True):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            nin,
+            nout,
+            batch_first=batch_first,
+            num_layers=n_layers,
+        )
+
+    def forward(self, x, y):
+        _, (x1, _) = self.lstm(x)
+        _, (x2, _) = self.lstm(y)
+        return torch.cat([x1[-1], x2[-1]], dim=1)
+
+
+@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+def test_reused_lstm_on_2_inputs(inference_target):
+    seqlen = 10
+    batch = 16
+    inputs = 2
+    outputs = 4
+
+    module = EncoderJoin(inputs, outputs, 2)
+
+    inference_target = deepcopy(inference_target)
+    inference_target.dynamic_axes = {
+        "i1": {1: "S", 0: "B"},
+        "i2": {1: "C", 0: "B"},
+    }
+
+    check_model_io_test(
+        model=module,
+        test_input=(
+            torch.rand(batch, seqlen, inputs),
+            torch.rand(batch, seqlen, inputs),
+        ),
+        input_names=["i1", "i2"],
+        output_names=["output"],
+        inference_target=inference_target,
+    )
