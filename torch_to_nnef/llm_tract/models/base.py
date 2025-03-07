@@ -1,3 +1,4 @@
+from functools import partial
 import typing as T
 
 import logging
@@ -122,6 +123,25 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         return [logits] + kv_cache_flat_list
 
 
+def _slice_hidden_state_to_lasts(
+    mod, inputs, outputs, num_logits_to_keep: int = 1
+):
+    # pylint: disable-next=import-outside-toplevel
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+
+    sliced_out = outputs[0][:, -num_logits_to_keep:]
+
+    if hasattr(outputs, "hidden_states"):
+        outputs.hidden_states = sliced_out
+        return BaseModelOutputWithPast(
+            last_hidden_state=sliced_out,
+            past_key_values=outputs.past_key_values,
+            hidden_states=sliced_out,
+        )
+
+    return (sliced_out, *outputs[1:])
+
+
 class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
         self, model, with_dyn_cache: bool = True, num_logits_to_keep: int = 1
@@ -137,10 +157,19 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         elif "num_logits_to_keep" in sign.parameters:
             fkwargs["num_logits_to_keep"] = self.num_logits_to_keep
         else:
-            LOGGER.warning(
-                f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
-                "so we inference exported may be suboptimal "
-            )
+            if self.model.config.model_type == "openelm":
+                self.model.transformer.register_forward_hook(
+                    partial(
+                        _slice_hidden_state_to_lasts,
+                        num_logits_to_keep=num_logits_to_keep,
+                    )
+                )
+            else:
+                LOGGER.warning(
+                    f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
+                    "so we inference exported may be suboptimal "
+                )
+
         self.forward_kwargs = fkwargs
 
     def forward(self, input_ids: torch.Tensor, *args):
