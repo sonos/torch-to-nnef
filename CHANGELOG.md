@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.3] - 2025-03-07
+
+### Fix
+
+- edge-case in `tract_llm` export forward_kwargs
+
 ## [0.16.2] - 2025-03-07
 
 ### Added
