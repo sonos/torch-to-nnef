@@ -1915,7 +1915,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.16.0"
+version = "0.16.1"
 source = { editable = "." }
 dependencies = [
     { name = "mako" },
@@ -1936,6 +1936,9 @@ llm-tract = [
     { name = "sentencepiece" },
     { name = "tokenizers" },
     { name = "transformers" },
+]
+peft = [
+    { name = "peft" },
 ]
 test = [
     { name = "isort" },
@@ -1973,6 +1976,7 @@ requires-dist = [
     { name = "nnef", specifier = ">=1.0.7,<2" },
     { name = "nnef-tools", specifier = ">=1.0.7,<2" },
     { name = "numpy", specifier = ">=1.26.0,<2" },
+    { name = "peft", marker = "extra == 'peft'" },
     { name = "peft", marker = "extra == 'test'" },
     { name = "protobuf", marker = "extra == 'llm-tract'", specifier = ">5.27" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3,<9" },
