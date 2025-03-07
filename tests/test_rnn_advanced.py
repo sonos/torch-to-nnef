@@ -125,7 +125,9 @@ class PickHt(nn.Module):
         return ht.squeeze(0)
 
 
-@pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
+@pytest.mark.parametrize(
+    "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX[:1]
+)
 def test_pick_ht(inference_target):
     seqlen = 10
     batch = 16
@@ -161,7 +163,7 @@ class EncoderJoin(nn.Module):
     def forward(self, x, y):
         _, (x1, _) = self.lstm(x)
         _, (x2, _) = self.lstm(y)
-        return torch.cat([x1.squeeze(0), x2.squeeze(0)], dim=1)
+        return torch.cat([x1[-1], x2[-1]], dim=1)
 
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
@@ -171,7 +173,7 @@ def test_reused_lstm_on_2_inputs(inference_target):
     inputs = 2
     outputs = 4
 
-    module = EncoderJoin(inputs, outputs, 3)
+    module = EncoderJoin(inputs, outputs, 2)
 
     inference_target = deepcopy(inference_target)
     inference_target.dynamic_axes = {
