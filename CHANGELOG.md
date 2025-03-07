@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+## [0.16.2] - 2025-03-07
+
+### Added
+
+- better debug dump with shell script to reproduce failing case
+
+### Fix
+
+- export RNN with 2nd or 3rd outputs used only
+- export support `tract_llm` architecture without `num-logits-to-keep`
+- explicit peft dependency referenced in pyproject
+
 ## [0.16.1] - 2025-03-06
 
 ### Added
