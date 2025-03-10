@@ -12,6 +12,8 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFImpossibleQuantization,
     TorchToNNEFNotImplementedError,
 )
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.qtensor.base import (
     QScalePerGroupF16,
     QTensor,
@@ -130,21 +132,34 @@ class QTensorTractScaleOnly(QTensorTract):
             decompress_u8, target_dtype=self.dequant_to_dtype
         )
 
-    def _build_binary_dat_header(self) -> bytes:
-        q4_0_hex_code = "4020"
+    def _build_binary_dat_header(self, post_tract_21_11: bool = False) -> bytes:
+        if post_tract_21_11:
+            q4_0_hex_code = "4030"
+        else:
+            q4_0_hex_code = "4020"
         return DatBinHeaderBuilder(
             q4_0_hex_code, self.decompressed_shape
         ).to_bytes()
 
-    def _build_binary_dat_content(self) -> bytes:
+    def _build_binary_dat_content(
+        self, post_tract_21_11: bool = False
+    ) -> bytes:
         # NOTE: implementation with multiple call to .tobytes, not tested if bottleneck
 
         n_bytes_per_group = 18
-        tensor_per_group = (
-            self.decompress_to_u8().clone().flatten().reshape(-1, 16, 2)
-        )
-        tensor_per_group[:, :, 1] <<= 4
-        tensor_per_group = tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
+        tensor_flat = self.decompress_to_u8().clone().flatten()
+        if post_tract_21_11:
+            tensor_per_group = tensor_flat.reshape(-1, 2, 16)
+            tensor_per_group[:, 1, :] <<= 4
+            tensor_per_group = (
+                tensor_per_group.sum(dim=1).numpy().astype(np.uint8)
+            )
+        else:
+            tensor_per_group = tensor_flat.reshape(-1, 16, 2)
+            tensor_per_group[:, :, 1] <<= 4
+            tensor_per_group = (
+                tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
+            )
 
         b_arr = bytearray(b"")
         for values, scale in zip(
@@ -155,14 +170,19 @@ class QTensorTractScaleOnly(QTensorTract):
             assert len(b_arr) % n_bytes_per_group == 0
         return bytes(b_arr)
 
-    def write_in_file(self, dirpath: T.Union[str, Path], label: str):
+    def write_in_file(
+        self,
+        dirpath: T.Union[str, Path],
+        label: str,
+        inference_target: InferenceTarget = TractNNEF.latest(),
+    ):
         path = Path(dirpath) / f"{label}.dat"
         if path.exists():
             # already created a variable dump with that name.
             # check we would produce identical serialized data
             with tempfile.TemporaryDirectory() as _td:
                 td = Path(_td)
-                self.write_in_file(td, label)
+                self.write_in_file(td, label, inference_target=inference_target)
                 new_path = td / f"{label}.dat"
                 assert new_path.exists(), new_path
                 if filecmp.cmp(path, new_path):
@@ -174,8 +194,10 @@ class QTensorTractScaleOnly(QTensorTract):
                 "This variable collision as no resolution strategy yet."
             )
         assert not path.exists(), path
-        bin_header = self._build_binary_dat_header()
-        bin_content = self._build_binary_dat_content()
+        assert isinstance(inference_target, TractNNEF), inference_target
+        post_tract_21_11 = inference_target.version >= "0.21.11"
+        bin_header = self._build_binary_dat_header(post_tract_21_11)
+        bin_content = self._build_binary_dat_content(post_tract_21_11)
         with path.open("wb") as fh:
             fh.write(bin_header)
             fh.write(bin_content)
