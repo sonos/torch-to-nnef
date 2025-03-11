@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.16.4] - 2025-03-11
+
+### Added
+
+- support new `Q40` tract format starting with target tract>=0.21.11
+
+### Fix
+
+- remove useless hard dependencies (regression since 0.15.10 about) and relaxing numpy version
+
 ## [0.16.3] - 2025-03-07
 
 ### Fix
