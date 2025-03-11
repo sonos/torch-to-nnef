@@ -16,15 +16,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "numpy>=1.26.0,<2",
+    "numpy>=1.26.0,<3",
     "torch>=1.8.0,<3",
     "nnef_tools>=1.0.7,<2",
     "nnef>=1.0.7,<2",
     "mako>=1.0.0,<2.0",
-    "toml>=0.10.2,<0.11",
-    "tox>=4.23.2,<5",
-    "twine>=3.3.0,<4",
-    "virtualenv>=20.2.2,<21",
 ]
 
 [project.optional-dependencies]
