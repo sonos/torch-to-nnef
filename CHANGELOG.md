@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.16.5] - 2025-03-11
+
+### Change
+
+- test by default on 2.6
+
+### Fix
+
+- SPDA regression if pytorch > 2.3 and usage of specific scale
+
 ## [0.16.4] - 2025-03-11
 
 ### Added
