@@ -55,8 +55,8 @@ def scaled_dot_product_attention(
     inputs = [query_tensor, key_tensor, value_tensor]
 
     scale = None
-    if len(node.inputs) == 7:  # added param between torch 1.13 and 2.2
-        scale_node = node.inputs[-1]
+    if len(node.inputs) >= 7:  # added param between torch 1.13 and 2.2
+        scale_node = node.inputs[6]
         if scale_node.data is not None:
             scale = scale_node.data
             scale_tensor = get_or_add_tensor_variable_in_nnef(

@@ -78,7 +78,7 @@ include = ["torch_to_nnef", "CHANGELOG.md"]
 include = ["torch_to_nnef", "CHANGELOG.md"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "setuptools>42"]
 build-backend = "hatchling.build"
 
 [tool.ruff]

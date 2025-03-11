@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.9.0, <4.0"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -2072,6 +2073,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'llm-tract'", specifier = ">=4.35.2,<5" },
     { name = "transformers", marker = "extra == 'test'", specifier = ">=4.35.2,<5" },
 ]
+provides-extras = ["llm-tract", "peft", "test"]
 
 [package.metadata.requires-dev]
 dev = [
