@@ -13,6 +13,7 @@ from tests.utils import (
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from torch_to_nnef.utils import torch_version
 
 
 FORCE_F32_INFERENCES = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)
@@ -152,12 +153,13 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
 
 def test_layer_norm_f16_unsupported_in_torch():
     """Check no layer norm support for f16"""
-    with pytest.raises(RuntimeError) as excinfo:
-        check_model_io_test(
-            nn.LayerNorm(4, 3),
-            test_input=(torch.arange(12).reshape(1, 3, 4).half()),
-            inference_target=FORCE_F32_INFERENCES[0],
+    if torch_version() <= "2.2.0":
+        with pytest.raises(RuntimeError) as excinfo:
+            check_model_io_test(
+                nn.LayerNorm(4, 3),
+                test_input=(torch.arange(12).reshape(1, 3, 4).half()),
+                inference_target=FORCE_F32_INFERENCES[0],
+            )
+        assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
+            excinfo.value
         )
-    assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
-        excinfo.value
-    )

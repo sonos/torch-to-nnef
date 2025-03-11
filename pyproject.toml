@@ -16,36 +16,35 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "mako>=1.0.0,<2.0",
+    "nnef>=1.0.7,<2",
+    "nnef_tools>=1.0.7,<2",
     "numpy>=1.26.0,<3",
     "torch>=1.8.0,<3",
-    "nnef_tools>=1.0.7,<2",
-    "nnef>=1.0.7,<2",
-    "mako>=1.0.0,<2.0",
 ]
 
 [project.optional-dependencies]
 llm_tract = [
-    "tokenizers>=0.13.3",
-    "transformers>=4.35.2,<5",
-    "sentencepiece>=0.2.0,<0.3",
     "huggingface-hub>0.24",
     "protobuf>5.27",
+    "sentencepiece>=0.2.0,<0.3",
+    "tokenizers>=0.13.3",
+    "transformers>=4.35.2,<5",
 ]
 peft = ["peft"]
 test = [
-    "pytest>=8.3.3,<9",
-    "ruff<1.0",
     "isort>=5.8.0,<6",
     "mypy~=1.13",
-    "pytest-cov>=6.0.0,<7",
-    "torchvision>=0.17.0,<0.18",
-    "torchaudio>=2.2.0,<3",
-    "tokenizers>=0.13.3",
-    "transformers>=4.35.2,<5",
-    "sentencepiece>=0.2.0,<0.3",
     "peft",
+    "pytest-cov>=6.0.0,<7",
+    "pytest>=8.3.3,<9",
+    "ruff<1.0",
+    "sentencepiece>=0.2.0,<0.3",
+    "tokenizers>=0.13.3",
+    "torchaudio>=2.6.0,<3",
+    "torchvision>=0.21.0,<0.22",
+    "transformers>=4.35.2,<5",
 ]
-
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"
 
@@ -79,7 +78,7 @@ include = ["torch_to_nnef", "CHANGELOG.md"]
 include = ["torch_to_nnef", "CHANGELOG.md"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "setuptools>42"]
 build-backend = "hatchling.build"
 
 [tool.ruff]

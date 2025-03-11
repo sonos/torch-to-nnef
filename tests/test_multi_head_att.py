@@ -1,5 +1,6 @@
 """Tests simple primitives."""
 
+from copy import deepcopy
 import math
 import os
 from functools import partial
@@ -10,6 +11,8 @@ import torch
 from torch.nn import functional as F
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.utils import torch_version
 
 from .wrapper import TernaryPrimitive
 from .utils import (  # noqa: E402
@@ -20,6 +23,7 @@ from .utils import (  # noqa: E402
 )
 
 set_seed(int(os.environ.get("SEED", 0)))
+
 
 test_suite = TestSuiteInferenceExactnessBuilder(
     TRACT_INFERENCES_TO_TESTS_APPROX
