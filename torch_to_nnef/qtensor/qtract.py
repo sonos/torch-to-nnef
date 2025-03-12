@@ -119,6 +119,7 @@ class QTensorTractScaleOnly(QTensorTract):
         with tract.
 
         """
+        assert self.qscheme is not None
         decompress_u8 = self.u8_blob
         for u8_compressor in reversed(self.u8_compressors):
             decompress_u8 = u8_compressor.decompress(decompress_u8)
