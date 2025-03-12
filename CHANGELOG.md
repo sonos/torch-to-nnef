@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+### Fix
+
+- Support QTensor to device
+
 ## [0.16.5] - 2025-03-11
 
 ### Change
