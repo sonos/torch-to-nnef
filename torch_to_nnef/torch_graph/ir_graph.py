@@ -35,7 +35,7 @@ from torch_to_nnef.torch_graph.ir_naming import (
     rename_variable_by_incr,
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
-from torch_to_nnef.torch_graph.torch_const import CLASSTYPE_KIND, GETATTR_KIND
+from torch_to_nnef.torch_graph.torch_const import CALL_KIND, CLASSTYPE_KIND, GETATTR_KIND
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
@@ -723,6 +723,10 @@ class TorchModuleIRGraph:
                     f"[var]{i.export_name}[/var]" for i in _.inputs
                 )
                 inputs_str = f"( {inputs_str} )"
+            if _.kind == CALL_KIND:
+                mod_name = _.op_ref.mod.__class__.__name__
+                mod_fn = _.op_ref.fn_name
+                inputs_str = f"<{mod_name}.{mod_fn}>{inputs_str}"
             cls_name = ""
             outputs_str = ", ".join(
                 [

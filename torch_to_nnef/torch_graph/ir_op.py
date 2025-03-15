@@ -15,7 +15,7 @@ from enum import Enum
 
 import torch
 
-from torch_to_nnef.dtypes import is_quantized_dtype
+from torch_to_nnef.dtypes import is_quantized_dtype, str_to_torch_dtype
 from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchOpTranslatedDifferently,
@@ -379,14 +379,23 @@ class TorchOp:
                 if self.kind == ATEN_SIZE_KIND:
                     # note this is a special case where we fix variable value
                     data_node.data = result
-                data_node.dtype = result.dtype
-                data_node.shape = list(result.shape)
-                if is_quantized_dtype(result.dtype):
-                    data_node.quant = {
-                        "scale": result.q_scale(),
-                        "zero_point": result.q_zero_point(),
-                    }
-
+                if isinstance(result, torch.Tensor):
+                    data_node.dtype = result.dtype
+                    data_node.shape = list(result.shape)
+                    if is_quantized_dtype(result.dtype):
+                        data_node.quant = {
+                            "scale": result.q_scale(),
+                            "zero_point": result.q_zero_point(),
+                        }
+                else:
+                    if isinstance(result, int):
+                        data_node.dtype = str_to_torch_dtype("int")
+                        data_node.shape = []
+                    elif isinstance(result, float):
+                        data_node.dtype = str_to_torch_dtype("float")
+                        data_node.shape = []
+                    else:
+                        raise TorchToNNEFNotImplementedError(result)
         return True
 
     def __repr__(self):

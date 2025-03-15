@@ -322,7 +322,7 @@ def _parse_list_construct_values(node, data_nodes: ReactiveNamedItemDict):
             contains_tensors = True
             if cvalue.node().kind() == ATEN_INT:
                 value = _fetch_backward(data_nodes, cvalue.node())
-            elif str(cvalue.type()) == "Tensor":
+            elif str(cvalue.type()) in ["Tensor", "int"]:
                 try:
                     value = _find_data_node(data_nodes, cvalue.debugName())
                 except TorchNotFoundDataNode:
@@ -482,10 +482,18 @@ def _rerouted_parsing(
             dnodes = _find_data_node(data_nodes, node.input().debugName()).data
             for dnode, o_node_c_value in zip(dnodes, node.outputs()):
                 o_type = o_node_c_value.type()
-                stype = o_type.scalarType()
+                if o_type.kind() == "TensorType":
+                    stype = o_type.scalarType()
+                    shape = o_type.sizes()
+                elif o_type.kind() == "IntType":
+                    stype = "int"
+                    shape = [1]
+                else:
+                    raise NotImplementedError(o_type.kind())
+
                 dtype = str_to_torch_dtype(stype) if stype else None
                 dnode.name = o_node_c_value.debugName()
-                dnode.shape = o_type.sizes()
+                dnode.shape = shape
                 dnode.dtype = dtype
                 dnode.data = o_node_c_value.toIValue()
             raise TorchOpTranslatedDifferently("Tuple unpacked")

@@ -165,6 +165,10 @@ class TensorVariable(Data):
                 for x in (self.shape or [])
             ]
         )
+        if not self.dtype.is_floating_point and not self.dtype.is_complex:
+            # NOTE: hack to avoid O
+            # (has in some case these may come from shape gen)
+            data *= 10
         if is_quantized_dtype(self.dtype):
             return torch.quantize_per_tensor(
                 data,
@@ -303,11 +307,18 @@ class TupleTensors(Data):
         assert node_type.kind() == TUPLETYPE_KIND
         elements = []
         for idx, elm in enumerate(node_type.elements()):
-            stype = elm.scalarType()
+            if elm.kind() == "TensorType":
+                stype = elm.scalarType()
+                shape = elm.sizes()
+            elif elm.kind() == "IntType":
+                stype = "int"
+                shape = [1]
+            else:
+                raise TorchToNNEFNotImplementedError(elm.kind())
             dtype = str_to_torch_dtype(stype) if stype else None
             elm_data = TensorVariable(
                 name=f"{name}_{idx}",
-                shape=elm.sizes(),
+                shape=shape,
                 dtype=dtype,
                 data=None,
             )
