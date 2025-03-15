@@ -15,7 +15,7 @@ from enum import Enum
 
 import torch
 
-from torch_to_nnef.dtypes import is_quantized_dtype, str_to_torch_dtype
+from torch_to_nnef.dtypes import dtype_is_whole_number, is_quantized_dtype, str_to_torch_dtype
 from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchOpTranslatedDifferently,
@@ -382,6 +382,9 @@ class TorchOp:
                 if isinstance(result, torch.Tensor):
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)
+                    if dtype_is_whole_number(result.dtype):
+                        data_node._traced_data = result
+
                     if is_quantized_dtype(result.dtype):
                         data_node.quant = {
                             "scale": result.q_scale(),
@@ -391,6 +394,7 @@ class TorchOp:
                     if isinstance(result, int):
                         data_node.dtype = str_to_torch_dtype("int")
                         data_node.shape = []
+                        data_node._traced_data = result
                     elif isinstance(result, float):
                         data_node.dtype = str_to_torch_dtype("float")
                         data_node.shape = []

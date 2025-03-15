@@ -197,6 +197,7 @@ class TorchModuleIRGraph:
                     tv.shape = original_input.shape
                     tv.dtype = original_input.dtype
                     tv.quant = original_input.quant
+                    tv._traced_data = original_input._traced_data
                 self.inputs.append(tv)
                 self.data_nodes.append(tv)
                 # used at _merge_subraph
@@ -355,7 +356,7 @@ class TorchModuleIRGraph:
                 worked = op_node.realise_output_type_and_size()
                 if worked:
                     ops_to_rm.append(op_node)
-                    for _ in op_node.outputs:
+                    for _ in _expand_containers_if_exists(op_node.outputs):
                         if _.name in unshaped_data:
                             del unshaped_data[_.name]
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
