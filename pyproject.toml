@@ -3,7 +3,9 @@ name = "torch_to_nnef"
 version = "0.16.5"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
-requires-python = ">=3.9.0,<4.0"
+
+# weird regression in 3.13 to address shortly
+requires-python = ">=3.9.0,<3.13"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -118,15 +120,12 @@ max-module-lines = 2000
 
 [tool.pylint."MESSAGE CONTROL"]
 disable = [
-    "bad-continuation",
     "deprecated-module",
     "invalid-name",
     "len-as-condition",
     "line-too-long",
     "locally-disabled",
     "logging-fstring-interpolation",
-    "no-init",
-    "no-self-use",
     "not-callable",
     "protected-access",
     "too-few-public-methods",
