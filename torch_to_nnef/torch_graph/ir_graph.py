@@ -2,7 +2,9 @@ import logging
 import typing as T
 from collections import defaultdict
 
+import torch
 from torch_to_nnef.console import Console
+from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     NotFoundModuleExtractor,
     TorchCheckError,
@@ -35,7 +37,11 @@ from torch_to_nnef.torch_graph.ir_naming import (
     rename_variable_by_incr,
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
-from torch_to_nnef.torch_graph.torch_const import CALL_KIND, CLASSTYPE_KIND, GETATTR_KIND
+from torch_to_nnef.torch_graph.torch_const import (
+    CALL_KIND,
+    CLASSTYPE_KIND,
+    GETATTR_KIND,
+)
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
 LOGGER = logging.getLogger(__name__)
@@ -182,8 +188,8 @@ class TorchModuleIRGraph:
 
         assert len(graph_inputs) == len(provided_inputs)
 
-        for idx, (node_c_value, original_input) in enumerate(
-            zip(graph_inputs, provided_inputs)
+        for idx, (node_c_value, original_input, arg) in enumerate(
+            zip(graph_inputs, provided_inputs, self._tracer.args)
         ):
             if self._omit_useless_nodes:
                 if (
@@ -193,7 +199,15 @@ class TorchModuleIRGraph:
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
-                if original_input is not None:
+                if original_input is None:
+                    if isinstance(arg, torch.Tensor):
+                        tv.shape = list(arg.shape)
+                        tv.dtype = arg.dtype
+                        if dtype_is_whole_number(arg.dtype):
+                            tv._traced_data = arg
+                    else:
+                        raise TorchToNNEFNotImplementedError(type(arg))
+                else:
                     tv.shape = original_input.shape
                     tv.dtype = original_input.dtype
                     tv.quant = original_input.quant

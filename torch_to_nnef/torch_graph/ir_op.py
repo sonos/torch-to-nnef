@@ -15,7 +15,11 @@ from enum import Enum
 
 import torch
 
-from torch_to_nnef.dtypes import dtype_is_whole_number, is_quantized_dtype, str_to_torch_dtype
+from torch_to_nnef.dtypes import (
+    dtype_is_whole_number,
+    is_quantized_dtype,
+    str_to_torch_dtype,
+)
 from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchOpTranslatedDifferently,
@@ -37,6 +41,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
+    ATEN_BADDMM,
     ATEN_CUMSUM,
     ATEN_EINSUM,
     ATEN_EMPTY,
@@ -95,6 +100,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_WHERE: cls.aten_where,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_EINSUM: cls.aten_einsum,
+            ATEN_BADDMM: cls.aten_baddmm,
         }
         to_call = map_align.get(kind)
         if to_call:
@@ -106,6 +112,11 @@ class InputsAlignBetweenAtenAndTorch:
         args = list(args)
         args[0] = args[0].bool()
         args = tuple(args)
+        return args, kwargs
+
+    @staticmethod
+    def aten_baddmm(args, kwargs):
+        args = list(args[:3])
         return args, kwargs
 
     @staticmethod
@@ -152,7 +163,7 @@ class InputsAlignBetweenAtenAndTorch:
         args[0] = [
             a.tolist() if isinstance(a, torch.Tensor) else a for a in args[0]
         ]
-        if not isinstance(args[-1], float):
+        if not isinstance(args[-1], (float, int)):
             args[-1] = args[-1].tolist()
         return args, kwargs
 

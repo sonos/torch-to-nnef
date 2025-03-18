@@ -14,6 +14,7 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     unary_output_op_without_attr,
 )
+from torch_to_nnef.qtensor import base
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
     FixedTensorList,
@@ -154,6 +155,14 @@ def _generic_auto_tensor_expansion(
             attrs={"repeats": repeats},
         )
     else:
+        # late bug catching
+        if base_tensor_node.data.dtype != base_tensor_node.dtype:
+            LOGGER.warning(
+                "late 'dtype' miss-alignment catched in _generic_auto_tensor_expansion"
+            )
+            base_tensor_node.data = base_tensor_node.data.to(
+                base_tensor_node.dtype
+            )
         add_tensor_variable_node_as_nnef_tensor(
             g,
             base_tensor_node,
