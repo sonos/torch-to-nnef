@@ -788,10 +788,17 @@ for axis in [0, 1, -1]:
             TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
             inference_conditions=tract_post_0_21_10,
         )
+
+
+class WrapNumel(nn.Module):
+    def forward(self, x):
+        return torch.tensor(x.numel())
+
+
 inp = torch.arange(10).reshape(1, 2, 5)
 test_suite.add(
     (inp,),
-    TensorFnPrimitive("numel", {}),
+    WrapNumel(),
     inference_conditions=skip_khronos_interpreter,
 )
 
