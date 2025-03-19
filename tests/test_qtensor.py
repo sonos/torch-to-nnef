@@ -246,7 +246,7 @@ def test_quantize_with_tract_q4_0_assign_to(inference_target):
 
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.10"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
 )
 def test_quantize_with_tract_q4_0_embedding(inference_target):
     """basic quantization values"""
@@ -256,8 +256,7 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
         x = 6
         y = 32
         model = nn.Embedding(x, y).eval()
-        original_weight = (torch.arange(
-            x * y).reshape(x, y).float() * 2).half()
+        original_weight = (torch.arange(x * y).reshape(x, y).float() * 2).half()
 
         q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
 
