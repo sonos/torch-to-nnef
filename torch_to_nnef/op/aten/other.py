@@ -135,7 +135,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
     )
     if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
         if not platform.machine().startswith("arm"):
-            LOGGER.warn(
+            LOGGER.warning(
                 "reinterpret cast to unsigned, if negative number is cpu "
                 "device dependant (arm trunk bits while intel circular buffer left)"
             )
@@ -339,7 +339,7 @@ def numel(node, inference_target, op_helper, **kwargs):
         .chain(
             "tract_core_product_reduce",
             force_full_output_tensor_name=f"{node.outputs[0].export_name}_reduced",
-            attrs={"axes": list(range(input_node.rank))},
+            attrs={"axes": [0]},
         )
         .chain(
             "squeeze",

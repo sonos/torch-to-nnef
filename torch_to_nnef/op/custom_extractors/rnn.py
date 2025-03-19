@@ -1,4 +1,3 @@
-from os import stat
 import typing as T
 
 import nnef
@@ -14,13 +13,10 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
 from torch_to_nnef.torch_graph.torch_const import (
-    ATEN_INT,
-    ATEN_SELECT,
     ATEN_ZEROS,
     LISTCONSTRUCT_KIND,
     TUPLECONSTRUCT_KIND,
 )
-from torch_to_nnef.utils import LOGGER
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
 
@@ -50,42 +46,43 @@ class _RNNMixin:
         # received_order = [_.offset() for _ in received_order]
         order = []
         states_args = []
-        for idx, rinp in enumerate(real_order):
+        for rinp in real_order[:-1]:
             try:
                 order.append(received_order.index(rinp))
-            except ValueError as exp:
-                if idx == 2:
-                    LOGGER.debug("No initial states detected")
-                    # NOTE: aborted attempt to better control init
-                    # in case of subtlety
-                    # node = rinp.node()
-                    # assert node.kind() == LISTCONSTRUCT_KIND, node.kind()
-                    # states_inps = list(node.inputs())
-                    # for sinp in states_inps:
-                    #     try:
-                    #         order.append(received_order.index(sinp))
-                    #     except ValueError as exp:
-                    #         # assume default init values
-                    #         sinp_node = sinp.node()
-                    #         assert sinp_node.kind() == ATEN_ZEROS, sinp_node
-                    #         zdims = []
-                    #         for zdim in (
-                    #             next(sinp.node().inputs()).node().inputs()
-                    #         ):
-                    #             if zdim.toIValue() is not None:
-                    #                 zdims.append(zdim.toIValue())
-                    #             else:
-                    #                 assert zdim.node().kind() == ATEN_INT
-                    #                 val = zdim.node().input()
-                    #                 assert val.node().kind() == ATEN_SELECT
-                    #                 select_vals = list(val.node().inputs())
-                    #                 # assume today observed case
-                    #                 assert select_vals[1].toIValue() == 0
-                    #                 assert select_vals[2].toIValue() == 0
-                    #                 # zdims.append(2)
-                    #         states_args.append(torch.zeros(zdims))
+            except ValueError:
+                node = rinp.node()
+                if node.kind() == LISTCONSTRUCT_KIND:
+                    for sinp in node.inputs():
+                        if sinp in received_order:
+                            order_idx = received_order.index(sinp)
+                            order.append(order_idx)
+                        else:
+                            # assume default init values
+                            sinp_node = sinp.node()
+                            assert sinp_node.kind() == ATEN_ZEROS, (
+                                sinp_node.kind()
+                            )
+                            # zdims = []
+                            # for zdim in (
+                            #     next(sinp.node().inputs()).node().inputs()
+                            # ):
+                            #     if zdim.toIValue() is not None:
+                            #         zdims.append(zdim.toIValue())
+                            #     else:
+                            #         assert zdim.node().kind() == ATEN_INT
+                            #         val = zdim.node().input()
+                            #         if val.node().kind() == ATEN_SELECT:
+                            #             select_vals = list(val.node().inputs())
+                            #             # assume today observed case
+                            #             assert select_vals[1].toIValue() == 0
+                            #             assert select_vals[2].toIValue() == 0
+                            #             continue  # do not add init
+                            #         if val.node().kind() == NUMTOTENSOR_KIND:
+                            #             continue  # do not add init
+                            # states_args.append(torch.zeros(zdims))
+                            continue
                     break
-        new_args = [torch_graph.tracer.args[order[0]]] + states_args
+        new_args = [torch_graph.tracer.args[o] for o in order] + states_args
         return new_args
 
     def _check_rank(self, node, module):
