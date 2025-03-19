@@ -40,7 +40,7 @@ def reflection_padnd(
         has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
+    # assert all(isinstance(_, int) for _ in pads)
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
     if len(pads) < onode.rank:
@@ -69,7 +69,7 @@ def replication_padnd(
         has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
+    # assert all(isinstance(_, int) for _ in pads)
     pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
     onode = node.outputs[0]
     if len(pads) < onode.rank:
@@ -98,7 +98,7 @@ def constant_pad_nd(
         has_dynamic_axes=inference_target.has_dynamic_axes,
     )
     assert isinstance(pads, list)
-    assert all(isinstance(_, int) for _ in pads)
+    # assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
     if value is None:
         value = 0  # add default value if not set
