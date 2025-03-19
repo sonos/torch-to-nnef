@@ -815,6 +815,22 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+inp = torch.arange(15).reshape(1, 3, 5)
+index = torch.arange(15).reshape(1, 3, 5).sort(descending=True).values % 3
+src = torch.arange(15).reshape(1, 3, 5) + 5
+test_suite.add(
+    (inp,),
+    UnaryPrimitive(
+        partial(
+            torch.scatter,
+            dim=1,
+            index=index,
+            src=src,
+        )
+    ),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()

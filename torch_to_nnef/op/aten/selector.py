@@ -685,8 +685,10 @@ def topk(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def index_select(node, op_helper, **kwargs):
+def index_select(node, op_helper, inference_target, **kwargs):
     input_node, dim_node, indexes_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "tract_core_gather",
@@ -694,6 +696,33 @@ def index_select(node, op_helper, **kwargs):
             op_helper.get_or_add_tensor_variable_in_nnef(input_node),
             op_helper.get_or_add_tensor_variable_in_nnef(
                 indexes_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def scatter(node, op_helper, inference_target, **kwargs):
+    input_node, dim_node, indexes_node, src_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+
+    # is a select with indexes
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_scatter_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                src_node,
             ),
         ],
         attrs={
