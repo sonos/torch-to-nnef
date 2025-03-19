@@ -565,7 +565,7 @@ class TractBinaryDownloader:
 
 
 def _unfold_outputs(test_outputs):
-    if isinstance(test_outputs, torch.Tensor):
+    if isinstance(test_outputs, (torch.Tensor, int)):
         test_outputs = [test_outputs]
     test_outputs = list(test_outputs)
 
@@ -576,6 +576,10 @@ def _unfold_outputs(test_outputs):
         elif isinstance(out, (list, tuple)):
             for sub_out in out:
                 unfolded_outputs.append(sub_out)
+        elif isinstance(out, int):
+            unfolded_outputs.append(torch.tensor(out))
+        else:
+            raise NotImplementedError(type(out))
     return unfolded_outputs
 
 

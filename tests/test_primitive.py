@@ -788,6 +788,12 @@ for axis in [0, 1, -1]:
             TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
             inference_conditions=tract_post_0_21_10,
         )
+inp = torch.arange(10).reshape(1, 2, 5)
+test_suite.add(
+    (inp,),
+    TensorFnPrimitive("numel", {}),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 def test_should_fail_since_no_input():

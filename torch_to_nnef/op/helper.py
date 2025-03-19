@@ -737,6 +737,8 @@ class OpHelper:
                     continue
                 sh.append(dim_value)
             return input_nodes[0].dtype, tuple(sh)
+        if nnef_op_type in "tract_core_product_reduce":
+            return torch.int64, tuple()
         if nnef_op_type in ["min", "max", "sub", "add", "div", "mul"]:
             # keep biggest volume input
             sh = []

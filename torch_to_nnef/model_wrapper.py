@@ -118,7 +118,7 @@ def _build_new_names_and_elements(
     for _, idxes, elm in flat_elms:
         str_idxes = "_".join(str(_) for _ in idxes[1:])
         root_name = original_names[idxes[0]]
-        if not isinstance(elm, torch.Tensor):
+        if not isinstance(elm, (torch.Tensor, int)):
             ix_str = ""
             for i in idxes:
                 val = "'" + i + "'" if isinstance(i, str) else i

@@ -317,3 +317,34 @@ def size(
     )
 
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def numel(node, inference_target, op_helper, **kwargs):
+    assert len(node.inputs) == 1
+    input_node = node.inputs[0]
+    soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
+    soc = (
+        soc.chain(
+            "tract_core_shape_of",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape",
+        )
+        .chain(
+            "tract_core_cast",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape_i64",
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
+        .chain(
+            "tract_core_product_reduce",
+            force_full_output_tensor_name=f"{node.outputs[0].export_name}_reduced",
+            attrs={"axes": list(range(input_node.rank))},
+        )
+        .chain(
+            "squeeze",
+            force_full_output_tensor_name=node.outputs[0].export_name,
+            attrs={"axes": [0]},
+        )
+    )
+    return ["tract_core"]
