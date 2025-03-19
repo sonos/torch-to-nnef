@@ -682,3 +682,23 @@ def topk(node, op_helper, inference_target, **kwargs):
         attribs={"k": k_node.data, "axis": dim, "largest": largest_node.data},
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def index_select(node, op_helper, **kwargs):
+    input_node, dim_node, indexes_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
