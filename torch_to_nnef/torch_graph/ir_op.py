@@ -181,7 +181,7 @@ class InputsAlignBetweenAtenAndTorch:
 
     @staticmethod
     def aten_prod(args, kwargs):
-        args = list(args[:3])
+        args = list(args[:1])
         return args, kwargs
 
     @staticmethod
