@@ -731,3 +731,12 @@ def scatter(node, op_helper, inference_target, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
+    input_node, lengths_node, batch_first_node = node.inputs[:3]
+    opacked_node, obatch_node = node.outputs
+
+    raise TorchToNNEFNotImplementedError()
+    return ["pack_padded_sequence"]

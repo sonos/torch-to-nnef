@@ -14,6 +14,7 @@ from torch_to_nnef.exceptions import TorchToNNEFError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
+from torch_to_nnef.op.aten.norm import batch_norm
 from torch_to_nnef.utils import torch_version
 
 from .wrapper import (
@@ -828,6 +829,34 @@ test_suite.add(
             src=src,
         )
     ),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class PackPadSeq(torch.nn.Module):
+    def __init__(self, lengths, out_idx: int):
+        super().__init__()
+        self.lengths = lengths
+        self.out_idx = out_idx
+
+    def forward(self, inp):
+        outs = torch.nn.utils.rnn.pack_padded_sequence(
+            inp,
+            lengths=self.lengths,
+            batch_first=True,
+        )
+        # print("inputs:", inp)
+        # print("outs[0]:", outs[0])
+        # print("outs[1]:", outs[1])
+        return outs[self.out_idx]
+
+
+test_suite.reset()
+inp = torch.arange(24).reshape(2, 4, 3)
+lengths = torch.tensor([3, 1])
+test_suite.add(
+    (inp,),
+    PackPadSeq(lengths, 0),
     inference_conditions=skip_khronos_interpreter,
 )
 
