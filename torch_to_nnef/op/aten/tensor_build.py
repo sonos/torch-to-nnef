@@ -14,7 +14,6 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     unary_output_op_without_attr,
 )
-from torch_to_nnef.qtensor import base
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
     FixedTensorList,
@@ -284,6 +283,16 @@ def _x_like(
 
 @OP_REGISTRY.register()
 def zeros_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
+def empty_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
     With tract we use use exapnsion

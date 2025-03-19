@@ -45,6 +45,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_CUMSUM,
     ATEN_EINSUM,
     ATEN_EMPTY,
+    ATEN_EMPTY_LIKE,
     ATEN_FULL,
     ATEN_GELU,
     ATEN_INT,
@@ -100,6 +101,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_WHERE: cls.aten_where,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_EINSUM: cls.aten_einsum,
+            ATEN_EMPTY_LIKE: cls.aten_empty_like,
             ATEN_BADDMM: cls.aten_baddmm,
         }
         to_call = map_align.get(kind)
@@ -191,6 +193,11 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_einsum(args, kwargs):
         args = list(args[:2])
+        return args, kwargs
+
+    @staticmethod
+    def aten_empty_like(args, kwargs):
+        args = list(args[:1])
         return args, kwargs
 
     @staticmethod
