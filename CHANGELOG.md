@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.7] - 2025-03-20
+
+### Fix
+
+- complex slice index gather nd fix
+
 ## [0.16.6] - 2025-03-20
 
 ### Added
