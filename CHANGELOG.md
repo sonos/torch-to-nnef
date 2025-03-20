@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.9] - 2025-03-20
+
+### Fix
+
+- regression on `uint32`, `uint64` support (pre torch 2.4)
+
 ## [0.16.8] - 2025-03-20
 
 ### Fix
