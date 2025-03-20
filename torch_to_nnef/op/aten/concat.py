@@ -140,7 +140,9 @@ def roll(g, node, name_to_tensor, inference_target, **kwargs):
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if inference_target.has_dynamic_axes and not isinstance(inference_target, TractNNEF):
+    if inference_target.has_dynamic_axes and not isinstance(
+        inference_target, TractNNEF
+    ):
         raise TorchToNNEFNotImplementedError(inference_target)
     custom_fragments = []
     for i, _ in enumerate(shifts):

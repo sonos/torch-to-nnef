@@ -128,12 +128,14 @@ disable = [
     "logging-fstring-interpolation",
     "not-callable",
     "protected-access",
+    "too-many-positional-arguments",
     "too-few-public-methods",
     "too-many-arguments",
     "too-many-locals",
     "unused-argument",
     "unused-wildcard-import",
     "wrong-import-position",
+    "import-error",                  # prospector have trouble with nnef, nnef_tools
 ]
 
 [tool.pylint.DESIGN]

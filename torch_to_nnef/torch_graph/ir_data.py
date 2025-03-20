@@ -17,7 +17,7 @@ from torch_to_nnef.dtypes import (
     TORCH_TO_NUMPY_DTYPE,
     is_quantized_dtype,
     str_to_torch_dtype,
-    dtype_is_whole_number
+    dtype_is_whole_number,
 )
 from torch_to_nnef.exceptions import (
     TorchNotFoundDataNode,
@@ -36,6 +36,7 @@ from torch_to_nnef.torch_graph.torch_const import (
 from torch_to_nnef.utils import NamedItem, ReactiveNamedItemDict
 
 UNKNOWN_TRACE_SHAPE_VALUE = 321
+
 
 def cleanup_data_name(name: str) -> str:
     for sep in ["/", "[", "]", ".", "-"]:
@@ -93,7 +94,7 @@ class TensorVariable(Data):
     data: T.Optional[torch.Tensor]
 
     quant: T.Optional[T.Dict[str, T.Any]] = None
-    _traced_data : T.Optional[torch.Tensor] = None
+    _traced_data: T.Optional[torch.Tensor] = None
 
     @property
     def slug(self) -> str:
@@ -148,7 +149,11 @@ class TensorVariable(Data):
         st = self.shaped_and_typed
         # whole number can be used for indexing or tensor gen ...
         # those may be significan for subsequent op in network ...
-        need_data_realisation = dtype_is_whole_number(self.dtype) and self._traced_data is None and self.data is None
+        need_data_realisation = (
+            dtype_is_whole_number(self.dtype)
+            and self._traced_data is None
+            and self.data is None
+        )
         return st and not need_data_realisation
 
     @property

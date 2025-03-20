@@ -814,13 +814,14 @@ class OpHelper:
 
         """
         if nnef_op_type in IMPLICIT_CAST_CONSISTENT_INP_SUPPORTED_OPS:
-            if len(inputs) > 1 and len(set(_.dtype for _ in inputs)) > 1:
+            if len(inputs) > 1 and len({_.dtype for _ in inputs}) > 1:
                 lowest_idx = np.inf
                 for _ in inputs:
                     idx = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(_.dtype)
-                    if idx < lowest_idx:
-                        lowest_idx = idx
-                dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[lowest_idx]
+                    lowest_idx = min(lowest_idx, idx)
+                dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[
+                    lowest_idx
+                ]
                 for idx, inp in enumerate(inputs):
                     if inp.data is not None:
                         to_str = numpy_dtype_to_tract_str(dtype_target)
