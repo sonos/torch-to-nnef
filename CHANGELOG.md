@@ -3,9 +3,26 @@
 
 ## Unreleased
 
+## [0.16.6] - 2025-03-20
+
+### Added
+
+- official tract support is now `0.21.11` (new default target)
+- support `to` device like `cuda`,`mps` for our internal QTensor  ...
+- support for new operators: `aten::empty_like`, `aten::prod`, `aten::index_select`, `aten::scatter`, `aten::numel`
+
+### Change
+
+- additional tracing cues for whole number values that may be used in tensors shaping/construction.
+- disabled support for Python >=3.13 as of now as it leads to unexpected hash/set issues to be investigated
+
 ### Fix
 
-- Support QTensor to device
+- `aten::baddbmm` extra args handled during tracing
+- better alignment of arity for rnn inputs
+- equality operators (`ne`, `ge`, `le`, `gt`, `eq`) now implicit cast to common dtype if heterogeneous
+- `to` operators with from float to unsigned with negative values was found to have an arch dependant behavior (code now align to the arch used at export with warning for non arm)
+- tolerate export pad operators with dynamic values
 
 ## [0.16.5] - 2025-03-11
 
