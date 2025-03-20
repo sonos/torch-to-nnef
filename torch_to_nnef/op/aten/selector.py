@@ -16,7 +16,7 @@ from torch_to_nnef.op.helper import (
     pick_index_in_axis,
 )
 from torch_to_nnef.qtensor.base import QTensorRef
-from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 LOGGER = logging.getLogger(__name__)
 
@@ -384,13 +384,12 @@ def index_(node, op_helper, inference_target, **kwargs):
     # input_node = TensorVariable([?], shape=(169,4))
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
     if len(indexes_node.data) > 1:
-        if not all(
-            (isinstance(idx, PythonConstant) and idx.data is None)
-            for idx in indexes_node.data[:-1]
-        ):
-            raise TorchToNNEFNotImplementedError(
-                "index dim>1 implemented only with all prior dim slice being [:]"
-            )
+        # gather_elements
+        len_idx_vars = len(
+            [_ for _ in indexes_node.data if isinstance(_, TensorVariable)]
+        )
+        if len_idx_vars > 1:
+            return _gather_nd(node, op_helper)
 
     custom_fragments = []
     if isinstance(inference_target, TractNNEF):
@@ -413,6 +412,66 @@ def index_(node, op_helper, inference_target, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return custom_fragments
+
+
+def _gather_nd(node, op_helper):
+    input_node, indexes_node = node.inputs
+    inputs = []
+
+    for idx_node in indexes_node.data:
+        i_ref = op_helper.get_or_add_tensor_variable_in_nnef(idx_node)
+        casted_i_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=[i_ref],
+            attrs={"to": "TDim"},
+            force_full_output_tensor_name=f"{i_ref.name}_as_tdim",
+        )
+        casted_unsqueezed_i_ref = (
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "unsqueeze",
+                inputs=[casted_i_ref],
+                attrs={"axes": [0]},
+                force_full_output_tensor_name=f"{i_ref.name}_as_tdim_d1",
+            )
+        )
+        inputs.append(casted_unsqueezed_i_ref)
+    concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "concat",
+        inputs=inputs,
+        ensure_tuple=False,
+        attrs={
+            "axis": 0,
+        },
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="indices_concat",
+    )
+    t_concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=concat_ref,
+        ensure_tuple=False,
+        attrs={
+            "axes": [1, 0],
+        },
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="indices_concat_t",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather_nd",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            t_concat_ref,
+        ],
+        attrs={
+            "batch_dims": 0,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()

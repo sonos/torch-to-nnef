@@ -868,6 +868,14 @@ if implemented_packed_pad_seq:
     )
 
 
+inp = torch.randint(0, 2, (5, 5)).to(torch.bool)
+test_suite.add(
+    inp,
+    UnaryPrimitive(TensorFnPrimitive("sum", {"dim": 1})),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:

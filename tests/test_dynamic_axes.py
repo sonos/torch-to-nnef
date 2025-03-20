@@ -191,6 +191,40 @@ test_suite.add(
 )
 
 
+class WrapperPickLastNonZeros(nn.Module):
+    def __init__(self, pad_idx: int = 0):
+        super().__init__()
+        self.pad_idx = pad_idx
+
+    def forward(self, x):
+        lengths = (
+            x.ne(self.pad_idx).sum(dim=1).cpu()
+        )  # Sum along the sequence length dimension
+
+        # Use the last hidden state for each sequence
+        last_indices = lengths.long() - 1
+        batch_size = x.size(0)
+        out = x[torch.arange(batch_size), last_indices]
+        return out
+
+
+start_val = 1
+end_val = 10
+inp = torch.zeros(3, end_val)
+inp[0, :-1] = torch.arange(start_val, end_val + start_val - 1)
+inp[1, :-3] = torch.arange(start_val, end_val + start_val - 3)
+inp[2, :-2] = torch.arange(start_val, end_val + start_val - 2)
+
+test_suite.add(
+    inp,
+    WrapperPickLastNonZeros(),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
