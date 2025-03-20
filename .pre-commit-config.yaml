@@ -38,7 +38,7 @@ repos:
       - id: ruff-check
         name: Ruff check
         entry: uv run ruff check
-        args: [--fix]
+        args: ['--fix', '--silent']
         language: system
         types: [file, python]
       - id: ruff-format
