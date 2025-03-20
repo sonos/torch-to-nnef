@@ -154,6 +154,14 @@ def _generic_auto_tensor_expansion(
             attrs={"repeats": repeats},
         )
     else:
+        # late bug catching
+        if base_tensor_node.data.dtype != base_tensor_node.dtype:
+            LOGGER.warning(
+                "late 'dtype' miss-alignment catched in _generic_auto_tensor_expansion"
+            )
+            base_tensor_node.data = base_tensor_node.data.to(
+                base_tensor_node.dtype
+            )
         add_tensor_variable_node_as_nnef_tensor(
             g,
             base_tensor_node,
@@ -275,6 +283,16 @@ def _x_like(
 
 @OP_REGISTRY.register()
 def zeros_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
+def empty_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
     With tract we use use exapnsion

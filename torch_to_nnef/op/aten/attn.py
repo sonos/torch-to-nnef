@@ -68,11 +68,6 @@ def scaled_dot_product_attention(
     has_masked_attn = not isinstance(attn_mask_node, PythonConstant)
 
     if has_masked_attn:
-        if attn_mask_node.dtype not in [torch.float32, torch.float16]:
-            raise TorchToNNEFNotImplementedError(
-                "scaled_dot_product_attention with attn_mask_node "
-                "non float not implemented"
-            )
         attn_mask_tensor = get_or_add_tensor_variable_in_nnef(
             g, attn_mask_node, name_to_tensor
         )

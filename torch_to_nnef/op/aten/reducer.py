@@ -1,6 +1,7 @@
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_tensor_variable_node_as_nnef_tensor,
@@ -154,3 +155,12 @@ def min_(g, node, name_to_tensor, null_ref, **kwargs):
         name_to_tensor=name_to_tensor,
         null_ref=null_ref,
     )
+
+
+@OP_REGISTRY.register()
+def prod(node, g, name_to_tensor, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    _reducer("tract_core_product_reduce", g, node, name_to_tensor)
+    return ["tract_core"]

@@ -86,14 +86,23 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         """
         return mod(*args)
 
+    def ordered_args(self, torch_graph):
+        """
+        sometime torch jit may reorder inputs
+        compared to targetted python ops
+        in such case ordering need to be re-addressed
+        """
+        return torch_graph.tracer.args
+
     def _generate_in_torch_graph(
         self, torch_graph, provided_inputs, provided_outputs
     ):
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef import torch_graph as tg
 
+        o_args = self.ordered_args(torch_graph)
         inputs = []
-        for idx, arg in enumerate(torch_graph.tracer.args):
+        for idx, arg in enumerate(o_args):
             if provided_inputs:
                 tensor_variable = provided_inputs[idx]
             else:
@@ -109,7 +118,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             inputs.append(tensor_variable)
         # in case of rnn 2nd parameter is a tuple of states
         results = self._call_original_mod_with_args(
-            torch_graph.tracer.mod, *torch_graph.tracer.args
+            torch_graph.tracer.mod, *o_args
         )
 
         if isinstance(results, torch.Tensor):

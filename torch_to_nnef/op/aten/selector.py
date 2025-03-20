@@ -682,3 +682,62 @@ def topk(node, op_helper, inference_target, **kwargs):
         attribs={"k": k_node.data, "axis": dim, "largest": largest_node.data},
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def index_select(node, op_helper, inference_target, **kwargs):
+    input_node, dim_node, indexes_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def scatter(node, op_helper, inference_target, **kwargs):
+    input_node, dim_node, indexes_node, src_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+
+    # is a select with indexes
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_scatter_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                src_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
+    raise TorchToNNEFNotImplementedError(
+        "support for .pack_padded_sequence not added in tract yet"
+    )
+    # input_node, lengths_node, batch_first_node = node.inputs[:3]
+    # opacked_node, obatch_node = node.outputs
+    # return ["pack_padded_sequence"]

@@ -218,6 +218,7 @@ class TorchToNGraphExtractor:
 
         self.g.inputs = ginputs
         if self._forced_inputs_names is not None:
+            assert len(self._forced_inputs_names) > 0
             if self._check_io_names_qte_match:
                 if len(self._forced_inputs_names) != len(self.g.inputs):
                     raise IOQuantityError(
@@ -236,6 +237,8 @@ class TorchToNGraphExtractor:
             name_to_tensor[_.export_name] for _ in self._torch_ir_graph.outputs
         ]
         if self._forced_outputs_names is not None:
+            # only allow at least 1 output
+            assert len(self._forced_outputs_names) > 0
             if self._check_io_names_qte_match:
                 if len(self._forced_outputs_names) != len(self.g.outputs):
                     raise IOQuantityError(
