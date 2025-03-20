@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.8] - 2025-03-20
+
+### Fix
+
+- regression on `uint16` support (pre torch 2.4)
+
 ## [0.16.7] - 2025-03-20
 
 ### Fix
