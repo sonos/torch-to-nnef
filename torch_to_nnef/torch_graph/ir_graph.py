@@ -2,7 +2,6 @@ import logging
 import typing as T
 from collections import defaultdict
 
-from numpy import isin
 import torch
 from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
@@ -402,17 +401,17 @@ class TorchModuleIRGraph:
                     node_graph_to_wire, filter_container=True
                 )
             )
-            nodes = list(
+            subgraph_nodes = list(
                 _expand_containers_if_exists(
                     node_subgraph_to_wire, filter_container=True
                 )
             )
             if datas_attr == "inputs":
-                for node, ref_node in zip(nodes, ref_nodes):
-                    submodule_graph.remap_node(from_node=node, to_node=ref_node)
+                for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+                    submodule_graph.remap_node(from_node=snode, to_node=ref_node)
             elif datas_attr == "outputs":
-                for node, ref_node in zip(nodes, ref_nodes):
-                    self.remap_node(from_node=ref_node, to_node=node)
+                for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+                    self.remap_node(from_node=ref_node, to_node=snode)
 
         search_and_replace_data_nodes(
             submodule_graph.inputs, callmethod_node.inputs, "inputs"
@@ -428,7 +427,7 @@ class TorchModuleIRGraph:
             _.module_path = f"{module_prefix}.{_.module_path}"
 
         protected_from_rename_node = set(
-            submodule_graph.inputs + submodule_graph.outputs
+            submodule_graph.inputs
         )
         for dn in submodule_graph.data_nodes[:]:
             if dn in protected_from_rename_node:
