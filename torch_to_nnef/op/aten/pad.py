@@ -28,23 +28,33 @@ def pad(node, **kwargs):
     )
 
 
+def _pad_format(pads, node):
+    pads_r = pads[:]
+    pads = np.zeros(len(pads)).reshape(-1, 2).tolist()
+    for idx, pad_val in enumerate(pads_r[::-1]):
+        left_idx = idx // 2
+        right_idx = (idx +1) % 2
+        pads[left_idx][right_idx] = pad_val
+
+    onode = node.outputs[0]
+    if len(pads) < onode.rank:
+        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
+    return pads
+
+
 @OP_REGISTRY.register(torch_op_ids=["reflection_pad1d", "reflection_padnd"])
 def reflection_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = get_list_of_int(
+    pads = _pad_format(get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
         has_dynamic_axes=inference_target.has_dynamic_axes,
-    )
+    ), node)
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     add_single_output_op(
         g,
         node,
@@ -62,18 +72,15 @@ def replication_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = get_list_of_int(
+    pads = _pad_format(get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
         has_dynamic_axes=inference_target.has_dynamic_axes,
-    )
+    ), node)
+
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     add_single_output_op(
         g,
         node,
@@ -91,12 +98,12 @@ def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node, value_node) = node.inputs
-    pads = get_list_of_int(
+    pads = _pad_format(get_list_of_int(
         pads_node,
         torch_graph,
         name_to_tensor=name_to_tensor,
         has_dynamic_axes=inference_target.has_dynamic_axes,
-    )
+    ), node)
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
@@ -104,20 +111,7 @@ def constant_pad_nd(
         value = 0  # add default value if not set
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
-    pads_r = pads[:]
-    pads = np.zeros(len(pads)).reshape(-1, 2).tolist()
 
-    for idx, pad_val in enumerate(pads_r):
-        left_idx = idx // 2
-        right_idx = idx % 2
-        if right_idx == 0:
-            pads[left_idx][right_idx] = pad_val
-        else:
-            pads[left_idx][right_idx] = pad_val
-
-    onode = node.outputs[0]
-    if len(pads) < onode.rank:
-        pads = [[0, 0]] * (onode.rank - len(pads)) + pads
     add_single_output_op(
         g,
         node,

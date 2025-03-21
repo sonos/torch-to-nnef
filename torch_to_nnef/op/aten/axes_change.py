@@ -201,8 +201,8 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
         raise TorchToNNEFNotImplementedError(
             "complex flatten without tract complex feature flag"
         )
-    assert start_dim.data
-    assert end_dim.data
+    axis_start = start_dim.data or 0
+    axis_end = end_dim.data or -1
     add_single_output_op(
         g,
         node,
@@ -214,8 +214,8 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={
             "dtype": onode.np_dtype,
             "shape": [-1],
-            "axis_start": start_dim.data,
-            "axis_count": end_dim.data,
+            "axis_start": axis_start,
+            "axis_count": axis_end,
         },
     )
 
