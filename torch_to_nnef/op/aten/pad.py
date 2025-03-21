@@ -104,7 +104,17 @@ def constant_pad_nd(
         value = 0  # add default value if not set
     # ensure cast to same dtype as output
     value = torch.tensor(value, dtype=node.outputs[0].dtype).tolist()
-    pads = np.array(pads).reshape(-1, 2).tolist()[::-1]  # strangeness of torch
+    pads_r = pads[:]
+    pads = np.zeros(len(pads)).reshape(-1, 2).tolist()
+
+    for idx, pad_val in enumerate(pads_r):
+        left_idx = idx // 2
+        right_idx = idx % 2
+        if right_idx == 0:
+            pads[left_idx][right_idx] = pad_val
+        else:
+            pads[left_idx][right_idx] = pad_val
+
     onode = node.outputs[0]
     if len(pads) < onode.rank:
         pads = [[0, 0]] * (onode.rank - len(pads)) + pads

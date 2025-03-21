@@ -354,7 +354,7 @@ def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         "the aten::zeros replaced by constant traced values (follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data] if dtype_node.data else torch.float32
     return _generic_auto_tensor_expansion(
         shape_node,
         node,

@@ -2,6 +2,7 @@ import logging
 import typing as T
 from collections import defaultdict
 
+from numpy import isin
 import torch
 from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
@@ -38,6 +39,7 @@ from torch_to_nnef.torch_graph.ir_naming import (
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_VIEW_KIND,
     CALL_KIND,
     CLASSTYPE_KIND,
     GETATTR_KIND,
@@ -389,6 +391,7 @@ class TorchModuleIRGraph:
             node_graph_to_wire: T.List[Data],
             datas_attr: str,
         ):
+            assert datas_attr in ["inputs", "outputs"]
             if datas_attr == "inputs":
                 node_graph_to_wire = [
                     node_graph_to_wire[idx]
@@ -404,16 +407,16 @@ class TorchModuleIRGraph:
                     node_subgraph_to_wire, filter_container=True
                 )
             )
-            for node, ref_node in zip(nodes, ref_nodes):
-                submodule_graph.remap_node(from_node=node, to_node=ref_node)
+            if datas_attr == "inputs":
+                for node, ref_node in zip(nodes, ref_nodes):
+                    submodule_graph.remap_node(from_node=node, to_node=ref_node)
+            elif datas_attr == "outputs":
+                for node, ref_node in zip(nodes, ref_nodes):
+                    self.remap_node(from_node=ref_node, to_node=node)
 
         search_and_replace_data_nodes(
             submodule_graph.inputs, callmethod_node.inputs, "inputs"
         )
-        search_and_replace_data_nodes(
-            submodule_graph.outputs, callmethod_node.outputs, "outputs"
-        )
-
         # }
 
         for _ in submodule_graph.op_nodes:
@@ -444,6 +447,9 @@ class TorchModuleIRGraph:
                     )
                     dn.name = new_name
                 self.data_nodes.append(dn)
+        search_and_replace_data_nodes(
+            submodule_graph.outputs, callmethod_node.outputs, "outputs"
+        )
         self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
         self.op_nodes += submodule_graph.op_nodes
 
@@ -472,6 +478,7 @@ class TorchModuleIRGraph:
                 assert isinstance(op, TorchOp)
                 assert isinstance(op.op_ref, TorchModuleTracer), op.op_ref
                 op.op_ref.args = op.args
+
                 submodule_graph = module_tracer_into_ir_graph(
                     op.op_ref,
                     omit_useless_nodes=self._omit_useless_nodes,
@@ -677,7 +684,7 @@ class TorchModuleIRGraph:
         cprint(
             "\n\n[type]"
             + "_" * 35
-            + "[PyTorch JIT Graph]"
+            + f"[PyTorch JIT Graph '{self.tracer.mod.__class__}']"
             + "_" * 35
             + "[/type]"
         )
