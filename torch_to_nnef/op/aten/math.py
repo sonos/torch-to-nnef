@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import torch
 
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
@@ -221,7 +222,7 @@ def mul(node, op_helper, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def remainder(node, op_helper, torch_graph, **kwargs):
+def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
     input_node, other_node = node.inputs
     if all(
         isinstance(node, PythonConstant) for node in [input_node, other_node]
@@ -265,15 +266,34 @@ def rsub(node, op_helper, torch_graph, **kwargs):
         return []
     if isinstance(alpha_node, PythonConstant):
         alpha_node.data = float(alpha_node.data)
-    op_helper.add_single_output_op_from_nnef_tensors(
+    inputs = [
+        op_helper.get_or_add_tensor_variable_in_nnef(_)
+        for _ in [input_node, other_node]
+    ]
+    for idx, inp in enumerate(inputs):
+        inputs[idx] = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=[inp],
+            attrs={"to": "f32"},
+            force_full_output_tensor_name=f"{inp.name}_as_f32",
+        )
+
+    out_ref = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "rsub",
-        inputs=[
-            op_helper.get_or_add_tensor_variable_in_nnef(_)
-            for _ in [input_node, other_node]
-        ],
+        inputs=inputs,
         attrs={"alpha": alpha_node.data},
+        output_tensor_name_suffix="rsub",
     )
+    o_dtype = node.outputs[0].dtype
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_cast",
+        inputs=[out_ref],
+        attrs={"to": TORCH_DTYPE_TO_TRACT_STR[o_dtype]},
+    )
+
     return ["rsub"]
 
 
