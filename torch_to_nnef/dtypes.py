@@ -150,11 +150,15 @@ WHOLE_NUMBER_DTYPES = [
     torch.int32,
     torch.int64,
     torch.uint8,
-    torch.uint32,
-    torch.uint64,
 ]
 if torch_version() >= "2.4.0":
-    WHOLE_NUMBER_DTYPES.append(torch.uint16)
+    WHOLE_NUMBER_DTYPES.extend(
+        [
+            torch.uint16,
+            torch.uint32,
+            torch.uint64,
+        ]
+    )
 
 
 def dtype_is_whole_number(dtype):
