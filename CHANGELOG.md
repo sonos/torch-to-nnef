@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## [0.16.10] - 2025-03-24
+
+### Fix
+
+- `aten::flatten` with partial dimensions
+- `aten::remainder` force f32 (if other implicit dtype support like ints)
+- `aten::pad...` now support dynamic dimensions
+- `aten::zeros`, ... now default to f32 in cases where unspecified in jit graph
+- Merge of subgraph in ir_graph is now done with preserving `subgraph` output names (needed since some output may be repeated while main graph unaware of it)
+
+### Added
+
+- Conv are now supported for Q40 exports (tract `v0.21.12`)
+- compress registry `min_max_q4_0_all` export all supported tensors in Q40 (including Conv1d, Conv2d)
+
 ## [0.16.9] - 2025-03-20
 
 ### Fix
