@@ -1,4 +1,6 @@
 import filecmp
+from functools import reduce
+import operator
 import platform
 import struct
 import tempfile
@@ -105,8 +107,12 @@ class QTensorTractScaleOnly(QTensorTract):
         # tract limited support of packing
         assert self.qscheme.n_bits == 4, self.qscheme.n_bits
         self.decompressed_shape = self.decompress_to_u8().shape
-        assert len(self.decompressed_shape) == 2, self.decompressed_shape
-        assert self.decompressed_shape[1] % 32 == 0, self.decompressed_shape
+        assert len(self.decompressed_shape) in [2, 3, 4], (
+            self.decompressed_shape
+        )
+        assert reduce(operator.mul, self.decompressed_shape[1:]) % 32 == 0, (
+            self.decompressed_shape
+        )
         self.specific_machine = specific_machine
 
     def decompress(self):
@@ -208,20 +214,29 @@ def fp_to_tract_q4_0_with_min_max_calibration(
     fp_tensor, percentile: float = 1.0
 ) -> QTensorTractScaleOnly:
     """Min-Max method to quantize float tensor to tract supported Q4_0"""
+    q4_group_size = 32
     if isinstance(fp_tensor, torch.nn.Parameter):
         fp_tensor = fp_tensor.data
-    if len(fp_tensor.shape) != 2:
+
+    if len(fp_tensor.shape) not in [2, 3, 4]:
         raise TorchToNNEFImpossibleQuantization(
-            f"tract Q4_0 does only support weight of shape 2d but found {fp_tensor.shape}"
+            "tract Q4_0 does only support weight "
+            f"of shape 2d, 3d or 4d but found {fp_tensor.shape}"
         )
-    if fp_tensor.shape[1] % 32 != 0:
+
+    multiple_axis = 1
+    if (
+        reduce(operator.mul, fp_tensor.shape[multiple_axis:]) % q4_group_size
+        != 0
+    ):
         raise TorchToNNEFImpossibleQuantization(
-            f"tract Q4_0 does only support weight with 2nd dim "
-            f"divisible by 32 but found {fp_tensor.shape[1]}"
+            f"tract Q4_0 does only support weight with dim={multiple_axis} "
+            f"divisible by {q4_group_size} but "
+            f"found {fp_tensor.shape[multiple_axis:]}"
         )
     with torch.no_grad():
         q_scheme = qscale_per_group_f16_min_max_calibration(
-            fp_tensor, n_bits=4, group_size=32, percentile=percentile
+            fp_tensor, n_bits=4, group_size=q4_group_size, percentile=percentile
         )
         return QTensorTractScaleOnly(
             fp_tensor,

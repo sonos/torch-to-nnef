@@ -64,4 +64,13 @@ DEFAULT_COMPRESSION = {
         partial(quantize_weights_min_max_Q4_0, percentile=0.99),
         to_quantize_module_classes=(nn.Linear, nn.Embedding),
     ),
+    "min_max_q4_0_all": partial(
+        quantize_weights_min_max_Q4_0,
+        to_quantize_module_classes=(
+            nn.Linear,
+            nn.Embedding,
+            nn.Conv1d,
+            nn.Conv2d,
+        ),
+    ),
 }

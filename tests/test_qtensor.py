@@ -1,7 +1,9 @@
 from copy import deepcopy
+from functools import reduce
 import platform
 import time
 from datetime import datetime
+import operator
 
 import pytest
 import torch
@@ -244,6 +246,11 @@ def test_quantize_with_tract_q4_0_assign_to(inference_target):
         model.to(torch.device("cpu", 0))  # goal to assign new device
 
 
+TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
+    _ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.21.12"
+]
+
+
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
@@ -258,6 +265,242 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
         model = nn.Embedding(x, y).eval()
         original_weight = (torch.arange(x * y).reshape(x, y).float() * 2).half()
 
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+        )
+
+
+# conv1d: linear (aka kernel=1)
+# conv1d with various kernel size (3, 9)
+@pytest.mark.parametrize(
+    "kernel_size,inference_target",
+    [(k, i) for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV for k in [1, 3, 9]],
+)
+def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        test_input = torch.arange(32 * kernel_size).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, 32, kernel_size)
+        x = 32
+        y = 2
+        ker = (kernel_size,)
+        model = nn.Conv1d(x, y, kernel_size=ker).eval()
+
+        original_weight = (
+            torch.arange(x * y * reduce(operator.mul, ker))
+            .reshape(y, x, *ker)
+            .float()
+        )
+
+        assert original_weight.shape == model.weight.shape
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            unit_test_naming=test_quantize_with_tract_q4_0_conv_base.__name__
+            + f"_kernel{kernel_size}",
+        )
+
+
+# conv1d with various in-channels size (32, 64, 128)
+@pytest.mark.parametrize(
+    "in_size,inference_target",
+    [
+        (in_size, i)
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
+        for in_size in [64, 128]
+    ],
+)
+def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        k = 3
+        test_input = torch.arange(in_size * k).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, in_size, k)
+        y = 2
+        ker = (k,)
+        model = nn.Conv1d(in_size, y, kernel_size=ker).eval()
+
+        original_weight = (
+            torch.arange(in_size * y * reduce(operator.mul, ker))
+            .reshape(y, in_size, *ker)
+            .float()
+        )
+        assert original_weight.shape == model.weight.shape
+
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            unit_test_naming=test_quantize_with_tract_q4_0_conv_insize.__name__
+            + f"{in_size}",
+        )
+
+
+# conv1d with stride
+@pytest.mark.parametrize(
+    "stride,inference_target",
+    [
+        (stride, i)
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
+        for stride in [2, 3]
+    ],
+)
+def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        k = 3
+        in_size = 32
+        n_iter_stride = 3
+        chan_size = k * stride * n_iter_stride
+        test_input = torch.arange(in_size * chan_size).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, in_size, chan_size)
+        y = 2
+        ker = (k,)
+        model = nn.Conv1d(in_size, y, kernel_size=ker, stride=(stride,)).eval()
+
+        original_weight = (
+            torch.arange(in_size * y * k).reshape(y, -1, *ker).float()
+        )
+
+        assert original_weight.shape == model.weight.shape
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            unit_test_naming=test_quantize_with_tract_q4_0_conv_stride.__name__
+            + f"{stride}",
+        )
+
+
+# conv1d with dilation
+@pytest.mark.parametrize(
+    "dilation,inference_target",
+    [
+        (dilation, i)
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
+        for dilation in [2, 4, 8]
+    ],
+)
+def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        k = 3
+        in_size = 32
+        multiplier = 3
+        chan_size = k * dilation * multiplier
+        test_input = torch.arange(in_size * chan_size).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, in_size, chan_size)
+        y = 2
+        ker = (k,)
+        model = nn.Conv1d(
+            in_size, y, kernel_size=ker, dilation=(dilation,)
+        ).eval()
+
+        original_weight = (
+            torch.arange(in_size * y * k).reshape(y, -1, *ker).float()
+        )
+
+        assert original_weight.shape == model.weight.shape
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            unit_test_naming=test_quantize_with_tract_q4_0_conv_dilation.__name__
+            + f"{dilation}",
+        )
+
+
+# conv1d with groups
+@pytest.mark.parametrize(
+    "groups,inference_target",
+    [
+        (groups, i)
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
+        for groups in [2, 4]
+    ],
+)
+def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        k = 3
+        y = 8
+        in_size = 128
+        multiplier = 4  # should be as big as biggest 'groups'
+        chan_size = k * multiplier // groups
+        test_input = torch.arange(in_size * chan_size).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, in_size, chan_size)
+        ker = (k,)
+        model = nn.Conv1d(in_size, y, kernel_size=ker, groups=groups).eval()
+
+        original_weight = (
+            torch.arange(in_size * y * k // groups).reshape(y, -1, *ker).float()
+        )
+
+        assert original_weight.shape == model.weight.shape
+        q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
+
+        model.weight = nn.Parameter(q_tensor, requires_grad=False)
+        model.to(torch.device("cpu", 0))  # goal to assign new device
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+            unit_test_naming=test_quantize_with_tract_q4_0_conv_groups.__name__
+            + f"{groups}",
+        )
+
+
+# conv2d vanilla
+@pytest.mark.parametrize(
+    "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX_CONV
+)
+def test_quantize_with_tract_q4_0_conv2d(inference_target):
+    """basic quantization values"""
+    with torch.no_grad():
+        k = 3
+        y = 8
+        in_size = 128
+        multiplier = 2
+        chan_size = k * multiplier
+        test_input = torch.arange(in_size * k * chan_size).float()
+        test_input[:3] = 3
+        test_input = test_input.reshape(1, in_size, k, chan_size)
+        ker = (k, k)
+        model = nn.Conv2d(in_size, y, kernel_size=ker).eval()
+
+        original_weight = (
+            torch.arange(in_size * y * k * k).reshape(y, -1, *ker).float()
+        )
+
+        assert original_weight.shape == model.weight.shape
         q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
