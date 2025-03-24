@@ -7,6 +7,7 @@ from torch_to_nnef.op.helper import (
     pick_index_in_axis,
 )
 from torch_to_nnef.torch_graph import FixedTensorList
+from torch_to_nnef.inference_target.tract import TractNNEF
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -139,43 +140,80 @@ def roll(g, node, name_to_tensor, inference_target, **kwargs):
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
+    if inference_target.has_dynamic_axes and not isinstance(
+        inference_target, TractNNEF
+    ):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    custom_fragments = []
     for i, _ in enumerate(shifts):
         tensor_chunks = []
         dim = dims[i]
         shift = shifts[i]
-        if not inference_target.has_dynamic_axes:
-            maxsize = input_node.shape[dim]
+        begin = pick_index_in_axis(input_node, dim, -shift)
+        if inference_target.has_dynamic_axes:
+            shape_out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "dyn_slice_begin",
+                inputs=input_tensor,
+                attrs={
+                    "axis": pick_axis(input_node, dim),
+                    "begin": begin,
+                    "stride": 1,
+                },
+                output_tensor_name_suffix=f"roll_l{i}_p1",
+            )
+            custom_fragments.append("dyn_slice_begin")
         else:
-            raise TorchToNNEFNotImplementedError("Should use shape_of")
-        shape_out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=input_tensor,
-            attrs={
-                "axes": [pick_axis(input_node, dim)],
-                "begin": [pick_index_in_axis(input_node, dim, -shift)],
-                "end": [pick_index_in_axis(input_node, dim, maxsize)],
-                "stride": [1],
-            },
-            output_tensor_name_suffix=f"roll_l{i}_p1",
-        )
+            maxsize = input_node.shape[dim]
+            end = pick_index_in_axis(input_node, dim, maxsize)
+            shape_out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "slice",
+                inputs=input_tensor,
+                attrs={
+                    "axes": [pick_axis(input_node, dim)],
+                    "begin": [begin],
+                    "end": [end],
+                    "stride": [1],
+                },
+                output_tensor_name_suffix=f"roll_l{i}_p1",
+            )
         tensor_chunks.append(shape_out)
-        shape_out = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "slice",
-            inputs=input_tensor,
-            attrs={
-                "axes": [pick_axis(input_node, dim)],
-                "begin": [0],
-                "end": [pick_index_in_axis(input_node, dim, -shift)],
-                "stride": [1],
-            },
-            output_tensor_name_suffix=f"roll_l{i}_p2",
-        )
+        if inference_target.has_dynamic_axes:
+            shape_out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "dyn_slice",
+                inputs=input_tensor,
+                attrs={
+                    "axis": pick_axis(input_node, dim),
+                    "begin": 0,
+                    "end": -shift,
+                    "stride": 1,
+                },
+                output_tensor_name_suffix=f"roll_l{i}_p2",
+            )
+            custom_fragments.append("dyn_slice")
+        else:
+            shape_out = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "slice",
+                inputs=input_tensor,
+                attrs={
+                    "axes": [pick_axis(input_node, dim)],
+                    "begin": [0],
+                    "end": [pick_index_in_axis(input_node, dim, -shift)],
+                    "stride": [1],
+                },
+                output_tensor_name_suffix=f"roll_l{i}_p2",
+            )
         tensor_chunks.append(shape_out)
         # result = g.op("Concat", *shapes, axis_i=dims[i])
         input_tensor = add_single_output_op(
@@ -190,4 +228,4 @@ def roll(g, node, name_to_tensor, inference_target, **kwargs):
             if i + 1 == len(shifts)
             else f"roll_{i}",
         )
-    return []
+    return custom_fragments

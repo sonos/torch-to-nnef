@@ -131,6 +131,15 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--num-logits-to-keep",
+            type=int,
+            default=1,
+            help="num_logits_to_keep: int number of token to keep (if 0 all are kept) "
+            "by default for classical inference setting it to 1 is fine, "
+            "in case of speculative-decoding it may be more (typically 2 or 3)",
+        )
+
+        parser.add_argument(
             "-tt",
             "--tract-check-io-tolerance",
             default=TractCheckTolerance.APPROXIMATE.value,

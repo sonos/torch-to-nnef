@@ -2,14 +2,17 @@
 
 __author__ = """Julien Balian"""
 __email__ = "julien.balian@sonos.com"
-__version__ = "0.16.0"
+__version__ = "0.16.9"
 
+from torch_to_nnef.utils import SemanticVersion
 from torch_to_nnef.export import (
     export_model_to_nnef,
     export_tensors_from_disk_to_nnef,
     export_tensors_to_nnef,
 )
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
+
+VERSION = SemanticVersion.from_str(__version__)
 
 __all__ = [
     "export_model_to_nnef",
@@ -20,4 +23,5 @@ __all__ = [
     "__author__",
     "__email__",
     "__version__",
+    "VERSION",
 ]

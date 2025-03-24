@@ -12,6 +12,11 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
+from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_ZEROS,
+    LISTCONSTRUCT_KIND,
+    TUPLECONSTRUCT_KIND,
+)
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
 
@@ -25,6 +30,60 @@ class _RNNMixin:
         **kwargs,
     ):
         raise TorchToNNEFNotImplementedError()
+
+    def ordered_args(self, torch_graph):
+        """
+        sometime torch jit may reorder inputs
+        compared to targetted python ops
+        in such case ordering need to be re-addressed
+        """
+        rnn_op = next(torch_graph.tracer.torch_graph.outputs()).node()
+        if rnn_op.kind() == TUPLECONSTRUCT_KIND:
+            rnn_op = next(rnn_op.inputs()).node()
+
+        real_order = list(rnn_op.inputs())[:3]
+        received_order = list(torch_graph.tracer.torch_graph.inputs())[1:]
+        # received_order = [_.offset() for _ in received_order]
+        order = []
+        states_args = []
+        for rinp in real_order[:-1]:
+            try:
+                order.append(received_order.index(rinp))
+            except ValueError:
+                node = rinp.node()
+                if node.kind() == LISTCONSTRUCT_KIND:
+                    for sinp in node.inputs():
+                        if sinp in received_order:
+                            order_idx = received_order.index(sinp)
+                            order.append(order_idx)
+                        else:
+                            # assume default init values
+                            sinp_node = sinp.node()
+                            assert sinp_node.kind() == ATEN_ZEROS, (
+                                sinp_node.kind()
+                            )
+                            # zdims = []
+                            # for zdim in (
+                            #     next(sinp.node().inputs()).node().inputs()
+                            # ):
+                            #     if zdim.toIValue() is not None:
+                            #         zdims.append(zdim.toIValue())
+                            #     else:
+                            #         assert zdim.node().kind() == ATEN_INT
+                            #         val = zdim.node().input()
+                            #         if val.node().kind() == ATEN_SELECT:
+                            #             select_vals = list(val.node().inputs())
+                            #             # assume today observed case
+                            #             assert select_vals[1].toIValue() == 0
+                            #             assert select_vals[2].toIValue() == 0
+                            #             continue  # do not add init
+                            #         if val.node().kind() == NUMTOTENSOR_KIND:
+                            #             continue  # do not add init
+                            # states_args.append(torch.zeros(zdims))
+                            continue
+                    break
+        new_args = [torch_graph.tracer.args[o] for o in order] + states_args
+        return new_args
 
     def _check_rank(self, node, module):
         batch_rank = 0 if module.batch_first else 1
@@ -69,7 +128,9 @@ class _RNNMixin:
 
         input_tensor.name += "_batch_first"
         out_transpose_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
-            g, node.outputs[0], name_to_tensor
+            g,
+            node.outputs[0],
+            name_to_tensor,
         )
         NOperation(
             g,
@@ -497,7 +558,7 @@ class _RNNMixin:
         return {f"l{linfo}_{k}": v for k, v in params.items()}
 
 
-class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
+class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
     MODULE_CLASS = nn.LSTM
 
     # should be good enough for this use case
@@ -674,7 +735,7 @@ class LSTMExtractor(ModuleInfoExtractor, _RNNMixin):
         return mod(*args)
 
 
-class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
+class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
     MODULE_CLASS = nn.GRU
 
     #  pylint: disable-next=arguments-differ
@@ -797,7 +858,7 @@ class GRUExtractor(ModuleInfoExtractor, _RNNMixin):
         )
 
 
-class RNNExtractor(ModuleInfoExtractor, _RNNMixin):
+class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
     MODULE_CLASS = nn.RNN
 
     #  pylint: disable-next=arguments-differ

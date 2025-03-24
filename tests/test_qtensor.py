@@ -252,7 +252,8 @@ TRACT_INFERENCES_TO_TESTS_EXACT_CONV = [
 
 
 @pytest.mark.parametrize(
-    "inference_target", TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+    "inference_target",
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
 )
 def test_quantize_with_tract_q4_0_embedding(inference_target):
     """basic quantization values"""

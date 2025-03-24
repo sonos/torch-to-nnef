@@ -3,6 +3,96 @@
 
 ## Unreleased
 
+## [0.16.9] - 2025-03-20
+
+### Fix
+
+- regression on `uint32`, `uint64` support (pre torch 2.4)
+
+## [0.16.8] - 2025-03-20
+
+### Fix
+
+- regression on `uint16` support (pre torch 2.4)
+
+## [0.16.7] - 2025-03-20
+
+### Fix
+
+- complex slice index gather nd fix
+
+## [0.16.6] - 2025-03-20
+
+### Added
+
+- official tract support is now `0.21.11` (new default target)
+- support `to` device like `cuda`,`mps` for our internal QTensor  ...
+- support for new operators: `aten::empty_like`, `aten::prod`, `aten::index_select`, `aten::scatter`, `aten::numel`
+
+### Change
+
+- additional tracing cues for whole number values that may be used in tensors shaping/construction.
+- disabled support for Python >=3.13 as of now as it leads to unexpected hash/set issues to be investigated
+
+### Fix
+
+- `aten::baddbmm` extra args handled during tracing
+- better alignment of arity for rnn inputs
+- equality operators (`ne`, `ge`, `le`, `gt`, `eq`) now implicit cast to common dtype if heterogeneous
+- `to` operators with from float to unsigned with negative values was found to have an arch dependant behavior (code now align to the arch used at export with warning for non arm)
+- tolerate export pad operators with dynamic values
+
+## [0.16.5] - 2025-03-11
+
+### Change
+
+- test by default on 2.6
+
+### Fix
+
+- SPDA regression if pytorch > 2.3 and usage of specific scale
+
+## [0.16.4] - 2025-03-11
+
+### Added
+
+- support new `Q40` tract format starting with target tract>=0.21.11
+
+### Fix
+
+- remove useless hard dependencies (regression since 0.15.10 about) and relaxing numpy version
+
+## [0.16.3] - 2025-03-07
+
+### Fix
+
+- edge-case in `tract_llm` export forward_kwargs
+
+## [0.16.2] - 2025-03-07
+
+### Added
+
+- better debug dump with shell script to reproduce failing case
+
+### Fix
+
+- export RNN with 2nd or 3rd outputs used only
+- export support `tract_llm` architecture without `num-logits-to-keep`
+- explicit peft dependency referenced in pyproject
+
+## [0.16.1] - 2025-03-06
+
+### Added
+
+- export with `tract_llm` merge PEFT option is set
+- CI now fail-fast
+- VERSION is set at project root to help compare with str
+- better test_suite naming for dump and debug
+
+### Change
+
+- export with `tract_llm` will use `num-logits-to-keep` avoiding useless compute at inference
+
 ## [0.16.0] - 2025-03-03
 
 ### Change

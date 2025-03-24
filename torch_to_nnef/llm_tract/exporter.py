@@ -91,6 +91,7 @@ def _load_exporter_from(
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
+    num_logits_to_keep: int = 1,
     merge_peft: T.Optional[bool] = None,
 ):
     if (
@@ -120,6 +121,7 @@ def _load_exporter_from(
         tokenizer,
         force_module_dtype=force_module_dtype,
         force_inputs_dtype=force_inputs_dtype,
+        num_logits_to_keep=num_logits_to_keep,
         local_dir=local_dir,
     )
 
@@ -132,7 +134,14 @@ class LLMExporter:
         local_dir: T.Optional[Path] = None,
         force_module_dtype: T.Optional[DtypeStr] = None,
         force_inputs_dtype: T.Optional[DtypeStr] = None,
+        num_logits_to_keep: int = 1,
     ):
+        """
+        num_logits_to_keep: int number of token to keep (if 0 all are kept)
+        by default for classical inference setting it to 1 is fine,
+        in case of speculative decoding it may be more (typically 2 or 3)
+
+        """
         self.hf_model_causal = hf_model_causal
         self.tokenizer = tokenizer
         self.local_dir = local_dir
@@ -143,7 +152,7 @@ class LLMExporter:
         )
 
         self.wrapped_model = self.model_infos.wrapper_class(
-            self.hf_model_causal
+            self.hf_model_causal, num_logits_to_keep=num_logits_to_keep
         )
         self._inference_target_options: T.Dict[str, T.Any] = {}
         force_module_dtype = (
@@ -252,6 +261,7 @@ class LLMExporter:
             past_key_values=past_key_values,
             use_cache=True,
             return_dict=True,
+            **self.wrapped_model.forward_kwargs,
         )
 
         pkv = outs["past_key_values"]
@@ -661,6 +671,9 @@ class LLMExporter:
                 "forced_module_dtype": self.force_module_dtype.value
                 if self.force_module_dtype
                 else "",
+                "as_float16": "1"
+                if self.main_weight_dtype == torch.float16
+                else "0",
                 "inputs_dtype": DtypeStr.from_torch_dtype(
                     self.inputs_dtype
                 ).value,
@@ -907,6 +920,7 @@ def dump_llm(
     force_module_dtype: T.Optional[DtypeStr] = None,
     force_inputs_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
+    num_logits_to_keep: int = 1,
     *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
@@ -917,6 +931,7 @@ def dump_llm(
         force_module_dtype=force_module_dtype,
         force_inputs_dtype=force_inputs_dtype,
         merge_peft=merge_peft,
+        num_logits_to_keep=num_logits_to_keep,
     )
     if isinstance(kwargs.get("tract_check_io_tolerance"), str):
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(

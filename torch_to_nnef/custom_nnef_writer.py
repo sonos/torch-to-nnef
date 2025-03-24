@@ -311,7 +311,7 @@ class Writer:
                 if op.attribs.pop("custom_datatype", "") == "quant_tensor":
                     qtensor = op.output.qtensor
                     label = op.attribs["label"]
-                    qtensor.write_in_file(folder, label)
+                    qtensor.write_in_file(folder, label, self._inference_target)
                     LOGGER.info(f"written qtensor: {label}")
                 else:
                     filename = op.attribs["label"] + ".dat"

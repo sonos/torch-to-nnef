@@ -28,7 +28,7 @@ repos:
     - id: pyupgrade
       args: ['--py37-plus']
   - repo: git@github.com:PyCQA/prospector.git
-    rev: v1.14.1
+    rev: v1.15.3
     hooks:
       - id: prospector
         types: [python]
@@ -38,7 +38,7 @@ repos:
       - id: ruff-check
         name: Ruff check
         entry: uv run ruff check
-        args: [--fix]
+        args: ['--fix', '--silent']
         language: system
         types: [file, python]
       - id: ruff-format

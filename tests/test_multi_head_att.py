@@ -1,4 +1,4 @@
-"""Tests simple primitives."""
+"""Tests attention variants."""
 
 import math
 import os
@@ -20,6 +20,7 @@ from .utils import (  # noqa: E402
 )
 
 set_seed(int(os.environ.get("SEED", 0)))
+
 
 test_suite = TestSuiteInferenceExactnessBuilder(
     TRACT_INFERENCES_TO_TESTS_APPROX

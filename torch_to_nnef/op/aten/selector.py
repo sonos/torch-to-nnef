@@ -16,7 +16,7 @@ from torch_to_nnef.op.helper import (
     pick_index_in_axis,
 )
 from torch_to_nnef.qtensor.base import QTensorRef
-from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,24 +44,31 @@ def slice_(
             **kwargs,
         )
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
-
     # we assert for now all node except first are all constant
     dim = axis_node.data
 
     has_concrete_values = True
     # we use this since by default pytorch generate max int64 value for end
     if begin_node.data is not None:
-        begin = pick_index_in_axis(
-            input_node, dim, begin_node.data, check_is_positive=False
-        )
+        if begin_node.data >= 0:
+            begin = pick_index_in_axis(
+                input_node, dim, begin_node.data, check_is_positive=False
+            )
+        else:
+            begin = begin_node.data
+            has_concrete_values = False
     else:
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
     if end_node.data is not None:
-        end = pick_index_in_axis(
-            input_node, dim, end_node.data, check_is_positive=False
-        )
+        if end_node.data >= 0:
+            end = pick_index_in_axis(
+                input_node, dim, end_node.data, check_is_positive=False
+            )
+        else:
+            has_concrete_values = False
+            end = end_node.data
     else:
         has_concrete_values = False
         end = nnef.Identifier(end_node.export_name)
@@ -377,13 +384,12 @@ def index_(node, op_helper, inference_target, **kwargs):
     # input_node = TensorVariable([?], shape=(169,4))
     # indexes_node = FixedTensorList (data=[TensorVariable([?], shape=(2401,))])
     if len(indexes_node.data) > 1:
-        if not all(
-            (isinstance(idx, PythonConstant) and idx.data is None)
-            for idx in indexes_node.data[:-1]
-        ):
-            raise TorchToNNEFNotImplementedError(
-                "index dim>1 implemented only with all prior dim slice being [:]"
-            )
+        # gather_elements
+        len_idx_vars = len(
+            [_ for _ in indexes_node.data if isinstance(_, TensorVariable)]
+        )
+        if len_idx_vars > 1:
+            return _gather_nd(node, op_helper)
 
     custom_fragments = []
     if isinstance(inference_target, TractNNEF):
@@ -406,6 +412,66 @@ def index_(node, op_helper, inference_target, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return custom_fragments
+
+
+def _gather_nd(node, op_helper):
+    input_node, indexes_node = node.inputs
+    inputs = []
+
+    for idx_node in indexes_node.data:
+        i_ref = op_helper.get_or_add_tensor_variable_in_nnef(idx_node)
+        casted_i_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=[i_ref],
+            attrs={"to": "TDim"},
+            force_full_output_tensor_name=f"{i_ref.name}_as_tdim",
+        )
+        casted_unsqueezed_i_ref = (
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "unsqueeze",
+                inputs=[casted_i_ref],
+                attrs={"axes": [0]},
+                force_full_output_tensor_name=f"{i_ref.name}_as_tdim_d1",
+            )
+        )
+        inputs.append(casted_unsqueezed_i_ref)
+    concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "concat",
+        inputs=inputs,
+        ensure_tuple=False,
+        attrs={
+            "axis": 0,
+        },
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="indices_concat",
+    )
+    t_concat_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=concat_ref,
+        ensure_tuple=False,
+        attrs={
+            "axes": [1, 0],
+        },
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="indices_concat_t",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather_nd",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            t_concat_ref,
+        ],
+        attrs={
+            "batch_dims": 0,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -675,3 +741,62 @@ def topk(node, op_helper, inference_target, **kwargs):
         attribs={"k": k_node.data, "axis": dim, "largest": largest_node.data},
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def index_select(node, op_helper, inference_target, **kwargs):
+    input_node, dim_node, indexes_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def scatter(node, op_helper, inference_target, **kwargs):
+    input_node, dim_node, indexes_node, src_node = node.inputs
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+
+    # is a select with indexes
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_scatter_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                indexes_node,
+            ),
+            op_helper.get_or_add_tensor_variable_in_nnef(
+                src_node,
+            ),
+        ],
+        attrs={
+            "axis": dim_node.data,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
+    raise TorchToNNEFNotImplementedError(
+        "support for .pack_padded_sequence not added in tract yet"
+    )
+    # input_node, lengths_node, batch_first_node = node.inputs[:3]
+    # opacked_node, obatch_node = node.outputs
+    # return ["pack_padded_sequence"]

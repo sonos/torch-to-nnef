@@ -1,5 +1,6 @@
 import logging
 import typing as T
+import platform
 
 import numpy as np
 import torch
@@ -133,17 +134,22 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
         g, input_node, name_to_tensor
     )
     if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
-        # simulate a reinterpret_cast as implicitly done in PyTorch
-        input_nnef = add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "tract_core_cast",
-            inputs=input_nnef,
-            attrs={
-                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
-            },
-        )
+        if not platform.machine().startswith("arm"):
+            LOGGER.warning(
+                "reinterpret cast to unsigned, if negative number is cpu "
+                "device dependant (arm trunk bits while intel circular buffer left)"
+            )
+            # simulate a reinterpret_cast as implicitly done in PyTorch
+            input_nnef = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=input_nnef,
+                attrs={
+                    "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+                },
+            )
 
     add_single_output_op(
         g,
@@ -190,6 +196,7 @@ def type_as(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+# pylint: disable-next=too-many-positional-arguments
 def size(
     g,
     node,
@@ -309,4 +316,35 @@ def size(
         to_node=new_outnode,
     )
 
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def numel(node, inference_target, op_helper, **kwargs):
+    assert len(node.inputs) == 1
+    input_node = node.inputs[0]
+    soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
+    soc = (
+        soc.chain(
+            "tract_core_shape_of",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape",
+        )
+        .chain(
+            "tract_core_cast",
+            force_full_output_tensor_name=f"{input_node.export_name}_shape_i64",
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
+        .chain(
+            "tract_core_product_reduce",
+            force_full_output_tensor_name=f"{node.outputs[0].export_name}_reduced",
+            attrs={"axes": [0]},
+        )
+        .chain(
+            "squeeze",
+            force_full_output_tensor_name=node.outputs[0].export_name,
+            attrs={"axes": [0]},
+        )
+    )
     return ["tract_core"]

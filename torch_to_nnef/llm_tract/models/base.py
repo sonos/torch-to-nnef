@@ -1,6 +1,10 @@
+from functools import partial
 import typing as T
 
+import logging
 import torch
+
+import inspect
 
 try:
     from transformers import AutoModelForCausalLM
@@ -9,6 +13,8 @@ except ImportError as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
+
+LOGGER = logging.getLogger(__name__)
 
 
 def build_past_kv_list(
@@ -40,6 +46,10 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
 
     """
 
+    def __init__(self):
+        super().__init__()
+        self.forward_kwargs = {}
+
 
 class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     """Assume common AutoModelForCausalLM arch.
@@ -52,9 +62,12 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
     with_dyn_cache: bool = True
 
-    def __init__(self, model: AutoModelForCausalLM):
+    def __init__(
+        self, model: AutoModelForCausalLM, num_logits_to_keep: int = 1
+    ):
         super().__init__()
         self.model = model
+        self.num_logits_to_keep = num_logits_to_keep
 
     def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
@@ -104,7 +117,9 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
             cache_position=cache_position,
         )
         hidden_states = outputs[0]
-        logits = self.model.lm_head(hidden_states)
+        logits = self.model.lm_head(
+            hidden_states[:, -self.num_logits_to_keep :, :]
+        )
 
         # Extract cache {
         kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
@@ -112,11 +127,54 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         return [logits] + kv_cache_flat_list
 
 
+def _slice_hidden_state_to_lasts(
+    mod, inputs, outputs, num_logits_to_keep: int = 1
+):
+    # pylint: disable-next=import-outside-toplevel
+    from transformers.modeling_outputs import BaseModelOutputWithPast
+
+    sliced_out = outputs[0][:, -num_logits_to_keep:]
+
+    if hasattr(outputs, "hidden_states"):
+        outputs.hidden_states = sliced_out
+        return BaseModelOutputWithPast(
+            last_hidden_state=sliced_out,
+            past_key_values=outputs.past_key_values,
+            hidden_states=sliced_out,
+        )
+
+    return (sliced_out, *outputs[1:])
+
+
 class BaseCausal(TorchToNNEFWrappedLLM):
-    def __init__(self, model, with_dyn_cache: bool = True):
+    def __init__(
+        self, model, with_dyn_cache: bool = True, num_logits_to_keep: int = 1
+    ):
         super().__init__()
         self.model = model
         self.with_dyn_cache = with_dyn_cache
+        self.num_logits_to_keep = num_logits_to_keep
+        sign = inspect.signature(model.forward)
+        fkwargs = {}
+        if "logits_to_keep" in sign.parameters:
+            fkwargs["logits_to_keep"] = self.num_logits_to_keep
+        elif "num_logits_to_keep" in sign.parameters:
+            fkwargs["num_logits_to_keep"] = self.num_logits_to_keep
+        else:
+            if self.model.config.model_type == "openelm":
+                self.model.transformer.register_forward_hook(
+                    partial(
+                        _slice_hidden_state_to_lasts,
+                        num_logits_to_keep=num_logits_to_keep,
+                    )
+                )
+            else:
+                LOGGER.warning(
+                    f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
+                    "so we inference exported may be suboptimal "
+                )
+
+        self.forward_kwargs = fkwargs
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
@@ -128,7 +186,10 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             past_key_values = build_past_kv_list(args)
 
         out_dic = self.model(
-            input_ids, past_key_values=past_key_values, use_cache=True
+            input_ids,
+            past_key_values=past_key_values,
+            use_cache=True,
+            **self.forward_kwargs,
         )
 
         if self.with_dyn_cache:

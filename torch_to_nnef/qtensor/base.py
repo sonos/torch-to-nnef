@@ -35,6 +35,10 @@ class QScheme(abc.ABC):
         (like GPU, ...)
         allowing faster computation
         """
+        for k, v in self.__dict__.items():
+            if isinstance(v, torch.Tensor):
+                setattr(self, k, v.to(new_device))
+        return self
 
 
 class QScalePerGroupF16(QScheme):
@@ -55,9 +59,6 @@ class QScalePerGroupF16(QScheme):
         self.group_size: int = group_size
         self.scale = scale
         self.n_bits = n_bits  # needed for bit-shift before packing
-
-    def to_device(self, new_device):
-        self.scale = self.scale.to(new_device)
 
     def quantize_as_torch(self, fp_tensor):
         raise TorchToNNEFNotImplementedError(
@@ -100,7 +101,9 @@ class QScalePerGroupF16(QScheme):
             u8_tensor, self.group_size
         )
         offset = 2**self.n_bits / 2
-        fp_tensor_per_group = (u8_tensor_per_group - offset).to(target_dtype)
+        fp_tensor_per_group = (u8_tensor_per_group - offset).to(
+            device=self.scale.device, dtype=target_dtype
+        )
         fp_tensor_per_group *= self.scale.to(target_dtype)
         return fp_tensor_per_group.reshape(u8_tensor.shape)
 
@@ -157,6 +160,10 @@ class U8Compressor:
 
         Allowing faster computation
         """
+        for k, v in self.__dict__.items():
+            if isinstance(v, torch.Tensor):
+                setattr(self, k, v.to(new_device))
+        return self
 
 
 class QTensor(torch.Tensor):
@@ -253,7 +260,7 @@ class QTensor(torch.Tensor):
         new_obj = self.__class__(
             self.dequantize(),
             qscheme=self.qscheme,
-            dequant_to_dtype=new_dtype,
+            dequant_to_dtype=new_dtype or self.dequant_to_dtype,
         )
         # safety assign
         if not torch.all(new_obj.u8_blob == self.u8_blob):

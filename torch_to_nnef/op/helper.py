@@ -51,6 +51,7 @@ IMPLICIT_CAST_SUPPORTED_OPS = [
     "rsub",
     "pow",
 ]
+IMPLICIT_CAST_CONSISTENT_INP_SUPPORTED_OPS = ["ne", "ge", "le", "gt", "eq"]
 
 
 class OpRegistry:
@@ -737,6 +738,8 @@ class OpHelper:
                     continue
                 sh.append(dim_value)
             return input_nodes[0].dtype, tuple(sh)
+        if nnef_op_type in "tract_core_product_reduce":
+            return torch.int64, tuple()
         if nnef_op_type in ["min", "max", "sub", "add", "div", "mul"]:
             # keep biggest volume input
             sh = []
@@ -810,6 +813,26 @@ class OpHelper:
         (but we do not yet support implicit dtype cast for such unusual op)
 
         """
+        if nnef_op_type in IMPLICIT_CAST_CONSISTENT_INP_SUPPORTED_OPS:
+            if len(inputs) > 1 and len({_.dtype for _ in inputs}) > 1:
+                lowest_idx = np.inf
+                for _ in inputs:
+                    idx = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(_.dtype)
+                    lowest_idx = min(lowest_idx, idx)
+                dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[
+                    lowest_idx
+                ]
+                for idx, inp in enumerate(inputs):
+                    if inp.data is not None:
+                        to_str = numpy_dtype_to_tract_str(dtype_target)
+                        out = self.add_single_output_op_from_nnef_tensors(
+                            node=node,
+                            nnef_op_type="tract_core_cast",
+                            inputs=inp,
+                            attrs={"to": to_str},
+                            force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
+                        )
+                        inputs[idx] = out
         if nnef_op_type not in IMPLICIT_CAST_SUPPORTED_OPS:
             return inputs
         final_dtype = TORCH_TO_NUMPY_DTYPE[node.outputs[0].dtype]

@@ -63,14 +63,16 @@ class TractCheckTolerance(str, enum.Enum):
     EXACT = "exact"
     APPROXIMATE = "approximate"
     CLOSE = "close"
+    VERY = "very"
     SUPER = "super"
+    ULTRA = "ultra"
 
 
 class TractNNEF(InferenceTarget):
     OFFICIAL_SUPPORTED_VERSIONS = [
         SemanticVersion.from_str(version)
         for version in [
-            "0.21.7",  # 0.21.8 introduce regression in some kernels for now
+            "0.21.11",
             "0.20.22",
         ]
     ]
@@ -94,6 +96,25 @@ class TractNNEF(InferenceTarget):
         force_norm_in_f32: bool = False,
     ):
         super().__init__(version, check_io)
+        if (
+            check_io_tolerance != TractCheckTolerance.APPROXIMATE
+            and self.version < "0.21.7"
+        ):
+            LOGGER.warning(
+                f"check_io_tolerance='{check_io_tolerance}' can NOT be applied "
+                "on tract version prior 0.21.7 (please use newer version)"
+            )
+        if (
+            check_io_tolerance
+            in [TractCheckTolerance.VERY, TractCheckTolerance.ULTRA]
+            and self.version == "0.21.7"
+        ):
+            LOGGER.warning(
+                f"tract version 0.21.7 have not check_io_tolerance='{check_io_tolerance}' "
+                "falling-back to 'super' (use newer version to solve this)"
+            )
+            check_io_tolerance = TractCheckTolerance.SUPER
+
         self.feature_flags = feature_flags or set()
         self.dynamic_axes = dynamic_axes or {}
         self.check_io_tolerance = check_io_tolerance
@@ -363,11 +384,10 @@ class TractCli:
         ] + args
         return subprocess.check_call(cmd_)
 
-    def assert_io(
+    def assert_io_cmd_str(
         self,
         nnef_path: Path,
         io_npz_path: Path,
-        raise_exception=True,
         check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         extra_param = (
@@ -406,7 +426,20 @@ class TractCli:
         cmd_ += ["--allow-float-casts"]
         if self.version >= "0.21.7":
             cmd_ += ["--approx", check_tolerance.value]
-        cmd = [str(c) for c in cmd_]
+        return [str(c) for c in cmd_]
+
+    def assert_io(
+        self,
+        nnef_path: Path,
+        io_npz_path: Path,
+        raise_exception=True,
+        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
+    ):
+        cmd = self.assert_io_cmd_str(
+            nnef_path=nnef_path,
+            io_npz_path=io_npz_path,
+            check_tolerance=check_tolerance,
+        )
         cmd_shell = " ".join(_ for _ in cmd)
         with subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -532,7 +565,7 @@ class TractBinaryDownloader:
 
 
 def _unfold_outputs(test_outputs):
-    if isinstance(test_outputs, torch.Tensor):
+    if isinstance(test_outputs, (torch.Tensor, int)):
         test_outputs = [test_outputs]
     test_outputs = list(test_outputs)
 
@@ -543,6 +576,10 @@ def _unfold_outputs(test_outputs):
         elif isinstance(out, (list, tuple)):
             for sub_out in out:
                 unfolded_outputs.append(sub_out)
+        elif isinstance(out, int):
+            unfolded_outputs.append(torch.tensor(out))
+        else:
+            raise NotImplementedError(type(out))
     return unfolded_outputs
 
 
@@ -816,11 +853,21 @@ def assert_io_and_debug_bundle(
                 raise_export_error=False,
                 tract_cli=tract_cli,
             )
+            run_sh_path = no_suffix_debug_bundle_torch_to_nnef_path / "run.sh"
+            with run_sh_path.open("w") as fh:
+                cmd = tract_cli.assert_io_cmd_str(
+                    nnef_path=Path("./model.nnef.tgz"),
+                    io_npz_path=Path("./io.npz"),
+                    check_tolerance=check_tolerance,
+                )
+                fh.write("${1:-%s} " % cmd[0])
+                fh.write(" ".join(cmd[1:]))
+            subprocess.check_call(["chmod", "+x", run_sh_path])
             if any(
                 extension in debug_bundle_path.suffix
                 for extension in ["tgz", "tar.gz"]
             ):
-                with no_suffix_debug_bundle_path.parent:
+                with cd(no_suffix_debug_bundle_path.parent):
                     subprocess.check_output(
                         [
                             "tar",

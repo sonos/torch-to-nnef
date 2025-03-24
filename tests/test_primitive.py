@@ -790,6 +790,92 @@ for axis in [0, 1, -1]:
         )
 
 
+class WrapNumel(nn.Module):
+    def forward(self, x):
+        return torch.tensor(x.numel())
+
+
+inp = torch.arange(10).reshape(1, 2, 5)
+test_suite.add(
+    (inp,),
+    WrapNumel(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+inp = torch.arange(10).reshape(1, 2, 5)
+test_suite.add(
+    (inp,),
+    UnaryPrimitive(torch.prod),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+inp = torch.arange(15).reshape(1, 3, 5)
+test_suite.add(
+    (inp,),
+    UnaryPrimitive(
+        partial(
+            torch.index_select,
+            dim=1,
+            index=torch.arange(2).sort(descending=True).values,
+        )
+    ),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+inp = torch.arange(15).reshape(1, 3, 5)
+index = torch.arange(15).reshape(1, 3, 5).sort(descending=True).values % 3
+src = torch.arange(15).reshape(1, 3, 5) + 5
+test_suite.add(
+    (inp,),
+    UnaryPrimitive(
+        partial(
+            torch.scatter,
+            dim=1,
+            index=index,
+            src=src,
+        )
+    ),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class PackPadSeq(torch.nn.Module):
+    def __init__(self, lengths, out_idx: int):
+        super().__init__()
+        self.lengths = lengths
+        self.out_idx = out_idx
+
+    def forward(self, inp):
+        outs = torch.nn.utils.rnn.pack_padded_sequence(
+            inp,
+            lengths=self.lengths,
+            batch_first=True,
+        )
+        # print("inputs:", inp)
+        # print("outs[0]:", outs[0])
+        # print("outs[1]:", outs[1])
+        return outs[self.out_idx]
+
+
+implemented_packed_pad_seq = False
+if implemented_packed_pad_seq:
+    inp = torch.arange(24).reshape(2, 4, 3)
+    lengths = torch.tensor([3, 1])
+    test_suite.add(
+        (inp,),
+        PackPadSeq(lengths, 0),
+        inference_conditions=skip_khronos_interpreter,
+    )
+
+
+inp = torch.randint(0, 2, (5, 5)).to(torch.bool)
+test_suite.add(
+    inp,
+    UnaryPrimitive(TensorFnPrimitive("sum", {"dim": 1})),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:

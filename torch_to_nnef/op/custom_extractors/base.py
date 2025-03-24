@@ -86,14 +86,23 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         """
         return mod(*args)
 
+    def ordered_args(self, torch_graph):
+        """
+        sometime torch jit may reorder inputs
+        compared to targetted python ops
+        in such case ordering need to be re-addressed
+        """
+        return torch_graph.tracer.args
+
     def _generate_in_torch_graph(
         self, torch_graph, provided_inputs, provided_outputs
     ):
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef import torch_graph as tg
 
+        o_args = self.ordered_args(torch_graph)
         inputs = []
-        for idx, arg in enumerate(torch_graph.tracer.args):
+        for idx, arg in enumerate(o_args):
             if provided_inputs:
                 tensor_variable = provided_inputs[idx]
             else:
@@ -109,7 +118,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             inputs.append(tensor_variable)
         # in case of rnn 2nd parameter is a tuple of states
         results = self._call_original_mod_with_args(
-            torch_graph.tracer.mod, *torch_graph.tracer.args
+            torch_graph.tracer.mod, *o_args
         )
 
         if isinstance(results, torch.Tensor):
@@ -134,9 +143,26 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
             and len(provided_outputs) == 1
         ):
             provided_outputs = provided_outputs[0].data
+        # in case of prim::CallMethod
+        # it can happen than pytorch jit.trace
+        # optimize graph by removing unused
+        # output from a function call
+        # if this function call is hooked via ModuleInfoExtractor
+        # then it become the responssability of
+        # .convert_to_nnef to provide right output
+        #
+        gouts = list(torch_graph.tracer.traced_module.graph.outputs())
+        go_kind = gouts[0].type().kind()
+        if len(gouts) == 1 and go_kind == "TupleType":
+            gouts = list(gouts[0].node().inputs())
+        elif not all(go.type().kind() == "TensorType" for go in gouts):
+            raise NotImplementedError([go.type().kind() for go in gouts])
+        used_outputs_order = [_.offset() for _ in gouts]
         for idx, result in enumerate(expanded_results):
-            if provided_outputs and idx < len(provided_outputs):
-                tensor_variable = provided_outputs[idx]
+            if provided_outputs and idx in used_outputs_order:
+                tensor_variable = provided_outputs[
+                    used_outputs_order.index(idx)
+                ]
             else:
                 tensor_variable = tg.TensorVariable(
                     name=f"{self._cname_slug}_output_{idx}",
@@ -147,7 +173,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                 )
             outputs.append(tensor_variable)
         torch_graph.inputs = inputs
-        torch_graph.outputs = outputs
+        torch_graph.outputs = [outputs[uidx] for uidx in used_outputs_order]
         torch_graph.data_nodes = inputs + outputs
         torch_graph.op_nodes.append(
             tg.TorchOp(

@@ -44,6 +44,6 @@ def test_llama_export_io_npz():
         ]
         for n_tokens, dic in token_gens_and_dic_list:
             assert dic["input_ids"].shape == (1, n_tokens)
-            assert dic["outputs"].shape == (1, n_tokens, 32000)
+            assert dic["outputs"].shape == (1, 1, 32000)
             assert dic["out_cache_key_0"].shape == (1, 2, total_tokens, 4)
             assert dic["out_cache_value_0"].shape == (1, 2, total_tokens, 4)

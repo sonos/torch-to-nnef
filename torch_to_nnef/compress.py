@@ -28,7 +28,12 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                 LOGGER.info(f"quantize layer: {name}")
                 try:
                     q_weight = fp_to_tract_q4_0_with_min_max_calibration(
-                        mod.weight
+                        mod.weight,
+                        **{
+                            k: v
+                            for k, v in kwargs.items()
+                            if k in ["percentile"]
+                        },
                     )
                 except TorchToNNEFImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")
@@ -55,7 +60,11 @@ DEFAULT_COMPRESSION = {
         quantize_weights_min_max_Q4_0,
         to_quantize_module_classes=(nn.Linear, nn.Embedding),
     ),
-    "min_max_q4_0_with_conv_with_embeddings": partial(
+    "min_max_q4_0_with_embeddings_99": partial(
+        partial(quantize_weights_min_max_Q4_0, percentile=0.99),
+        to_quantize_module_classes=(nn.Linear, nn.Embedding),
+    ),
+    "min_max_q4_0_all": partial(
         quantize_weights_min_max_Q4_0,
         to_quantize_module_classes=(
             nn.Linear,

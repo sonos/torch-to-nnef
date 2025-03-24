@@ -142,3 +142,20 @@ def numpy_dtype_to_tract_str(dtype) -> str:
 
 def is_quantized_dtype(dtype: T.Optional[torch.dtype]):
     return dtype in [torch.quint8, torch.qint8, torch.qint32]
+
+
+WHOLE_NUMBER_DTYPES = [
+    torch.int8,
+    torch.int16,
+    torch.int32,
+    torch.int64,
+    torch.uint8,
+    torch.uint32,
+    torch.uint64,
+]
+if torch_version() >= "2.4.0":
+    WHOLE_NUMBER_DTYPES.append(torch.uint16)
+
+
+def dtype_is_whole_number(dtype):
+    return dtype in WHOLE_NUMBER_DTYPES

@@ -141,19 +141,33 @@ def check_model_io_test(
     callback=None,
     unit_test_naming=None,
 ):
-    dbg_dirname = datetime.now().strftime("%Y_%m_%d")
+    dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
+    is_debug = bool(int(os.environ.get("DEBUG", False)))
+
+    unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
-        dbg_dirname = f"{dbg_dirname}_{unit_test_naming}"
+        unittest_slug = f"{unittest_slug}_{unit_test_naming}"
     else:
-        caller_fn_name = inspect.stack()[1][3]
-        if caller_fn_name.startswith("test_"):
-            dbg_dirname = f"{dbg_dirname}_{caller_fn_name}"
-    dbg_path = Path.cwd() / "failed_tests" / dbg_dirname
+        for _ in range(5):  # up to 5 deep fn call stacking
+            caller_fn_name = inspect.stack()[_ + 1][3]
+            if caller_fn_name.startswith("test_"):
+                unittest_slug = f"{unittest_slug}_{caller_fn_name}"
+                break
+    dbg_base_dir = Path(dump_dirpath) if dump_dirpath else Path.cwd()
+    dbg_base_dir.mkdir(exist_ok=True, parents=True)
+    dbg_path = dbg_base_dir / "failed_tests" / unittest_slug
 
     idx = 0
     while dbg_path.exists():
         idx += 1
-        dbg_path = Path.cwd() / "failed_tests" / f"{dbg_dirname}_{idx}"
+        dbg_path = dbg_base_dir / "failed_tests" / f"{unittest_slug}_{idx}"
+
+    idx = 0
+    dump_test_tz_path = dbg_base_dir / f"{unittest_slug}.nnef.tgz"
+    while dump_test_tz_path.exists():
+        idx += 1
+        dump_test_tz_path = dbg_base_dir / f"{unittest_slug}_{idx}.nnef.tgz"
+
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
@@ -174,17 +188,21 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            debug_bundle_path=(
-                dbg_path if os.environ.get("DEBUG", False) else None
-            ),
+            debug_bundle_path=(dbg_path if is_debug else None),
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
-        dump_filepath = os.environ.get("DUMP_FILEPATH", False)
-        if dump_filepath:
-            shutil.copy(export_path.with_suffix(".nnef.tgz"), dump_filepath)
+        if dump_dirpath:
+            shutil.copy(
+                export_path,
+                dump_test_tz_path,
+            )
+            shutil.copy(
+                io_npz_path,
+                dump_test_tz_path.with_suffix(".io.npz"),
+            )
         if callback is not None:
             callback(inference_target, export_path)
 

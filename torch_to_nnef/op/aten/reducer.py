@@ -1,20 +1,23 @@
 from nnef_tools.model import Tensor as NTensor
+import torch
 
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    add_tensor_variable_node_as_nnef_tensor,
     cast_and_add_nnef_operation,
-    get_or_add_tensor_variable_in_nnef,
     pick_axis,
-    unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
 
 
-def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
+def _reducer(aten_op_name: str, node, op_helper, output_idx: int = 0):
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+
     if len(node.inputs) == 2:
         (input_node, axis_node) = node.inputs
         keep_dim = False
@@ -23,10 +26,8 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         keep_dim = keep_dim_node.data
 
     onode = node.outputs[output_idx]
-    out = add_tensor_variable_node_as_nnef_tensor(
-        g,
+    out = op_helper.get_or_add_tensor_variable_in_nnef(
         onode,
-        name_to_tensor,
         prevent_variable=True,
     )
     op_reduce_out = None
@@ -50,15 +51,27 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
         else:
             axes = [pick_axis(input_node, _) for _ in axis_node.data]
     #  }
+    tensor_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if input_node.dtype == torch.bool and isinstance(
+        op_helper.inference_target, TractNNEF
+    ):
+        dtype_str = TORCH_DTYPE_TO_TRACT_STR[torch.int64]
+        tensor_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=[tensor_ref],
+            attrs={
+                "to": dtype_str,
+            },
+            output_tensor_name_suffix=f"as_{dtype_str}",
+        )
     attribs = {"axes": axes}
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
         type=aten_op_name,
         name=f"{onode.export_name}_{aten_op_name}",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=tensor_ref,
         outputs=out if keep_dim else op_reduce_out,
         attribs=attribs,
     )
@@ -75,82 +88,79 @@ def _reducer(aten_op_name: str, g, node, name_to_tensor, output_idx: int = 0):
 
 
 @OP_REGISTRY.register()
-def mean(g, node, name_to_tensor, **kwargs):
-    _reducer("mean_reduce", g, node, name_to_tensor)
+def mean(node, op_helper, **kwargs):
+    _reducer("mean_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_sum", "sum"])
-def reduce_sum(g, node, name_to_tensor, **kwargs):
-    _reducer("sum_reduce", g, node, name_to_tensor)
+def reduce_sum(node, op_helper, **kwargs):
+    _reducer("sum_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register()
-def argmax(g, node, name_to_tensor, **kwargs):
-    _reducer("argmax_reduce", g, node, name_to_tensor)
+def argmax(node, op_helper, **kwargs):
+    _reducer("argmax_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register()
-def argmin(g, node, name_to_tensor, **kwargs):
-    _reducer("argmin_reduce", g, node, name_to_tensor)
+def argmin(node, op_helper, **kwargs):
+    _reducer("argmin_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_any", "any"])
-def reduce_any(g, node, name_to_tensor, **kwargs):
+def reduce_any(node, op_helper, **kwargs):
     assert len(node.outputs) == 1
-    _reducer("any_reduce", g, node, name_to_tensor)
+    _reducer("any_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_all", "all"])
-def reduce_all(g, node, name_to_tensor, **kwargs):
+def reduce_all(node, op_helper, **kwargs):
     assert len(node.outputs) == 1
-    _reducer("all_reduce", g, node, name_to_tensor)
+    _reducer("all_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_max", "amax"])
-def reduce_max(g, node, name_to_tensor, **kwargs):
+def reduce_max(node, op_helper, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise TorchToNNEFNotImplementedError(
             f"unknown 'max' variant with {n_outputs} outputs used"
         )
-    _reducer("max_reduce", g, node, name_to_tensor)
+    _reducer("max_reduce", node, op_helper)
     if n_outputs == 2:
-        _reducer("argmax_reduce", g, node, name_to_tensor, output_idx=1)
+        _reducer("argmax_reduce", node, op_helper, output_idx=1)
 
 
 @OP_REGISTRY.register()
-def reduce_min(g, node, name_to_tensor, **kwargs):
+def reduce_min(node, op_helper, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise TorchToNNEFNotImplementedError(
             f"unknown 'min' variant with {n_outputs} outputs used"
         )
-    _reducer("min_reduce", g, node, name_to_tensor)
+    _reducer("min_reduce", node, op_helper)
     if n_outputs == 2:
-        _reducer("argmin_reduce", g, node, name_to_tensor, output_idx=1)
+        _reducer("argmin_reduce", node, op_helper, output_idx=1)
 
 
 @OP_REGISTRY.register(torch_op_ids=["max"])
-def max_(g, node, name_to_tensor, null_ref, **kwargs):
+def max_(node, op_helper, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
-        return reduce_max(g, node, name_to_tensor)
-    return unary_output_op_without_attr(
-        nnef_op_type="max",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
+        return reduce_max(node, op_helper)
+    return op_helper.unary_output_op_without_attr(nnef_op_type="max", node=node)
 
 
 @OP_REGISTRY.register(torch_op_ids=["min"])
-def min_(g, node, name_to_tensor, null_ref, **kwargs):
+def min_(node, op_helper, **kwargs):
     if isinstance(node.inputs[1], PythonConstant):
-        return reduce_min(g, node, name_to_tensor)
-    return unary_output_op_without_attr(
-        nnef_op_type="min",
-        g=g,
-        node=node,
-        name_to_tensor=name_to_tensor,
-        null_ref=null_ref,
-    )
+        return reduce_min(node, op_helper)
+    return op_helper.unary_output_op_without_attr(nnef_op_type="min", node=node)
+
+
+@OP_REGISTRY.register()
+def prod(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    _reducer("tract_core_product_reduce", node, op_helper)
+    return ["tract_core"]

@@ -17,6 +17,7 @@ from torch_to_nnef.dtypes import (
     TORCH_TO_NUMPY_DTYPE,
     is_quantized_dtype,
     str_to_torch_dtype,
+    dtype_is_whole_number,
 )
 from torch_to_nnef.exceptions import (
     TorchNotFoundDataNode,
@@ -93,6 +94,7 @@ class TensorVariable(Data):
     data: T.Optional[torch.Tensor]
 
     quant: T.Optional[T.Dict[str, T.Any]] = None
+    _traced_data: T.Optional[torch.Tensor] = None
 
     @property
     def slug(self) -> str:
@@ -144,7 +146,15 @@ class TensorVariable(Data):
     def tracable(self) -> bool:
         if is_quantized_dtype(self.dtype) and self.quant is None:
             return False
-        return self.shaped_and_typed
+        st = self.shaped_and_typed
+        # whole number can be used for indexing or tensor gen ...
+        # those may be significan for subsequent op in network ...
+        need_data_realisation = (
+            dtype_is_whole_number(self.dtype)
+            and self._traced_data is None
+            and self.data is None
+        )
+        return st and not need_data_realisation
 
     @property
     def tracing_data(self):
@@ -158,6 +168,11 @@ class TensorVariable(Data):
 
         if self.data is not None:
             return self.data
+        if self._traced_data is None:
+            if dtype_is_whole_number(self.dtype):
+                raise ValueError(f"whole number need {self}")
+        else:
+            return self._traced_data
 
         data = torch.rand(
             [
@@ -303,11 +318,18 @@ class TupleTensors(Data):
         assert node_type.kind() == TUPLETYPE_KIND
         elements = []
         for idx, elm in enumerate(node_type.elements()):
-            stype = elm.scalarType()
+            if elm.kind() == "TensorType":
+                stype = elm.scalarType()
+                shape = elm.sizes()
+            elif elm.kind() == "IntType":
+                stype = "int"
+                shape = [1]
+            else:
+                raise TorchToNNEFNotImplementedError(elm.kind())
             dtype = str_to_torch_dtype(stype) if stype else None
             elm_data = TensorVariable(
                 name=f"{name}_{idx}",
-                shape=elm.sizes(),
+                shape=shape,
                 dtype=dtype,
                 data=None,
             )

@@ -235,7 +235,9 @@ def fixed_backend():
     if torch_version() >= "2.3.0":
         from torch.nn.attention import SDPBackend, sdpa_kernel
 
-        with sdpa_kernel([SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION]):
+        with sdpa_kernel(
+            [SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION], set_priority=True
+        ):
             yield None
     else:
         yield None

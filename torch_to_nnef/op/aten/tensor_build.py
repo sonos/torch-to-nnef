@@ -154,6 +154,14 @@ def _generic_auto_tensor_expansion(
             attrs={"repeats": repeats},
         )
     else:
+        # late bug catching
+        if base_tensor_node.data.dtype != base_tensor_node.dtype:
+            LOGGER.warning(
+                "late 'dtype' miss-alignment catched in _generic_auto_tensor_expansion"
+            )
+            base_tensor_node.data = base_tensor_node.data.to(
+                base_tensor_node.dtype
+            )
         add_tensor_variable_node_as_nnef_tensor(
             g,
             base_tensor_node,
@@ -284,6 +292,16 @@ def zeros_like(**kwargs):
 
 
 @OP_REGISTRY.register()
+def empty_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use exapnsion
+
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
 def ones_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
@@ -336,7 +354,7 @@ def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         "the aten::zeros replaced by constant traced values (follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data] if dtype_node.data else torch.float32
     return _generic_auto_tensor_expansion(
         shape_node,
         node,

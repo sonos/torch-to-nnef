@@ -265,6 +265,15 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                     attrs={"to": "f32"},
                     output_tensor_name_suffix="_biasf32",
                 )
+                bias_ref = add_single_output_op(
+                    g,
+                    node,
+                    name_to_tensor,
+                    "unsqueeze",
+                    inputs=bias_ref,
+                    attrs={"axes": list(range(node.outputs[0].rank - 1))},
+                    output_tensor_name_suffix="_biasf32_unsqueezed",
+                )
                 intermediate_output = add_single_output_op(
                     g,
                     node,
