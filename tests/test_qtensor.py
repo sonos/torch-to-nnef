@@ -246,8 +246,8 @@ def test_quantize_with_tract_q4_0_assign_to(inference_target):
         model.to(torch.device("cpu", 0))  # goal to assign new device
 
 
-TRACT_INFERENCES_TO_TESTS_EXACT_CONV = [
-    _ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.12"
+TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
+    _ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.21.12"
 ]
 
 
@@ -280,7 +280,7 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
 # conv1d with various kernel size (3, 9)
 @pytest.mark.parametrize(
     "kernel_size,inference_target",
-    [(k, i) for i in TRACT_INFERENCES_TO_TESTS_EXACT_CONV for k in [1, 3, 9]],
+    [(k, i) for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV for k in [1, 3, 9]],
 )
 def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
     """basic quantization values"""
@@ -318,7 +318,7 @@ def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
     "in_size,inference_target",
     [
         (in_size, i)
-        for i in TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
         for in_size in [64, 128]
     ],
 )
@@ -358,7 +358,7 @@ def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
     "stride,inference_target",
     [
         (stride, i)
-        for i in TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
         for stride in [2, 3]
     ],
 )
@@ -399,7 +399,7 @@ def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
     "dilation,inference_target",
     [
         (dilation, i)
-        for i in TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
         for dilation in [2, 4, 8]
     ],
 )
@@ -442,7 +442,7 @@ def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
     "groups,inference_target",
     [
         (groups, i)
-        for i in TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+        for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV
         for groups in [2, 4]
     ],
 )
@@ -480,7 +480,7 @@ def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
 
 # conv2d vanilla
 @pytest.mark.parametrize(
-    "inference_target", TRACT_INFERENCES_TO_TESTS_EXACT_CONV
+    "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX_CONV
 )
 def test_quantize_with_tract_q4_0_conv2d(inference_target):
     """basic quantization values"""
