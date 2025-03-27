@@ -233,10 +233,15 @@ def fixed_backend():
 
     """
     if torch_version() >= "2.3.0":
+        # pylint: disable-next=import-outside-toplevel
         from torch.nn.attention import SDPBackend, sdpa_kernel
 
+        kwargs = {}
+        if torch_version() >= "2.6.0":
+            kwargs["set_priority"] = True
+
         with sdpa_kernel(
-            [SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION], set_priority=True
+            [SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION], **kwargs
         ):
             yield None
     else:
