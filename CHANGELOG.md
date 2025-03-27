@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.16.10] - 2025-03-27
+
+### Fix
+
+- `set_priority` in `with sdpa_kernel` only appear in torch 2.6
+
 ## [0.16.10] - 2025-03-24
 
 ### Fix
