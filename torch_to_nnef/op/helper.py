@@ -1,3 +1,4 @@
+import string
 import logging
 import typing as T
 
@@ -23,6 +24,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.torch_graph.ir_data import cleanup_data_name
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 
 LOGGER = logging.getLogger(__name__)
@@ -306,6 +308,15 @@ def get_or_add_tensor_variable_in_nnef(
         name += f"_{name_suffix}"
 
     kwargs["name_suffix"] = name_suffix
+    if hasattr(node.data, "nnef_name") and not kwargs.get(
+        "force_full_output_tensor_name", ""
+    ):
+        name = cleanup_data_name(node.data.nnef_name)
+        if name[0] in string.digits:  # avoid var name issue
+            name = f"_{name}"
+        del kwargs["name_suffix"]
+        node.name = name
+
     if name not in name_to_tensor:
         if isinstance(node, PythonConstant):
             node = node.into_tensor_variable()

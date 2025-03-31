@@ -17,6 +17,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     LISTCONSTRUCT_KIND,
     TUPLECONSTRUCT_KIND,
 )
+from torch_to_nnef.torch_named_tensor import NamedTensor
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
 
@@ -186,13 +187,18 @@ class _RNNMixin:
         from torch_to_nnef.op import helper
 
         assert tensor_variable is None, tensor_variable
+        base_var_name = next(node.op_ref.parameters()).nnef_name.rsplit(".", 1)[
+            0
+        ]
         variable_storage_id = f"{var_name}_store"
-        store_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
+        store_tensor = helper.get_or_add_tensor_variable_in_nnef(
             name_suffix=variable_storage_id,
             # build imaginary node to fill data correctly
             node=helper.TensorVariable(
                 name=node.outputs[0].name,
-                data=torch_tensor,
+                data=NamedTensor(
+                    torch_tensor, nnef_name=f"{base_var_name}.{var_name}_init"
+                ),
                 shape=list(torch_tensor.shape),
                 dtype=torch_tensor.dtype,
             ),
@@ -322,11 +328,13 @@ class _RNNMixin:
         ).items():
             if isinstance(item, torch.Tensor):
                 name_to_nnef_variable[var_name] = (
-                    helper.add_tensor_variable_node_as_nnef_tensor(
+                    helper.get_or_add_tensor_variable_in_nnef(
                         name_suffix=var_name,
                         # build imaginary node to fill data correctly
                         node=helper.TensorVariable(
-                            name=node.outputs[0].name,
+                            name=getattr(
+                                item, "nnef_name", node.outputs[0].name
+                            ),
                             data=item,
                             shape=list(item.shape),
                             dtype=item.dtype,
@@ -547,10 +555,13 @@ class _RNNMixin:
     ):
         for k, v in params.items():
             if isinstance(v, torch.Tensor):
-                v = v.detach()
+                v_new = v.detach()
                 if k.startswith("b_"):
-                    v = v.unsqueeze(0)
-                params[k] = v.unsqueeze(0)
+                    v_new = v_new.unsqueeze(0)
+                v_new = v_new.unsqueeze(0)
+                if hasattr(v, "nnef_name"):
+                    v_new = NamedTensor(v_new, nnef_name=v.nnef_name)
+                params[k] = v_new
 
         linfo = str(layer_index)
         if backward:
@@ -581,12 +592,12 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
             suffix += "_reverse"
 
         # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
-        w_var = getattr(module, f"weight_ih_l{suffix}")
-        W_ii, W_if, W_ig, W_io = w_var.split(int(w_var.shape[0] / 4))
+        wi_var = getattr(module, f"weight_ih_l{suffix}")
+        W_ii, W_if, W_ig, W_io = wi_var.split(int(wi_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
-        w_var = getattr(module, f"weight_hh_l{suffix}")
+        wh_var = getattr(module, f"weight_hh_l{suffix}")
 
-        W_hi, W_hf, W_hg, W_ho = w_var.split(int(w_var.shape[0] / 4))
+        W_hi, W_hf, W_hg, W_ho = wh_var.split(int(wh_var.shape[0] / 4))
 
         bias_i_name = f"bias_ih_l{suffix}"
         if (
@@ -613,26 +624,36 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
         params = {
             "c_0": c_0_layer,
             "h_0": h_0_layer,
-            # -----------
-            "W_ii": W_ii,
-            "W_if": W_if,
-            "W_ig": W_ig,
-            "W_io": W_io,
-            # -----------
-            "W_hi": W_hi,
-            "W_hf": W_hf,
-            "W_hg": W_hg,
-            "W_ho": W_ho,
-            # pre summed bias
-            "b_i": b_ii + b_hi,
-            "b_f": b_if + b_hf,
-            "b_g": b_ig + b_hg,
-            "b_o": b_io + b_ho,
         }
+        base_mod_name = wi_var.nnef_name.rsplit(".", 1)[0]
+
+        def add_param(name, tensor):
+            lname = name.lower()
+            backward_str = "back_" if backward else ""
+            params[name] = NamedTensor(
+                tensor,
+                nnef_name=f"{base_mod_name}.l{layer_index}_{backward_str}{lname}",
+            )
+
+        # -----------
+        add_param("W_ii", W_ii)
+        add_param("W_if", W_if)
+        add_param("W_ig", W_ig)
+        add_param("W_io", W_io)
+        # -----------
+        add_param("W_hi", W_hi)
+        add_param("W_hf", W_hf)
+        add_param("W_hg", W_hg)
+        add_param("W_ho", W_ho)
+        # pre summed bias
+        add_param("b_i", b_ii + b_hi)
+        add_param("b_f", b_if + b_hf)
+        add_param("b_g", b_ig + b_hg)
+        add_param("b_o", b_io + b_ho)
         if hasattr(module, "proj_size") and module.proj_size > 0:  # type: ignore
             # LSTM.weight_hr_l[k] may be with suffix
             W_hr = getattr(module, f"weight_hr_l{suffix}")
-            params["W_hr"] = W_hr
+            add_param("W_hr", W_hr)
 
         return self._apply_layer_and_unsqueeze_to_params(
             params, layer_index, backward=backward
@@ -781,23 +802,33 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
         else:
             b_hr, b_hz, b_hn = (torch.tensor(0.0) for _ in range(3))
 
+        base_mod_name = w_var.nnef_name.rsplit(".", 1)[0]
+
+        def add_param(name, tensor):
+            lname = name.lower()
+            backward_str = "b" if backward else ""
+            params[name] = NamedTensor(
+                tensor,
+                nnef_name=f"{base_mod_name}.l{layer_index}_{backward_str}{lname}",
+            )
+
         params = {
             "h_0": h_0_layer,
-            # -----------
-            "W_ir": W_ir,
-            "W_iz": W_iz,
-            "W_in": W_in,
-            # -----------
-            "W_hr": W_hr,
-            "W_hz": W_hz,
-            "W_hn": W_hn,
-            # pre summed bias
-            "b_r": b_ir + b_hr,
-            "b_z": b_iz + b_hz,
-            # not summable
-            "b_in": b_in,
-            "b_hn": b_hn,
         }
+        # -----------
+        add_param("W_ir", W_ir)
+        add_param("W_iz", W_iz)
+        add_param("W_in", W_in)
+        # -----------
+        add_param("W_hr", W_hr)
+        add_param("W_hz", W_hz)
+        add_param("W_hn", W_hn)
+        # pre summed bias
+        add_param("b_r", b_ir + b_hr)
+        add_param("b_z", b_iz + b_hz)
+        # not summable
+        add_param("b_in", b_in)
+        add_param("b_hn", b_hn)
         return self._apply_layer_and_unsqueeze_to_params(
             params, layer_index, backward=backward
         )
@@ -899,14 +930,24 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
         else:
             bias_hh = torch.tensor(0.0)
 
+        base_mod_name = w_ih.nnef_name.rsplit(".", 1)[0]
+
+        def add_param(name, tensor):
+            lname = name.lower()
+            backward_str = "b" if backward else ""
+            params[name] = NamedTensor(
+                tensor,
+                nnef_name=f"{base_mod_name}.l{layer_index}_{backward_str}{lname}",
+            )
+
         params = {
             "h_0": h_0_layer,
-            "W_ih": w_ih,
-            "W_hh": w_hh,
-            # -----
-            # pre summed bias
-            "b_ih_hh": bias_ih + bias_hh,
         }
+        add_param("W_ih", w_ih)
+        add_param("W_hh", w_hh)
+        # -----
+        # pre summed bias
+        add_param("b_ih_hh", bias_ih + bias_hh)
         return self._apply_layer_and_unsqueeze_to_params(
             params, layer_index, backward=backward
         )
