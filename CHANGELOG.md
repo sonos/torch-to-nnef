@@ -7,7 +7,7 @@
 
 ### Change
 
-- All parameters variable in graph are be named the same their label if NamedTensor
+- All parameters variable in graph are be named the same their label if `NamedTensor`
 
 ### Fix
 
