@@ -198,7 +198,9 @@ class _RNNMixin:
                 name=node.outputs[0].name,
                 data=NamedTensor(
                     torch_tensor, nnef_name=f"{base_var_name}.{var_name}_init"
-                ),
+                )
+                if not isinstance(torch_tensor, NamedTensor)
+                else torch_tensor,
                 shape=list(torch_tensor.shape),
                 dtype=torch_tensor.dtype,
             ),
