@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.17.0] - 2025-03-31
+
+### Change
+
+- All parameters variable in graph are be named the same their label if NamedTensor
+
+### Fix
+
+- RNN expansion with multiple call within same graph now refer to same set of weight instead of duplicating them
+
 ## [0.16.11] - 2025-03-27
 
 ### Fix
