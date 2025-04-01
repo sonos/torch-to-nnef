@@ -1,3 +1,4 @@
+import typing as T
 import logging
 import warnings
 
@@ -82,6 +83,21 @@ class NamedTensor(torch.Tensor):
             return _convert(ret, torch.Tensor)
 
 
+def get_or_add_named_tensor(
+    ids_to_ntensor, ref_mod, attr_name, full_name, data
+):
+    weight_id = id(getattr(ref_mod, attr_name))
+    if weight_id in ids_to_ntensor:
+        named_tensor = ids_to_ntensor[weight_id]
+        LOGGER.info(
+            f"detected shared weight between: {named_tensor.nnef_name} and '{full_name}'"
+        )
+    else:
+        named_tensor = NamedTensor(data, nnef_name=full_name)
+        ids_to_ntensor[weight_id] = named_tensor
+    return named_tensor
+
+
 def apply_name_to_tensor_in_module(model: torch.nn.Module):
     """Transform torch.Tensor or Parameters into NamedTensor
 
@@ -97,7 +113,8 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
     from torch_to_nnef.qtensor.base import QTensor, QTensorRef
 
     LOGGER.debug("started to apply NamedTensor")
-    for named_p, param in model.named_parameters():
+    ids_to_ntensor: T.Dict[int, NamedTensor] = {}
+    for named_p, param in model.named_parameters(remove_duplicate=False):
         if isinstance(param.data, (QTensorRef, QTensor)):
             continue
         ref_mod = model
@@ -106,7 +123,9 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
             ref_mod = getattr(ref_mod, mod_name)
 
         LOGGER.debug(f"apply NamedTensor: {named_p}")
-        named_tensor = NamedTensor(param.data, nnef_name=named_p)
+        named_tensor = get_or_add_named_tensor(
+            ids_to_ntensor, ref_mod, chunked_names[-1], named_p, param.data
+        )
         setattr(
             ref_mod,
             chunked_names[-1],
@@ -131,10 +150,12 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
             if named_m:
                 full_name = f"{named_m}.{attr_name}"
             LOGGER.debug(f"apply NamedTensor: {full_name}")
-            named_tensor = NamedTensor(attr_val, nnef_name=full_name)
+            named_tensor = get_or_add_named_tensor(
+                ids_to_ntensor, ref_mod, attr_name, full_name, attr_val
+            )
             setattr(ref_mod, attr_name, named_tensor)
 
-    for named_b, buffer in model.named_buffers():
+    for named_b, buffer in model.named_buffers(remove_duplicate=False):
         if isinstance(buffer, (QTensorRef, QTensor)):
             continue
         ref_mod = model
@@ -142,7 +163,9 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         for mod_name in chunked_names[:-1]:
             ref_mod = getattr(ref_mod, mod_name)
         LOGGER.debug(f"apply NamedTensor: {named_b}")
-        named_tensor = NamedTensor(buffer, nnef_name=named_b)
+        named_tensor = get_or_add_named_tensor(
+            ids_to_ntensor, ref_mod, chunked_names[-1], named_b, buffer
+        )
         setattr(
             ref_mod,
             chunked_names[-1],
