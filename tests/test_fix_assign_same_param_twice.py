@@ -37,13 +37,11 @@ def check_no_dup_dat(inference_target, path):
             dats = [_ for _ in td.iterdir() if ".dat" in _.suffixes]
             if len(dats) != 2:
                 names = [_.name for _ in dats]
-                print(names)
-                __import__("ipdb").set_trace()
                 raise ValueError(f"too much .dat produced: {names}")
 
 
-def test_issue_lnorm_export():
-    """Test issue tract with Permute+LayerNorm then deser->ser->deser."""
+def test_issue_dup_if_shared_tensor_export():
+    """Test issue with duplicate tensor."""
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
     latest_tract_inference.dynamic_axes = {
         "input_0": {2: "S"},
