@@ -1,3 +1,4 @@
+import typing as T
 from functools import partial
 import logging
 
@@ -5,6 +6,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.qtensor.base import QTensor
 from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
@@ -23,21 +25,30 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
         to_quantize_module_classes
     )
     with torch.no_grad():
+        ids_to_qtensor: T.Dict[int, QTensor] = {}
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info(f"quantize layer: {name}")
-                try:
-                    q_weight = fp_to_tract_q4_0_with_min_max_calibration(
-                        mod.weight,
-                        **{
-                            k: v
-                            for k, v in kwargs.items()
-                            if k in ["percentile"]
-                        },
+                weight_id = id(getattr(mod, "weight"))
+                if weight_id in ids_to_qtensor:
+                    q_weight = ids_to_qtensor[weight_id]
+                    LOGGER.info(
+                        f"detected shared weight between: {q_weight.nnef_name} and '{name}.weight'"
                     )
-                except TorchToNNEFImpossibleQuantization as exp:
-                    LOGGER.error(f"quant layer: {name} error: {exp}")
-                    continue
+                else:
+                    try:
+                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
+                            mod.weight,
+                            **{
+                                k: v
+                                for k, v in kwargs.items()
+                                if k in ["percentile"]
+                            },
+                        )
+                        ids_to_qtensor[weight_id] = q_weight
+                    except TorchToNNEFImpossibleQuantization as exp:
+                        LOGGER.error(f"quant layer: {name} error: {exp}")
+                        continue
                 setattr(
                     mod,
                     "weight",

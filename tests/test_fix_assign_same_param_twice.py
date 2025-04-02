@@ -6,6 +6,7 @@ import subprocess
 import torch
 
 from torch_to_nnef.utils import cd
+from torch_to_nnef.compress import dynamic_load_registry
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
@@ -14,16 +15,16 @@ from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 class MyModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv0 = torch.nn.Conv2d(1, 3, 1, bias=False)
-        self.conv1 = torch.nn.Conv2d(3, 3, 1, bias=False)
-        self.conv2 = torch.nn.Conv2d(3, 3, 1, bias=False)
+        self.lin0 = torch.nn.Linear(1, 32, bias=False)
+        self.lin1 = torch.nn.Linear(32, 32, bias=False)
+        self.lin2 = torch.nn.Linear(32, 32, bias=False)
 
     def forward(self, x):
-        x = self.conv0(x)
+        x = self.lin0(x)
         x = torch.relu(x)
-        x = self.conv1(x)
+        x = self.lin1(x)
         x = torch.relu(x)
-        x = self.conv2(x)
+        x = self.lin2(x)
         x = torch.relu(x)
         return x
 
@@ -44,13 +45,35 @@ def test_issue_dup_if_shared_tensor_export():
     """Test issue with duplicate tensor."""
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
     latest_tract_inference.dynamic_axes = {
-        "input_0": {2: "S"},
+        "input_0": {0: "S"},
     }
     mod = MyModule()
-    mod.conv1.weight = mod.conv2.weight
+    mod.lin1.weight = mod.lin2.weight
     check_model_io_test(
         model=mod,
-        test_input=torch.rand(1, 10, 1000),
+        test_input=torch.rand(10, 1),
         inference_target=latest_tract_inference,
         callback=check_no_dup_dat,
     )
+
+
+def test_issue_dup_compress_if_shared_tensor_export():
+    """Test issue with duplicate tensor."""
+    latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
+    latest_tract_inference.check_io = False
+    latest_tract_inference.dynamic_axes = {
+        "input_0": {1: "S"},
+    }
+    registry = dynamic_load_registry(
+        "torch_to_nnef.compress.DEFAULT_COMPRESSION"
+    )
+    for k, fn in registry.items():
+        mod = MyModule()
+        mod.lin1.weight = mod.lin2.weight
+        mod = fn(mod)
+        check_model_io_test(
+            model=mod,
+            test_input=torch.rand(10, 1),
+            inference_target=latest_tract_inference,
+            callback=check_no_dup_dat,
+        )
