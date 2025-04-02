@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.17.1] - 2025-04-02
+
+### Fix
+
+- Avoid duplicating weights in case they are shared with assignation post `nn.Module` load
+
 ## [0.17.0] - 2025-03-31
 
 ### Change

@@ -33,7 +33,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                 if weight_id in ids_to_qtensor:
                     q_weight = ids_to_qtensor[weight_id]
                     LOGGER.info(
-                        f"detected shared weight between: {q_weight.nnef_name} and '{name}.weight'"
+                        f"detected shared weight between: '{q_weight.nnef_name}' and '{name}.weight'"
                     )
                 else:
                     try:
@@ -45,6 +45,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                                 if k in ["percentile"]
                             },
                         )
+                        q_weight.nnef_name = f"{name}.weight"
                         ids_to_qtensor[weight_id] = q_weight
                     except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")

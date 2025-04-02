@@ -146,6 +146,17 @@ class LLMExporter:
         self.tokenizer = tokenizer
         self.local_dir = local_dir
 
+        if hasattr(self.hf_model_causal.config, "torchscript"):
+            LOGGER.debug(
+                "change to config.torchscript=False and tie_weights again"
+            )
+            # avoid clone weight instead assign same parameters
+            # to avoid duplicates
+            self.hf_model_causal.config.torchscript = False
+            # only effective if config set tie_word_embeddings=True
+            # tie_encoder_decoder=True
+            self.hf_model_causal.tie_weights()
+
         self.model_infos = HFConfigHelper(
             self.hf_model_causal.config._name_or_path,
             self.hf_model_causal.config,

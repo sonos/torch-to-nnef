@@ -70,6 +70,8 @@ def test_issue_dup_compress_if_shared_tensor_export():
     for k, fn in registry.items():
         mod = MyModule()
         mod.lin1.weight = mod.lin2.weight
+        # WARNING: if new parameter used it will fail
+        # new_test = torch.nn.Parameter(mod.lin2.weight, requires_grad=False)
         mod = fn(mod)
         check_model_io_test(
             model=mod,

@@ -200,7 +200,7 @@ class QTensor(torch.Tensor):
         self.u8_blob = u8_blob
         self.qscheme = qscheme
         self.dequant_to_dtype = dequant_to_dtype
-        self.nnef_name = None
+        self.nnef_name: T.Optional[str] = None
         self.requires_grad = False
 
     def decompress_to_u8(self):
