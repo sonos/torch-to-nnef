@@ -179,7 +179,7 @@ class LLMExporter:
 
     @property
     def main_weight_dtype(self) -> torch.dtype:
-        ct = Counter()
+        ct: Counter = Counter()
         for p in self.wrapped_model.parameters():
             ct[p.dtype] += p.numel()
         return ct.most_common()[0][0]
@@ -193,8 +193,7 @@ class LLMExporter:
         if self.force_inputs_dtype is None:
             if self.is_mainly_weight_half_precision:
                 return torch.float16
-            else:
-                return torch.float32
+            return torch.float32
         return self.force_inputs_dtype.torch_dtype
 
     @property
@@ -227,7 +226,7 @@ class LLMExporter:
     ):
         """Load from either huggingface model slug hub or local_dir"""
         with torch.no_grad():
-            exporter_from_kwargs = {
+            exporter_from_kwargs: T.Dict[str, T.Any] = {
                 "hf_model_slug": model_slug,
                 "local_dir": local_dir,
                 **kwargs,
@@ -437,7 +436,7 @@ class LLMExporter:
     def prepare(  # pylint: disable=too-many-positional-arguments
         self,
         compression_method: T.Optional[str] = None,
-        compression_registry: str = "torch_to_nnef.llm_tract.cli.DEFAULT_COMPRESSION",
+        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
         wrapper_io_check: bool = True,
         export_dirpath: T.Optional[Path] = None,
@@ -606,7 +605,7 @@ class LLMExporter:
         tract_specific_version: T.Optional[str] = None,
         tract_specific_properties: T.Optional[T.Dict[str, str]] = None,
         compression_method: T.Optional[str] = None,
-        compression_registry: str = "torch_to_nnef.llm_tract.compress.DEFAULT_COMPRESSION",
+        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
         test_display_token_gens: bool = False,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
         dump_with_tokenizer_and_conf: bool = False,
@@ -692,6 +691,7 @@ class LLMExporter:
             )
         if hasattr(self.hf_model_causal, "peft_config"):
             try:
+                # pylint: disable-next=import-outside-toplevel
                 from peft import PeftModel
 
                 tract_specific_properties["peft_merged"] = (
@@ -921,7 +921,6 @@ def dump_llm(
     force_inputs_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
     num_logits_to_keep: int = 1,
-    *args,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
@@ -937,8 +936,8 @@ def dump_llm(
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
             kwargs["tract_check_io_tolerance"]
         )
-    exporter.dump(*args, **kwargs)
-    export_path = kwargs.get("export_dirpath", args[0] if args else None)
+    exporter.dump(**kwargs)
+    export_path = kwargs.get("export_dirpath", None)
     return (
         Path(export_path) if export_path else None,
         exporter,

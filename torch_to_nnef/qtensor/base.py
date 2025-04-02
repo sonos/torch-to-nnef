@@ -376,6 +376,10 @@ class QTensorRef(torch.Tensor):
         self.q_tensor = q_tensor
 
     @property
+    def nnef_name(self):
+        return self.q_tensor.nnef_name
+
+    @property
     def data(self):
         return self
 
@@ -490,10 +494,17 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
 
     """
     LOGGER.debug("started to apply qtensor ref with decompress")
-    for named_p, param in model.named_parameters():
+    ids_to_qparams = {}
+    for named_p, param in model.named_parameters(remove_duplicate=False):
         if not isinstance(param, QTensor):
             continue
-        param.nnef_name = named_p
+        qid = id(param)
+        if qid not in ids_to_qparams:
+            param.nnef_name = named_p
+            new_param = QTensorRef(param.decompress(), param)
+            ids_to_qparams[qid] = new_param
+        else:
+            new_param = ids_to_qparams[qid]
         ref_mod = model
         chunked_names = named_p.split(".")
         for mod_name in chunked_names[:-1]:
@@ -504,7 +515,7 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
             ref_mod,
             chunked_names[-1],
             torch.nn.Parameter(
-                QTensorRef(param.decompress(), param),
+                new_param,
                 requires_grad=False,
             ),
         )
