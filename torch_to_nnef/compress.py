@@ -30,7 +30,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
         ids_to_qtensor: T.Dict[int, QTensor] = {}
         ids_to_mods: T.Dict[int, T.List[str]] = defaultdict(list)
         """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
-        for full_name, param in model.named_parameters(remove_duplicates=False):
+        for full_name, param in model.named_parameters(remove_duplicate=False):
             ids_to_mods[id(param)].append(
                 get_parent_module_and_param_name(model, full_name)[0]
             )
