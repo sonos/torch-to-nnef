@@ -8,7 +8,6 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.utils import (
-    get_parent_module,
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
 )
