@@ -69,6 +69,13 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         self.model = model
         self.num_logits_to_keep = num_logits_to_keep
 
+    @property
+    def device(self):
+        return self.model.device
+
+    def tie_weights(self):
+        return self.model.tie_weights()
+
     def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
 
@@ -175,6 +182,13 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                 )
 
         self.forward_kwargs = fkwargs
+
+    @property
+    def device(self):
+        return self.model.device
+
+    def tie_weights(self):
+        return self.model.tie_weights()
 
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64

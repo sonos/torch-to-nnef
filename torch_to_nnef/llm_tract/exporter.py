@@ -506,13 +506,15 @@ class LLMExporter:
         sample_generation_total_size: int = 0,
         no_verify: bool = False,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
+        ignore_already_exist_dir: bool = False,
     ):
         """Export model has is currently in self.hf_model_causal
 
         and dump some npz tests to check io latter-on
         """
         with torch.no_grad():
-            assert not export_dirpath.exists(), export_dirpath
+            if not ignore_already_exist_dir:
+                assert not export_dirpath.exists(), export_dirpath
             assert sample_generation_total_size >= 2
             assert (  # mutualy exclusive arguments
                 (tract_specific_path is None and tract_specific_version is None)
@@ -729,6 +731,7 @@ class LLMExporter:
             sample_generation_total_size=sample_generation_total_size,
             no_verify=no_verify,
             tract_check_io_tolerance=tract_check_io_tolerance,
+            ignore_already_exist_dir=ignore_already_exist_dir,
         )
 
 
