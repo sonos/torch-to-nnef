@@ -7,7 +7,10 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.utils import select_ctx_disable_torch_fn
+from torch_to_nnef.utils import (
+    get_parent_module_and_param_name,
+    select_ctx_disable_torch_fn,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -114,21 +117,18 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
 
     LOGGER.debug("started to apply NamedTensor")
     ids_to_ntensor: T.Dict[int, NamedTensor] = {}
-    for named_p, param in model.named_parameters(remove_duplicate=False):
+    for full_name, param in model.named_parameters(remove_duplicate=False):
         if isinstance(param.data, (QTensorRef, QTensor)):
             continue
-        ref_mod = model
-        chunked_names = named_p.split(".")
-        for mod_name in chunked_names[:-1]:
-            ref_mod = getattr(ref_mod, mod_name)
+        ref_mod, pname = get_parent_module_and_param_name(model, full_name)
 
-        LOGGER.debug(f"apply NamedTensor: {named_p}")
+        LOGGER.debug(f"apply NamedTensor: {full_name}")
         named_tensor = get_or_add_named_tensor(
-            ids_to_ntensor, ref_mod, chunked_names[-1], named_p, param.data
+            ids_to_ntensor, ref_mod, pname, full_name, param.data
         )
         setattr(
             ref_mod,
-            chunked_names[-1],
+            pname,
             torch.nn.Parameter(
                 named_tensor,
                 requires_grad=False,
@@ -155,20 +155,17 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
             )
             setattr(ref_mod, attr_name, named_tensor)
 
-    for named_b, buffer in model.named_buffers(remove_duplicate=False):
+    for full_name, buffer in model.named_buffers(remove_duplicate=False):
         if isinstance(buffer, (QTensorRef, QTensor)):
             continue
-        ref_mod = model
-        chunked_names = named_b.split(".")
-        for mod_name in chunked_names[:-1]:
-            ref_mod = getattr(ref_mod, mod_name)
-        LOGGER.debug(f"apply NamedTensor: {named_b}")
+        ref_mod, bname = get_parent_module_and_param_name(model, full_name)
+        LOGGER.debug(f"apply NamedTensor: {full_name}")
         named_tensor = get_or_add_named_tensor(
-            ids_to_ntensor, ref_mod, chunked_names[-1], named_b, buffer
+            ids_to_ntensor, ref_mod, bname, full_name, buffer
         )
         setattr(
             ref_mod,
-            chunked_names[-1],
+            bname,
             named_tensor,
         )
     LOGGER.debug("sucessfull to apply NamedTensor everywhere")
