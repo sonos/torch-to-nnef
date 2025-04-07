@@ -228,6 +228,16 @@ class NamedItem(ABC):
         super().__setattr__(attr_name, attr_value)
 
 
+def get_parent_module_and_param_name(
+    model: torch.nn.Module, full_name: str
+) -> T.Tuple[torch.nn.Module, str]:
+    ref_mod = model
+    chunked_names = full_name.split(".")
+    for mod_name in chunked_names[:-1]:
+        ref_mod = getattr(ref_mod, mod_name)
+    return ref_mod, chunked_names[-1]
+
+
 class ReactiveNamedItemDict:
     """Named items ordered Dict data structure
 

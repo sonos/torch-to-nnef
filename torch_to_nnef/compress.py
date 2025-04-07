@@ -1,3 +1,4 @@
+from collections import defaultdict
 import typing as T
 from functools import partial
 import logging
@@ -10,6 +11,7 @@ from torch_to_nnef.qtensor.base import QTensor
 from torch_to_nnef.qtensor.qtract import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
+from torch_to_nnef.utils import get_parent_module_and_param_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,10 +28,27 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
     )
     with torch.no_grad():
         ids_to_qtensor: T.Dict[int, QTensor] = {}
+        ids_to_mods: T.Dict[int, T.List[str]] = defaultdict(list)
+        """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
+        for full_name, param in model.named_parameters(remove_duplicates=False):
+            ids_to_mods[id(param)].append(
+                get_parent_module_and_param_name(model, full_name)[0]
+            )
+
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info(f"quantize layer: {name}")
                 weight_id = id(getattr(mod, "weight"))
+                if not all(
+                    isinstance(m, to_quantize_module_classes)
+                    for m in ids_to_mods[weight_id]
+                ):
+                    clss = [m.__class__ for m in ids_to_mods[weight_id]]
+                    LOGGER.warning(
+                        f"detected shared weight: '{name}' candidate has incompatible layer usage: {clss}, "
+                        f" but requested {to_quantize_module_classes}"
+                    )
+                    continue
                 if weight_id in ids_to_qtensor:
                     q_weight = ids_to_qtensor[weight_id]
                     LOGGER.info(

@@ -10,7 +10,11 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
+from torch_to_nnef.utils import (
+    get_parent_module_and_param_name,
+    select_ctx_disable_torch_fn,
+    torch_version,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -495,25 +499,22 @@ def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
     """
     LOGGER.debug("started to apply qtensor ref with decompress")
     ids_to_qparams = {}
-    for named_p, param in model.named_parameters(remove_duplicate=False):
+    for full_name, param in model.named_parameters(remove_duplicate=False):
         if not isinstance(param, QTensor):
             continue
         qid = id(param)
         if qid not in ids_to_qparams:
-            param.nnef_name = named_p
+            param.nnef_name = full_name
             new_param = QTensorRef(param.decompress(), param)
             ids_to_qparams[qid] = new_param
         else:
             new_param = ids_to_qparams[qid]
-        ref_mod = model
-        chunked_names = named_p.split(".")
-        for mod_name in chunked_names[:-1]:
-            ref_mod = getattr(ref_mod, mod_name)
+        ref_mod, p_name = get_parent_module_and_param_name(model, full_name)
 
-        LOGGER.debug(f"apply qtensor ref with decompress: {named_p}")
+        LOGGER.debug(f"apply qtensor ref with decompress: {full_name}")
         setattr(
             ref_mod,
-            chunked_names[-1],
+            p_name,
             torch.nn.Parameter(
                 new_param,
                 requires_grad=False,
