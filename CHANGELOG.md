@@ -3,6 +3,17 @@
 
 ## Unreleased
 
+## [0.17.2] - 2025-04-10
+
+### Added
+
+- bump tract `0.21.12`
+- avoid compress weight if shared with 1 module that is not requested to compress (by example: request `nn.Linear` only while shared with `nn.Embedding`)
+
+### Fix
+
+- some `ignore-already-exist-dir` missing case in `llm_tract`
+
 ## [0.17.1] - 2025-04-02
 
 ### Fix
