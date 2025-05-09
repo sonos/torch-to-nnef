@@ -47,6 +47,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_EMPTY,
     ATEN_EMPTY_LIKE,
     ATEN_FULL,
+    ATEN_FULL_LIKE,
     ATEN_GELU,
     ATEN_INT,
     ATEN_LINALG_NORM,
@@ -56,14 +57,16 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ONES_LIKE,
     ATEN_PROD,
     ATEN_REPEAT_INTERLEAVE,
+    ATEN_SCALAR_TENSOR,
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
     ATEN_TO,
+    ATEN_TO_COPY,
     ATEN_VIEW_KIND,
     ATEN_WHERE,
-    ATEN_ZERO_LIKE,
     ATEN_ZEROS,
+    ATEN_ZERO_LIKE,
     CALL_KIND,
     LISTTYPE_KIND,
     MAP_TO_TENSOR_FN,
@@ -83,26 +86,29 @@ class InputsAlignBetweenAtenAndTorch:
     @classmethod
     def align_inputs(cls, kind: str, args, kwargs):
         map_align = {
-            ATEN_ZERO_LIKE: cls.aten_zero,
-            ATEN_ONES_LIKE: cls.aten_ones_like,
-            ATEN_ZEROS: cls.aten_zero,
+            ATEN_ARANGE: cls.aten_arange,
+            ATEN_BADDMM: cls.aten_baddmm,
+            ATEN_CUMSUM: cls.aten_cumsum,
+            ATEN_EINSUM: cls.aten_einsum,
             ATEN_EMPTY: cls.aten_zero,
-            ATEN_TO: cls.aten_to,
+            ATEN_EMPTY_LIKE: cls.aten_empty_like,
+            ATEN_FULL: cls.aten_full,
+            ATEN_FULL_LIKE: cls.aten_full_like,
             ATEN_GELU: cls.aten_gelu,
+            ATEN_LINALG_NORM: cls.aten_linalg_norm,
             ATEN_MASKED_FILL: cls.aten_masked_fill,
             ATEN_MASKED_FILL_: cls.aten_masked_fill,
-            ATEN_ARANGE: cls.aten_arange,
-            ATEN_FULL: cls.aten_full,
-            ATEN_CUMSUM: cls.aten_cumsum,
             ATEN_NEW_ONES: cls.aten_new_ones,
+            ATEN_ONES_LIKE: cls.aten_ones_like,
             ATEN_PROD: cls.aten_prod,
-            ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
             ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
+            ATEN_SCALAR_TENSOR: cls.aten_scalar_tensor,
+            ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
+            ATEN_TO: cls.aten_to,
+            ATEN_TO_COPY: cls.aten_to_copy,
             ATEN_WHERE: cls.aten_where,
-            ATEN_LINALG_NORM: cls.aten_linalg_norm,
-            ATEN_EINSUM: cls.aten_einsum,
-            ATEN_EMPTY_LIKE: cls.aten_empty_like,
-            ATEN_BADDMM: cls.aten_baddmm,
+            ATEN_ZEROS: cls.aten_zero,
+            ATEN_ZERO_LIKE: cls.aten_zero,
         }
         to_call = map_align.get(kind)
         if to_call:
@@ -119,6 +125,15 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_baddmm(args, kwargs):
         args = list(args[:3])
+        return args, kwargs
+
+    @staticmethod
+    def aten_scalar_tensor(args, kwargs):
+        val, dtype, layout, device, _ = args
+        args = (val,)
+        kwargs["dtype"] = dtype
+        kwargs["layout"] = layout
+        kwargs["device"] = device
         return args, kwargs
 
     @staticmethod
@@ -147,6 +162,13 @@ class InputsAlignBetweenAtenAndTorch:
         return args, kwargs
 
     @staticmethod
+    def aten_to_copy(args, kwargs):
+        val, dtype, _, _, _, _, _ = args
+        args = (val,)
+        kwargs["dtype"] = dtype
+        return args, kwargs
+
+    @staticmethod
     def aten_gelu(args, kwargs):
         args = args[:1]  # skip the 'none' param starting torch 1.12.0
         return args, kwargs
@@ -167,6 +189,12 @@ class InputsAlignBetweenAtenAndTorch:
         ]
         if not isinstance(args[-1], (float, int)):
             args[-1] = args[-1].tolist()
+        return args, kwargs
+
+    @staticmethod
+    def aten_full_like(args, kwargs):
+        # orig, value, *_ = args
+        args = args[:2]
         return args, kwargs
 
     @staticmethod
@@ -345,7 +373,10 @@ class TorchOp:
             # hacky/bad way to pass argument that are named argument only {
             args, kwargs = self.update_call_op_arg_kwargs(self.args)
 
-            return self.op_ref(*args, **kwargs)
+            try:
+                return self.op_ref(*args, **kwargs)
+            except RuntimeError as exp:
+                raise RuntimeError(f"running {self.op_ref}(args={args}, kwargs={kwargs})") from exp
         raise TorchToNNEFNotImplementedError(self)
 
     @property

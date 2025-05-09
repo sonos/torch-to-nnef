@@ -72,6 +72,7 @@ for op in [
     torch.atanh,
     torch.zeros_like,
     torch.ones_like,
+    partial(torch.full_like, fill_value=2.0),
     # unimplemented tract {
     # torch.reciprocal,
     # torch.clone,

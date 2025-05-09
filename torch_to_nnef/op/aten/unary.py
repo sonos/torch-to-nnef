@@ -5,6 +5,7 @@ REMAP_ATEN_OP_NAMES = {
     "reciprocal": "rcp",
     "bitwise_not": "not",
     "bitwise_not_cpu": "not",
+    "logical_not": "not",
     "bitwise_cpu": "and",
     "__and__": "and",
     "__or__": "or",

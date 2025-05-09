@@ -295,7 +295,7 @@ def zeros_like(**kwargs):
 def empty_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
-    With tract we use use exapnsion
+    With tract we use use expansion
 
     """
     return _x_like(tensor_build_fn=torch.zeros, **kwargs)
@@ -305,10 +305,21 @@ def empty_like(**kwargs):
 def ones_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
-    With tract we use use exapnsion
+    With tract we use use expansion
 
     """
     return _x_like(tensor_build_fn=torch.ones, **kwargs)
+
+
+@OP_REGISTRY.register()
+def full_like(**kwargs):
+    """Operator can not be exactly exported to NNEF if dynamic.
+
+    With tract we use use expansion
+
+    """
+    fill_value = kwargs["node"].inputs.pop(1).data
+    return _x_like(tensor_build_fn=lambda sh, dtype: torch.full(sh, fill_value, dtype=dtype), **kwargs)
 
 
 @OP_REGISTRY.register()
