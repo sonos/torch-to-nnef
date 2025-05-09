@@ -157,10 +157,7 @@ class LLMExporter:
             # tie_encoder_decoder=True
             self.hf_model_causal.tie_weights()
 
-        self.model_infos = HFConfigHelper(
-            self.hf_model_causal.config._name_or_path,
-            self.hf_model_causal.config,
-        )
+        self.model_infos = HFConfigHelper(self.hf_model_causal.config)
 
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal, num_logits_to_keep=num_logits_to_keep

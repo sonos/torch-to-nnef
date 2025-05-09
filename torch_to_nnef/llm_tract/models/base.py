@@ -1,10 +1,11 @@
+from collections import OrderedDict
 from functools import partial
-import typing as T
-
-import logging
-import torch
-
 import inspect
+import logging
+import typing as T
+from functools import wraps
+
+import torch
 
 try:
     from transformers import AutoModelForCausalLM
@@ -13,6 +14,7 @@ except ImportError as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +39,38 @@ def build_past_kv_list(
 def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
     return DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
 
+def update_forward_signature(self):
+    """ trickery to help torch > 2.0 new export API tracing. """
+    # pylint: disable-next: import-outside-toplevel
+    from torch_to_nnef.llm_tract.config import HFConfigHelper
+    # {
+    sign = inspect.signature(self.forward)
+    kv_inames = HFConfigHelper(self.model.config).build_kv_cache_infos(0)[0]
+    new_params = OrderedDict()
+
+    # POSITIONAL_ONLY would have been more accurate BUT
+    # torch._dynamo.eval_frame l1372 signature_to_fullargspec
+    # expect only POSITIONAL_OR_KEYWORD ...
+    kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
+    new_params["input_ids"] = inspect.Parameter(
+        "input_ids",
+        kind,
+        annotation=torch.Tensor
+    )
+    for kv_iname in kv_inames:
+        new_params[kv_iname] = inspect.Parameter(
+            kv_iname,
+            kind,
+            annotation=torch.Tensor
+        )
+
+    self._forward = self.forward
+    @wraps(self._forward)
+    def wrapped_forward(*args, **kwargs):
+        return self._forward(*args, **kwargs)
+    wrapped_forward.__signature__ = sign.replace(parameters=new_params.values())
+    self.forward = wrapped_forward
+    # }
 
 class TorchToNNEFWrappedLLM(torch.nn.Module):
     """Base module class for all LLM wrapping
@@ -49,6 +83,7 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.forward_kwargs = {}
+
 
 
 class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
@@ -68,6 +103,7 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         super().__init__()
         self.model = model
         self.num_logits_to_keep = num_logits_to_keep
+        update_forward_signature(self)
 
     @property
     def device(self):
@@ -182,6 +218,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                 )
 
         self.forward_kwargs = fkwargs
+        update_forward_signature(self)
 
     @property
     def device(self):

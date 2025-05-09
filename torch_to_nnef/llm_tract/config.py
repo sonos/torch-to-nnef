@@ -117,9 +117,8 @@ class HFConfigHelper:
 
     """
 
-    def __init__(self, model_slug, conf):
+    def __init__(self, conf):
         self.conf = conf
-        self.model_slug = model_slug
         if conf.model_type == "openelm":
             self.max_position_embeddings = conf.max_context_length
         else:
