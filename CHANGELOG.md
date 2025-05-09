@@ -3,6 +3,17 @@
 
 ## Unreleased
 
+## [0.17.3] - 2025-05-09
+
+### Added
+
+- aten::`full_like`, `_softmax`, `mm`, `logical_not`, `scalar_tensor`, `to_copy`
+- forward signature of wrapped llm models is updated live based on model KV cache quantity to help `torch.export` understand all parameters (*args, **kwargs does not work)
+
+### Change
+
+- `HFConfigHelper` now only need HF conf (no more slug name)
+
 ## [0.17.2] - 2025-04-10
 
 ### Added
