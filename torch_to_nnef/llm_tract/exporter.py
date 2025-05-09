@@ -295,15 +295,21 @@ class LLMExporter:
                 LOGGER.error(msg)
                 raise TorchToNNEFConsistencyError(msg)
 
-        err_check("logits", wrapped_outs[0], outs["logits"])
-        for kv_name, ref, cand in zip(
-            out_cache_names, out_pkv, wrapped_outs[1:]
-        ):
-            err_check(kv_name, ref, cand)
-        LOGGER.info(
-            f"In PyTorch wrapped_model:{self.model_infos.wrapper_class} "
-            f"provide same results as {self.hf_model_causal.__class__}"
-        )
+        if isinstance(self.wrapped_model, torch.fx.GraphModule):
+            LOGGER.info(
+                "skip checks wrapped_model vs hf_model_causal since use of GraphModule "
+                "(which copied graph and could have been quantized in meantime)"
+            )
+        else:
+            err_check("logits", wrapped_outs[0], outs["logits"])
+            for kv_name, ref, cand in zip(
+                out_cache_names, out_pkv, wrapped_outs[1:]
+            ):
+                err_check(kv_name, ref, cand)
+            LOGGER.info(
+                f"In PyTorch wrapped_model:{self.model_infos.wrapper_class} "
+                f"provide same results as {self.hf_model_causal.__class__}"
+            )
 
     def generate_inputs_io_names_and_dynaxes(
         self,
