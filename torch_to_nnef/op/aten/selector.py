@@ -392,9 +392,14 @@ def index_(node, op_helper, inference_target, **kwargs):
             return _gather_nd(node, op_helper)
 
     custom_fragments = []
+    attrs = {
+        "axis": len(indexes_node.data) - 1,
+    }
     if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
+        if isinstance(input_node.data, QTensorRef):
+            attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
     else:
         op_name = "gather"
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -406,9 +411,7 @@ def index_(node, op_helper, inference_target, **kwargs):
                 indexes_node.data[-1],
             ),
         ],
-        attrs={
-            "axis": len(indexes_node.data) - 1,
-        },
+        attrs=attrs,
         force_consistent_inputs_shapes=False,
     )
     return custom_fragments
@@ -748,6 +751,11 @@ def index_select(node, op_helper, inference_target, **kwargs):
     input_node, dim_node, indexes_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(inference_target)
+    attrs = {
+        "axis": dim_node.data,
+    }
+    if isinstance(input_node.data, QTensorRef):
+        attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "tract_core_gather",
@@ -757,9 +765,7 @@ def index_select(node, op_helper, inference_target, **kwargs):
                 indexes_node,
             ),
         ],
-        attrs={
-            "axis": dim_node.data,
-        },
+        attrs=attrs,
         force_consistent_inputs_shapes=False,
     )
     return ["tract_core"]
