@@ -216,6 +216,22 @@ class TensorVariable(Data):
     def into_tensor_variable(self):
         return self
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, TensorVariable):
+            return False
+        return (
+            self.name == other.name
+            and self.shape == other.shape
+            and self.dtype == other.dtype
+            and self.dtype == other.dtype
+            and (
+                (self.data == other.data).all().item()
+                if self.data is not None and other.data is not None
+                else self.data == other.data
+            )
+            and self.quant == other.quant
+        )
+
     def __hash__(self):
         return hash(self.name)
 
