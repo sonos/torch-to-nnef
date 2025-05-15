@@ -695,12 +695,13 @@ class LLMExporter:
             }
         )
         if compression_method is not None:
-            tract_specific_properties.update(
-                {
-                    "compression_method": compression_method,
-                    "compression_registry": compression_registry,
-                }
-            )
+            cprops = {
+                "compression_register_key": compression_method,
+                "compression_registry": compression_registry,
+            }
+            if "q4" in compression_method:
+                cprops["compression_method"] = "min_max_q4_0_with_embeddings"
+            tract_specific_properties.update(cprops)
         if not self.hf_model_causal.config._name_or_path.startswith("/tmp"):
             tract_specific_properties["name_or_path"] = (
                 self.hf_model_causal.config._name_or_path
