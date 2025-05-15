@@ -1,5 +1,6 @@
 import json
 import os
+from types import NoneType
 import typing as T
 from pathlib import Path
 import logging
@@ -45,6 +46,14 @@ except (ModuleNotFoundError, ImportError) as exp:
     ) from exp
 
 LOGGER = logging.getLogger(__name__)
+
+TYPE_OPTIONAL_DEVICE_MAP = T.Union[
+    NoneType,
+    str,
+    T.Dict[str, T.Union[int, str, torch.device]],
+    int,
+    torch.device,
+]
 
 # NOTE: this assume LLM exported will always 'speak' english
 # which may not be the case in the future
@@ -93,6 +102,7 @@ def _load_exporter_from(
     force_inputs_dtype: T.Optional[DtypeStr] = None,
     num_logits_to_keep: int = 1,
     merge_peft: T.Optional[bool] = None,
+    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
 ):
     if (
         is_forced_half_precision_model(force_inputs_dtype, force_module_dtype)
@@ -109,6 +119,7 @@ def _load_exporter_from(
         local_dir,
         force_module_dtype=force_module_dtype,
         merge_peft=merge_peft,
+        device_map=device_map,
     )
     tokenizer = load_tokenizer(
         hf_model_causal.config,
@@ -848,30 +859,64 @@ def load_peft_model(local_dir, kwargs):
         return hf_model_causal
 
 
+def _from_pretrained(slug_or_dir: str, **kwargs):
+    if "device_map" in kwargs and kwargs["device_map"] is not None:
+        import accelerate
+        from huggingface_hub import hf_hub_download
+        import huggingface_hub
+
+        device_map = kwargs.pop("device_map")
+        with accelerate.init_empty_weights():
+            model = AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
+        if Path(slug_or_dir).exists():
+            weights_location = slug_or_dir
+        else:
+            weights_location = Path(
+                huggingface_hub.hf_hub_download(
+                    slug_or_dir, "README.md"
+                )  # assume README is in targeted repo
+            ).parent
+        if device_map == "auto":
+            device_map = accelerate.infer_auto_device_map(model)
+            LOGGER.info(f"device map selected: {device_map}")
+        model = accelerate.load_checkpoint_and_dispatch(
+            model,
+            weights_location,
+            device_map=device_map,
+            offload_folder="/tmp/dbg",
+        )
+        return model
+    return AutoModelForCausalLM.from_pretrained(*args, **kwargs)
+
+
 def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
+    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if force_module_dtype is not None:
         kwargs["torch_dtype"] = DtypeStr(force_module_dtype).torch_dtype
+
+    if device_map is not None:
+        kwargs["device_map"] = device_map
 
     custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
     if custom_config is not None:
         hf_model_causal = AutoModelForCausalLM.from_config(
             custom_config, trust_remote_code=True
         )
-        LOGGER.info(f"load custom config: '{hf_model_slug}'")
+        LOGGER.info(
+            f"load custom config: '{hf_model_slug}', un-initialized weights"
+        )
     elif local_dir:
         try:
             dir_path = find_subdir_with_filename_in(local_dir, "config.json")
             assert dir_path.is_dir(), dir_path
             assert_model_safetensors_exists(dir_path)
-            hf_model_causal = AutoModelForCausalLM.from_pretrained(
-                dir_path, **kwargs
-            )
+            hf_model_causal = _from_pretrained(dir_path, **kwargs)
             LOGGER.info(
                 f"load '{hf_model_causal.config.model_type}' "
                 f"from local directory: {dir_path}"
@@ -880,9 +925,7 @@ def load_model(
             hf_model_causal = load_peft_model(local_dir, kwargs)
 
     else:
-        hf_model_causal = AutoModelForCausalLM.from_pretrained(
-            hf_model_slug, **kwargs
-        )
+        hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
         )
@@ -939,6 +982,7 @@ def dump_llm(
     force_inputs_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
     num_logits_to_keep: int = 1,
+    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
     """Util to export LLM model"""
@@ -949,6 +993,7 @@ def dump_llm(
         force_inputs_dtype=force_inputs_dtype,
         merge_peft=merge_peft,
         num_logits_to_keep=num_logits_to_keep,
+        device_map=device_map,
     )
     if isinstance(kwargs.get("tract_check_io_tolerance"), str):
         kwargs["tract_check_io_tolerance"] = TractCheckTolerance(

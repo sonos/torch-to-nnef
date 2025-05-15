@@ -32,6 +32,7 @@ llm_tract = [
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
     "transformers>=4.35.2,<5",
+    "accelerate",
 ]
 peft = ["peft"]
 test = [
@@ -51,8 +52,8 @@ test = [
 Homepage = "https://github.com/sonos/torch-to-nnef"
 
 [project.scripts]
-export_llm_to_tract = "torch_to_nnef.llm_tract.cli:main"
-export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
+t2n_export_llm_to_tract = "torch_to_nnef.llm_tract.cli:main"
+t2n_export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
 
 [dependency-groups]
 dev = [

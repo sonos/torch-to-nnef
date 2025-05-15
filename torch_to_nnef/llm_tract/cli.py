@@ -5,6 +5,7 @@ With options to compress it to Q4_0 and use float16
 """
 
 import argparse
+import json
 import typing as T
 import logging
 
@@ -140,6 +141,14 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--device-map",
+            help="**device_map** as defined by huggingface libs 'accelerate'."
+            " this allow to place different part of a model on different hardware part"
+            " including on-disk. "
+            "https://huggingface.co/docs/accelerate/en/concept_guides/big_model_inference",
+        )
+
+        parser.add_argument(
             "-tt",
             "--tract-check-io-tolerance",
             default=TractCheckTolerance.APPROXIMATE.value,
@@ -255,6 +264,9 @@ def main():
         log_level = log.DEBUG
     kwargs = vars(args)
     del kwargs["verbose"]
+    if kwargs["device_map"] is not None:
+        if "{" in kwargs["device_map"]:
+            kwargs["device_map"] = json.loads(kwargs["device_map"])
     dump_llm(
         **kwargs,
         log_level=log_level,
