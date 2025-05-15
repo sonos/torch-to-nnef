@@ -3,6 +3,15 @@
 
 ## Unreleased
 
+## [0.17.4] - 2025-05-15
+
+### Fix
+
+- Add eq in TensorVariable to build proper dict keys and in queries from it (without traced data accounted)
+- all tract_core_gather add attrs datum_type
+- Q4 compression_method tag compat with internal llm lib
+- Skip check_io between wrapper_model vs hf_model if wrapped_model
+
 ## [0.17.3] - 2025-05-09
 
 ### Added
