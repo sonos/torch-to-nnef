@@ -866,28 +866,36 @@ def load_peft_model(local_dir, kwargs):
 def _from_pretrained(slug_or_dir: str, **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         # pylint: disable-next=import-outside-toplevel
-        import accelerate
 
         device_map = kwargs.pop("device_map")
-        with accelerate.init_empty_weights():
-            model = AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
-        if Path(slug_or_dir).exists():
-            weights_location = slug_or_dir
-        else:
-            weights_location = Path(
-                huggingface_hub.hf_hub_download(
-                    slug_or_dir, "README.md"
-                )  # assume README is in targeted repo
-            ).parent
-        if device_map == "auto":
-            device_map = accelerate.infer_auto_device_map(model)
-            LOGGER.info(f"device map selected: {device_map}")
-        model = accelerate.load_checkpoint_and_dispatch(
-            model,
-            weights_location,
-            device_map=device_map,
-            offload_folder=tempfile.mkdtemp(),
-        )
+        if "" in device_map:
+            __import__("ipdb").set_trace()
+            pass
+
+        if device_map:
+            import accelerate
+
+            with accelerate.init_empty_weights():
+                model = AutoModelForCausalLM.from_pretrained(
+                    slug_or_dir, **kwargs
+                )
+            if Path(slug_or_dir).exists():
+                weights_location = slug_or_dir
+            else:
+                weights_location = Path(
+                    huggingface_hub.hf_hub_download(
+                        slug_or_dir, "README.md"
+                    )  # assume README is in targeted repo
+                ).parent
+            if device_map == "auto":
+                device_map = accelerate.infer_auto_device_map(model)
+                LOGGER.info(f"device map selected: {device_map}")
+            model = accelerate.load_checkpoint_and_dispatch(
+                model,
+                weights_location,
+                device_map=device_map,
+                offload_folder=tempfile.mkdtemp(),
+            )
         return model
     return AutoModelForCausalLM.from_pretrained(*args, **kwargs)
 

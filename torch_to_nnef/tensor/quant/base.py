@@ -424,7 +424,7 @@ class QTensorRef(torch.Tensor):
             kwargs = {}
 
         # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.torch_named_tensor import NamedTensor
+        from torch_to_nnef.tensor import NamedTensor
 
         if not all(
             issubclass(cls, t) or issubclass(NamedTensor, t) for t in types

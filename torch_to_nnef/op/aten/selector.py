@@ -15,7 +15,7 @@ from torch_to_nnef.op.helper import (
     pick_axis,
     pick_index_in_axis,
 )
-from torch_to_nnef.qtensor.base import QTensorRef
+from torch_to_nnef.tensor.quant import QTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 LOGGER = logging.getLogger(__name__)

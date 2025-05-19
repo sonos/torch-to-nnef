@@ -16,7 +16,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.qtensor.base import (
+from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
     QTensor,
     qscale_per_group_f16_min_max_calibration,

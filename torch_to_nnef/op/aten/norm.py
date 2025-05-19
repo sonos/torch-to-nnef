@@ -12,7 +12,7 @@ from torch_to_nnef.op.helper import (
     pick_axis,
     weight_bias_and_output_tensor,
 )
-from torch_to_nnef.qtensor.qtract import QTensorTract
+from torch_to_nnef.tensor.quant import QTensorTract
 
 OP_REGISTRY = AtenOpRegistry()
 

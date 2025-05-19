@@ -113,7 +113,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
 
     """
     # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.qtensor.base import QTensor, QTensorRef
+    from torch_to_nnef.tensor.quant import QTensor, QTensorRef
 
     LOGGER.debug("started to apply NamedTensor")
     ids_to_ntensor: T.Dict[int, NamedTensor] = {}

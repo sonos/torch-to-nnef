@@ -7,8 +7,8 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.qtensor.base import QTensor
-from torch_to_nnef.qtensor.qtract import (
+from torch_to_nnef.tensor.quant import (
+    QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.utils import get_parent_module_and_param_name

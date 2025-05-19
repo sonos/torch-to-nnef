@@ -17,7 +17,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     LISTCONSTRUCT_KIND,
     TUPLECONSTRUCT_KIND,
 )
-from torch_to_nnef.torch_named_tensor import NamedTensor
+from torch_to_nnef.tensor.named import NamedTensor
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
 
