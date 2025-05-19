@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from types import NoneType
 import typing as T
 from pathlib import Path
@@ -28,12 +29,13 @@ from torch_to_nnef.llm_tract.config import (
     DtypeStr,
     HFConfigHelper,
 )
+from torch_to_nnef.llm_tract.models.base import use_dtype_dyn_cache
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, torch_version
 
 try:
     from transformers import GenerationConfig
-    from huggingface_hub import login
+    import huggingface_hub
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     from torch_to_nnef.llm_tract.models.base import (
@@ -255,7 +257,7 @@ class LLMExporter:
             except OSError as exp:
                 if "gated repo" in exp.args[0]:
                     print(exp.args[0])
-                    login()
+                    huggingface_hub.login()
                     exporter = _load_exporter_from(**exporter_from_kwargs)
                 else:
                     raise exp
@@ -458,6 +460,7 @@ class LLMExporter:
                 "force_linear_accumulation_in_f32": True,
             }
 
+    @use_dtype_dyn_cache
     def prepare(  # pylint: disable=too-many-positional-arguments
         self,
         compression_method: T.Optional[str] = None,
@@ -505,6 +508,7 @@ class LLMExporter:
             if wrapper_io_check:
                 self.check_wrapper_io()
 
+    @use_dtype_dyn_cache
     def export_model(  # pylint: disable=too-many-positional-arguments
         self,
         export_dirpath: Path,
@@ -861,9 +865,8 @@ def load_peft_model(local_dir, kwargs):
 
 def _from_pretrained(slug_or_dir: str, **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
+        # pylint: disable-next=import-outside-toplevel
         import accelerate
-        from huggingface_hub import hf_hub_download
-        import huggingface_hub
 
         device_map = kwargs.pop("device_map")
         with accelerate.init_empty_weights():
@@ -883,7 +886,7 @@ def _from_pretrained(slug_or_dir: str, **kwargs):
             model,
             weights_location,
             device_map=device_map,
-            offload_folder="/tmp/dbg",
+            offload_folder=tempfile.mkdtemp(),
         )
         return model
     return AutoModelForCausalLM.from_pretrained(*args, **kwargs)
