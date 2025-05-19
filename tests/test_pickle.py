@@ -2,10 +2,10 @@ import pickle
 
 import torch
 
-from torch_to_nnef.qtensor.qtract import (
+from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.torch_named_tensor import NamedTensor
+from torch_to_nnef.tensor import NamedTensor
 
 
 def test_pickle_named_tensor():

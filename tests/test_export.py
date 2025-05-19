@@ -21,7 +21,7 @@ from torch_to_nnef.export import (
     export_tensors_to_nnef,
 )
 from torch_to_nnef.inference_target.tract import build_io
-from torch_to_nnef.qtensor.qtract import (
+from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 
