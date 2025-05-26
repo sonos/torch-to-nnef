@@ -189,6 +189,7 @@ def export_model_to_nnef(
         active_custom_fragments.update(
             get_active_custom_fragments(graph_extractor)
         )
+        del graph_extractor
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level
         )

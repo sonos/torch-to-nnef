@@ -30,6 +30,11 @@ from torch_to_nnef.llm_tract.config import (
     HFConfigHelper,
 )
 from torch_to_nnef.llm_tract.models.base import use_dtype_dyn_cache
+from torch_to_nnef.tensor.offload import (
+    AUTO_DEVICE_MAP_KEY,
+    ON_DISK_DEVICE_MAP_KEY,
+    t2n_load_checkpoint_and_dispatch,
+)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, torch_version
 
@@ -866,38 +871,47 @@ def load_peft_model(local_dir, kwargs):
 def _from_pretrained(slug_or_dir: str, **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         # pylint: disable-next=import-outside-toplevel
+        import accelerate
 
         device_map = kwargs.pop("device_map")
-        if "" in device_map:
-            __import__("ipdb").set_trace()
-            pass
+        if Path(slug_or_dir).exists():
+            weights_location = Path(slug_or_dir)
+        else:
+            weights_location = Path(
+                huggingface_hub.hf_hub_download(
+                    slug_or_dir, "README.md"
+                )  # assume README is in targeted repo
+            ).parent
 
-        if device_map:
-            import accelerate
+        # TODO: skip accelerate to init weights devices
+        with accelerate.init_empty_weights():
+            model = AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
 
-            with accelerate.init_empty_weights():
-                model = AutoModelForCausalLM.from_pretrained(
-                    slug_or_dir, **kwargs
-                )
-            if Path(slug_or_dir).exists():
-                weights_location = slug_or_dir
-            else:
-                weights_location = Path(
-                    huggingface_hub.hf_hub_download(
-                        slug_or_dir, "README.md"
-                    )  # assume README is in targeted repo
-                ).parent
-            if device_map == "auto":
-                device_map = accelerate.infer_auto_device_map(model)
-                LOGGER.info(f"device map selected: {device_map}")
+        if device_map == "auto":
+            device_map = accelerate.infer_auto_device_map(model)
+            LOGGER.info(f"device map selected: {device_map}")
+        if any(
+            _ in device_map
+            for _ in [
+                AUTO_DEVICE_MAP_KEY,
+                ON_DISK_DEVICE_MAP_KEY,
+            ]
+        ):
+            t2n_load_checkpoint_and_dispatch(
+                model,
+                weights_location,
+                device_map=device_map,
+                offload_dir=Path(tempfile.mkdtemp(suffix="offload_t2n")),
+            )
+        elif device_map:
             model = accelerate.load_checkpoint_and_dispatch(
                 model,
                 weights_location,
                 device_map=device_map,
-                offload_folder=tempfile.mkdtemp(),
+                offload_folder=tempfile.mkdtemp(suffix="offload_accelerate"),
             )
         return model
-    return AutoModelForCausalLM.from_pretrained(*args, **kwargs)
+    return AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
 
 
 def load_model(
