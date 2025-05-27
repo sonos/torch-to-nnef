@@ -196,7 +196,7 @@ def add_tensor_variable_node_as_nnef_tensor(
                 },
             )
         else:
-            nnef_tensor_ref.data = node.data.detach().numpy()
+            nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
             if not prevent_variable and (
                 len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)

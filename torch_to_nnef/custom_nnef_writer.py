@@ -2,12 +2,18 @@
 original module fullname
 `nnef_tools.io.nnef.writer`
 
-As of now adaptation is minimal so code style may differ significantly from this codebase.
-still we did minor modification to be pythonic.
-(force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
+This module is adapted with following goals:
 
-It is adapted with goal:
-- to handle special Tract quantization variables storage with custom .dat data storage format
+- 1. Handling special Tract quantization variables storage with custom .dat
+  data storage format
+- 2. in `torch_to_nnef` transformation to numpy array of torch
+tensor is postponed to just before serialization. this avoid COPY to stay in memory (
+    so the 'nnef.Graph' and data hold tensor of different kind
+    than initially intended by Khronos group developpers
+). This is crucial to export large models.
+
+Also some minimal adaptation like code style have been done be pythonic.
+(force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
 
 """
 
@@ -100,7 +106,7 @@ def _print(
         inputs = (
             (
                 (
-                    from_numpy(item.data)
+                    from_numpy(item.data.detach().numpy())
                     if item.producer is None
                     else nnef.Identifier(as_str(item.name))
                 )
@@ -316,7 +322,7 @@ class Writer:
                 else:
                     filename = op.attribs["label"] + ".dat"
                     write_nnef_tensor(
-                        np.asarray(op.output.data, order="C"),
+                        np.asarray(op.output.data.detach().numpy(), order="C"),
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),
                     )
