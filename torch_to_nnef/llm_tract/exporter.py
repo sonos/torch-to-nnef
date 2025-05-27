@@ -1,7 +1,6 @@
 import json
 import os
 import tempfile
-from types import NoneType
 import typing as T
 from pathlib import Path
 import logging
@@ -55,7 +54,7 @@ except (ModuleNotFoundError, ImportError) as exp:
 LOGGER = logging.getLogger(__name__)
 
 TYPE_OPTIONAL_DEVICE_MAP = T.Union[
-    NoneType,
+    type(None),
     str,
     T.Dict[str, T.Union[int, str, torch.device]],
     int,

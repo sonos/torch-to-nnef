@@ -71,7 +71,7 @@ class OpaqueTensorRef(torch.Tensor):
 
     @property
     def nnef_name(self):
-        return self.opaque_tensor.nnef_name
+        return getattr(self.opaque_tensor, "nnef_name", None)
 
     @property
     def data(self):
