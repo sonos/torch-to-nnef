@@ -2,6 +2,10 @@ from torch_to_nnef.tensor.named import (
     NamedTensor,
     apply_name_to_tensor_in_module,
 )
+from torch_to_nnef.tensor.base import (
+    OpaqueTensorRef,
+    apply_opaque_tensor_in_params_set_as_ref,
+)
 from torch_to_nnef.tensor.quant import (
     QTensor,
     QScalePerGroupF16,
@@ -14,4 +18,6 @@ __all__ = [
     "QTensor",
     "QScalePerGroupF16",
     "QTensorTractScaleOnly",
+    "OpaqueTensorRef",
+    "apply_opaque_tensor_in_params_set_as_ref",
 ]

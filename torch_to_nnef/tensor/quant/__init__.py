@@ -5,9 +5,7 @@ from torch_to_nnef.tensor.quant.base import (
     QTensor,
     QScheme,
     U8Compressor,
-    QTensorRef,
     qscale_per_group_f16_min_max_calibration,
-    apply_qtensor_in_params_set_as_ref,
 )
 from torch_to_nnef.tensor.quant.qtract import (
     QTensorTract,
@@ -19,9 +17,7 @@ __all__ = [
     "QTensor",
     "QScheme",
     "U8Compressor",
-    "QTensorRef",
     "qscale_per_group_f16_min_max_calibration",
-    "apply_qtensor_in_params_set_as_ref",
     "QScalePerGroupF16",
     "QTensorTract",
     "QTensorTractScaleOnly",

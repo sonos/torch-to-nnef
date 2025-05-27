@@ -10,6 +10,7 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.tensor.base import OpaqueTensor
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -170,7 +171,7 @@ class U8Compressor:
         return self
 
 
-class QTensor(torch.Tensor):
+class QTensor(OpaqueTensor):
     """Common interface for all Compressed storage"""
 
     @staticmethod
@@ -217,6 +218,9 @@ class QTensor(torch.Tensor):
         return self.qscheme.dequantize(
             self.decompress_to_u8(), target_dtype=self.dequant_to_dtype
         )
+
+    def to_base_tensor(self):
+        return self.decompress()
 
     def clone(self, *args, **kwargs):
         return self.__class__(
@@ -285,16 +289,6 @@ class QTensor(torch.Tensor):
         ]
         self.u8_blob = self.u8_blob.to(new_device)
 
-    def detach(self):
-        # need overwrite since nn.Paramater use it at __new__
-        LOGGER.debug("QTensor does not support detach")
-        return self
-
-    def requires_grad_(self, requires_grad):
-        # need overwrite since nn.Paramater use it at __new__
-        LOGGER.debug("QTensor does not support requires_grad")
-        return self
-
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
         """
@@ -336,7 +330,6 @@ class QTensor(torch.Tensor):
 
     @property
     def data(self):
-        """very important to keep access to all special attr of QTensor"""
         return self
 
     @data.setter
@@ -356,93 +349,6 @@ class QTensor(torch.Tensor):
 
         """
         raise TorchToNNEFNotImplementedError()
-
-
-class QTensorRef(torch.Tensor):
-    @staticmethod
-    def __new__(
-        cls,
-        fp_tensor,
-        q_tensor,
-        *args,
-        **kwargs,
-    ):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=TracerWarning)
-            return super().__new__(cls, fp_tensor, *args, **kwargs)
-
-    def __init__(
-        self,
-        fp_tensor: torch.Tensor,
-        q_tensor: QTensor,
-    ):
-        super().__init__()
-        self.q_tensor = q_tensor
-
-    @property
-    def nnef_name(self):
-        return self.q_tensor.nnef_name
-
-    @property
-    def data(self):
-        return self
-
-    @data.setter
-    def data(self, new_data):
-        raise TorchToNNEFNotImplementedError(
-            f"Trying to alter a QTensorRef.data: {self}"
-        )
-
-    def clone(self, *args, **kwargs):
-        return self.__class__(
-            super().clone(*args, **kwargs),
-            self.q_tensor,
-        )
-
-    def to(self, *args, **kwargs):
-        self.q_tensor = self.q_tensor.to(*args, **kwargs)
-        return self
-
-    def detach(self):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
-
-    def requires_grad_(self, requires_grad):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
-
-    @classmethod
-    def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
-        This __torch_function__ implementation wraps subclasses such that
-        methods called on subclasses return a subclass instance instead of
-        a ``torch.Tensor`` instance.
-        we modify it so it's always reference torch.Tensor.
-        """
-
-        if kwargs is None:
-            kwargs = {}
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor import NamedTensor
-
-        if not all(
-            issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
-        ):
-            return NotImplemented
-
-        with select_ctx_disable_torch_fn():
-            new_args = [a.clone() if isinstance(a, cls) else a for a in args]
-            new_kwargs = {
-                k: v.clone() if isinstance(v, cls) else v
-                for k, v in kwargs.items()
-            }
-            ret = func(*new_args, **new_kwargs)
-            if func in get_default_nowrap_functions():
-                return ret
-            # important modification
-            # do not propagate this qtype
-            return _convert(ret, torch.Tensor)
 
 
 def qscale_per_group_f16_min_max_calibration(
@@ -488,36 +394,3 @@ def qscale_per_group_f16_min_max_calibration(
         scale=scale.reshape(qshape),
         n_bits=n_bits,
     )
-
-
-def apply_qtensor_in_params_set_as_ref(model: torch.nn.Module):
-    """Transform QTensor Parameters into QTensorRef
-
-    This is applied at export time of `torch_to_nnef`
-    Just before doing any tracing
-
-    """
-    LOGGER.debug("started to apply qtensor ref with decompress")
-    ids_to_qparams = {}
-    for full_name, param in model.named_parameters(remove_duplicate=False):
-        if not isinstance(param, QTensor):
-            continue
-        qid = id(param)
-        if qid not in ids_to_qparams:
-            param.nnef_name = full_name
-            new_param = QTensorRef(param.decompress(), param)
-            ids_to_qparams[qid] = new_param
-        else:
-            new_param = ids_to_qparams[qid]
-        ref_mod, p_name = get_parent_module_and_param_name(model, full_name)
-
-        LOGGER.debug(f"apply qtensor ref with decompress: {full_name}")
-        setattr(
-            ref_mod,
-            p_name,
-            torch.nn.Parameter(
-                new_param,
-                requires_grad=False,
-            ),
-        )
-    LOGGER.debug("sucessfull to apply qtensor ref with decompress")

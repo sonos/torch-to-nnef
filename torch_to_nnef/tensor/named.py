@@ -7,6 +7,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
+from torch_to_nnef.tensor.base import OpaqueTensor
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -15,7 +16,7 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
-class NamedTensor(torch.Tensor):
+class NamedTensor(OpaqueTensor):
     @staticmethod
     def __new__(
         cls,
@@ -37,26 +38,17 @@ class NamedTensor(torch.Tensor):
         self._fp_tensor = fp_tensor
         self.nnef_name = nnef_name
 
+    def to_base_tensor(self):
+        return self._fp_tensor
+
     def __repr__(self) -> str:
         return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
-
-    @property
-    def data(self):
-        return self
 
     def clone(self, *args, **kwargs):
         return self.__class__(
             super().clone(*args, **kwargs),
             nnef_name=self.nnef_name,
         )
-
-    def detach(self):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
-
-    def requires_grad_(self, requires_grad):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
@@ -111,12 +103,9 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
 
     """
     # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.quant import QTensor, QTensorRef
+    from torch_to_nnef.tensor.base import OpaqueTensor, OpaqueTensorRef
 
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.offload import OffloadedTensor
-
-    skip_tensor_types = (QTensorRef, QTensor, OffloadedTensor)
+    skip_tensor_types = (OpaqueTensorRef, OpaqueTensor)
 
     LOGGER.debug("started to apply NamedTensor")
     ids_to_ntensor: T.Dict[int, NamedTensor] = {}

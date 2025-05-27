@@ -34,10 +34,11 @@ import tempfile
 
 from safetensors import safe_open
 from safetensors.torch import load_file as safe_load_file
-from torch import Tensor, nn
+from torch import nn
 from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
+from torch_to_nnef.tensor.base import OpaqueTensor
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
 import torch
 
@@ -54,7 +55,7 @@ SAFE_WEIGHTS_NAME = f"{SAFE_MODEL_NAME}.safetensors"
 LOGGER = logging.getLogger(__name__)
 
 
-class OffloadedTensor(torch.Tensor):
+class OffloadedTensor(OpaqueTensor):
     @staticmethod
     def __new__(
         cls,
@@ -151,27 +152,15 @@ class OffloadedTensor(torch.Tensor):
         tensor = torch.load(self.offload_path).to(self.target_device)
         return tensor
 
+    def to_base_tensor(self):
+        return self.reload()
+
     def __repr__(self, *, tensor_contents=None):
         return (
             f"<OffloadedTensor name='{self._name}', "
             f"device='{self.target_device}', "
             f"offload_dir='{self.offload_dir}'>"
         )
-
-    @property
-    def data(self):
-        return self.reload()
-
-    def clone(self, *args, **kwargs):
-        return self
-
-    def detach(self):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
-
-    def requires_grad_(self, mode=False):
-        # need overwrite since nn.Paramater use it at __new__
-        return self
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
