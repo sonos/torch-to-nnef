@@ -138,9 +138,11 @@ class OffloadedTensor(torch.Tensor):
                 )
             offload_dir = cls.tmp_basedir
         torch.save(tensor, cls._offload_path(offload_dir, name))
-        new_tensor = tensor.reshape(-1)[0].to("meta")
         off_tensor = cls(
-            new_tensor, tensor.device, offload_dir=offload_dir, name=name
+            torch.zeros((1,), device="meta"),
+            tensor.device,
+            offload_dir=offload_dir,
+            name=name,
         )
         LOGGER.info(f"Offloaded param (kept on-disk): '{name}'")
         return off_tensor
