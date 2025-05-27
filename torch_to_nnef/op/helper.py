@@ -175,18 +175,11 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
-        if isinstance(node.data, QTensor) or (
-            isinstance(node.data, OpaqueTensorRef)
-            and isinstance(node.data.opaque_tensor, QTensor)
-        ):
-            if isinstance(node.data, OpaqueTensorRef):
-                q_tensor = node.data.opaque_tensor
-            else:
-                q_tensor = node.data
-
-            nnef_tensor_ref.qtensor = (
-                q_tensor  # main assign to allow corect dump
-            )
+        if isinstance(node.data, OpaqueTensorRef):
+            node.data = node.data.opaque_tensor
+        if isinstance(node.data, QTensor):
+            # main assign to allow corect dump
+            nnef_tensor_ref.qtensor = node.data
             add_nnef_operation(
                 graph=g,
                 type="variable",

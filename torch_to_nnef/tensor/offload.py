@@ -44,7 +44,7 @@ import torch
 
 
 AUTO_DEVICE_MAP_KEY = "t2n_auto"
-ON_DISK_DEVICE_MAP_KEY = "t2n_cpu_offload_disk"
+ON_DISK_DEVICE_MAP_KEY = "t2n_offload_disk"
 
 MODEL_NAME = "pytorch_model"
 WEIGHTS_NAME = f"{MODEL_NAME}.bin"

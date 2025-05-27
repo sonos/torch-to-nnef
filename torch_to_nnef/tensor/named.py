@@ -7,7 +7,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -16,7 +16,9 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
-class NamedTensor(OpaqueTensor):
+class NamedTensor(torch.Tensor):
+    """Tensor enriched with name attribute"""
+
     @staticmethod
     def __new__(
         cls,
@@ -38,8 +40,26 @@ class NamedTensor(OpaqueTensor):
         self._fp_tensor = fp_tensor
         self.nnef_name = nnef_name
 
-    def to_base_tensor(self):
-        return self._fp_tensor
+    @property
+    def data(self):
+        """very important to keep access to all special attr of OpaqueTensor"""
+        return self
+
+    @data.setter
+    def data(self, new_data):
+        raise TorchToNNEFNotImplementedError(
+            f"Trying to alter a TensorRef.data: {self}"
+        )
+
+    def detach(self):
+        # need overwrite since nn.Paramater use it at __new__
+        LOGGER.debug("OpaqueTensor does not support detach")
+        return self
+
+    def requires_grad_(self, mode=False):
+        # need overwrite since nn.Paramater use it at __new__
+        LOGGER.debug("OpaqueTensor does not support requires_grad")
+        return self
 
     def __repr__(self) -> str:
         return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
