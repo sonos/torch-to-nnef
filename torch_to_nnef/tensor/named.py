@@ -46,7 +46,7 @@ class NamedTensor(OpaqueTensor):
 
     def clone(self, *args, **kwargs):
         return self.__class__(
-            super().clone(*args, **kwargs),
+            torch.Tensor.clone(self, *args, **kwargs),
             nnef_name=self.nnef_name,
         )
 
