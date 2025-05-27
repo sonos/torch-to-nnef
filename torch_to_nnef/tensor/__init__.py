@@ -2,7 +2,7 @@ from torch_to_nnef.tensor.named import (
     NamedTensor,
     apply_name_to_tensor_in_module,
 )
-from torch_to_nnef.tensor.base import (
+from torch_to_nnef.tensor.opaque import (
     OpaqueTensorRef,
     apply_opaque_tensor_in_params_set_as_ref,
 )

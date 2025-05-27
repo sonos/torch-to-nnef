@@ -7,7 +7,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.tensor.base import OpaqueTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -103,7 +103,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
 
     """
     # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.base import OpaqueTensor, OpaqueTensorRef
+    from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
 
     skip_tensor_types = (OpaqueTensorRef, OpaqueTensor)
 
