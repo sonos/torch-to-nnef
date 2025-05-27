@@ -22,6 +22,7 @@ import os
 import shutil
 import tempfile
 
+import torch
 import nnef
 import numpy as np
 from nnef_tools.io.nnef.helpers import tgz_compress
@@ -57,6 +58,12 @@ _DtypeFromPyType = {
     bool: "logical",
     None: "dtype",
 }
+
+
+def maybe_torch_to_np(tensor):
+    if isinstance(tensor, torch.Tensor):
+        return tensor.detach().numpy()
+    return tensor
 
 
 def _nnef_dtype(dtype):
@@ -106,7 +113,7 @@ def _print(
         inputs = (
             (
                 (
-                    from_numpy(item.data.detach().numpy())
+                    from_numpy(maybe_torch_to_np(item.data))
                     if item.producer is None
                     else nnef.Identifier(as_str(item.name))
                 )
@@ -322,7 +329,9 @@ class Writer:
                 else:
                     filename = op.attribs["label"] + ".dat"
                     write_nnef_tensor(
-                        np.asarray(op.output.data.detach().numpy(), order="C"),
+                        np.asarray(
+                            maybe_torch_to_np(op.output.data), order="C"
+                        ),
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),
                     )
