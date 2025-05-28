@@ -35,7 +35,11 @@ from torch_to_nnef.tensor.offload import (
     t2n_load_checkpoint_and_dispatch,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import SemanticVersion, torch_version
+from torch_to_nnef.utils import (
+    SemanticVersion,
+    init_empty_weights,
+    torch_version,
+)
 
 try:
     from transformers import GenerationConfig
@@ -869,9 +873,6 @@ def load_peft_model(local_dir, kwargs):
 
 def _from_pretrained(slug_or_dir: str, **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
-        # pylint: disable-next=import-outside-toplevel
-        import accelerate
-
         device_map = kwargs.pop("device_map")
         if Path(slug_or_dir).exists():
             weights_location = Path(slug_or_dir)
@@ -882,11 +883,15 @@ def _from_pretrained(slug_or_dir: str, **kwargs):
                 )  # assume README is in targeted repo
             ).parent
 
-        # TODO: skip accelerate to init weights devices
-        with accelerate.init_empty_weights():
+        # use 'local' init_empty_weights to init weights devices
+        # to avoid 'accelerate' deps if un-needed
+        with init_empty_weights():
             model = AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
 
         if device_map == "auto":
+            # pylint: disable-next=import-outside-toplevel
+            import accelerate
+
             device_map = accelerate.infer_auto_device_map(model)
             LOGGER.info(f"device map selected: {device_map}")
         if any(
@@ -903,6 +908,9 @@ def _from_pretrained(slug_or_dir: str, **kwargs):
                 offload_dir=Path(tempfile.mkdtemp(suffix="offload_t2n")),
             )
         elif device_map:
+            # pylint: disable-next=import-outside-toplevel
+            import accelerate
+
             model = accelerate.load_checkpoint_and_dispatch(
                 model,
                 weights_location,
