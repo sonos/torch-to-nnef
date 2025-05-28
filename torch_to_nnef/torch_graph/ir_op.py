@@ -53,6 +53,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_LINALG_NORM,
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
+    ATEN_NEW_EMPTY,
     ATEN_NEW_ONES,
     ATEN_ONES_LIKE,
     ATEN_PROD,
@@ -92,6 +93,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_EINSUM: cls.aten_einsum,
             ATEN_EMPTY: cls.aten_zero,
             ATEN_EMPTY_LIKE: cls.aten_empty_like,
+            ATEN_NEW_EMPTY: cls.aten_new_empty,
             ATEN_FULL: cls.aten_full,
             ATEN_FULL_LIKE: cls.aten_full_like,
             ATEN_GELU: cls.aten_gelu,
@@ -226,6 +228,11 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_empty_like(args, kwargs):
         args = list(args[:1])
+        return args, kwargs
+
+    @staticmethod
+    def aten_new_empty(args, kwargs):
+        args = list(args[:2])
         return args, kwargs
 
     @staticmethod
@@ -376,7 +383,9 @@ class TorchOp:
             try:
                 return self.op_ref(*args, **kwargs)
             except RuntimeError as exp:
-                raise RuntimeError(f"running {self.op_ref}(args={args}, kwargs={kwargs})") from exp
+                raise RuntimeError(
+                    f"running {self.op_ref}(args={args}, kwargs={kwargs})"
+                ) from exp
         raise TorchToNNEFNotImplementedError(self)
 
     @property

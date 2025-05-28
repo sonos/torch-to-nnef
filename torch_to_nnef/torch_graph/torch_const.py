@@ -43,6 +43,7 @@ ATEN_VIEW_KIND = "aten::view"
 ATEN_WHERE = "aten::where"
 ATEN_ZEROS = "aten::zeros"
 ATEN_ZERO_LIKE = "aten::zeros_like"
+ATEN_NEW_EMPTY = "aten::new_empty"
 
 
 CLASSTYPE_KIND = "ClassType"
