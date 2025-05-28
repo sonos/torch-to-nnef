@@ -10,6 +10,7 @@ from torch_to_nnef.exceptions import (
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
 )
+from torch_to_nnef.tensor.opaque import IR_OPAQUE_NAME, find_opaque_ref_by_py_id
 from torch_to_nnef.torch_graph.ir_data import (
     BlobTorchScriptObject,
     Data,
@@ -454,6 +455,22 @@ def _rerouted_parsing(
 
     """
     kind: str = node.kind()
+    if kind.startswith("t2n::"):
+        if kind == IR_OPAQUE_NAME:
+            py_id = int(node.input().toIValue())
+            opaque_tensor = find_opaque_ref_by_py_id(module, py_id)
+            data_nodes.append(
+                TensorVariable(
+                    name=node.output().debugName(),
+                    shape=list(opaque_tensor.shape),
+                    dtype=opaque_tensor.dtype,
+                    data=opaque_tensor,
+                )
+            )
+            raise TorchOpTranslatedDifferently(
+                "geattr handled as TensorVariable"
+            )
+        raise NotImplementedError(f"node: {node} dispatch is not implemented")
     if kind == GETATTR_KIND:
         _parse_getattr_tensor(node, module, data_nodes)
         raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")

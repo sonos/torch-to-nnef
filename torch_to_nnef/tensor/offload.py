@@ -140,7 +140,7 @@ class OffloadedTensor(OpaqueTensor):
             offload_dir = cls.tmp_basedir
         torch.save(tensor, cls._offload_path(offload_dir, name))
         off_tensor = cls(
-            torch.zeros((1,), device="meta"),
+            torch.zeros(tensor.shape, dtype=tensor.dtype, device="meta"),
             tensor.device,
             offload_dir=offload_dir,
             name=name,
@@ -152,7 +152,7 @@ class OffloadedTensor(OpaqueTensor):
         tensor = torch.load(self.offload_path).to(self.target_device)
         return tensor
 
-    def to_base_tensor(self):
+    def _to_base_tensor(self) -> torch.Tensor:
         return self.reload()
 
     def __repr__(self, *, tensor_contents=None):
@@ -174,19 +174,32 @@ class OffloadedTensor(OpaqueTensor):
         if kwargs is None:
             kwargs = {}
 
-        with select_ctx_disable_torch_fn():
-            if func == torch.Tensor.to:
-                args[0].target_device = torch.device(args[1])
-                return args[0]
-            # FOR all custom type expand in right order
-            new_args = [a.reload() if isinstance(a, cls) else a for a in args]
-            new_kwargs = {
-                k: v.reload() if isinstance(v, cls) else v
-                for k, v in kwargs.items()
-            }
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.tensor import NamedTensor
 
-            ret = func(*new_args, **new_kwargs)
-            if func in get_default_nowrap_functions():
+        if not all(
+            issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
+        ):
+            return NotImplemented
+
+        with select_ctx_disable_torch_fn():
+            skip_expansion = func in get_default_nowrap_functions().union(
+                {cls.__repr__}
+            ) or any(
+                _ in str(func)
+                for _ in ["'__get__'", "'__set__'", "Tensor.__reduce_ex__"]
+            )
+            if not skip_expansion:
+                args = [
+                    a.to_base_tensor() if isinstance(a, cls) else a
+                    for a in args
+                ]
+                kwargs = {
+                    k: v.to_base_tensor() if isinstance(v, cls) else v
+                    for k, v in kwargs.items()
+                }
+            ret = func(*args, **kwargs)
+            if skip_expansion:
                 return ret
             # important modification
             # do not propagate this qtype

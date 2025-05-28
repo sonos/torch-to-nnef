@@ -25,7 +25,7 @@ from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
 from torch_to_nnef.tensor import (
-    apply_opaque_tensor_in_params_set_as_ref,
+    set_opaque_tensor_in_params_as_ref,
     apply_name_to_tensor_in_module,
     QTensor,
     OpaqueTensorRef,
@@ -146,9 +146,8 @@ def export_model_to_nnef(
         )
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
-    apply_name_to_tensor_in_module(model)
-    apply_opaque_tensor_in_params_set_as_ref(model)
     outs = model(*args)
+    apply_name_to_tensor_in_module(model)
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
         outs = (outs,)
     check_io_names(input_names, output_names)
@@ -162,6 +161,7 @@ def export_model_to_nnef(
             f" but found: {file_path_export.suffixes}"
         )
     with select_model_mode_for_export(model, TrainingMode.EVAL):
+        set_opaque_tensor_in_params_as_ref(model)
         model, args, input_names, output_names = may_wrap_model_to_flatten_io(
             model, args, outs, input_names, output_names
         )

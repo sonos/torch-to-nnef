@@ -217,7 +217,7 @@ class QTensor(OpaqueTensor):
             self.decompress_to_u8(), target_dtype=self.dequant_to_dtype
         )
 
-    def to_base_tensor(self):
+    def _to_base_tensor(self):
         return self.decompress()
 
     def clone(self, *args, **kwargs):
