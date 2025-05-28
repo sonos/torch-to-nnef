@@ -174,15 +174,10 @@ class OffloadedTensor(OpaqueTensor):
         if kwargs is None:
             kwargs = {}
 
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.tensor import NamedTensor
-
-        if not all(
-            issubclass(cls, t) or issubclass(NamedTensor, t) for t in types
-        ):
-            return NotImplemented
-
         with select_ctx_disable_torch_fn():
+            if func == torch.Tensor.to:
+                args[0].target_device = torch.device(args[1])
+                return args[0]
             skip_expansion = func in get_default_nowrap_functions().union(
                 {cls.__repr__}
             ) or any(
