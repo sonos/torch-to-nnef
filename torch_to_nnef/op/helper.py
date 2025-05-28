@@ -187,8 +187,7 @@ def add_tensor_variable_node_as_nnef_tensor(
                 outputs=nnef_tensor_ref,
                 attribs={
                     "custom_datatype": "quant_tensor",
-                    "label": nnef_tensor_ref.q_tensor.nnef_name
-                    or nnef_tensor_ref.name,
+                    "label": node.data.nnef_name or nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
                 },
             )
