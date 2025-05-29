@@ -402,6 +402,9 @@ class TorchOp:
 
     def realise_output_type_and_size(self) -> bool:
         """Trace output and try to find type shape and constant realisation"""
+        if self.kind == CALL_KIND:
+            return True
+
         if not all(_.tracable for _ in self.inputs):
             return False
 
@@ -409,7 +412,10 @@ class TorchOp:
             self.op_ref.args = self.args
 
         # generate all data and call ops to infer missing infos
-        results = self.call_op()
+        try:
+            results = self.call_op()
+        except Exception as exp:
+            return False
 
         if isinstance(results, int):
             results = torch.tensor(results, dtype=torch.int64)

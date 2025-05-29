@@ -376,9 +376,11 @@ class TorchModuleIRGraph:
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
             end_len = len(unshaped_data)
             if start_len == end_len:
-                raise TorchToNNEFNotImplementedError(
-                    f"missing unshaped_data: {unshaped_data}"
-                )
+                msg = f"missing unshaped_data: {unshaped_data}"
+                LOGGER.info(msg)
+                self.printall()
+                break
+                # raise TorchToNNEFNotImplementedError(msg)
 
     def _merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
@@ -501,6 +503,7 @@ class TorchModuleIRGraph:
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
+                self._infer_missing_shapes_from_ops_outputs()
 
     def _filter_tuple_tensor_from_data_nodes(self):
         for dnode in self.data_nodes[:]:  # pylint: disable=not-an-iterable
