@@ -459,14 +459,14 @@ def _rerouted_parsing(
         if kind == IR_OPAQUE_NAME:
             py_id = int(node.input().toIValue())
             opaque_tensor = find_opaque_ref_by_py_id(module, py_id)
-            data_nodes.append(
-                TensorVariable(
-                    name=node.output().debugName(),
-                    shape=list(opaque_tensor.shape),
-                    dtype=opaque_tensor.dtype,
-                    data=opaque_tensor,
-                )
+            tv = TensorVariable(
+                name=node.output().debugName(),
+                shape=list(opaque_tensor.shape),
+                dtype=opaque_tensor.dtype,
+                data=opaque_tensor,
             )
+            assert tv.shaped_and_typed
+            data_nodes.append(tv)
             raise TorchOpTranslatedDifferently(
                 "geattr handled as TensorVariable"
             )

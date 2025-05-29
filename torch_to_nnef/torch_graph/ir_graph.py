@@ -38,7 +38,6 @@ from torch_to_nnef.torch_graph.ir_naming import (
 )
 from torch_to_nnef.torch_graph.ir_op import TorchOp
 from torch_to_nnef.torch_graph.torch_const import (
-    ATEN_VIEW_KIND,
     CALL_KIND,
     CLASSTYPE_KIND,
     GETATTR_KIND,
@@ -408,7 +407,9 @@ class TorchModuleIRGraph:
             )
             if datas_attr == "inputs":
                 for snode, ref_node in zip(subgraph_nodes, ref_nodes):
-                    submodule_graph.remap_node(from_node=snode, to_node=ref_node)
+                    submodule_graph.remap_node(
+                        from_node=snode, to_node=ref_node
+                    )
             elif datas_attr == "outputs":
                 for snode, ref_node in zip(subgraph_nodes, ref_nodes):
                     self.remap_node(from_node=ref_node, to_node=snode)
@@ -426,9 +427,7 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
-        protected_from_rename_node = set(
-            submodule_graph.inputs
-        )
+        protected_from_rename_node = set(submodule_graph.inputs)
         for dn in submodule_graph.data_nodes[:]:
             if dn in protected_from_rename_node:
                 continue

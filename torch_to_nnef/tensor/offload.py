@@ -149,8 +149,7 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def reload(self):
-        tensor = torch.load(self.offload_path).to(self.target_device)
-        return tensor
+        return torch.load(self.offload_path).to(self.target_device)
 
     def _to_base_tensor(self) -> torch.Tensor:
         return self.reload()
