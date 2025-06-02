@@ -32,8 +32,8 @@ llm_tract = [
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
     "transformers>=4.35.2,<5",
-    "accelerate",
 ]
+llm_tract_accelerate = ["accelerate"]
 peft = ["peft"]
 test = [
     "isort>=5.8.0,<6",
