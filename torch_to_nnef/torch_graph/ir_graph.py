@@ -11,6 +11,7 @@ from torch_to_nnef.exceptions import (
     TorchNotFoundOp,
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
+    TorchUnableToTraceData,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.torch_graph.ir_data import (
@@ -378,7 +379,6 @@ class TorchModuleIRGraph:
             if start_len == end_len:
                 msg = f"missing unshaped_data: {unshaped_data}"
                 if raise_error:
-                    __import__("ipdb").set_trace()
                     raise TorchToNNEFNotImplementedError(msg)
                 LOGGER.debug(msg)
                 break
@@ -498,15 +498,13 @@ class TorchModuleIRGraph:
                     prefix += "_3rd_call"
                 else:
                     prefix += f"_{ref_count[cname]}th_call"
-                submodule_graph._infer_missing_shapes_from_ops_outputs(
-                    raise_error=True
-                )
                 self._merge_subraph(
                     submodule_graph,
                     prefix=prefix,
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
+                self._infer_missing_shapes_from_ops_outputs()
 
     def _filter_tuple_tensor_from_data_nodes(self):
         for dnode in self.data_nodes[:]:  # pylint: disable=not-an-iterable
