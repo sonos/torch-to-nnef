@@ -430,13 +430,13 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
             raise TorchToNNEFNotImplementedError(n_inputs, abstracted_inputs)
         if n_inputs == 2:
             dnode = PythonConstant(
-                "ar_" + abstracted_inputs[0].name + "_stub_start", data=0
+                f"ar_{abstracted_inputs[0].name}_stub_start", data=0
             )
             data_nodes.append(dnode)
             abstracted_inputs.insert(0, dnode)
         if n_inputs != 4:
             dnode = PythonConstant(
-                "ar_" + abstracted_inputs[0].name + "_stub_step", data=1
+                f"ar_{abstracted_inputs[0].name}_stub_step", data=1
             )
             data_nodes.append(dnode)
             abstracted_inputs.insert(2, dnode)

@@ -413,7 +413,7 @@ class TorchOp:
     def realise_output_type_and_size(self) -> bool:
         """Trace output and try to find type shape and constant realisation"""
         if self.kind == CALL_KIND:
-            return True
+            return False
 
         if not all(_.tracable for _ in self.inputs):
             return False

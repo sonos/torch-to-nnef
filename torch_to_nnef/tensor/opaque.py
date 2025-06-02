@@ -44,12 +44,12 @@ class OpaqueTensor(torch.Tensor):
         return self
 
     def detach(self):
-        # need overwrite since nn.Paramater use it at __new__
+        # need overwrite since nn.Parameter use it in  .__new__
         LOGGER.debug("OpaqueTensor does not support detach")
         return self
 
     def requires_grad_(self, mode=False):
-        # need overwrite since nn.Paramater use it at __new__
+        # need overwrite since nn.Parameter use it in .__new__
         LOGGER.debug("OpaqueTensor does not support requires_grad")
         return self
 
@@ -176,7 +176,9 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     Just before doing any tracing
 
     """
-    LOGGER.debug("started to apply opaque tensor ref with decompress")
+    LOGGER.debug(
+        "started to apply opaque tensor as reference (IR tracing friendly)"
+    )
     ids_to_qparams = {}
     for full_name, param in model.named_parameters(remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
@@ -193,7 +195,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
             new_param = ids_to_qparams[qid]
         ref_mod, p_name = get_parent_module_and_param_name(model, full_name)
 
-        LOGGER.debug(f"apply opaque tensor ref with decompress: {full_name}")
+        LOGGER.debug(f"apply opaque tensor reference: {full_name}")
         setattr(
             ref_mod,
             p_name,
@@ -202,4 +204,6 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
                 requires_grad=False,
             ),
         )
-    LOGGER.debug("sucessfull to apply opaque tensor ref with decompress")
+    LOGGER.debug(
+        "sucessfull to apply opaque tensor as reference (IR tracing friendly)"
+    )

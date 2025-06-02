@@ -39,7 +39,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
     loader_parser = argparse.ArgumentParser(
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        # add_help=False,
+        add_help=False,
     )
     full_parser = argparse.ArgumentParser(
         description=description,
@@ -143,13 +143,12 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         parser.add_argument(
             "--device-map",
             help="**device_map** as defined by huggingface library 'accelerate'."
-            " This allow to place different parts of a model, on different hardware parts "
-            " including on-disk. "
+            " This allow to place different parts of a model, on different hardware parts. "
             " We also have 2 new possible options: "
             "1. 't2n_offload_disk' that force all parameters to load on disk instead of memory, "
             "using 'torch_to_nnef.tensor.offload.OffloadedTensor'. "
             "At each use, it loads on specific device then offload (device target can be changed anytime) "
-            "2. 't2n_auto' that dispatch accross all device like accelerate 'auto' except on 'disk' will be "
+            "2. 't2n_auto' & 'auto' dispatch accross all device like accelerate 'auto' except on 'disk' will be "
             "remapped to 'torch_to_nnef.tensor.offload.OffloadedTensor' instead (need 'accelerate' installed). "
             "https://huggingface.co/docs/accelerate/en/concept_guides/big_model_inference",
         )
