@@ -877,10 +877,11 @@ def _from_pretrained(slug_or_dir: str, **kwargs):
         if Path(slug_or_dir).exists():
             weights_location = Path(slug_or_dir)
         else:
+            hf_repo_files = huggingface_hub.list_repo_files(slug_or_dir)
             weights_location = Path(
                 huggingface_hub.hf_hub_download(
-                    slug_or_dir, "README.md"
-                )  # assume README is in targeted repo
+                    slug_or_dir, hf_repo_files[-1]
+                )  # assume at least 1 file is in targeted repo
             ).parent
 
         # use 'local' init_empty_weights to init weights devices
