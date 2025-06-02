@@ -18,6 +18,7 @@ from torch_to_nnef.dtypes import (
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor import QTensor, OpaqueTensorRef
+from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -177,7 +178,11 @@ def add_tensor_variable_node_as_nnef_tensor(
     if node.data is not None:
         if isinstance(node.data, OpaqueTensorRef):
             node.data = node.data.opaque_tensor
-        if isinstance(node.data, QTensor):
+
+        if isinstance(node.data, QTensor) or (
+            isinstance(node.data, OffloadedTensor)
+            and issubclass(node.data.offloaded_tensor_type, QTensor)
+        ):
             # main assign to allow corect dump
             nnef_tensor_ref.qtensor = node.data
             add_nnef_operation(

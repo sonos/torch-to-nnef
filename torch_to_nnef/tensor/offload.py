@@ -33,6 +33,7 @@ import typing as T
 import warnings
 
 from safetensors import safe_open
+import torch
 from torch import nn
 from torch._tensor import _convert
 from torch.jit import TracerWarning
@@ -108,11 +109,19 @@ class OffloadedTensor(OpaqueTensor):
         self.target_device = device
         return self
 
-    def __init__(self, elem, device, offload_dir: Path, name: str):
+    def __init__(
+        self,
+        elem,
+        device,
+        offload_dir: Path,
+        name: str,
+        offloaded_tensor_type: T.Type[torch.Tensor],
+    ):
         self.elem = elem
         self.target_device = torch.device(device)
         self._name = name
         self.offload_dir = offload_dir
+        self.offloaded_tensor_type = offloaded_tensor_type
 
     @property
     def device(self) -> torch.device:
@@ -127,7 +136,7 @@ class OffloadedTensor(OpaqueTensor):
         return offload_dir / f"{name}_{dtype}.pt"
 
     @classmethod
-    def from_real_tensor(
+    def from_original_tensor(
         cls,
         tensor: torch.Tensor,
         name: str,
@@ -146,6 +155,7 @@ class OffloadedTensor(OpaqueTensor):
             tensor.device,
             offload_dir=offload_dir,
             name=name,
+            offloaded_tensor_type=type(tensor),
         )
         LOGGER.info(
             f"Offloaded param (kept on-disk): '{name}' {suffix_log_msg}"
@@ -165,6 +175,7 @@ class OffloadedTensor(OpaqueTensor):
             f"<OffloadedTensor name='{self._name}', "
             f"device='{self.target_device}', "
             f"offload_dir='{self.offload_dir}'>"
+            f"offloaded_tensor_type='{self.offloaded_tensor_type.__name__}'"
         )
 
     def __del__(self):
@@ -187,7 +198,7 @@ class OffloadedTensor(OpaqueTensor):
         with select_ctx_disable_torch_fn():
             if func == torch.Tensor.to:
                 if isinstance(args[1], torch.dtype):
-                    new_offload = cls.from_real_tensor(
+                    new_offload = cls.from_original_tensor(
                         args[0].reload().to(args[1]),
                         args[0]._name,
                         args[0].offload_dir,
@@ -284,7 +295,7 @@ def maybe_load_offload_tensor(
         and device.startswith("disk")
         and not isinstance(value, OffloadedTensor)
     ):
-        offloaded_value = OffloadedTensor.from_real_tensor(
+        offloaded_value = OffloadedTensor.from_original_tensor(
             value, original_tensor_name, offload_dir
         ).to(maybe_extract_target_device(device))
         return offloaded_value

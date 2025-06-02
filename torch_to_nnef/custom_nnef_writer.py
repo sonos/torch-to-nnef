@@ -32,6 +32,7 @@ from nnef_tools.utils.types import as_str, from_numpy
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.khronos import KhronosNNEF
 from torch_to_nnef.inference_target.tract import TractNNEF
+from torch_to_nnef.tensor.offload import OffloadedTensor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -323,6 +324,8 @@ class Writer:
             if op.type == "variable":
                 if op.attribs.pop("custom_datatype", "") == "quant_tensor":
                     qtensor = op.output.qtensor
+                    while isinstance(qtensor, OffloadedTensor):
+                        qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
                     qtensor.write_in_file(folder, label, self._inference_target)
                     LOGGER.info(f"written qtensor: {label}")
