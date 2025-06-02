@@ -42,7 +42,7 @@ class NamedTensor(torch.Tensor):
 
     @property
     def data(self):
-        """very important to keep access to all special attr of OpaqueTensor"""
+        """very important to keep access to all special attr of NamedTensor"""
         return self
 
     @data.setter
@@ -53,12 +53,12 @@ class NamedTensor(torch.Tensor):
 
     def detach(self):
         # need overwrite since nn.Paramater use it at __new__
-        LOGGER.debug("OpaqueTensor does not support detach")
+        LOGGER.debug("NamedTensor does not support detach")
         return self
 
     def requires_grad_(self, mode=False):
         # need overwrite since nn.Paramater use it at __new__
-        LOGGER.debug("OpaqueTensor does not support requires_grad")
+        LOGGER.debug("NamedTensor does not support requires_grad")
         return self
 
     def __repr__(self) -> str:
