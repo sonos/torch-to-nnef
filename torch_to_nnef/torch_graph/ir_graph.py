@@ -11,7 +11,6 @@ from torch_to_nnef.exceptions import (
     TorchNotFoundOp,
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
-    TorchUnableToTraceData,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.torch_graph.ir_data import (

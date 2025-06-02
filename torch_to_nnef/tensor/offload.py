@@ -161,6 +161,11 @@ class OffloadedTensor(OpaqueTensor):
             f"offload_dir='{self.offload_dir}'>"
         )
 
+    def __del__(self):
+        """Remove parameter from disk."""
+        if self.offload_path.exists():
+            self.offload_path.unlink()
+
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
         """
