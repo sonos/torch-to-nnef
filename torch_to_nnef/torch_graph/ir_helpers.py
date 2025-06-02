@@ -91,10 +91,21 @@ def _parse_traced_name(module):
     return module_name
 
 
-def _expand_containers_if_exists(data_items, filter_container: bool = False):
+def _expand_node_containers_if_exists(
+    data_items, filter_container: bool = False
+):
     for data_item in data_items:
         if hasattr(data_item, "is_container") and data_item.is_container:
             yield from data_item.iter()
+            if filter_container:
+                continue
+        yield data_item
+
+
+def _expand_containers_if_exists(data_items, filter_container: bool = False):
+    for data_item in data_items:
+        if isinstance(data_item, (tuple, list)):
+            yield from iter(data_item)
             if filter_container:
                 continue
         yield data_item

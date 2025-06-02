@@ -24,7 +24,7 @@ from torch_to_nnef.torch_graph.ir_data import (
 )
 from torch_to_nnef.torch_graph.ir_helpers import (
     _add_prefix_if_start_with_digit,
-    _expand_containers_if_exists,
+    _expand_node_containers_if_exists,
     _find_common_root,
     _find_data_node,
     _parse_traced_name,
@@ -343,20 +343,20 @@ class TorchModuleIRGraph:
         )
 
         for node in self.op_nodes:
-            for input_node in _expand_containers_if_exists(node.inputs):
+            for input_node in _expand_node_containers_if_exists(node.inputs):
                 unique_name_to_scoped_name[input_node.name] = (
                     node.scope + self.SEP + input_node.name
                 )
 
-        for node in _expand_containers_if_exists(self.data_nodes[:]):
+        for node in _expand_node_containers_if_exists(self.data_nodes[:]):
             if not node.name.startswith(selected_scope_name + self.SEP):
                 node.name = selected_scope_name + self.SEP + node.name
 
-        for node in _expand_containers_if_exists(self.inputs):
+        for node in _expand_node_containers_if_exists(self.inputs):
             if not node.name.startswith(selected_scope_name + self.SEP):
                 node.name = selected_scope_name + self.SEP + node.name
 
-    def _infer_missing_shapes_from_ops_outputs(self):
+    def _infer_missing_shapes_from_ops_outputs(self, raise_error: bool = False):
         unshaped_data = {}
         for node in self.data_nodes:
             if not node.tracable:
@@ -370,17 +370,18 @@ class TorchModuleIRGraph:
                 worked = op_node.realise_output_type_and_size()
                 if worked:
                     ops_to_rm.append(op_node)
-                    for _ in _expand_containers_if_exists(op_node.outputs):
+                    for _ in _expand_node_containers_if_exists(op_node.outputs):
                         if _.name in unshaped_data:
                             del unshaped_data[_.name]
             remaining_ops = [op for op in remaining_ops if op not in ops_to_rm]
             end_len = len(unshaped_data)
             if start_len == end_len:
                 msg = f"missing unshaped_data: {unshaped_data}"
-                LOGGER.info(msg)
-                self.printall()
+                if raise_error:
+                    __import__("ipdb").set_trace()
+                    raise TorchToNNEFNotImplementedError(msg)
+                LOGGER.debug(msg)
                 break
-                # raise TorchToNNEFNotImplementedError(msg)
 
     def _merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
@@ -398,12 +399,12 @@ class TorchModuleIRGraph:
                     for idx in submodule_graph.provided_inputs_picked_indexes
                 ]
             ref_nodes = list(
-                _expand_containers_if_exists(
+                _expand_node_containers_if_exists(
                     node_graph_to_wire, filter_container=True
                 )
             )
             subgraph_nodes = list(
-                _expand_containers_if_exists(
+                _expand_node_containers_if_exists(
                     node_subgraph_to_wire, filter_container=True
                 )
             )
@@ -497,13 +498,15 @@ class TorchModuleIRGraph:
                     prefix += "_3rd_call"
                 else:
                     prefix += f"_{ref_count[cname]}th_call"
+                submodule_graph._infer_missing_shapes_from_ops_outputs(
+                    raise_error=True
+                )
                 self._merge_subraph(
                     submodule_graph,
                     prefix=prefix,
                     module_prefix=op.module_path,
                     callmethod_node=op,
                 )
-                self._infer_missing_shapes_from_ops_outputs()
 
     def _filter_tuple_tensor_from_data_nodes(self):
         for dnode in self.data_nodes[:]:  # pylint: disable=not-an-iterable
@@ -666,7 +669,7 @@ class TorchModuleIRGraph:
     def find_data_node_producer(self, data_node: Data) -> TorchOp:
         assert isinstance(data_node, Data), data_node
         for op in self.op_nodes:
-            for op_out_dnode in _expand_containers_if_exists(op.outputs):
+            for op_out_dnode in _expand_node_containers_if_exists(op.outputs):
                 if op_out_dnode is data_node:
                     return op
         raise TorchNotFoundOp("Did not find operation node")
