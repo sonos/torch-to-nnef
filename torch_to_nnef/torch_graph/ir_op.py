@@ -24,6 +24,7 @@ from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
+    TorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
@@ -421,7 +422,10 @@ class TorchOp:
             self.op_ref.args = self.args
 
         # generate all data and call ops to infer missing infos
-        results = self.call_op()
+        try:
+            results = self.call_op()
+        except TorchUnableToTraceData:
+            return False
 
         if isinstance(results, int):
             results = torch.tensor(results, dtype=torch.int64)
