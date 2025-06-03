@@ -174,8 +174,8 @@ class OffloadedTensor(OpaqueTensor):
         return (
             f"<OffloadedTensor name='{self._name}', "
             f"device='{self.target_device}', "
-            f"offload_dir='{self.offload_dir}'>"
-            f"offloaded_tensor_type='{self.offloaded_tensor_type.__name__}'"
+            f"offload_dir='{self.offload_dir}', "
+            f"offloaded_tensor_type='{self.offloaded_tensor_type.__name__}' >"
         )
 
     def __del__(self):
