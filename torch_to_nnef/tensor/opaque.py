@@ -169,6 +169,18 @@ class OpaqueTensorRef(torch.Tensor):
             return _convert(ret, torch.Tensor)
 
 
+def opaque_to_final_tensor(rtensor: torch.Tensor) -> torch.Tensor:
+    """Even if OpaqueTensor are composed it exposes fully expanded tensor.
+
+    So by example: an OffloadedTensor that contains a QTensor
+    will 'load' then 'decompress' to show final fp tensor.
+
+    """
+    while isinstance(rtensor, OpaqueTensor):
+        rtensor = rtensor.to_base_tensor()
+    return rtensor
+
+
 def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     """Transform OpaqueTensor Parameters into OpaqueTensorRef
 
@@ -187,7 +199,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
         if qid not in ids_to_qparams:
             param.nnef_name = full_name
             new_param = OpaqueTensorRef(
-                param.to_base_tensor().to("meta"),
+                opaque_to_final_tensor(param).to("meta"),
                 param,
             )
             ids_to_qparams[qid] = new_param
