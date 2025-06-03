@@ -155,10 +155,11 @@ Export any LLM from HuggingFace transformer library, via cli:
 
 ```bash
 # need pip install torch_to_nnef[llm_tract]
-export_llm_to_tract \
+t2n_export_llm_to_tract \
   -s apple/OpenELM-1_1B-Instruct \ # from HuggingFace model hub
   -e ~/model-zoo-data/openelm_f16_q4_0 \
   -f16 \
+  -device-map t2n_offload_disk \
   -c "min_max_q4_0"
 ```
 
@@ -168,7 +169,7 @@ load custom compressor libraries, target specific tract version, etc.
 Export **PEFT** weights directly:
 
 ```bash
-export_peft_to_nnef \
+t2n_export_peft_to_nnef \
     --read-filepath /my-little-model-file.pt \ #can be .pth, .bin, .safetensors ...
     -o /tmp/my-dir
 ```
@@ -259,7 +260,7 @@ Once done you can directly call your registred function with:
 
 ```bash
 # need pip install torch_to_nnef[llm_tract]
-export_llm_to_tract \
+t2n_export_llm_to_tract \
   -s ... \
   -e ... \
   --compression-registry "experimental_compressors.registery.MY_CUSTOM_COMPRESSION_REGISTRY" \
