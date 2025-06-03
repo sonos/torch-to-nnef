@@ -31,7 +31,7 @@ def test_offload_tensor_export_with_tract_and_conv2d(inference_target):
 
         assert original_weight.shape == model.weight.shape
         with tempfile.TemporaryDirectory() as td:
-            offloaded_value = OffloadedTensor.from_real_tensor(
+            offloaded_value = OffloadedTensor.from_original_tensor(
                 original_weight, "my_offloaded_weight", offload_dir=Path(td)
             )
             # offloaded_value = original_weight
@@ -69,7 +69,7 @@ def test_offload_qtensor_export(inference_target):
             q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
                 original_weight
             )
-            offloaded_value = OffloadedTensor.from_real_tensor(
+            offloaded_value = OffloadedTensor.from_original_tensor(
                 q_tensor, "my_offloaded_weight", offload_dir=Path(td)
             )
             # offloaded_value = original_weight
