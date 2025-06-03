@@ -3,6 +3,22 @@
 
 ## Unreleased
 
+## [0.18.0] - 2025-06-03
+
+### Added
+
+- addition of an `OffloadTensor` that allow to write on disk the tensor and reload it each time from there (trading memory space for disk usage/reloading speed -> this is not intended to be used beyond compression and export of neural net stage).
+- Plug of a load step by step into `OffloadTensor` method for `tract_llm` (as an opt-in via `--device-map`=`t2n_offload_disk` option). This option is also compatible with accelerate if installed to spread model partitions load across available hardware devices in an instance.
+
+### Change
+
+- refactor of all custom PyTorch tensors used on torch to NNEF into a unified module
+- [OPTIM] removal of part of redundant inference tracing computation for shape and type
+
+### Fix
+
+- avoid duplicate weights in **Numpy** data within `nnef.Graph until` serialization (write) step
+
 ## [0.17.4] - 2025-05-15
 
 ### Fix
