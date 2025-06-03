@@ -2,12 +2,18 @@
 original module fullname
 `nnef_tools.io.nnef.writer`
 
-As of now adaptation is minimal so code style may differ significantly from this codebase.
-still we did minor modification to be pythonic.
-(force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
+This module is adapted with following goals:
 
-It is adapted with goal:
-- to handle special Tract quantization variables storage with custom .dat data storage format
+- 1. Handling special Tract quantization variables storage with custom .dat
+  data storage format
+- 2. in `torch_to_nnef` transformation to numpy array of torch
+tensor is postponed to just before serialization. this avoid COPY to stay in memory (
+    so the 'nnef.Graph' and data hold tensor of different kind
+    than initially intended by Khronos group developpers
+). This is crucial to export large models.
+
+Also some minimal adaptation like code style have been done be pythonic.
+(force utf8 encoding, avoid builtin redefinition, use fstring, simple expr ...)
 
 """
 
@@ -16,6 +22,7 @@ import os
 import shutil
 import tempfile
 
+import torch
 import nnef
 import numpy as np
 from nnef_tools.io.nnef.helpers import tgz_compress
@@ -25,6 +32,7 @@ from nnef_tools.utils.types import as_str, from_numpy
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.khronos import KhronosNNEF
 from torch_to_nnef.inference_target.tract import TractNNEF
+from torch_to_nnef.tensor.offload import OffloadedTensor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +59,12 @@ _DtypeFromPyType = {
     bool: "logical",
     None: "dtype",
 }
+
+
+def maybe_torch_to_np(tensor):
+    if isinstance(tensor, torch.Tensor):
+        return tensor.detach().numpy()
+    return tensor
 
 
 def _nnef_dtype(dtype):
@@ -100,7 +114,7 @@ def _print(
         inputs = (
             (
                 (
-                    from_numpy(item.data)
+                    from_numpy(maybe_torch_to_np(item.data))
                     if item.producer is None
                     else nnef.Identifier(as_str(item.name))
                 )
@@ -310,19 +324,23 @@ class Writer:
             if op.type == "variable":
                 if op.attribs.pop("custom_datatype", "") == "quant_tensor":
                     qtensor = op.output.qtensor
+                    while isinstance(qtensor, OffloadedTensor):
+                        qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
                     qtensor.write_in_file(folder, label, self._inference_target)
-                    LOGGER.info(f"written qtensor: {label}")
+                    LOGGER.info(f"written qtensor: '{label}'")
                 else:
                     filename = op.attribs["label"] + ".dat"
                     write_nnef_tensor(
-                        np.asarray(op.output.data, order="C"),
+                        np.asarray(
+                            maybe_torch_to_np(op.output.data), order="C"
+                        ),
                         os.path.join(folder, filename),
                         quantized=bool(op.output.quant),
                     )
 
     def __call__(self, graph, path):
-        LOGGER.info(f"start writting NNEF graph into: {path}")
+        LOGGER.info(f"start writting NNEF graph into: '{path}'")
         folder = None
         try:
             if self._compression is not None:

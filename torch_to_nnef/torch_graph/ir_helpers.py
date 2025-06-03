@@ -10,6 +10,7 @@ from torch_to_nnef.exceptions import (
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
 )
+from torch_to_nnef.tensor.opaque import IR_OPAQUE_NAME, find_opaque_ref_by_py_id
 from torch_to_nnef.torch_graph.ir_data import (
     BlobTorchScriptObject,
     Data,
@@ -90,10 +91,21 @@ def _parse_traced_name(module):
     return module_name
 
 
-def _expand_containers_if_exists(data_items, filter_container: bool = False):
+def _expand_node_containers_if_exists(
+    data_items, filter_container: bool = False
+):
     for data_item in data_items:
         if hasattr(data_item, "is_container") and data_item.is_container:
             yield from data_item.iter()
+            if filter_container:
+                continue
+        yield data_item
+
+
+def _expand_containers_if_exists(data_items, filter_container: bool = False):
+    for data_item in data_items:
+        if isinstance(data_item, (tuple, list)):
+            yield from iter(data_item)
             if filter_container:
                 continue
         yield data_item
@@ -418,13 +430,13 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
             raise TorchToNNEFNotImplementedError(n_inputs, abstracted_inputs)
         if n_inputs == 2:
             dnode = PythonConstant(
-                abstracted_inputs[0].name + "_stub_start", data=0
+                f"ar_{abstracted_inputs[0].name}_stub_start", data=0
             )
             data_nodes.append(dnode)
             abstracted_inputs.insert(0, dnode)
         if n_inputs != 4:
             dnode = PythonConstant(
-                abstracted_inputs[0].name + "_stub_step", data=1
+                f"ar_{abstracted_inputs[0].name}_stub_step", data=1
             )
             data_nodes.append(dnode)
             abstracted_inputs.insert(2, dnode)
@@ -454,6 +466,22 @@ def _rerouted_parsing(
 
     """
     kind: str = node.kind()
+    if kind.startswith("t2n::"):
+        if kind == IR_OPAQUE_NAME:
+            py_id = int(node.input().toIValue())
+            opaque_tensor = find_opaque_ref_by_py_id(module, py_id)
+            tv = TensorVariable(
+                name=node.output().debugName(),
+                shape=list(opaque_tensor.shape),
+                dtype=opaque_tensor.dtype,
+                data=opaque_tensor,
+            )
+            assert tv.shaped_and_typed
+            data_nodes.append(tv)
+            raise TorchOpTranslatedDifferently(
+                "geattr handled as TensorVariable"
+            )
+        raise NotImplementedError(f"node: {node} dispatch is not implemented")
     if kind == GETATTR_KIND:
         _parse_getattr_tensor(node, module, data_nodes)
         raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")

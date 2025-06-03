@@ -24,13 +24,13 @@ from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
-from torch_to_nnef.qtensor.base import (
+from torch_to_nnef.tensor import (
+    set_opaque_tensor_in_params_as_ref,
+    apply_name_to_tensor_in_module,
     QTensor,
-    QTensorRef,
-    apply_qtensor_in_params_set_as_ref,
+    OpaqueTensorRef,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.torch_named_tensor import apply_name_to_tensor_in_module
 from torch_to_nnef.utils import dedup_list, torch_version
 
 LOGGER = log.getLogger(__name__)
@@ -146,9 +146,8 @@ def export_model_to_nnef(
         )
     if isinstance(args, (torch.Tensor, int, float, bool, dict)):
         args = (args,)
-    apply_name_to_tensor_in_module(model)
-    apply_qtensor_in_params_set_as_ref(model)
     outs = model(*args)
+    apply_name_to_tensor_in_module(model)
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
         outs = (outs,)
     check_io_names(input_names, output_names)
@@ -162,6 +161,7 @@ def export_model_to_nnef(
             f" but found: {file_path_export.suffixes}"
         )
     with select_model_mode_for_export(model, TrainingMode.EVAL):
+        set_opaque_tensor_in_params_as_ref(model)
         model, args, input_names, output_names = may_wrap_model_to_flatten_io(
             model, args, outs, input_names, output_names
         )
@@ -189,6 +189,7 @@ def export_model_to_nnef(
         active_custom_fragments.update(
             get_active_custom_fragments(graph_extractor)
         )
+        del graph_extractor
         nnef_exp_file_path = real_export_path(
             file_path_export, compression_level
         )
@@ -379,8 +380,8 @@ def export_tensors_to_nnef(
     """
     assert output_dir.exists(), output_dir
     for tensor_name, tensor in name_to_torch_tensors.items():
-        if isinstance(tensor, (QTensor, QTensorRef)):
-            if isinstance(tensor, QTensorRef):
+        if isinstance(tensor, (QTensor, OpaqueTensorRef)):
+            if isinstance(tensor, OpaqueTensorRef):
                 tensor = tensor.q_tensor
             tensor.write_in_file(output_dir, tensor_name)
         else:

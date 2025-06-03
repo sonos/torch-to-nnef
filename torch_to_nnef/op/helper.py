@@ -17,7 +17,8 @@ from torch_to_nnef.dtypes import (
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.qtensor.base import QTensor, QTensorRef
+from torch_to_nnef.tensor import QTensor, OpaqueTensorRef
+from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.torch_graph import (
     Data,
     FixedTensorList,
@@ -175,15 +176,15 @@ def add_tensor_variable_node_as_nnef_tensor(
         node = node.into_tensor_variable()
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
-        if isinstance(node.data, (QTensorRef, QTensor)):
-            if isinstance(node.data, QTensorRef):
-                q_tensor = node.data.q_tensor
-            else:
-                q_tensor = node.data
+        if isinstance(node.data, OpaqueTensorRef):
+            node.data = node.data.opaque_tensor
 
-            nnef_tensor_ref.qtensor = (
-                q_tensor  # main assign to allow corect dump
-            )
+        if isinstance(node.data, QTensor) or (
+            isinstance(node.data, OffloadedTensor)
+            and issubclass(node.data.offloaded_tensor_type, QTensor)
+        ):
+            # main assign to allow corect dump
+            nnef_tensor_ref.qtensor = node.data
             add_nnef_operation(
                 graph=g,
                 type="variable",
@@ -191,15 +192,19 @@ def add_tensor_variable_node_as_nnef_tensor(
                 outputs=nnef_tensor_ref,
                 attribs={
                     "custom_datatype": "quant_tensor",
-                    "label": q_tensor.nnef_name or nnef_tensor_ref.name,
+                    "label": node.data.nnef_name or nnef_tensor_ref.name,
                     "shape": list(nnef_tensor_ref.shape),
                 },
             )
         else:
-            nnef_tensor_ref.data = node.data.detach().numpy()
+            nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
             if not prevent_variable and (
-                len(node.data.size()) > 0 or "e" in str(nnef_tensor_ref.data)
+                node.data.numel() > 1
+                or (
+                    nnef_tensor_ref.data.numel() == 1
+                    and "e" in str(nnef_tensor_ref.data.item())
+                )
             ):
                 add_nnef_operation(
                     graph=g,

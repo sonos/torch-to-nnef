@@ -24,6 +24,7 @@ from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchOpTranslatedDifferently,
     TorchToNNEFNotImplementedError,
+    TorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
@@ -32,6 +33,7 @@ from torch_to_nnef.torch_graph.ir_data import (
     TupleTensors,
 )
 from torch_to_nnef.torch_graph.ir_helpers import (
+    _expand_node_containers_if_exists,
     _expand_containers_if_exists,
     _extract_op_infos,
     _reconstruct_view_dims,
@@ -51,8 +53,10 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_GELU,
     ATEN_INT,
     ATEN_LINALG_NORM,
+    ATEN_LINALG_VECTOR_NORM,
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
+    ATEN_NEW_EMPTY,
     ATEN_NEW_ONES,
     ATEN_ONES_LIKE,
     ATEN_PROD,
@@ -66,6 +70,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_VIEW_KIND,
     ATEN_WHERE,
     ATEN_ZEROS,
+    ATEN_NEW_ZEROS,
     ATEN_ZERO_LIKE,
     CALL_KIND,
     LISTTYPE_KIND,
@@ -92,10 +97,12 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_EINSUM: cls.aten_einsum,
             ATEN_EMPTY: cls.aten_zero,
             ATEN_EMPTY_LIKE: cls.aten_empty_like,
+            ATEN_NEW_EMPTY: cls.aten_new_empty,
             ATEN_FULL: cls.aten_full,
             ATEN_FULL_LIKE: cls.aten_full_like,
             ATEN_GELU: cls.aten_gelu,
             ATEN_LINALG_NORM: cls.aten_linalg_norm,
+            ATEN_LINALG_VECTOR_NORM: cls.aten_linalg_norm,
             ATEN_MASKED_FILL: cls.aten_masked_fill,
             ATEN_MASKED_FILL_: cls.aten_masked_fill,
             ATEN_NEW_ONES: cls.aten_new_ones,
@@ -107,6 +114,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_TO: cls.aten_to,
             ATEN_TO_COPY: cls.aten_to_copy,
             ATEN_WHERE: cls.aten_where,
+            ATEN_NEW_ZEROS: cls.aten_new_zero,
             ATEN_ZEROS: cls.aten_zero,
             ATEN_ZERO_LIKE: cls.aten_zero,
         }
@@ -139,6 +147,10 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_zero(args, kwargs):
         args = args[:1]
+        return args, kwargs
+
+    def aten_new_zero(args, kwargs):
+        args = args[:2]
         return args, kwargs
 
     @staticmethod
@@ -226,6 +238,11 @@ class InputsAlignBetweenAtenAndTorch:
     @staticmethod
     def aten_empty_like(args, kwargs):
         args = list(args[:1])
+        return args, kwargs
+
+    @staticmethod
+    def aten_new_empty(args, kwargs):
+        args = list(args[:2])
         return args, kwargs
 
     @staticmethod
@@ -376,7 +393,9 @@ class TorchOp:
             try:
                 return self.op_ref(*args, **kwargs)
             except RuntimeError as exp:
-                raise RuntimeError(f"running {self.op_ref}(args={args}, kwargs={kwargs})") from exp
+                raise RuntimeError(
+                    f"running {self.op_ref}(args={args}, kwargs={kwargs})"
+                ) from exp
         raise TorchToNNEFNotImplementedError(self)
 
     @property
@@ -393,6 +412,9 @@ class TorchOp:
 
     def realise_output_type_and_size(self) -> bool:
         """Trace output and try to find type shape and constant realisation"""
+        if self.kind == CALL_KIND:
+            return False
+
         if not all(_.tracable for _ in self.inputs):
             return False
 
@@ -400,7 +422,10 @@ class TorchOp:
             self.op_ref.args = self.args
 
         # generate all data and call ops to infer missing infos
-        results = self.call_op()
+        try:
+            results = self.call_op()
+        except TorchUnableToTraceData:
+            return False
 
         if isinstance(results, int):
             results = torch.tensor(results, dtype=torch.int64)
@@ -409,7 +434,9 @@ class TorchOp:
             results = (results,)
 
         output_nodes = list(
-            _expand_containers_if_exists(self.outputs, filter_container=True)
+            _expand_node_containers_if_exists(
+                self.outputs, filter_container=True
+            )
         )
         output_values = list(
             _expand_containers_if_exists(results, filter_container=True)
@@ -484,10 +511,10 @@ class CacheDataToOpsNode:
         ]
         for op in ops:
             if y_inputs:
-                for inp in _expand_containers_if_exists(op.inputs):
+                for inp in _expand_node_containers_if_exists(op.inputs):
                     self._map[inp].append(op)
             if y_outputs:
-                for out in _expand_containers_if_exists(op.outputs):
+                for out in _expand_node_containers_if_exists(op.outputs):
                     self._map[out].append(op)
 
     def get(self, data_node: Data):

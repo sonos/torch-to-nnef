@@ -7,8 +7,10 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
-from torch_to_nnef.qtensor.base import QTensor
-from torch_to_nnef.qtensor.qtract import (
+from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.tensor.quant import (
+    QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.utils import get_parent_module_and_param_name
@@ -27,7 +29,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
         to_quantize_module_classes
     )
     with torch.no_grad():
-        ids_to_qtensor: T.Dict[int, QTensor] = {}
+        ids_to_qtensor: T.Dict[int, T.Tuple[QTensor, OffloadedTensor]] = {}
         ids_to_mods: T.Dict[int, T.List[str]] = defaultdict(list)
         """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
         for full_name, param in model.named_parameters(remove_duplicate=False):
@@ -56,15 +58,24 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     )
                 else:
                     try:
-                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
-                            mod.weight,
-                            **{
-                                k: v
-                                for k, v in kwargs.items()
-                                if k in ["percentile"]
-                            },
+
+                        def q_fn(weight):
+                            q_weight = (
+                                fp_to_tract_q4_0_with_min_max_calibration(
+                                    weight,
+                                    **{
+                                        k: v
+                                        for k, v in kwargs.items()
+                                        if k in ["percentile"]
+                                    },
+                                )
+                            )
+                            q_weight.nnef_name = f"{name}.weight"
+                            return q_weight
+
+                        q_weight = offloaded_tensor_qtensor(
+                            q_fn, mod.weight, "q40_min_max"
                         )
-                        q_weight.nnef_name = f"{name}.weight"
                         ids_to_qtensor[weight_id] = q_weight
                     except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")
@@ -75,6 +86,24 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     nn.Parameter(q_weight, requires_grad=False),
                 )
     return model
+
+
+def offloaded_tensor_qtensor(
+    q_fn, tensor: torch.Tensor, suffix_name: str
+) -> torch.Tensor:
+    original_tensor = tensor
+    if isinstance(original_tensor, OffloadedTensor):
+        tensor = original_tensor.to_base_tensor()
+
+    q_tensor = q_fn(tensor)
+
+    if isinstance(original_tensor, OffloadedTensor):
+        q_tensor = OffloadedTensor.from_original_tensor(
+            q_tensor,
+            f"{original_tensor._name}.{suffix_name}",
+            offload_dir=original_tensor.offload_dir,
+        )
+    return q_tensor
 
 
 def dynamic_load_registry(compression_registry_full_path: str):

@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from contextlib import contextmanager
 from functools import partial
 import inspect
 import logging
@@ -9,7 +10,7 @@ import torch
 
 try:
     from transformers import AutoModelForCausalLM
-    from transformers.cache_utils import DynamicCache
+    from transformers import cache_utils
 except ImportError as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
@@ -36,13 +37,114 @@ def build_past_kv_list(
     return past_key_values  # type: ignore
 
 
-def build_past_kv_dyn_cache(args: T.Iterable[torch.Tensor]) -> DynamicCache:
-    return DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
+def build_past_kv_dyn_cache(
+    args: T.Iterable[torch.Tensor],
+) -> cache_utils.DynamicCache:
+    return cache_utils.DynamicCache.from_legacy_cache(
+        tuple(build_past_kv_list(args))
+    )
+
+
+@contextmanager
+def ctx_dtype_dyn_cache():
+    """Context Manager to handle inconsistent device type in KV-cache update
+
+    This may be due by example to the use of accelerate 'meta' tensors device.
+
+    This manager is stackable (in such case only largest context will be applied)
+    """
+
+    def force_dtype_dyn_cache_update(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        layer_idx: int,
+        cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+    ) -> T.Tuple[torch.Tensor, torch.Tensor]:
+        """
+        same as original except force device alignment
+        this is to avoid issues with 'accelerate' package
+        """
+        # Update the number of seen tokens
+        if layer_idx == 0:
+            self._seen_tokens += key_states.shape[-2]
+
+        # Update the cache
+        if key_states is not None:
+            if len(self.key_cache) <= layer_idx:
+                # There may be skipped layers, fill them with empty lists
+                for _ in range(len(self.key_cache), layer_idx):
+                    self.key_cache.append(torch.tensor([]))
+                    self.value_cache.append(torch.tensor([]))
+                self.key_cache.append(key_states)
+                self.value_cache.append(value_states)
+            elif (
+                not self.key_cache[
+                    layer_idx
+                ].numel()  # prefers not t.numel() to len(t) == 0 to export the model
+            ):  # fills previously skipped layers; checking for tensor causes errors
+                self.key_cache[layer_idx] = key_states
+                self.value_cache[layer_idx] = value_states
+            else:
+                self.key_cache[layer_idx] = torch.cat(
+                    [
+                        self.key_cache[layer_idx].to(key_states.device),
+                        key_states,
+                    ],
+                    dim=-2,
+                )
+                self.value_cache[layer_idx] = torch.cat(
+                    [
+                        self.value_cache[layer_idx].to(value_states.device),
+                        value_states,
+                    ],
+                    dim=-2,
+                )
+
+        return self.key_cache[layer_idx], self.value_cache[layer_idx]
+
+    cache_utils._original_dyn_cache_update = cache_utils.DynamicCache.update
+    count_attr_name = "_dyn_cache_custom_update_ctx_count"
+    if hasattr(cache_utils, count_attr_name):
+        new_count = getattr(cache_utils, count_attr_name) + 1
+    else:
+        new_count = 1
+
+    if new_count == 1:
+        cache_utils.DynamicCache.update = force_dtype_dyn_cache_update
+
+    setattr(cache_utils, count_attr_name, new_count)
+    try:
+        yield
+    finally:
+        setattr(
+            cache_utils,
+            count_attr_name,
+            getattr(cache_utils, count_attr_name) - 1,
+        )
+        if getattr(cache_utils, count_attr_name) <= 0:
+            cache_utils.DynamicCache.update = (
+                cache_utils._original_dyn_cache_update
+            )
+            del cache_utils._original_dyn_cache_update
+
+
+def use_dtype_dyn_cache(f):
+    """Annotator for forward function applying `ctx_dtype_dyn_cache`"""
+
+    @wraps(f)
+    def wrapped(self, *args, **kwargs):
+        with ctx_dtype_dyn_cache():
+            return f(self, *args, **kwargs)
+
+    return wrapped
+
 
 def update_forward_signature(self):
-    """ trickery to help torch > 2.0 new export API tracing. """
+    """trickery to help torch > 2.0 new export API tracing."""
     # pylint: disable-next: import-outside-toplevel
     from torch_to_nnef.llm_tract.config import HFConfigHelper
+
     # {
     sign = inspect.signature(self.forward)
     kv_inames = HFConfigHelper(self.model.config).build_kv_cache_infos(0)[0]
@@ -53,24 +155,23 @@ def update_forward_signature(self):
     # expect only POSITIONAL_OR_KEYWORD ...
     kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
     new_params["input_ids"] = inspect.Parameter(
-        "input_ids",
-        kind,
-        annotation=torch.Tensor
+        "input_ids", kind, annotation=torch.Tensor
     )
     for kv_iname in kv_inames:
         new_params[kv_iname] = inspect.Parameter(
-            kv_iname,
-            kind,
-            annotation=torch.Tensor
+            kv_iname, kind, annotation=torch.Tensor
         )
 
     self._forward = self.forward
+
     @wraps(self._forward)
     def wrapped_forward(*args, **kwargs):
         return self._forward(*args, **kwargs)
+
     wrapped_forward.__signature__ = sign.replace(parameters=new_params.values())
     self.forward = wrapped_forward
     # }
+
 
 class TorchToNNEFWrappedLLM(torch.nn.Module):
     """Base module class for all LLM wrapping
@@ -83,7 +184,6 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.forward_kwargs = {}
-
 
 
 class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
@@ -112,6 +212,7 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     def tie_weights(self):
         return self.model.tie_weights()
 
+    @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
         """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
 
@@ -227,6 +328,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     def tie_weights(self):
         return self.model.tie_weights()
 
+    @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
         # past_key_values

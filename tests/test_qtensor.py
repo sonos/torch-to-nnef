@@ -9,11 +9,9 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.qtensor.base import (
+from torch_to_nnef.tensor.quant import (
     U8Compressor,
     qscale_per_group_f16_min_max_calibration,
-)
-from torch_to_nnef.qtensor.qtract import (
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )

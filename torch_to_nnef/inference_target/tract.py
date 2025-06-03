@@ -230,6 +230,7 @@ class TractNNEF(InferenceTarget):
             # CHECK input and output are different
             input_names = [str(t.name) for t in nnef_graph.inputs]
             output_names = [str(t.name) for t in nnef_graph.outputs]
+            del nnef_graph
             _output_names = set(output_names)
             _input_names = set(input_names)
             if len(_output_names.difference(_input_names)) == 0:

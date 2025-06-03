@@ -7,6 +7,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -16,6 +17,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class NamedTensor(torch.Tensor):
+    """Tensor enriched with name attribute"""
+
     @staticmethod
     def __new__(
         cls,
@@ -34,28 +37,38 @@ class NamedTensor(torch.Tensor):
         nnef_name: str,
     ):
         super().__init__()
+        self._fp_tensor = fp_tensor
         self.nnef_name = nnef_name
-
-    def __repr__(self) -> str:
-        return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
 
     @property
     def data(self):
+        """very important to keep access to all special attr of NamedTensor"""
         return self
 
-    def clone(self, *args, **kwargs):
-        return self.__class__(
-            super().clone(*args, **kwargs),
-            nnef_name=self.nnef_name,
+    @data.setter
+    def data(self, new_data):
+        raise TorchToNNEFNotImplementedError(
+            f"Trying to alter a TensorRef.data: {self}"
         )
 
     def detach(self):
         # need overwrite since nn.Paramater use it at __new__
+        LOGGER.debug("NamedTensor does not support detach")
         return self
 
-    def requires_grad_(self, requires_grad):
+    def requires_grad_(self, mode=False):
         # need overwrite since nn.Paramater use it at __new__
+        LOGGER.debug("NamedTensor does not support requires_grad")
         return self
+
+    def __repr__(self) -> str:
+        return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
+
+    def clone(self, *args, **kwargs):
+        return self.__class__(
+            torch.Tensor.clone(self, *args, **kwargs),
+            nnef_name=self.nnef_name,
+        )
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
@@ -69,9 +82,6 @@ class NamedTensor(torch.Tensor):
         if kwargs is None:
             kwargs = {}
 
-        if not all(issubclass(cls, t) for t in types):
-            return NotImplemented
-
         with select_ctx_disable_torch_fn():
             new_args = [a.clone() if isinstance(a, cls) else a for a in args]
             new_kwargs = {
@@ -82,7 +92,7 @@ class NamedTensor(torch.Tensor):
             if func in get_default_nowrap_functions():
                 return ret
             # important modification
-            # do not propagate this qtype
+            # do not propagate this NamedTensor
             return _convert(ret, torch.Tensor)
 
 
@@ -113,12 +123,14 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
 
     """
     # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.qtensor.base import QTensor, QTensorRef
+    from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
+
+    skip_tensor_types = (OpaqueTensorRef, OpaqueTensor)
 
     LOGGER.debug("started to apply NamedTensor")
     ids_to_ntensor: T.Dict[int, NamedTensor] = {}
     for full_name, param in model.named_parameters(remove_duplicate=False):
-        if isinstance(param.data, (QTensorRef, QTensor)):
+        if isinstance(param.data, skip_tensor_types):
             continue
         ref_mod, pname = get_parent_module_and_param_name(model, full_name)
 
@@ -143,7 +155,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         for attr_name, attr_val in ref_mod.__dict__.items():
             if not isinstance(attr_val, torch.Tensor):
                 continue
-            if isinstance(attr_val.data, (QTensorRef, QTensor)):
+            if isinstance(attr_val.data, skip_tensor_types):
                 continue
             # we need to capture every thing that is a tensor
             full_name = attr_name
@@ -156,7 +168,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
             setattr(ref_mod, attr_name, named_tensor)
 
     for full_name, buffer in model.named_buffers(remove_duplicate=False):
-        if isinstance(buffer, (QTensorRef, QTensor)):
+        if isinstance(buffer, skip_tensor_types):
             continue
         ref_mod, bname = get_parent_module_and_param_name(model, full_name)
         LOGGER.debug(f"apply NamedTensor: {full_name}")

@@ -15,7 +15,7 @@ from torch_to_nnef.op.helper import (
     pick_axis,
     pick_index_in_axis,
 )
-from torch_to_nnef.qtensor.base import QTensorRef
+from torch_to_nnef.tensor import OpaqueTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 LOGGER = logging.getLogger(__name__)
@@ -398,8 +398,8 @@ def index_(node, op_helper, inference_target, **kwargs):
     if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
-        if isinstance(input_node.data, QTensorRef):
-            attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
+        if isinstance(input_node.data, OpaqueTensorRef):
+            attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[input_node.dtype]
     else:
         op_name = "gather"
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -492,7 +492,7 @@ def embedding(node, op_helper, inference_target, **kwargs):
     if isinstance(inference_target, TractNNEF):
         op_name = "tract_core_gather"
         custom_fragments += ["tract_core"]
-        if isinstance(weight_node.data, QTensorRef):
+        if isinstance(weight_node.data, OpaqueTensorRef):
             attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
     else:
         op_name = "gather"
@@ -754,8 +754,8 @@ def index_select(node, op_helper, inference_target, **kwargs):
     attrs = {
         "axis": dim_node.data,
     }
-    if isinstance(input_node.data, QTensorRef):
-        attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[weight_node.dtype]
+    if isinstance(input_node.data, OpaqueTensorRef):
+        attrs["datum_type"] = TORCH_DTYPE_TO_TRACT_STR[input_node.dtype]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "tract_core_gather",

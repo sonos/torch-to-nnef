@@ -1847,7 +1847,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.17.3"
+version = "0.17.4"
 source = { editable = "." }
 dependencies = [
     { name = "mako" },
@@ -1865,6 +1865,9 @@ llm-tract = [
     { name = "sentencepiece" },
     { name = "tokenizers" },
     { name = "transformers" },
+]
+llm-tract-accelerate = [
+    { name = "accelerate" },
 ]
 peft = [
     { name = "peft" },
@@ -1898,6 +1901,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", marker = "extra == 'llm-tract-accelerate'" },
     { name = "huggingface-hub", marker = "extra == 'llm-tract'", specifier = ">0.24" },
     { name = "isort", marker = "extra == 'test'", specifier = ">=5.8.0,<6" },
     { name = "mako", specifier = ">=1.0.0,<2.0" },
@@ -1921,7 +1925,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'llm-tract'", specifier = ">=4.35.2,<5" },
     { name = "transformers", marker = "extra == 'test'", specifier = ">=4.35.2,<5" },
 ]
-provides-extras = ["llm-tract", "peft", "test"]
+provides-extras = ["llm-tract", "llm-tract-accelerate", "peft", "test"]
 
 [package.metadata.requires-dev]
 dev = [
