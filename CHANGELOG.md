@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.18.1] - 2025-06-03
+
+### Added
+
+- Official tract support version: `0.21.13`
+
 ## [0.18.0] - 2025-06-03
 
 ### Added
