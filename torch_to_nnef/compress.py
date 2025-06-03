@@ -1,5 +1,4 @@
 from collections import defaultdict
-import gc
 import typing as T
 from functools import partial
 import logging
@@ -59,26 +58,24 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     )
                 else:
                     try:
-                        weight = mod.weight
-                        if isinstance(weight, OpaqueTensor):
-                            weight = weight.to_base_tensor()
-                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
-                            weight,
-                            **{
-                                k: v
-                                for k, v in kwargs.items()
-                                if k in ["percentile"]
-                            },
-                        )
-                        q_weight.nnef_name = f"{name}.weight"
-                        if isinstance(mod.weight, OffloadedTensor):
-                            q_weight = OffloadedTensor.from_original_tensor(
-                                q_weight,
-                                f"{mod.weight._name}.q40_min_max",
-                                offload_dir=mod.weight.offload_dir,
+
+                        def q_fn(weight):
+                            q_weight = (
+                                fp_to_tract_q4_0_with_min_max_calibration(
+                                    weight,
+                                    **{
+                                        k: v
+                                        for k, v in kwargs.items()
+                                        if k in ["percentile"]
+                                    },
+                                )
                             )
-                            del weight
-                            gc.collect()
+                            q_weight.nnef_name = f"{name}.weight"
+                            return q_weight
+
+                        q_weight = offloaded_tensor_qtensor(
+                            q_fn, mod.weight, "q40_min_max"
+                        )
                         ids_to_qtensor[weight_id] = q_weight
                     except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")
@@ -89,6 +86,24 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     nn.Parameter(q_weight, requires_grad=False),
                 )
     return model
+
+
+def offloaded_tensor_qtensor(
+    q_fn, tensor: torch.Tensor, suffix_name: str
+) -> torch.Tensor:
+    original_tensor = tensor
+    if isinstance(original_tensor, OffloadedTensor):
+        tensor = original_tensor.to_base_tensor()
+
+    q_tensor = q_fn(tensor)
+
+    if isinstance(original_tensor, OffloadedTensor):
+        q_tensor = OffloadedTensor.from_original_tensor(
+            q_tensor,
+            f"{original_tensor._name}.{suffix_name}",
+            offload_dir=original_tensor.offload_dir,
+        )
+    return q_tensor
 
 
 def dynamic_load_registry(compression_registry_full_path: str):
