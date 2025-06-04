@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.18.2] - 2025-06-04
+
+### Fix
+
+- `safetensors` import, only called when needed
+
 ## [0.18.1] - 2025-06-03
 
 ### Added
