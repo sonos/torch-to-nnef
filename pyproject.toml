@@ -34,6 +34,7 @@ llm_tract = [
     "transformers>=4.35.2,<5",
 ]
 llm_tract_accelerate = ["accelerate"]
+safetensors = ["safetensors"]
 peft = ["peft"]
 test = [
     "isort>=5.8.0,<6",
