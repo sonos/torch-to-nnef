@@ -261,16 +261,12 @@ class OffloadedTensor(OpaqueTensor):
                 for a in args:
                     while isinstance(a, OpaqueTensor):
                         a = a.to_base_tensor()
-                    if isinstance(a, torch.Tensor):
-                        a = a.clone()
                     new_args.append(a)
                 args = new_args
                 new_kwargs = {}
                 for k, v in kwargs.items():
                     while isinstance(v, OpaqueTensor):
                         v = v.to_base_tensor()
-                    if isinstance(v, torch.Tensor):
-                        v = v.clone()
                     new_kwargs[k] = v
                 kwargs = new_kwargs
             ret = func(*args, **kwargs)
