@@ -162,6 +162,10 @@ class OffloadedTensor(OpaqueTensor):
         )
         return off_tensor
 
+    @property
+    def dtype(self):
+        return self.elem.dtype
+
     def to(self, *args, **kwargs):
         if len(args) > 1:
             kwargs.update(zip(["device", "dtype"], args))
@@ -189,6 +193,7 @@ class OffloadedTensor(OpaqueTensor):
                 )
                 self.offload_path.unlink()
                 self.elem = self.elem.to(dtype)
+                self.__dict__["dtype"] = dtype
                 LOGGER.info(
                     f"[casted to {dtype}] offload tensor '{self._name}'"
                 )
