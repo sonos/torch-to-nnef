@@ -32,7 +32,6 @@ import tempfile
 import typing as T
 import warnings
 
-from safetensors import safe_open
 import torch
 from torch import nn
 from torch._tensor import _convert
@@ -263,8 +262,12 @@ def safe_load_file(
     loaded = load_file(file_path)
     ```
     """
+    # pylint: disable-next=import-outside-toplevel
+    import safetensors
+
     result = {}
-    with safe_open(
+
+    with safetensors.safe_open(
         filename, framework="pt", device=maybe_extract_target_device(device)
     ) as f:
         for k in f.keys():
@@ -323,8 +326,12 @@ def load_state_dict(
             if activated it will offload each loaded tensor as soon as possible
             (we disable it in most case to allow set_module_tensor_to_device dtype casting in memory directly)
     """
+
     if checkpoint_file.name.endswith(".safetensors"):
-        with safe_open(checkpoint_file, framework="pt") as f:
+        # pylint: disable-next=import-outside-toplevel
+        import safetensors
+
+        with safetensors.safe_open(checkpoint_file, framework="pt") as f:
             metadata = f.metadata()
             weight_names = f.keys()
 
@@ -351,6 +358,9 @@ def load_state_dict(
                 apply_offload=apply_offload,
             )
         else:
+            # pylint: disable-next=import-outside-toplevel
+            import safetensors
+
             # if we only have one device we can load everything directly
             if len(set(device_map.values())) == 1:
                 device = list(device_map.values())[0]
@@ -392,7 +402,7 @@ def load_state_dict(
             tensors = {}
             for device in devices:
                 target_device = device
-                with safe_open(
+                with safetensors.safe_open(
                     checkpoint_file, framework="pt", device=target_device
                 ) as f:
                     for key in device_weights[device]:
