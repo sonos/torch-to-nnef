@@ -5,7 +5,7 @@ description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 
 # weird regression in 3.13 to address shortly
-requires-python = ">=3.9.0,<3.13"
+requires-python = ">=3.9.0,<4"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
