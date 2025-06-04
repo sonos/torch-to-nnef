@@ -8,7 +8,6 @@ from torch import nn
 
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.tensor.offload import OffloadedTensor
-from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
@@ -80,10 +79,8 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     except TorchToNNEFImpossibleQuantization as exp:
                         LOGGER.error(f"quant layer: {name} error: {exp}")
                         continue
-                setattr(
-                    mod,
-                    "weight",
-                    nn.Parameter(q_weight, requires_grad=False),
+                mod._parameters["weight"] = nn.Parameter(
+                    q_weight, requires_grad=False
                 )
     return model
 
@@ -97,13 +94,14 @@ def offloaded_tensor_qtensor(
 
     q_tensor = q_fn(tensor)
 
+    final_tensor = q_tensor
     if isinstance(original_tensor, OffloadedTensor):
-        q_tensor = OffloadedTensor.from_original_tensor(
+        final_tensor = OffloadedTensor.from_original_tensor(
             q_tensor,
             f"{original_tensor._name}.{suffix_name}",
             offload_dir=original_tensor.offload_dir,
         )
-    return q_tensor
+    return final_tensor
 
 
 def dynamic_load_registry(compression_registry_full_path: str):

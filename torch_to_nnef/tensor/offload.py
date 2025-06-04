@@ -120,8 +120,14 @@ class OffloadedTensor(OpaqueTensor):
         self.target_device = torch.device(device)
         self._name = name
         self.offload_dir = offload_dir
-        self.offloaded_tensor_dtype = elem.dtype
         self.offloaded_tensor_type = offloaded_tensor_type
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self.elem.dtype
+
+    def numel(self) -> int:
+        return self.elem.numel()
 
     @property
     def device(self) -> torch.device:
@@ -149,7 +155,7 @@ class OffloadedTensor(OpaqueTensor):
                     tempfile.mkdtemp(prefix="t2n_offload_disk")
                 )
             offload_dir = cls.tmp_basedir
-        torch.save(tensor, cls._offload_path(offload_dir, name, tensor.dtype))
+        cls._save(tensor, offload_dir, name)
         off_tensor = cls(
             torch.zeros(tensor.shape, dtype=tensor.dtype, device="meta"),
             tensor.device,
@@ -161,10 +167,6 @@ class OffloadedTensor(OpaqueTensor):
             f"Offloaded param (kept on-disk): '{name}' {suffix_log_msg}"
         )
         return off_tensor
-
-    @property
-    def dtype(self):
-        return self.elem.dtype
 
     def to(self, *args, **kwargs):
         if len(args) > 1:
@@ -183,13 +185,10 @@ class OffloadedTensor(OpaqueTensor):
             assert isinstance(dtype, torch.dtype)
             if dtype != self.elem.dtype:
                 tensor = self.reload().to(dtype)
-                torch.save(
+                self._save(
                     tensor,
-                    self._offload_path(
-                        self.offload_dir,
-                        self._name,
-                        tensor.dtype,
-                    ),
+                    self.offload_dir,
+                    self._name,
                 )
                 self.offload_path.unlink()
                 self.elem = self.elem.to(dtype)
@@ -209,7 +208,17 @@ class OffloadedTensor(OpaqueTensor):
     def data(self, new_data):
         return self
 
+    @classmethod
+    def _save(cls, tensor, offload_dir, name):
+        return torch.save(
+            tensor, cls._offload_path(offload_dir, name, tensor.dtype)
+        )
+
     def reload(self):
+        if issubclass(self.offloaded_tensor_type, OpaqueTensor):
+            return torch.load(self.offload_path, weights_only=False).to(
+                self.target_device
+            )
         return torch.load(self.offload_path).to(self.target_device)
 
     def _to_base_tensor(self) -> torch.Tensor:
@@ -248,14 +257,22 @@ class OffloadedTensor(OpaqueTensor):
                 for _ in ["'__get__'", "'__set__'", "Tensor.__reduce_ex__"]
             )
             if not skip_expansion:
-                args = [
-                    a.to_base_tensor() if isinstance(a, cls) else a
-                    for a in args
-                ]
-                kwargs = {
-                    k: v.to_base_tensor() if isinstance(v, cls) else v
-                    for k, v in kwargs.items()
-                }
+                new_args = []
+                for a in args:
+                    while isinstance(a, OpaqueTensor):
+                        a = a.to_base_tensor()
+                    if isinstance(a, torch.Tensor):
+                        a = a.clone()
+                    new_args.append(a)
+                args = new_args
+                new_kwargs = {}
+                for k, v in kwargs.items():
+                    while isinstance(v, OpaqueTensor):
+                        v = v.to_base_tensor()
+                    if isinstance(v, torch.Tensor):
+                        v = v.clone()
+                    new_kwargs[k] = v
+                kwargs = new_kwargs
             ret = func(*args, **kwargs)
             if skip_expansion:
                 return ret
