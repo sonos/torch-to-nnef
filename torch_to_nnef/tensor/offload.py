@@ -270,6 +270,7 @@ class OffloadedTensor(OpaqueTensor):
                     new_kwargs[k] = v
                 kwargs = new_kwargs
             ret = func(*args, **kwargs)
+            gc.collect()
             if skip_expansion:
                 return ret
             # important modification
