@@ -975,9 +975,8 @@ def load_model(
             )
 
     if force_module_dtype is not None:
-        hf_model_causal = hf_model_causal.to(
-            DtypeStr(force_module_dtype).torch_dtype
-        )
+        force_dtype = DtypeStr(force_module_dtype).torch_dtype
+        hf_model_causal = hf_model_causal.to(force_dtype)
         LOGGER.info(f"force casted model internals to: '{force_module_dtype}'")
     return hf_model_causal
 

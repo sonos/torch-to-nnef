@@ -9,6 +9,7 @@ REMAP_ATEN_OP_NAMES = {
     "bitwise_cpu": "and",
     "__and__": "and",
     "__or__": "or",
+    "bitwise_or": "or",
     "less": "lt",
     "greater": "gt",
     "less_equal": "le",

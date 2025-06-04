@@ -120,6 +120,7 @@ class OffloadedTensor(OpaqueTensor):
         self.target_device = torch.device(device)
         self._name = name
         self.offload_dir = offload_dir
+        self.offloaded_tensor_dtype = elem.dtype
         self.offloaded_tensor_type = offloaded_tensor_type
 
     @property
@@ -161,10 +162,50 @@ class OffloadedTensor(OpaqueTensor):
         )
         return off_tensor
 
+    def to(self, *args, **kwargs):
+        if len(args) > 1:
+            kwargs.update(zip(["device", "dtype"], args))
+        else:
+            # unfortunately arg order is not guarantied
+            # in torch .to ...
+            try:
+                torch.device(args[0])
+                kwargs["device"] = args[0]
+            except TypeError:
+                kwargs["dtype"] = args[0]
+
+        if kwargs.get("dtype") is not None:
+            dtype = kwargs["dtype"]
+            assert isinstance(dtype, torch.dtype)
+            if dtype != self.elem.dtype:
+                tensor = self.reload().to(dtype)
+                torch.save(
+                    tensor,
+                    self._offload_path(
+                        self.offload_dir,
+                        self._name,
+                        tensor.dtype,
+                    ),
+                )
+                self.offload_path.unlink()
+                self.elem = self.elem.to(dtype)
+                LOGGER.info(
+                    f"[casted to {dtype}] offload tensor '{self._name}'"
+                )
+        if kwargs.get("device") is not None:
+            self.target_device = torch.device(kwargs["device"])
+        return self
+
+    @property
+    def data(self):
+        return self
+
+    @data.setter
+    def data(self, new_data):
+        return self
+
     def reload(self):
-        return torch.load(self.offload_path, weights_only=False).to(
-            self.target_device
-        )
+        return torch.load(self.offload_path).to(self.target_device)
 
     def _to_base_tensor(self) -> torch.Tensor:
         return self.reload()
@@ -195,18 +236,6 @@ class OffloadedTensor(OpaqueTensor):
             kwargs = {}
 
         with select_ctx_disable_torch_fn():
-            if func == torch.Tensor.to:
-                if isinstance(args[1], torch.dtype):
-                    new_offload = cls.from_original_tensor(
-                        args[0].reload().to(args[1]),
-                        args[0]._name,
-                        args[0].offload_dir,
-                        suffix_log_msg=f"[casted to {args[1]}]",
-                    )
-                    return new_offload
-                else:
-                    args[0].target_device = torch.device(args[1])
-                return args[0]
             skip_expansion = func in get_default_nowrap_functions().union(
                 {cls.__repr__}
             ) or any(

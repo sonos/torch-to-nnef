@@ -1,11 +1,11 @@
-import filecmp
 from functools import reduce
+from pathlib import Path
+import filecmp
 import operator
 import platform
 import struct
 import tempfile
 import typing as T
-from pathlib import Path
 
 import numpy as np
 import torch
