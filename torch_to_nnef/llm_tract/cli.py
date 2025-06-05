@@ -150,6 +150,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "At each use, it loads on specific device then offload (device target can be changed anytime) "
             "2. 't2n_auto' & 'auto' dispatch accross all device like accelerate 'auto' except on 'disk' will be "
             "remapped to 'torch_to_nnef.tensor.offload.OffloadedTensor' instead (need 'accelerate' installed). "
+            " Also we observed memory allocation issue with 3.13.X and 'QTensor' mix, so for now we recommend 3.12 in those case. "
             "https://huggingface.co/docs/accelerate/en/concept_guides/big_model_inference",
         )
 
