@@ -3,6 +3,20 @@
 
 ## Unreleased
 
+## [0.18.3] - 2025-06-05
+
+### Fix
+
+- `dtype` change (via .to) of OffloadedTensor handled
+- `numel` call avoid OffloadedTensor reload
+- `dtype` getter aligned
+- dissociated getter aligned
+
+### Added
+
+- support for python 3.13 landed (some issue still with Quant+Offloaded tensor mem alloc)
+- `aten::bitwise_or` operator
+
 ## [0.18.2] - 2025-06-04
 
 ### Fix
