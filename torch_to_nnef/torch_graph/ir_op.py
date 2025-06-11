@@ -452,7 +452,7 @@ class TorchOp:
                 results = torch.empty(cx, dtype=self.args[0].dtype)
             elif (
                 self.kind == ATEN_LINEAR
-                and set(ar.dtype for ar in self.args)
+                and set(ar.dtype for ar in self.args if ar is not None)
                 and approx
             ):
                 ax = list(self.args[0].shape)
