@@ -168,14 +168,12 @@ class QTensorTractScaleOnly(QTensorTract):
                 tensor_per_group.sum(dim=2).numpy().astype(np.uint8)
             )
 
-        b_arr = bytearray(b"")
-        for values, scale in zip(
-            tensor_per_group, self.qscheme.scale.flatten().numpy()
-        ):
-            b_arr.extend(scale.tobytes("F"))
-            b_arr.extend(values.tobytes("F"))
-            assert len(b_arr) % n_bytes_per_group == 0
-        return bytes(b_arr)
+        b_scales = self.qscheme.scale.numpy().view(np.byte)
+        b_vals = tensor_per_group.view(np.byte)
+        b_all = np.hstack([b_scales, b_vals])
+        b_arr = b_all.tobytes()
+        assert len(b_arr) % n_bytes_per_group == 0
+        return b_arr
 
     def write_in_file(
         self,
