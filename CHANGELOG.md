@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+## [0.18.4] - 2025-06-11
+
+### Change
+
+- bunch of cache, ordered conditioning, torch.compile to make export faster
+
 ## [0.18.3] - 2025-06-05
 
 ### Fix
