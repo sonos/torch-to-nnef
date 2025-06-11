@@ -99,16 +99,28 @@ class QScalePerGroupF16(QScheme):
             fu8_tensor_per_group = fu8_tensor_per_group.to(torch.float16)
         return fu8_tensor_per_group.to(torch.uint8).reshape(fp_tensor.shape)
 
-    def dequantize(self, u8_tensor, target_dtype):
-        u8_tensor_per_group = self.reshape_tensor_per_group(
-            u8_tensor, self.group_size
+    @staticmethod
+    def _dequantize(
+        u8_tensor: torch.Tensor,
+        scale: torch.Tensor,
+        group_size: int,
+        n_bits: int,
+        target_dtype: torch.dtype,
+    ) -> torch.Tensor:
+        u8_tensor_per_group = QScalePerGroupF16.reshape_tensor_per_group(
+            u8_tensor, group_size
         )
-        offset = 2**self.n_bits / 2
+        offset = 2**n_bits / 2
         fp_tensor_per_group = (u8_tensor_per_group - offset).to(
-            device=self.scale.device, dtype=target_dtype
+            device=scale.device, dtype=target_dtype
         )
-        fp_tensor_per_group *= self.scale.to(target_dtype)
+        fp_tensor_per_group *= scale.to(target_dtype)
         return fp_tensor_per_group.reshape(u8_tensor.shape)
+
+    def dequantize(self, u8_tensor, target_dtype):
+        return QScalePerGroupF16._dequantize(
+            u8_tensor, self.scale, self.group_size, self.n_bits, target_dtype
+        )
 
     def clone_with_scale_factor(self, scale_factor):
         return self.__class__(
@@ -123,6 +135,11 @@ class QScalePerGroupF16(QScheme):
             f"(group_size={self.group_size}, "
             f"scale={self.scale})"
         )
+
+
+if torch_version() > "2.0.0":
+    QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize
+    QScalePerGroupF16._dequantize = torch.compile(QScalePerGroupF16._dequantize)
 
 
 class U8Compressor:
