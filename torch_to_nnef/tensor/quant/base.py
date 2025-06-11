@@ -70,7 +70,7 @@ class QScalePerGroupF16(QScheme):
 
     @staticmethod
     def reshape_tensor_per_group(fp_tensor, group_size: int):
-        return fp_tensor.flatten().reshape(-1, group_size)
+        return fp_tensor.view(-1, group_size)
 
     def quantize_as_u8(self, fp_tensor):
         fp_tensor_per_group = self.reshape_tensor_per_group(
@@ -205,6 +205,9 @@ class QTensor(OpaqueTensor):
         self.dequant_to_dtype = dequant_to_dtype
         self.nnef_name: T.Optional[str] = None
         self.requires_grad = False
+
+    def numel(self) -> int:
+        return self.decompress_to_u8().numel()
 
     def decompress_to_u8(self):
         decompress_u8 = self.u8_blob
