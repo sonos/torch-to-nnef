@@ -677,4 +677,4 @@ def set_module_tensor_to_device(
     new_value = maybe_load_offload_tensor(
         value, device, original_tensor_name, offload_dir
     )
-    module._parameters[tensor_name] = new_value
+    module._parameters[tensor_name] = nn.Parameter(new_value)
