@@ -42,8 +42,10 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_ALIAS,
     ATEN_ARANGE,
     ATEN_BADDMM,
+    ATEN_CLONE,
     ATEN_CUMSUM,
     ATEN_EINSUM,
     ATEN_EMPTY,
@@ -76,6 +78,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     LISTTYPE_KIND,
     MAP_TO_TENSOR_FN,
     NONETYPE_KIND,
+    NUMTOTENSOR_KIND,
     TUPLETYPE_KIND,
 )
 from torch_to_nnef.utils import ReactiveNamedItemDict
@@ -270,7 +273,10 @@ class TorchOp:
     call_name: T.Optional[str]
 
     def __hash__(self):
-        return hash(f"{self.kind}{self.inputs}{self.outputs}")
+        # cache for speed-up
+        if not hasattr(self, "_cached_hash"):
+            self._cached_hash = hash(f"{self.kind}{self.inputs}{self.outputs}")
+        return self._cached_hash
 
     @property
     def is_callmethod(self) -> bool:
@@ -423,7 +429,10 @@ class TorchOp:
 
         # generate all data and call ops to infer missing infos
         try:
-            results = self.call_op()
+            if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
+                results = self.args[0]
+            else:
+                results = self.call_op()
         except TorchUnableToTraceData:
             return False
 

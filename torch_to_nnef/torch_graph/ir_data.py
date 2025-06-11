@@ -217,11 +217,15 @@ class TensorVariable(Data):
         return self
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, TensorVariable):
+        # check by name first
+        # since faster than isinstance
+        try:
+            if self.name != other.name or not isinstance(other, TensorVariable):
+                return False
+        except AttributeError:
             return False
         return (
-            self.name == other.name
-            and self.shape == other.shape
+            self.shape == other.shape
             and self.dtype == other.dtype
             and self.dtype == other.dtype
             and (
