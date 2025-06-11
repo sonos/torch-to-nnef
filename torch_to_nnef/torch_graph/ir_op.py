@@ -48,6 +48,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_CLONE,
     ATEN_CUMSUM,
     ATEN_EINSUM,
+    ATEN_EMBEDDING,
     ATEN_EMPTY,
     ATEN_EMPTY_LIKE,
     ATEN_FULL,
@@ -56,8 +57,10 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_INT,
     ATEN_LINALG_NORM,
     ATEN_LINALG_VECTOR_NORM,
+    ATEN_LINEAR,
     ATEN_MASKED_FILL,
     ATEN_MASKED_FILL_,
+    ATEN_MATMUL,
     ATEN_NEW_EMPTY,
     ATEN_NEW_ONES,
     ATEN_ONES_LIKE,
@@ -416,7 +419,7 @@ class TorchOp:
     def args(self) -> T.Tuple[T.Any, ...]:
         return tuple(_.tracing_data for _ in self.inputs)
 
-    def realise_output_type_and_size(self) -> bool:
+    def realise_output_type_and_size(self, approx: bool = True) -> bool:
         """Trace output and try to find type shape and constant realisation"""
         if self.kind == CALL_KIND:
             return False
@@ -431,6 +434,31 @@ class TorchOp:
         try:
             if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
                 results = self.args[0]
+            elif self.kind == ATEN_EMBEDDING and approx:
+                ax = list(self.args[0].shape)
+                bx = list(self.args[1].shape)
+                shape = bx + ax[1:]
+                results = torch.empty(shape, dtype=self.args[0].dtype)
+            elif (
+                self.kind == ATEN_MATMUL
+                and set(ar.dtype for ar in self.args)
+                and approx
+            ):
+                ax = list(self.args[0].shape)
+                bx = list(self.args[1].shape)
+                bx = ([1] * (len(ax) - len(bx))) + bx
+                cx = bx[:]
+                cx[-2] = ax[-2]
+                results = torch.empty(cx, dtype=self.args[0].dtype)
+            elif (
+                self.kind == ATEN_LINEAR
+                and set(ar.dtype for ar in self.args)
+                and approx
+            ):
+                ax = list(self.args[0].shape)
+                bx = list(self.args[1].shape)
+                cx = ax[:-2] + [ax[-2], bx[-2]]
+                results = torch.empty(cx, dtype=self.args[0].dtype)
             else:
                 results = self.call_op()
         except TorchUnableToTraceData:
