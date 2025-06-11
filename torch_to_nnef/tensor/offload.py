@@ -115,12 +115,14 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: Path,
         name: str,
         offloaded_tensor_type: T.Type[torch.Tensor],
+        force_gc_collect: bool = False,
     ):
         self.elem = elem
         self.target_device = torch.device(device)
         self._name = name
         self.offload_dir = offload_dir
         self.offloaded_tensor_type = offloaded_tensor_type
+        self.force_gc_collect = force_gc_collect
 
     @property
     def dtype(self) -> torch.dtype:
@@ -270,7 +272,8 @@ class OffloadedTensor(OpaqueTensor):
                     new_kwargs[k] = v
                 kwargs = new_kwargs
             ret = func(*args, **kwargs)
-            gc.collect()
+            if isinstance(args[0], OpaqueTensor) and args[0].force_gc_collect:
+                gc.collect()
             if skip_expansion:
                 return ret
             # important modification
