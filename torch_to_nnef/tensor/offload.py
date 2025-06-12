@@ -210,6 +210,16 @@ class OffloadedTensor(OpaqueTensor):
     def data(self, new_data):
         return self
 
+    def update_values(self, values: torch.Tensor):
+        """replace offloaded tensor by new 'values' tensor"""
+        assert self.elem.dtype == values.dtype
+        assert self.elem.shape == values.shape
+        assert self._offload_path(
+            self.offload_dir, self._name, values.dtype
+        ).exists()
+        OffloadedTensor._save(values, self.offload_dir, self._name)
+        LOGGER.debug(f"updated values: '{self._name}'")
+
     @classmethod
     def _save(cls, tensor, offload_dir, name):
         return torch.save(
