@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+## [0.18.5] - 2025-06-13
+
+
+### Added
+
+- `update_values` in OffloadedTensor
+
+### Fix
+
+- `Parameter` addition in OffloadedTensor
+- `to_json_file` use in config dump in LLM
+
 ## [0.18.4] - 2025-06-11
 
 ### Change

@@ -608,7 +608,6 @@ class LLMExporter:
                 LOGGER.info("'inference mode' evaluation skipped")
 
             if dump_with_tokenizer_and_conf:
-                self.hf_model_causal.config.save_pretrained(export_dirpath)
                 self.hf_model_causal.config.to_json_file(
                     export_dirpath / CONFIG_NAME, use_diff=False
                 )
