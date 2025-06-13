@@ -43,6 +43,7 @@ from torch_to_nnef.utils import (
 
 try:
     from transformers import GenerationConfig
+    from transformers.utils import CONFIG_NAME
     import huggingface_hub
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -608,6 +609,9 @@ class LLMExporter:
 
             if dump_with_tokenizer_and_conf:
                 self.hf_model_causal.config.save_pretrained(export_dirpath)
+                self.hf_model_causal.config.to_json_file(
+                    export_dirpath / CONFIG_NAME, use_diff=False
+                )
                 self.tokenizer.save_pretrained(export_dirpath)
 
             build_io(

@@ -103,7 +103,7 @@ def get_or_add_named_tensor(
     if weight_id in ids_to_ntensor:
         named_tensor = ids_to_ntensor[weight_id]
         LOGGER.info(
-            f"detected shared weight between: {named_tensor.nnef_name} and '{full_name}'"
+            f"detected shared weight between: '{named_tensor.nnef_name}' and '{full_name}'"
         )
     else:
         named_tensor = NamedTensor(data, nnef_name=full_name)
