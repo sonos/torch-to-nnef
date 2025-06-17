@@ -8,7 +8,7 @@ from torch import nn
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.utils import (
     NamedItem,
-    ParametersModelUpdater,
+    ParametersUpdater,
     ReactiveNamedItemDict,
     flatten_dict_tuple_or_list,
 )
@@ -155,7 +155,7 @@ def test_parameter_update_by_ref_with_tied():
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
     sample0 = torch.tensor([[1, 3, 4, 0, 1, 2]])
     _ = model(sample0)
-    param_updaters = ParametersModelUpdater(model)
+    param_updaters = ParametersUpdater(model)
     old_data = model.last_lin_proj.weight.clone()
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
     param_updaters.update_by_ref(
@@ -174,7 +174,7 @@ def test_parameter_update_by_name_with_tied():
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
     sample0 = torch.tensor([[1, 3, 4, 0, 1, 2]])
     _ = model(sample0)
-    param_updaters = ParametersModelUpdater(model)
+    param_updaters = ParametersUpdater(model)
 
     old_data = model.last_lin_proj.weight.clone()
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
@@ -194,7 +194,7 @@ def test_parameter_update_by_name_with_tied_modified_separatly():
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
     sample0 = torch.tensor([[1, 3, 4, 0, 1, 2]])
     _ = model(sample0)
-    param_updaters = ParametersModelUpdater(model)
+    param_updaters = ParametersUpdater(model)
 
     old_data = model.last_lin_proj.weight.clone()
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
@@ -214,7 +214,7 @@ def test_parameter_update_by_name_with_tied_modified_separatly():
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
     sample0 = torch.tensor([[1, 3, 4, 0, 1, 2]])
     _ = model(sample0)
-    param_updaters = ParametersModelUpdater(model)
+    param_updaters = ParametersUpdater(model)
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
 
     new_tensor = torch.arange(5 * 2).reshape(5, 2).float()
@@ -250,7 +250,7 @@ def test_add_parameter_if_unset():
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
     sample0 = torch.tensor([[1, 3, 4, 0, 1, 2]])
     _ = model(sample0)
-    param_updaters = ParametersModelUpdater(model, add_parameter_if_unset=False)
+    param_updaters = ParametersUpdater(model, add_parameter_if_unset=False)
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
 
     new_tensor = torch.arange(5 * 3).reshape(5, 3).float()

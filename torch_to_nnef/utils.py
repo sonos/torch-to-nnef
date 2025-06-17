@@ -364,7 +364,7 @@ def get_parent_module_and_param_name(
     return ref_mod, chunked_names[-1]
 
 
-class ParametersModelUpdater:
+class ParametersUpdater:
     """Helper to update parameters of a model cleanly"""
 
     def __init__(
@@ -382,8 +382,12 @@ class ParametersModelUpdater:
             mod_name_to_param_names[mod_name].append(param_name)
         self.id_to_names = {k: frozenset(v) for k, v in id_to_names.items()}
         self.name_to_parent_module = {}
+        self.id_to_modules = defaultdict(list)
         for mod_name, mod in model.named_modules():
             for p_name in mod_name_to_param_names[mod_name]:
+                self.id_to_modules[
+                    id(mod._parameters[self.split_param_name(p_name)[1]])
+                ].append(mod)
                 self.name_to_parent_module[p_name] = mod
         self.model = model
         self.add_parameter_if_unset = add_parameter_if_unset
