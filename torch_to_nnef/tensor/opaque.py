@@ -205,6 +205,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
                 opaque_to_final_tensor(param).to("meta"),
                 param,
             ),
+            enforce_same_shape_dtype_device=False,
         )
     LOGGER.debug(
         "sucessfull to apply opaque tensor as reference (IR tracing friendly)"
