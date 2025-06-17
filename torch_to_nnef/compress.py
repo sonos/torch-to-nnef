@@ -12,7 +12,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.tensor.param import ParametersUpdater
+from torch_to_nnef.tensor.updater import ModTensorUpdater
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
     with torch.no_grad():
         ids_to_qtensor: T.Dict[int, T.Tuple[QTensor, OffloadedTensor]] = {}
         """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
-        param_updater = ParametersUpdater(model)
+        mod_tensor_updater = ModTensorUpdater(model)
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
@@ -43,11 +43,11 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     continue
                 if not all(
                     isinstance(m, to_quantize_module_classes)
-                    for m in param_updater.id_to_modules[weight_id]
+                    for m in mod_tensor_updater.id_to_modules[weight_id]
                 ):
                     clss = [
                         m.__class__
-                        for m in param_updater.id_to_modules[weight_id]
+                        for m in mod_tensor_updater.id_to_modules[weight_id]
                     ]
                     LOGGER.warning(
                         f"detected shared weight: '{name}' candidate has incompatible layer usage: {clss}, "
@@ -75,7 +75,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     LOGGER.error(f"quant layer: {name} error: {exp}")
                     continue
                 # => needs assignation next cause update_by_ref may create new Parameter object
-                q_weight = param_updater.update_by_ref(
+                q_weight = mod_tensor_updater.update_by_ref(
                     getattr(mod, "weight"), q_weight
                 )
                 ids_to_qtensor[id(q_weight)] = q_weight

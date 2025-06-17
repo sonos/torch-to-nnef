@@ -192,18 +192,18 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
 
     """
     # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.tensor.param import ParametersUpdater
+    from torch_to_nnef.tensor.updater import ModTensorUpdater
 
     LOGGER.debug(
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
-    param_updater = ParametersUpdater(model)
+    mod_tensor_updater = ModTensorUpdater(model)
     for full_name, param in model.named_parameters(remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue
         param.nnef_name = full_name
         LOGGER.debug(f"apply opaque tensor reference: {full_name}")
-        param_updater.update_by_ref(
+        mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(
                 opaque_to_final_tensor(param).to("meta"),
