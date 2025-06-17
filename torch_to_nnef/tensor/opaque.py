@@ -92,6 +92,10 @@ class OpaqueTensorRef(torch.Tensor):
         self.opaque_tensor = opaque_tensor
 
     @property
+    def device(self):
+        return self.opaque_tensor.device
+
+    @property
     def nnef_name(self):
         return getattr(self.opaque_tensor, "nnef_name", None)
 
@@ -205,7 +209,6 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
                 opaque_to_final_tensor(param).to("meta"),
                 param,
             ),
-            enforce_same_shape_dtype_device=False,
         )
     LOGGER.debug(
         "sucessfull to apply opaque tensor as reference (IR tracing friendly)"

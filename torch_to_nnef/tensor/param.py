@@ -5,7 +5,7 @@ import torch
 
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.tensor.named import NamedTensor
-from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
 
 
 class ParametersUpdater:
@@ -84,7 +84,9 @@ class ParametersUpdater:
         if (
             old.device == new.device
             and old.dtype == new.dtype
-            and not isinstance(new, (NamedTensor, OpaqueTensor))
+            and not isinstance(
+                new, (NamedTensor, OpaqueTensor, OpaqueTensorRef)
+            )
         ):
             old.set_(new)
         else:
