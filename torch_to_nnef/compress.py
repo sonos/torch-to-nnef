@@ -12,7 +12,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.utils import ParametersUpdater
+from torch_to_nnef.tensor.param import ParametersUpdater
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,11 +71,14 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     q_weight = offloaded_tensor_qtensor(
                         q_fn, mod.weight, "q40_min_max"
                     )
-                    ids_to_qtensor[weight_id] = q_weight
                 except TorchToNNEFImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")
                     continue
-                param_updater.update_by_ref(getattr(mod, "weight"), q_weight)
+                # => needs assignation next cause update_by_ref may create new Parameter object
+                q_weight = param_updater.update_by_ref(
+                    getattr(mod, "weight"), q_weight
+                )
+                ids_to_qtensor[id(q_weight)] = q_weight
     return model
 
 

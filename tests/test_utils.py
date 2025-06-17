@@ -8,10 +8,10 @@ from torch import nn
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.utils import (
     NamedItem,
-    ParametersUpdater,
     ReactiveNamedItemDict,
     flatten_dict_tuple_or_list,
 )
+from torch_to_nnef.tensor.param import ParametersUpdater
 
 
 @dataclass
