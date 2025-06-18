@@ -29,10 +29,14 @@ class ModTensorUpdater:
     ):
         self.name_to_id = {}
         self.id_to_kind = {}
+        self._disabled_requires_grad_names = []
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)
         for param_name, param in model.named_parameters(remove_duplicate=False):
             id_tensor = id(param)
+            if disable_requires_grad and param.requires_grad:
+                param.requires_grad = False
+                self._disabled_requires_grad_names.append(param_name)
             self.name_to_id[param_name] = id(param)
             id_to_names[id_tensor].add(param_name)
             mod_name, _ = self.split_param_name(param_name)
@@ -81,7 +85,12 @@ class ModTensorUpdater:
 
         self.model = model
         self.add_parameter_if_unset = add_parameter_if_unset
-        self.disable_requires_grad = disable_requires_grad
+
+    def restore_require_grad(self):
+        for name in self._disabled_requires_grad_names:
+            mod = self.name_to_parent_module[name]
+            local_name = self.split_param_name(name)[1]
+            mod._parameters[local_name].requires_grad = True
 
     @staticmethod
     def split_param_name(name: str) -> T.Tuple[str, str]:
@@ -110,7 +119,7 @@ class ModTensorUpdater:
                 f"not same shape between {tensor0.shape} and {tensor1.shape}"
             )
 
-    def check_all(self, tensor0: torch.Tensor, tensor1: torch.Tensor):
+    def check_consistency(self, tensor0: torch.Tensor, tensor1: torch.Tensor):
         self.check_same_device(tensor0, tensor1)
         self.check_same_dtype(tensor0, tensor1)
         self.check_same_shape(tensor0, tensor1)
@@ -140,6 +149,12 @@ class ModTensorUpdater:
 
     def _set_tensor(self, old, new):
         need_grad = False
+        if (
+            isinstance(old, torch.nn.Parameter)
+            and not isinstance(new, torch.nn.Parameter)
+            and not self.add_parameter_if_unset
+        ):
+            raise ValueError("new tensor setted should be a parameter")
         if old.requires_grad:
             need_grad = True
             old.requires_grad = False
@@ -180,11 +195,11 @@ class ModTensorUpdater:
         self,
         ref: torch.nn.Parameter,
         new_tensor: torch.Tensor,
-        enforce_same_shape_dtype_device: bool = True,
+        enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
         new_tensor = self.maybe_parameterize(ref, new_tensor)
-        if enforce_same_shape_dtype_device:
-            self.check_all(ref, new_tensor)
+        if enforce_tensor_consistency:
+            self.check_consistency(ref, new_tensor)
         self._set_tensor(ref, new_tensor)
         return new_tensor
 
@@ -193,14 +208,14 @@ class ModTensorUpdater:
         name: str,
         new_tensor: torch.Tensor,
         tie_replacements: bool = True,
-        enforce_same_shape_dtype_device: bool = True,
+        enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
         mod = self.name_to_parent_module[name]
         _, p_local_name = self.split_param_name(name)
         ref = getattr(mod, p_local_name)
         new_tensor = self.maybe_parameterize(ref, new_tensor)
-        if enforce_same_shape_dtype_device:
-            self.check_all(ref, new_tensor)
+        if enforce_tensor_consistency:
+            self.check_consistency(ref, new_tensor)
         if tie_replacements:
             self._set_tensor(ref, new_tensor)
         else:
@@ -209,7 +224,6 @@ class ModTensorUpdater:
                 if (
                     ref.requires_grad
                     and not mod._parameters[p_local_name].requires_grad
-                    and not self.disable_requires_grad
                 ):
                     mod._parameters[p_local_name].requires_grad = True
             elif p_local_name in mod._buffers:
