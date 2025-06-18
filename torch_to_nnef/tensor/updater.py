@@ -25,6 +25,7 @@ class ModTensorUpdater:
         add_parameter_if_unset=True,
         add_buffers: bool = False,
         add_unregistred_tensor: bool = False,
+        disable_requires_grad: bool = False,
     ):
         self.name_to_id = {}
         self.id_to_kind = {}
@@ -80,6 +81,7 @@ class ModTensorUpdater:
 
         self.model = model
         self.add_parameter_if_unset = add_parameter_if_unset
+        self.disable_requires_grad = disable_requires_grad
 
     @staticmethod
     def split_param_name(name: str) -> T.Tuple[str, str]:
@@ -117,23 +119,21 @@ class ModTensorUpdater:
         self, ref: torch.Tensor, new_tensor: torch.Tensor
     ) -> torch.Tensor:
         if not isinstance(new_tensor, torch.nn.Parameter):
-            if self.add_parameter_if_unset:
-                kind = self.id_to_kind[id(ref)]
-                if kind == TensorHoldKind.PARAMETER:
+            kind = self.id_to_kind[id(ref)]
+            if kind == TensorHoldKind.PARAMETER:
+                if self.add_parameter_if_unset:
                     new_tensor = torch.nn.Parameter(
                         new_tensor, requires_grad=False
                     )
-                elif kind == TensorHoldKind.BUFFER:
-                    if (
-                        torch_version() >= "2.5.0"
-                        and not isinstance(
-                            new_tensor, torch.nn.parameter.Buffer
-                        )
-                        and isinstance(ref, torch.nn.parameter.Buffer)
-                    ):
-                        new_tensor = torch.nn.parameter.Buffer(
-                            new_tensor, persistent=ref.persistent
-                        )
+            elif kind == TensorHoldKind.BUFFER:
+                if (
+                    torch_version() >= "2.5.0"
+                    and not isinstance(new_tensor, torch.nn.parameter.Buffer)
+                    and isinstance(ref, torch.nn.parameter.Buffer)
+                ):
+                    new_tensor = torch.nn.parameter.Buffer(
+                        new_tensor, persistent=ref.persistent
+                    )
             else:
                 raise ValueError(f"{new_tensor} must be a parameter")
         return new_tensor
@@ -163,7 +163,7 @@ class ModTensorUpdater:
             # update references {
             self._update_reference(old, new)
             # }
-        if need_grad and not old.requires_grad:
+        if need_grad and not getattr(old, "requires_grad", False):
             old.requires_grad = True
 
     def _update_reference(self, ref, new_tensor):
@@ -209,6 +209,7 @@ class ModTensorUpdater:
                 if (
                     ref.requires_grad
                     and not mod._parameters[p_local_name].requires_grad
+                    and not self.disable_requires_grad
                 ):
                     mod._parameters[p_local_name].requires_grad = True
             elif p_local_name in mod._buffers:
