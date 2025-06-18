@@ -38,6 +38,10 @@ class DataNodeValueError(ValueError, TorchToNNEFError):
     pass
 
 
+class InconsistentTensorError(ValueError, TorchToNNEFError):
+    pass
+
+
 class TorchToNNEFConsistencyError(ValueError, TorchToNNEFError):
     pass
 

@@ -10,7 +10,6 @@ import torch
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.utils import (
     select_ctx_disable_torch_fn,
-    get_parent_module_and_param_name,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -91,6 +90,10 @@ class OpaqueTensorRef(torch.Tensor):
         super().__init__()
         self.meta_tensor = meta_tensor
         self.opaque_tensor = opaque_tensor
+
+    @property
+    def device(self):
+        return self.opaque_tensor.device
 
     @property
     def nnef_name(self):
@@ -188,32 +191,23 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     Just before doing any tracing
 
     """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.tensor.updater import ModTensorUpdater
+
     LOGGER.debug(
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
-    ids_to_qparams = {}
+    mod_tensor_updater = ModTensorUpdater(model)
     for full_name, param in model.named_parameters(remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue
-        qid = id(param)
-        if qid not in ids_to_qparams:
-            param.nnef_name = full_name
-            new_param = OpaqueTensorRef(
+        param.nnef_name = full_name
+        LOGGER.debug(f"apply opaque tensor reference: {full_name}")
+        mod_tensor_updater.update_by_ref(
+            param,
+            OpaqueTensorRef(
                 opaque_to_final_tensor(param).to("meta"),
                 param,
-            )
-            ids_to_qparams[qid] = new_param
-        else:
-            new_param = ids_to_qparams[qid]
-        ref_mod, p_name = get_parent_module_and_param_name(model, full_name)
-
-        LOGGER.debug(f"apply opaque tensor reference: {full_name}")
-        setattr(
-            ref_mod,
-            p_name,
-            torch.nn.Parameter(
-                new_param,
-                requires_grad=False,
             ),
         )
     LOGGER.debug(

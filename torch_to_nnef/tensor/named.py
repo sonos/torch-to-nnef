@@ -125,59 +125,24 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
     # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
 
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.tensor.updater import ModTensorUpdater
+
     skip_tensor_types = (OpaqueTensorRef, OpaqueTensor)
 
+    mod_tensor_updater = ModTensorUpdater(
+        model,
+        add_buffers=True,
+        add_unregistred_tensor=True,
+    )
     LOGGER.debug("started to apply NamedTensor")
-    ids_to_ntensor: T.Dict[int, NamedTensor] = {}
-    for full_name, param in model.named_parameters(remove_duplicate=False):
-        if isinstance(param.data, skip_tensor_types):
+    for names in list(mod_tensor_updater.id_to_names.values()):
+        name = list(names)[0]
+        ref_mod, local_name = get_parent_module_and_param_name(model, name)
+        ref = getattr(ref_mod, local_name)
+        if isinstance(ref, skip_tensor_types):
             continue
-        ref_mod, pname = get_parent_module_and_param_name(model, full_name)
-
-        LOGGER.debug(f"apply NamedTensor: {full_name}")
-        named_tensor = get_or_add_named_tensor(
-            ids_to_ntensor, ref_mod, pname, full_name, param.data
-        )
-        setattr(
-            ref_mod,
-            pname,
-            torch.nn.Parameter(
-                named_tensor,
-                requires_grad=False,
-            ),
-        )
-    # named buffers is not sufficient
-    # as some tensor are not registered but on-fly generated
-    for (
-        named_m,
-        ref_mod,
-    ) in model.named_modules():
-        for attr_name, attr_val in ref_mod.__dict__.items():
-            if not isinstance(attr_val, torch.Tensor):
-                continue
-            if isinstance(attr_val.data, skip_tensor_types):
-                continue
-            # we need to capture every thing that is a tensor
-            full_name = attr_name
-            if named_m:
-                full_name = f"{named_m}.{attr_name}"
-            LOGGER.debug(f"apply NamedTensor: {full_name}")
-            named_tensor = get_or_add_named_tensor(
-                ids_to_ntensor, ref_mod, attr_name, full_name, attr_val
-            )
-            setattr(ref_mod, attr_name, named_tensor)
-
-    for full_name, buffer in model.named_buffers(remove_duplicate=False):
-        if isinstance(buffer, skip_tensor_types):
-            continue
-        ref_mod, bname = get_parent_module_and_param_name(model, full_name)
-        LOGGER.debug(f"apply NamedTensor: {full_name}")
-        named_tensor = get_or_add_named_tensor(
-            ids_to_ntensor, ref_mod, bname, full_name, buffer
-        )
-        setattr(
-            ref_mod,
-            bname,
-            named_tensor,
-        )
+        LOGGER.debug(f"apply NamedTensor: {name}")
+        named_tensor = NamedTensor(ref, nnef_name=name)
+        mod_tensor_updater.update_by_ref(ref, named_tensor)
     LOGGER.debug("sucessfull to apply NamedTensor everywhere")

@@ -223,6 +223,10 @@ class QTensor(OpaqueTensor):
         self.nnef_name: T.Optional[str] = None
         self.requires_grad = False
 
+    @property
+    def device(self):
+        return self.u8_blob.device
+
     def numel(self) -> int:
         return self.decompress_to_u8().numel()
 

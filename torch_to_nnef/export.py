@@ -30,6 +30,7 @@ from torch_to_nnef.tensor import (
     QTensor,
     OpaqueTensorRef,
 )
+from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import dedup_list, torch_version
 
@@ -137,6 +138,12 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
+    mod_tensor_updater = ModTensorUpdater(
+        model,
+        add_buffers=False,
+        add_unregistred_tensor=False,
+        disable_requires_grad=True,
+    )
     if custom_extensions is not None and not isinstance(
         custom_extensions, list
     ):
@@ -223,6 +230,7 @@ def export_model_to_nnef(
                 exported_filepath,
                 debug_bundle_path=debug_bundle_path,
             )
+    mod_tensor_updater.restore_require_grad()
 
 
 @contextlib.contextmanager

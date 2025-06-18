@@ -12,7 +12,7 @@ from torch_to_nnef.tensor.quant import (
     QTensor,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.utils import get_parent_module_and_param_name
+from torch_to_nnef.tensor.updater import ModTensorUpdater
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,59 +29,56 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
     )
     with torch.no_grad():
         ids_to_qtensor: T.Dict[int, T.Tuple[QTensor, OffloadedTensor]] = {}
-        ids_to_mods: T.Dict[int, T.List[str]] = defaultdict(list)
         """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
-        for full_name, param in model.named_parameters(remove_duplicate=False):
-            ids_to_mods[id(param)].append(
-                get_parent_module_and_param_name(model, full_name)[0]
-            )
+        mod_tensor_updater = ModTensorUpdater(model)
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info(f"quantize layer: {name}")
                 weight_id = id(getattr(mod, "weight"))
+                if weight_id in ids_to_qtensor:
+                    LOGGER.info(
+                        f"detected shared weight between: '{ids_to_qtensor[weight_id].nnef_name}' and '{name}.weight'"
+                    )
+                    continue
                 if not all(
                     isinstance(m, to_quantize_module_classes)
-                    for m in ids_to_mods[weight_id]
+                    for m in mod_tensor_updater.id_to_modules[weight_id]
                 ):
-                    clss = [m.__class__ for m in ids_to_mods[weight_id]]
+                    clss = [
+                        m.__class__
+                        for m in mod_tensor_updater.id_to_modules[weight_id]
+                    ]
                     LOGGER.warning(
                         f"detected shared weight: '{name}' candidate has incompatible layer usage: {clss}, "
                         f" but requested {to_quantize_module_classes}"
                     )
                     continue
-                if weight_id in ids_to_qtensor:
-                    q_weight = ids_to_qtensor[weight_id]
-                    LOGGER.info(
-                        f"detected shared weight between: '{q_weight.nnef_name}' and '{name}.weight'"
-                    )
-                else:
-                    try:
+                try:
 
-                        def q_fn(weight):
-                            q_weight = (
-                                fp_to_tract_q4_0_with_min_max_calibration(
-                                    weight,
-                                    **{
-                                        k: v
-                                        for k, v in kwargs.items()
-                                        if k in ["percentile"]
-                                    },
-                                )
-                            )
-                            q_weight.nnef_name = f"{name}.weight"
-                            return q_weight
-
-                        q_weight = offloaded_tensor_qtensor(
-                            q_fn, mod.weight, "q40_min_max"
+                    def q_fn(weight):
+                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
+                            weight,
+                            **{
+                                k: v
+                                for k, v in kwargs.items()
+                                if k in ["percentile"]
+                            },
                         )
-                        ids_to_qtensor[weight_id] = q_weight
-                    except TorchToNNEFImpossibleQuantization as exp:
-                        LOGGER.error(f"quant layer: {name} error: {exp}")
-                        continue
-                mod._parameters["weight"] = nn.Parameter(
-                    q_weight, requires_grad=False
+                        q_weight.nnef_name = f"{name}.weight"
+                        return q_weight
+
+                    q_weight = offloaded_tensor_qtensor(
+                        q_fn, mod.weight, "q40_min_max"
+                    )
+                except TorchToNNEFImpossibleQuantization as exp:
+                    LOGGER.error(f"quant layer: {name} error: {exp}")
+                    continue
+                # => needs assignation next cause update_by_ref may create new Parameter object
+                q_weight = mod_tensor_updater.update_by_ref(
+                    getattr(mod, "weight"), q_weight
                 )
+                ids_to_qtensor[id(q_weight)] = q_weight
     return model
 
 
