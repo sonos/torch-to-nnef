@@ -78,8 +78,10 @@ class ModTensorUpdater:
                 t_local_name = self.split_param_name(t_name)[1]
                 if t_local_name in mod._parameters:
                     tensor = mod._parameters[t_local_name]
-                else:
+                elif t_local_name in mod._buffers:
                     tensor = mod._buffers[t_local_name]
+                else:
+                    tensor = getattr(mod, t_local_name)
                 self.id_to_modules[id(tensor)].append(mod)
                 self.name_to_parent_module[t_name] = mod
 
