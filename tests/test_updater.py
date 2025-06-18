@@ -124,7 +124,7 @@ def test_parameter_update_by_name_with_tied_modified_separatly_meta():
     param_updaters.update_by_name(
         name="embedding.weight",
         new_tensor=new_tensor,
-        enforce_same_shape_dtype_device=False,
+        enforce_tensor_consistency=False,
     )
 
 
