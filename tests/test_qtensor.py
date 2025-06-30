@@ -122,14 +122,23 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
         nd = 32
         test_input = torch.rand(nd).float().reshape(1, nd)
         model = nn.Linear(nd, 2, bias=False).eval()
-        original_weight = model.weight
         model.weight[:, :] = 0.0
-        model.weight[0, 0:5] = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
+        offset = 2.0
+        model.weight[0, 0:5] = torch.tensor(
+            [
+                1.0 - offset,
+                2.0 - offset,
+                3.0 - offset,
+                4.0 - offset,
+                5.0 - offset,
+            ]
+        )
+        original_weight = model.weight
 
         q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
         deq_weights = q_tensor.decompress()
         diff = (original_weight - deq_weights).abs()
-        assert diff.mean() < 0.03, diff.mean()
+        assert diff.mean() < 0.006, diff.mean()
 
         model.weight = nn.Parameter(q_tensor, requires_grad=False)
 
