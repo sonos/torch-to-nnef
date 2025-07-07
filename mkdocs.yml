@@ -13,6 +13,8 @@ extra:
 
 markdown_extensions:
   - admonition
+  - pymdownx.highlight:
+      default_lang: python
   - pymdownx.details
   - pymdownx.superfences
   - attr_list
@@ -21,23 +23,30 @@ markdown_extensions:
 
 plugins:
   - search
-  - mkdocs-autoapi:
-      autoapi_root: autoapi
-      autoapi_dir: torch_to_nnef
-      autoapi_ignore:
-        - "**/helper.py"
-        - "**/quantized.py"
-        - "**/aten/*.py"
-        - "**/op/custom_extractors/*.py"
-        - "**/op/fragment/*.py"
-        - "**/peft/*.py"
-        - "tests/**"
+  - api-autonav:
+      modules: ["torch_to_nnef"]
+      nav_section_title: "Internals API"
+      api_root_uri: "reference"
+      nav_item_prefix: "<code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>"
+      exclude_private: true
   - mkdocstrings:
       handlers:
         python:
           paths: [torch_to_nnef]
           options:
+            docstring_style: google
+            # docstring_section_style: list # or "table"
             parameter_headings: true
+            show_source: false
+            heading_level: 3
+            merge_init_into_class: true
+            parameter_headings: true
+            separate_signature: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            summary: true
 
 theme:
   name: material
@@ -76,6 +85,7 @@ theme:
 nav:
   - Home: index.md
   - 'Export API': export_api.md
+  - 'Internals API': reference/
   - Contributing: CONTRIBUTING.md
   - Backstory: backstory.md
   - Changelog: CHANGELOG.md
