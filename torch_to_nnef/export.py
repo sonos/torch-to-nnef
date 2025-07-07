@@ -83,12 +83,11 @@ def export_model_to_nnef(
                         set dynamic_axes to a dict with schema:
                             KEY (str): an input or output name. Each name must also
                                 be provided in input_names or output_names.
-
                             VALUE (dict or list): If a dict, keys are axis indices
                                 and values are axis names. If a list, each element is
                                 an axis index.
 
-                    specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
+        specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
 
 
         input_names: Optional list of names for args, it replaces
@@ -361,11 +360,15 @@ def export_tensors_from_disk_to_nnef(
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
 ):
-    """Main entrypoint of this library
+    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file
 
-    Export any torch.Tensors list to NNEF .dat file
-    from a statedict or safetensors file
-
+    Args:
+        store_filepath:
+            the filepath that hold the .safetensors , .pt or .bin containing the state dict
+        output_dir:
+            directory to dump the NNEF tensor .dat files
+        fn_check_found_tensors:
+            post checking function to ensure all requested tensors have effectively been dumped
     """
     to_export = {}
     for key, tensor in iter_torch_tensors_from_disks(  # type: ignore
@@ -382,10 +385,7 @@ def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
 ) -> T.Dict[str, _Tensor]:
-    """Main entrypoint of this library
-
-    Export any torch.Tensors list to NNEF .dat file
-    """
+    """Export any torch.Tensors list to NNEF .dat file"""
     assert output_dir.exists(), output_dir
     for tensor_name, tensor in name_to_torch_tensors.items():
         if isinstance(tensor, (QTensor, OpaqueTensorRef)):

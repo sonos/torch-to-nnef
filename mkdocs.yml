@@ -1,4 +1,16 @@
 site_name: documentation
+repo_url: https://github.com/sonos/torch-to-nnef
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sonos/
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/sonos/
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/company/sonos-inc-/jobs/
+
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -6,12 +18,35 @@ markdown_extensions:
   - attr_list
   - md_in_html
   - pymdownx.blocks.caption
+
+plugins:
+  - search
+  - mkdocs-autoapi:
+      autoapi_root: autoapi
+      autoapi_dir: torch_to_nnef
+      autoapi_ignore:
+        - "**/helper.py"
+        - "**/quantized.py"
+        - "**/aten/*.py"
+        - "**/op/custom_extractors/*.py"
+        - "**/op/fragment/*.py"
+        - "**/peft/*.py"
+        - "tests/**"
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [torch_to_nnef]
+          options:
+            parameter_headings: true
+
 theme:
   name: material
   favicon: img/torch_to_nnef.png
   logo: img/torch_to_nnef.png
   font:
     text: Roboto
+  features:
+    - navigation.footer
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
@@ -40,4 +75,7 @@ theme:
 
 nav:
   - Home: index.md
+  - 'Export API': export_api.md
+  - Contributing: CONTRIBUTING.md
+  - Backstory: backstory.md
   - Changelog: CHANGELOG.md

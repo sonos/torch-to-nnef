@@ -59,7 +59,9 @@ t2n_export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
 [dependency-groups]
 dev = [
     "mkdocs<1.7,>=1.6",
+    "mkdocstrings-python<1.7,>=1.6",
     "mkdocs-material<9.7,>=9.6",
+    "mkdocs-autoapi",
     "tox>=4.23.2,<5",
     "pre-commit>=2.12.0,<3",
     "virtualenv>=20.2.2,<21",
