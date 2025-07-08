@@ -15,8 +15,14 @@ extra:
 markdown_extensions:
   - admonition
   - pymdownx.highlight:
-      default_lang: python
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
   - pymdownx.superfences
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
@@ -61,6 +67,8 @@ theme:
   font:
     text: Roboto
   features:
+    - content.code.copy
+    - content.tabs.link
     - navigation.footer
   palette:
     # Palette toggle for automatic mode
