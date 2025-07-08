@@ -32,6 +32,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.utils import warn_once
 
 LOGGER = logging.getLogger(__name__)
 
@@ -264,9 +265,10 @@ def size(
             _ for _ in torch_graph.op_nodes if _ is not node
         ]
 
-        LOGGER.warning(
+        warn_once(
+            LOGGER,
             "aten::size replaced by constant traced value (follows NNEF spec)."
-            "Keeping dynamism would require dynamic_axes specified."
+            "Keeping dynamism would require dynamic_axes specified.",
         )
         return []
     if not isinstance(inference_target, TractNNEF):
@@ -350,6 +352,7 @@ def numel(node, inference_target, op_helper, **kwargs):
     )
     return ["tract_core"]
 
+
 @OP_REGISTRY.register()
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
     if not isinstance(inference_target, TractNNEF):
@@ -360,7 +363,9 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
         "tract_core_cast",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={
-            "to": TORCH_DTYPE_TO_TRACT_STR[SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]],
+            "to": TORCH_DTYPE_TO_TRACT_STR[
+                SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+            ],
         },
     )
     return ["tract_core"]
@@ -376,7 +381,9 @@ def _to_copy(node, inference_target, op_helper, **kwargs):
         "tract_core_cast",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={
-            "to": TORCH_DTYPE_TO_TRACT_STR[SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]],
+            "to": TORCH_DTYPE_TO_TRACT_STR[
+                SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+            ],
         },
     )
     return ["tract_core"]

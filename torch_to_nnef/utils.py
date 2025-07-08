@@ -6,14 +6,13 @@ import os
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
-from functools import total_ordering
+from functools import total_ordering, lru_cache
 
 import torch
 from torch import _C
 
 from torch_to_nnef.exceptions import (
     DataNodeValueError,
-    InconsistentTensorError,
     TorchToNNEFNotImplementedError,
 )
 
@@ -339,6 +338,11 @@ def get_parent_module_and_param_name(
     for mod_name in chunked_names[:-1]:
         ref_mod = getattr(ref_mod, mod_name)
     return ref_mod, chunked_names[-1]
+
+
+@lru_cache(10)
+def warn_once(logger: logging.Logger, msg: str):
+    logger.warning(msg)
 
 
 class NamedItem(ABC):
