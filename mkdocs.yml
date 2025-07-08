@@ -98,7 +98,7 @@ theme:
 
 nav:
   - Home: index.md
-  - 'Tutorials':
+  - '📖 Tutorials':
     - '1. Getting started': "tutos/1_getting_started.md"
     - '2. Streaming dimensions': "tutos/2_streaming_dimension.md"
     - '3. Large Language Models': "tutos/3_llm.md"
