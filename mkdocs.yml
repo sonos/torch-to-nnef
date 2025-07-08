@@ -1,6 +1,7 @@
 site_name: documentation
 repo_url: https://github.com/sonos/torch-to-nnef
 extra:
+  generator: false
   version:
     provider: mike
   social:
@@ -17,6 +18,9 @@ markdown_extensions:
       default_lang: python
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - attr_list
   - md_in_html
   - pymdownx.blocks.caption
@@ -36,6 +40,7 @@ plugins:
           options:
             docstring_style: google
             # docstring_section_style: list # or "table"
+            filters: ["!^_"]
             parameter_headings: true
             show_source: false
             heading_level: 3
@@ -50,6 +55,7 @@ plugins:
 
 theme:
   name: material
+  custom_dir: docs/overrides
   favicon: img/torch_to_nnef.png
   logo: img/torch_to_nnef.png
   font:
