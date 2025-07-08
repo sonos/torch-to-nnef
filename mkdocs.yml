@@ -101,5 +101,6 @@ nav:
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing: CONTRIBUTING.md
+  - 'Why NNEF': why_nnef.md
   - Backstory: backstory.md
   - Changelog: CHANGELOG.md
