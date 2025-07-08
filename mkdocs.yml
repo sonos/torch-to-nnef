@@ -98,9 +98,21 @@ theme:
 
 nav:
   - Home: index.md
+  - 'Tutorials':
+    - '1. Getting started': "tutos/1_getting_started.md"
+    - '2. Streaming dimensions': "tutos/2_streaming_dimension.md"
+    - '3. Large Language Models': "tutos/3_llm.md"
+    - '4. Quantization': "tutos/4_quantization.md"
+    - '5. Offloaded tensors': "tutos/5_offloaded_tensor.md"
+    - '6. Custom operators': "tutos/6_custom_operator.md"
+    - '7. PEFT': "tutos/7_peft.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
-  - Contributing: CONTRIBUTING.md
+  - Contributing:
+    - 'Guidelines': contributing/guidelines.md
+    - 'Internal design': contributing/internal_design.md
+    - 'Add new aten operator': contributing/add_new_aten_op.md
+    - 'Debugging': contributing/debugging.md
   - 'Why NNEF': why_nnef.md
   - Backstory: backstory.md
   - Changelog: CHANGELOG.md
