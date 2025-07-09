@@ -334,7 +334,3 @@ cargo run --release
     Bravo! you made it !
     Your first export with `torch_to_nnef` is now done and
     you ran a successful standalone tract based inference with it.
-
-## <span style="color:#6666aa">**:material-archive-search:**</span> Archive composition '.nnef.tgz'
-
-## <span style="color:#6666aa">**:material-math-log:**</span> Display (a glimpse of the internals)

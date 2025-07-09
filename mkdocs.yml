@@ -103,12 +103,14 @@ nav:
   - Home: index.md
   - '📖 Tutorials':
     - '1. Getting started': "tutos/1_getting_started.md"
-    - '2. Streaming dimensions': "tutos/2_streaming_dimension.md"
-    - '3. Large Language Models': "tutos/3_llm.md"
-    - '4. Quantization': "tutos/4_quantization.md"
-    - '5. Offloaded tensors': "tutos/5_offloaded_tensor.md"
-    - '6. Custom operators': "tutos/6_custom_operator.md"
-    - '7. PEFT': "tutos/7_peft.md"
+    - '2. NNEF archive': "tutos/2_nnef_archive.md"
+    - '3. Model with multiple inputs or outputs': "tutos/3_multi_inputs_outputs.md"
+    - '4. Streaming dimensions': "tutos/4_streaming_dimension.md"
+    - '5. Large Language Models': "tutos/5_llm.md"
+    - '6. Quantization': "tutos/6_quantization.md"
+    - '7. Offloaded tensors': "tutos/7_offloaded_tensor.md"
+    - '8. Custom operators': "tutos/8_custom_operator.md"
+    - '9. PEFT': "tutos/9_peft.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:
