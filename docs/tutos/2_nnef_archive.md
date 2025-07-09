@@ -1,5 +1,9 @@
 # 2. NNEF archive composition
 
+<figure markdown="span">
+    ![NNEF logo](/img/NNEF.png){ align=center style="width: 128px;" }
+</figure>
+
 !!! abstract "Goals"
 
     At the end of this tutorial you will know:
