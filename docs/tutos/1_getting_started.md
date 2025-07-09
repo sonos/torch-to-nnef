@@ -10,7 +10,6 @@
 
 !!! example "Prerequisite"
 
-    - [ ] Understanding of what is a neural network
     - [ ] PyTorch and Python basics
     - [ ] Basic rust knowledge
     - [ ] 15 min to read this page
