@@ -1,4 +1,4 @@
-# 2. <span style="color:#6666aa">**:material-archive-search:**</span> NNEF archive composition
+# 2. NNEF archive composition
 
 !!! abstract "Goals"
 
@@ -20,6 +20,8 @@ That's why, most information you may need to understand this format is available
 in [their specification](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html).
 This page provides a quick glimpse with emphasis on key elements/differences, to allow you to
 easily navigate it.
+
+## <span style="color:#6666aa">**:material-archive-search:**</span>  Inside the archive
 
 As shown in the 1st tutorial, export step create a `${MY_MODEL_NAME}.nnef.tgz` archive.
 This is really just a classical `tar` archive with `gzip` compression option.
@@ -45,7 +47,7 @@ ls -l
 You should see a list of `.dat` binary files each correspond to a specific 'parameter' tensor from the ViT neural
 network exported, and a `graph.nnef` that contains the textual representation of the graph.
 
-## Graph.nnef
+### graph.nnef
 
 Let's start by looking at the `graph.nnef`.
 
@@ -114,7 +116,7 @@ directly match with the `${label_name}.dat` file that will be loaded.
     is NOT the final optimized graph that tract will run but rather the
     blueprint.
 
-## .dat files
+### .dat files
 
 ![hexadecimal .dat repr](/img/hexa_dat.png)
 
