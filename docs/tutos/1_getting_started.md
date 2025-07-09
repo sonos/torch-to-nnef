@@ -13,13 +13,13 @@
     - [ ] Understanding of what is a neural network
     - [ ] PyTorch and Python basics
     - [ ] Basic rust knowledge
-    - [ ] 10 min to read this page
+    - [ ] 15 min to read this page
 
-## <span style="color:#6666aa">**:material-step-forward: Step 1.**</span> Select an image Model
+## <span style="color:#6666aa">**:material-step-forward: Step 1.**</span> Select an image classifier and an image
 
 Let's start by simply selecting a model to export from the well known [torchvision](https://docs.pytorch.org/vision/stable/index.html).
 
-- Create a virtual env and install dependencies:
+- Create a virtual env, install dependencies and assets:
 
 ```bash title="Setup"
 mkdir t2n_getting_started
@@ -27,13 +27,13 @@ cd t2n_getting_started
 python3 -m venv .venv
 source .venv/bin/activate
 pip install torch==2.7.0 torchvision==0.21.0 torch_to_nnef
-touch export.py
 wget https://upload.wikimedia.org/wikipedia/commons/5/55/Grace_Hopper.jpg
+touch export.py
 ```
 
 Let write inside export python file: `export.py`
 
-```python title="Get PyTorch model"
+```python title="Get PyTorch model & input data"
 
 import torch
 from torchvision import models as vision_mdl
@@ -44,11 +44,30 @@ input_data_sample = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.transforms()(
     img.unsqueeze(0)
 )
 
+with torch.no_grad():
+    best_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
+    print(
+        "class id:",
+        best_index,
+        "label: ",
+        vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.meta["categories"][
+            best_index
+        ],
+    )
+
 ```
 
-## <span style="color:#6666aa">**:material-step-forward: Step 2.**</span> Export it
+Running the file:
 
-Let's now call the main export function from this package:
+```json title="output"
+class id: 652 label:  military uniform
+```
+
+The class index predicted with PyTorch (`652`) need to be the aligned with tract prediction we will develop.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 2.**</span> Export to NNEF
+
+Let's continue the `export.py` by calling the main export function from this package:
 
 ```python title="export API"
 from pathlib import Path
@@ -77,21 +96,10 @@ export_model_to_nnef(
     # but NNEF fail in tract (either due to load error or precision mismatch)
     debug_bundle_path=Path("./debug.tgz"),
 )
-with torch.no_grad():
-    best_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
-    print(
-        "class id:",
-        best_index,
-        "label: ",
-        vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.meta["categories"][
-            best_index
-        ],
-    )
-
 print(f"exported {file_path_export.absolute()}")
 ```
 
-And that's it if we now run our little snippet (full code [here](./examples/getting_started.py))
+And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started.py))
 
 ```bash
 source.venv/bin/activate
@@ -104,7 +112,6 @@ We should now observe the following output:
 .../site-packages/torch/__init__.py:2132: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
   assert condition, message
 aten::size replaced by constant traced value (follows NNEF spec).Keeping dynamism would require dynamic_axes specified.
-class id: 652 label:  military uniform
 exported ./vit_b_16.nnef.tgz
 ```
 
@@ -120,11 +127,9 @@ But wait there is 2 tracing warnings here:
     that one of the input dimension is in fact the batch size, a parameter that may vary. We will show how
     to solve that in the next tutorial. (spoiler: we use same API as ONNX export to inform `dynamic_axes`)
 
-Next line is the class id predicted with PyTorch which is 652 we will want this to be the same with tract.
-
 Finally last line indicates that the model has been correctly exported on disk at: `.../vit_b_16.nnef.tgz`.
 
-## <span style="color:#6666aa">**:material-step-forward: Step 3.**</span> Check it run from the tract cli
+## <span style="color:#6666aa">**:material-step-forward: Step 3.**</span> tract cli checks
 
 We will now check with the tract cli that everything is working as expected.
 
@@ -158,7 +163,7 @@ Output in stdout is composed of following sections in order:
 
 The graph of computation (after decluttering and optimization) with each operation speed:
 
-```bash title="Graph display"
+```json title="Graph display"
   0.000 ms/i  0.0%  ┏ 0 Source input
                     ┃   ━━━ 1,3,224,224,F32
 ....
@@ -172,7 +177,7 @@ This already tell us about how network is composed and which specialized operato
 (In this display we are on an ARM CPU.)
 Then we have the list of custom properties that have been exported by `torch_to_nnef`:
 
-```bash title="Exported properties"
+```json title="Exported properties"
 * export_cmd: ,String docs/examples/getting_started.py
 * export_date: ,String 2025-07-08 ...
 * exported_py_class: ,String VisionTransformer
@@ -193,7 +198,7 @@ You can set custom ones with the `specific_properties` parameter in `TractNNEF` 
 
 Finally the aggregated per operator kind performance is shown:
 
-```bash title="Performance per operator kind"
+```json title="Performance per operator kind"
  * OptMatMul               74 nodes:  90.859 ms/i 65.6%
  * OptMatMulPack           97 nodes:  12.779 ms/i  9.2%
  * Softmax                 12 nodes:  10.345 ms/i  7.5%
@@ -205,7 +210,7 @@ With percentage of time spent (again aggregated per operator kind).
 
 Finally you get the total time spent to run the network:
 
-```bash title="Total performance"
+```json title="Total performance"
 Entire network performance: 138.525 ms/i
 ```
 
@@ -316,7 +321,7 @@ Let's now get the index of classified class for the image and print it:
     println!("result: {best:?}");
 ```
 
-To sum-up your code should now look like this.
+That's it our code is complete, (your code should now [look like this](https://github.com/sonos/torch-to-nnef/tree/feat/mkdocs/docs/examples/getting_started_tract))
 
 You can now rebuild and run the code with cargo:
 
@@ -330,6 +335,6 @@ cargo run --release
     Your first export with `torch_to_nnef` is now done and
     you ran a successful standalone tract based inference with it.
 
-## :material-archive-search: Archive composition '.nnef.tgz'
+## <span style="color:#6666aa">**:material-archive-search:**</span> Archive composition '.nnef.tgz'
 
-## :material-math-log: Display (a glimpse of the internals)
+## <span style="color:#6666aa">**:material-math-log:**</span> Display (a glimpse of the internals)
