@@ -6,9 +6,9 @@ from torch_to_nnef import export_model_to_nnef, TractNNEF
 
 my_image_model = vision_mdl.vit_b_16(pretrained=True)
 
-img = read_image("./getting_started_tract/Grace_Hopper.jpg")
-transfo = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.transforms()
-input_data_sample = transfo(img.unsqueeze(0))
+img = read_image("./Grace_Hopper.jpg")
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
+input_data_sample = classification_task.transforms()(img.unsqueeze(0))
 file_path_export = Path("vit_b_16.nnef.tgz")
 export_model_to_nnef(
     model=my_image_model,  # any nn.Module
@@ -26,13 +26,11 @@ export_model_to_nnef(
     # but NNEF fail in tract (either due to load error or precision mismatch)
 )
 with torch.no_grad():
-    best_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
+    predicted_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
     print(
         "class id:",
-        best_index,
+        predicted_index,
         "label: ",
-        vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.meta["categories"][
-            best_index
-        ],
+        classification_task.meta["categories"][predicted_index],
     )
 print(f"exported {file_path_export.absolute()}")

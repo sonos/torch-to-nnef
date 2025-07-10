@@ -6,51 +6,57 @@
 
     1. :material-image: How to export an image model with `torch_to_nnef`
     2. :material-toolbox: The basic commands to check your model is correct within tract
-    3. :fontawesome-solid-terminal: How to create a minimal rust binary that perform inference from the cli with tract
+    3. :fontawesome-brands-python: How to create a minimal Python program that perform inference with tract
+    4. :fontawesome-brands-rust: (optional) How to create a minimal rust binary that perform inference from the cli with tract
 
 !!! example "Prerequisite"
 
     - [ ] PyTorch and Python basics
-    - [ ] Basic rust knowledge
+    - [ ] Basic rust knowledge (for the Bonus)
     - [ ] 15 min to read this page
 
-## <span style="color:#6666aa">**:material-step-forward: Step 1.**</span> Select an image classifier and an image
+## <span style="color:#6666aa">**:material-step-forward: Step 1.**</span> :material-image: Select an image classifier and an image
 
 Let's start by simply selecting a model to export from the well known [torchvision](https://docs.pytorch.org/vision/stable/index.html).
 
 - Create a virtual env, install dependencies and assets:
 
 ```bash title="Setup"
-mkdir t2n_getting_started
-cd t2n_getting_started
+mkdir getting_started_py
+cd getting_started_py
 python3 -m venv .venv
 source .venv/bin/activate
-pip install torch==2.7.0 torchvision==0.21.0 torch_to_nnef
+pip install torch==2.7.0 torchvision==0.22.0 torch_to_nnef
 wget https://upload.wikimedia.org/wikipedia/commons/5/55/Grace_Hopper.jpg
 touch export.py
 ```
 
 Let write inside export python file: `export.py`
+to get PyTorch model & input data and perform inference
+with the given image.
 
-```python title="Get PyTorch model & input data"
+```python title="export.py (part 1)"
 
 import torch
 from torchvision import models as vision_mdl
+from torchvision.io import read_image
+
 my_image_model = vision_mdl.vit_b_16(pretrained=True)
 
 img = read_image("./Grace_Hopper.jpg")
-input_data_sample = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.transforms()(
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
+input_data_sample = classification_task.transforms()(
     img.unsqueeze(0)
 )
 
 with torch.no_grad():
-    best_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
+    predicted_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
     print(
         "class id:",
-        best_index,
+        predicted_index,
         "label: ",
-        vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1.meta["categories"][
-            best_index
+        classification_task.meta["categories"][
+            predicted_index
         ],
     )
 
@@ -68,7 +74,7 @@ The class index predicted with PyTorch (`652`) need to be the aligned with tract
 
 Let's continue the `export.py` by calling the main export function from this package:
 
-```python title="export API"
+```python title="export.py (part 2)"
 from pathlib import Path
 from torch_to_nnef import export_model_to_nnef, TractNNEF
 
@@ -98,7 +104,7 @@ export_model_to_nnef(
 print(f"exported {file_path_export.absolute()}")
 ```
 
-And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started.py))
+And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started_py/export.py))
 
 ```bash
 source.venv/bin/activate
@@ -128,7 +134,7 @@ But wait there is 2 tracing warnings here:
 
 Finally last line indicates that the model has been correctly exported on disk at: `.../vit_b_16.nnef.tgz`.
 
-## <span style="color:#6666aa">**:material-step-forward: Step 3.**</span> tract cli checks
+## <span style="color:#6666aa">**:material-step-forward: Step 3.**</span> :material-toolbox: tract cli checks
 
 We will now check with the tract cli that everything is working as expected.
 
@@ -222,7 +228,75 @@ Entire network performance: 138.525 ms/i
     If you have a recent Apple Silicon device try the same command adding `--metal` before the dump
     and observe the speed difference.
 
-## <span style="color:#6666aa">**:material-step-forward:  Step 4.**</span> Making a minimal rust program
+## <span style="color:#6666aa">**:material-step-forward:  Step 5.**</span> :material-language-python: tract inference with Python
+
+We just created a great model NNEF, and it has been checked during export to get same output for same input
+between PyTorch and tract (thanks to the `check_io=True` option). That said you may now wish to
+interact with it to perform a fully fledged evaluation of the model (to ensure this new inference engine
+do not get imprecise results on some specific samples).
+
+For this purpose we need to install a new package in our activated `venv`:
+
+```bash title="add tract python package"
+pip install "tract<0.22,>=0.21"
+```
+
+Let's now create a new python file called `run.py`:
+
+Let's read our example image again with torch vision and transform it
+in `numpy` feature matrix, this part is specific to the image classifaction,
+and could be done with any tool you wish (this is not `tract` or `torch_to_nnef` related).
+
+```python title="run.py (part 1)"
+import tract
+import numpy as np
+from torchvision import models as vision_mdl
+from torchvision.io import read_image
+
+img = read_image("./Grace_Hopper.jpg")
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
+input_data_sample = classification_task.transforms()(
+    img.unsqueeze(0)
+).numpy()
+```
+
+Now we can load the `NNEF` model with tract, declutter and optimize it:
+
+```python title="run.py (part 2)"
+model = (
+    tract.nnef()
+    .with_tract_core()
+    .model_for_path("./vit_b_16.nnef.tgz")
+    .into_optimized()
+    .into_runnable()
+)
+```
+
+Finally we can run the inference for the provided input and extract predicted result:
+
+```python title="run.py (part 3)"
+result = model.run([input_data_sample])
+confidences = result[0].to_numpy()
+prediced_index = np.argmax(confidences)
+print(
+    "class id:",
+    predicted_index,
+    "label: ",
+    classification_task.meta["categories"][
+        predicted_index
+    ],
+)
+```
+
+And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started_py/run.py))
+
+!!! success end "Congratulation"
+
+    Your first export with `torch_to_nnef` is now done and
+    you ran a successful standalone tract based inference with it.
+    This is sufficent if you intend to use python only.
+
+## <span style="color:#6666aa">**:material-step-forward:  Step 6.**</span> :fontawesome-brands-rust: Making a minimal rust program
 
 Ok, we have our model asset we confirmed it run well from tract cli, now let's integrate it in a rust program.
 
@@ -230,11 +304,11 @@ We will build it step by step, but note that the code is very similar to this [t
 
 ```bash title="minimal setup rust binary and download a dummy image"
 cd ..
-cargo init t2n_getting_started_tract
-cd t2n_getting_started_tract
+cargo init getting_started_rs
+cd getting_started_rs
 cargo add tract-core tract-nnef image
-cp ../t2n_getting_started/vit_b_16.nnef.tgz ./
-cp ../t2n_getting_started/Grace_Hopper.jpg ./
+cp ../getting_started_py/vit_b_16.nnef.tgz ./
+cp ../getting_started_py/Grace_Hopper.jpg ./
 ```
 
 Let's now compile the project it should output hello world:
@@ -261,7 +335,7 @@ fn main() -> TractResult<()> {
 }
 ```
 
-Inside the main we replace println with:
+Inside the main we replace *println* with:
 
 ```rust
     let model = tract_nnef::nnef()
@@ -299,7 +373,9 @@ We can now prepare image to be ingested by the neural network:
 
 ```
 
-This tensor is now ready to be run with tract:
+Notice that tract use [ndarray](https://docs.rs/ndarray/latest/ndarray/) to manipulate tensors with it's user facing API.
+
+This tensor is now ready to be run with our tract model:
 
 ```rust
     // run the model on the input
@@ -320,7 +396,7 @@ Let's now get the index of classified class for the image and print it:
     println!("result: {best:?}");
 ```
 
-That's it our code is complete, (your code should now [look like this](https://github.com/sonos/torch-to-nnef/tree/feat/mkdocs/docs/examples/getting_started_tract))
+That's it our code is complete, (your code should now [look like this](https://github.com/sonos/torch-to-nnef/tree/feat/mkdocs/docs/examples/getting_started_rs))
 
 You can now rebuild and run the code with cargo:
 
@@ -328,8 +404,14 @@ You can now rebuild and run the code with cargo:
 cargo run --release
 ```
 
+This should display to you
+
+```json
+result: Some((9.439479, 652))
+```
+
 !!! success end "Congratulation"
 
-    Bravo! you made it !
-    Your first export with `torch_to_nnef` is now done and
-    you ran a successful standalone tract based inference with it.
+    :tada: you made it !
+    You first exported the network with `torch_to_nnef` and
+    ran a successful standalone cli command with tract based inference in it.
