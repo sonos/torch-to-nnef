@@ -322,13 +322,13 @@ Now let's write the core interesting parts in `src/main.rs`:
 
 Add the [prelude](https://doc.rust-lang.org/reference/names/preludes.html) from tract_nnef
 
-```rust
+```rust title="main.rs (part 1)"
 use tract_nnef::prelude::*;
 ```
 
 and replace the type signature of the main (for simpicity of this example):
 
-```rust
+```rust title="main.rs (part 2)"
 fn main() -> TractResult<()> {
     println!("Hello, world!");
     Ok(())
@@ -337,7 +337,7 @@ fn main() -> TractResult<()> {
 
 Inside the main we replace *println* with:
 
-```rust
+```rust title="main.rs (part 3)"
     let model = tract_nnef::nnef()
         .with_tract_core()
         .model_for_path("./vit_b_16.nnef.tgz")?
@@ -350,7 +350,7 @@ Inside the main we replace *println* with:
 This code is responsible to load, declutter and optimize the model.
 We can now prepare image to be ingested by the neural network:
 
-```rust
+```rust title="main.rs (part 4)"
     // open image, resize it and make a Tensor out of it
     let image = image::open("Grace_Hopper.jpg")?.to_rgb8();
     // scale to model input dimension
@@ -377,14 +377,14 @@ Notice that tract use [ndarray](https://docs.rs/ndarray/latest/ndarray/) to mani
 
 This tensor is now ready to be run with our tract model:
 
-```rust
+```rust title="main.rs (part 5)"
     // run the model on the input
     let result = model.run(tvec!(image.into()))?;
 ```
 
 Let's now get the index of classified class for the image and print it:
 
-```rust
+```rust title="main.rs (part 6)"
     // find and display the max value with its index
     let best = result[0]
         .to_array_view::<f32>()?
