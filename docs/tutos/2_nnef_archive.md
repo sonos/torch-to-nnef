@@ -55,7 +55,7 @@ network exported, and a `graph.nnef` that contains the textual representation of
 
 Let's start by looking at the `graph.nnef`.
 
-```c++ title="graph.nnef"
+```nnef title="graph.nnef"
 version 1.0;
 
 extension tract_registry tract_core;
@@ -76,13 +76,13 @@ fragment tract_gelu( x: tensor<scalar> ) -> ( y: tensor<scalar> )
     y = 0.5 * x * ( 1.0 + tract_core_erf(x * 0.7071067811865475));
 }
 
-// ...
+# ...
 
 graph network(input) -> (output)
 {
     input = tract_core_external(shape = [1, 3, 224, 224], datum_type = 'f32');
     class_token = variable<scalar>(label = 'class_token', shape = [1, 1, 768]);
-//...
+# ...
     output = linear(select0, heads_head_weight, heads_head_bias_aligned_rank_expanded);
 
 }
