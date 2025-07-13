@@ -105,7 +105,7 @@ nav:
     - '1. Getting started': "tutos/1_getting_started.md"
     - '2. NNEF archive': "tutos/2_nnef_archive.md"
     - '3. Model with multiple inputs or outputs': "tutos/3_multi_inputs_outputs.md"
-    - '4. Streaming dimensions': "tutos/4_streaming_dimension.md"
+    - '4. Dynamic axes': "tutos/4_dynamic_axes.md"
     - '5. Large Language Models': "tutos/5_llm.md"
     - '6. Quantization': "tutos/6_quantization.md"
     - '7. Offloaded tensors': "tutos/7_offloaded_tensor.md"
