@@ -17,7 +17,7 @@ class NNEFLexer(RegexLexer):
             (";", Punctuation),
             (r"(true|false)", bool),
             (
-                r"(?<![a-zA-Z:])[-+]?\d*\.?\d+",
+                r"(?<![a-zA-Z:_])[-+]?\d*\.?\d+",
                 Number,
             ),
             (r"\".*\"", String),

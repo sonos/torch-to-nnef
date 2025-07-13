@@ -104,7 +104,7 @@ lead to the following stderr:
 ```
 
 That's expected as you now need to specify now to specify this symbol before profiling anything.
-You can do that before or after the dump but be carefull this has a different meaning:
+You can do that before or after the 'dump' keyword but be careful this has a different meaning:
 
 - if before this means the compiled graph by tract in memory will be of concretized dimensions you provided
 - if after this means the compiled graph by tract in memory will be offer dynamic dimensions to be defined at runtime:
@@ -113,7 +113,8 @@ The way to specify it is with the `--set B=3` where 3 can be whatever whole numb
 So running:
 
 ```bash
-tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O dump --set B=3 --allow-random-input --profile
+tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O
+    dump --set B=3 --allow-random-input --profile
 ```
 
 You should now observe as previously a nice evaluation of network speed and it's breakdown.
@@ -122,12 +123,12 @@ You should now observe as previously a nice evaluation of network speed and it's
 
     you made your first dynamic network export with `torch_to_nnef` :tada: !
 
-## A streaming use case
+## Streaming Audio case
 
 Let's now imagine that you want to add one of these symbol to the time dimension.
 
-We will for this purpose build a very simple CNN network that will have to predict that
-an event occured every 3 frames in an infinite stream of frames.
+We will for this purpose build a very simple audio network that will have to predict that
+events occured every 4 frames in an infinite stream of frames.
 
 We already did 2 examples with transformers like architecture (ViT & BERT),
 while a Conformer would work fine, let's instead go old school with a
@@ -201,21 +202,22 @@ we observe a peculiar output dimension
 
 While batch dimensions is fine, the temporal one is different.
 
-What did just happen ?
+### What did just happen ?
 
-In reality this is quite normal, since some operation in the neural network
-happen on the time dimenssion the streaming dimensions outputed is an expression
+In reality this is quite normal, since some operations in the neural network
+happen on the time dimension the streaming dimensions outputed is an expression
 based on S:
+
 Since the first convolution has a kernel of 3 we need at least 3 frames
 to fill our [receptive field](https://en.wikipedia.org/wiki/Convolutional_neural_network), hence the -3.
 Since there is a stride of 2 and a max-pooling of 2: we divide original S by 4 .
 
 tract is able to manage this state of receptive field and the caching of RNN state
-for you seamlessly, you will just need to first:
-
-- Pulse the network: Pulsing is a concept specific to tract. It's choosing the time step at which you wish your network to operate.
+for you seamlessly. To achieve that we need to pulse the network:
+Pulsing is a concept specific to tract. It's choosing the time step at which you wish your network to operate.
  By example for this neural network you can select any pulse that would be a multiple of 4.
- By example 8:
+Due to it's internal structure we discussed upper.
+ As an example we select 8:
 
 ```bash
 tract custom_deepspeech.nnef.tgz
@@ -255,7 +257,8 @@ tract_pulse_delay(
 );
 ```
 
-Each explicitly stating the delay expected after each element.
+They explicitly state the delay expected after the operation at this point
+of the graph.
 Now each time you will call this model loaded,
 within the same state: it will expect to receive the next 8 frames of melbanks.
 as explained earlier the state caching is managed internally by tract :magic_wand: .
@@ -264,7 +267,7 @@ as explained earlier the state caching is managed internally by tract :magic_wan
 
     There is only 1 possible pulse dimensions within a tract model
 
-## The NLP case: batch and token dimension
+## NLP case: batch and token dimension
 
 In a prior example in tutorial [on multiple input outputs](./3_multi_inputs_outputs.md) we recommended to avoid using the provided code as such. Let's remedy to the snippet
 to make a better Albert in NNEF:
