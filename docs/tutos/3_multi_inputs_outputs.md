@@ -179,6 +179,9 @@ You can now export this wrapped model with the same API call we specified upper.
 The same logic would apply if you wish to ignore some `inputs` to can set those in
 the `__init__` and reference them in the `forward` pass.
 
+A concrete example of this is available in the `torch_to_nnef` codebase with regard
+to LLM wrappers that need to handle the KV-cache properly: [here](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract/models/base.py).
+
 ### Working around limitations
 
 #### Dynamic number of input or output is not supported out of the box
