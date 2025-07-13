@@ -1,4 +1,4 @@
-from collections import KeysView, ValuesView
+from collections.abc import KeysView, ValuesView
 import contextlib
 import logging as log
 import typing as T

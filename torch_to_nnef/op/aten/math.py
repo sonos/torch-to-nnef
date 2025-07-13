@@ -55,13 +55,28 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     divisor_tensor = op_helper.get_or_add_tensor_variable_in_nnef(divisor_node)
     io_casting_with_dtype = None
 
-    is_float = not dtype_is_whole_number(input_tensor.dtype)
+    if isinstance(inference_target, TractNNEF):
+        if dtype_is_whole_number(input_tensor.dtype):
+            input_tensor, cf = op_helper.cast_to_if_not_dtype_and_variable(
+                node,
+                input_tensor,
+                cast_to=np.float32,
+                suffix="input_forced_cast",
+            )
+            used_custom_fragment.extend(cf)
+        if dtype_is_whole_number(divisor_tensor.dtype):
+            divisor_tensor, cf = op_helper.cast_to_if_not_dtype_and_variable(
+                node,
+                divisor_tensor,
+                cast_to=np.float32,
+                suffix="divisor_forced_cast",
+            )
+            used_custom_fragment.extend(cf)
+
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
-
-    if (
-        len(node.inputs) == 3 or io_casting_with_dtype is not None
-    ) and is_float:
+        if isinstance(inference_target, TractNNEF):
+            io_casting_with_dtype = np.uint64
         suffix_div_op_output = "div"
 
     out = op_helper.add_single_output_op_from_nnef_tensors(
@@ -74,7 +89,7 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
         output_tensor_name_suffix=suffix_div_op_output,
     )
 
-    if rounding_mode and is_float:
+    if rounding_mode:
         out = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             rounding_mode,
