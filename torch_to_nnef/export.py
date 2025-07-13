@@ -1,3 +1,4 @@
+from collections import KeysView, ValuesView
 import contextlib
 import logging as log
 import typing as T
@@ -137,6 +138,12 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
+    if isinstance(input_names, KeysView):
+        input_names = list(input_names)
+    if isinstance(output_names, KeysView):
+        output_names = list(output_names)
+    if isinstance(args, ValuesView):
+        args = tuple(args)
     mod_tensor_updater = ModTensorUpdater(
         model,
         add_buffers=False,
