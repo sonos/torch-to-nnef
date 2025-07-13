@@ -10,13 +10,13 @@ albert_model = AlbertModel.from_pretrained("albert-base-v2")
 file_path_export = Path("albert_v2.nnef.tgz")
 export_model_to_nnef(
     model=albert_model,
-    args=tuple(inputs.values()),
+    args=inputs.values(),
     file_path_export=file_path_export,
     inference_target=TractNNEF(
         version="0.21.13",
         check_io=True,
     ),
-    input_names=list(inputs.keys()),
+    input_names=inputs.keys(),
     output_names=["output"],
     debug_bundle_path=Path("./debug.tgz"),
 )
