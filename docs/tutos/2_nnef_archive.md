@@ -83,7 +83,11 @@ graph network(input) -> (output)
     input = tract_core_external(shape = [1, 3, 224, 224], datum_type = 'f32');
     class_token = variable<scalar>(label = 'class_token', shape = [1, 1, 768]);
 # ...
-    output = linear(select0, heads_head_weight, heads_head_bias_aligned_rank_expanded);
+    output = linear(
+      select0,
+      heads_head_weight,
+      heads_head_bias_aligned_rank_expanded
+    );
 
 }
 ```
@@ -97,8 +101,10 @@ Those are added automatically by `torch_to_nnef` except if you use [custom opera
 
 After that we see a set of `fragment`s you can think of those as [pure functions](https://en.wikipedia.org/wiki/Pure_function), for
 most of them (there is few exception like if there is `scan` operator but that a good
-approximate). `tract_gelu` is interesting because it is replaced on fly by `gelu` specific
-operator if it exist in selected registries and for your hardware.
+approximate). This fragments allows to compose graph to 'compile' into smaller reusable
+blocks.
+`tract_gelu` is interesting because it is replaced on fly by `gelu` specific
+operator if it exist in selected registries and for your hardware
 
 Finally there is the `network` which is the main entry point that will describe the
 inference computations to perform from inputs to outputs by calling operators and fragments,

@@ -7,7 +7,7 @@
     1. :material-image: How to export an image model with `torch_to_nnef`
     2. :material-toolbox: The basic commands to check your model is correct within tract
     3. :fontawesome-brands-python: How to create a minimal Python program that perform inference with tract
-    4. :fontawesome-brands-rust: (optional) How to create a minimal rust binary that perform inference from the cli with tract
+    4. :fontawesome-brands-rust: (Bonus) How to create a minimal rust binary that perform inference from the cli with tract
 
 !!! example "Prerequisite"
 
@@ -26,6 +26,7 @@ mkdir getting_started_py
 cd getting_started_py
 python3 -m venv .venv
 source .venv/bin/activate
+pip install -U pip
 pip install torch==2.7.0 torchvision==0.22.0 torch_to_nnef
 wget https://upload.wikimedia.org/wikipedia/commons/5/55/Grace_Hopper.jpg
 touch export.py
