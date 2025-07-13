@@ -4,11 +4,13 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 """
 
+import typing as T
 import logging as log
 
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.utils import flatten_dict_tuple_or_list
 
 LOGGER = log.getLogger(__name__)
@@ -103,21 +105,55 @@ class WrapStructIO(nn.Module):
 
 
 def _build_new_names_and_elements(
-    original_names, elms, default_element_name_tmpl
+    original_names: T.Optional[T.List[str]],
+    elms: T.Iterable,
+    default_element_name_tmpl: str,
 ):
+    """
+    Usecase 1:
+        provide:
+            original_names: ['input', "a"]
+            elms: [[tensor, tensor, tensor], {"arm": tensor, "head": tensor}]
+    Expected output names:
+        ["input_0", input_1", "input_2", "a", "head"]
+
+    Usecase 2: (undefined names)
+        provide:
+            original_names: ['plop']
+            elms: [[tensor, tensor, tensor], tensor, tensor]
+    Expected output names:
+        ["plop_0", plop_1", "plop_2", default_element_name_tmpl %ix=1, default_element_name_tmpl %ix=2]
+
+    Usecase 3: (dict with prefix)
+        provide:
+            original_names: ['a', 'dic']
+            elms: [tensor, {"arm": tensor, "head": tensor}]
+    Expected output names:
+        ["a", "dic_arm", "dic_head"]
+    """
     if original_names is None:
         original_names = []
-    flat_elms = flatten_dict_tuple_or_list(elms)
-    if len(original_names) != len(flat_elms):
-        offset = len(original_names)
-        for i in range(len(flat_elms) - len(original_names)):
-            original_names.append(default_element_name_tmpl.format(offset + i))
 
+    provided_names = original_names[:]
+    if len(original_names) != len(elms):
+        offset = len(original_names)
+        for i in range(len(elms) - offset):
+            provided_names.append(default_element_name_tmpl.format(i + offset))
+    flat_elms = flatten_dict_tuple_or_list(elms)
     new_names = []
     new_elms = []
     for _, idxes, elm in flat_elms:
-        str_idxes = "_".join(str(_) for _ in idxes[1:])
-        root_name = original_names[idxes[0]]
+        root_idx, *rest_idxes = idxes
+        if not isinstance(root_idx, int):
+            raise TorchToNNEFNotImplementedError(
+                "'_build_new_names_and_elements' do only support iterable "
+                "as elements not dict like"
+            )
+
+        str_idxes = "_".join(str(_) for _ in rest_idxes)
+        root_name = provided_names[root_idx]
+        if root_name and str_idxes:
+            str_idxes = "_" + str_idxes
         if not isinstance(elm, torch.Tensor):
             ix_str = ""
             for i in idxes:
@@ -130,9 +166,7 @@ def _build_new_names_and_elements(
                 "(if its a container we assume no torch.Tensor inside)"
             )
             continue
-        new_names.append(
-            root_name + "_" + str_idxes if str_idxes else root_name
-        )
+        new_names.append(root_name + str_idxes if str_idxes else root_name)
         new_elms.append(elm)
     return new_names, new_elms, flat_elms
 

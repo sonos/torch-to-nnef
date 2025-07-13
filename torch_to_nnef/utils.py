@@ -128,10 +128,10 @@ def flatten_dict_tuple_or_list(
         ) + flatten_dict_tuple_or_list(
             obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
         )
-    if isinstance(obj, dict):
+    if hasattr(obj, "__getitem__") and not isinstance(obj, torch.Tensor):
         res = []  # type: ignore
         for k, v in obj.items():
-            if isinstance(v, (tuple, list, dict)):
+            if hasattr(v, "__getitem__") and not isinstance(v, torch.Tensor):
                 res += flatten_dict_tuple_or_list(
                     v, collected_types, collected_idxes + [k], 0
                 )

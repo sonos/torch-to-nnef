@@ -150,11 +150,19 @@ def export_model_to_nnef(
             "custom extensions should be a list, "
             "because some extensions may be order sensitive (in tract)."
         )
-    if isinstance(args, (torch.Tensor, int, float, bool, dict)):
+    if isinstance(args, (torch.Tensor, int, float, bool, dict)) or (
+        hasattr(args, "__getitem__")
+        and hasattr(args, "items")
+        and not isinstance(args, torch.Tensor)
+    ):
         args = (args,)
     outs = model(*args)
     apply_name_to_tensor_in_module(model)
-    if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
+    if isinstance(outs, (torch.Tensor, int, float, bool, dict)) or (
+        hasattr(args, "__getitem__")
+        and hasattr(args, "items")
+        and not isinstance(args, torch.Tensor)
+    ):
         outs = (outs,)
     check_io_names(input_names, output_names)
 
