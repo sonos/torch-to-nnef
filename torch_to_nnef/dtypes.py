@@ -162,4 +162,6 @@ if torch_version() >= "2.4.0":
 
 
 def dtype_is_whole_number(dtype):
+    if "numpy" in str(dtype):
+        dtype = NUMPY_TO_TORCH_DTYPE[dtype]
     return dtype in WHOLE_NUMBER_DTYPES
