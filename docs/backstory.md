@@ -2,9 +2,9 @@
 
 At SONOS we build machine learning solutions from training to inference while serving millions of customers.
 We have been pushing hard to allow neural network computation to happen on device,
- and as part of this journey we open-sourced and maintain [tract](https://github.com/sonos/tract) our full rust neural network inference.
+ and as part of this journey we open-sourced and maintain [tract](https://github.com/sonos/tract) our full rust neural network inference engine.
 
-Tract use NNEF format as intermediate storage since it's early days since this format allow to
+Tract use NNEF format as intermediate storage since it's early days because this format allow to
 have faster model load time, good human readability, is easily extensible ... (see [Why NNEF](./why_nnef.md) for more informations).
 
 In early 2022 we started to investigate use of compression techniques and in particular quantization.
