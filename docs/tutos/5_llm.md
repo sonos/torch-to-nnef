@@ -5,7 +5,7 @@
     At the end of this tutorial you will know:
 
     1. :material-toolbox: How to export causal Large Language Models
-    2. :octicons-cross-reference-24: Current status of this library
+    2. :octicons-cross-reference-24: Current status of this library with regard to LLM
 
 !!! example "Prerequisite"
 
@@ -18,9 +18,11 @@ for this special networks since late 2023, and the inference engine is now compe
 with state of the art on Apple Silicon and soon likely on Nvidia GPU's.
 In the industry most players use the `transformers` library and a lot of the HuggingFace
 ecosystem to specify their models in PyTorch. This make this library the most up to
-date source of Model architecture and pretrained weights.
+date source of Model architecture and pre-trained weights.
 To ease the export and experiments with such models `torch_to_nnef` (this library),
 has added a dedicated set of modules that we will now present to you.
+
+In this part we will only present ability to export to the `tract` inference engine.
 
 ## Exporting a transformers pre-trained model
 
@@ -145,7 +147,7 @@ provide a convenient solution if you have a *descent SSD* disk just add:
 
 to your prior command like for example:
 
-```
+```bash
 t2n_export_llm_to_tract \
     --device-map t2n_offload_disk \
     -s "Qwen/Qwen3-8B" \
@@ -183,3 +185,12 @@ to easily adapt [these transformers specific torch_to_nnef modules](https://gith
 Else if state management is internal to specific modules you will likely need to write
 [custom operator exporter](./8_custom_operator.md) to express those IO at export time
 or add specific operators in tract to manage it.
+
+In all case prior tutorials should be able to help you toward your goal especially with
+regard to [`dynamic axes`](./4_dynamic_axes.md) and [basic api](./1_getting_started.md).
+
+!!! tip "Community"
+
+    If you release a custom LLM NNEF export for a different library
+    than `transformers` based on `torch_to_nnef`
+    Please reach to us we would love to hear your feedback 😊
