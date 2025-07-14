@@ -123,7 +123,7 @@ You should now observe as previously a nice evaluation of network speed and it's
 
     you made your first dynamic network export with `torch_to_nnef` :tada: !
 
-## Streaming Audio case
+## Streaming Audio with stateful model
 
 Let's now imagine that you want to add one of these symbol to the time dimension.
 
@@ -267,7 +267,7 @@ as explained earlier the state caching is managed internally by tract :magic_wan
 
     There is only 1 possible pulse dimensions within a tract model
 
-## NLP case: batch and token dimension
+## NLP: stateless model with dynamic batch and token dimension
 
 In a prior example in tutorial [on multiple input outputs](./3_multi_inputs_outputs.md) we recommended to avoid using the provided code as such. Let's remedy to the snippet
 to make a better Albert in NNEF:
@@ -320,7 +320,11 @@ Likely not, because we would like by example to cache previously computed tokens
 to speed-up inference.
 
 To do that we need to introduce a new set of input for KV cache and a new set of
-output for the updated KV cache. The past KV-Cache tensors in graph inputs will need
+output for the updated KV cache. This is not managed as an internal state of tract
+because we use the `transformers` that design states to be held aside a stateless model
+that receive the case and update it at each forward pass.
+
+The past KV-Cache tensors in graph inputs will need
 a new symbol that we can call `P` for past and that will lead to following
 set of additional constraints:
 
