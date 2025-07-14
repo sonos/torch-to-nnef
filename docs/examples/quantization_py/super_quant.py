@@ -1,10 +1,10 @@
-import typing as T
+from copy import deepcopy
 from functools import partial
 import logging
-
+import typing as T
 import torch
 from torch import nn
-
+from torch_to_nnef.compress import offloaded_tensor_qtensor
 from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import (
@@ -16,7 +16,45 @@ from torch_to_nnef.tensor.updater import ModTensorUpdater
 LOGGER = logging.getLogger(__name__)
 
 
-def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
+def fp_to_tract_q4_0_with_grid_mse_calibration(
+    fp_weight, grid_size=50, maxshrink=0.8
+):
+    qtensor = fp_to_tract_q4_0_with_min_max_calibration(fp_weight)
+    qscheme_min_max = qtensor.qscheme
+    lower_bound_search_vals = qscheme_min_max.scale * maxshrink
+    step_size = (qscheme_min_max.scale - lower_bound_search_vals) / grid_size
+    current_vals = qscheme_min_max.scale.clone()
+    best_vals = current_vals
+
+    def get_current_error():
+        return (
+            ((fp_weight - qtensor.decompress()).abs() ** 2)
+            .reshape(-1, qscheme_min_max.group_size)
+            .mean(1)
+        )
+
+    best_val_error = get_current_error()
+    orignal_val_error = best_val_error.clone()
+    for _ in range(grid_size):
+        current_vals -= step_size
+        qtensor.qscheme.scale = current_vals.clone()
+        current_val_error = get_current_error()
+        better_error = current_val_error < best_val_error
+        best_val_error = torch.where(
+            better_error, current_val_error, best_val_error
+        )
+        best_vals = torch.where(
+            better_error.unsqueeze(1), current_vals, best_vals
+        )
+    gain_over_min_max = (orignal_val_error - best_val_error).mean()
+    LOGGER.info(
+        f"[{fp_weight.name}] quant grid search gained mse error from min/max: {gain_over_min_max}"
+    )
+    qtensor.qscheme.scale = best_vals
+    return qtensor
+
+
+def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -56,19 +94,19 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                 try:
 
                     def q_fn(weight):
-                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
+                        q_weight = fp_to_tract_q4_0_with_grid_mse_calibration(
                             weight,
                             **{
                                 k: v
                                 for k, v in kwargs.items()
-                                if k in ["percentile"]
+                                if k in ["grid_size"]
                             },
                         )
                         q_weight.nnef_name = f"{name}.weight"
                         return q_weight
 
                     q_weight = offloaded_tensor_qtensor(
-                        q_fn, mod.weight, "q40_min_max"
+                        q_fn, mod.weight, "q40_mse"
                     )
                 except TorchToNNEFImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")
@@ -81,45 +119,10 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
     return model
 
 
-def offloaded_tensor_qtensor(
-    q_fn, tensor: torch.Tensor, suffix_name: str
-) -> torch.Tensor:
-    original_tensor = tensor
-    if isinstance(original_tensor, OffloadedTensor):
-        tensor = original_tensor.to_base_tensor()
-
-    q_tensor = q_fn(tensor)
-
-    final_tensor = q_tensor
-    if isinstance(original_tensor, OffloadedTensor):
-        final_tensor = OffloadedTensor.from_original_tensor(
-            q_tensor,
-            f"{original_tensor._name}.{suffix_name}",
-            offload_dir=original_tensor.offload_dir,
-        )
-    return final_tensor
-
-
-def dynamic_load_registry(compression_registry_full_path: str):
-    module_str, name = compression_registry_full_path.rsplit(".", maxsplit=1)
-    mod = __import__(module_str, fromlist=[""])
-    registry = getattr(mod, name)
-    assert isinstance(registry, dict)
-    return registry
-
-
-DEFAULT_COMPRESSION = {
-    "min_max_q4_0": quantize_weights_min_max_Q4_0,
-    "min_max_q4_0_with_embeddings": partial(
-        quantize_weights_min_max_Q4_0,
-        to_quantize_module_classes=(nn.Linear, nn.Embedding),
-    ),
-    "min_max_q4_0_with_embeddings_99": partial(
-        partial(quantize_weights_min_max_Q4_0, percentile=0.99),
-        to_quantize_module_classes=(nn.Linear, nn.Embedding),
-    ),
-    "min_max_q4_0_all": partial(
-        quantize_weights_min_max_Q4_0,
+EXAMPLE_REGISTRY = {
+    "grid_mse_q4_0_all": partial(
+        quantize_weights_grid_mse_Q40,
+        grid_size=50,
         to_quantize_module_classes=(
             nn.Linear,
             nn.Embedding,
