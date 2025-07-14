@@ -161,7 +161,7 @@ class CustomDeepSpeech(torch.nn.Module):
         return self.deepspeech(x)
 ```
 
-We can intanciate a non trained model with it and export it with following command:
+We can instantiate a non trained model with it and export it with following command:
 
 ```python title="export audio model with streaming dimension"
 file_path_export = Path("custom_deepspeech.nnef.tgz")
@@ -220,10 +220,10 @@ Due to it's internal structure we discussed upper.
  As an example we select 8:
 
 ```bash
-tract custom_deepspeech.nnef.tgz
-    --nnef-tract-core
-    --pulse 8
-    dump
+tract custom_deepspeech.nnef.tgz \
+    --nnef-tract-core \
+    --pulse 8 \
+    dump \
     --nnef custom_deepspeech_pulse8.nnef.tgz
 ```
 
