@@ -252,7 +252,7 @@ def fp_to_tract_q4_0_with_grid_mse_calibration(
     def get_current_error():
         return (
             ((fp_weight - qtensor.decompress()).abs() ** 2)
-            .reshape(-1, qscheme_min_max.group_size)
+            .view(-1, qscheme_min_max.group_size)
             .mean(1)
         )
 
@@ -282,4 +282,110 @@ own super quant :tada:.
 
 ## 8bit Post Training Quantization example
 
-...
+Quantization in 8bit including activation is something that is built-in PyTorch
+since a while. This is great because it means this is as well represented in the
+Intermediate representation after graph is traced, hence easily exportable with
+`torch_to_nnef`. Still today tract only support 8bit asymmetric linear quantization
+per tensor (no per channel).
+
+We will still demonstrate this ability on a simple usecase:
+Let's do a CNN + ReLU example and apply a [classical PTQ](https://docs.pytorch.org/docs/stable/quantization.html) from there:
+
+```python title="simple PTQ export example"
+from pathlib import Path
+import torch
+from torch import nn
+from torch_to_nnef import TractNNEF, export_model_to_nnef
+
+
+class Model(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.quant = torch.ao.quantization.QuantStub()
+        self.cnn1 = nn.Conv1d(10, 10, 3)
+        self.relu1 = nn.ReLU()
+        self.cnn2 = nn.Conv1d(10, 1, 3)
+        self.relu2 = nn.ReLU()
+        self.dequant = torch.ao.quantization.DeQuantStub()
+
+    def forward(self, x):
+        x = self.quant(x)
+        x = self.cnn1(x)
+        x = self.relu1(x)
+        x = self.cnn2(x)
+        x = self.relu2(x)
+        x = self.dequant(x)
+        return x
+
+
+torch.backends.quantized.engine = "qnnpack"
+m = Model()
+m.eval()
+m.qconfig = torch.ao.quantization.get_default_qconfig("qnnpack")
+mf = torch.ao.quantization.fuse_modules(
+    m, [["cnn1", "relu1"], ["cnn2", "relu2"]]
+)
+mp = torch.ao.quantization.prepare(mf)
+input_fp32 = torch.randn(1, 10, 15)
+mp(input_fp32)
+model_int8 = torch.ao.quantization.convert(mp)
+res = model_int8(input_fp32)
+file_path_export = Path("model_q8_ptq.nnef.tgz")
+export_model_to_nnef(
+    model=model_int8,
+    args=input_fp32,
+    file_path_export=file_path_export,
+    inference_target=TractNNEF(
+        version="0.21.13",
+        check_io=True,
+    ),
+    input_names=["input"],
+    output_names=["output"],
+    debug_bundle_path=Path("./debug.tgz"),
+)
+```
+
+if you look at the model **graph.nnef**, You will obvserve no
+difference with a classical NNEF model but .dat exported are uint8 and
+a new textual file is set called  `graph.quant`.
+
+This new file contains quantization information for each tensors as follows:
+
+```title="graph.quant (with scale truncated for clarity)"
+
+"quant__input_quantize_per_tensor0": zero_point_linear_quantize(zero_point = 119, scale = 0.021, bits = 8, signed = false, symmetric = false);
+"cnn1__input_weight": zero_point_linear_quantize(scale = 0.0014, zero_point = 0, bits = 8, signed = true, symmetric = false);
+"cnn1__input_conv": zero_point_linear_quantize(scale = 0.0046, zero_point = 0, bits = 8, signed = false, symmetric = false);
+"cnn1__input": zero_point_linear_quantize(scale = 0.0046, zero_point = 0, bits = 8, signed = false, symmetric = false);
+"cnn2__Xq_weight": zero_point_linear_quantize(scale = 0.0013, zero_point = 0, bits = 8, signed = true, symmetric = false);
+"cnn2__Xq_conv": zero_point_linear_quantize(scale = 0.0017, zero_point = 0, bits = 8, signed = false, symmetric = false);
+"cnn2__Xq": zero_point_linear_quantize(scale = 0.00172, zero_point = 0, bits = 8, signed = false, symmetric = false);
+```
+
+Finally running tract cli on this model:
+
+```bash
+tract ./model_q8_ptq.nnef.tgz --nnef-tract-core dump
+```
+
+You should observe that operators are correctly understood as Quantized with QU8 notation:
+
+```
+ input
+┃   ━━━ 1,10,15,F32
+┣ 1 Cast quant__input_quantize_per_tensor0
+┃   ━━━ 1,10,15,QU8(Z:119 S:0.021361168)
+┣┻┻┻┻┻┻┻┻ 9 Conv cnn1__input_conv_4
+┃   ━━━ 1,10,13,QU8(Z:0 S:0.004661602)
+┣┻ 11 Max cnn1__input_relu_y_5
+┣┻┻┻┻┻┻┻┻ 16 Conv cnn2__Xq_conv_1
+┃   ━━━ 1,1,11,QU8(Z:0 S:0.0017290331)
+┣┻ 18 Max cnn2__Xq_relu_y_4
+┣ 19 Cast output
+    ━━━ 1,1,11,F32
+```
+
+!!! success end "Congratulation"
+
+    You first exported the network with `torch_to_nnef` quantized in 8bit
+    and learned how to create and manage own quantization registry !

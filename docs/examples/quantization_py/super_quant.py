@@ -29,14 +29,14 @@ def fp_to_tract_q4_0_with_grid_mse_calibration(
     def get_current_error():
         return (
             ((fp_weight - qtensor.decompress()).abs() ** 2)
-            .reshape(-1, qscheme_min_max.group_size)
+            .view(-1, qscheme_min_max.group_size)
             .mean(1)
         )
 
     best_val_error = get_current_error()
     orignal_val_error = best_val_error.clone()
     for _ in range(grid_size):
-        current_vals -= step_size
+        current_vals += step_size
         qtensor.qscheme.scale = current_vals.clone()
         current_val_error = get_current_error()
         better_error = current_val_error < best_val_error
