@@ -69,9 +69,24 @@ IO bit match between tract and PyTorch for ...
 Looking at what we just exported we see in the folder just created `$HOME/llama32_f16`:
 
 ```
+[2.3G]  $HOME/llama32_f16
+├── [2.3G]  model
+│   ├── [2.2K]  config.json
+│   └── [2.3G]  model.nnef.tgz
+├── [  78]  modes.json
+├── [4.0M]  tests
+│   ├── [838K]  export_io.npz
+│   ├── [902K]  prompt_io.npz
+│   ├── [1.1M]  prompt_with_past_io.npz
+│   └── [1.2M]  text_generation_io.npz
+└── [ 16M]  tokenizer
+    ├── [3.7K]  chat_template.jinja
+    ├── [ 296]  special_tokens_map.json
+    ├── [ 49K]  tokenizer_config.json
+    └── [ 16M]  tokenizer.json
 ```
 
-The most important file being the NNEF dump of the model of 2.5Go.
+The most important file being the NNEF dump of the model of 2.3Go.
 
 If we look at the signature of generated model we should see something like this:
 
