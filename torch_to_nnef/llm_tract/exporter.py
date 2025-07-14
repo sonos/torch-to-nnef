@@ -613,7 +613,7 @@ class LLMExporter:
             if export_dir_struct == ExportDirStruct.DEEP:
                 model_dir = export_dirpath / "model"
                 model_dir.mkdir(parents=True, exist_ok=True)
-                tok_dir = export_dirpath / "model"
+                tok_dir = export_dirpath / "tokenizer"
                 tok_dir.mkdir(parents=True, exist_ok=True)
             elif export_dir_struct == ExportDirStruct.FLAT:
                 model_dir = export_dirpath
