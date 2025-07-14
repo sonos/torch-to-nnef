@@ -10,7 +10,7 @@
 !!! example "Prerequisite"
 
     - [ ] PyTorch and Python basics
-    - [ ] 20 min to read this page
+    - [ ] 10 min to read this page
 
 Since 2020, Large Language Models have gathered significant attention in the industry
 to the point where every product start to integrate them. **tract** have been polishing
@@ -20,11 +20,11 @@ In the industry most players use the `transformers` library and a lot of the Hug
 ecosystem to specify their models in PyTorch. This make this library the most up to
 date source of Model architecture and pretrained weights.
 To ease the export and experiments with such models `torch_to_nnef` (this library),
-has added a dedicated set of module that we will now present to you.
+has added a dedicated set of modules that we will now present to you.
 
-## Exporting a pre-trained model
+## Exporting a transformers pre-trained model
 
-If you only want to export a model already trained, available at [https://huggingface.co/] and
+If you only want to export a model already trained, available [on huggingface hub](https://huggingface.co/) and
 compatible with the `transformers` library like for example: [`meta-llama/Llama-3.2-1B-Instruct`](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct) for chat or text generation purpose.
 There is no need for you to learn the api's of `torch_to_nnef`, we have a nice
 easy to use command line for you (once `torch_to_nnef` is installed):
@@ -56,10 +56,11 @@ t2n_export_llm_to_tract \
     --tract-check-io-tolerance ultra
 ```
 
-On a modern laptop with HuggingFace model already cached locally it should take around 50 seconds. Tips: if you have [`rich`](https://github.com/Textualize/rich) installed as dependency, logs will be displayed in color and more elegantly.
+On a modern laptop with HuggingFace model already cached locally it should take around 50 seconds to export to NNEF.
+Tips: if you have [`rich`](https://github.com/Textualize/rich) installed as dependency, logs will be displayed in color and more elegantly.
 
 Here we export the llama 3.2 referenced from PyTorch where the model is mostly stored
-in `float16` with activations are in `bfloat16` to tract where most will be in `float16` (excepted for normalization in f32), we also check conformance between tract and PyTorch
+in `float16` temporary activations in `bfloat16` to tract where almost all will be in `float16` (given our `-dt` request, excepted for normalization kept in `f32`), we also check conformance between tract and PyTorch
 on a generic text (in english) and observe in last log line that it match:
 
 ```
@@ -115,13 +116,28 @@ To run such model you can for example use [this crate of tract](https://github.c
 
 This same cli allow you to export a model that you would have fine-tuned yourself
 and saved with [`.save_pretrained`](https://huggingface.co/docs/transformers/en/main_classes/model#transformers.PreTrainedModel.save_pretrained)
-by replacing the `-s {HUGGING_FACE_SLUG}` by a `-d {MY_DIR_PATH_ON_TRANSFORMERS_MODEL_WEIGHTS}`.
+by replacing the `-s {HUGGING_FACE_SLUG}` by a `-d {MY_DIR_PATH_ON_TRANSFORMERS_MODEL_WEIGHTS}`,
+if you did your finetuning with PEFT you can just add `-mp` to merge the PEFT
+weights before export (in-case this is your wish: this will allow faster inference
+but remove ability to have multiple 'PEFT finetuning' sharing same base exported model).
+
+## Quantize your model
+
+Quantization of models is essential to get the best model on limited resource devices.
+It is also very simple to apply opt-in at export time with this command line:
+
+- `--compression-registry` that control the registry that contains the quantization method available it can be any dict from installed modules
+    including modules unrelated to `torch_to_nnef` package.
+- `--compression-method` that select the quantization method to apply, as a toy example you can
+export models linear layers in Q40 (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw)
+with simple `min_max_q4_0`. If you wish to leverage best quantization techniques we recommend you to
+read our [tutorial on Quantization and export](./6_quantization.md) to implement your own.
 
 ## Export a model that does not fit in RAM
 
-You want to go big, but you find that renting an instance will hundreds of Go of RAM just to
-export a model is ridiculous, we agree ! The cli described upper provide a convenient solution
-if you have a *descent SSD* disk just add:
+You want to go big, but you find that renting an instance will hundreds of Go
+of RAM just to export a model is ridiculous ? We agree ! The CLI described upper
+provide a convenient solution if you have a *descent SSD* disk just add:
 
 ```
 --device-map t2n_offload_disk
@@ -141,5 +157,29 @@ t2n_export_llm_to_tract \
 ```
 
 And pouf done. It will be a bit slower because SSD are slower than RAM but hey
-exporting Qwen3 8B in f16 takes around 4min for a 16Go stored model (this trade is fine for most big models).
-see [our offloaded tensor tutorial](./7_offloaded_tensor.md) to learn more about how to leverage this further.
+exporting Qwen3 8B in f16 takes around 4min for a 16Go stored model (this trade
+is fine for most big models). See [our offloaded tensor tutorial](./7_offloaded_tensor.md)
+to learn more about how to leverage this further.
+
+## Export a model from different library
+
+As long as your model can be serialized into the `torch.jit` internal
+intermediate representation (which is the case of almost all
+neural-networks, whole or parts). This library should be able to do
+the heavy lifting of the translation to NNEF for you.
+
+Here is few key considerations to take before starting to support a non
+[transformers](https://github.com/huggingface/transformers) (here we are speaking of the package, not the other architectures like Mamba, RWKV, ...)
+language model:
+
+- How past states of your neural network is managed inside your library, is it like
+transformers an ad-hoc system that is passed as input and output of your neural network
+main module ?
+- If not is it easy to transform your modeling to approach this architecture ?
+
+If you can answer yes to one of those 2 questions congratulation, you should be able
+to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract).
+
+Else if state management is internal to specific modules you will likely need to write
+[custom operator exporter](./8_custom_operator.md) to express those IO at export time
+or add specific operators in tract to manage it.
