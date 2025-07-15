@@ -14,6 +14,9 @@
 Offload tensors have been developed to allow to manipulate and export more
 easily large neural network models.
 
+Recall that if you only want to export a LLM model offloaded you can look at [our
+related LLM tutorial](./5_llm.md) and do not need to look at what happen behind.
+
 This class is defined as such:
 
 <div class="grid cards" markdown>

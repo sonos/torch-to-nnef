@@ -400,7 +400,15 @@ def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
 ) -> T.Dict[str, _Tensor]:
-    """Export any torch.Tensors list to NNEF .dat file"""
+    """Export any torch.Tensors list to NNEF .dat file
+
+    Args:
+        name_to_torch_tensors: dict
+            A map of name (that will be used to define .dat filename)
+            and tensor values (that can also be special torch_to_nnef tensors)
+        output_dir:
+            directory to dump the NNEF tensor .dat files
+    """
     assert output_dir.exists(), output_dir
     for tensor_name, tensor in name_to_torch_tensors.items():
         if isinstance(tensor, (QTensor, OpaqueTensorRef)):

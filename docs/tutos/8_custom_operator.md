@@ -1,5 +1,19 @@
 # 8. Custom operators
 
+!!! abstract "Goals"
+
+    At the end of this tutorial you will be able to:
+
+    1. :material-toolbox: Control the transformation to NNEF of `nn.Module` you wish
+        This is often usefull in case those modules are not representable in the
+        jit graph of PyTorch or because you wish to use custom NNEF operator for
+        your inference engine.
+
+!!! example "Prerequisite"
+
+    - [ ] PyTorch and Python basics
+    - [ ] 5 min to read this page
+
 In case you want control specific `torch.nn.Module` expansion to NNEF you can
 create a subclass of `torch_to_nnef.op.custom_extractors.ModuleInfoExtractor`
 that is defined as such:
