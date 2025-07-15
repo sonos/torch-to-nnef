@@ -110,7 +110,7 @@ nav:
     - '6. Quantization': "tutos/6_quantization.md"
     - '7. Offloaded tensors': "tutos/7_offloaded_tensor.md"
     - '8. Custom operators': "tutos/8_custom_operator.md"
-    - '9. PEFT & tensors export': "tutos/9_peft.md"
+    - '9. Tensors only export': "tutos/9_peft.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:
