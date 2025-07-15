@@ -16,8 +16,10 @@ easily large neural network models.
 
 This class is defined as such:
 
-::: torch_to_nnef.tensor.offload.OffloadedTensor
+<div class="grid cards" markdown>
+- ::: torch_to_nnef.tensor.offload.OffloadedTensor
     handler: python
+</div>
 
 You can directly load any *.safetensor* or *.pt* into this object that will mimic classical
 `torch.Tensor` except that each access will load the Tensor from disk and remove it from RAM as
@@ -68,7 +70,10 @@ when multiplied by the number of activations on a big neural network.
 If you only wish to maintain QTensor into OffloadedTensor if original float
 tensor was offloaded you can just use the helper:
 
-::: torch_to_nnef.compress.offloaded_tensor_qtensor
+<div class="grid cards" markdown>
+- ::: torch_to_nnef.compress.offloaded_tensor_qtensor
     handler: python
+
+</div>
 
 If this is a new tensor just use the `OffloadedTensor.from_original_tensor` defined upper.

@@ -23,6 +23,7 @@ class _ModuleInfoRegistery(type):
         # this is currently RegisterBase but in child classes will be the child class
         new_cls = type.__new__(cls, name, bases, attrs)
         if new_cls.MODULE_CLASS is not None:
+            __import__("ipdb").set_trace()
             cls.REGISTRY[new_cls.MODULE_CLASS] = new_cls
         return new_cls
 
@@ -32,6 +33,15 @@ class _ModuleInfoRegistery(type):
 
 
 class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
+    """Class to take manual control of NNEF expansion of a nn.Module
+
+    You need to subclass it, and set MODULE_CLASS according to your
+    targeteded module.
+
+    Then write .convert_to_nnef according to your need.
+
+    """
+
     MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
 
     def __init__(self):
@@ -42,6 +52,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_kind(cls, kind: str):
+        """Get ModuleInfoExtractor by kind in torch_to_nnef internal IR"""
         classname = kind.replace(CUSTOMOP_KIND, "")
         extractor_cls = {
             str(k.__name__): v for k, v in cls.get_registry().items()
@@ -52,12 +63,17 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_module(cls, module: nn.Module):
+        """Search if the module is one of the MODULE_CLASS registered
+
+        return appropriate ModuleInfoExtractor subclass if found
+        """
         extractor_cls = cls.get_registry().get(module.__class__)
         if extractor_cls is not None:
             return extractor_cls()
         raise NotFoundModuleExtractor(module.__class__)
 
     def generate_in_torch_graph(self, torch_graph, *args, **kwargs):
+        """Internal method called by torch_to_nnef ir_graph"""
         # ensure empty at first
         assert torch_graph.inputs == []
         assert torch_graph.data_nodes.is_empty()
@@ -197,4 +213,10 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         inference_target,
         **kwargs,
     ):
+        """Control NNEF content to be written for each MODULE_CLASS encountered at serialization
+
+        This is the Core method to overwrite in subclass.
+
+        It is no different than any op implemented in `torch_to_nnef` in the module
+        """
         raise TorchToNNEFNotImplementedError()
