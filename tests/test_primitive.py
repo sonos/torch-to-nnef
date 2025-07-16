@@ -876,6 +876,17 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+test_suite.add(
+    torch.rand(32, 5, 24, 24),
+    nn.LocalResponseNorm(2),
+    inference_conditions=skip_khronos_interpreter
+)
+
+test_suite.add(
+    torch.rand(2, 1, 6, 24, 24),
+    nn.MaxPool3d(2),
+    inference_conditions=skip_khronos_interpreter
+)
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
