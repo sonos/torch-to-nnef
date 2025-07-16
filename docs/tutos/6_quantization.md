@@ -55,9 +55,14 @@ It should take around same time to export (quantization time being compensated b
 Ok that's nice, but where does this registry come from ?
 
 The registry location is defined with the `--compression-registry` which by default
-point to [`torch_to_nnef.compress.DEFAULT_COMPRESSION`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/compress.py#L112-L131).
+point to:
 
-### defining your own LLM quantization registry
+<div class="grid cards" markdown>
+- ::: torch_to_nnef.compress.DEFAULT_COMPRESSION
+    handler: python
+</div>
+
+### Defining your own LLM quantization registry
 
 Anyone can create a new registry as long as it follows those rule
 
@@ -82,7 +87,12 @@ def my_quantization_function(
 ```
 
 A typical function will transform some model tensors (parameters, buffers, ...)
-into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L188) a concrete QTensor that support NNEF export today being [`torch_to_nnef.tensor.quant.tract.QTensorTractScaleOnly`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract.py#L93) which has of now only support which is identical to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw).
+into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L188) a concrete QTensor that support NNEF export today being:
+<div class="grid cards" markdown>
+- ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
+    handler: python
+</div>
+which has of now only support which is identical to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw).
 
 A `QTensor` is a Python object that behave and should be used as a
 classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to it's definition like:
