@@ -23,7 +23,6 @@ class _ModuleInfoRegistery(type):
         # this is currently RegisterBase but in child classes will be the child class
         new_cls = type.__new__(cls, name, bases, attrs)
         if new_cls.MODULE_CLASS is not None:
-            __import__("ipdb").set_trace()
             cls.REGISTRY[new_cls.MODULE_CLASS] = new_cls
         return new_cls
 
