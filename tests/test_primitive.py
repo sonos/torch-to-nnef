@@ -876,7 +876,6 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
-
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:

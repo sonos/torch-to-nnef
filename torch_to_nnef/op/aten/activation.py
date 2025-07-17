@@ -179,15 +179,22 @@ def hardtanh(**kwargs):
 
 
 @OP_REGISTRY.register()
-def log_softmax(**kwargs):
+def log_softmax(inference_target, **kwargs):
     node = kwargs["node"]
     if node.inputs[2]:
         del node.inputs[2]
     input_node, axis_node = node.inputs
-    assert isinstance(axis_node.data, int)
     axis_node.data = pick_axis(input_node, axis_node.data)
-    unary_input_output_op_with_constant("log_softmax", **kwargs)
-    return ["log_softmax"]
+    assert isinstance(axis_node.data, int)
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.21.14"
+    ):
+        unary_input_output_op_with_constant("tract_core_log_softmax", **kwargs)
+        return ["tract_core"]
+    else:
+        unary_input_output_op_with_constant("log_softmax", **kwargs)
+        return ["log_softmax"]
 
 
 @OP_REGISTRY.register()
