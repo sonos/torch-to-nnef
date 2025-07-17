@@ -11,9 +11,11 @@ from torch_to_nnef.tensor.quant import (
     QScalePerGroupF16,
     QTensorTractScaleOnly,
 )
+from torch_to_nnef.tensor.offload import OffloadedTensor
 
 __all__ = [
     "NamedTensor",
+    "OffloadedTensor",
     "apply_name_to_tensor_in_module",
     "QTensor",
     "QScalePerGroupF16",

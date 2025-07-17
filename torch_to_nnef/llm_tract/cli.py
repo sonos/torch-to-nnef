@@ -14,6 +14,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
+    ExportDirStruct,
     LlamaSLugs,
     OpenELMSlugs,
     PHISlugs,
@@ -199,6 +200,12 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
                 action="store_true",
                 help="dump tokenizer and conf at same dir as model",
             )
+        parser.add_argument(
+            "--export-dir-struct",
+            default=ExportDirStruct.DEEP,
+            choices=[ds.value for ds in ExportDirStruct],
+            help="Structure of directories exported",
+        )
         parser.add_argument(
             "-sgts",
             "--sample-generation-total-size",
