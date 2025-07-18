@@ -308,6 +308,7 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         outputs=output_tensor,
         attribs={},
     )
+    return []
 
 
 @OP_REGISTRY.register()

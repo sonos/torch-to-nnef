@@ -634,7 +634,6 @@ def get_list_of_int(
     accepted_none = 0
 
     def cast_element(node, accepted_none):
-        nonlocal has_dynamic_axes
         tensor = name_to_tensor.get(node.export_name)
         if tensor is not None and (
             force_none_as_tensor_ref or has_dynamic_axes
