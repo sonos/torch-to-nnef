@@ -454,6 +454,7 @@ def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
     return op_ref, abstracted_inputs
 
 
+# pylint: disable-next=too-many-branches
 def _rerouted_parsing(
     node: torch._C.Node, data_nodes: ReactiveNamedItemDict, module
 ):
