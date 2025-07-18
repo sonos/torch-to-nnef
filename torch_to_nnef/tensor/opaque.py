@@ -2,15 +2,13 @@ import abc
 import logging
 import warnings
 
+import torch
 from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
-import torch
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.utils import (
-    select_ctx_disable_torch_fn,
-)
+from torch_to_nnef.utils import select_ctx_disable_torch_fn
 
 LOGGER = logging.getLogger(__name__)
 

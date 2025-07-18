@@ -1,18 +1,20 @@
 import json
+import logging
 import os
 import tempfile
 import typing as T
-from pathlib import Path
-import logging
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import (
     TorchToNNEFConsistencyError,
     TorchToNNEFNotFoundFile,
+    TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import (
@@ -21,11 +23,11 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
-from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
     DtypeStr,
+    ExportDirStruct,
     HFConfigHelper,
 )
 from torch_to_nnef.llm_tract.models.base import use_dtype_dyn_cache
@@ -42,10 +44,13 @@ from torch_to_nnef.utils import (
 )
 
 try:
-    from transformers import GenerationConfig
-    from transformers.utils import CONFIG_NAME
     import huggingface_hub
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        GenerationConfig,
+    )
+    from transformers.utils import CONFIG_NAME
 
     from torch_to_nnef.llm_tract.models.base import (
         build_past_kv_dyn_cache,
@@ -58,12 +63,13 @@ except (ModuleNotFoundError, ImportError) as exp:
 
 LOGGER = logging.getLogger(__name__)
 
-TYPE_OPTIONAL_DEVICE_MAP = T.Union[
-    type(None),
-    str,
-    T.Dict[str, T.Union[int, str, torch.device]],
-    int,
-    torch.device,
+TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
+    T.Union[
+        str,
+        T.Dict[str, T.Union[int, str, torch.device]],
+        int,
+        torch.device,
+    ]
 ]
 
 # NOTE: this assume LLM exported will always 'speak' english
@@ -534,6 +540,7 @@ class LLMExporter:
         no_verify: bool = False,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         ignore_already_exist_dir: bool = False,
+        export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
     ):
         """Export model has is currently in self.hf_model_causal
 
@@ -607,11 +614,24 @@ class LLMExporter:
             else:
                 LOGGER.info("'inference mode' evaluation skipped")
 
+            if export_dir_struct == ExportDirStruct.DEEP:
+                model_dir = export_dirpath / "model"
+                model_dir.mkdir(parents=True, exist_ok=True)
+                tok_dir = export_dirpath / "tokenizer"
+                tok_dir.mkdir(parents=True, exist_ok=True)
+            elif export_dir_struct == ExportDirStruct.FLAT:
+                model_dir = export_dirpath
+                tok_dir = export_dirpath
+                tok_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                raise TorchToNNEFNotImplementedError()
+
             if dump_with_tokenizer_and_conf:
+                # export_dir_struct
                 self.hf_model_causal.config.to_json_file(
-                    export_dirpath / CONFIG_NAME, use_diff=False
+                    model_dir / CONFIG_NAME, use_diff=False
                 )
-                self.tokenizer.save_pretrained(export_dirpath)
+                self.tokenizer.save_pretrained(tok_dir)
 
             build_io(
                 self.wrapped_model,
@@ -624,7 +644,7 @@ class LLMExporter:
                 model=self.wrapped_model,
                 args=inputs,
                 inference_target=inference_target,
-                file_path_export=export_dirpath / "model.nnef.tgz",
+                file_path_export=model_dir / "model.nnef.tgz",
                 input_names=input_names,
                 output_names=output_names,
                 log_level=log_level,
@@ -661,6 +681,7 @@ class LLMExporter:
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
+        export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
     ):
         """prepare and export model to NNEF"""
         if force_f32_attention is not None:
@@ -762,6 +783,7 @@ class LLMExporter:
             no_verify=no_verify,
             tract_check_io_tolerance=tract_check_io_tolerance,
             ignore_already_exist_dir=ignore_already_exist_dir,
+            export_dir_struct=export_dir_struct,
         )
 
 
@@ -874,7 +896,7 @@ def load_peft_model(local_dir, kwargs):
         return hf_model_causal
 
 
-def _from_pretrained(slug_or_dir: str, **kwargs):
+def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         device_map = kwargs.pop("device_map")
         if Path(slug_or_dir).exists():
@@ -960,10 +982,14 @@ def load_model(
         except (TorchToNNEFNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
 
-    else:
+    elif hf_model_slug is not None:
         hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
+        )
+    else:
+        raise TorchToNNEFNotImplementedError(
+            "No local nor Huggingface slug, nor custom conf ?"
         )
     if merge_peft:
         # pylint: disable-next=import-outside-toplevel

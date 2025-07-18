@@ -1,4 +1,3 @@
-from collections import defaultdict
 import contextlib
 import functools
 import logging
@@ -6,14 +5,13 @@ import os
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
-from functools import total_ordering
+from functools import total_ordering, lru_cache
 
 import torch
 from torch import _C
 
 from torch_to_nnef.exceptions import (
     DataNodeValueError,
-    InconsistentTensorError,
     TorchToNNEFNotImplementedError,
 )
 
@@ -129,10 +127,10 @@ def flatten_dict_tuple_or_list(
         ) + flatten_dict_tuple_or_list(
             obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
         )
-    if isinstance(obj, dict):
+    if hasattr(obj, "__getitem__") and not isinstance(obj, torch.Tensor):
         res = []  # type: ignore
         for k, v in obj.items():
-            if isinstance(v, (tuple, list, dict)):
+            if hasattr(v, "__getitem__") and not isinstance(v, torch.Tensor):
                 res += flatten_dict_tuple_or_list(
                     v, collected_types, collected_idxes + [k], 0
                 )
@@ -209,7 +207,6 @@ def init_on_device(
     if include_buffers:
         with device:
             yield
-        return
 
     old_register_parameter = torch.nn.Module.register_parameter
     if include_buffers:
@@ -226,18 +223,18 @@ def init_on_device(
             )
 
     def register_empty_buffer(module, name, buffer, persistent=True):
+        # pylint: disable-next=possibly-used-before-assignment
         old_register_buffer(module, name, buffer, persistent=persistent)
         if buffer is not None:
             module._buffers[name] = module._buffers[name].to(device)
 
     # Patch tensor creation
+    tensor_constructors_to_patch: T.Dict[str, T.Callable] = {}
     if include_buffers:
         tensor_constructors_to_patch = {
             torch_function_name: getattr(torch, torch_function_name)
             for torch_function_name in ["empty", "zeros", "ones", "full"]
         }
-    else:
-        tensor_constructors_to_patch = {}
 
     def patch_tensor_constructor(fn):
         def wrapper(*args, **kwargs):
@@ -339,6 +336,11 @@ def get_parent_module_and_param_name(
     for mod_name in chunked_names[:-1]:
         ref_mod = getattr(ref_mod, mod_name)
     return ref_mod, chunked_names[-1]
+
+
+@lru_cache(10)
+def warn_once(logger: logging.Logger, msg: str):
+    logger.warning(msg)
 
 
 class NamedItem(ABC):

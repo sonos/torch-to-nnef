@@ -15,9 +15,9 @@ import torch
 
 from torch_to_nnef.dtypes import (
     TORCH_TO_NUMPY_DTYPE,
+    dtype_is_whole_number,
     is_quantized_dtype,
     str_to_torch_dtype,
-    dtype_is_whole_number,
 )
 from torch_to_nnef.exceptions import (
     TorchNotFoundDataNode,

@@ -1,5 +1,5 @@
-from nnef_tools.model import Tensor as NTensor
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError

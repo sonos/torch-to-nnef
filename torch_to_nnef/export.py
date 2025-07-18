@@ -1,3 +1,4 @@
+from collections.abc import KeysView, ValuesView
 import contextlib
 import logging as log
 import typing as T
@@ -25,10 +26,10 @@ from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
 from torch_to_nnef.tensor import (
-    set_opaque_tensor_in_params_as_ref,
-    apply_name_to_tensor_in_module,
-    QTensor,
     OpaqueTensorRef,
+    QTensor,
+    apply_name_to_tensor_in_module,
+    set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
@@ -83,12 +84,11 @@ def export_model_to_nnef(
                         set dynamic_axes to a dict with schema:
                             KEY (str): an input or output name. Each name must also
                                 be provided in input_names or output_names.
-
                             VALUE (dict or list): If a dict, keys are axis indices
                                 and values are axis names. If a list, each element is
                                 an axis index.
 
-                    specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
+        specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
 
 
         input_names: Optional list of names for args, it replaces
@@ -138,6 +138,12 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     """
     set_lib_log_level(log_level)
+    if isinstance(input_names, KeysView):
+        input_names = list(input_names)
+    if isinstance(output_names, KeysView):
+        output_names = list(output_names)
+    if isinstance(args, ValuesView):
+        args = tuple(args)
     mod_tensor_updater = ModTensorUpdater(
         model,
         add_buffers=False,
@@ -151,11 +157,19 @@ def export_model_to_nnef(
             "custom extensions should be a list, "
             "because some extensions may be order sensitive (in tract)."
         )
-    if isinstance(args, (torch.Tensor, int, float, bool, dict)):
+    if isinstance(args, (torch.Tensor, int, float, bool, dict)) or (
+        hasattr(args, "__getitem__")
+        and hasattr(args, "items")
+        and not isinstance(args, torch.Tensor)
+    ):
         args = (args,)
     outs = model(*args)
     apply_name_to_tensor_in_module(model)
-    if isinstance(outs, (torch.Tensor, int, float, bool, dict)):
+    if isinstance(outs, (torch.Tensor, int, float, bool, dict)) or (
+        hasattr(args, "__getitem__")
+        and hasattr(args, "items")
+        and not isinstance(args, torch.Tensor)
+    ):
         outs = (outs,)
     check_io_names(input_names, output_names)
 
@@ -361,11 +375,15 @@ def export_tensors_from_disk_to_nnef(
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
 ):
-    """Main entrypoint of this library
+    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file
 
-    Export any torch.Tensors list to NNEF .dat file
-    from a statedict or safetensors file
-
+    Args:
+        store_filepath:
+            the filepath that hold the .safetensors , .pt or .bin containing the state dict
+        output_dir:
+            directory to dump the NNEF tensor .dat files
+        fn_check_found_tensors:
+            post checking function to ensure all requested tensors have effectively been dumped
     """
     to_export = {}
     for key, tensor in iter_torch_tensors_from_disks(  # type: ignore
@@ -382,9 +400,14 @@ def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
 ) -> T.Dict[str, _Tensor]:
-    """Main entrypoint of this library
+    """Export any torch.Tensors list to NNEF .dat file
 
-    Export any torch.Tensors list to NNEF .dat file
+    Args:
+        name_to_torch_tensors: dict
+            A map of name (that will be used to define .dat filename)
+            and tensor values (that can also be special torch_to_nnef tensors)
+        output_dir:
+            directory to dump the NNEF tensor .dat files
     """
     assert output_dir.exists(), output_dir
     for tensor_name, tensor in name_to_torch_tensors.items():

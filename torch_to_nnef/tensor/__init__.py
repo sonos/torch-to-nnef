@@ -7,13 +7,15 @@ from torch_to_nnef.tensor.opaque import (
     set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.quant import (
-    QTensor,
     QScalePerGroupF16,
+    QTensor,
     QTensorTractScaleOnly,
 )
+from torch_to_nnef.tensor.offload import OffloadedTensor
 
 __all__ = [
     "NamedTensor",
+    "OffloadedTensor",
     "apply_name_to_tensor_in_module",
     "QTensor",
     "QScalePerGroupF16",

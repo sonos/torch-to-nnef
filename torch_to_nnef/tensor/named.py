@@ -1,4 +1,3 @@
-import typing as T
 import logging
 import warnings
 

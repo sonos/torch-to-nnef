@@ -206,6 +206,22 @@ for op in [
         (torch.rand(13, 10), torch.rand(13, 10)), BinaryPrimitive(op)
     )
 
+# special cases arround division
+test_suite.add(
+    (torch.tensor(1), torch.tensor(3)),
+    BinaryPrimitive(torch.div),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor(1), torch.tensor(3)),
+    BinaryPrimitive(partial(torch.div, rounding_mode="trunc")),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor(1), torch.tensor(3)),
+    BinaryPrimitive(partial(torch.div, rounding_mode="floor")),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 for op in [
     torch.matmul,

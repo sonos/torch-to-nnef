@@ -6,21 +6,22 @@ With options to compress it to Q4_0 and use float16
 
 import argparse
 import json
-import typing as T
 import logging
+import typing as T
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
+    ExportDirStruct,
     LlamaSLugs,
     OpenELMSlugs,
     PHISlugs,
 )
 from torch_to_nnef.llm_tract.exporter import dump_llm
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.log import init_log
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 LOGGER = logging.getLogger(__name__)
 
@@ -199,6 +200,12 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
                 action="store_true",
                 help="dump tokenizer and conf at same dir as model",
             )
+        parser.add_argument(
+            "--export-dir-struct",
+            default=ExportDirStruct.DEEP,
+            choices=[ds.value for ds in ExportDirStruct],
+            help="Structure of directories exported",
+        )
         parser.add_argument(
             "-sgts",
             "--sample-generation-total-size",

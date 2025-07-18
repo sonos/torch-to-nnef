@@ -1,7 +1,7 @@
-from collections import defaultdict
+import logging
+
 import typing as T
 from functools import partial
-import logging
 
 import torch
 from torch import nn
@@ -17,6 +17,15 @@ from torch_to_nnef.tensor.updater import ModTensorUpdater
 LOGGER = logging.getLogger(__name__)
 
 
+def _calib_q40_fn(weight, name, kwargs):
+    q_weight = fp_to_tract_q4_0_with_min_max_calibration(
+        weight,
+        **{k: v for k, v in kwargs.items() if k in ["percentile"]},
+    )
+    q_weight.nnef_name = f"{name}.weight"
+    return q_weight
+
+
 def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
@@ -28,8 +37,9 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
         to_quantize_module_classes
     )
     with torch.no_grad():
-        ids_to_qtensor: T.Dict[int, T.Tuple[QTensor, OffloadedTensor]] = {}
-        """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
+        ids_to_qtensor: T.Dict[int, T.Union[QTensor, OffloadedTensor]] = {}
+        # try to avoid quant if used in other operators like mix of
+        # embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
 
         for name, mod in model.named_modules():
@@ -38,7 +48,8 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                 weight_id = id(getattr(mod, "weight"))
                 if weight_id in ids_to_qtensor:
                     LOGGER.info(
-                        f"detected shared weight between: '{ids_to_qtensor[weight_id].nnef_name}' and '{name}.weight'"
+                        "detected shared weight between: "
+                        f"'{ids_to_qtensor[weight_id].nnef_name}' and '{name}.weight'"
                     )
                     continue
                 if not all(
@@ -55,21 +66,10 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     )
                     continue
                 try:
-
-                    def q_fn(weight):
-                        q_weight = fp_to_tract_q4_0_with_min_max_calibration(
-                            weight,
-                            **{
-                                k: v
-                                for k, v in kwargs.items()
-                                if k in ["percentile"]
-                            },
-                        )
-                        q_weight.nnef_name = f"{name}.weight"
-                        return q_weight
-
                     q_weight = offloaded_tensor_qtensor(
-                        q_fn, mod.weight, "q40_min_max"
+                        partial(_calib_q40_fn, name=name, kwargs=kwargs),
+                        mod.weight,
+                        "q40_min_max",
                     )
                 except TorchToNNEFImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")

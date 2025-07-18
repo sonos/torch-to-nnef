@@ -33,7 +33,7 @@ def _pad_format(pads, node):
     pads = np.zeros(len(pads)).reshape(-1, 2).tolist()
     for idx, pad_val in enumerate(pads_r[::-1]):
         left_idx = idx // 2
-        right_idx = (idx +1) % 2
+        right_idx = (idx + 1) % 2
         pads[left_idx][right_idx] = pad_val
 
     onode = node.outputs[0]
@@ -47,12 +47,15 @@ def reflection_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = _pad_format(get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=inference_target.has_dynamic_axes,
-    ), node)
+    pads = _pad_format(
+        get_list_of_int(
+            pads_node,
+            torch_graph,
+            name_to_tensor=name_to_tensor,
+            has_dynamic_axes=inference_target.has_dynamic_axes,
+        ),
+        node,
+    )
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
     add_single_output_op(
@@ -72,12 +75,15 @@ def replication_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    pads = _pad_format(get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=inference_target.has_dynamic_axes,
-    ), node)
+    pads = _pad_format(
+        get_list_of_int(
+            pads_node,
+            torch_graph,
+            name_to_tensor=name_to_tensor,
+            has_dynamic_axes=inference_target.has_dynamic_axes,
+        ),
+        node,
+    )
 
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
@@ -98,12 +104,15 @@ def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node, value_node) = node.inputs
-    pads = _pad_format(get_list_of_int(
-        pads_node,
-        torch_graph,
-        name_to_tensor=name_to_tensor,
-        has_dynamic_axes=inference_target.has_dynamic_axes,
-    ), node)
+    pads = _pad_format(
+        get_list_of_int(
+            pads_node,
+            torch_graph,
+            name_to_tensor=name_to_tensor,
+            has_dynamic_axes=inference_target.has_dynamic_axes,
+        ),
+        node,
+    )
     assert isinstance(pads, list)
     # assert all(isinstance(_, int) for _ in pads)
     value = value_node.data
