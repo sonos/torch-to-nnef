@@ -119,15 +119,15 @@ def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
-def max_pool2d(g, node, name_to_tensor, inference_target, **kwargs):
+@OP_REGISTRY.register(["max_pool2d", "max_pool3d"])
+def max_pool_nd(g, node, name_to_tensor, inference_target, **kwargs):
     _pooling_op(
         "max_pool", node.inputs, g, node, name_to_tensor, inference_target
     )
 
 
-@OP_REGISTRY.register()
-def avg_pool2d(g, node, name_to_tensor, inference_target, **kwargs):
+@OP_REGISTRY.register(["avg_pool2d", "avg_pool3d"])
+def avg_pool_nd(g, node, name_to_tensor, inference_target, **kwargs):
     """
     cpp func parameters:
     (const Tensor& input,
