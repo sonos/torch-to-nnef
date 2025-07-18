@@ -1,4 +1,5 @@
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
@@ -7,7 +8,6 @@ from torch_to_nnef.op.helper import (
     pick_index_in_axis,
 )
 from torch_to_nnef.torch_graph import FixedTensorList
-from torch_to_nnef.inference_target.tract import TractNNEF
 
 OP_REGISTRY = AtenOpRegistry()
 

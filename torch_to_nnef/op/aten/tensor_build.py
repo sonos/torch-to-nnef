@@ -319,7 +319,12 @@ def full_like(**kwargs):
 
     """
     fill_value = kwargs["node"].inputs.pop(1).data
-    return _x_like(tensor_build_fn=lambda sh, dtype: torch.full(sh, fill_value, dtype=dtype), **kwargs)
+    return _x_like(
+        tensor_build_fn=lambda sh, dtype: torch.full(
+            sh, fill_value, dtype=dtype
+        ),
+        **kwargs,
+    )
 
 
 @OP_REGISTRY.register()
@@ -365,7 +370,11 @@ def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         "the aten::zeros replaced by constant traced values (follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
-    dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data] if dtype_node.data else torch.float32
+    dtype = (
+        SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+        if dtype_node.data
+        else torch.float32
+    )
     return _generic_auto_tensor_expansion(
         shape_node,
         node,

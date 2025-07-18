@@ -23,7 +23,6 @@ device movable tensors (mutation support could be envisioned if needed).
 
 """
 
-from pathlib import Path
 import gc
 import json
 import logging
@@ -31,16 +30,16 @@ import os
 import tempfile
 import typing as T
 import warnings
+from pathlib import Path
 
 import torch
 from torch import nn
 from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
+
 from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
-import torch
-
 
 AUTO_DEVICE_MAP_KEY = "t2n_auto"
 ON_DISK_DEVICE_MAP_KEY = "t2n_offload_disk"
@@ -82,6 +81,7 @@ class OffloadedTensor(OpaqueTensor):
         )
         # normalize device.
         if device.type in ["cuda", "xpu"]:
+            # pylint: disable-next=import-outside-toplevel
             from torch._subclasses.fake_tensor import init_gpu_context
 
             init_gpu_context(device)
@@ -407,105 +407,99 @@ def load_state_dict(
             (we disable it in most case to allow set_module_tensor_to_device dtype casting in memory directly)
     """
 
-    if checkpoint_file.name.endswith(".safetensors"):
-        # pylint: disable-next=import-outside-toplevel
-        import safetensors
+    if not checkpoint_file.name.endswith(".safetensors"):
+        return torch.load(checkpoint_file, map_location=torch.device("cpu"))
+    # pylint: disable-next=import-outside-toplevel
+    import safetensors
 
-        with safetensors.safe_open(checkpoint_file, framework="pt") as f:
-            metadata = f.metadata()
-            weight_names = f.keys()
+    with safetensors.safe_open(checkpoint_file, framework="pt") as f:
+        metadata = f.metadata()
+        weight_names = f.keys()
 
-        if metadata is None:
-            LOGGER.warning(
-                f"The safetensors archive passed at {checkpoint_file} does not contain metadata. "
-                "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata."
-            )
-            metadata = {"format": "pt"}
+    if metadata is None:
+        LOGGER.warning(
+            f"The safetensors archive passed at {checkpoint_file} does not contain metadata. "
+            "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata."
+        )
+        metadata = {"format": "pt"}
 
-        if metadata.get("format") not in ["pt", "tf", "flax"]:
-            raise OSError(
-                f"The safetensors archive passed at {checkpoint_file} does not contain the valid metadata. Make sure "
-                "you save your model with the `save_pretrained` method."
-            )
-        elif metadata["format"] != "pt":
-            raise ValueError(
-                f"The checkpoint passed was saved with {metadata['format']}, we need a the pt format."
-            )
-        if device_map is None:
-            return safe_load_file(
-                checkpoint_file,
-                offload_dir=offload_dir,
-                apply_offload=apply_offload,
-            )
-        else:
-            # pylint: disable-next=import-outside-toplevel
-            import safetensors
+    if metadata.get("format") not in ["pt", "tf", "flax"]:
+        raise OSError(
+            f"The safetensors archive passed at {checkpoint_file} does not contain the valid metadata. Make sure "
+            "you save your model with the `save_pretrained` method."
+        )
+    if metadata["format"] != "pt":
+        raise ValueError(
+            f"The checkpoint passed was saved with {metadata['format']}, we need a the pt format."
+        )
+    if device_map is None:
+        return safe_load_file(
+            checkpoint_file,
+            offload_dir=offload_dir,
+            apply_offload=apply_offload,
+        )
 
-            # if we only have one device we can load everything directly
-            if len(set(device_map.values())) == 1:
-                device = list(device_map.values())[0]
-                target_device = device
+    # if we only have one device we can load everything directly
+    if len(set(device_map.values())) == 1:
+        device = list(device_map.values())[0]
+        target_device = device
 
-                return safe_load_file(
-                    checkpoint_file,
-                    device=target_device,
-                    offload_dir=offload_dir,
-                    apply_offload=apply_offload,
-                )
+        return safe_load_file(
+            checkpoint_file,
+            device=target_device,
+            offload_dir=offload_dir,
+            apply_offload=apply_offload,
+        )
 
-            devices = list(set(device_map.values()) - {"disk"})
-            # cpu device should always exist as fallback option
-            if "cpu" not in devices:
-                devices.append("cpu")
+    devices = list(set(device_map.values()) - {"disk"})
+    # cpu device should always exist as fallback option
+    if "cpu" not in devices:
+        devices.append("cpu")
 
-            # For each device, get the weights that go there
-            device_weights = {device: [] for device in devices}
-            for module_name, device in device_map.items():
-                if device in devices:
-                    device_weights[device].extend(
-                        [
-                            k
-                            for k in weight_names
-                            if k == module_name
-                            or k.startswith(module_name + ".")
-                        ]
-                    )
-
-            # all weights that haven't defined a device should be loaded on CPU
-            device_weights["cpu"].extend(
+    # For each device, get the weights that go there
+    device_weights: T.Dict[str, T.List[str]] = {
+        device: [] for device in devices
+    }
+    for module_name, device in device_map.items():
+        if device in devices:
+            device_weights[device].extend(
                 [
                     k
                     for k in weight_names
-                    if k not in sum(device_weights.values(), [])
+                    if k == module_name or k.startswith(module_name + ".")
                 ]
             )
-            tensors = {}
-            for device in devices:
-                target_device = device
-                with safetensors.safe_open(
-                    checkpoint_file, framework="pt", device=target_device
-                ) as f:
-                    for key in device_weights[device]:
-                        v = f.get_tensor(key)
-                        if apply_offload:
-                            v = maybe_load_offload_tensor(
-                                v,
-                                device,
-                                key,
-                                offload_dir=offload_dir,
-                            )
-                        tensors[key] = v
 
-            return tensors
-    else:
-        return torch.load(checkpoint_file, map_location=torch.device("cpu"))
+    # all weights that haven't defined a device should be loaded on CPU
+    device_weights["cpu"].extend(
+        [k for k in weight_names if k not in sum(device_weights.values(), [])]
+    )
+    tensors = {}
+    for device in devices:
+        target_device = device
+        with safetensors.safe_open(
+            checkpoint_file, framework="pt", device=target_device
+        ) as f:
+            for key in device_weights[device]:
+                v = f.get_tensor(key)
+                if apply_offload:
+                    v = maybe_load_offload_tensor(
+                        v,
+                        device,
+                        key,
+                        offload_dir=offload_dir,
+                    )
+                tensors[key] = v
+
+    return tensors
 
 
+# pylint: disable-next=too-many-branches,too-many-statements
 def t2n_load_checkpoint_and_dispatch(
     model: nn.Module,
     checkpoint: Path,
-    device_map: T.Union[
-        str, T.Dict[str, T.Union[str, int, torch.device]], type(None)
+    device_map: T.Optional[
+        T.Union[str, T.Dict[str, T.Union[str, int, torch.device]]]
     ],
     offload_dir: Path,
     strict: bool = False,
@@ -558,12 +552,11 @@ def t2n_load_checkpoint_and_dispatch(
                 raise ValueError(
                     f"{checkpoint} is not a folder containing a `.index.json` file or a {WEIGHTS_NAME} or a {SAFE_WEIGHTS_NAME} file"
                 )
-            elif len(potential_index) == 1:
-                index_filename = checkpoint / potential_index[0]
-            else:
+            if len(potential_index) != 1:
                 raise ValueError(
                     f"{checkpoint} containing more than one `.index.json` file, delete the irrelevant ones."
                 )
+            index_filename = checkpoint / potential_index[0]
     else:
         raise ValueError(
             "`checkpoint` should be the path to a file containing a whole state dict, or the index of a sharded "

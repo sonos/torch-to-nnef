@@ -1,9 +1,8 @@
 #
-import enum
+import logging
 import typing as T
 from enum import Enum
 from functools import partial
-import logging
 
 import torch
 
@@ -15,7 +14,7 @@ from torch_to_nnef.llm_tract.models.base import (
 LOGGER = logging.getLogger(__name__)
 
 
-class ExportDirStruct(str, enum.Enum):
+class ExportDirStruct(str, Enum):
     DEEP = "deep"
     # it will dump tokenizer files, config.json and model.nnef.tgz
     # with no sub-directories in requested export dir

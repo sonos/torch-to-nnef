@@ -26,10 +26,10 @@ from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
 from torch_to_nnef.tensor import (
-    set_opaque_tensor_in_params_as_ref,
-    apply_name_to_tensor_in_module,
-    QTensor,
     OpaqueTensorRef,
+    QTensor,
+    apply_name_to_tensor_in_module,
+    set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme

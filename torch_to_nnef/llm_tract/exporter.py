@@ -1,15 +1,16 @@
 import json
+import logging
 import os
 import tempfile
 import typing as T
-from pathlib import Path
-import logging
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import (
     TorchToNNEFConsistencyError,
     TorchToNNEFNotFoundFile,
@@ -22,7 +23,6 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
-from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     CUSTOM_CONFIGS,
     REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
@@ -44,10 +44,13 @@ from torch_to_nnef.utils import (
 )
 
 try:
-    from transformers import GenerationConfig
-    from transformers.utils import CONFIG_NAME
     import huggingface_hub
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        GenerationConfig,
+    )
+    from transformers.utils import CONFIG_NAME
 
     from torch_to_nnef.llm_tract.models.base import (
         build_past_kv_dyn_cache,
@@ -60,12 +63,13 @@ except (ModuleNotFoundError, ImportError) as exp:
 
 LOGGER = logging.getLogger(__name__)
 
-TYPE_OPTIONAL_DEVICE_MAP = T.Union[
-    type(None),
-    str,
-    T.Dict[str, T.Union[int, str, torch.device]],
-    int,
-    torch.device,
+TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
+    T.Union[
+        str,
+        T.Dict[str, T.Union[int, str, torch.device]],
+        int,
+        torch.device,
+    ]
 ]
 
 # NOTE: this assume LLM exported will always 'speak' english
@@ -892,7 +896,7 @@ def load_peft_model(local_dir, kwargs):
         return hf_model_causal
 
 
-def _from_pretrained(slug_or_dir: str, **kwargs):
+def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         device_map = kwargs.pop("device_map")
         if Path(slug_or_dir).exists():
@@ -978,10 +982,14 @@ def load_model(
         except (TorchToNNEFNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
 
-    else:
+    elif hf_model_slug is not None:
         hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
         LOGGER.info(
             f"load default trained model from huggingface: '{hf_model_slug}'"
+        )
+    else:
+        raise TorchToNNEFNotImplementedError(
+            "No local nor Huggingface slug, nor custom conf ?"
         )
     if merge_peft:
         # pylint: disable-next=import-outside-toplevel

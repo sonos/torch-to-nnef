@@ -14,10 +14,7 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
-from torch_to_nnef.op.aten import (
-    aten_ops_registry,
-    aten_to_nnef_tensor_and_ops,
-)
+from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops
 from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,

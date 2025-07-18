@@ -1,6 +1,6 @@
 import logging
-import typing as T
 import platform
+import typing as T
 
 import numpy as np
 import torch
@@ -8,8 +8,8 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
-    TORCH_DTYPE_TO_TRACT_STR,
     SCALAR_TYPE_TO_PYTORCH_TYPE,
+    TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError

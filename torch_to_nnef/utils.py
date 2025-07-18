@@ -1,4 +1,3 @@
-from collections import defaultdict
 import contextlib
 import functools
 import logging
@@ -208,7 +207,6 @@ def init_on_device(
     if include_buffers:
         with device:
             yield
-        return
 
     old_register_parameter = torch.nn.Module.register_parameter
     if include_buffers:
@@ -225,18 +223,18 @@ def init_on_device(
             )
 
     def register_empty_buffer(module, name, buffer, persistent=True):
+        # pylint: disable-next=possibly-used-before-assignment
         old_register_buffer(module, name, buffer, persistent=persistent)
         if buffer is not None:
             module._buffers[name] = module._buffers[name].to(device)
 
     # Patch tensor creation
+    tensor_constructors_to_patch: T.Dict[str, T.Callable] = {}
     if include_buffers:
         tensor_constructors_to_patch = {
             torch_function_name: getattr(torch, torch_function_name)
             for torch_function_name in ["empty", "zeros", "ones", "full"]
         }
-    else:
-        tensor_constructors_to_patch = {}
 
     def patch_tensor_constructor(fn):
         def wrapper(*args, **kwargs):
