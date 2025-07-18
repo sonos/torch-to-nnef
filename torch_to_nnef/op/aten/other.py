@@ -32,6 +32,7 @@ from torch_to_nnef.torch_graph import (
     PythonConstant,
     TensorVariable,
 )
+from torch_to_nnef.utils import warn_once
 
 LOGGER = logging.getLogger(__name__)
 
@@ -264,9 +265,10 @@ def size(
             _ for _ in torch_graph.op_nodes if _ is not node
         ]
 
-        LOGGER.warning(
+        warn_once(
+            LOGGER,
             "aten::size replaced by constant traced value (follows NNEF spec)."
-            "Keeping dynamism would require dynamic_axes specified."
+            "Keeping dynamism would require dynamic_axes specified.",
         )
         return []
     if not isinstance(inference_target, TractNNEF):

@@ -1,0 +1,123 @@
+site_name: documentation
+repo_url: https://github.com/sonos/torch-to-nnef
+extra:
+  generator: false
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sonos/
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/sonos/
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/company/sonos-inc-/jobs/
+
+markdown_extensions:
+  - admonition
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
+
+plugins:
+  - search
+  - api-autonav:
+      modules: ["torch_to_nnef"]
+      nav_section_title: "Internals API"
+      api_root_uri: "reference"
+      nav_item_prefix: "<code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>"
+      exclude_private: true
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [torch_to_nnef]
+          options:
+            docstring_style: google
+            # docstring_section_style: list # or "table"
+            filters: ["!^_"]
+            parameter_headings: true
+            show_source: false
+            heading_level: 3
+            merge_init_into_class: true
+            parameter_headings: true
+            separate_signature: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            summary: true
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  favicon: img/torch_to_nnef.png
+  logo: img/torch_to_nnef.png
+  font:
+    text: Roboto
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      primary: white
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+
+
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+nav:
+  - Home: index.md
+  - '📖 Tutorials':
+    - '1. Getting started': "tutos/1_getting_started.md"
+    - '2. NNEF archive': "tutos/2_nnef_archive.md"
+    - '3. Model with multiple inputs or outputs': "tutos/3_multi_inputs_outputs.md"
+    - '4. Dynamic axes': "tutos/4_dynamic_axes.md"
+    - '5. Large Language Models': "tutos/5_llm.md"
+    - '6. Quantization': "tutos/6_quantization.md"
+    - '7. Offloaded tensors': "tutos/7_offloaded_tensor.md"
+    - '8. Custom operators': "tutos/8_custom_operator.md"
+    - '9. Tensors only export': "tutos/9_peft.md"
+  - 'Export API': export_api.md
+  - 'Internals API': reference/
+  - Contributing:
+    - 'Guidelines': contributing/guidelines.md
+    - 'Internal design': contributing/internal_design.md
+    - 'Add new aten operator': contributing/add_new_aten_op.md
+    - 'Debugging': contributing/debugging.md
+  - 'Why NNEF': why_nnef.md
+  - Backstory: backstory.md
+  - Changelog: CHANGELOG.md

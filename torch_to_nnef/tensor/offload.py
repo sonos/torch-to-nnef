@@ -151,6 +151,16 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: T.Optional[Path] = None,
         suffix_log_msg: str = "",
     ):
+        """Take an torch.Tensor or torch_to_nnef.tensor.OpaqueTensor and offload it to disk
+
+        Args:
+            tensor:
+                the torch.Tensor or torch_to_nnef.tensor.OpaqueTensor to dump on disk
+            name:
+                the name of the tensor that will be used to create the filename store on disk
+            offload_dir:
+                The directory where this file will be stored (temporarly)
+        """
         if offload_dir is None:
             if not hasattr(cls, "tmp_basedir"):
                 cls.tmp_basedir = Path(
@@ -171,6 +181,7 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
+        """OffloadedTensor support changing the target device when in memory"""
         if len(args) > 1:
             kwargs.update(zip(["device", "dtype"], args))
         else:
@@ -211,7 +222,15 @@ class OffloadedTensor(OpaqueTensor):
         return self
 
     def update_values(self, values: torch.Tensor):
-        """replace offloaded tensor by new 'values' tensor"""
+        """replace offloaded tensor by new 'values' tensor
+
+
+        Args:
+            values:
+                The tensor that will replace it on disk
+                assertion are made to ensure same shape, dtype
+                as prior
+        """
         assert self.elem.dtype == values.dtype
         assert self.elem.shape == values.shape
         assert self._offload_path(

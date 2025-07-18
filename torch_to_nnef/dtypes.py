@@ -5,6 +5,22 @@ import torch
 
 from torch_to_nnef.utils import torch_version
 
+WHOLE_NUMBER_DTYPES = [
+    torch.int8,
+    torch.int16,
+    torch.int32,
+    torch.int64,
+    torch.uint8,
+]
+if torch_version() >= "2.4.0":
+    WHOLE_NUMBER_DTYPES.extend(
+        [
+            torch.uint16,
+            torch.uint32,
+            torch.uint64,
+        ]
+    )
+
 NUMPY_TO_TORCH_DTYPE = {
     np.int8: torch.int8,
     np.int16: torch.int16,
@@ -27,6 +43,8 @@ NUMPY_TO_TORCH_DTYPE = {
 }
 if torch_version() >= "2.4.0":
     NUMPY_TO_TORCH_DTYPE[np.uint16] = torch.uint16
+    NUMPY_TO_TORCH_DTYPE[np.uint32] = torch.uint32
+    NUMPY_TO_TORCH_DTYPE[np.uint64] = torch.uint64
 
 TORCH_TO_NUMPY_DTYPE = {v: k for k, v in NUMPY_TO_TORCH_DTYPE.items()}
 # In both direction it's not a mapping 1<->1 so update is needed
@@ -121,6 +139,8 @@ TORCH_DTYPE_TO_TRACT_STR = {
 
 if torch_version() >= "2.4.0":
     TORCH_DTYPE_TO_TRACT_STR[torch.uint16] = "u16"
+    TORCH_DTYPE_TO_TRACT_STR[torch.uint32] = "u32"
+    TORCH_DTYPE_TO_TRACT_STR[torch.uint64] = "u64"
 
 
 def str_to_torch_dtype(torch_type_str: str):
@@ -144,22 +164,7 @@ def is_quantized_dtype(dtype: T.Optional[torch.dtype]):
     return dtype in [torch.quint8, torch.qint8, torch.qint32]
 
 
-WHOLE_NUMBER_DTYPES = [
-    torch.int8,
-    torch.int16,
-    torch.int32,
-    torch.int64,
-    torch.uint8,
-]
-if torch_version() >= "2.4.0":
-    WHOLE_NUMBER_DTYPES.extend(
-        [
-            torch.uint16,
-            torch.uint32,
-            torch.uint64,
-        ]
-    )
-
-
 def dtype_is_whole_number(dtype):
+    if "numpy" in str(dtype):
+        dtype = NUMPY_TO_TORCH_DTYPE[dtype]
     return dtype in WHOLE_NUMBER_DTYPES

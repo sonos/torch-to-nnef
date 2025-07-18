@@ -14,6 +14,14 @@ from torch_to_nnef.llm_tract.models.base import (
 LOGGER = logging.getLogger(__name__)
 
 
+class ExportDirStruct(str, Enum):
+    DEEP = "deep"
+    # it will dump tokenizer files, config.json and model.nnef.tgz
+    # with no sub-directories in requested export dir
+    # as most huggingface repositories
+    FLAT = "flat"
+
+
 class DtypeStr(str, Enum):
     FLOAT32 = "f32"
     FLOAT16 = "f16"
