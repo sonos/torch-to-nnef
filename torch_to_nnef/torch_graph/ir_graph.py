@@ -3,6 +3,7 @@ import typing as T
 from collections import defaultdict
 
 import torch
+
 from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (

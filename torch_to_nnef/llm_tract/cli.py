@@ -6,12 +6,12 @@ With options to compress it to Q4_0 and use float16
 
 import argparse
 import json
-import typing as T
 import logging
+import typing as T
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
     LlamaSLugs,
@@ -19,8 +19,8 @@ from torch_to_nnef.llm_tract.config import (
     PHISlugs,
 )
 from torch_to_nnef.llm_tract.exporter import dump_llm
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.log import init_log
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 LOGGER = logging.getLogger(__name__)
 

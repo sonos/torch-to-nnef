@@ -9,10 +9,7 @@ from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.tensor.opaque import OpaqueTensor
-from torch_to_nnef.utils import (
-    select_ctx_disable_torch_fn,
-    torch_version,
-)
+from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -137,8 +134,10 @@ class QScalePerGroupF16(QScheme):
 
 
 if torch_version() > "2.0.0":
-    QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize
-    QScalePerGroupF16._dequantize = torch.compile(QScalePerGroupF16._dequantize)
+    QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
+    QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
+        QScalePerGroupF16._dequantize
+    )
 
 
 class U8Compressor:

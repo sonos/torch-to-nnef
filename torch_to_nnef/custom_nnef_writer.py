@@ -22,9 +22,9 @@ import os
 import shutil
 import tempfile
 
-import torch
 import nnef
 import numpy as np
+import torch
 from nnef_tools.io.nnef.helpers import tgz_compress
 from nnef_tools.model import Tensor
 from nnef_tools.utils.types import as_str, from_numpy

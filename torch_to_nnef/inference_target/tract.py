@@ -26,10 +26,8 @@ import torch
 from nnef_tools.model import Graph as NGraph
 from torch import nn
 from torch.onnx import TrainingMode  # type: ignore
-from torch.onnx.utils import (
-    _validate_dynamic_axes,  # type: ignore
-    select_model_mode_for_export,  # type: ignore
-)
+from torch.onnx.utils import _validate_dynamic_axes  # type: ignore
+from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.collect_env import (
     dump_environment_versions,
@@ -141,6 +139,7 @@ class TractNNEF(InferenceTarget):
 
     def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
         """Optional custom fragments to pass"""
+        # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef import __version__
 
         items = {
@@ -150,6 +149,7 @@ class TractNNEF(InferenceTarget):
         }
 
         try:
+            # pylint: disable-next=import-outside-toplevel
             import transformers
 
             items["transformers_version"] = transformers.__version__
@@ -164,6 +164,7 @@ class TractNNEF(InferenceTarget):
         items["py_version"] = python_version()
         items["export_date"] = str(datetime.now())
 
+        # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.model_wrapper import WrapStructIO
 
         if isinstance(model, WrapStructIO):

@@ -7,8 +7,8 @@ from torch_to_nnef.tensor.opaque import (
     set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.quant import (
-    QTensor,
     QScalePerGroupF16,
+    QTensor,
     QTensorTractScaleOnly,
 )
 

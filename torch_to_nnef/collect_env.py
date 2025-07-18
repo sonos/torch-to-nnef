@@ -3,12 +3,12 @@
 import locale
 import os
 import platform
+import pwd
 import re
 import subprocess
 import sys
 from pathlib import Path
 from platform import machine
-import pwd
 
 
 def run_lambda(command):

@@ -1,8 +1,8 @@
 #
+import logging
 import typing as T
 from enum import Enum
 from functools import partial
-import logging
 
 import torch
 

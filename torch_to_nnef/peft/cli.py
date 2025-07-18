@@ -2,13 +2,13 @@
 
 import argparse
 import json
+import logging
 import re
 import subprocess
 import tempfile
 import typing as T
 from collections import defaultdict
 from pathlib import Path
-import logging
 
 import torch
 
@@ -17,8 +17,8 @@ from torch_to_nnef.export import (
     iter_torch_tensors_from_disks,
     set_lib_log_level,
 )
-from torch_to_nnef.utils import cd
 from torch_to_nnef.log import init_log
+from torch_to_nnef.utils import cd
 
 LOGGER = logging.getLogger(__name__)
 

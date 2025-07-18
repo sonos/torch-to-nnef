@@ -1,6 +1,6 @@
 import logging
-import typing as T
 import platform
+import typing as T
 
 import numpy as np
 import torch
@@ -8,8 +8,8 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import (
-    TORCH_DTYPE_TO_TRACT_STR,
     SCALAR_TYPE_TO_PYTORCH_TYPE,
+    TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
@@ -350,6 +350,7 @@ def numel(node, inference_target, op_helper, **kwargs):
     )
     return ["tract_core"]
 
+
 @OP_REGISTRY.register()
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
     if not isinstance(inference_target, TractNNEF):
@@ -360,7 +361,9 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
         "tract_core_cast",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={
-            "to": TORCH_DTYPE_TO_TRACT_STR[SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]],
+            "to": TORCH_DTYPE_TO_TRACT_STR[
+                SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+            ],
         },
     )
     return ["tract_core"]
@@ -376,7 +379,9 @@ def _to_copy(node, inference_target, op_helper, **kwargs):
         "tract_core_cast",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={
-            "to": TORCH_DTYPE_TO_TRACT_STR[SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]],
+            "to": TORCH_DTYPE_TO_TRACT_STR[
+                SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+            ],
         },
     )
     return ["tract_core"]

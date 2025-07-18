@@ -1,5 +1,5 @@
-import string
 import logging
+import string
 import typing as T
 
 import nnef
@@ -17,7 +17,7 @@ from torch_to_nnef.dtypes import (
 )
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.tensor import QTensor, OpaqueTensorRef
+from torch_to_nnef.tensor import OpaqueTensorRef, QTensor
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.torch_graph import (
     Data,

@@ -1,16 +1,14 @@
-from collections import OrderedDict
-from contextlib import contextmanager
-from functools import partial
 import inspect
 import logging
 import typing as T
-from functools import wraps
+from collections import OrderedDict
+from contextlib import contextmanager
+from functools import partial, wraps
 
 import torch
 
 try:
-    from transformers import AutoModelForCausalLM
-    from transformers import cache_utils
+    from transformers import AutoModelForCausalLM, cache_utils
 except ImportError as exp:
     raise ValueError(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
@@ -142,7 +140,7 @@ def use_dtype_dyn_cache(f):
 
 def update_forward_signature(self):
     """trickery to help torch > 2.0 new export API tracing."""
-    # pylint: disable-next: import-outside-toplevel
+    # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.llm_tract.config import HFConfigHelper
 
     # {

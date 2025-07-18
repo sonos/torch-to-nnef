@@ -13,10 +13,7 @@ from torch_to_nnef.torch_graph.ir_data import PythonConstant
 OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register([
-    "softmax",
-    "_softmax"
-])
+@OP_REGISTRY.register(["softmax", "_softmax"])
 def softmax(**kwargs):
     # avoid unpack/pack {
     node = kwargs["node"]
@@ -192,9 +189,8 @@ def log_softmax(inference_target, **kwargs):
     ):
         unary_input_output_op_with_constant("tract_core_log_softmax", **kwargs)
         return ["tract_core"]
-    else:
-        unary_input_output_op_with_constant("log_softmax", **kwargs)
-        return ["log_softmax"]
+    unary_input_output_op_with_constant("log_softmax", **kwargs)
+    return ["log_softmax"]
 
 
 @OP_REGISTRY.register()

@@ -2,8 +2,8 @@
 
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
-    QTensor,
     QScheme,
+    QTensor,
     U8Compressor,
     qscale_per_group_f16_min_max_calibration,
 )

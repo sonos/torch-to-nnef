@@ -12,12 +12,12 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
+from torch_to_nnef.tensor.named import NamedTensor
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ZEROS,
     LISTCONSTRUCT_KIND,
     TUPLECONSTRUCT_KIND,
 )
-from torch_to_nnef.tensor.named import NamedTensor
 
 T_RNNS = T.Union[nn.LSTM, nn.GRU, nn.RNN]
 
