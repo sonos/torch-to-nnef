@@ -61,16 +61,19 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     date = datetime.now().strftime("%d %b %Y")
     print(
         "!!! note\n"
-        f"    This list and file are auto generated from 'a script' that dig into PyTorch."
+        f"    This table and file are auto generated from 'a script' that dig into PyTorch."
         f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**\n"
         "\n\n"
         f"\n Also 'is core' column refers to this [pytorch documentation page]({URL_IR})",
         file=fh,
     )
     rows = []
+    qte_core = 0
     for a_from_code in aten_torch_from_code:
         is_core = a_from_code in official_aten_names
         is_core_official_str = "✅" if is_core else "-"
+        if is_core:
+            qte_core += 1
 
         exist_in_t2n = a_from_code in t2n_aten
 
@@ -90,10 +93,10 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     print("", file=fh)
     t2n_n_ops = len([_ for _ in t2n_aten if not _.endswith("_")])
     print(
-        "Total matched operators in `torch_to_nnef`: "
-        f"{matched_qte}/{len(aten_torch_from_code)} "
-        "while torch_to_nnef has a quantity of registered aten "
-        f"operators={t2n_n_ops}",
+        "Total matched operators in `torch_to_nnef` compared to full `aten::`: "
+        f"{matched_qte}/{len(aten_torch_from_code)} where {qte_core}/{len(official_aten_names)} from core opset "
+        " (registered aten "
+        f"operators in t2n being {t2n_n_ops})",
         file=fh,
     )
     print("", file=fh)
