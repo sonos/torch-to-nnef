@@ -911,7 +911,7 @@ test_suite.add(
 test_suite.add(
     torch.rand(1, 3, 256),
     UnaryPrimitive(partial(torch.amin, dim=1)),
-    inference_conditions=skip_khronos_interpreter,
+    inference_conditions=skip_khronos_interpreter,  # unssuported
 )
 
 test_suite.add(
@@ -942,6 +942,12 @@ test_suite.add(
 test_suite.add(
     (torch.rand(6, 2), torch.rand(6, 2)),
     BinaryPrimitive(torch.atan2),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(6, 2)),
+    UnaryPrimitive(torch.expm1),
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
 

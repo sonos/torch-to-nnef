@@ -1,0 +1,4 @@
+fragment expm1(x: tensor<scalar>) -> ( y: tensor<scalar> )
+{
+    y = exp(x) - 1.0;
+}

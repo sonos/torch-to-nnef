@@ -447,3 +447,15 @@ def atan2(node, op_helper, **kwargs):
         inputs=(input_tensor, other_tensor),
     )
     return ["atan2"]
+
+
+@OP_REGISTRY.register()
+def expm1(node, op_helper, **kwargs):
+    """aten::exp1m"""
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "expm1",
+        inputs=input_tensor,
+    )
+    return ["expm1"]
