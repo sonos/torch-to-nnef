@@ -1,20 +1,21 @@
 from torch_to_nnef.op import helper
 
 REMAP_ATEN_OP_NAMES = {
-    "_relu": "relu",
-    "reciprocal": "rcp",
-    "bitwise_not": "not",
-    "bitwise_not_cpu": "not",
-    "logical_not": "not",
-    "bitwise_cpu": "and",
-    "bitwise_and": "and",
     "__and__": "and",
     "__or__": "or",
+    "_relu": "relu",
+    "bitwise_and": "and",
+    "bitwise_cpu": "and",
+    "bitwise_not": "not",
+    "bitwise_not_cpu": "not",
     "bitwise_or": "or",
-    "less": "lt",
     "greater": "gt",
-    "less_equal": "le",
     "greater_equal": "ge",
+    "less": "lt",
+    "less_equal": "le",
+    "logical_not": "not",
+    "logical_or": "or",
+    "reciprocal": "rcp",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [

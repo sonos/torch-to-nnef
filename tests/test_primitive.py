@@ -940,6 +940,13 @@ test_suite.add(
     ),
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
+test_suite.add(
+    (torch.randint(0, 1, (6,)), torch.randint(0, 1, (6,))),
+    BinaryPrimitive(
+        torch.logical_or,
+    ),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
 
 
 def test_should_fail_since_no_input():
