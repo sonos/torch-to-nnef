@@ -92,20 +92,24 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         f"    This table and file are auto generated from 'a script' that dig into PyTorch."
         f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**\n"
         "\n\n"
-        f"\n Also 'is core' column refers to this [pytorch documentation page]({URL_IR})",
+        f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})",
         file=fh,
     )
     rows = []
     qte_core = 0
+    qte_supported_core = 0
     for a_from_code in aten_torch_from_code:
         if a_from_code in alias_map:
             continue
         is_core = a_from_code in official_aten_names
         is_core_official_str = "✅" if is_core else "-"
-        if is_core:
-            qte_core += 1
 
         exist_in_t2n = a_from_code in t2n_aten
+
+        if is_core:
+            qte_core += 1
+            if exist_in_t2n:
+                qte_supported_core += 1
 
         mapped_in_t2n_str = "✅" if exist_in_t2n else "❌"
         if exist_in_t2n:
@@ -122,10 +126,14 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     rows = sorted(rows, key=lambda x: -int(x[1]))
     print("", file=fh)
     t2n_n_ops = len([_ for _ in t2n_aten if not _.endswith("_")])
+    ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
     print(
-        "Total matched operators in `torch_to_nnef` compared to full `aten::`: "
-        f"{matched_qte}/{len(aten_torch_from_code)} where {qte_core}/{len(official_aten_names)} from core opset "
-        " (registered aten "
+        "Total matched operators in `torch_to_nnef` compared to:\n\n"
+        "-  full `aten::`: \n\n"
+        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
+        f"- and support from core PyTorch opset:\n\n"
+        f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
+        " (total registered aten "
         f"operators in t2n being {t2n_n_ops})",
         file=fh,
     )

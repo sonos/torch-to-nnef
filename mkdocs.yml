@@ -11,6 +11,8 @@ extra:
       link: https://x.com/sonos/
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/company/sonos-inc-/jobs/
+extra_css:
+  - style.css
 
 markdown_extensions:
   - admonition
@@ -33,6 +35,8 @@ markdown_extensions:
   - attr_list
   - md_in_html
   - pymdownx.blocks.caption
+  - pymdownx.progressbar:
+      level_class: true
 
 plugins:
   - search
