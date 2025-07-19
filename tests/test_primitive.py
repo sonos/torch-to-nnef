@@ -891,6 +891,11 @@ test_suite.add(
     UnaryPrimitive(TensorFnPrimitive("sum", {"dim": 1})),
     inference_conditions=skip_khronos_interpreter,
 )
+test_suite.add(
+    torch.rand(1, 3, 256),
+    nn.AdaptiveAvgPool1d(32),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 test_suite.add(
     torch.rand(32, 5, 24, 24),

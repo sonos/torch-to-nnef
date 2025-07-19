@@ -209,7 +209,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     )
 
 
-@OP_REGISTRY.register()
-def adaptive_avg_pool2d(g, node, name_to_tensor, **kwargs):
+@OP_REGISTRY.register(["adaptive_avg_pool1d", "adaptive_avg_pool2d"])
+def adaptive_avg_poolnd(g, node, name_to_tensor, **kwargs):
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("avg_pool", g, node, name_to_tensor)
