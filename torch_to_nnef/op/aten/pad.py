@@ -42,11 +42,20 @@ def _pad_format(pads, node):
     return pads
 
 
-@OP_REGISTRY.register(torch_op_ids=["reflection_pad1d", "reflection_padnd"])
+@OP_REGISTRY.register(
+    torch_op_ids=[
+        "reflection_pad1d",
+        "reflection_pad2d",
+        "reflection_pad3d",
+        "reflection_padnd",
+    ]
+)
 def reflection_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
+    print(node)
+    __import__("ipdb").set_trace()
     pads = _pad_format(
         get_list_of_int(
             pads_node,
@@ -70,7 +79,14 @@ def reflection_padnd(
     )
 
 
-@OP_REGISTRY.register(torch_op_ids=["replication_pad1d", "replication_padnd"])
+@OP_REGISTRY.register(
+    torch_op_ids=[
+        "replication_pad1d",
+        "replication_pad2d",
+        "replication_pad3d",
+        "replication_padnd",
+    ]
+)
 def replication_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):

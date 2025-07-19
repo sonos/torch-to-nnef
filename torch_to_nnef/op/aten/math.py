@@ -421,3 +421,15 @@ def log10(node, op_helper, **kwargs):
         inputs=input_tensor,
         attrs={"y": mul_val},
     )
+
+
+@OP_REGISTRY.register()
+def log1p(node, op_helper, **kwargs):
+    """aten::log1p"""
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "log1p",
+        inputs=input_tensor,
+    )
+    return ["log1p"]

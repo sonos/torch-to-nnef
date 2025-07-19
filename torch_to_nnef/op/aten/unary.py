@@ -7,6 +7,7 @@ REMAP_ATEN_OP_NAMES = {
     "bitwise_not_cpu": "not",
     "logical_not": "not",
     "bitwise_cpu": "and",
+    "bitwise_and": "and",
     "__and__": "and",
     "__or__": "or",
     "bitwise_or": "or",

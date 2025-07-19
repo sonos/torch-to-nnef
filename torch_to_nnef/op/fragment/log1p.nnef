@@ -1,0 +1,4 @@
+fragment log1p( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = log(x + 1.0);
+}

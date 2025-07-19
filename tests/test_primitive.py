@@ -925,6 +925,22 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+test_suite.add(
+    torch.randn(1, 6, 6, 8),
+    UnaryPrimitive(
+        torch.nn.ReflectionPad3d(2),
+    ),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    torch.randn(1, 6),
+    UnaryPrimitive(
+        torch.log1p,
+    ),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()

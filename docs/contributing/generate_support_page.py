@@ -90,7 +90,11 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     print(
         "!!! note\n"
         f"    This table and file are auto generated from 'a script' that dig into PyTorch."
-        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**\n"
+        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**.\n\n"
+        "!!! warning\n"
+        "     Take these information with a grain of salt as this is referencing operators that may never appear"
+        " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
+        " uncommon operators are very rare in models, hence support may be lacking."
         "\n\n"
         f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})",
         file=fh,
@@ -139,7 +143,7 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     )
     print("", file=fh)
     print(
-        "| aten name | aliases | in place | is core | t2n translated |",
+        "| aten name | aliases | can in-place | is core | t2n translated |",
         file=fh,
     )
     print(
