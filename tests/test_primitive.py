@@ -910,12 +910,7 @@ test_suite.add(
 )
 test_suite.add(
     torch.rand(1, 3, 256),
-    UnaryPrimitive(
-        partial(
-            torch.amin,
-            dim=1,
-        )
-    ),
+    UnaryPrimitive(partial(torch.amin, dim=1)),
     inference_conditions=skip_khronos_interpreter,
 )
 
@@ -927,9 +922,7 @@ test_suite.add(
 
 test_suite.add(
     torch.randn(1, 6, 6, 8),
-    UnaryPrimitive(
-        torch.nn.ReflectionPad3d(2),
-    ),
+    UnaryPrimitive(torch.nn.ReflectionPad3d(2)),
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
 
@@ -942,9 +935,13 @@ test_suite.add(
 )
 test_suite.add(
     (torch.randint(0, 1, (6,)), torch.randint(0, 1, (6,))),
-    BinaryPrimitive(
-        torch.logical_or,
-    ),
+    BinaryPrimitive(torch.logical_or),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(6, 2), torch.rand(6, 2)),
+    BinaryPrimitive(torch.atan2),
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
 

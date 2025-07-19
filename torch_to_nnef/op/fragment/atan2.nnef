@@ -1,0 +1,4 @@
+fragment atan2( x: tensor<scalar>, y: tensor<scalar> ) -> ( z: tensor<scalar> )
+{
+    z = atan(x / y);
+}

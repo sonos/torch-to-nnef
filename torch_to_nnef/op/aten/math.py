@@ -6,6 +6,7 @@ import torch
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, dtype_is_whole_number
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.op.aten import other
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -427,9 +428,22 @@ def log10(node, op_helper, **kwargs):
 def log1p(node, op_helper, **kwargs):
     """aten::log1p"""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
-    input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
+    op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "log1p",
         inputs=input_tensor,
     )
     return ["log1p"]
+
+
+@OP_REGISTRY.register()
+def atan2(node, op_helper, **kwargs):
+    """aten::atan2"""
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    other_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "atan2",
+        inputs=(input_tensor, other_tensor),
+    )
+    return ["atan2"]
