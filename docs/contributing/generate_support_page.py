@@ -77,6 +77,7 @@ for ix, a in enumerate(aten_torch_from_code[:]):
         or a.strip() == ""
         or (len(a) and a[0].isupper())
         or "backward" in a
+        or a.startswith("sym_")
     ):
         del aten_torch_from_code[ix - offset]
         offset += 1
@@ -98,7 +99,7 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         " uncommon operators are very rare in models, hence support may be lacking."
         "\n\n"
         f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' one's which are unwanted in inference engine.",
+        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine.",
         file=fh,
     )
     rows = []

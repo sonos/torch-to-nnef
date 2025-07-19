@@ -14,6 +14,7 @@ REMAP_ATEN_OP_NAMES = {
     "less": "lt",
     "less_equal": "le",
     "logical_not": "not",
+    "logical_and": "and",
     "logical_or": "or",
     "reciprocal": "rcp",
 }
