@@ -951,6 +951,12 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
 
+test_suite.add(
+    (torch.rand(6, 2), torch.rand(6, 2)),
+    BinaryPrimitive(torch.fmod),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()

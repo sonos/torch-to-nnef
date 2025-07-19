@@ -459,3 +459,20 @@ def expm1(node, op_helper, **kwargs):
         inputs=input_tensor,
     )
     return ["expm1"]
+
+
+@OP_REGISTRY.register()
+def fmod(node, op_helper, **kwargs):
+    """aten::fmod
+
+    equivalent:
+        a - a.div(b, rounding_mode="trunc") * b
+    """
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "fmod",
+        inputs=(a, b),
+    )
+    return ["fmod", "trunc"]

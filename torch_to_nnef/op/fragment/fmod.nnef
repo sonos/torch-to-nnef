@@ -1,0 +1,4 @@
+fragment fmod( a: tensor<scalar>,  b: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = a - trunc(a / b) * b;
+}
