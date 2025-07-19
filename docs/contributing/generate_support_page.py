@@ -76,6 +76,7 @@ for ix, a in enumerate(aten_torch_from_code[:]):
         or a in alias_map
         or a.strip() == ""
         or (len(a) and a[0].isupper())
+        or "backward" in a
     ):
         del aten_torch_from_code[ix - offset]
         offset += 1
@@ -96,7 +97,8 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
         " uncommon operators are very rare in models, hence support may be lacking."
         "\n\n"
-        f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})",
+        f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})\n\n"
+        "We filter-out from from observed operators 'backward' one's which are unwanted in inference engine.",
         file=fh,
     )
     rows = []

@@ -37,16 +37,16 @@
   height: 0.4rem;
 }
 
-.progress-100plus .progress-bar {
+.progress-90plus .progress-bar {
   background-color: #00e676;
 }
 
 .progress-80plus .progress-bar {
-  background-color: #fbc02d;
+  background-color: #e0fb2d;
 }
 
 .progress-60plus .progress-bar {
-  background-color: #ff9100;
+  background-color: #fbc02d;
 }
 
 .progress-40plus .progress-bar {
