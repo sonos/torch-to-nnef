@@ -973,6 +973,11 @@ test_suite.add(
     nn.AdaptiveMaxPool1d(32),
     inference_conditions=skip_khronos_interpreter,
 )
+test_suite.add(
+    torch.arange(10).float(),
+    UnaryPrimitive(partial(torch.var, correction=0)),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 def test_should_fail_since_no_input():

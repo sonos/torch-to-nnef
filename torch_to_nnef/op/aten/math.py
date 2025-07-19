@@ -476,3 +476,22 @@ def fmod(node, op_helper, **kwargs):
         inputs=(a, b),
     )
     return ["fmod", "trunc"]
+
+
+@OP_REGISTRY.register()
+def var(node, op_helper, **kwargs):
+    """aten::var"""
+    inode, dnode, cornode = node.inputs[:3]
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
+    axes = dnode.data or list(range(input_tensor.rank))
+    if cornode.data != 0:
+        raise TorchToNNEFNotImplementedError(
+            "only variance without correction translated"
+        )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "var",
+        inputs=input_tensor,
+        attrs={"axes": axes},
+    )
+    return ["var"]
