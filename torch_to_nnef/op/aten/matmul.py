@@ -365,7 +365,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(["baddbmm", "addmm"])
 def baddbmm(g, node, name_to_tensor, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     for ab_node in [alpha_node, beta_node]:
@@ -377,11 +377,11 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
         g,
         node,
         name_to_tensor,
-        "baddbmm",
+        "addmm",
         inputs=[
             get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
             for _ in [input_node, batch1_node, batch2_node]
         ],
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
-    return ["baddbmm"]
+    return ["addmm"]

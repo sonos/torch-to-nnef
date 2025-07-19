@@ -919,6 +919,12 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+test_suite.add(
+    (torch.randn(2, 3), torch.randn(2, 3), torch.randn(3, 3)),
+    TernaryPrimitive(torch.addmm),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
