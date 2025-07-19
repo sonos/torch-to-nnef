@@ -54,8 +54,6 @@ def reflection_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
     (input_node, pads_node) = node.inputs
-    print(node)
-    __import__("ipdb").set_trace()
     pads = _pad_format(
         get_list_of_int(
             pads_node,
