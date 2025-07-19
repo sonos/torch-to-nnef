@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from torch_to_nnef.op.aten import aten_ops_registry
@@ -39,16 +40,43 @@ aten_torch_from_code = sorted(
         shell=True,
     )
     .decode("utf8")
-    .split()
+    .split("\n")
 )
 aten_torch_from_code = [
     _ for _ in aten_torch_from_code if not _.startswith("_")
 ]
+aliases = sorted(
+    subprocess.check_output(
+        "cd /tmp ; "
+        "git -C 'pytorch' pull || git clone -q git@github.com:pytorch/pytorch.git; "
+        "cd /tmp/pytorch ;"
+        f"git checkout {TORCH_VERSION}; "
+        "cat ./torch/csrc/jit/passes/normalize_ops.cpp",
+        shell=True,
+    )
+    .decode("utf8")
+    .split("\n")
+)
+naliases = {
+    tuple(x.replace("aten::", "") for x in a.strip()[1:-2].split(", "))
+    for a in aliases
+    if "{" in a and "}" in a and "aten::" in a
+}
+alias_map = {k: v for (k, v) in naliases}
+ref_alias = defaultdict(list)
+for k, v in alias_map.items():
+    ref_alias[v].append(k)
 
 support_inplace = set()
 offset = 0
 for ix, a in enumerate(aten_torch_from_code[:]):
-    if a.endswith("_") and a[:-1] in aten_torch_from_code:
+    if (
+        a.endswith("_")
+        and a[:-1] in aten_torch_from_code
+        or a in alias_map
+        or a.strip() == ""
+        or (len(a) and a[0].isupper())
+    ):
         del aten_torch_from_code[ix - offset]
         offset += 1
         support_inplace.add(a[:-1])
@@ -70,6 +98,8 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     rows = []
     qte_core = 0
     for a_from_code in aten_torch_from_code:
+        if a_from_code in alias_map:
+            continue
         is_core = a_from_code in official_aten_names
         is_core_official_str = "✅" if is_core else "-"
         if is_core:
@@ -82,10 +112,10 @@ with (Path(__file__).parent / "./supported_operators.md").open(
             matched_qte += 1
 
         inplace_str = "✅" if a_from_code in support_inplace else "❌"
-
+        alias_str = ", ".join(ref_alias[a_from_code])
         rows.append(
             (
-                f"| {a_from_code} | | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
+                f"| {a_from_code} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
                 is_core,
             )
         )
