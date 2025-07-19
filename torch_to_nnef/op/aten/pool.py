@@ -209,7 +209,20 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     )
 
 
-@OP_REGISTRY.register(["adaptive_avg_pool1d", "adaptive_avg_pool2d"])
+# warning! no support for return_indice=True
+@OP_REGISTRY.register(
+    ["adaptive_avg_pool1d", "adaptive_avg_pool2d", "adaptive_avg_pool3d"]
+)
 def adaptive_avg_poolnd(g, node, name_to_tensor, **kwargs):
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("avg_pool", g, node, name_to_tensor)
+
+
+# warning! no support for return_indice=True
+@OP_REGISTRY.register(
+    ["adaptive_max_pool1d", "adaptive_max_pool2d", "adaptive_max_pool3d"]
+)
+def adaptive_max_poolnd(g, node, name_to_tensor, **kwargs):
+    node.outputs = node.outputs[:1]
+    # WARNING will liklely only work with full defined shapes in shape
+    _adaptive_pool("max_pool", g, node, name_to_tensor)
