@@ -32,7 +32,11 @@ def _get_padding_same_symetric(
     return padding
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(
+    # most registred exist in aten but should not be necessary since
+    # _convolution_mode should be rewired to those
+    ["_convolution_mode", "convolution", "conv1d", "conv2d", "conv3d"]
+)
 def _convolution_mode(
     g, node, name_to_tensor, null_ref, inference_target, **kwargs
 ):
