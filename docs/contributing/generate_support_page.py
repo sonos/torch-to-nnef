@@ -91,7 +91,7 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     date = datetime.now().strftime("%d %b %Y")
     print(
         "!!! note\n"
-        f"    This table and file are auto generated from 'a script' that dig into PyTorch."
+        f"    This table and page are auto generated from 'a script' that dig into PyTorch."
         f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**.\n\n"
         "!!! warning\n"
         "     Take these information with a grain of salt as this is referencing operators that may never appear"

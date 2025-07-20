@@ -1,23 +1,27 @@
 !!! note
-    This table and file are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **19 Jul 2025**
+    This table and file are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **20 Jul 2025**.
+
+!!! warning
+     Take these information with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.
 
 
+ 'is core' column refers to this [pytorch documentation page](https://docs.pytorch.org/docs/main/torch.compiler_ir.html)
 
- Also 'is core' column refers to this [pytorch documentation page](https://docs.pytorch.org/docs/main/torch.compiler_ir.html)
+We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine.
 
 Total matched operators in `torch_to_nnef` compared to:
 
 -  full `aten::`: 
 
-[=158/953 "158/953"]
+[=181/862 "181/862"]
 
 - and support from core PyTorch opset:
 
-[=93/142 "93/142"]
+[=109/138 "109/138"]
 
- (registered aten operators in t2n being 189)
+ (total registered aten operators in t2n being 211)
 
-| aten name | aliases | in place | is core | t2n translated |
+| aten name | aliases | can in-place | is core | t2n translated |
 | -------- | ------- | ------- | --------- | ---------------- |
 | abs | absolute | ✅ | ✅ | ✅ |
 | acos | arccos | ✅ | ✅ | ✅ |
@@ -36,12 +40,12 @@ Total matched operators in `torch_to_nnef` compared to:
 | asin | arcsin | ✅ | ✅ | ✅ |
 | asinh | arcsinh | ✅ | ✅ | ✅ |
 | atan | arctan | ✅ | ✅ | ✅ |
-| atan2 | arctan2 | ✅ | ✅ | ❌ |
+| atan2 | arctan2 | ✅ | ✅ | ✅ |
 | atanh | arctanh | ✅ | ✅ | ✅ |
 | avg_pool1d |  | ❌ | ✅ | ✅ |
 | avg_pool2d |  | ❌ | ✅ | ✅ |
 | avg_pool3d |  | ❌ | ✅ | ✅ |
-| bitwise_and |  | ✅ | ✅ | ❌ |
+| bitwise_and |  | ✅ | ✅ | ✅ |
 | bitwise_not |  | ✅ | ✅ | ✅ |
 | bitwise_or |  | ✅ | ✅ | ✅ |
 | bitwise_xor |  | ✅ | ✅ | ❌ |
@@ -52,7 +56,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | clone |  | ❌ | ✅ | ✅ |
 | col2im |  | ❌ | ✅ | ❌ |
 | constant_pad_nd |  | ❌ | ✅ | ✅ |
-| convolution |  | ❌ | ✅ | ❌ |
+| convolution |  | ❌ | ✅ | ✅ |
 | copy |  | ✅ | ✅ | ✅ |
 | cos |  | ✅ | ✅ | ✅ |
 | cosh |  | ✅ | ✅ | ✅ |
@@ -67,11 +71,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | erf | special_erf | ✅ | ✅ | ✅ |
 | exp |  | ✅ | ✅ | ✅ |
 | expand |  | ❌ | ✅ | ✅ |
-| expm1 | special_expm1 | ✅ | ✅ | ❌ |
+| expm1 | special_expm1 | ✅ | ✅ | ✅ |
 | fill |  | ✅ | ✅ | ❌ |
 | flip |  | ❌ | ✅ | ❌ |
 | floor |  | ✅ | ✅ | ✅ |
-| fmod |  | ✅ | ✅ | ❌ |
+| fmod |  | ✅ | ✅ | ✅ |
 | full |  | ❌ | ✅ | ✅ |
 | full_like |  | ❌ | ✅ | ✅ |
 | gather |  | ❌ | ✅ | ✅ |
@@ -89,11 +93,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | leaky_relu |  | ✅ | ✅ | ✅ |
 | log |  | ✅ | ✅ | ✅ |
 | log10 |  | ✅ | ✅ | ✅ |
-| log1p | special_log1p | ✅ | ✅ | ❌ |
+| log1p | special_log1p | ✅ | ✅ | ✅ |
 | log2 |  | ✅ | ✅ | ✅ |
-| logical_and |  | ✅ | ✅ | ❌ |
+| logical_and |  | ✅ | ✅ | ✅ |
 | logical_not |  | ✅ | ✅ | ✅ |
-| logical_or |  | ✅ | ✅ | ❌ |
+| logical_or |  | ✅ | ✅ | ✅ |
 | logical_xor |  | ✅ | ✅ | ❌ |
 | lt | less | ✅ | ✅ | ✅ |
 | masked_scatter |  | ✅ | ✅ | ❌ |
@@ -106,9 +110,9 @@ Total matched operators in `torch_to_nnef` compared to:
 | minimum |  | ❌ | ✅ | ❌ |
 | mm |  | ❌ | ✅ | ✅ |
 | mul | multiply | ✅ | ✅ | ✅ |
-| native_dropout |  | ❌ | ✅ | ❌ |
-| native_group_norm |  | ❌ | ✅ | ❌ |
-| native_layer_norm |  | ❌ | ✅ | ❌ |
+| native_dropout |  | ❌ | ✅ | ✅ |
+| native_group_norm |  | ❌ | ✅ | ✅ |
+| native_layer_norm |  | ❌ | ✅ | ✅ |
 | ne | not_equal | ✅ | ✅ | ✅ |
 | neg | negative | ✅ | ✅ | ✅ |
 | nonzero |  | ❌ | ✅ | ❌ |
@@ -120,13 +124,13 @@ Total matched operators in `torch_to_nnef` compared to:
 | randperm |  | ❌ | ✅ | ❌ |
 | reciprocal |  | ✅ | ✅ | ✅ |
 | reflection_pad1d |  | ❌ | ✅ | ✅ |
-| reflection_pad2d |  | ❌ | ✅ | ❌ |
-| reflection_pad3d |  | ❌ | ✅ | ❌ |
+| reflection_pad2d |  | ❌ | ✅ | ✅ |
+| reflection_pad3d |  | ❌ | ✅ | ✅ |
 | relu |  | ✅ | ✅ | ✅ |
 | remainder |  | ✅ | ✅ | ✅ |
 | repeat |  | ❌ | ✅ | ✅ |
-| replication_pad2d |  | ❌ | ✅ | ❌ |
-| replication_pad3d |  | ❌ | ✅ | ❌ |
+| replication_pad2d |  | ❌ | ✅ | ✅ |
+| replication_pad3d |  | ❌ | ✅ | ✅ |
 | round | special_round | ✅ | ✅ | ✅ |
 | rsqrt |  | ✅ | ✅ | ✅ |
 | scalar_tensor |  | ❌ | ✅ | ✅ |
@@ -147,10 +151,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | squeeze |  | ✅ | ✅ | ✅ |
 | sub | subtract | ✅ | ✅ | ✅ |
 | sum |  | ❌ | ✅ | ✅ |
-| sym_numel |  | ❌ | ✅ | ❌ |
-| sym_size |  | ❌ | ✅ | ❌ |
-| sym_storage_offset |  | ❌ | ✅ | ❌ |
-| sym_stride |  | ❌ | ✅ | ❌ |
 | tan |  | ✅ | ✅ | ✅ |
 | tanh |  | ✅ | ✅ | ✅ |
 | topk |  | ❌ | ✅ | ✅ |
@@ -158,24 +158,20 @@ Total matched operators in `torch_to_nnef` compared to:
 | unsqueeze |  | ✅ | ✅ | ✅ |
 | upsample_bilinear2d |  | ❌ | ✅ | ❌ |
 | upsample_nearest2d |  | ❌ | ✅ | ❌ |
-| var |  | ❌ | ✅ | ❌ |
+| var |  | ❌ | ✅ | ✅ |
 | view |  | ❌ | ✅ | ✅ |
 | where |  | ❌ | ✅ | ✅ |
 | adaptive_avg_pool2d |  | ❌ | - | ✅ |
-| adaptive_avg_pool3d |  | ❌ | - | ❌ |
-| adaptive_avg_pool3d_backward |  | ❌ | - | ❌ |
-| adaptive_max_pool1d |  | ❌ | - | ❌ |
-| adaptive_max_pool2d |  | ❌ | - | ❌ |
-| adaptive_max_pool2d_backward |  | ❌ | - | ❌ |
-| adaptive_max_pool3d |  | ❌ | - | ❌ |
-| adaptive_max_pool3d_backward |  | ❌ | - | ❌ |
+| adaptive_avg_pool3d |  | ❌ | - | ✅ |
+| adaptive_max_pool1d |  | ❌ | - | ✅ |
+| adaptive_max_pool2d |  | ❌ | - | ✅ |
+| adaptive_max_pool3d |  | ❌ | - | ✅ |
 | addbmm |  | ✅ | - | ❌ |
 | addcdiv |  | ❌ | - | ❌ |
 | addcmul |  | ❌ | - | ❌ |
 | addmv |  | ✅ | - | ❌ |
 | addr |  | ✅ | - | ❌ |
 | affine_grid_generator |  | ❌ | - | ❌ |
-| affine_grid_generator_backward |  | ❌ | - | ❌ |
 | alias_copy |  | ❌ | - | ❌ |
 | align_as |  | ❌ | - | ❌ |
 | align_tensors |  | ❌ | - | ❌ |
@@ -196,15 +192,9 @@ Total matched operators in `torch_to_nnef` compared to:
 | atleast_1d |  | ❌ | - | ❌ |
 | atleast_2d |  | ❌ | - | ❌ |
 | atleast_3d |  | ❌ | - | ❌ |
-| avg_pool2d_backward |  | ❌ | - | ❌ |
-| avg_pool3d_backward |  | ❌ | - | ❌ |
-| backward |  | ❌ | - | ❌ |
 | baddbmm |  | ✅ | - | ✅ |
 | bartlett_window |  | ❌ | - | ❌ |
 | batch_norm |  | ❌ | - | ✅ |
-| batch_norm_backward |  | ❌ | - | ❌ |
-| batch_norm_backward_elemt |  | ❌ | - | ❌ |
-| batch_norm_backward_reduce |  | ❌ | - | ❌ |
 | batch_norm_elemt |  | ❌ | - | ❌ |
 | batch_norm_gather_stats |  | ❌ | - | ❌ |
 | batch_norm_gather_stats_with_counts |  | ❌ | - | ❌ |
@@ -256,17 +246,14 @@ Total matched operators in `torch_to_nnef` compared to:
 | conj_physical |  | ✅ | - | ❌ |
 | contiguous |  | ❌ | - | ✅ |
 | conv |  | ❌ | - | ❌ |
-| conv1d |  | ❌ | - | ❌ |
-| conv2d |  | ❌ | - | ❌ |
-| conv3d |  | ❌ | - | ❌ |
+| conv1d |  | ❌ | - | ✅ |
+| conv2d |  | ❌ | - | ✅ |
+| conv3d |  | ❌ | - | ✅ |
 | conv_depthwise3d |  | ❌ | - | ❌ |
 | conv_tbc |  | ❌ | - | ❌ |
-| conv_tbc_backward |  | ❌ | - | ❌ |
 | conv_transpose1d |  | ❌ | - | ❌ |
 | conv_transpose2d |  | ❌ | - | ❌ |
 | conv_transpose3d |  | ❌ | - | ❌ |
-| convolution_backward |  | ❌ | - | ❌ |
-| convolution_backward_overrideable |  | ❌ | - | ❌ |
 | convolution_overrideable |  | ❌ | - | ❌ |
 | convrelu |  | ❌ | - | ❌ |
 | copy_sparse_to_sparse |  | ✅ | - | ❌ |
@@ -285,17 +272,14 @@ Total matched operators in `torch_to_nnef` compared to:
 | ctc_loss |  | ❌ | - | ❌ |
 | cuda |  | ❌ | - | ❌ |
 | cudnn_affine_grid_generator |  | ❌ | - | ❌ |
-| cudnn_affine_grid_generator_backward |  | ❌ | - | ❌ |
 | cudnn_batch_norm |  | ❌ | - | ❌ |
 | cudnn_convolution |  | ❌ | - | ❌ |
 | cudnn_convolution_add_relu |  | ❌ | - | ❌ |
 | cudnn_convolution_relu |  | ❌ | - | ❌ |
 | cudnn_convolution_transpose |  | ❌ | - | ❌ |
 | cudnn_grid_sampler |  | ❌ | - | ❌ |
-| cudnn_grid_sampler_backward |  | ❌ | - | ❌ |
 | cudnn_is_acceptable |  | ❌ | - | ❌ |
 | cummax |  | ❌ | - | ❌ |
-| cummaxmin_backward |  | ❌ | - | ❌ |
 | cummin |  | ❌ | - | ❌ |
 | cumprod |  | ✅ | - | ❌ |
 | cumulative_trapezoid |  | ❌ | - | ❌ |
@@ -310,15 +294,13 @@ Total matched operators in `torch_to_nnef` compared to:
 | diag |  | ❌ | - | ❌ |
 | diag_embed |  | ❌ | - | ❌ |
 | diagflat |  | ❌ | - | ❌ |
-| diagonal_backward |  | ❌ | - | ❌ |
 | diagonal_copy |  | ❌ | - | ❌ |
 | diagonal_scatter |  | ❌ | - | ❌ |
 | dict |  | ❌ | - | ❌ |
 | diff |  | ❌ | - | ❌ |
-| digamma | special_psi, special_digamma | ✅ | - | ❌ |
+| digamma | special_digamma, special_psi | ✅ | - | ❌ |
 | dim |  | ❌ | - | ❌ |
 | dist |  | ❌ | - | ❌ |
-| dist_backward |  | ❌ | - | ❌ |
 | divmod |  | ❌ | - | ❌ |
 | dot |  | ❌ | - | ❌ |
 | dropout |  | ✅ | - | ✅ |
@@ -328,7 +310,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | eig |  | ❌ | - | ❌ |
 | einsum |  | ❌ | - | ✅ |
 | element_size |  | ❌ | - | ❌ |
-| elu_backward |  | ❌ | - | ❌ |
 | embedding_bag |  | ❌ | - | ❌ |
 | embedding_renorm |  | ✅ | - | ❌ |
 | empty_like |  | ❌ | - | ✅ |
@@ -376,16 +357,13 @@ Total matched operators in `torch_to_nnef` compared to:
 | format |  | ❌ | - | ❌ |
 | frac |  | ❌ | - | ❌ |
 | fractional_max_pool2d |  | ❌ | - | ❌ |
-| fractional_max_pool2d_backward |  | ❌ | - | ❌ |
 | fractional_max_pool3d |  | ❌ | - | ❌ |
-| fractional_max_pool3d_backward |  | ❌ | - | ❌ |
 | frexp |  | ❌ | - | ❌ |
 | frobenius_norm |  | ❌ | - | ❌ |
 | from_file |  | ❌ | - | ❌ |
 | fused_moving_avg_obs_fake_quant |  | ❌ | - | ❌ |
 | gamma |  | ❌ | - | ❌ |
 | gcd |  | ✅ | - | ❌ |
-| gelu_backward |  | ❌ | - | ❌ |
 | geometric |  | ✅ | - | ❌ |
 | geqrf |  | ❌ | - | ❌ |
 | get |  | ❌ | - | ❌ |
@@ -395,22 +373,17 @@ Total matched operators in `torch_to_nnef` compared to:
 | get_pool_ceil_padding |  | ❌ | - | ❌ |
 | getelem |  | ❌ | - | ❌ |
 | glu |  | ❌ | - | ✅ |
-| glu_backward_jvp |  | ❌ | - | ❌ |
 | glu_jvp |  | ❌ | - | ❌ |
 | grad |  | ❌ | - | ❌ |
 | grid_sampler |  | ❌ | - | ❌ |
-| grid_sampler_2d_backward |  | ❌ | - | ❌ |
 | grid_sampler_3d |  | ❌ | - | ❌ |
-| grid_sampler_3d_backward |  | ❌ | - | ❌ |
 | group_norm |  | ❌ | - | ✅ |
 | gru |  | ❌ | - | ❌ |
 | gru_cell |  | ❌ | - | ❌ |
 | hamming_window |  | ❌ | - | ❌ |
 | hann_window |  | ❌ | - | ❌ |
 | hardshrink |  | ✅ | - | ❌ |
-| hardshrink_backward |  | ❌ | - | ❌ |
 | hardsigmoid |  | ✅ | - | ❌ |
-| hardsigmoid_backward |  | ❌ | - | ❌ |
 | hardswish |  | ✅ | - | ✅ |
 | has_torch_function |  | ❌ | - | ❌ |
 | hash |  | ❌ | - | ❌ |
@@ -438,7 +411,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | index_reduce |  | ✅ | - | ❌ |
 | indices |  | ❌ | - | ❌ |
 | indices_copy |  | ❌ | - | ❌ |
-| infinitely_differentiable_gelu_backward |  | ❌ | - | ❌ |
 | initial_seed |  | ❌ | - | ❌ |
 | inner |  | ❌ | - | ❌ |
 | insert |  | ❌ | - | ❌ |
@@ -493,7 +465,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | layer_norm |  | ❌ | - | ✅ |
 | lcm |  | ✅ | - | ❌ |
 | ldexp |  | ✅ | - | ❌ |
-| leaky_relu_backward |  | ❌ | - | ❌ |
 | len |  | ❌ | - | ❌ |
 | lerp |  | ✅ | - | ❌ |
 | lgamma |  | ✅ | - | ❌ |
@@ -533,7 +504,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | linalg_tensorsolve |  | ❌ | - | ❌ |
 | linalg_vector_norm |  | ❌ | - | ✅ |
 | linear |  | ❌ | - | ✅ |
-| linear_backward |  | ❌ | - | ❌ |
 | linspace |  | ❌ | - | ❌ |
 | list |  | ❌ | - | ❌ |
 | list_with_default |  | ❌ | - | ❌ |
@@ -548,13 +518,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | logcumsumexp |  | ❌ | - | ❌ |
 | logdet |  | ❌ | - | ❌ |
 | logit | special_logit | ❌ | - | ❌ |
-| logit_backward |  | ❌ | - | ❌ |
 | logspace |  | ❌ | - | ❌ |
 | logsumexp | special_logsumexp | ❌ | - | ❌ |
 | lower |  | ❌ | - | ❌ |
 | lstm |  | ❌ | - | ❌ |
 | lstm_cell |  | ❌ | - | ❌ |
-| lstm_mps_backward |  | ❌ | - | ❌ |
 | lstrip |  | ❌ | - | ❌ |
 | lstsq |  | ❌ | - | ❌ |
 | lu_solve |  | ❌ | - | ❌ |
@@ -564,22 +532,15 @@ Total matched operators in `torch_to_nnef` compared to:
 | manual_seed |  | ❌ | - | ❌ |
 | margin_ranking_loss |  | ❌ | - | ❌ |
 | masked_fill |  | ✅ | - | ✅ |
-| masked_scatter_backward |  | ❌ | - | ❌ |
 | masked_select |  | ❌ | - | ❌ |
-| masked_select_backward |  | ❌ | - | ❌ |
 | mathremainder |  | ❌ | - | ❌ |
 | matmul | linalg_matmul | ❌ | - | ✅ |
-| matmul_backward |  | ❌ | - | ❌ |
 | matrix_H |  | ❌ | - | ❌ |
-| matrix_exp_backward |  | ❌ | - | ❌ |
 | matrix_rank |  | ❌ | - | ❌ |
 | max_pool1d |  | ❌ | - | ✅ |
 | max_pool1d_with_indices |  | ❌ | - | ❌ |
 | max_pool2d |  | ❌ | - | ✅ |
-| max_pool2d_backward |  | ❌ | - | ❌ |
-| max_pool2d_with_indices_backward |  | ❌ | - | ❌ |
 | max_pool3d |  | ❌ | - | ✅ |
-| max_pool3d_with_indices_backward |  | ❌ | - | ❌ |
 | max_unpool2d |  | ❌ | - | ❌ |
 | max_unpool3d |  | ❌ | - | ❌ |
 | median |  | ❌ | - | ❌ |
@@ -587,52 +548,27 @@ Total matched operators in `torch_to_nnef` compared to:
 | miopen_batch_norm |  | ❌ | - | ❌ |
 | miopen_convolution |  | ❌ | - | ❌ |
 | miopen_convolution_add_relu |  | ❌ | - | ❌ |
-| miopen_convolution_backward |  | ❌ | - | ❌ |
-| miopen_convolution_backward_bias |  | ❌ | - | ❌ |
-| miopen_convolution_backward_input |  | ❌ | - | ❌ |
-| miopen_convolution_backward_weight |  | ❌ | - | ❌ |
 | miopen_convolution_relu |  | ❌ | - | ❌ |
 | miopen_convolution_transpose |  | ❌ | - | ❌ |
-| miopen_convolution_transpose_backward |  | ❌ | - | ❌ |
-| miopen_convolution_transpose_backward_input |  | ❌ | - | ❌ |
-| miopen_convolution_transpose_backward_weight |  | ❌ | - | ❌ |
 | miopen_depthwise_convolution |  | ❌ | - | ❌ |
-| miopen_depthwise_convolution_backward |  | ❌ | - | ❌ |
-| miopen_depthwise_convolution_backward_input |  | ❌ | - | ❌ |
-| miopen_depthwise_convolution_backward_weight |  | ❌ | - | ❌ |
 | miopen_rnn |  | ❌ | - | ❌ |
-| miopen_rnn_backward |  | ❌ | - | ❌ |
 | mish |  | ❌ | - | ❌ |
-| mish_backward |  | ❌ | - | ❌ |
 | mkldnn_adaptive_avg_pool2d |  | ❌ | - | ❌ |
-| mkldnn_adaptive_avg_pool2d_backward |  | ❌ | - | ❌ |
 | mkldnn_convolution |  | ❌ | - | ❌ |
 | mkldnn_linear |  | ❌ | - | ❌ |
-| mkldnn_linear_backward |  | ❌ | - | ❌ |
-| mkldnn_linear_backward_input |  | ❌ | - | ❌ |
-| mkldnn_linear_backward_weights |  | ❌ | - | ❌ |
 | mkldnn_max_pool2d |  | ❌ | - | ❌ |
-| mkldnn_max_pool2d_backward |  | ❌ | - | ❌ |
 | mkldnn_max_pool3d |  | ❌ | - | ❌ |
-| mkldnn_max_pool3d_backward |  | ❌ | - | ❌ |
 | mkldnn_reorder_conv2d_weight |  | ❌ | - | ❌ |
 | mkldnn_reorder_conv3d_weight |  | ❌ | - | ❌ |
 | mkldnn_rnn_layer |  | ❌ | - | ❌ |
-| mkldnn_rnn_layer_backward |  | ❌ | - | ❌ |
 | mode |  | ❌ | - | ❌ |
 | modf |  | ❌ | - | ❌ |
 | movedim | moveaxis | ❌ | - | ❌ |
-| mps_convolution_backward |  | ❌ | - | ❌ |
-| mps_convolution_backward_input |  | ❌ | - | ❌ |
-| mps_convolution_transpose_backward |  | ❌ | - | ❌ |
 | mps_linear |  | ❌ | - | ❌ |
-| mps_max_pool2d_backward |  | ❌ | - | ❌ |
 | mse_loss |  | ❌ | - | ❌ |
 | msort |  | ❌ | - | ❌ |
 | multi_margin_loss |  | ❌ | - | ❌ |
-| multi_margin_loss_backward |  | ❌ | - | ❌ |
 | multilabel_margin_loss |  | ❌ | - | ❌ |
-| multilabel_margin_loss_backward |  | ❌ | - | ❌ |
 | multilabel_margin_loss_forward |  | ❌ | - | ❌ |
 | multinomial |  | ❌ | - | ❌ |
 | mv |  | ❌ | - | ❌ |
@@ -645,7 +581,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | narrow |  | ❌ | - | ✅ |
 | narrow_copy |  | ❌ | - | ❌ |
 | native_batch_norm |  | ❌ | - | ❌ |
-| native_batch_norm_backward |  | ❌ | - | ❌ |
 | native_channel_shuffle |  | ❌ | - | ❌ |
 | native_multi_head_self_attention |  | ❌ | - | ❌ |
 | native_norm |  | ❌ | - | ❌ |
@@ -744,9 +679,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | repeat_interleave |  | ❌ | - | ✅ |
 | replace |  | ❌ | - | ❌ |
 | replication_pad1d |  | ❌ | - | ✅ |
-| replication_pad1d_backward |  | ❌ | - | ❌ |
-| replication_pad2d_backward |  | ❌ | - | ❌ |
-| replication_pad3d_backward |  | ❌ | - | ❌ |
 | requires_grad_ |  | ❌ | - | ❌ |
 | reshape |  | ❌ | - | ✅ |
 | reshape_as |  | ❌ | - | ❌ |
@@ -774,7 +706,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | rpartition |  | ❌ | - | ❌ |
 | rrelu |  | ❌ | - | ❌ |
 | rrelu_with_noise |  | ✅ | - | ❌ |
-| rrelu_with_noise_backward |  | ❌ | - | ❌ |
 | rrelu_with_noise_functional |  | ❌ | - | ❌ |
 | rsplit |  | ❌ | - | ❌ |
 | rstrip |  | ❌ | - | ❌ |
@@ -784,7 +715,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | searchsorted |  | ❌ | - | ❌ |
 | seed |  | ❌ | - | ❌ |
 | segment_reduce |  | ❌ | - | ❌ |
-| select_backward |  | ❌ | - | ❌ |
 | select_copy |  | ❌ | - | ❌ |
 | selu |  | ✅ | - | ✅ |
 | set |  | ✅ | - | ❌ |
@@ -793,13 +723,10 @@ Total matched operators in `torch_to_nnef` compared to:
 | set_source_Tensor_storage_offset |  | ❌ | - | ❌ |
 | setdefault |  | ❌ | - | ❌ |
 | sgn |  | ❌ | - | ❌ |
-| sigmoid_backward |  | ❌ | - | ❌ |
 | signbit |  | ❌ | - | ❌ |
 | silu |  | ✅ | - | ✅ |
-| silu_backward |  | ❌ | - | ❌ |
 | sinc | special_sinc | ❌ | - | ❌ |
 | size |  | ❌ | - | ✅ |
-| slice_backward |  | ❌ | - | ❌ |
 | slice_copy |  | ❌ | - | ❌ |
 | slice_inverse |  | ❌ | - | ❌ |
 | slow_conv3d |  | ❌ | - | ❌ |
@@ -813,9 +740,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | soft_margin_loss |  | ❌ | - | ❌ |
 | softmax | special_softmax | ❌ | - | ✅ |
 | softplus |  | ❌ | - | ✅ |
-| softplus_backward |  | ❌ | - | ❌ |
 | softshrink |  | ❌ | - | ❌ |
-| softshrink_backward |  | ❌ | - | ❌ |
 | solve |  | ❌ | - | ❌ |
 | sorted |  | ❌ | - | ❌ |
 | sparse_compressed_tensor |  | ❌ | - | ❌ |
@@ -882,7 +807,6 @@ Total matched operators in `torch_to_nnef` compared to:
 | t |  | ✅ | - | ❌ |
 | take |  | ❌ | - | ❌ |
 | take_along_dim |  | ❌ | - | ❌ |
-| tanh_backward |  | ❌ | - | ❌ |
 | tanhshrink |  | ❌ | - | ❌ |
 | tensor |  | ❌ | - | ❌ |
 | tensor_split |  | ❌ | - | ❌ |
@@ -894,19 +818,15 @@ Total matched operators in `torch_to_nnef` compared to:
 | thnn_conv2d |  | ❌ | - | ❌ |
 | thnn_conv2d_forward |  | ❌ | - | ❌ |
 | threshold |  | ❌ | - | ❌ |
-| threshold_backward |  | ❌ | - | ❌ |
 | tile |  | ❌ | - | ❌ |
 | title |  | ❌ | - | ❌ |
 | to |  | ❌ | - | ✅ |
 | to_dense |  | ❌ | - | ❌ |
-| to_dense_backward |  | ❌ | - | ❌ |
 | to_here |  | ❌ | - | ❌ |
 | to_mkldnn |  | ❌ | - | ❌ |
-| to_mkldnn_backward |  | ❌ | - | ❌ |
 | to_padded_tensor |  | ❌ | - | ❌ |
 | trace |  | ❌ | - | ❌ |
-| trace_backward |  | ❌ | - | ❌ |
-| transpose | swapaxes, swapdims | ✅ | - | ✅ |
+| transpose | swapdims, swapaxes | ✅ | - | ✅ |
 | transpose_copy |  | ❌ | - | ❌ |
 | trapezoid |  | ❌ | - | ❌ |
 | trapz |  | ❌ | - | ❌ |
@@ -936,17 +856,10 @@ Total matched operators in `torch_to_nnef` compared to:
 | upper |  | ❌ | - | ❌ |
 | upsample |  | ❌ | - | ❌ |
 | upsample_bicubic2d |  | ❌ | - | ❌ |
-| upsample_bicubic2d_backward |  | ❌ | - | ❌ |
-| upsample_bilinear2d_backward |  | ❌ | - | ❌ |
 | upsample_linear1d |  | ❌ | - | ❌ |
-| upsample_linear1d_backward |  | ❌ | - | ❌ |
 | upsample_nearest1d |  | ❌ | - | ❌ |
-| upsample_nearest1d_backward |  | ❌ | - | ❌ |
-| upsample_nearest2d_backward |  | ❌ | - | ❌ |
 | upsample_nearest3d |  | ❌ | - | ❌ |
-| upsample_nearest3d_backward |  | ❌ | - | ❌ |
 | upsample_trilinear3d |  | ❌ | - | ❌ |
-| upsample_trilinear3d_backward |  | ❌ | - | ❌ |
 | values |  | ❌ | - | ❌ |
 | values_copy |  | ❌ | - | ❌ |
 | vander |  | ❌ | - | ❌ |
