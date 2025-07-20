@@ -979,6 +979,29 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+if False:  # tract not support variable filter and bias yet
+    conv_dim = 1
+    test_suite.add(
+        (
+            # input, weight, bias
+            torch.rand(1, 10, 5),
+            torch.rand(1, 10, 3),
+            torch.rand(1),
+        ),
+        TernaryPrimitive(
+            partial(
+                torch.convolution,
+                stride=tuple([1] * conv_dim),
+                padding=tuple([1] * conv_dim),
+                dilation=tuple([1] * conv_dim),
+                transposed=False,
+                output_padding=tuple([1] * 1),
+                groups=1,
+            )
+        ),
+        inference_conditions=skip_khronos_interpreter,
+    )
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
