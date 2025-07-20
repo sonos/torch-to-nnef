@@ -1,5 +1,5 @@
 !!! note
-    This table and file are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **20 Jul 2025**.
+    This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **20 Jul 2025**.
 
 !!! warning
      Take these information with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.
@@ -19,7 +19,7 @@ Total matched operators in `torch_to_nnef` compared to:
 
 [=109/138 "109/138"]
 
- (total registered aten operators in t2n being 211)
+ (total registered aten operators in t2n being 212)
 
 | aten name | aliases | can in-place | is core | t2n translated |
 | -------- | ------- | ------- | --------- | ---------------- |
@@ -50,7 +50,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | bitwise_or |  | ✅ | ✅ | ✅ |
 | bitwise_xor |  | ✅ | ✅ | ❌ |
 | bmm |  | ❌ | ✅ | ✅ |
-| cat | concat, concatenate | ❌ | ✅ | ✅ |
+| cat | concatenate, concat | ❌ | ✅ | ✅ |
 | ceil |  | ✅ | ✅ | ✅ |
 | clamp | clip | ✅ | ✅ | ✅ |
 | clone |  | ❌ | ✅ | ✅ |
@@ -298,7 +298,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | diagonal_scatter |  | ❌ | - | ❌ |
 | dict |  | ❌ | - | ❌ |
 | diff |  | ❌ | - | ❌ |
-| digamma | special_digamma, special_psi | ✅ | - | ❌ |
+| digamma | special_psi, special_digamma | ✅ | - | ❌ |
 | dim |  | ❌ | - | ❌ |
 | dist |  | ❌ | - | ❌ |
 | divmod |  | ❌ | - | ❌ |
@@ -826,7 +826,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | to_mkldnn |  | ❌ | - | ❌ |
 | to_padded_tensor |  | ❌ | - | ❌ |
 | trace |  | ❌ | - | ❌ |
-| transpose | swapdims, swapaxes | ✅ | - | ✅ |
+| transpose | swapaxes, swapdims | ✅ | - | ✅ |
 | transpose_copy |  | ❌ | - | ❌ |
 | trapezoid |  | ❌ | - | ❌ |
 | trapz |  | ❌ | - | ❌ |
