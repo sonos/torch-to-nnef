@@ -29,4 +29,4 @@ We aim to support PyTorch > 1.8.0 with tract last 2 major releases (>= 0.20.22 t
 
 All documentation is available here:
 
-[<kbd> <br> Documentation <br> </kbd>][ https://sonos.github.io/torch-to-nnef/]
+[<kbd> <br> Documentation <br> </kbd>]( https://sonos.github.io/torch-to-nnef/)
