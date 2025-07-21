@@ -1002,6 +1002,24 @@ if False:  # tract not support variable filter and bias yet
         inference_conditions=skip_khronos_interpreter,
     )
 
+# The following fail to be jitted even if working in Python land:
+# test_suite.add(
+#     torch.arange(2).float(),
+#     TensorFnPrimitive("fill_", {"value": False}),
+#     inference_conditions=skip_khronos_interpreter,
+# )
+
+test_suite.add(
+    torch.arange(2).float(),
+    TensorFnPrimitive("fill_", {"value": 5}),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    torch.arange(2),
+    TensorFnPrimitive("fill_", {"value": 5}),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
