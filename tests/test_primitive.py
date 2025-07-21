@@ -891,18 +891,117 @@ test_suite.add(
     UnaryPrimitive(TensorFnPrimitive("sum", {"dim": 1})),
     inference_conditions=skip_khronos_interpreter,
 )
+test_suite.add(
+    torch.rand(1, 3, 256),
+    nn.AdaptiveAvgPool1d(32),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 test_suite.add(
     torch.rand(32, 5, 24, 24),
     nn.LocalResponseNorm(2),
-    inference_conditions=skip_khronos_interpreter
+    inference_conditions=skip_khronos_interpreter,
 )
 
 test_suite.add(
     torch.rand(2, 1, 6, 24, 24),
     nn.MaxPool3d(2),
-    inference_conditions=skip_khronos_interpreter
+    inference_conditions=skip_khronos_interpreter,
 )
+test_suite.add(
+    torch.rand(1, 3, 256),
+    UnaryPrimitive(partial(torch.amin, dim=1)),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.randn(2, 3), torch.randn(2, 3), torch.randn(3, 3)),
+    TernaryPrimitive(torch.addmm),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+test_suite.add(
+    torch.randn(1, 6, 6, 8),
+    UnaryPrimitive(torch.nn.ReflectionPad3d(2)),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    torch.randn(1, 6),
+    UnaryPrimitive(
+        torch.log1p,
+    ),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+test_suite.add(
+    (torch.randint(0, 1, (6,)), torch.randint(0, 1, (6,))),
+    BinaryPrimitive(torch.logical_or),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(6, 2), torch.rand(6, 2)),
+    BinaryPrimitive(torch.atan2),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(6, 2)),
+    UnaryPrimitive(torch.expm1),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    (torch.rand(6, 2), torch.rand(6, 2)),
+    BinaryPrimitive(torch.fmod),
+    inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+
+test_suite.add(
+    torch.rand(1, 3, 32, 32, 32),
+    nn.AdaptiveAvgPool3d(32),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+test_suite.add(
+    torch.rand(1, 3, 32, 32),
+    nn.AdaptiveAvgPool2d(32),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    torch.rand(1, 3, 32),
+    nn.AdaptiveMaxPool1d(32),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    torch.arange(10).float(),
+    UnaryPrimitive(partial(torch.var, correction=0)),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+if False:  # tract not support variable filter and bias yet
+    conv_dim = 1
+    test_suite.add(
+        (
+            # input, weight, bias
+            torch.rand(1, 10, 5),
+            torch.rand(1, 10, 3),
+            torch.rand(1),
+        ),
+        TernaryPrimitive(
+            partial(
+                torch.convolution,
+                stride=tuple([1] * conv_dim),
+                padding=tuple([1] * conv_dim),
+                dilation=tuple([1] * conv_dim),
+                transposed=False,
+                output_padding=tuple([1] * 1),
+                groups=1,
+            )
+        ),
+        inference_conditions=skip_khronos_interpreter,
+    )
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()

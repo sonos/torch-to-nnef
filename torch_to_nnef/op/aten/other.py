@@ -88,7 +88,7 @@ def external(
     return nnef_tensor_ref, custom_fragments
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
     (
         input_node,

@@ -1,0 +1,6 @@
+fragment var( input: tensor<scalar>, axes: integer[] ) -> ( variance_colapsed : tensor<scalar> )
+{
+    mean = mean_reduce(input, axes = axes);
+    variance = mean_reduce(sqr(input - mean), axes = axes);
+    variance_colapsed = squeeze(variance, axes = axes);
+}

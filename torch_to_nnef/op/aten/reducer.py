@@ -131,7 +131,7 @@ def reduce_max(node, op_helper, **kwargs):
         _reducer("argmax_reduce", node, op_helper, output_idx=1)
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["reduce_min", "amin"])
 def reduce_min(node, op_helper, **kwargs):
     n_outputs = len(node.outputs)
     if n_outputs > 2:

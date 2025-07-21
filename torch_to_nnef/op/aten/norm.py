@@ -226,7 +226,7 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
     return [custom_fragment_name]
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(["layer_norm", "native_layer_norm"])
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     (
         input_tensor_node,
@@ -271,7 +271,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     return [op_name]
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(["group_norm", "native_group_norm"])
 def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
     """
     It is a special case of NNEF batch_normalization

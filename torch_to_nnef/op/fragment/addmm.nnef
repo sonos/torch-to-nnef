@@ -1,4 +1,5 @@
-fragment baddbmm(
+# also support baddbmm (aka batch version)
+fragment addmm(
     input: tensor<scalar>,
     batch1: tensor<scalar>,
     batch2: tensor<scalar>,
