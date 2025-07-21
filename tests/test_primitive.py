@@ -1020,6 +1020,23 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+# test_suite.add(
+#     (torch.arange(2).float(), torch.arange(2).float() + 1.0),
+#     BinaryPrimitive(torch.maximum),
+#     inference_conditions=skip_khronos_interpreter,
+# )
+# test_suite.add(
+#     (torch.arange(2).float(), torch.arange(2).float() + 1.0),
+#     BinaryPrimitive(torch.minimum),
+#     inference_conditions=skip_khronos_interpreter,
+# )
+
+test_suite.add(
+    (torch.tensor([True, True]), torch.tensor([False, True])),
+    BinaryPrimitive(torch.logical_xor),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
