@@ -12,6 +12,8 @@ REMAP_ATEN_OP_NAMES = {
     "logical_and": "and",
     "logical_or": "or",
     "reciprocal": "rcp",
+    "minimum": "min",
+    "maximum": "max",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
