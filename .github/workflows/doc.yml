@@ -69,4 +69,4 @@ jobs:
         run: |
           uv run mkdocs gh-deploy --force
         env:
-          GITHUB_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
