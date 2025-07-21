@@ -36,7 +36,9 @@ class LinkToTorchDocCache:
 
     def save(self):
         with self.cache_path.open("w", encoding="utf8") as fh:
-            json.dump({k: list(v) for k, v in self.cache_dic.items()}, fh)
+            json.dump(
+                {k: list(v) for k, v in self.cache_dic.items()}, fh, indent=4
+            )
 
     def add(self, pattern: str, op_name: str):
         if op_name in self.cache_dic[pattern]:
