@@ -47,4 +47,4 @@ To install it you can run depending on your package manager:
     ```
 
 !!! note
-    This project is still in it's early stage, if you encounter any bug please follow [Bug report](./contributing/guidelines.md)  section instructions
+    This project is still early stage, if you encounter any bug please follow [Bug report](./contributing/guidelines.md)  section instructions
