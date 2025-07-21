@@ -26,7 +26,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | [abs](https://docs.pytorch.org/docs/stable/generated/torch.abs.html) | absolute | ✅ | ✅ | ✅ |
 | [acos](https://docs.pytorch.org/docs/stable/generated/torch.acos.html) | arccos | ✅ | ✅ | ✅ |
 | [acosh](https://docs.pytorch.org/docs/stable/generated/torch.acosh.html) | arccosh | ✅ | ✅ | ✅ |
-| adaptive_avg_pool1d |  | ❌ | ✅ | ✅ |
+| [adaptive_avg_pool1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_avg_pool1d.html) |  | ❌ | ✅ | ✅ |
 | [add](https://docs.pytorch.org/docs/stable/generated/torch.add.html) |  | ✅ | ✅ | ✅ |
 | [addmm](https://docs.pytorch.org/docs/stable/generated/torch.addmm.html) |  | ✅ | ✅ | ✅ |
 | alias |  | ❌ | ✅ | ✅ |
@@ -42,9 +42,9 @@ Total matched operators in `torch_to_nnef` compared to:
 | [atan](https://docs.pytorch.org/docs/stable/generated/torch.atan.html) | arctan | ✅ | ✅ | ✅ |
 | [atan2](https://docs.pytorch.org/docs/stable/generated/torch.atan2.html) | arctan2 | ✅ | ✅ | ✅ |
 | [atanh](https://docs.pytorch.org/docs/stable/generated/torch.atanh.html) | arctanh | ✅ | ✅ | ✅ |
-| avg_pool1d |  | ❌ | ✅ | ✅ |
-| avg_pool2d |  | ❌ | ✅ | ✅ |
-| avg_pool3d |  | ❌ | ✅ | ✅ |
+| [avg_pool1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.avg_pool1d.html) |  | ❌ | ✅ | ✅ |
+| [avg_pool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.avg_pool2d.html) |  | ❌ | ✅ | ✅ |
+| [avg_pool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.avg_pool3d.html) |  | ❌ | ✅ | ✅ |
 | [bitwise_and](https://docs.pytorch.org/docs/stable/generated/torch.bitwise_and.html) |  | ✅ | ✅ | ✅ |
 | [bitwise_not](https://docs.pytorch.org/docs/stable/generated/torch.bitwise_not.html) |  | ✅ | ✅ | ✅ |
 | [bitwise_or](https://docs.pytorch.org/docs/stable/generated/torch.bitwise_or.html) |  | ✅ | ✅ | ✅ |
@@ -63,8 +63,8 @@ Total matched operators in `torch_to_nnef` compared to:
 | [cumsum](https://docs.pytorch.org/docs/stable/generated/torch.cumsum.html) |  | ✅ | ✅ | ❌ |
 | [diagonal](https://docs.pytorch.org/docs/stable/generated/torch.diagonal.html) |  | ❌ | ✅ | ❌ |
 | [div](https://docs.pytorch.org/docs/stable/generated/torch.div.html) | divide, true_divide | ✅ | ✅ | ✅ |
-| elu |  | ✅ | ✅ | ✅ |
-| embedding |  | ❌ | ✅ | ✅ |
+| [elu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.elu.html) |  | ✅ | ✅ | ✅ |
+| [embedding](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.embedding.html) |  | ❌ | ✅ | ✅ |
 | [empty](https://docs.pytorch.org/docs/stable/generated/torch.empty.html) |  | ❌ | ✅ | ❌ |
 | [empty_strided](https://docs.pytorch.org/docs/stable/generated/torch.empty_strided.html) |  | ❌ | ✅ | ❌ |
 | [eq](https://docs.pytorch.org/docs/stable/generated/torch.eq.html) |  | ✅ | ✅ | ✅ |
@@ -80,17 +80,17 @@ Total matched operators in `torch_to_nnef` compared to:
 | [full_like](https://docs.pytorch.org/docs/stable/generated/torch.full_like.html) |  | ❌ | ✅ | ✅ |
 | [gather](https://docs.pytorch.org/docs/stable/generated/torch.gather.html) |  | ❌ | ✅ | ✅ |
 | [ge](https://docs.pytorch.org/docs/stable/generated/torch.ge.html) | greater_equal | ✅ | ✅ | ✅ |
-| gelu |  | ✅ | ✅ | ✅ |
+| [gelu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.gelu.html) |  | ✅ | ✅ | ✅ |
 | grid_sampler_2d |  | ❌ | ✅ | ❌ |
 | [gt](https://docs.pytorch.org/docs/stable/generated/torch.gt.html) | greater | ✅ | ✅ | ✅ |
-| hardtanh |  | ✅ | ✅ | ✅ |
+| [hardtanh](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.hardtanh.html) |  | ✅ | ✅ | ✅ |
 | index |  | ❌ | ✅ | ✅ |
 | index_put |  | ✅ | ✅ | ❌ |
 | [index_select](https://docs.pytorch.org/docs/stable/generated/torch.index_select.html) |  | ❌ | ✅ | ✅ |
 | [isinf](https://docs.pytorch.org/docs/stable/generated/torch.isinf.html) |  | ❌ | ✅ | ❌ |
 | [isnan](https://docs.pytorch.org/docs/stable/generated/torch.isnan.html) |  | ❌ | ✅ | ❌ |
 | [le](https://docs.pytorch.org/docs/stable/generated/torch.le.html) | less_equal | ✅ | ✅ | ✅ |
-| leaky_relu |  | ✅ | ✅ | ✅ |
+| [leaky_relu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.leaky_relu.html) |  | ✅ | ✅ | ✅ |
 | [log](https://docs.pytorch.org/docs/stable/generated/torch.log.html) |  | ✅ | ✅ | ✅ |
 | [log10](https://docs.pytorch.org/docs/stable/generated/torch.log10.html) |  | ✅ | ✅ | ✅ |
 | [log1p](https://docs.pytorch.org/docs/stable/generated/torch.log1p.html) | special_log1p | ✅ | ✅ | ✅ |
@@ -126,7 +126,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | reflection_pad1d |  | ❌ | ✅ | ✅ |
 | reflection_pad2d |  | ❌ | ✅ | ✅ |
 | reflection_pad3d |  | ❌ | ✅ | ✅ |
-| relu |  | ✅ | ✅ | ✅ |
+| [relu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.relu.html) |  | ✅ | ✅ | ✅ |
 | [remainder](https://docs.pytorch.org/docs/stable/generated/torch.remainder.html) |  | ✅ | ✅ | ✅ |
 | repeat |  | ❌ | ✅ | ✅ |
 | replication_pad2d |  | ❌ | ✅ | ✅ |
@@ -161,11 +161,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | [var](https://docs.pytorch.org/docs/stable/generated/torch.var.html) |  | ❌ | ✅ | ✅ |
 | view |  | ❌ | ✅ | ✅ |
 | [where](https://docs.pytorch.org/docs/stable/generated/torch.where.html) |  | ❌ | ✅ | ✅ |
-| adaptive_avg_pool2d |  | ❌ | - | ✅ |
-| adaptive_avg_pool3d |  | ❌ | - | ✅ |
-| adaptive_max_pool1d |  | ❌ | - | ✅ |
-| adaptive_max_pool2d |  | ❌ | - | ✅ |
-| adaptive_max_pool3d |  | ❌ | - | ✅ |
+| [adaptive_avg_pool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_avg_pool2d.html) |  | ❌ | - | ✅ |
+| [adaptive_avg_pool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_avg_pool3d.html) |  | ❌ | - | ✅ |
+| [adaptive_max_pool1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_max_pool1d.html) |  | ❌ | - | ✅ |
+| [adaptive_max_pool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_max_pool2d.html) |  | ❌ | - | ✅ |
+| [adaptive_max_pool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.adaptive_max_pool3d.html) |  | ❌ | - | ✅ |
 | [addbmm](https://docs.pytorch.org/docs/stable/generated/torch.addbmm.html) |  | ✅ | - | ❌ |
 | [addcdiv](https://docs.pytorch.org/docs/stable/generated/torch.addcdiv.html) |  | ❌ | - | ❌ |
 | [addcmul](https://docs.pytorch.org/docs/stable/generated/torch.addcmul.html) |  | ❌ | - | ❌ |
@@ -180,7 +180,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | all_gather_into_tensor |  | ❌ | - | ❌ |
 | all_reduce |  | ❌ | - | ❌ |
 | [allclose](https://docs.pytorch.org/docs/stable/generated/torch.allclose.html) |  | ❌ | - | ❌ |
-| alpha_dropout |  | ✅ | - | ❌ |
+| [alpha_dropout](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.alpha_dropout.html) |  | ✅ | - | ❌ |
 | [aminmax](https://docs.pytorch.org/docs/stable/generated/torch.aminmax.html) |  | ❌ | - | ❌ |
 | [angle](https://docs.pytorch.org/docs/stable/generated/torch.angle.html) |  | ❌ | - | ❌ |
 | append |  | ❌ | - | ❌ |
@@ -194,17 +194,17 @@ Total matched operators in `torch_to_nnef` compared to:
 | [atleast_3d](https://docs.pytorch.org/docs/stable/generated/torch.atleast_3d.html) |  | ❌ | - | ❌ |
 | [baddbmm](https://docs.pytorch.org/docs/stable/generated/torch.baddbmm.html) |  | ✅ | - | ✅ |
 | [bartlett_window](https://docs.pytorch.org/docs/stable/generated/torch.bartlett_window.html) |  | ❌ | - | ❌ |
-| batch_norm |  | ❌ | - | ✅ |
+| [batch_norm](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.batch_norm.html) |  | ❌ | - | ✅ |
 | batch_norm_elemt |  | ❌ | - | ❌ |
 | batch_norm_gather_stats |  | ❌ | - | ❌ |
 | batch_norm_gather_stats_with_counts |  | ❌ | - | ❌ |
 | batch_norm_stats |  | ❌ | - | ❌ |
 | batch_norm_update_stats |  | ❌ | - | ❌ |
 | [bernoulli](https://docs.pytorch.org/docs/stable/generated/torch.bernoulli.html) |  | ✅ | - | ❌ |
-| bilinear |  | ❌ | - | ❌ |
+| [bilinear](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.bilinear.html) |  | ❌ | - | ❌ |
 | bin |  | ❌ | - | ❌ |
-| binary_cross_entropy |  | ❌ | - | ❌ |
-| binary_cross_entropy_with_logits |  | ❌ | - | ❌ |
+| [binary_cross_entropy](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.binary_cross_entropy.html) |  | ❌ | - | ❌ |
+| [binary_cross_entropy_with_logits](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) |  | ❌ | - | ❌ |
 | [bincount](https://docs.pytorch.org/docs/stable/generated/torch.bincount.html) |  | ❌ | - | ❌ |
 | binomial |  | ❌ | - | ❌ |
 | [bitwise_left_shift](https://docs.pytorch.org/docs/stable/generated/torch.bitwise_left_shift.html) |  | ✅ | - | ❌ |
@@ -221,7 +221,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | ccol_indices |  | ❌ | - | ❌ |
 | ccol_indices_copy |  | ❌ | - | ❌ |
 | [cdist](https://docs.pytorch.org/docs/stable/generated/torch.cdist.html) |  | ❌ | - | ❌ |
-| celu |  | ❌ | - | ❌ |
+| [celu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.celu.html) |  | ❌ | - | ❌ |
 | center |  | ❌ | - | ❌ |
 | [chain_matmul](https://docs.pytorch.org/docs/stable/generated/torch.chain_matmul.html) |  | ❌ | - | ❌ |
 | chalf |  | ❌ | - | ❌ |
@@ -246,22 +246,22 @@ Total matched operators in `torch_to_nnef` compared to:
 | [conj_physical](https://docs.pytorch.org/docs/stable/generated/torch.conj_physical.html) |  | ✅ | - | ❌ |
 | contiguous |  | ❌ | - | ✅ |
 | conv |  | ❌ | - | ❌ |
-| conv1d |  | ❌ | - | ✅ |
-| conv2d |  | ❌ | - | ✅ |
-| conv3d |  | ❌ | - | ✅ |
+| [conv1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv1d.html) |  | ❌ | - | ✅ |
+| [conv2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv2d.html) |  | ❌ | - | ✅ |
+| [conv3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv3d.html) |  | ❌ | - | ✅ |
 | conv_depthwise3d |  | ❌ | - | ❌ |
 | conv_tbc |  | ❌ | - | ❌ |
-| conv_transpose1d |  | ❌ | - | ❌ |
-| conv_transpose2d |  | ❌ | - | ❌ |
-| conv_transpose3d |  | ❌ | - | ❌ |
+| [conv_transpose1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv_transpose1d.html) |  | ❌ | - | ❌ |
+| [conv_transpose2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv_transpose2d.html) |  | ❌ | - | ❌ |
+| [conv_transpose3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.conv_transpose3d.html) |  | ❌ | - | ❌ |
 | convolution_overrideable |  | ❌ | - | ❌ |
 | convrelu |  | ❌ | - | ❌ |
 | copy_sparse_to_sparse |  | ✅ | - | ❌ |
 | copy_to |  | ❌ | - | ❌ |
 | [copysign](https://docs.pytorch.org/docs/stable/generated/torch.copysign.html) |  | ✅ | - | ❌ |
 | [corrcoef](https://docs.pytorch.org/docs/stable/generated/torch.corrcoef.html) |  | ❌ | - | ❌ |
-| cosine_embedding_loss |  | ❌ | - | ❌ |
-| cosine_similarity |  | ❌ | - | ❌ |
+| [cosine_embedding_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.cosine_embedding_loss.html) |  | ❌ | - | ❌ |
+| [cosine_similarity](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.cosine_similarity.html) |  | ❌ | - | ❌ |
 | count |  | ❌ | - | ❌ |
 | [count_nonzero](https://docs.pytorch.org/docs/stable/generated/torch.count_nonzero.html) |  | ❌ | - | ❌ |
 | cpu |  | ❌ | - | ❌ |
@@ -269,7 +269,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | cross_entropy_loss |  | ❌ | - | ❌ |
 | crow_indices |  | ❌ | - | ❌ |
 | crow_indices_copy |  | ❌ | - | ❌ |
-| ctc_loss |  | ❌ | - | ❌ |
+| [ctc_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.ctc_loss.html) |  | ❌ | - | ❌ |
 | cuda |  | ❌ | - | ❌ |
 | cudnn_affine_grid_generator |  | ❌ | - | ❌ |
 | cudnn_batch_norm |  | ❌ | - | ❌ |
@@ -303,14 +303,14 @@ Total matched operators in `torch_to_nnef` compared to:
 | [dist](https://docs.pytorch.org/docs/stable/generated/torch.dist.html) |  | ❌ | - | ❌ |
 | divmod |  | ❌ | - | ❌ |
 | [dot](https://docs.pytorch.org/docs/stable/generated/torch.dot.html) |  | ❌ | - | ❌ |
-| dropout |  | ✅ | - | ✅ |
+| [dropout](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.dropout.html) |  | ✅ | - | ✅ |
 | [dsplit](https://docs.pytorch.org/docs/stable/generated/torch.dsplit.html) |  | ❌ | - | ❌ |
 | [dstack](https://docs.pytorch.org/docs/stable/generated/torch.dstack.html) |  | ❌ | - | ❌ |
 | dtype |  | ❌ | - | ❌ |
 | eig |  | ❌ | - | ❌ |
 | [einsum](https://docs.pytorch.org/docs/stable/generated/torch.einsum.html) |  | ❌ | - | ✅ |
 | element_size |  | ❌ | - | ❌ |
-| embedding_bag |  | ❌ | - | ❌ |
+| [embedding_bag](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.embedding_bag.html) |  | ❌ | - | ❌ |
 | embedding_renorm |  | ✅ | - | ❌ |
 | [empty_like](https://docs.pytorch.org/docs/stable/generated/torch.empty_like.html) |  | ❌ | - | ✅ |
 | empty_permuted |  | ❌ | - | ❌ |
@@ -333,7 +333,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | fake_quantize_per_channel_affine_cachemask |  | ❌ | - | ❌ |
 | [fake_quantize_per_tensor_affine](https://docs.pytorch.org/docs/stable/generated/torch.fake_quantize_per_tensor_affine.html) |  | ❌ | - | ❌ |
 | fake_quantize_per_tensor_affine_cachemask |  | ❌ | - | ❌ |
-| feature_alpha_dropout |  | ✅ | - | ❌ |
+| [feature_alpha_dropout](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.feature_alpha_dropout.html) |  | ✅ | - | ❌ |
 | feature_dropout |  | ✅ | - | ❌ |
 | fft_fftfreq |  | ❌ | - | ❌ |
 | fft_ihfft2 |  | ❌ | - | ❌ |
@@ -356,8 +356,8 @@ Total matched operators in `torch_to_nnef` compared to:
 | fork |  | ❌ | - | ❌ |
 | format |  | ❌ | - | ❌ |
 | [frac](https://docs.pytorch.org/docs/stable/generated/torch.frac.html) |  | ❌ | - | ❌ |
-| fractional_max_pool2d |  | ❌ | - | ❌ |
-| fractional_max_pool3d |  | ❌ | - | ❌ |
+| [fractional_max_pool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.fractional_max_pool2d.html) |  | ❌ | - | ❌ |
+| [fractional_max_pool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.fractional_max_pool3d.html) |  | ❌ | - | ❌ |
 | [frexp](https://docs.pytorch.org/docs/stable/generated/torch.frexp.html) |  | ❌ | - | ❌ |
 | frobenius_norm |  | ❌ | - | ❌ |
 | [from_file](https://docs.pytorch.org/docs/stable/generated/torch.from_file.html) |  | ❌ | - | ❌ |
@@ -372,31 +372,31 @@ Total matched operators in `torch_to_nnef` compared to:
 | get_gradients |  | ❌ | - | ❌ |
 | get_pool_ceil_padding |  | ❌ | - | ❌ |
 | getelem |  | ❌ | - | ❌ |
-| glu |  | ❌ | - | ✅ |
+| [glu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.glu.html) |  | ❌ | - | ✅ |
 | glu_jvp |  | ❌ | - | ❌ |
 | grad |  | ❌ | - | ❌ |
 | grid_sampler |  | ❌ | - | ❌ |
 | grid_sampler_3d |  | ❌ | - | ❌ |
-| group_norm |  | ❌ | - | ✅ |
+| [group_norm](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.group_norm.html) |  | ❌ | - | ✅ |
 | gru |  | ❌ | - | ❌ |
 | gru_cell |  | ❌ | - | ❌ |
 | [hamming_window](https://docs.pytorch.org/docs/stable/generated/torch.hamming_window.html) |  | ❌ | - | ❌ |
 | [hann_window](https://docs.pytorch.org/docs/stable/generated/torch.hann_window.html) |  | ❌ | - | ❌ |
-| hardshrink |  | ✅ | - | ❌ |
-| hardsigmoid |  | ✅ | - | ❌ |
-| hardswish |  | ✅ | - | ✅ |
+| [hardshrink](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.hardshrink.html) |  | ✅ | - | ❌ |
+| [hardsigmoid](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.hardsigmoid.html) |  | ✅ | - | ❌ |
+| [hardswish](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.hardswish.html) |  | ✅ | - | ✅ |
 | has_torch_function |  | ❌ | - | ❌ |
 | hash |  | ❌ | - | ❌ |
 | [heaviside](https://docs.pytorch.org/docs/stable/generated/torch.heaviside.html) |  | ❌ | - | ❌ |
 | hex |  | ❌ | - | ❌ |
-| hinge_embedding_loss |  | ❌ | - | ❌ |
+| [hinge_embedding_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.hinge_embedding_loss.html) |  | ❌ | - | ❌ |
 | [histc](https://docs.pytorch.org/docs/stable/generated/torch.histc.html) |  | ❌ | - | ❌ |
 | [histogram](https://docs.pytorch.org/docs/stable/generated/torch.histogram.html) |  | ❌ | - | ❌ |
 | [histogramdd](https://docs.pytorch.org/docs/stable/generated/torch.histogramdd.html) |  | ❌ | - | ❌ |
 | [hsplit](https://docs.pytorch.org/docs/stable/generated/torch.hsplit.html) |  | ❌ | - | ❌ |
 | [hspmm](https://docs.pytorch.org/docs/stable/generated/torch.hspmm.html) |  | ❌ | - | ❌ |
 | [hstack](https://docs.pytorch.org/docs/stable/generated/torch.hstack.html) |  | ❌ | - | ✅ |
-| huber_loss |  | ❌ | - | ❌ |
+| [huber_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.huber_loss.html) |  | ❌ | - | ❌ |
 | [hypot](https://docs.pytorch.org/docs/stable/generated/torch.hypot.html) |  | ✅ | - | ❌ |
 | [i0](https://docs.pytorch.org/docs/stable/generated/torch.i0.html) | special_i0 | ✅ | - | ❌ |
 | [igamma](https://docs.pytorch.org/docs/stable/generated/torch.igamma.html) | special_gammainc | ✅ | - | ❌ |
@@ -414,7 +414,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | [initial_seed](https://docs.pytorch.org/docs/stable/generated/torch.initial_seed.html) |  | ❌ | - | ❌ |
 | [inner](https://docs.pytorch.org/docs/stable/generated/torch.inner.html) |  | ❌ | - | ❌ |
 | insert |  | ❌ | - | ❌ |
-| instance_norm |  | ❌ | - | ❌ |
+| [instance_norm](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.instance_norm.html) |  | ❌ | - | ❌ |
 | int_repr |  | ❌ | - | ❌ |
 | is_autocast_cpu_enabled |  | ❌ | - | ❌ |
 | is_autocast_enabled |  | ❌ | - | ❌ |
@@ -458,11 +458,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | join |  | ❌ | - | ❌ |
 | [kaiser_window](https://docs.pytorch.org/docs/stable/generated/torch.kaiser_window.html) |  | ❌ | - | ❌ |
 | keys |  | ❌ | - | ❌ |
-| kl_div |  | ❌ | - | ❌ |
+| [kl_div](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.kl_div.html) |  | ❌ | - | ❌ |
 | [kron](https://docs.pytorch.org/docs/stable/generated/torch.kron.html) |  | ❌ | - | ❌ |
 | [kthvalue](https://docs.pytorch.org/docs/stable/generated/torch.kthvalue.html) |  | ❌ | - | ❌ |
-| l1_loss |  | ❌ | - | ❌ |
-| layer_norm |  | ❌ | - | ✅ |
+| [l1_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.l1_loss.html) |  | ❌ | - | ❌ |
+| [layer_norm](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.layer_norm.html) |  | ❌ | - | ✅ |
 | [lcm](https://docs.pytorch.org/docs/stable/generated/torch.lcm.html) |  | ✅ | - | ❌ |
 | [ldexp](https://docs.pytorch.org/docs/stable/generated/torch.ldexp.html) |  | ✅ | - | ❌ |
 | len |  | ❌ | - | ❌ |
@@ -503,7 +503,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | linalg_tensorinv |  | ❌ | - | ❌ |
 | linalg_tensorsolve |  | ❌ | - | ❌ |
 | linalg_vector_norm |  | ❌ | - | ✅ |
-| linear |  | ❌ | - | ✅ |
+| [linear](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.linear.html) |  | ❌ | - | ✅ |
 | [linspace](https://docs.pytorch.org/docs/stable/generated/torch.linspace.html) |  | ❌ | - | ❌ |
 | list |  | ❌ | - | ❌ |
 | list_with_default |  | ❌ | - | ❌ |
@@ -512,7 +512,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | log_normal |  | ✅ | - | ❌ |
 | log_sigmoid |  | ❌ | - | ❌ |
 | log_sigmoid_forward |  | ❌ | - | ❌ |
-| log_softmax | special_log_softmax | ❌ | - | ✅ |
+| [log_softmax](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.log_softmax.html) | special_log_softmax | ❌ | - | ✅ |
 | [logaddexp](https://docs.pytorch.org/docs/stable/generated/torch.logaddexp.html) |  | ❌ | - | ❌ |
 | [logaddexp2](https://docs.pytorch.org/docs/stable/generated/torch.logaddexp2.html) |  | ❌ | - | ❌ |
 | [logcumsumexp](https://docs.pytorch.org/docs/stable/generated/torch.logcumsumexp.html) |  | ❌ | - | ❌ |
@@ -530,19 +530,19 @@ Total matched operators in `torch_to_nnef` compared to:
 | mH | adjoint | ❌ | - | ❌ |
 | mT |  | ❌ | - | ❌ |
 | [manual_seed](https://docs.pytorch.org/docs/stable/generated/torch.manual_seed.html) |  | ❌ | - | ❌ |
-| margin_ranking_loss |  | ❌ | - | ❌ |
+| [margin_ranking_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.margin_ranking_loss.html) |  | ❌ | - | ❌ |
 | masked_fill |  | ✅ | - | ✅ |
 | [masked_select](https://docs.pytorch.org/docs/stable/generated/torch.masked_select.html) |  | ❌ | - | ❌ |
 | mathremainder |  | ❌ | - | ❌ |
 | [matmul](https://docs.pytorch.org/docs/stable/generated/torch.matmul.html) | linalg_matmul | ❌ | - | ✅ |
 | matrix_H |  | ❌ | - | ❌ |
 | matrix_rank |  | ❌ | - | ❌ |
-| max_pool1d |  | ❌ | - | ✅ |
+| [max_pool1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.max_pool1d.html) |  | ❌ | - | ✅ |
 | max_pool1d_with_indices |  | ❌ | - | ❌ |
-| max_pool2d |  | ❌ | - | ✅ |
-| max_pool3d |  | ❌ | - | ✅ |
-| max_unpool2d |  | ❌ | - | ❌ |
-| max_unpool3d |  | ❌ | - | ❌ |
+| [max_pool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.max_pool2d.html) |  | ❌ | - | ✅ |
+| [max_pool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.max_pool3d.html) |  | ❌ | - | ✅ |
+| [max_unpool2d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.max_unpool2d.html) |  | ❌ | - | ❌ |
+| [max_unpool3d](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.max_unpool3d.html) |  | ❌ | - | ❌ |
 | [median](https://docs.pytorch.org/docs/stable/generated/torch.median.html) |  | ❌ | - | ❌ |
 | [meshgrid](https://docs.pytorch.org/docs/stable/generated/torch.meshgrid.html) |  | ❌ | - | ❌ |
 | miopen_batch_norm |  | ❌ | - | ❌ |
@@ -552,7 +552,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | miopen_convolution_transpose |  | ❌ | - | ❌ |
 | miopen_depthwise_convolution |  | ❌ | - | ❌ |
 | miopen_rnn |  | ❌ | - | ❌ |
-| mish |  | ❌ | - | ❌ |
+| [mish](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.mish.html) |  | ❌ | - | ❌ |
 | mkldnn_adaptive_avg_pool2d |  | ❌ | - | ❌ |
 | mkldnn_convolution |  | ❌ | - | ❌ |
 | mkldnn_linear |  | ❌ | - | ❌ |
@@ -565,10 +565,10 @@ Total matched operators in `torch_to_nnef` compared to:
 | modf |  | ❌ | - | ❌ |
 | [movedim](https://docs.pytorch.org/docs/stable/generated/torch.movedim.html) | moveaxis | ❌ | - | ❌ |
 | mps_linear |  | ❌ | - | ❌ |
-| mse_loss |  | ❌ | - | ❌ |
+| [mse_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.mse_loss.html) |  | ❌ | - | ❌ |
 | [msort](https://docs.pytorch.org/docs/stable/generated/torch.msort.html) |  | ❌ | - | ❌ |
-| multi_margin_loss |  | ❌ | - | ❌ |
-| multilabel_margin_loss |  | ❌ | - | ❌ |
+| [multi_margin_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.multi_margin_loss.html) |  | ❌ | - | ❌ |
+| [multilabel_margin_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.multilabel_margin_loss.html) |  | ❌ | - | ❌ |
 | multilabel_margin_loss_forward |  | ❌ | - | ❌ |
 | [multinomial](https://docs.pytorch.org/docs/stable/generated/torch.multinomial.html) |  | ❌ | - | ❌ |
 | [mv](https://docs.pytorch.org/docs/stable/generated/torch.mv.html) |  | ❌ | - | ❌ |
@@ -592,7 +592,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | new_ones |  | ❌ | - | ❌ |
 | new_zeros |  | ❌ | - | ✅ |
 | [nextafter](https://docs.pytorch.org/docs/stable/generated/torch.nextafter.html) |  | ✅ | - | ❌ |
-| nll_loss |  | ❌ | - | ❌ |
+| [nll_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.nll_loss.html) |  | ❌ | - | ❌ |
 | nll_loss2d |  | ❌ | - | ❌ |
 | nll_loss_forward |  | ❌ | - | ❌ |
 | nll_loss_nd |  | ❌ | - | ❌ |
@@ -607,7 +607,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | [numel](https://docs.pytorch.org/docs/stable/generated/torch.numel.html) |  | ❌ | - | ✅ |
 | numpy_T |  | ❌ | - | ❌ |
 | oct |  | ❌ | - | ❌ |
-| one_hot |  | ❌ | - | ❌ |
+| [one_hot](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.one_hot.html) |  | ❌ | - | ❌ |
 | [ones](https://docs.pytorch.org/docs/stable/generated/torch.ones.html) |  | ❌ | - | ✅ |
 | [ones_like](https://docs.pytorch.org/docs/stable/generated/torch.ones_like.html) |  | ❌ | - | ✅ |
 | op |  | ❌ | - | ❌ |
@@ -618,27 +618,27 @@ Total matched operators in `torch_to_nnef` compared to:
 | output_nr |  | ❌ | - | ❌ |
 | owner |  | ❌ | - | ❌ |
 | owner_name |  | ❌ | - | ❌ |
-| pad |  | ❌ | - | ✅ |
+| [pad](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.pad.html) |  | ❌ | - | ✅ |
 | pad_sequence |  | ❌ | - | ❌ |
-| pairwise_distance |  | ❌ | - | ❌ |
+| [pairwise_distance](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.pairwise_distance.html) |  | ❌ | - | ❌ |
 | partition |  | ❌ | - | ❌ |
-| pdist |  | ❌ | - | ❌ |
+| [pdist](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.pdist.html) |  | ❌ | - | ❌ |
 | percentFormat |  | ❌ | - | ❌ |
 | permute_copy |  | ❌ | - | ❌ |
 | pin_memory |  | ❌ | - | ❌ |
 | pinv |  | ❌ | - | ❌ |
 | [pinverse](https://docs.pytorch.org/docs/stable/generated/torch.pinverse.html) |  | ❌ | - | ❌ |
-| pixel_shuffle |  | ❌ | - | ❌ |
-| pixel_unshuffle |  | ❌ | - | ❌ |
+| [pixel_shuffle](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.pixel_shuffle.html) |  | ❌ | - | ❌ |
+| [pixel_unshuffle](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.pixel_unshuffle.html) |  | ❌ | - | ❌ |
 | pointwise_placeholder |  | ❌ | - | ❌ |
 | [poisson](https://docs.pytorch.org/docs/stable/generated/torch.poisson.html) |  | ❌ | - | ❌ |
-| poisson_nll_loss |  | ❌ | - | ❌ |
+| [poisson_nll_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.poisson_nll_loss.html) |  | ❌ | - | ❌ |
 | [polar](https://docs.pytorch.org/docs/stable/generated/torch.polar.html) |  | ❌ | - | ❌ |
 | [polygamma](https://docs.pytorch.org/docs/stable/generated/torch.polygamma.html) | special_polygamma | ✅ | - | ❌ |
 | pop |  | ❌ | - | ❌ |
 | popitem |  | ❌ | - | ❌ |
 | [positive](https://docs.pytorch.org/docs/stable/generated/torch.positive.html) |  | ❌ | - | ❌ |
-| prelu |  | ❌ | - | ✅ |
+| [prelu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.prelu.html) |  | ❌ | - | ✅ |
 | [promote_types](https://docs.pytorch.org/docs/stable/generated/torch.promote_types.html) |  | ❌ | - | ❌ |
 | put |  | ✅ | - | ❌ |
 | q_per_channel_axis |  | ❌ | - | ❌ |
@@ -672,7 +672,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | record_stream |  | ❌ | - | ❌ |
 | reduce_scatter_tensor |  | ❌ | - | ❌ |
 | refine_names |  | ❌ | - | ❌ |
-| relu6 |  | ✅ | - | ✅ |
+| [relu6](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.relu6.html) |  | ✅ | - | ✅ |
 | remove |  | ❌ | - | ❌ |
 | rename |  | ✅ | - | ❌ |
 | [renorm](https://docs.pytorch.org/docs/stable/generated/torch.renorm.html) |  | ❌ | - | ❌ |
@@ -704,19 +704,19 @@ Total matched operators in `torch_to_nnef` compared to:
 | row_indices_copy |  | ❌ | - | ❌ |
 | rowwise_prune |  | ❌ | - | ❌ |
 | rpartition |  | ❌ | - | ❌ |
-| rrelu |  | ❌ | - | ❌ |
+| [rrelu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.rrelu.html) |  | ❌ | - | ❌ |
 | rrelu_with_noise |  | ✅ | - | ❌ |
 | rrelu_with_noise_functional |  | ❌ | - | ❌ |
 | rsplit |  | ❌ | - | ❌ |
 | rstrip |  | ❌ | - | ❌ |
 | rsub |  | ❌ | - | ✅ |
 | [save](https://docs.pytorch.org/docs/stable/generated/torch.save.html) |  | ❌ | - | ❌ |
-| scaled_dot_product_attention |  | ❌ | - | ✅ |
+| [scaled_dot_product_attention](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html) |  | ❌ | - | ✅ |
 | [searchsorted](https://docs.pytorch.org/docs/stable/generated/torch.searchsorted.html) |  | ❌ | - | ❌ |
 | [seed](https://docs.pytorch.org/docs/stable/generated/torch.seed.html) |  | ❌ | - | ❌ |
 | segment_reduce |  | ❌ | - | ❌ |
 | select_copy |  | ❌ | - | ❌ |
-| selu |  | ✅ | - | ✅ |
+| [selu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.selu.html) |  | ✅ | - | ✅ |
 | set |  | ✅ | - | ❌ |
 | set_data |  | ❌ | - | ❌ |
 | set_grad_enabled |  | ❌ | - | ❌ |
@@ -724,7 +724,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | setdefault |  | ❌ | - | ❌ |
 | [sgn](https://docs.pytorch.org/docs/stable/generated/torch.sgn.html) |  | ❌ | - | ❌ |
 | [signbit](https://docs.pytorch.org/docs/stable/generated/torch.signbit.html) |  | ❌ | - | ❌ |
-| silu |  | ✅ | - | ✅ |
+| [silu](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.silu.html) |  | ✅ | - | ✅ |
 | [sinc](https://docs.pytorch.org/docs/stable/generated/torch.sinc.html) | special_sinc | ❌ | - | ❌ |
 | size |  | ❌ | - | ✅ |
 | slice_copy |  | ❌ | - | ❌ |
@@ -736,11 +736,11 @@ Total matched operators in `torch_to_nnef` compared to:
 | slow_conv_transpose2d |  | ❌ | - | ❌ |
 | slow_conv_transpose3d |  | ❌ | - | ❌ |
 | [smm](https://docs.pytorch.org/docs/stable/generated/torch.smm.html) |  | ❌ | - | ❌ |
-| smooth_l1_loss |  | ❌ | - | ❌ |
-| soft_margin_loss |  | ❌ | - | ❌ |
+| [smooth_l1_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.smooth_l1_loss.html) |  | ❌ | - | ❌ |
+| [soft_margin_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.soft_margin_loss.html) |  | ❌ | - | ❌ |
 | [softmax](https://docs.pytorch.org/docs/stable/generated/torch.softmax.html) | special_softmax | ❌ | - | ✅ |
-| softplus |  | ❌ | - | ✅ |
-| softshrink |  | ❌ | - | ❌ |
+| [softplus](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.softplus.html) |  | ❌ | - | ✅ |
+| [softshrink](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.softshrink.html) |  | ❌ | - | ❌ |
 | solve |  | ❌ | - | ❌ |
 | sorted |  | ❌ | - | ❌ |
 | [sparse_compressed_tensor](https://docs.pytorch.org/docs/stable/generated/torch.sparse_compressed_tensor.html) |  | ❌ | - | ❌ |
@@ -807,7 +807,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | [t](https://docs.pytorch.org/docs/stable/generated/torch.t.html) |  | ✅ | - | ❌ |
 | [take](https://docs.pytorch.org/docs/stable/generated/torch.take.html) |  | ❌ | - | ❌ |
 | [take_along_dim](https://docs.pytorch.org/docs/stable/generated/torch.take_along_dim.html) |  | ❌ | - | ❌ |
-| tanhshrink |  | ❌ | - | ❌ |
+| [tanhshrink](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.tanhshrink.html) |  | ❌ | - | ❌ |
 | [tensor](https://docs.pytorch.org/docs/stable/generated/torch.tensor.html) |  | ❌ | - | ❌ |
 | [tensor_split](https://docs.pytorch.org/docs/stable/generated/torch.tensor_split.html) |  | ❌ | - | ❌ |
 | [tensordot](https://docs.pytorch.org/docs/stable/generated/torch.tensordot.html) |  | ❌ | - | ❌ |
@@ -817,7 +817,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | test_vartype2 |  | ❌ | - | ❌ |
 | thnn_conv2d |  | ❌ | - | ❌ |
 | thnn_conv2d_forward |  | ❌ | - | ❌ |
-| threshold |  | ❌ | - | ❌ |
+| [threshold](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.threshold.html) |  | ❌ | - | ❌ |
 | [tile](https://docs.pytorch.org/docs/stable/generated/torch.tile.html) |  | ❌ | - | ❌ |
 | title |  | ❌ | - | ❌ |
 | to |  | ❌ | - | ✅ |
@@ -833,7 +833,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | [triangular_solve](https://docs.pytorch.org/docs/stable/generated/torch.triangular_solve.html) |  | ❌ | - | ❌ |
 | [tril](https://docs.pytorch.org/docs/stable/generated/torch.tril.html) |  | ❌ | - | ✅ |
 | [tril_indices](https://docs.pytorch.org/docs/stable/generated/torch.tril_indices.html) |  | ❌ | - | ❌ |
-| triplet_margin_loss |  | ❌ | - | ❌ |
+| [triplet_margin_loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.triplet_margin_loss.html) |  | ❌ | - | ❌ |
 | [triu](https://docs.pytorch.org/docs/stable/generated/torch.triu.html) |  | ❌ | - | ✅ |
 | [triu_indices](https://docs.pytorch.org/docs/stable/generated/torch.triu_indices.html) |  | ❌ | - | ❌ |
 | type_as |  | ❌ | - | ✅ |
@@ -841,7 +841,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | unbind_copy |  | ❌ | - | ❌ |
 | [unflatten](https://docs.pytorch.org/docs/stable/generated/torch.unflatten.html) |  | ❌ | - | ✅ |
 | unflatten_dense_tensors |  | ❌ | - | ❌ |
-| unfold |  | ❌ | - | ❌ |
+| [unfold](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.unfold.html) |  | ❌ | - | ❌ |
 | unfold_copy |  | ❌ | - | ❌ |
 | uniform |  | ✅ | - | ❌ |
 | [unique_consecutive](https://docs.pytorch.org/docs/stable/generated/torch.unique_consecutive.html) |  | ❌ | - | ❌ |
@@ -854,7 +854,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | unsqueeze_copy |  | ❌ | - | ❌ |
 | update |  | ❌ | - | ❌ |
 | upper |  | ❌ | - | ❌ |
-| upsample |  | ❌ | - | ❌ |
+| [upsample](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.upsample.html) |  | ❌ | - | ❌ |
 | upsample_bicubic2d |  | ❌ | - | ❌ |
 | upsample_linear1d |  | ❌ | - | ❌ |
 | upsample_nearest1d |  | ❌ | - | ❌ |

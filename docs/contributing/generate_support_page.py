@@ -40,11 +40,16 @@ class LinkToTorchDocCache:
                 {k: list(v) for k, v in self.cache_dic.items()}, fh, indent=4
             )
 
-    def add(self, pattern: str, op_name: str):
-        if op_name in self.cache_dic[pattern]:
-            return
+    def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
+        for k, v in self.cache_dic.items():
+            if k is self.UNK:
+                continue
+            if op_name in v and exclusive_pattern:
+                return
         if rq.get(pattern.format(op_name)).status_code == 200:
             self.cache_dic[pattern].add(op_name)
+            if op_name in self.cache_dic[self.UNK]:
+                self.cache_dic[self.UNK].remove(op_name)
         else:
             self.cache_dic[self.UNK].add(op_name)
 
@@ -124,6 +129,10 @@ for ix, a in enumerate(aten_torch_from_code[:]):
 
 cache_url = LinkToTorchDocCache(Path(__file__).parent / "torch_doc_urls.json")
 for a_from_code in aten_torch_from_code:
+    cache_url.add(
+        "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.{}.html",
+        a_from_code,
+    )
     cache_url.add(
         "https://docs.pytorch.org/docs/stable/generated/torch.{}.html",
         a_from_code,
