@@ -1,5 +1,5 @@
 !!! note
-    This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **20 Jul 2025**.
+    This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **21 Jul 2025**.
 
 !!! warning
      Take these information with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.
@@ -13,13 +13,13 @@ Total matched operators in `torch_to_nnef` compared to:
 
 -  full `aten::`: 
 
-[=181/862 "181/862"]
+[=182/862 "182/862"]
 
 - and support from core PyTorch opset:
 
-[=109/138 "109/138"]
+[=110/138 "110/138"]
 
- (total registered aten operators in t2n being 212)
+ (total registered aten operators in t2n being 213)
 
 | aten name | aliases | can in-place | is core | t2n translated |
 | -------- | ------- | ------- | --------- | ---------------- |
@@ -50,7 +50,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | bitwise_or |  | ✅ | ✅ | ✅ |
 | bitwise_xor |  | ✅ | ✅ | ❌ |
 | bmm |  | ❌ | ✅ | ✅ |
-| cat | concatenate, concat | ❌ | ✅ | ✅ |
+| cat | concat, concatenate | ❌ | ✅ | ✅ |
 | ceil |  | ✅ | ✅ | ✅ |
 | clamp | clip | ✅ | ✅ | ✅ |
 | clone |  | ❌ | ✅ | ✅ |
@@ -72,7 +72,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | exp |  | ✅ | ✅ | ✅ |
 | expand |  | ❌ | ✅ | ✅ |
 | expm1 | special_expm1 | ✅ | ✅ | ✅ |
-| fill |  | ✅ | ✅ | ❌ |
+| fill |  | ✅ | ✅ | ✅ |
 | flip |  | ❌ | ✅ | ❌ |
 | floor |  | ✅ | ✅ | ✅ |
 | fmod |  | ✅ | ✅ | ✅ |
@@ -298,7 +298,7 @@ Total matched operators in `torch_to_nnef` compared to:
 | diagonal_scatter |  | ❌ | - | ❌ |
 | dict |  | ❌ | - | ❌ |
 | diff |  | ❌ | - | ❌ |
-| digamma | special_psi, special_digamma | ✅ | - | ❌ |
+| digamma | special_digamma, special_psi | ✅ | - | ❌ |
 | dim |  | ❌ | - | ❌ |
 | dist |  | ❌ | - | ❌ |
 | divmod |  | ❌ | - | ❌ |

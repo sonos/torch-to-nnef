@@ -33,7 +33,7 @@ t2n_aten = set(list(aten_ops_registry._registry.keys()))
 aten_torch_from_code = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git -C 'pytorch' pull || git clone -q git@github.com:pytorch/pytorch.git; "
+        "git clone -q git@github.com:pytorch/pytorch.git || git -C 'pytorch' pull; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
@@ -123,7 +123,7 @@ with (Path(__file__).parent / "./supported_operators.md").open(
             matched_qte += 1
 
         inplace_str = "✅" if a_from_code in support_inplace else "❌"
-        alias_str = ", ".join(ref_alias[a_from_code])
+        alias_str = ", ".join(sorted(ref_alias[a_from_code]))
         rows.append(
             (
                 f"| {a_from_code} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
