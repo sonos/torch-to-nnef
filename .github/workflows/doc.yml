@@ -41,9 +41,11 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Deploy to GitHub Pages
+      - name: Get cred
         uses: oleksiyrudenko/gha-git-credentials@v2-latest
         with:
           token: '${{ secrets.GITHUB_TOKEN }}'
+
+      - name: Deploy to GitHub Pages
         run: |
           uv run mkdocs gh-deploy
