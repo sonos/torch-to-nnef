@@ -37,6 +37,11 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email sonos+github-actions[bot]@users.noreply.github.com
 
+      - name: Register the personal access token
+        run: echo "${{ secrets.T2N_GITHUB_TOKEN }}" | gh auth login --with-token
+      - name: Configure the Git credential helper
+        run: gh auth setup-git
+
       - uses: actions/setup-python@v5
         with:
           python-version: 3.12
@@ -44,6 +49,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
 
       - name: Install dependencies
