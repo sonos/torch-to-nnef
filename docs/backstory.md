@@ -11,7 +11,7 @@ In early 2022 we started to investigate use of compression techniques and in par
 This ability to export quantized models is critical because of limited on-device resources and
 the advent of multi-billions parameters models.
 
-Unfortunatly the state of [ONNX](https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html) in that regard, is unsatisfactory (and was worse back then),
+Unfortunately the state of [ONNX](https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html) in that regard, is unsatisfactory (and was worse back then),
 QDQ in particular lack flexibility and feel like and ad-hoc design. We took a shot tried to build a prototype to allow exporting QAT
 models directly from PyTorch to an NNEF readable in tract. It took us 2 weeks and unlocked ability to debug and extend graph operators with such ease (no more compiling protobuf :tada:, readable NNEF format)
 that it leads us continuing this work until today.
