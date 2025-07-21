@@ -65,5 +65,3 @@ jobs:
       - name: Deploy to GitHub Pages
         run: |
           mkdocs gh-deploy --force
-        env:
-          GH_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
