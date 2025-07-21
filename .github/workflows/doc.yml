@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  paths:
+    - "**.md"
+    - "mkdocs.yml"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -24,7 +27,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: s2-player-builder-rust
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,14 +40,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
+
       - name: Install dependencies
         run: |
           uv sync --group dev
 
-      - name: Get cred
-        uses: oleksiyrudenko/gha-git-credentials@v2-latest
-        with:
-          token: '${{ secrets.GITHUB_TOKEN }}'
+      - run: git config user.name 'github-actions[bot]' && git config user.email 'github-actions[bot]@users.noreply.github.com'
 
       - name: Deploy to GitHub Pages
         run: |
