@@ -60,9 +60,10 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      - name: Deploy to GitHub Pages
+      - name: Build static Pages
         run: |
           uv run mkdocs build
+          mv site github-pages
 
       - name: Deploy to GitHub Pages
         id: deployment
