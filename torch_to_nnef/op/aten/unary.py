@@ -4,11 +4,6 @@ REMAP_ATEN_OP_NAMES = {
     "__and__": "and",
     "__or__": "or",
     "_relu": "relu",
-    "bitwise_and": "and",
-    "bitwise_cpu": "and",
-    "bitwise_not": "not",
-    "bitwise_not_cpu": "not",
-    "bitwise_or": "or",
     "greater": "gt",
     "greater_equal": "ge",
     "less": "lt",
@@ -17,6 +12,8 @@ REMAP_ATEN_OP_NAMES = {
     "logical_and": "and",
     "logical_or": "or",
     "reciprocal": "rcp",
+    "minimum": "min",
+    "maximum": "max",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [

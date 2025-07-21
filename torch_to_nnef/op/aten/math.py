@@ -495,3 +495,58 @@ def var(node, op_helper, **kwargs):
         attrs={"axes": axes},
     )
     return ["var"]
+
+
+@OP_REGISTRY.register(["logical_xor"])
+def logical_xor(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr(
+        nnef_op_type="tract_core_xor", node=node
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register(["bitwise_xor"])
+def bitwise_xor(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr(
+        nnef_op_type="tract_core_bitxor", node=node
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register(["bitwise_and", "bitwise_cpu"])
+def bitwise_and(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr(
+        nnef_op_type="tract_core_bitand", node=node
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register(["bitwise_not", "bitwise_not_cpu"])
+def bitwise_not(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr(
+        nnef_op_type="tract_core_bitnot", node=node
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register(["bitwise_or"])
+def bitwise_or(node, op_helper, inference_target, **kwargs):
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr(
+        nnef_op_type="tract_core_bitor", node=node
+    )
+    return ["tract_core"]

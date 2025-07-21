@@ -12,6 +12,7 @@ from torch_to_nnef.op.helper import (
     add_tensor_variable_node_as_nnef_tensor,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
+    get_tract_dyn_axis_size_soc,
     unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph import (
@@ -112,7 +113,7 @@ def _generic_auto_tensor_expansion(
 ):
     """In case the tensor need to be dependant on shape of another"""
     if isinstance(shape_node, (list, tuple)) and all(
-        isinstance(d, int) for d in shape_node
+        isinstance(d, (int, str)) for d in shape_node
     ):
         dim_data = shape_node
     else:
@@ -402,6 +403,36 @@ def full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         name_to_tensor,
         has_dynamic_axes=inference_target.has_dynamic_axes,
         dtype=torch.float32,
+        tensor_build_fn=full_fn,
+    )
+
+
+@OP_REGISTRY.register(["fill", "fill_"])
+def fill(
+    g, node, name_to_tensor, torch_graph, inference_target, op_helper, **kwargs
+):
+    (input_node, val_node, *_) = node.inputs  # device_node,  # False
+
+    def full_fn(*args, **kwargs):
+        return torch.ones(*args, **kwargs) * val_node.data
+
+    if inference_target.has_dynamic_axes:
+        dims_nnef = []
+        for ix, _ in enumerate(input_node.shape[:]):
+            soc = get_tract_dyn_axis_size_soc(op_helper, input_node, ix)
+            dims_nnef.append(soc.output_name)
+    else:
+        dims_nnef = input_node.shape[:]
+    shape_node = dims_nnef
+
+    return _generic_auto_tensor_expansion(
+        shape_node,
+        node,
+        g,
+        torch_graph,
+        name_to_tensor,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
+        dtype=input_node.dtype,
         tensor_build_fn=full_fn,
     )
 

@@ -120,6 +120,7 @@ nav:
   - Contributing:
     - 'Guidelines': contributing/guidelines.md
     - 'Internal design': contributing/internal_design.md
+    - 'Supported aten operators': contributing/supported_operators.md
     - 'Add new aten operator': contributing/add_new_aten_op.md
     - 'Debugging': contributing/debugging.md
   - 'Why NNEF': why_nnef.md

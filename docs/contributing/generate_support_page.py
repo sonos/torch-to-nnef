@@ -1,6 +1,8 @@
+import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from torch_to_nnef.op.aten import aten_ops_registry
 import requests as rq
 import bs4
@@ -14,6 +16,48 @@ resp = rq.get(URL_IR)
 assert resp.status_code == 200
 
 soup = bs4.BeautifulSoup(resp.content, "html.parser")
+
+
+class LinkToTorchDocCache:
+    UNK = "unk"
+
+    def __init__(self, cache_path: Path):
+        self.cache_path = cache_path
+        self.cache_dic = self.load()
+
+    def load(self):
+        base = defaultdict(set)
+        if self.cache_path.exists():
+            with self.cache_path.open("r", encoding="utf8") as fh:
+                for pat, elms in json.load(fh).items():
+                    for elm in elms:
+                        base[pat].add(elm)
+        return base
+
+    def save(self):
+        with self.cache_path.open("w", encoding="utf8") as fh:
+            json.dump(
+                {k: list(v) for k, v in self.cache_dic.items()}, fh, indent=4
+            )
+
+    def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
+        for k, v in self.cache_dic.items():
+            if k is self.UNK:
+                continue
+            if op_name in v and exclusive_pattern:
+                return
+        if rq.get(pattern.format(op_name)).status_code == 200:
+            self.cache_dic[pattern].add(op_name)
+            if op_name in self.cache_dic[self.UNK]:
+                self.cache_dic[self.UNK].remove(op_name)
+        else:
+            self.cache_dic[self.UNK].add(op_name)
+
+    def get_url(self, op_name) -> Optional[str]:
+        for k, v in self.cache_dic.items():
+            if op_name in v and k != self.UNK:
+                return k.format(op_name)
+
 
 res = soup.find_all("span", {"class": "pre"})
 official_aten_names = set(
@@ -33,7 +77,7 @@ t2n_aten = set(list(aten_ops_registry._registry.keys()))
 aten_torch_from_code = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git -C 'pytorch' pull || git clone -q git@github.com:pytorch/pytorch.git; "
+        "git clone -q git@github.com:pytorch/pytorch.git || git -C 'pytorch' pull; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
@@ -83,6 +127,16 @@ for ix, a in enumerate(aten_torch_from_code[:]):
         offset += 1
         support_inplace.add(a[:-1])
 
+cache_url = LinkToTorchDocCache(Path(__file__).parent / "torch_doc_urls.json")
+for a_from_code in aten_torch_from_code:
+    cache_url.add(
+        "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.{}.html",
+        a_from_code,
+    )
+    cache_url.add(
+        "https://docs.pytorch.org/docs/stable/generated/torch.{}.html",
+        a_from_code,
+    )
 
 matched_qte = 0
 with (Path(__file__).parent / "./supported_operators.md").open(
@@ -123,10 +177,14 @@ with (Path(__file__).parent / "./supported_operators.md").open(
             matched_qte += 1
 
         inplace_str = "✅" if a_from_code in support_inplace else "❌"
-        alias_str = ", ".join(ref_alias[a_from_code])
+        alias_str = ", ".join(sorted(ref_alias[a_from_code]))
+        op_name = a_from_code
+        torch_url_doc = cache_url.get_url(op_name)
+        if torch_url_doc:
+            op_name = f"[{op_name}]({torch_url_doc})"
         rows.append(
             (
-                f"| {a_from_code} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
+                f"| {op_name} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
                 is_core,
             )
         )
@@ -157,3 +215,5 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         print(r[0], file=fh)
 
     print("", file=fh)
+
+cache_url.save()
