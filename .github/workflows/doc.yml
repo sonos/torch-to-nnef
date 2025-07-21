@@ -27,7 +27,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: s2-player-builder-rust
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,7 +67,6 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
-          gh auth login
           uv run mkdocs gh-deploy --force
         env:
           GH_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
