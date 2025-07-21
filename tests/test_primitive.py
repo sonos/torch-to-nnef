@@ -235,7 +235,9 @@ for op in [
     )
 
 test_suite.add(
-    torch.tensor([True, False, True]), UnaryPrimitive(torch.bitwise_not)
+    torch.tensor([True, False, True]),
+    UnaryPrimitive(torch.bitwise_not),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 for op in [
