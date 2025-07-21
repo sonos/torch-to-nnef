@@ -52,7 +52,10 @@ jobs:
         with:
           enable-cache: true
 
-      - run: pip install "mkdocs-material<9.7,>=9.6" "mkdocs-api-autonav==0.3.0" "mkdocstrings-python<1.12,>=1.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
 
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
       - uses: actions/cache@v4
@@ -64,4 +67,7 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
-          mkdocs gh-deploy --force
+          gh auth login
+          uv run mkdocs gh-deploy --force
+        env:
+          GH_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
