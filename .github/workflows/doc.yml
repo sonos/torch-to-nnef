@@ -62,6 +62,8 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
-          uv run mkdocs gh-deploy --force
-        env:
-          GH_TOKEN: ${{ secrets.T2N_GITHUB_TOKEN }}
+          uv run mkdocs build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
