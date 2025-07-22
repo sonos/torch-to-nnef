@@ -149,7 +149,7 @@ There is mostly 2 kind of operators
 - Those that are directly mapping to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
 and are 1 to 1 tensor transformation in that case just add it in the map in `torch_to_nnef.op.aten.unary`: `GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES` or `REMAP_ATEN_OP_NAMES`.
 
-- Those that are straight mapping:
+- Those that need a bit of mapping:
 
 ```python title="Example of straight mapping"
 @OP_REGISTRY.register(["bitwise_or"]) # (1)!
@@ -163,11 +163,11 @@ def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
     return ["tract_core"] # (5)!
 ```
 
-1. TODO
-2. TODO
-3. TODO
-4. TODO
-5. TODO
+1. OP_REGISTRY is by convention always declared on top of module it's the registry that accumulate the translations. if you call `.register()` it will take the name of the function as reference for the operator to translate. if you provide an array like `.register(["a", "b", "c"])` all aten operators named `a`, `b` and `c` will be mapped here.
+2. The complete signature of the function is evolving but as of now is: `g: nnef.Graph`, `node: torch_to_nnef.torch_graph.TorchOp`, `name_to_tensor: T.Dict[str, nnef.tensor]`, `null_ref: nnef.tensor`, `torch_graph: torch_to_nnef.torch_graph.TorchModuleIRGraph`, `inference_target: torch_to_nnef.inference_target.base.InferenceTarget`, `aten_op_id: str`, `op_helper: torch_to_nnef.op.helper.OpHelper` obviously a lot of those parameters are often unneeded hence the `**kwargs`. Basically our goal is always to translate what is in `node` the best we can in `g` while keeping `name_to_tensor` up-to-date. `OpHelper` is a 'newly' introduced builder to simplify creation of classic translation pattern.
+3. Often you may want to support only for specific `inference_target` Type or Version this is an concrete example of how this can look like
+4. Here we use the helper to declare a new operator that will have a single output from a single input named in NNEF graph `tract_core_bitor`
+5. By default translation function can return None or empty array but if an array of string is provided, it will automatically try to load the associated fragment in [`torch_to_nnef.op.fragment`](/reference/torch_to_nnef/op/fragment/#torch_to_nnef.op.fragment.Fragment)
 
 Here we added tooltips on each part to explains the best we could.
 
@@ -207,8 +207,8 @@ Please conform to those.
 ## <span style="color:#6666aa">**:material-step-forward: Step 6.**</span> submit the Pull request (PR)
 
 You are now ready to create a pull request on our repo, please
-note that after that all your code will be [MIT/Apache 2] Liscenced.
-Also please follow the same prefix naming convention for your PR name and commit than for branch.
+note that after that all your code will be [MIT/Apache 2] licensed.
+Also please follow the same prefix naming convention for your PR name and commits than for the branch.
 
 !!! success end "Congratulation"
 
