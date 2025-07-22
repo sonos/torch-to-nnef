@@ -25,6 +25,13 @@ We support PyTorch > 1.8.0 with tract last 2 major releases (>= 0.20.22 to date)
 
 ## Install
 
+Today, the project is packaged in internal SONOS [Artifactory](https://jfrog.com/artifactory/),
+please be sure to have it configured (replace `user` and `pass` accordingly):
+
+```ini title="$HOME/.pip/pip.conf"
+extra-index-url=https://{user}:{pass}@redacted.com/artifactory/api/pypi/pypi-local/simple
+```
+
 To install it you can run depending on your package manager:
 
 === "pip"
@@ -47,4 +54,4 @@ To install it you can run depending on your package manager:
     ```
 
 !!! note
-    This project is still early stage, if you encounter any bug please follow [Bug report](./contributing/guidelines.md)  section instructions
+    The project scope is broad and contribution are welcome, if you encounter any bug please follow the [Bug report](./contributing/guidelines.md) instructions
