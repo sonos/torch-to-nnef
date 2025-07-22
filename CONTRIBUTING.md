@@ -69,6 +69,11 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
     git checkout -b name-of-your-bugfix-or-feature
     ```
 
+    Try to follow this prefix naming convention:
+    * `feat/`  for features branch (new operators, new handlers ...)
+    * `fix/`  for bugfixes and hotfixes branch
+    * `chore/`  for versions bump, CI/CD, packaging, ...
+
     Now you can make your changes locally.
 
 6. When you're done making changes, check that your changes pass the
