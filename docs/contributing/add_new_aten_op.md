@@ -82,7 +82,8 @@ to your unsupported torch operation by example:
 test_suite.add(
     torch.randn(5, 3),
     UnaryPrimitive(torch.svd),
-    inference_conditions=skip_khronos_interpreter, # filter to specific inference engine to skip from test
+    # filter to specific inference engine to skip from test
+    inference_conditions=skip_khronos_interpreter,
 )
 ```
 
@@ -119,7 +120,97 @@ Finally you may want to focus on non tract inferences and set the:
 T2N_TEST_SKIP_TRACT=1 py.test tests/test_primitive.py::test_primitive_export
 ```
 
-Another useful environment you can activate are:
+Other useful environment variable you can activate are:
 
-- `DUMP_DIRPATH={my_dirpath}` that will dump `.nnef.tgz` all successful tests (usefull to create a zoo of usecase)
-- `DEBUG=1` that will build and fill for you a directory `failed_tests` that will contains all dumps of models that are not passing test suite but still are able to be exported to NNEF (either because of a translation code error or a bug in the targeted inference engine).
+- `DUMP_DIRPATH={my_dirpath}` that will dump all `.nnef.tgz` from successful tests (useful to create a zoo of use-case), warning that may be a lot
+- `DEBUG=1` that will build and fill a directory `failed_tests` when you run tests. It will contains all dumps of models that are not passing test suite but still are able to be exported to NNEF (either because of a translation code error or a bug in the targeted inference engine), with ad-hoc information useful to debug.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 2.**</span> Un-Implemented check
+
+While adding new operators test it may happen you do not observe the error (following example in step 1.)
+
+```bash
+torch_to_nnef.exceptions.TorchToNNEFNotImplementedError:
+'svd' operator as not yet been translated to NNEF or registred
+```
+
+If that happen you can either [file an issue](./guidelines.md) or [try to debug](./debugging.md) yourself.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 3.**</span> Implement translation
+
+It's now time to add your operator translation !
+
+A lot of example exists in the `torch_to_nnef.op.aten` sub modules.
+Each sub-module is organized by theme. please try to find the one that is the closest
+from your operator or put it in `other` if not.
+
+There is mostly 2 kind of operators
+
+- Those that are directly mapping to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
+and are 1 to 1 tensor transformation in that case just add it in the map in `torch_to_nnef.op.aten.unary`: `GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES` or `REMAP_ATEN_OP_NAMES`.
+
+- Those that are straight mapping:
+
+```python title="Example of straight mapping"
+@OP_REGISTRY.register(["bitwise_or"]) # (1)!
+def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF): # (3)!
+        raise TorchToNNEFNotImplementedError(inference_target)
+    op_helper.unary_output_op_without_attr( # (4)!
+        nnef_op_type="tract_core_bitor", node=node
+    )
+    return ["tract_core"] # (5)!
+```
+
+1. TODO
+2. TODO
+3. TODO
+4. TODO
+5. TODO
+
+Here we added tooltips on each part to explains the best we could.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 4.**</span> Test suite pass
+
+At this stage you can relaunch test suite as described upper and it should pass.
+
+Do not forget to remove the `test_suite.reset()` and relaunch the full test suite coverage.
+
+```bash title="global cmd"
+py.test
+```
+
+To ensure nothing break due to that new addition.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 5.**</span> Check written code
+
+There is 3 things to do now run :
+
+- [ruff](https://docs.astral.sh/ruff/) for formatting
+
+```bash
+ruff format
+```
+
+- [ruff](https://docs.astral.sh/ruff/) check for first lint
+
+```bash
+ruff check
+```
+
+- [prospector](https://pypi.org/project/prospector/) deeper more complete analysis
+
+In term of naming convention try to follow [google style](https://google.github.io/styleguide/pyguide.html).
+Please conform to those.
+
+## <span style="color:#6666aa">**:material-step-forward: Step 6.**</span> submit the Pull request (PR)
+
+You are now ready to create a pull request on our repo, please
+note that after that all your code will be [MIT/Apache 2] Liscenced.
+Also please follow the same prefix naming convention for your PR name and commit than for branch.
+
+!!! success end "Congratulation"
+
+    :tada: you made it !
+    Congratulation and thank you so much for your contribution

@@ -93,6 +93,19 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
 
 8. Submit a pull request through the GitHub website.
 
+## Code style
+
+We use the following code tools for formatting and first checks:
+
+* [ruff](https://docs.astral.sh/ruff/) for formatting
+* [ruff](https://docs.astral.sh/ruff/) check for first lint
+* [prospector](https://pypi.org/project/prospector/) deeper more complete analysis
+
+In term of naming convention we try to follow [google style](https://google.github.io/styleguide/pyguide.html), the most we can.
+
+
+I
+
 ## Pull Request Guidelines
 
 Before you submit a pull request, check that it meets these guidelines:

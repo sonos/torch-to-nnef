@@ -1,5 +1,15 @@
 from pygments.lexer import RegexLexer, bygroups
-from pygments.token import *
+from pygments.token import (
+    Comment,
+    Punctuation,
+    String,
+    Number,
+    Whitespace,
+    Name,
+    Operator,
+    Text,
+    Keyword,
+)
 
 
 class NNEFLexer(RegexLexer):
