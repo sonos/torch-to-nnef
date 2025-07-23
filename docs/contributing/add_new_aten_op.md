@@ -144,12 +144,12 @@ A lot of example exists in the `torch_to_nnef.op.aten` sub modules.
 Each sub-module is organized by theme. please try to find the one that is the closest
 from your operator or put it in `other` if not.
 
-There is mostly 2 kind of operators
+There is mostly 3 kind of operators mapping
 
-- Those that are directly mapping to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
+**1.** Those that directly map to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
 and are 1 to 1 tensor transformation in that case just add it in the map in `torch_to_nnef.op.aten.unary`: `GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES` or `REMAP_ATEN_OP_NAMES`.
 
-- Those that need a bit of mapping:
+**2.** Those that need a bit of mapping (sometime adding few composed operators NNEF side):
 
 ```python title="Example of straight mapping"
 @OP_REGISTRY.register(["bitwise_or"]) # (1)!
@@ -170,6 +170,8 @@ def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
 5. By default translation function can return None or empty array but if an array of string is provided, it will automatically try to load the associated fragment in [`torch_to_nnef.op.fragment`](/reference/torch_to_nnef/op/fragment/#torch_to_nnef.op.fragment.Fragment)
 
 Here we added tooltips on each part to explains the best we could.
+
+**3.** `nn.Module` that are are too complex (explode is too much IR components) or not tracable easily in this case you can use [custom operators](/tutos/8_custom_operator) (If you want to introduce one in core library please contact us before)
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 4.**</span> Test suite pass
 
