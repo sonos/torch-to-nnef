@@ -79,7 +79,7 @@ repeat and better formalism.
     First off let's be clear ONNX is good enough for a wide variety
     of Neural Network usecase.
     It's the defacto standard in the industry we are **not** denying it.
-    Also the tooling around it is mature and more optimized than for NNEF.
+    Also the tooling around it is mature and more optimized than for NNEF (for general purpose).
 
 That said.
 
