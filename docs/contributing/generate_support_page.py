@@ -37,7 +37,9 @@ class LinkToTorchDocCache:
     def save(self):
         with self.cache_path.open("w", encoding="utf8") as fh:
             json.dump(
-                {k: list(v) for k, v in self.cache_dic.items()}, fh, indent=4
+                {k: sorted(list(v)) for k, v in self.cache_dic.items()},
+                fh,
+                indent=4,
             )
 
     def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
@@ -150,7 +152,8 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         "!!! warning\n"
         "     Take these information with a grain of salt as this is referencing operators that may never appear"
         " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
-        " uncommon operators are very rare in models, hence support may be lacking."
+        " uncommon operators are very rare in models, hence support may be lacking. "
+        " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
         f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})\n\n"
         "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine.",
@@ -194,10 +197,10 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
     print(
         "Total matched operators in `torch_to_nnef` compared to:\n\n"
-        "-  full `aten::`: \n\n"
-        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
-        f"- and support from core PyTorch opset:\n\n"
+        f"- core PyTorch opset:\n\n"
         f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
+        "-  and support from full `aten::`: \n\n"
+        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
         " (total registered aten "
         f"operators in t2n being {t2n_n_ops})",
         file=fh,

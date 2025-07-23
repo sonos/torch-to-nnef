@@ -21,6 +21,7 @@ from torch_to_nnef.exceptions import (
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.inference_target import InferenceTarget
+from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
@@ -181,94 +182,75 @@ def export_model_to_nnef(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
-    with select_model_mode_for_export(model, TrainingMode.EVAL):
-        set_opaque_tensor_in_params_as_ref(model)
-        model, args, input_names, output_names = may_wrap_model_to_flatten_io(
-            model, args, outs, input_names, output_names
-        )
-        inference_target.pre_trace(model, input_names, output_names)
-
-        graph_extractor = TorchToNGraphExtractor(
-            model,
-            args,
-            inference_target=inference_target,
-            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
-            check_io_names_qte_match=check_io_names_qte_match,
-            forced_inputs_names=input_names,
-            forced_outputs_names=output_names,
-        )
-        nnef_graph = graph_extractor.parse()
-
-        active_custom_extensions = get_active_custom_extensions(graph_extractor)
-        inference_target.post_trace(nnef_graph, active_custom_extensions)
-        if custom_extensions is not None:
-            active_custom_extensions = dedup_list(
-                active_custom_extensions + custom_extensions
+    with unsupported_module_alerter(inference_target):
+        with select_model_mode_for_export(model, TrainingMode.EVAL):
+            set_opaque_tensor_in_params_as_ref(model)
+            model, args, input_names, output_names = (
+                may_wrap_model_to_flatten_io(
+                    model, args, outs, input_names, output_names
+                )
             )
+            inference_target.pre_trace(model, input_names, output_names)
 
-        active_custom_fragments = inference_target.specific_fragments(model)
-        active_custom_fragments.update(
-            get_active_custom_fragments(graph_extractor)
-        )
-        del graph_extractor
-        nnef_exp_file_path = real_export_path(
-            file_path_export, compression_level
-        )
-
-        NNEFWriter(
-            compression=compression_level,
-            fragments=active_custom_fragments,
-            generate_custom_fragments=False,
-            extensions=list(active_custom_extensions),
-            version_custom_fragments=None,  # using version sometime create conflict with ops
-            inference_target=inference_target,
-        )(nnef_graph, str(nnef_exp_file_path))
-
-        if len(active_custom_extensions) > 0:
-            LOGGER.info(
-                "The exported NNEF model need special custom extensions "
-                f"such as {active_custom_extensions}, be sure "
-                f"to use the inference engine you specified: {inference_target}"
-            )
-        LOGGER.info(
-            f"model exported successfully as NNEF at: {nnef_exp_file_path}"
-        )
-        exported_filepath = file_path_export.parent / (
-            nnef_exp_file_path.name + ".tgz"
-        )
-        with fixed_backend():
-            inference_target.post_export(
+            graph_extractor = TorchToNGraphExtractor(
                 model,
-                nnef_graph,
                 args,
-                exported_filepath,
-                debug_bundle_path=debug_bundle_path,
+                inference_target=inference_target,
+                nnef_variable_naming_scheme=nnef_variable_naming_scheme,
+                check_io_names_qte_match=check_io_names_qte_match,
+                forced_inputs_names=input_names,
+                forced_outputs_names=output_names,
             )
+            nnef_graph = graph_extractor.parse()
+
+            active_custom_extensions = get_active_custom_extensions(
+                graph_extractor
+            )
+            inference_target.post_trace(nnef_graph, active_custom_extensions)
+            if custom_extensions is not None:
+                active_custom_extensions = dedup_list(
+                    active_custom_extensions + custom_extensions
+                )
+
+            active_custom_fragments = inference_target.specific_fragments(model)
+            active_custom_fragments.update(
+                get_active_custom_fragments(graph_extractor)
+            )
+            del graph_extractor
+            nnef_exp_file_path = real_export_path(
+                file_path_export, compression_level
+            )
+
+            NNEFWriter(
+                compression=compression_level,
+                fragments=active_custom_fragments,
+                generate_custom_fragments=False,
+                extensions=list(active_custom_extensions),
+                version_custom_fragments=None,  # using version sometime create conflict with ops
+                inference_target=inference_target,
+            )(nnef_graph, str(nnef_exp_file_path))
+
+            if len(active_custom_extensions) > 0:
+                LOGGER.info(
+                    "The exported NNEF model need special custom extensions "
+                    f"such as {active_custom_extensions}, be sure "
+                    f"to use the inference engine you specified: {inference_target}"
+                )
+            LOGGER.info(
+                f"model exported successfully as NNEF at: {nnef_exp_file_path}"
+            )
+            exported_filepath = file_path_export.parent / (
+                nnef_exp_file_path.name + ".tgz"
+            )
+            with fixed_backend():
+                inference_target.post_export(
+                    model,
+                    nnef_graph,
+                    args,
+                    exported_filepath,
+                    debug_bundle_path=debug_bundle_path,
+                )
     mod_tensor_updater.restore_require_grad()
-
-
-@contextlib.contextmanager
-def fixed_backend():
-    """Controled backend in order to limit volatility of kernel selection
-
-    Useful in case of checks between PyTorch and targeted inference
-    outputs.
-
-    """
-    if torch_version() >= "2.3.0":
-        # pylint: disable-next=import-outside-toplevel
-        from torch.nn.attention import SDPBackend, sdpa_kernel
-
-        kwargs = {}
-        if torch_version() >= "2.6.0":
-            kwargs["set_priority"] = True
-
-        with sdpa_kernel(
-            [SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION], **kwargs
-        ):
-            yield None
-    else:
-        yield None
 
 
 def check_io_names(
@@ -436,3 +418,69 @@ def export_tensors_to_nnef(
                 quantized=is_qtype,
             )
     return name_to_torch_tensors
+
+
+@contextlib.contextmanager
+def unsupported_module_alerter(inference_target: InferenceTarget):
+    """Trigger an error if module or specific function are unsupported.
+
+    This avoid suprious expension of internal graph leads to
+    error messages hard to interpret.
+    """
+
+    class UnsupportedRaise:
+        def __init__(self, msg) -> None:
+            self.msg = msg
+
+        def __call__(self, *args: T.Any, **kwds: T.Any) -> T.Any:
+            raise TorchToNNEFNotImplementedError(self.msg)
+
+    if isinstance(inference_target, TractNNEF):
+        torch.nn.utils.rnn.original_pack_padded_sequence = (
+            torch.nn.utils.rnn.pack_padded_sequence
+        )
+        torch.nn.utils.rnn.pack_padded_sequence = UnsupportedRaise(
+            "'nn.utils.rnn.pack_padded_sequence' not supported by tract yet."
+            " Contribution welcome."
+        )
+        torch.nn.utils.rnn.original_pad_packed_sequence = (
+            torch.nn.utils.rnn.pad_packed_sequence
+        )
+        torch.nn.utils.rnn.pad_packed_sequence = UnsupportedRaise(
+            "'nn.utils.rnn.pad_packed_sequence' not supported by tract yet."
+            " Contribution welcome."
+        )
+    try:
+        yield
+    finally:
+        if isinstance(inference_target, TractNNEF):
+            torch.nn.utils.rnn.pack_padded_sequence = (
+                torch.nn.utils.rnn.original_pack_padded_sequence
+            )
+            torch.nn.utils.rnn.pad_packed_sequence = (
+                torch.nn.utils.rnn.original_pad_packed_sequence
+            )
+
+
+@contextlib.contextmanager
+def fixed_backend():
+    """Controled backend in order to limit volatility of kernel selection
+
+    Useful in case of checks between PyTorch and targeted inference
+    outputs.
+
+    """
+    if torch_version() >= "2.3.0":
+        # pylint: disable-next=import-outside-toplevel
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        kwargs = {}
+        if torch_version() >= "2.6.0":
+            kwargs["set_priority"] = True
+
+        with sdpa_kernel(
+            [SDPBackend.MATH, SDPBackend.EFFICIENT_ATTENTION], **kwargs
+        ):
+            yield None
+    else:
+        yield None

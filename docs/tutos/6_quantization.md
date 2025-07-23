@@ -13,6 +13,11 @@
     - [ ] Understanding of what is [quantization](https://arxiv.org/pdf/2106.08295) for Neural network
     - [ ] 10 min to read this page
 
+<figure markdown="span">
+    ![quant ilu](/img/quant_ilu.png)
+    <figcaption>*Illustration by Maarten Grootendorst*</figcaption>
+</figure>
+
 Quantization is a set of techniques that allow to reduce significantly model
 size, and in case of memory-bound computation for model inference:
 speed up model as well. These techniques reduce the 'size' needed

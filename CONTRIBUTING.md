@@ -1,7 +1,8 @@
 # :hugging_face: Contributing
 
-Contributions are welcome, and they are greatly appreciated! Every little bit
-helps, and credit will always be given.
+!!! tip ""
+    Contributions are welcome, and they are greatly appreciated! Every little bit
+    helps, and credit will always be given.
 
 You can contribute in many ways:
 
@@ -69,6 +70,11 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
     git checkout -b name-of-your-bugfix-or-feature
     ```
 
+    Try to follow this prefix naming convention:
+    * `feat/`  for features branch (new operators, new handlers ...)
+    * `fix/`  for bugfixes and hotfixes branch
+    * `chore/`  for versions bump, CI/CD, packaging, ...
+
     Now you can make your changes locally.
 
 6. When you're done making changes, check that your changes pass the
@@ -87,6 +93,18 @@ Ready to contribute? Here's how to set up `torch_to_nnef` for local development.
     ```
 
 8. Submit a pull request through the GitHub website.
+
+## Code style
+
+We use the following code tools for formatting and first checks:
+
+* [ruff](https://docs.astral.sh/ruff/) for formatting
+* [ruff](https://docs.astral.sh/ruff/) check for first lint
+* [prospector](https://pypi.org/project/prospector/) deeper more complete analysis
+
+In term of naming convention we try to follow [google style](https://google.github.io/styleguide/pyguide.html), the most we can.
+
+I
 
 ## Pull Request Guidelines
 

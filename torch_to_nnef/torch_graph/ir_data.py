@@ -46,6 +46,8 @@ def cleanup_data_name(name: str) -> str:
 
 @dataclass
 class Data(NamedItem):
+    """Base abstract T2N IR data holder"""
+
     name: str
     data: T.Any
 

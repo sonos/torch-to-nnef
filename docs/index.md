@@ -19,11 +19,18 @@ and we strive best compatibility with it. To use it you need to specify `TractNN
 - dynamic streamable input dimensions
 - data type casting (since NNEF spec is too vague in this regard)
 
-This package strives to have minimum dependencies (to allow easy integration in other project).
+This package keeps minimal dependencies (to allow easy integration in other project).
 
 We support PyTorch > 1.8.0 with tract last 2 major releases (>= 0.20.22 to date) over Linux and MacOS systems.
 
 ## Install
+
+Today, the project is packaged in internal SONOS [Artifactory](https://jfrog.com/artifactory/),
+please be sure to have it configured (replace `user` and `pass` accordingly):
+
+```ini title="$HOME/.pip/pip.conf"
+extra-index-url=https://{user}:{pass}@redacted.com/artifactory/api/pypi/pypi-local/simple
+```
 
 To install it you can run depending on your package manager:
 
@@ -47,4 +54,4 @@ To install it you can run depending on your package manager:
     ```
 
 !!! note
-    This project is still early stage, if you encounter any bug please follow [Bug report](./contributing/guidelines.md)  section instructions
+    The project scope is broad and contribution are welcome, if you encounter any bug please follow the [Bug report](./contributing/guidelines.md) instructions
