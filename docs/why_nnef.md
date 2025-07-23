@@ -73,6 +73,10 @@ repeat and better formalism.
 - Fine-grained data-types are correctly handled
 - Multiple subgraph assembly possible
 
+Those alterations/extensions of the specification are encapsulated inside the 'inference target'
+notion in `torch_to_nnef` allowing each inference engine to define it's own NNEF flavor,
+while maintaining broad base of operators and syntax/global format the same.
+
 ## Why not ONNX or any other protocol buffer spec ?
 
 !!! abstract
