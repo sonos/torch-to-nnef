@@ -9,7 +9,7 @@
 !!! example "Prerequisite"
 
     - [ ] PyTorch and Python basics
-    - [ ] 5 min to read this page
+    - [ ] 10 min to read this page
 
 PyTorch internal representation (IR) contains more than 10^3^ operators (and less than 10^4^).
 [Aten](https://docs.pytorch.org/executorch/stable/ir-ops-set-definition.html) is the name of the underling *C++* namespace in which most of the PyTorch computational operators are specified.
