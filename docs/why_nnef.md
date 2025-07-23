@@ -107,7 +107,7 @@ Additional grief against it for the NN use case:
     (what if I just want to patch a model with my latest PEFT, or just change few finetuned parameters or ...)
 
 2. Used as intermediate representation but unreadable without dedicated tools
-(tensorboard or netron viewer become unreadable as soon as you have more than 10 variable in or out an operator, not even speaking about residual connections).
+([tensorboard](https://www.tensorflow.org/tensorboard?hl=fr) or [Netron](https://netron.app/) viewers become unreadable as soon as you have more than 10 variables in or out an operator, not even speaking about residual connections).
 
 3. Can not access specific tensors without parsing the full graph and doing multiple hop inside it (seek).
 
