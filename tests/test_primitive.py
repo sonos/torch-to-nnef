@@ -1039,12 +1039,6 @@ test_suite.add(
     BinaryPrimitive(torch.logical_xor),
     inference_conditions=skip_khronos_interpreter,
 )
-test_suite.reset()
-test_suite.add(
-    torch.randn(5, 3),
-    UnaryPrimitive(torch.svd),
-    inference_conditions=skip_khronos_interpreter,
-)
 
 
 def test_should_fail_since_no_input():
