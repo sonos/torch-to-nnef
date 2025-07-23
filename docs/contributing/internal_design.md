@@ -25,7 +25,7 @@ Each of those steps have specific aims and goals.
     These steps only apply to `torch_to_nnef.export_model_to_nnef` export function that export the graph + the tensors.
     To observe those in practice setting log level to info and not filtering this lib logs is helpful a proposed default logger is available in `torch_to_nnef.log.init_log`
 
-## 1. Smart wrapper
+## 1. Auto wrapper
 
 ## 2. Tensor naming
 

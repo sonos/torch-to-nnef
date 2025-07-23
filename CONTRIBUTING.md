@@ -1,7 +1,8 @@
 # :hugging_face: Contributing
 
-Contributions are welcome, and they are greatly appreciated! Every little bit
-helps, and credit will always be given.
+!!! tip ""
+    Contributions are welcome, and they are greatly appreciated! Every little bit
+    helps, and credit will always be given.
 
 You can contribute in many ways:
 
@@ -102,7 +103,6 @@ We use the following code tools for formatting and first checks:
 * [prospector](https://pypi.org/project/prospector/) deeper more complete analysis
 
 In term of naming convention we try to follow [google style](https://google.github.io/styleguide/pyguide.html), the most we can.
-
 
 I
 
