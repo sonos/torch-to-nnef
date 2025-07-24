@@ -42,7 +42,7 @@ LOGGER = log.getLogger(__name__)
 def export_model_to_nnef(
     model: torch.nn.Module,
     args,  # args pushed with *args in forward of module
-    file_path_export: Path,
+    file_path_export: T.Union[Path, str],
     inference_target: InferenceTarget,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
@@ -137,7 +137,37 @@ def export_model_to_nnef(
             those assertion allows to add limitation on dynamic shapes
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
+    Raises:
+        torch_to_nnef.exceptions.TorchToNNEFError
+            If something fail during export process we try to provide dedicated
+            exceptions (easier to control programmatically)
+
+    Examples:
+        By example this function can be used to export as simple perceptron model:
+
+        >>> from torch import nn
+        >>> import tempfile
+        >>> import tarfile
+        >>> import os
+        >>> mod = nn.Sequential(nn.Linear(1, 5), nn.ReLU())
+        >>> export_path = tempfile.mktemp(suffix=".nnef.tgz")
+        >>> inference_target = TractNNEF.latest()
+        >>> export_model_to_nnef(
+        ...   mod,
+        ...   torch.rand(3, 1),
+        ...   export_path,
+        ...   inference_target,
+        ...   input_names=["inp"],
+        ...   output_names=["out"]
+        ... )
+        >>> os.chdir(export_path.rsplit("/", maxsplit=1)[0])
+        >>> tarfile.open(export_path).extract("graph.nnef")
+        >>> "graph network(inp) -> (out)" in open("graph.nnef").read()
+        True
+
     """
+    if isinstance(file_path_export, str):
+        file_path_export = Path(file_path_export)
     set_lib_log_level(log_level)
     if isinstance(input_names, KeysView):
         input_names = list(input_names)

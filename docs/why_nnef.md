@@ -118,7 +118,7 @@ Additional grief against it for the NN use case:
 4. Doing quantization with it is painful especially as you go bellow Q4 or have custom
 quantization operations/methods.
 
-5. Extensibility is still lagging beyind an will always be harder to do than on a plain text file.
+5. Extensibility is still lagging behind an will always be harder to do than on a plain text file.
 
 ## vs .safetensors
 
@@ -128,7 +128,7 @@ It could as well as been tar archive, but well ...
 
 The big issue is that it does not hold any information about the graph of computation that is the NN itself,
 this lead to rewriting every single architecture on inference side (error prone & uselessly time consuming),
-while also leaving the responsability to optimize/fuse operators to the 'implementer' on a per model basis (no consolidation).
+while also leaving the responsibility to optimize/fuse operators to the 'implementer' on a per model basis (no consolidation).
 
 ## vs GGUF
 
