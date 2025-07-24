@@ -14,7 +14,7 @@ import torch
 
 from torch_to_nnef.export import (
     export_tensors_from_disk_to_nnef,
-    iter_torch_tensors_from_disks,
+    iter_torch_tensors_from_disk,
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.utils import cd
@@ -150,7 +150,7 @@ def export_peft(
             to_check_tensors.add(check_map_name.format(name=prefix_tensor_name))
         expanded_ref_names = set(mapping_table.keys())
         found_ref_tensors: T.Dict[str, torch.Tensor] = dict(
-            iter_torch_tensors_from_disks(
+            iter_torch_tensors_from_disk(
                 read_filepath, lambda x: x in to_check_tensors
             )
         )

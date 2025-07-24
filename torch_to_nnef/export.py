@@ -10,7 +10,6 @@ from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
-from torch_to_nnef.log import set_lib_log_level
 from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
 from torch_to_nnef.custom_nnef_writer import (
     write_nnef_tensor,
@@ -23,6 +22,7 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
+from torch_to_nnef.log import set_lib_log_level
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
@@ -146,10 +146,10 @@ def export_model_to_nnef(
     Examples:
         By example this function can be used to export as simple perceptron model:
 
-        >>> from torch import nn
-        >>> import tempfile
-        >>> import tarfile
         >>> import os
+        >>> import tarfile
+        >>> import tempfile
+        >>> from torch import nn
         >>> mod = nn.Sequential(nn.Linear(1, 5), nn.ReLU())
         >>> export_path = tempfile.mktemp(suffix=".nnef.tgz")
         >>> inference_target = TractNNEF.latest()
@@ -203,7 +203,7 @@ def export_model_to_nnef(
         and not isinstance(args, torch.Tensor)
     ):
         outs = (outs,)
-    check_io_names(input_names, output_names)
+    _check_io_names(input_names, output_names)
 
     LOGGER.info(
         f"start parse PyTorch model to be exported at {file_path_export}"
@@ -213,7 +213,7 @@ def export_model_to_nnef(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
-    with unsupported_module_alerter(inference_target):
+    with _unsupported_module_alerter(inference_target):
         with select_model_mode_for_export(model, TrainingMode.EVAL):
             set_opaque_tensor_in_params_as_ref(model)
             model, args, input_names, output_names = (
@@ -273,7 +273,7 @@ def export_model_to_nnef(
             exported_filepath = file_path_export.parent / (
                 nnef_exp_file_path.name + ".tgz"
             )
-            with fixed_backend():
+            with _fixed_backend():
                 inference_target.post_export(
                     model,
                     nnef_graph,
@@ -284,7 +284,7 @@ def export_model_to_nnef(
     mod_tensor_updater.restore_require_grad()
 
 
-def check_io_names(
+def _check_io_names(
     input_names: T.Optional[T.List[str]], output_names: T.Optional[T.List[str]]
 ):
     if input_names and len(set(input_names)) != len(input_names):
@@ -347,9 +347,22 @@ def _default_filter_key(key):
     return True
 
 
-def iter_torch_tensors_from_disks(
-    store_filepath, filter_key: T.Optional[T.Callable[[str], bool]] = None
+def iter_torch_tensors_from_disk(
+    store_filepath: Path, filter_key: T.Optional[T.Callable[[str], bool]] = None
 ) -> T.Iterator[T.Tuple[str, _Tensor]]:
+    """iter on torch tensors from disk .safetensors, .pt, pth, .bin
+
+    Args:
+        store_filepath: path to the container file holding PyTorch tensors
+            (.pt, .pth, .bin and .safetensors)
+        filter_key:
+            if set, this function filter over tensor by name stored in those format
+
+    Yields:
+       provide each tensor that are validated by filter within store filepath one at
+            a time as tuple with name first then the torch.Tensor itself
+
+    """
     if filter_key is None:
         filter_key = _default_filter_key
 
@@ -376,13 +389,13 @@ def iter_torch_tensors_from_disks(
 
 
 def export_tensors_from_disk_to_nnef(
-    store_filepath: Path,  # either statedict or safetensors
-    output_dir: Path,
+    store_filepath: T.Union[Path, str],  # either statedict or safetensors
+    output_dir: T.Union[Path, str],
     filter_key: T.Optional[T.Callable[[str], bool]] = None,
     fn_check_found_tensors: T.Optional[
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
-):
+) -> T.Dict[str, _Tensor]:
     """Export any statedict or safetensors file torch.Tensors to NNEF .dat file
 
     Args:
@@ -392,9 +405,45 @@ def export_tensors_from_disk_to_nnef(
             directory to dump the NNEF tensor .dat files
         fn_check_found_tensors:
             post checking function to ensure all requested tensors have effectively been dumped
+
+    Returns:
+        a dict of tensor name as key and torch.Tensor values,
+            identical to `torch_to_nnef.export.export_tensors_to_nnef`
+
+    Examples:
+        Simple filtered example
+
+        >>> import tempfile
+        >>> from torch import nn
+        >>> class Mod(nn.Module):
+        ...     def __init__(self):
+        ...         super().__init__()
+        ...         self.a = nn.Linear(1, 5)
+        ...         self.b = nn.Linear(5, 1)
+        ...
+        ...     def forward(self, x):
+        ...         return self.b(self.a(x))
+        >>> mod = Mod()
+        >>> pt_path = tempfile.mktemp(suffix=".pt")
+        >>> nnef_dir = tempfile.mkdtemp(suffix="_nnef")
+        >>> torch.save(mod.state_dict(), pt_path)
+        >>> def check(ts):
+        ...     assert all(_.startswith("a.") for _ in ts)
+        >>> exported_tensors = export_tensors_from_disk_to_nnef(
+        ...     pt_path,
+        ...     nnef_dir,
+        ...     lambda x: x.startswith("a."),
+        ...     check
+        ... )
+        >>> list(exported_tensors.keys())
+        ['a.weight', 'a.bias']
     """
+    if isinstance(output_dir, str):
+        output_dir = Path(output_dir)
+    if isinstance(store_filepath, str):
+        store_filepath = Path(store_filepath)
     to_export = {}
-    for key, tensor in iter_torch_tensors_from_disks(  # type: ignore
+    for key, tensor in iter_torch_tensors_from_disk(  # type: ignore
         store_filepath, filter_key
     ):
         to_export[key] = tensor
@@ -416,7 +465,35 @@ def export_tensors_to_nnef(
             and tensor values (that can also be special torch_to_nnef tensors)
         output_dir:
             directory to dump the NNEF tensor .dat files
+
+    Returns:
+        a dict of tensor name as key and torch.Tensor values,
+            identical to `torch_to_nnef.export.export_tensors_to_nnef`
+
+    Examples:
+        Simple example
+
+        >>> import tempfile
+        >>> from torch import nn
+        >>> class Mod(nn.Module):
+        ...     def __init__(self):
+        ...         super().__init__()
+        ...         self.a = nn.Linear(1, 5)
+        ...         self.b = nn.Linear(5, 1)
+        ...
+        ...     def forward(self, x):
+        ...         return self.b(self.a(x))
+        >>> mod = Mod()
+        >>> nnef_dir = tempfile.mkdtemp(suffix="_nnef")
+        >>> exported_tensors = export_tensors_to_nnef(
+        ...     {k: v for k, v in mod.named_parameters() if k.startswith("b.")},
+        ...     nnef_dir,
+        ... )
+        >>> list(exported_tensors.keys())
+        ['b.weight', 'b.bias']
     """
+    if isinstance(output_dir, str):
+        output_dir = Path(output_dir)
     assert output_dir.exists(), output_dir
     for tensor_name, tensor in name_to_torch_tensors.items():
         if isinstance(tensor, (QTensor, OpaqueTensorRef)):
@@ -447,7 +524,7 @@ def export_tensors_to_nnef(
 
 
 @contextlib.contextmanager
-def unsupported_module_alerter(inference_target: InferenceTarget):
+def _unsupported_module_alerter(inference_target: InferenceTarget):
     """Trigger an error if module or specific function are unsupported.
 
     This avoid suprious expension of internal graph leads to
@@ -489,7 +566,7 @@ def unsupported_module_alerter(inference_target: InferenceTarget):
 
 
 @contextlib.contextmanager
-def fixed_backend():
+def _fixed_backend():
     """Controled backend in order to limit volatility of kernel selection
 
     Useful in case of checks between PyTorch and targeted inference
