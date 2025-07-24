@@ -15,9 +15,8 @@ import torch
 from torch_to_nnef.export import (
     export_tensors_from_disk_to_nnef,
     iter_torch_tensors_from_disks,
-    set_lib_log_level,
 )
-from torch_to_nnef.log import init_log
+from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.utils import cd
 
 LOGGER = logging.getLogger(__name__)

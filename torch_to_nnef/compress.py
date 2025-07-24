@@ -1,5 +1,4 @@
 import logging
-
 import typing as T
 from functools import partial
 

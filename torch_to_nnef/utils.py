@@ -5,7 +5,7 @@ import os
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
-from functools import total_ordering, lru_cache
+from functools import lru_cache, total_ordering
 
 import torch
 from torch import _C

@@ -7,7 +7,7 @@
 ## <span style="color:#6666aa">**:material-math-log:**</span> Logging
 
 Setting the log level to debug in `torch_to_nnef` may help you figure out where
-things broke in the first place.
+things broke in the first place. There is a [`torch_to_nnef.log`](/reference/torch_to_nnef/log/) exactly for that.
 
 ## <span style="color:#6666aa">**:material-bug:**</span> Errors
 

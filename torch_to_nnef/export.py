@@ -1,7 +1,7 @@
-from collections.abc import KeysView, ValuesView
 import contextlib
 import logging as log
 import typing as T
+from collections.abc import KeysView, ValuesView
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +10,7 @@ from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
+from torch_to_nnef.log import set_lib_log_level
 from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
 from torch_to_nnef.custom_nnef_writer import (
     write_nnef_tensor,
@@ -233,7 +234,7 @@ def export_model_to_nnef(
             )
             nnef_graph = graph_extractor.parse()
 
-            active_custom_extensions = get_active_custom_extensions(
+            active_custom_extensions = _get_active_custom_extensions(
                 graph_extractor
             )
             inference_target.post_trace(nnef_graph, active_custom_extensions)
@@ -244,10 +245,10 @@ def export_model_to_nnef(
 
             active_custom_fragments = inference_target.specific_fragments(model)
             active_custom_fragments.update(
-                get_active_custom_fragments(graph_extractor)
+                _get_active_custom_fragments(graph_extractor)
             )
             del graph_extractor
-            nnef_exp_file_path = real_export_path(
+            nnef_exp_file_path = _real_export_path(
                 file_path_export, compression_level
             )
 
@@ -308,7 +309,7 @@ def check_io_names(
         )
 
 
-def real_export_path(
+def _real_export_path(
     file_path_export: Path, compression_level: T.Optional[int] = None
 ) -> Path:
     nnef_exp_file_path = file_path_export
@@ -319,7 +320,7 @@ def real_export_path(
     return nnef_exp_file_path
 
 
-def get_active_custom_extensions(graph_extractor):
+def _get_active_custom_extensions(graph_extractor):
     return dedup_list(
         [
             ext
@@ -329,7 +330,7 @@ def get_active_custom_extensions(graph_extractor):
     )
 
 
-def get_active_custom_fragments(graph_extractor):
+def _get_active_custom_fragments(graph_extractor):
     active_custom_fragments = {}
     for _ in graph_extractor.activated_custom_fragment_keys:
         if isinstance(_, Fragment):
@@ -337,11 +338,6 @@ def get_active_custom_fragments(graph_extractor):
         else:
             active_custom_fragments[_] = FRAGMENTS[_].definition
     return active_custom_fragments
-
-
-def set_lib_log_level(log_level):
-    logger = log.getLogger("torch_to_nnef")
-    logger.setLevel(log_level)
 
 
 _Tensor = T.TypeVar("_Tensor", bound=torch.Tensor)

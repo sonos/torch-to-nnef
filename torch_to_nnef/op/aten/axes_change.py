@@ -1,4 +1,5 @@
 import nnef
+
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
@@ -12,7 +13,6 @@ from torch_to_nnef.op.helper import (
     pick_axis,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
-
 
 OP_REGISTRY = AtenOpRegistry()
 

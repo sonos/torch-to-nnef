@@ -4,8 +4,8 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 """
 
-import typing as T
 import logging as log
+import typing as T
 
 import torch
 from torch import nn
