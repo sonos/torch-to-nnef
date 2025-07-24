@@ -31,6 +31,5 @@ fn main() -> TractResult<()> {
         .zip(0..)
         .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     println!("result: {best:?}");
-
     Ok(())
 }
