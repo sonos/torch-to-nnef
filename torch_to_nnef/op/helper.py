@@ -807,13 +807,14 @@ class OpHelper:
         By example:
 
         >>> torch.mul(1, torch.rand(10)).dtype
-        # torch.float32
+        torch.float32
         >>> torch.mul(torch.arange(10).to(torch.float64), torch.rand(10)).dtype
-        # torch.float64
+        torch.float64
         >>> torch.mul(torch.arange(10).to(torch.bool), torch.rand(10)).dtype
-        # torch.float32
+        torch.float32
         >>> torch.mul(torch.arange(10).to(torch.int16), torch.rand(10)).dtype
-        # torch.float32
+        torch.float32
+
         ...
 
         We need to express those implicit casting in graph to keep
