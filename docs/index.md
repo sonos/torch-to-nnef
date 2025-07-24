@@ -6,13 +6,13 @@
 
 ## Goals & Scope
 
-This python package allows to export any model formulated with vanilla
-PyTorch whatever tensor type (handling quantized model) into [NNEF format](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html).
+This Python package allows to export any model formulated with vanilla
+PyTorch whatever the internal tensor types (handling quantized model) into [NNEF format](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html).
 
 [![tract](./img/tract.png){: style="width: 120px;margin:0;"}](https://github.com/sonos/tract/), the neural network inference engine
 developed openly by [![SONOS](./img/sonos.png){: style="width: 80px;margin:0;"}](https://sonos.com) is our primary supported target,
-and we strive best compatibility with it. To use it you need to specify `TractNNEF` inference_target
-, this unlock extended NNEF operators and specificities to express:
+and we strive best compatibility with it. To use it you need to specify [`TractNNEF`](/reference/torch_to_nnef/inference_target/tract/) inference_target.
+This unlock extended NNEF operators and specificities to express:
 
 - Transformers blocks
 - recurrent layers (LSTM, GRU, ...)
@@ -54,4 +54,4 @@ To install it you can run depending on your package manager:
     ```
 
 !!! note
-    The project scope is broad and contribution are welcome, if you encounter any bug please follow the [Bug report](./contributing/guidelines.md) instructions
+    The project scope is broad and [contributions are welcome](./contributing/guidelines.md), if you encounter any bug please follow the [Bug report](./contributing/guidelines.md) instructions

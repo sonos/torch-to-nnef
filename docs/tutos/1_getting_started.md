@@ -7,7 +7,7 @@
     1. :material-image: How to export an image model with `torch_to_nnef`
     2. :material-toolbox: The basic commands to check your model is correct within tract
     3. :fontawesome-brands-python: How to create a minimal Python program that perform inference with tract
-    4. :fontawesome-brands-rust: (Bonus) How to create a minimal rust binary that perform inference from the cli with tract
+    4. :fontawesome-brands-rust: *(Bonus)* How to create a minimal rust binary that perform inference from the cli with tract
 
 !!! example "Prerequisite"
 
