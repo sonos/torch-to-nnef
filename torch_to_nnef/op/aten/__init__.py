@@ -1,3 +1,5 @@
+"""PyTorch Aten::* operators translation"""
+
 import logging
 import operator
 import typing as T

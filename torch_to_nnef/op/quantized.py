@@ -1,4 +1,4 @@
-"""
+"""PyTorch quantized::* operators translation
 Quantized layers and primitives
 
 Maybe usefull when looking at X:

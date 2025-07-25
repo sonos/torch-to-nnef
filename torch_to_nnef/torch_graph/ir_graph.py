@@ -607,6 +607,7 @@ class TorchModuleIRGraph:
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
+        """Core parsing function transforming a pytorch nn.Module into torch_to_nnef IR"""
         LOGGER.debug(
             f"start parse to IR: {self._tracer.mod.__class__.__name__}"
         )

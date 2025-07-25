@@ -1,3 +1,8 @@
+"""Module referencing all data types conversions between libraries
+
+List of libraries being:PyTorch, Numpy, tract
+"""
+
 import typing as T
 
 import numpy as np

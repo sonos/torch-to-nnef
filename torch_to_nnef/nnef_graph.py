@@ -1,3 +1,5 @@
+"""Core parsing and NNEF transformation module"""
+
 import logging
 import typing as T
 
