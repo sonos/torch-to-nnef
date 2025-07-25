@@ -502,7 +502,7 @@ init().then(() => {
 </div>
 
 !!! note
-    Performance are descent, but little to no effort was made to make tract WASM efficient (no SIMD wasm, no WebGPU kernels),
+    This model is not trained by SONOS so prediction accuracy is responsability of original [torchvision](https://docs.pytorch.org/vision/stable/index.html) authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient (no SIMD wasm, no WebGPU kernels),
     this demo is for demonstration purpose.
 
 Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).

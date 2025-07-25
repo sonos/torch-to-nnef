@@ -104,7 +104,7 @@ most of them (there is few exception like if there is `scan` operator but that a
 approximate). This fragments allows to compose graph to 'compile' into smaller reusable
 blocks.
 `tract_gelu` is interesting because it is replaced on fly by `gelu` specific
-operator if it exist in selected registries and for your hardware
+operator if it exist in selected registries and for your hardware.
 
 Finally there is the `network` which is the main entry point that will describe the
 inference computations to perform from inputs to outputs by calling operators and fragments,

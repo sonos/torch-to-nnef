@@ -19,7 +19,7 @@ In that case we support no less that classical ONNX export.
 
 To exemplify this,  let's simply try to export a classical Language
 model called **Albert** (from ['*ALBERT: A lite BERT for self-supervised
-learning of language representations*',  2020](https://arxiv.org/pdf/1909.11942)) with the `transformers` library.
+learning of language representations*',  2020](https://arxiv.org/pdf/1909.11942)) with the [`transformers`](https://github.com/huggingface/transformers) library.
 
 First let's create a dir and install few dependencies:
 
@@ -29,7 +29,10 @@ cd multi_io_py
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install torch==2.7.0 transformers==4.53.2 sentencepiece==0.2.0 torch_to_nnef
+pip install torch==2.7.0 \
+    transformers==4.53.2 \
+    sentencepiece==0.2.0 \
+    torch_to_nnef
 touch export_albert.py
 ```
 
@@ -45,10 +48,10 @@ albert_model = AlbertModel.from_pretrained("albert-base-v2")
 
 ### Using basic export API
 
-What would happen if we use same call we did in the we saw in [getting started tutorial](./1_getting_started.md) ?
+What would happen if we used the same call as previously in the [getting started tutorial](./1_getting_started.md) ?
 
-Let's not forget that `inputs` generated from the tokenizer is a Python object  [`BatchEncoding`](https://github.com/huggingface/transformers/blob/a1ad9197c5756858e9014a0e01fe5fb1791efdf2/src/transformers/tokenization_utils_base.py#L192). It contains the tensors that we will use in the `forward` pass of this network:
-```['input_ids', 'attention_mask', 'token_type_ids']```.
+Let's not forget that `inputs` generated from the tokenizer is a Python object  [`BatchEncoding`](https://github.com/huggingface/transformers/blob/a1ad9197c5756858e9014a0e01fe5fb1791efdf2/src/transformers/tokenization_utils_base.py#L192). It contains the tensors that we will use in the `forward` pass of this network in the following attributes:
+`input_ids`, `attention_mask`, `token_type_ids`.
 So we need to add those in `args` and `input_names` of export API.
 
 Let's try together:
@@ -58,11 +61,15 @@ from pathlib import Path
 from torch_to_nnef import export_model_to_nnef, TractNNEF
 
 file_path_export = Path("albert_v2.nnef.tgz")
-input_names = ['input_ids', 'attention_mask', 'token_type_ids']
+input_names = [
+    'input_ids', 'attention_mask', 'token_type_ids'
+]
 export_model_to_nnef(
     model=albert_model,
-    # here we can not simply write args=inputs.values()
-    # because order of values is different than .forward parameters !
+    # here we can not simply write
+    # args=inputs.values()
+    # because order of values
+    # is different than .forward parameters !
     args=[inputs[k] for k in input_names],
     file_path_export=file_path_export,
     inference_target=TractNNEF(
@@ -101,8 +108,8 @@ graph network(
 It turns out `torch_to_nnef` try hard to make sense of inputs and outputs provided.
 
 In this case, the output object have been partially filled because of the inputs provided
-to the model. In upper snippet, we did not specify as inputs of the `AlbertModel.forward` method: `output_attentions` or `output_hidden_states`: to `True` so all the graph that was
-traced and exported used control-flow not collecting those outputs.
+to the model. In the upper snippet, we did not add parameters for the `AlbertModel.forward` method: `output_attentions` or `output_hidden_states`: to `True`. So all the graph
+traced and exported use the control-flow not collecting those outputs.
 
 !!! warning "Warning"
     This is one of the key limitation NNEF export, since it is based on internal Graph representation
@@ -143,8 +150,8 @@ Those **supported elements** being:
 
 !!! info "Variable Python primitive in NNEF"
 
-    To work-around Python primitives constantization you
-    to transform those into `torch.Tensor`. This will only work on
+    To work-around Python primitives constantization you can
+    transform those into `torch.Tensor`. This will only work on
     primitive that does not change the control-flow.
 
 Outputs have the same object flexibility.
@@ -153,7 +160,7 @@ Also, if some names are not provided in `input_names` and `output_names` they wi
 
 ### Selection inputs and outputs to export
 
-Ok that's nice we should now start to better understand what's is possible to do with simple `torch_to_nnef` export call.
+Ok that's nice, we should now start to better understand what's is possible to do with simple `torch_to_nnef` export call.
 
 What about if you want something that only export the `last_hidden_states` ?
 
