@@ -417,15 +417,17 @@ result: Some((9.439479, 652))
     You first exported the network with `torch_to_nnef` and
     ran a successful standalone cli command with tract based inference in it.
 
-## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: tract running in browser with WASM
+## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: Image classifier
 
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html)
- we demo a small [`Efficient NET`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure fast download of the asset for you - 22Mo for the model).
+ we demo a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure fast download of the asset for you - 22Mo for the model).
 We let this model predict from image class from the [ImageNET 1K challenge](https://www.image-net.org/update-mar-11-2021.php).
 
 Since this model fully run on your browser there is no server needed beyond serving the initial
 asset, this is private by design (You can send whatever photo), no data is collected,
 if you are in doubt just turn off your network and try the playground (without reloading).
+
+### Image classifier based on tract running in browser with WASM
 
 <div class="grid cards">
     <div class="card">
@@ -479,7 +481,8 @@ init().then(() => {
     </script>
 </div>
 
-NOTE: while performance are descent, little to no effort was made to make tract WASM efficient,
-this demo is for demonstration purpose.
+!!! note
+    Performance are descent, but little to no effort was made to make tract WASM efficient (no SIMD wasm, no WebGPU kernels),
+    this demo is for demonstration purpose.
 
 Curious to understand the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).
