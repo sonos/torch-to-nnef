@@ -25,7 +25,7 @@ In this tutorial we will share with you how to contribute a new operator.
 
 To implement a new operator we need to follow the following steps:
 
-- [ ] 0. Ensure this operator make sense in your targeted engine (by example `copy`, device layout ect should be `nop`, implementation detail in most inference engines)
+- [ ] 0. Ensure this operator make sense in your targeted engine (by example `copy`, device layout etc) should be `nop`, implementation detail in most inference engines
 - [ ] 1. :material-test-tube: Add few unit-test covering the operator in [test_primitive.py](#)
 - [ ] 2. :material-bug-check: Check we obtain as expected the following form of exception:
 
@@ -57,7 +57,7 @@ In the case of `tract`, the engine:
 - does not handle today `sparse` tensors, and quantization support is partial.
 - was developed first with audio and NLP usecase in-mind so there may be a significant portion of image specific operators
 that are still missing (implementation is welcome in tract repository side).
-- is not a general purpose linear algebra library, so most specialized operations will certainly be missing.
+- is not a general purpose linear algebra library, so most specialized operations will certainly be missing (decomposition, ...).
 
 This set of constraint remove a whole class of operators that are used in PyTorch, if you are unsure
 about the operator you are willing to support just contact directly the maintainers of this project in the [discussion section of tract](https://github.com/sonos/tract/discussions).
@@ -144,7 +144,7 @@ A lot of example exists in the `torch_to_nnef.op.aten` sub modules.
 Each sub-module is organized by theme. please try to find the one that is the closest
 from your operator or put it in `other` if not.
 
-There is mostly 3 kind of operators mapping
+There is mostly 3 kinds of operator mapping
 
 **1.** Those that directly map to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
 and are 1 to 1 tensor transformation in that case just add it in the map in `torch_to_nnef.op.aten.unary`: `GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES` or `REMAP_ATEN_OP_NAMES`.

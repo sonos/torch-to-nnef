@@ -15,6 +15,7 @@ Each of those steps have specific aims and goals.
 3. Trace the PyTorch Graph module by module starting from the provided model each sub-module call is solved after this module have been traced. each submodule is colapsed inside it's parent. This tracing build a specific internal representation (IR) in torch to nnef which is NOT torch graph but a simplified version of it that is no more tied to torch cpp internals and with removed useless operators for inference.
 4. Translate the torch to nnef internal IR into NNEF depending on inference target selected
 5. Save each tensor on disk in .dat and serialize the graph.nnef and graph.quant associated.
+6. Allow to perform a serie of test after NNEF model asset has been generated (typically checking output similarities)
 
 <figure markdown="span">
     ![code structure](../img/codestruct.png)
@@ -23,7 +24,7 @@ Each of those steps have specific aims and goals.
 
 !!! note
     These steps only apply to `torch_to_nnef.export_model_to_nnef` export function that export the graph + the tensors.
-    To observe those in practice setting log level to info and not filtering this lib logs is helpful a proposed default logger is available in `torch_to_nnef.log.init_log`
+    To observe those in practice setting log level to info and not filtering this lib logs is helpful a proposed default logger is available in [`torch_to_nnef.log.init_log`](/reference/torch_to_nnef/log/)
 
 ## 1. Auto wrapper
 
@@ -32,7 +33,7 @@ this step try hard to make sense of the input and output provided by the
 user as input parameters by 'flattening' and extracting from complex data-structures a proper
 list of tensor to be passed. Some example can be seen in [our multi inputs/outputs tutorial](/tutos/3_multi_inputs_outputs/).
 Still note that as of today the graph is traced statically with Python primitive constantized.
-Also raw object passed in `forward` function are not supported yet (we have a uncertainty about the order in which tensors found in it should be passed).
+Also raw object passed in `forward` function are not supported yet (uncertainty about the order in which tensors found in it should be passed).
 
 ## 2. Tensor naming
 
@@ -46,7 +47,7 @@ if you want to name tensors.
 ## 3. Internal IR representation
 
 While tracing the graph recursively you may debug it's parsed representation as follows:
-let's imagine you set a breakpoint in `torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse` method you could call `self.tracer.torch_graph` to observe the
+let's imagine you set a breakpoint in [`torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse`](/reference/torch_to_nnef/torch_graph/ir_graph/#torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph) method you could call `self.tracer.torch_graph` to observe the
 PyTorch representation:
 
 ```python
@@ -110,7 +111,7 @@ It's responsible to mapping between our internal representation and the NNEF gra
 [Adding a new operator](./add_new_aten_op.md) is a rather simple process as long as the
 2 engines (PyTorch and the inference target) share similar operator to composes.
 But since there is [so much operators](./supported_operators.md) in `PyTorch` there is a lot of mapping to do.
-In some case when there is too much discrepency between the engines it may be worth
+In some case when there is too much discrepancy between the engines it may be worth
 proposing to reify the operation in the targeted inference engine.
 
 ## 5. NNEF dump
