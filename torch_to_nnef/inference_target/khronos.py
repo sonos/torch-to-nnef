@@ -19,10 +19,12 @@ LOGGER = log.getLogger(__name__)
 
 
 class KhronosNNEF(InferenceTarget):
-    """
+    """Khronos Specification compliant NNEF asset build
+
     in case of check_io=True
         we perform evaluation against nnef_tool nnef to pytorch converter.
         And access original and reloaded pytorch model provide same outputs
+
     """
 
     OFFICIAL_SUPPORTED_VERSIONS = [
