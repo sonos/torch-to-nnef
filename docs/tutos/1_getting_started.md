@@ -419,9 +419,13 @@ result: Some((9.439479, 652))
 
 ## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: tract running in browser with WASM
 
- Using of the knowledge you aquired during this tutorial and a bit of extra for wasm in rust
- we demo a small [`Efficient NET`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929)).
-We let this model predict from image to one of the class from [ImageNET 1K challenge](https://www.image-net.org/update-mar-11-2021.php).
+ Using of the knowledge you aquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html)
+ we demo a small [`Efficient NET`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure fast download of the asset for you - 22Mo for the model).
+We let this model predict from image class from the [ImageNET 1K challenge](https://www.image-net.org/update-mar-11-2021.php).
+
+Since this model fully run on your browser there is no server needed beyond serving the initial
+asset, this is private by design (You can send whatever photo), no data is collected,
+if you are in doubt just turn off your network and try the playground (without reloading).
 
 <div class="grid cards">
     <div class="card">
@@ -430,32 +434,37 @@ We let this model predict from image to one of the class from [ImageNET 1K chall
     </div>
     <div id="image-preview" class="card"></div>
     <script type="module">
-    const image_preview = document.getElementById('image-preview');
-    function file_predict(file) {
-        if (!file || !file.type.startsWith("image/")) {
-            return;
-        }
-        image_preview.innerHTML = "";
-        const img = document.createElement("img");
-        img.classList.add("obj");
-        img.file = file;
-        image_preview.appendChild(img);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            let fileTextContent = e.target.result;
-            img.src = fileTextContent;
-            console.log("requested file process" + file.name);
-            let res = predict_class(fileTextContent);
-            console.log(res);
-            console.log(res.label);
-            const p = document.createElement("p");
-            p.innerHTML = "predicted: '" + res.label + "'' - id:" + res.class_id + " (score='" + res.score.toFixed(2) + "'')";
-            image_preview.appendChild(p);
-        };
-        reader.readAsDataURL(file);
+import init, { ImageClassifier } from '/js/imageclass_wasm.js';
+const image_preview = document.getElementById('image-preview');
+let img_classifier = null;
+function file_predict(file) {
+    if (!file || !file.type.startsWith("image/")) {
+        return;
     }
-import init, { predict_class } from '/js/imageclass_wasm.js';
+    image_preview.innerHTML = "";
+    const img = document.createElement("img");
+    img.classList.add("obj");
+    img.file = file;
+    image_preview.appendChild(img);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let fileTextContent = e.target.result;
+        img.src = fileTextContent;
+        console.log("requested file process" + file.name);
+        let startTime = performance.now();
+        let res = img_classifier.predict_class(fileTextContent);
+        let endTime = performance.now();
+        let timeDiff = endTime - startTime; //in ms
+        console.log(res);
+        console.log(res.label);
+        const p = document.createElement("p");
+        p.innerHTML = "predicted: '" + res.label + "'' - id:" + res.class_id + " (score='" + res.score.toFixed(2) + "'')<br/> image resized & predicted in: " + timeDiff + "ms";
+        image_preview.appendChild(p);
+    };
+    reader.readAsDataURL(file);
+}
 init().then(() => {
+    img_classifier = ImageClassifier.load();
     console.log("inited wasm");
     document.getElementById('img').addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -469,3 +478,8 @@ init().then(() => {
 })
     </script>
 </div>
+
+NOTE: while performance are descent, little to no effort was made to make tract WASM efficient,
+this demo is for demonstration purpose.
+
+Curious to understand the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).
