@@ -12,6 +12,8 @@ pub struct Prediction {
     label: String,
 }
 
+static IMG_WIDTH: usize = 224;
+static IMG_HEIGHT: usize = 224;
 #[wasm_bindgen]
 struct ImageClassifier {
     model: TypedRunnableModel<TypedModel>,
@@ -51,18 +53,30 @@ impl ImageClassifier {
         )?;
         web_sys::console::log_1(&"loaded blob".into());
         // open image, resize it and make a Tensor out of it
-        let image = image::load_from_memory(&blob)?.to_rgb8();
+        let image = image::load_from_memory(&blob)?;
         web_sys::console::log_1(&"image path loaded".into());
         // scale to model input dimension
-        let resized =
-            image::imageops::resize(&image, 224, 224, ::image::imageops::FilterType::Triangle);
+        let resized = image
+            .resize(
+                IMG_WIDTH as u32,
+                IMG_HEIGHT as u32,
+                ::image::imageops::FilterType::Triangle,
+            )
+            .to_rgb8();
         web_sys::console::log_1(&"image resized".into());
-        let image = tract_ndarray::Array4::from_shape_fn((1, 3, 224, 224), |(_, c, x, y)| {
-            let mean = [0.485, 0.456, 0.406][c];
-            let std = [0.229, 0.224, 0.225][c];
-            (resized[(x as _, y as _)][c] as f32 / 255.0 - mean) / std
-        })
-        .into_tensor();
+        let image =
+            tract_ndarray::Array4::from_shape_fn((1, 3, IMG_WIDTH, IMG_HEIGHT), |(_, c, x, y)| {
+                let mean = [0.485, 0.456, 0.406][c];
+                let std = [0.229, 0.224, 0.225][c];
+                let val = if resized.width() <= x as u32 || resized.height() <= y as u32 {
+                    0.0
+                } else {
+                    resized[(x as _, y as _)][c] as f32
+                };
+                (val / 255.0 - mean) / std
+            })
+            .into_tensor();
+        web_sys::console::log_1(&"normalized image".into());
         // run the model on the input
         let result = self.model.run(tvec!(image.into()))?;
         web_sys::console::log_1(&"model prediction done".into());

@@ -419,7 +419,7 @@ result: Some((9.439479, 652))
 
 ## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: tract running in browser with WASM
 
- Using of the knowledge you aquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html)
+ Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html)
  we demo a small [`Efficient NET`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure fast download of the asset for you - 22Mo for the model).
 We let this model predict from image class from the [ImageNET 1K challenge](https://www.image-net.org/update-mar-11-2021.php).
 
