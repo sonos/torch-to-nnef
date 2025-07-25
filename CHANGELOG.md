@@ -3,6 +3,14 @@
 
 ## Unreleased
 
+## [0.19.0] - 2025-07-25
+
+### Added
+
+- mkdoc documentation revamp
+- no more approximation of `logsofmax` for TractNNEF
+- added support for operators: `fmod`, `expm1`, `atan2`, `addmm`, `maximum`, `minimum`, `logical_or`, `logical_and`, `logical_not`, `fill_`, `var`, `avg_adaptive_pool_nd`, `max_adaptive_pool_nd`, `amin`, `amax`, `nn.LocalResponseNorm`
+
 ## [0.18.6] - 2025-07-03
 
 ### Added
