@@ -25,7 +25,7 @@ the special case of time dimension for stateful neural networks.
 ## Simple case: batch dimension only
 
 If we think of our [getting_started](./1_getting_started.md) example earlier,
-after export the model generated is having a fixed batch dimensions of 1 sample.
+after export: the model generated is having a fixed batch dimensions of 1 sample.
 Let's fix this by declaring this dimension as dynamic at export time:
 
 ```python title="setting streaming dimensions correctly"
@@ -51,8 +51,8 @@ export_model_to_nnef(
 )
 ```
 
-After running this script you should now have a new asset: `vit_b_16_batchable.nnef.tgz`.
-Looking at the `graph.nnef` there is now 2 new obvious things:
+After running this script you should have a new asset: `vit_b_16_batchable.nnef.tgz`.
+Looking at the `graph.nnef` there is 2 new obvious things:
 
 - A new extension at the beginning of the file with the introduced symbol
 
@@ -61,7 +61,7 @@ extension tract_symbol B;
 
 ```
 
-- The input external now introduce this symbol in the requested dimensions:
+- The input external introduce this symbol in the requested dimensions:
 
 ```nnef
 
@@ -91,33 +91,33 @@ You should observe that the batch dimension flow from the input to the last outp
     ━━━ B,1000,F32
 ```
 
-That's great but how can you do, profiling now ?
+That's great but how can you do profiling ?
 
 ```bash
 tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O dump --allow-random-input --profile
 ```
 
-lead to the following stderr:
+leads to the following stderr:
 
 ```json
 [... ERROR tract] Expected concrete shape, found: B,3,224,224,F32
 ```
 
-That's expected as you now need to specify now to specify this symbol before profiling anything.
+That's expected as you now need to concretize this symbol before profiling anything.
 You can do that before or after the 'dump' keyword but be careful this has a different meaning:
 
 - if before this means the compiled graph by tract in memory will be of concretized dimensions you provided
-- if after this means the compiled graph by tract in memory will be offer dynamic dimensions to be defined at runtime:
-The way to specify it is with the `--set B=3` where 3 can be whatever whole number between 1 and infinity.
+- if after this means the compiled graph by tract in memory will be offer dynamic dimensions to be defined at runtime per session:
+The way to specify it is with the `--set B=3` where 3 can be whatever whole number upper or equal to 1.
 
 So running:
 
 ```bash
-tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O
+tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O \
     dump --set B=3 --allow-random-input --profile
 ```
 
-You should now observe as previously a nice evaluation of network speed and it's breakdown.
+You should be able to observe as previously a nice evaluation of network speed and it's breakdown.
 
 !!! success "Congratulation"
 
@@ -125,7 +125,7 @@ You should now observe as previously a nice evaluation of network speed and it's
 
 ## Streaming Audio with stateful model
 
-Let's now imagine that you want to add one of these symbol to the time dimension.
+Imagine that you want to add one of these symbol to the time dimension.
 
 We will for this purpose build a very simple audio network that will have to predict that
 events occured every 4 frames in an infinite stream of frames.
@@ -187,14 +187,14 @@ export_model_to_nnef(
 )
 ```
 
-After running the script we can now look at it from a tract perspective
+After running the script we look at it from a tract perspective
 by dumping it with the classical command:
 
 ```bash
 tract ./custom_deepspeech.nnef.tgz --nnef-tract-core -O dump
 ```
 
-we observe a peculiar output dimension
+We observe a peculiar output dimension:
 
 ```bash
     ━━━ B,-3+(S+3)/4,40,F32
@@ -213,9 +213,9 @@ to fill our [receptive field](https://en.wikipedia.org/wiki/Convolutional_neural
 Since there is a stride of 2 and a max-pooling of 2: we divide original S by 4 .
 
 tract is able to manage this state of receptive field and the caching of RNN state
-for you seamlessly. To achieve that we need to pulse the network:
-Pulsing is a concept specific to tract. It's choosing the time step at which you wish your network to operate.
- By example for this neural network you can select any pulse that would be a multiple of 4.
+for you transparently. To achieve that we need to pulse the network:
+Pulsing is a concept specific to tract. It's choosing the 'time' step at which you wish your network to operate.
+ By example for this neural network you can select any pulse value that would be a multiple of 4.
 Due to it's internal structure we discussed upper.
  As an example we select 8:
 
@@ -228,17 +228,15 @@ tract custom_deepspeech.nnef.tgz \
 ```
 
 By calling this command you create a new NNEF asset that just replaced your
-streaming dimensions S by 8.
+streaming dimensions S by 8. If you look at this newly generated *graph.nnef*, you will also observe several novelties:
 
-If you look at this newly generated *graph.nnef*, you will observe several novelties:
-
-a new extension is added:
+- a new extension is added:
 
 ```nnef
 extension tract_registry tract_pulse;
 ```
 
-The introduction of new tract properties:
+- The introduction of new tract properties:
 
 ```nnef
   ("pulse.delay", tract_core_cast([3], to = "i64")),
@@ -246,7 +244,7 @@ The introduction of new tract properties:
   ("pulse.output_axes", tract_core_cast([1], to = "i64")),
 ```
 
-And some novel operators are set:
+- And some novel operators are set:
 
 ```nnef
 tract_pulse_delay(
@@ -259,9 +257,8 @@ tract_pulse_delay(
 
 They explicitly state the delay expected after the operation at this point
 of the graph.
-Now each time you will call this model loaded,
-within the same state: it will expect to receive the next 8 frames of melbanks.
-as explained earlier the state caching is managed internally by tract :magic_wand: .
+Now each time you will call this loaded model within the same state: it will expect to receive the next 8 frames of melbanks.
+And as explained earlier the state caching is managed internally by tract :magic_wand: .
 
 !!! info
 
@@ -285,7 +282,8 @@ export_model_to_nnef(
     inference_target=TractNNEF(
         # here we have to specify the symbols for all inputs
         # and all dimensions
-        # same symbol is applied several time because: it's the same dimension.
+        # same symbol is applied several time because:
+        # it's the same dimension.
         dynamic_axes={
             "input_ids": {0: "B", 1: "S"},
             "attention_mask": {0: "B", 1: "S"},
@@ -297,9 +295,9 @@ export_model_to_nnef(
     input_names=input_names,
     output_names=["output"],
     debug_bundle_path=Path("./debug.tgz"),
-    # here we are adding some constraint to our introduced
+    # here we are adding some constraints to our introduced
     # S symbol to help tract reason about what it can do
-    # with this
+    # with this symbol
     custom_extensions=[
         "tract_assert S >= 1",
         # we constrain arbitrary our model to be at max 32k tokens
@@ -311,7 +309,7 @@ export_model_to_nnef(
 
 Great, now at least we have a bit of dynamism, our newly exported model:
 
-- can handle multiple query at once (with single batch)
+- can handle multiple queries at once (with single batch)
 - can ingest varying number of tokens
 
 But is it enough to make it complete ?

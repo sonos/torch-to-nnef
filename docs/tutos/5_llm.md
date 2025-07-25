@@ -15,7 +15,7 @@
 Since 2020, Large Language Models have gathered significant attention in the industry
 to the point where every product start to integrate them. **tract** have been polishing
 for this special networks since late 2023, and the inference engine is now competitive
-with state of the art on Apple Silicon and soon likely on Nvidia GPU's.
+with state of the art on Apple Silicon and more recently on Nvidia GPU's.
 In the industry most players use the `transformers` library and a lot of the HuggingFace
 ecosystem to specify their models in PyTorch. This make this library the most up to
 date source of Model architecture and pre-trained weights.
@@ -113,12 +113,12 @@ To run such model you can for example use [this crate of tract](https://github.c
 !!! tip "work in progress"
 
     This cli is still early stage, we intends to support
-    embedding & classifaction in a near future, as well as
+    embedding & classification in a near future, as well as
     other modalities model like Visual and Audio LM.
 
 This same cli allow you to export a model that you would have fine-tuned yourself
 and saved with [`.save_pretrained`](https://huggingface.co/docs/transformers/en/main_classes/model#transformers.PreTrainedModel.save_pretrained)
-by replacing the `-s {HUGGING_FACE_SLUG}` by a `-d {MY_DIR_PATH_ON_TRANSFORMERS_MODEL_WEIGHTS}`,
+by replacing the `-s {HUGGING_FACE_SLUG}` by a `-d {MY_LOCAL_DIR_PATH_TO_TRANSFORMERS_MODEL_WEIGHTS}`,
 if you did your finetuning with PEFT you can just add `-mp` to merge the PEFT
 weights before export (in-case this is your wish: this will allow faster inference
 but remove ability to have multiple 'PEFT finetuning' sharing same base exported model).
@@ -128,12 +128,12 @@ but remove ability to have multiple 'PEFT finetuning' sharing same base exported
 Quantization of models is essential to get the best model on limited resource devices.
 It is also very simple to apply opt-in at export time with this command line:
 
-- `--compression-registry` that control the registry that contains the quantization method available it can be any dict from installed modules
-    including modules unrelated to `torch_to_nnef` package.
+- `--compression-registry` that control the registry that contains the quantization methods available it can be any dict from installed modules
+    including modules from external packages (different from `torch_to_nnef`).
 - `--compression-method` that select the quantization method to apply, as a toy example you can
 export models linear layers in Q40 (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw)
 with simple `min_max_q4_0`. If you wish to leverage best quantization techniques we recommend you to
-read our [tutorial on Quantization and export](./6_quantization.md) to implement your own.
+read our [tutorial on Quantization and export](./6_quantization.md) to implement your own (SONOS has a closed source package doing just that).
 
 ## Export a model that does not fit in RAM
 
@@ -161,7 +161,7 @@ t2n_export_llm_to_tract \
 And pouf done. It will be a bit slower because SSD are slower than RAM but hey
 exporting Qwen3 8B in f16 takes around 4min for a 16Go stored model (this trade
 is fine for most big models). See [our offloaded tensor tutorial](./7_offloaded_tensor.md)
-to learn more about how to leverage this further.
+to learn more about how to leverage this further (even in your PyTorch based apps).
 
 ## Export a model from different library
 
@@ -174,10 +174,10 @@ Here is few key considerations to take before starting to support a non
 [transformers](https://github.com/huggingface/transformers) (here we are speaking of the package, not the other architectures like Mamba, RWKV, ...)
 language model:
 
-- How past states of your neural network is managed inside your library, is it like
-transformers an ad-hoc system that is passed as input and output of your neural network
-main module ?
-- If not is it easy to transform your modeling to approach this architecture ?
+- How past states of your neural network is managed inside the library, is it like
+transformers an external design that pass as input and output of your neural network
+main module all states (like KV-cache) ?
+- If not is it easy to transform the library internal modeling to approach this architecture ?
 
 If you can answer yes to one of those 2 questions congratulation, you should be able
 to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract).
@@ -186,7 +186,7 @@ Else if state management is internal to specific modules you will likely need to
 [custom operator exporter](./8_custom_operator.md) to express those IO at export time
 or add specific operators in tract to manage it.
 
-In all case prior tutorials should be able to help you toward your goal especially with
+In all cases, prior tutorials should be able to help you toward your goal especially with
 regard to [`dynamic axes`](./4_dynamic_axes.md) and [basic api](./1_getting_started.md).
 
 !!! tip "Community"

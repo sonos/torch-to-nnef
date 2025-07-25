@@ -26,7 +26,7 @@ This class is defined as such:
 
 You can directly load any *.safetensor* or *.pt* into this object that will mimic classical
 `torch.Tensor` except that each access will load the Tensor from disk and remove it from RAM as
-soon as those are not needed allowing to manipulate very large model bit by bit.
+soon as those are not needed, allowing to manipulate very large model bit by bit.
 It is composable with other `torch_to_nnef.tensor.opaque.OpaqueTensor` such as `QTensor`.
 
 To load from disk without overhead,
@@ -67,7 +67,7 @@ t2n_load_checkpoint_and_dispatch(
 
 These `OffloadedTensor` are also very useful to implement into quantization techniques to
 support very large model quantization with a calibration based on observed values like Hessian from activation.
-Indeed if we think of the Hessian example: this square matrix can be pretty large especially
+Indeed if we think of the Hessian example: these square matrices can be pretty large especially
 when multiplied by the number of activations on a big neural network.
 
 If you only wish to maintain QTensor into OffloadedTensor if original float

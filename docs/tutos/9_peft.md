@@ -34,7 +34,7 @@ t2n_export_peft_to_nnef \
     -o /tmp/my-outputdir
 ```
 
-By default export **LoRA** weights, if you wish to apply it on different methods look
+By default it exports **LoRA** weights, if you wish to apply it on different methods look
 at additional options (with `--help`), the core functionality behind this CLI is simple
 pattern matching so most of PEFT weight names matching with regex should work (DoRA, ...).
 

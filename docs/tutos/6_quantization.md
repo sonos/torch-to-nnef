@@ -19,7 +19,7 @@
 </figure>
 
 Quantization is a set of techniques that allow to reduce significantly model
-size, and in case of memory-bound computation for model inference:
+size, and in case of memory-bound computations during model inference:
 speed up model as well. These techniques reduce the 'size' needed
 to store the numerical values representing the parameters of the neural network.
 
@@ -30,16 +30,16 @@ quantization scheme selected.
 `torch_to_nnef` primary support today being [`tract`](github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
-Today tract support 2 kind of quantization:
+To date tract support 2 kind of quantization:
 
-- Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it target weights only where matmul and embedding gathering transform those into float activations.
+- Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it target weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
 
 ## Custom Tensor quantization support
 
-### Q40 Export example
+### Q40 LLM Export example
 
 For LLM as we explained in prior [tutorial](./5_llm.md) quantization is as simple as
 adding the `-c` (or `--compression-method`) option with `min_max_q4_0_all`.
@@ -69,7 +69,7 @@ point to:
 
 ### Defining your own LLM quantization registry
 
-Anyone can create a new registry as long as it follows those rule
+Anyone can create a new registry as long as it follows those rules:
 
 - accessible as a global variable dict
 - with as key a string that reference the compression to apply
@@ -247,7 +247,7 @@ EXAMPLE_REGISTRY = {
 }
 ```
 
-Note here the use of `ModTensorUpdater` this module updater allow to avoid breaking shared reference to a common tensor among your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
+Note here the use of [`ModTensorUpdater`](/reference/torch_to_nnef/tensor/updater/) this module updater allow to avoid breaking shared reference to a common tensor inside your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
 
 We now just need to fill the `fp_to_tract_q4_0_with_grid_mse_calibration` function and we are done. Also note that I could have done a calibration stage with external data before end at the beginning (some quantization method need to minimize quantization error for activations). In this case we opt for simplicity:
 
@@ -300,10 +300,11 @@ own super quant :tada:.
 Quantization in 8bit including activation is something that is built-in PyTorch
 since a while. This is great because it means this is as well represented in the
 Intermediate representation after graph is traced, hence easily exportable with
-`torch_to_nnef`. Still today tract only support 8bit asymmetric linear quantization
+`torch_to_nnef`. Still, today tract only support 8bit asymmetric linear quantization
 per tensor (no per channel).
 
-We will still demonstrate this ability on a simple usecase:
+We will demonstrate this ability on a simple usecase:
+
 Let's do a CNN + ReLU example and apply a [classical PTQ](https://docs.pytorch.org/docs/stable/quantization.html) from there:
 
 ```python title="simple PTQ export example"
@@ -360,7 +361,7 @@ export_model_to_nnef(
 )
 ```
 
-if you look at the model **graph.nnef**, You will obvserve no
+if you look at the model **graph.nnef**, there is no
 difference with a classical NNEF model but .dat exported are uint8 and
 a new textual file is set called  `graph.quant`.
 
@@ -402,5 +403,5 @@ You should observe that operators are correctly understood as Quantized with QU8
 
 !!! success end "Congratulation"
 
-    You first exported the network with `torch_to_nnef` quantized in 8bit
+    You exported your first quantized network with `torch_to_nnef` in 8bit
     and learned how to create and manage own quantization registry !

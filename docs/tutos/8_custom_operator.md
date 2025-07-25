@@ -14,8 +14,12 @@
     - [ ] PyTorch and Python basics
     - [ ] 5 min to read this page
 
-In case you want control specific `torch.nn.Module` expansion to NNEF you can
-create a subclass of `torch_to_nnef.op.custom_extractors.ModuleInfoExtractor`
+Sometime you want to control specific `torch.nn.Module` expansion to NNEF.
+It may happen because you want to use specific custom operator on inference target instead of
+basic primitives, or simply because you need to map to something that is not traceable,
+like for example (but not limited to) a physics engine.
+
+To this purpose with `torch_to_nnef`, you can create a subclass of [`torch_to_nnef.op.custom_extractors.ModuleInfoExtractor`](/reference/torch_to_nnef/op/custom_extractors/base/)
 that is defined as such:
 
 <div class="grid cards" markdown>
@@ -23,7 +27,7 @@ that is defined as such:
     handler: python
 </div>
 
-To make it work you need 4 steps:
+To make it works you need to accomplish 4 steps:
 
 1. sub-classing it
 2. defining it's `MODULE_CLASS` attribute.
@@ -55,5 +59,6 @@ You can take inspiration from our own management of RNN layers like:
 - ::: torch_to_nnef.op.custom_extractors.LSTMExtractor
     handler: python
 </div>
+
 But ultimately this is just a chain of op's that need to be written,
-inside the `g` graph.
+inside the `g` graph, like we do when [adding new aten operator](/contributing/add_new_aten_op)
