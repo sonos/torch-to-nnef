@@ -27,7 +27,9 @@ cd getting_started_py
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install torch==2.7.0 torchvision==0.22.0 torch_to_nnef
+pip install torch==2.7.0 \
+    torchvision==0.22.0 \
+    torch_to_nnef
 wget https://upload.wikimedia.org/wikipedia/commons/5/55/Grace_Hopper.jpg
 touch export.py
 ```
@@ -42,16 +44,18 @@ import torch
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
 
-my_image_model = vision_mdl.vit_b_16(pretrained=True)
+my_image_model = vision_mdl.vit_b_16(pretrained=True) # (1)!
 
 img = read_image("./Grace_Hopper.jpg")
-classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1 # (2)!
 input_data_sample = classification_task.transforms()(
     img.unsqueeze(0)
 )
 
 with torch.no_grad():
-    predicted_index = my_image_model(input_data_sample).argmax(1).tolist()[0]
+    predicted_index = my_image_model(
+        input_data_sample
+    ).argmax(1).tolist()[0]
     print(
         "class id:",
         predicted_index,
@@ -62,6 +66,9 @@ with torch.no_grad():
     )
 
 ```
+
+1. Selected model is [documented here](https://docs.pytorch.org/vision/main/models/generated/torchvision.models.vit_b_16.html)
+2. The classification task is [documented here](https://docs.pytorch.org/vision/main/models/generated/torchvision.models.efficientnet_b0.html#torchvision.models.EfficientNet_B0_Weights)
 
 Running the file:
 
@@ -80,18 +87,20 @@ from pathlib import Path
 from torch_to_nnef import export_model_to_nnef, TractNNEF
 
 file_path_export = Path("vit_b_16.nnef.tgz")
-export_model_to_nnef(
+export_model_to_nnef( # (1)!
     # any nn.Module
     model=my_image_model,
-    # list of model arguments (here simply an example of tensor image)
+    # list of model arguments
+    # (here simply an example of tensor image)
     args=input_data_sample,
     # filepath to dump NNEF archive
     file_path_export=file_path_export,
     # inference engine to target
-    inference_target=TractNNEF(
+    inference_target=TractNNEF( # (2)!
         # tract version (to ensure compatible operators)
         version="0.21.13",
-        # default False (tract binary will be installed on the machine on fly)
+        # default False
+        # (tract cli will be installed on the machine on fly)
         # and correctness of output compared to PyTorch for the
         # provided model and input will be performed
         check_io=True,
@@ -99,11 +108,15 @@ export_model_to_nnef(
     input_names=["input"],
     output_names=["output"],
     # create a debug bundle in case model export work
-    # but NNEF fail in tract (either due to load error or precision mismatch)
+    # but NNEF fail in tract
+    # (either due to load error or precision mismatch)
     debug_bundle_path=Path("./debug.tgz"),
 )
 print(f"exported {file_path_export.absolute()}")
 ```
+
+1. Full function documentation available [here](/reference/torch_to_nnef/export/#torch_to_nnef.export.export_model_to_nnef)
+2. Full Class documentation available [here](/reference/torch_to_nnef/inference_target/tract/#torch_to_nnef.inference_target.tract.TractNNEF)
 
 And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started_py/export.py))
 
@@ -154,7 +167,12 @@ This command line is pretty dense so we will only use part of it today.
 Let's first load and dump our model properties:
 
 ```bash title="Dump model properties with tract"
-tract ./vit_b_16.nnef.tgz --nnef-tract-core -O dump --allow-random-input --profile
+tract ./vit_b_16.nnef.tgz \
+    --nnef-tract-core \
+    -O \
+    dump \
+    --allow-random-input \
+    --profile
 ```
 
 Here a lot is happening:
@@ -265,13 +283,15 @@ Now we can load the `NNEF` model with tract, declutter and optimize it:
 
 ```python title="run.py (part 2)"
 model = (
-    tract.nnef()
+    tract.nnef() #(1)!
     .with_tract_core()
     .model_for_path("./vit_b_16.nnef.tgz")
     .into_optimized()
     .into_runnable()
 )
 ```
+
+1. documentation [available here](https://sonos.github.io/tract/dev/nnef/)
 
 Finally we can run the inference for the provided input and extract predicted result:
 
