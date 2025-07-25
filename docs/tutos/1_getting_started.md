@@ -144,7 +144,7 @@ But wait there is 2 tracing warnings here:
 
 - The second is interesting, it highlights a loss of model expressiveness because we did not specify
     that one of the input dimension is in fact the batch size, a parameter that may vary. We will show how
-    to solve that in the next tutorial. (spoiler: we use same API as ONNX export to inform `dynamic_axes`)
+    to solve that in the [next tutorial](./4_dynamic_axes.md). (spoiler: we use same API as ONNX export to inform `dynamic_axes`)
 
 Finally last line indicates that the model has been correctly exported on disk at: `.../vit_b_16.nnef.tgz`.
 
@@ -152,7 +152,7 @@ Finally last line indicates that the model has been correctly exported on disk a
 
 We will now check with the tract cli that everything is working as expected.
 
-Let's first display the help of the command line we downloaded when we checked io between tract and PyTorch (step 2.)
+Let's first display the help of the command line we downloaded when we checked io between tract and PyTorch (in step 2.)
 
 ```bash title="Setup"
 alias tract=$HOME/.cache/svc/tract/0.21.13/tract
@@ -160,11 +160,11 @@ tract --help
 ```
 
 If you did skip this steps you can always download manually the cli from the [tract release page](https://github.com/sonos/tract/releases),
-or run `cargo install tract` (which will compile it for you system).
+or run `cargo install tract` (which will compile it for your system).
 
 This command line is pretty dense so we will only use part of it today.
 
-Let's first load and dump our model properties:
+Let's first load and dump a profile of our model:
 
 ```bash title="Dump model properties with tract"
 tract ./vit_b_16.nnef.tgz \
@@ -177,11 +177,11 @@ tract ./vit_b_16.nnef.tgz \
 
 Here a lot is happening:
 
-- tract load the nnef registry relative to core operators
-- it then load the model
-- it declutter and optimize it  (thanks to the `-O`)
+- tract loads the NNEF registry relative to core operators
+- its then load the model
+- it declutters and optimize it  (thanks to the `-O`)
 - the `--allow-random-input` avoid us to provide a concrete input example
-- the `--profile` informs the cli that we want to observe the speed of it
+- the `--profile` informs the command-line that we want to observe the speed of it
 
 Output in stdout is composed of following sections in order:
 
@@ -198,7 +198,7 @@ The graph of computation (after decluttering and optimization) with each operati
 ```
 
 This already tell us about how network is composed and which specialized operators kernels were select.
-(In this display we are on an ARM CPU.)
+(this display is from an ARM CPU)
 Then we have the list of custom properties that have been exported by `torch_to_nnef`:
 
 ```json title="Exported properties"
@@ -230,26 +230,26 @@ Finally the aggregated per operator kind performance is shown:
 
 ```
 
-With percentage of time spent (again aggregated per operator kind).
-
-Finally you get the total time spent to run the network:
+With percentage of time spent (again aggregated per operator kind) and you get the total time spent to run the network:
 
 ```json title="Total performance"
 Entire network performance: 138.525 ms/i
 ```
 
+On classical networks, matrix multiplication operations should dominate the compute time.
+
 !!! info
 
-    This command only include time to run the inference (model load and optimization is not accounted).
+    This command only display time to run the inference (model load and optimization is not accounted).
 
 !!! tip "GPU usage"
 
-    If you have a recent Apple Silicon device try the same command adding `--metal` before the dump
+    If you have a recent Apple Silicon device try the same command adding `--metal` before the `dump`
     and observe the speed difference.
 
 ## <span style="color:#6666aa">**:material-step-forward:  Step 5.**</span> :material-language-python: tract inference with Python
 
-We just created a great model NNEF, and it has been checked during export to get same output for same input
+We just created a great NNEF model, and it has been checked during export to get same output for same input
 between PyTorch and tract (thanks to the `check_io=True` option). That said you may now wish to
 interact with it to perform a fully fledged evaluation of the model (to ensure this new inference engine
 do not get imprecise results on some specific samples).
@@ -309,7 +309,7 @@ print(
 )
 ```
 
-And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started_py/run.py))
+And that's it, we can now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/feat/mkdocs/docs/examples/getting_started_py/run.py)).
 
 !!! success end "Congratulation"
 
@@ -319,7 +319,7 @@ And that's it if we now run our little snippet (full code [here](https://github.
 
 ## <span style="color:#6666aa">**:material-step-forward:  Step 6.**</span> :fontawesome-brands-rust: Making a minimal rust program
 
-Ok, we have our model asset we confirmed it run well from tract cli, now let's integrate it in a rust program.
+Ok, we have our model asset we confirmed it run well from tract cli and Python, now let's integrate it in a rust program.
 
 We will build it step by step, but note that the code is very similar to this [tract example](https://github.com/sonos/tract/tree/main/examples/nnef-dump-mobilenet-v2).
 
@@ -332,14 +332,14 @@ cp ../getting_started_py/vit_b_16.nnef.tgz ./
 cp ../getting_started_py/Grace_Hopper.jpg ./
 ```
 
-Let's now compile the project it should output hello world:
+Now compile the project:
 
 ```bash title="check project compile"
 cargo run --release
 ```
 
-We should observe `Hello, world!`
-Now let's write the core interesting parts in `src/main.rs`:
+We should observe `Hello, world!` in stdout.
+Let's write the core interesting parts in `src/main.rs`:
 
 Add the [prelude](https://doc.rust-lang.org/reference/names/preludes.html) from tract_nnef
 
@@ -347,7 +347,7 @@ Add the [prelude](https://doc.rust-lang.org/reference/names/preludes.html) from 
 use tract_nnef::prelude::*;
 ```
 
-and replace the type signature of the main (for simpicity of this example):
+Replace the type signature of the main (for simplicity of this example):
 
 ```rust title="main.rs (part 2)"
 fn main() -> TractResult<()> {
@@ -356,7 +356,7 @@ fn main() -> TractResult<()> {
 }
 ```
 
-Inside the main we replace *println* with:
+Inside the main replace *println* with:
 
 ```rust title="main.rs (part 3)"
     let model = tract_nnef::nnef()
@@ -369,7 +369,7 @@ Inside the main we replace *println* with:
 ```
 
 This code is responsible to load, declutter and optimize the model.
-We can now prepare image to be ingested by the neural network:
+Prepare image to be ingested by the neural network:
 
 ```rust title="main.rs (part 4)"
     // open image, resize it and make a Tensor out of it
@@ -435,7 +435,7 @@ result: Some((9.439479, 652))
 
     :tada: you made it !
     You first exported the network with `torch_to_nnef` and
-    ran a successful standalone cli command with tract based inference in it.
+    ran a successful standalone rust cli command with tract based inference in it.
 
 ## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: Image classifier
 
@@ -505,4 +505,4 @@ init().then(() => {
     Performance are descent, but little to no effort was made to make tract WASM efficient (no SIMD wasm, no WebGPU kernels),
     this demo is for demonstration purpose.
 
-Curious to understand the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).
