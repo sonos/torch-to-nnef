@@ -76,6 +76,7 @@ def unbind(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def chunk(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:chunk' to NNEF """
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
     assert len({tuple(o.shape) for o in node.outputs}) == 1, (

@@ -89,38 +89,45 @@ def _reducer(aten_op_name: str, node, op_helper, output_idx: int = 0):
 
 @OP_REGISTRY.register()
 def mean(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:mean' to NNEF """
     _reducer("mean_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_sum", "sum"])
 def reduce_sum(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:reduce_sum', 'aten:sum' to NNEF """
     _reducer("sum_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register()
 def argmax(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:argmax' to NNEF """
     _reducer("argmax_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register()
 def argmin(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:argmin' to NNEF """
     _reducer("argmin_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_any", "any"])
 def reduce_any(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:reduce_any', 'aten:any' to NNEF """
     assert len(node.outputs) == 1
     _reducer("any_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_all", "all"])
 def reduce_all(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:reduce_all', 'aten:all' to NNEF """
     assert len(node.outputs) == 1
     _reducer("all_reduce", node, op_helper)
 
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_max", "amax"])
 def reduce_max(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:reduce_max', 'aten:amax' to NNEF """
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise TorchToNNEFNotImplementedError(
@@ -133,6 +140,7 @@ def reduce_max(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["reduce_min", "amin"])
 def reduce_min(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:reduce_min', 'aten:amin' to NNEF """
     n_outputs = len(node.outputs)
     if n_outputs > 2:
         raise TorchToNNEFNotImplementedError(
@@ -145,6 +153,7 @@ def reduce_min(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["max"])
 def max_(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:max' to NNEF """
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_max(node, op_helper)
     return op_helper.unary_output_op_without_attr(nnef_op_type="max", node=node)
@@ -152,6 +161,7 @@ def max_(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["min"])
 def min_(node, op_helper, **kwargs):
+    """ Operator mapping PyTorch: 'aten:min' to NNEF """
     if isinstance(node.inputs[1], PythonConstant):
         return reduce_min(node, op_helper)
     return op_helper.unary_output_op_without_attr(nnef_op_type="min", node=node)
@@ -159,6 +169,7 @@ def min_(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def prod(node, op_helper, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:prod' to NNEF """
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(inference_target)

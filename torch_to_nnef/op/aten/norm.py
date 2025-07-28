@@ -228,6 +228,7 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["layer_norm", "native_layer_norm"])
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
+    """ Operator mapping PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF """
     (
         input_tensor_node,
         normalized_shape_node,

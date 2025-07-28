@@ -93,6 +93,7 @@ def _pooling_op(
 
 @OP_REGISTRY.register()
 def max_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:max_pool1d' to NNEF """
     _pooling_op(
         "max_pool", node.inputs, g, node, name_to_tensor, inference_target
     )
@@ -100,6 +101,7 @@ def max_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:avg_pool1d' to NNEF """
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
         raise TorchToNNEFNotImplementedError(
@@ -121,6 +123,7 @@ def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["max_pool2d", "max_pool3d"])
 def max_pool_nd(g, node, name_to_tensor, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:max_pool2d', 'aten:max_pool3d' to NNEF """
     _pooling_op(
         "max_pool", node.inputs, g, node, name_to_tensor, inference_target
     )
@@ -214,6 +217,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     ["adaptive_avg_pool1d", "adaptive_avg_pool2d", "adaptive_avg_pool3d"]
 )
 def adaptive_avg_poolnd(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:adaptive_avg_pool1d', 'aten:adaptive_avg_pool2d', 'aten:adaptive_avg_pool3d' to NNEF """
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("avg_pool", g, node, name_to_tensor)
 
@@ -223,6 +227,7 @@ def adaptive_avg_poolnd(g, node, name_to_tensor, **kwargs):
     ["adaptive_max_pool1d", "adaptive_max_pool2d", "adaptive_max_pool3d"]
 )
 def adaptive_max_poolnd(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:adaptive_max_pool1d', 'aten:adaptive_max_pool2d', 'aten:adaptive_max_pool3d' to NNEF """
     node.outputs = node.outputs[:1]
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("max_pool", g, node, name_to_tensor)

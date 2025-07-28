@@ -26,6 +26,7 @@ def view(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:view' to NNEF """
     (input_node, axis_node) = node.inputs
     dim_data = get_list_of_int(
         axis_node,
@@ -60,6 +61,7 @@ def unflatten(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:unflatten' to NNEF """
     (input_node, axis_node, new_shape_chunk_node) = node.inputs
     assert isinstance(axis_node, PythonConstant), (
         "axis is supposed to be static"
@@ -129,6 +131,7 @@ def unflatten(
 
 @OP_REGISTRY.register()
 def transpose(g, node, name_to_tensor, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:transpose' to NNEF """
     (input_node, dim0_node, dim1_node) = node.inputs
     dim0 = pick_axis(input_node, dim0_node.data)
     dim1 = pick_axis(input_node, dim1_node.data)
@@ -164,6 +167,7 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def permute(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:permute' to NNEF """
     (input_node, dims_node) = node.inputs
     add_single_output_op(
         g,
@@ -180,6 +184,7 @@ def permute(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def unsqueeze(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:unsqueeze' to NNEF """
     (input_node, axis_node) = node.inputs
 
     axis = pick_axis(input_node, axis_node.data)
@@ -200,6 +205,7 @@ def unsqueeze(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def squeeze(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:squeeze' to NNEF """
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     add_single_output_op(
@@ -262,6 +268,7 @@ def reshape(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:reshape' to NNEF """
     (input_node, axis_node) = node.inputs
 
     dim_data = get_list_of_int(

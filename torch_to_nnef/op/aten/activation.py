@@ -15,6 +15,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register(["softmax", "_softmax"])
 def softmax(**kwargs):
+    """ Operator mapping PyTorch: 'aten:softmax', 'aten:_softmax' to NNEF """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
@@ -54,6 +55,7 @@ def softplus(**kwargs):
 
 @OP_REGISTRY.register()
 def elu(**kwargs):
+    """ Operator mapping PyTorch: 'aten:elu' to NNEF """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
@@ -63,6 +65,7 @@ def elu(**kwargs):
 
 @OP_REGISTRY.register()
 def leaky_relu(**kwargs):
+    """ Operator mapping PyTorch: 'aten:leaky_relu' to NNEF """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
@@ -72,6 +75,7 @@ def leaky_relu(**kwargs):
 
 @OP_REGISTRY.register()
 def prelu(**kwargs):
+    """ Operator mapping PyTorch: 'aten:prelu' to NNEF """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
@@ -81,24 +85,28 @@ def prelu(**kwargs):
 
 @OP_REGISTRY.register()
 def selu(**kwargs):
+    """ Operator mapping PyTorch: 'aten:selu' to NNEF """
     unary_input_output_op_with_constant("selu", **kwargs)
     return ["selu"]
 
 
 @OP_REGISTRY.register()
 def silu(**kwargs):
+    """ Operator mapping PyTorch: 'aten:silu' to NNEF """
     unary_input_output_op_with_constant("silu", **kwargs)
     return ["silu"]
 
 
 @OP_REGISTRY.register()
 def relu6(**kwargs):
+    """ Operator mapping PyTorch: 'aten:relu6' to NNEF """
     unary_input_output_op_with_constant("relu6", **kwargs)
     return ["relu6"]
 
 
 @OP_REGISTRY.register()
 def hardswish(inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:hardswish' to NNEF """
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.version >= "0.19.9"
@@ -111,6 +119,7 @@ def hardswish(inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def gelu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:gelu' to NNEF """
     if len(node.inputs) == 2 and node.inputs[1].data == "tanh":
         node.inputs = node.inputs[:1]
         unary_output_op_without_attr(
@@ -167,6 +176,7 @@ def erf(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def hardtanh(**kwargs):
+    """ Operator mapping PyTorch: 'aten:hardtanh' to NNEF """
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # remove inplace param
     for inode in node.inputs[1:]:
@@ -178,6 +188,7 @@ def hardtanh(**kwargs):
 
 @OP_REGISTRY.register()
 def log_softmax(inference_target, **kwargs):
+    """ Operator mapping PyTorch: 'aten:log_softmax' to NNEF """
     node = kwargs["node"]
     if node.inputs[2]:
         del node.inputs[2]
@@ -196,6 +207,7 @@ def log_softmax(inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def clamp_min(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:clamp_min' to NNEF """
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
 
@@ -218,6 +230,7 @@ def clamp_min(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def clamp_max(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:clamp_max' to NNEF """
     input_node = node.inputs[0]
     clamp_value_node = node.inputs[1]
 
@@ -240,6 +253,7 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def clamp(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:clamp' to NNEF """
     input_node, min_clamp, max_clamp = node.inputs
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
@@ -278,6 +292,7 @@ def clamp(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def glu(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:glu' to NNEF """
     input_node, axis_node = node.inputs
     add_single_output_op(
         g,

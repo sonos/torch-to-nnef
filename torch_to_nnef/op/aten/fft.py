@@ -121,6 +121,7 @@ def stft(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:stft' to NNEF """
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
     if (
@@ -250,6 +251,7 @@ def fft_fft(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:fft_fft' to NNEF """
     return _fft(
         node,
         g,
@@ -267,6 +269,7 @@ def fft_ifft(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:fft_ifft' to NNEF """
     return _fft(
         node,
         g,

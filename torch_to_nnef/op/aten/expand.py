@@ -327,6 +327,7 @@ def _fill_negone_with_dim_by_rank_order(
 
 @OP_REGISTRY.register()
 def repeat(g, node, name_to_tensor, **kwargs):
+    """ Operator mapping PyTorch: 'aten:repeat' to NNEF """
     (input_node, axis_node) = node.inputs
     add_single_output_op(
         g,

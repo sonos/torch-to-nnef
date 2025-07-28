@@ -31,6 +31,7 @@ def view_as_complex(
     torch_graph,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:view_as_complex' to NNEF """
     if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported in vanilla spec"
@@ -52,6 +53,7 @@ def view_as_real(
     inference_target,
     **kwargs,
 ):
+    """ Operator mapping PyTorch: 'aten:view_as_real' to NNEF """
     if tract_complex_support(inference_target):
         raise TorchToNNEFNotImplementedError(
             "Complex not supported by vanilla NNEF"
