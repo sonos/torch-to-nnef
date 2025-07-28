@@ -118,7 +118,7 @@ Additional grief against it for the NN use case:
 4. Doing quantization with it is painful especially as you go bellow Q4 or have custom
 quantization operations/methods.
 
-5. Extensibility is still lagging behind an will always be harder to do than on a plain text file.
+5. Extensibility is still lagging behind and will always be harder to do than on a plain text file.
 
 ## vs .safetensors
 

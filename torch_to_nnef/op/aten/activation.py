@@ -34,6 +34,7 @@ def softplus(**kwargs):
 
     PyTorch ref:
         y = (1/beta) * log(exp(beta * x) + 1)  if ((beta * x) < thresh) else x
+
     NNEF ref:
         y = log(exp(x) + 1.0)
 

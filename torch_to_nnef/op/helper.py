@@ -76,6 +76,11 @@ class OpRegistry:
                     f"'{torch_id}' already in registry"
                 )
                 self._registry[torch_id] = decorated
+            if not decorated.__doc__:
+                decorated.__doc__ = f"Operator mapping PyTorch: {self.torch_mod_id}::{torch_op_ids} to NNEF"
+                decorated._auto_gen_doc = True
+            else:
+                decorated._auto_gen_doc = False
             return decorated
 
         return wrapper
