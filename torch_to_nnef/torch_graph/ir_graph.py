@@ -11,6 +11,7 @@ from torch_to_nnef.exceptions import (
     TorchCheckError,
     TorchNotFoundOp,
     TorchOpTranslatedDifferently,
+    TorchToNNEFError,
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
@@ -183,7 +184,16 @@ class TorchModuleIRGraph:
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph inputs"""
-        graph_inputs = list(self._tracer.torch_graph.inputs())[1:]
+
+        graph_inputs = []
+        is_start_cls = True
+        for torch_ir_inp in self._tracer.torch_graph.inputs():
+            if torch_ir_inp.type().kind() == CLASSTYPE_KIND and is_start_cls:
+                continue
+            else:
+                is_start_cls = False
+            graph_inputs.append(torch_ir_inp)
+
         if provided_inputs is None:
             provided_inputs = [None] * len(graph_inputs)  # type: ignore
 
@@ -480,6 +490,13 @@ class TorchModuleIRGraph:
                 assert isinstance(op.op_ref, TorchModuleTracer), op.op_ref
                 op.op_ref.args = op.args
 
+                if set(self.tracer.torch_graph.outputs()) == set(
+                    op.op_ref.torch_graph.outputs()
+                ):
+                    raise TorchToNNEFError(
+                        "Bug: Recursive call detected ! "
+                        f"Trying to parse same Pytorch IR sub-module twice: {op}"
+                    )
                 submodule_graph = module_tracer_into_ir_graph(
                     op.op_ref,
                     omit_useless_nodes=self._omit_useless_nodes,

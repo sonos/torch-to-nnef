@@ -8,6 +8,7 @@ from torch_to_nnef.dtypes import str_to_torch_dtype
 from torch_to_nnef.exceptions import (
     TorchNotFoundDataNode,
     TorchOpTranslatedDifferently,
+    TorchToNNEFError,
     TorchToNNEFNotImplementedError,
 )
 from torch_to_nnef.tensor.opaque import IR_OPAQUE_NAME, find_opaque_ref_by_py_id
@@ -577,6 +578,11 @@ def _extract_op_infos(
         module_getter_ref, op_ref = _unfold_graph_getattr_by_node(
             module, value_call_ref.node()
         )
+        if op_ref == module:
+            raise TorchToNNEFError(
+                "Bug: Recursive call detected ! "
+                f"Trying to parse same Pytorch IR sub-module twice: {op_ref}"
+            )
         call_name = value_call_ref.debugName()
         inputs = inputs[1:]
         # use appropriate graph
