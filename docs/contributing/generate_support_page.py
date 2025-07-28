@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 from torch_to_nnef.op.aten import aten_ops_registry
 import requests as rq
 import bs4
@@ -11,11 +11,47 @@ import subprocess
 
 TORCH_VERSION = "v2.7.1"
 URL_IR = "https://docs.pytorch.org/docs/main/torch.compiler_ir.html"
-resp = rq.get(URL_IR)
+ONNX_SUPPORT_URL = "https://docs.pytorch.org/docs/stable/onnx_torchscript_supported_aten_ops.html"
 
-assert resp.status_code == 200
 
-soup = bs4.BeautifulSoup(resp.content, "html.parser")
+def get_core_ir():
+    resp = rq.get(URL_IR)
+    assert resp.status_code == 200
+    soup = bs4.BeautifulSoup(resp.content, "html.parser")
+    res = soup.find_all("span", {"class": "pre"})
+    official_aten_names = set(
+        [
+            r.text.split(".")[1]
+            for r in res
+            if r.text.startswith("aten")
+            if "backward" not in r.text
+        ]
+    )
+    official_prim_names = sorted(
+        [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
+    )
+    return (official_aten_names, official_prim_names)
+
+
+def get_onnx_support():
+    resp = rq.get(ONNX_SUPPORT_URL)
+    assert resp.status_code == 200
+    soup = bs4.BeautifulSoup(resp.content, "html.parser")
+    supported_ops = set(
+        [
+            _.text.replace("aten::", "")
+            for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
+            if "aten::" in _.text
+        ]
+    )
+    unsupported_ops = set(
+        [
+            _.text.replace("aten::", "")
+            for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
+            if "aten::" in _.text
+        ]
+    )
+    return supported_ops, unsupported_ops
 
 
 class LinkToTorchDocCache:
@@ -61,20 +97,9 @@ class LinkToTorchDocCache:
                 return k.format(op_name)
 
 
-res = soup.find_all("span", {"class": "pre"})
-official_aten_names = set(
-    [
-        r.text.split(".")[1]
-        for r in res
-        if r.text.startswith("aten")
-        if "backward" not in r.text
-    ]
-)
-official_prim_names = sorted(
-    [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
-)
-
+official_aten_names, official_prim_names = get_core_ir()
 t2n_aten = set(list(aten_ops_registry._registry.keys()))
+onnx_supported, onnx_unsupported = get_onnx_support()
 
 aten_torch_from_code = sorted(
     subprocess.check_output(
@@ -140,7 +165,95 @@ for a_from_code in aten_torch_from_code:
         a_from_code,
     )
 
-matched_qte = 0
+
+def print_t(text, file):
+    """Print tabbed"""
+    if text:
+        if "\n" in text:
+            lines = text.split("\n")
+            new_lines = []
+            for line in lines:
+                if line.strip():
+                    new_line = f"    {line}"
+                else:
+                    new_line = line
+                new_lines.append(new_line)
+            text = "\n".join(new_lines)
+        else:
+            text = f"    {text}"
+        print(text, file=file)
+    else:
+        print("", file=file)
+
+
+def write_operator_support(
+    support_target_name: str, support_target_msg: str, supported_opset: Set[str]
+):
+    rows = []
+    qte_core = 0
+    qte_supported_core = 0
+    matched_qte = 0
+
+    print(f'=== "{support_target_name}"', file=fh)
+    print("", file=fh)
+    for a_from_code in aten_torch_from_code:
+        if a_from_code in alias_map:
+            continue
+        is_core = a_from_code in official_aten_names
+        is_core_official_str = "✅" if is_core else "-"
+
+        exist_in_support = a_from_code in supported_opset
+
+        if is_core:
+            qte_core += 1
+            if exist_in_support:
+                qte_supported_core += 1
+
+        mapped_in_support_str = "✅" if exist_in_support else "❌"
+        if exist_in_support:
+            matched_qte += 1
+
+        inplace_str = "✅" if a_from_code in support_inplace else "❌"
+        alias_str = ", ".join(sorted(ref_alias[a_from_code]))
+        op_name = a_from_code
+        torch_url_doc = cache_url.get_url(op_name)
+        if torch_url_doc:
+            op_name = f"[{op_name}]({torch_url_doc})"
+        rows.append(
+            (
+                f"| {op_name} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_support_str} |",
+                is_core,
+            )
+        )
+    rows = sorted(rows, key=lambda x: -int(x[1]))
+    print_t("", file=fh)
+    support_n_ops = len([_ for _ in supported_opset if not _.endswith("_")])
+    ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
+    print_t(
+        f"Total matched operators in {support_target_msg} compared to:\n\n"
+        f"- core PyTorch opset:\n\n"
+        f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
+        "-  and support from full `aten::`: \n\n"
+        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
+        " (total registered aten "
+        f"operators in t2n being {support_n_ops})",
+        file=fh,
+    )
+    print_t("", file=fh)
+    print_t(
+        "| aten name | aliases | can in-place | is core | translated |",
+        file=fh,
+    )
+    print_t(
+        "| -------- | ------- | ------- | --------- | ---------------- |",
+        file=fh,
+    )
+    for r in rows:
+        print_t(r[0], file=fh)
+
+    print_t("", file=fh)
+
+
 with (Path(__file__).parent / "./supported_operators.md").open(
     "w", encoding="utf8"
 ) as fh:
@@ -155,68 +268,15 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         " uncommon operators are very rare in models, hence support may be lacking. "
         " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
-        f"\n 'is core' column refers to this [pytorch documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine.",
+        f"\n 'is core' column refers to this [PyTorch IR documentation page]({URL_IR})\n\n"
+        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
         file=fh,
     )
-    rows = []
-    qte_core = 0
-    qte_supported_core = 0
-    for a_from_code in aten_torch_from_code:
-        if a_from_code in alias_map:
-            continue
-        is_core = a_from_code in official_aten_names
-        is_core_official_str = "✅" if is_core else "-"
-
-        exist_in_t2n = a_from_code in t2n_aten
-
-        if is_core:
-            qte_core += 1
-            if exist_in_t2n:
-                qte_supported_core += 1
-
-        mapped_in_t2n_str = "✅" if exist_in_t2n else "❌"
-        if exist_in_t2n:
-            matched_qte += 1
-
-        inplace_str = "✅" if a_from_code in support_inplace else "❌"
-        alias_str = ", ".join(sorted(ref_alias[a_from_code]))
-        op_name = a_from_code
-        torch_url_doc = cache_url.get_url(op_name)
-        if torch_url_doc:
-            op_name = f"[{op_name}]({torch_url_doc})"
-        rows.append(
-            (
-                f"| {op_name} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_t2n_str} |",
-                is_core,
-            )
-        )
-    rows = sorted(rows, key=lambda x: -int(x[1]))
-    print("", file=fh)
-    t2n_n_ops = len([_ for _ in t2n_aten if not _.endswith("_")])
-    ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
-    print(
-        "Total matched operators in `torch_to_nnef` compared to:\n\n"
-        f"- core PyTorch opset:\n\n"
-        f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
-        "-  and support from full `aten::`: \n\n"
-        f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
-        " (total registered aten "
-        f"operators in t2n being {t2n_n_ops})",
-        file=fh,
+    write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
+    write_operator_support(
+        "ONNX",
+        f"builtin PyTorch `ONNX` support based on [this page]({ONNX_SUPPORT_URL})",
+        onnx_supported,
     )
-    print("", file=fh)
-    print(
-        "| aten name | aliases | can in-place | is core | t2n translated |",
-        file=fh,
-    )
-    print(
-        "| -------- | ------- | ------- | --------- | ---------------- |",
-        file=fh,
-    )
-    for r in rows:
-        print(r[0], file=fh)
-
-    print("", file=fh)
 
 cache_url.save()
