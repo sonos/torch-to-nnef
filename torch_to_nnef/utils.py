@@ -267,7 +267,18 @@ def init_on_device(
 
 @total_ordering
 class SemanticVersion:
-    """Helper to check a version is higher than another"""
+    """Helper to check a version is higher than another
+
+    Example:
+
+        >>> version = SemanticVersion.from_str("1.2.13")
+        >>> "1.2.12" < version < "1.2.14"
+        True
+        >>> "1.3.12" < version
+        False
+        >>> version == "1.2.13"
+        True
+    """
 
     TAGS = ["major", "minor", "patch"]
 
@@ -376,6 +387,26 @@ class ReactiveNamedItemDict:
     Warning! only aimed at NamedItem subclass.
 
     Expose a 'list' like interface. (with limited index access)
+
+    Example:
+
+        >>> from dataclasses import dataclass
+        >>> @dataclass
+        ... class DummyItem(NamedItem):
+        ...     name: str
+        ...
+        >>> namespace = ReactiveNamedItemDict()
+        >>> item = DummyItem("hello")
+        >>> for i in "abc":
+        ...     namespace.append(DummyItem(i))
+        >>> namespace.append(item)
+        >>> try:
+        ...     namespace.append(DummyItem("a"))
+        ...     assert False
+        ... except DataNodeValueError:
+        ...     pass
+        >>> item.name = "world"
+        >>> namespace.append(DummyItem("hello"))
 
     """
 
