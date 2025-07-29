@@ -222,7 +222,13 @@ class TorchModuleIRGraph:
                     tv.shape = original_input.shape
                     tv.dtype = original_input.dtype
                     tv.quant = original_input.quant
-                    tv._traced_data = original_input._traced_data
+                    if (
+                        original_input._traced_data is None
+                        and dtype_is_whole_number(arg.dtype)
+                    ):
+                        tv._traced_data = arg
+                    else:
+                        tv._traced_data = original_input._traced_data
                 self.inputs.append(tv)
                 self.data_nodes.append(tv)
                 # used at _merge_subraph
