@@ -10,6 +10,8 @@ from torch_to_nnef.op.helper import (
     pick_axis,
 )
 from torch_to_nnef.torch_graph import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import TensorVariable
+from torch_to_nnef.utils import torch_version
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -121,7 +123,7 @@ def stft(
     inference_target,
     **kwargs,
 ):
-    """ Operator mapping PyTorch: 'aten:stft' to NNEF """
+    """Operator mapping PyTorch: 'aten:stft' to NNEF"""
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
     if (
@@ -129,24 +131,34 @@ def stft(
         or inference_target.version < "0.20.7"
     ):
         raise TorchToNNEFNotImplementedError(inference_target)
-    (
-        input_node,  # Tensor
-        n_fft_node,  # int,
-        hop_length_node,  # Optional[int] = None
-        win_length_node,  # Optional[int] = None
-        window_node,  # Optional[Tensor] = None
-        normalized_node,  # bool = False
-        onesided_node,  # Optional[bool] = None
-        _,  # return_complex_node Optional[bool] = None
-    ) = node.inputs
+    if torch_version() < "2.7.0":
+        (
+            input_node,  # Tensor
+            n_fft_node,  # int,
+            hop_length_node,  # Optional[int] = None
+            win_length_node,  # Optional[int] = None
+            window_node,  # Optional[Tensor] = None
+            normalized_node,  # bool = False
+            onesided_node,  # Optional[bool] = None
+            _,  # return_complex_node Optional[bool] = None
+        ) = node.inputs
+    else:
+        (
+            input_node,  # Tensor
+            n_fft_node,  # int,
+            hop_length_node,  # Optional[int] = None
+            win_length_node,  # Optional[int] = None
+            window_node,  # Optional[Tensor] = None
+            center_node,
+            pad_node,
+            normalized_node,  # bool = False
+            onesided_node,  # Optional[bool] = None
+            *_,  # return_complex_node Optional[bool] = None
+        ) = node.inputs
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
     assert isinstance(win_length_node.data, int)
-    assert window_node.dtype == torch.float32 and window_node.shape == [
-        n_fft_node.data
-    ]
-    assert normalized_node.data is False
-
+    assert window_node.dtype == torch.float32
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
@@ -230,6 +242,9 @@ def stft(
         transposed_axes[dim + 1],
         transposed_axes[dim],
     )
+    suffix_outname = ""
+    if normalized_node.data:
+        suffix_outname = "_prenorm"
     output_nnef_tensor = add_single_output_op(
         g,
         node,
@@ -238,7 +253,26 @@ def stft(
         inputs=output_nnef_tensor,
         attrs={"axes": transposed_axes},
         pass_quantization_params=True,
+        output_tensor_name_suffix=suffix_outname,
     )
+
+    if normalized_node.data:
+        # multiplied by (frame_length)−0.5
+        multiplier = get_or_add_tensor_variable_in_nnef(
+            g,
+            PythonConstant(
+                name=f"{output_nnef_tensor.name}_frame_length", data=frame**-0.5
+            ),
+            name_to_tensor,
+        )
+        output_nnef_tensor = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "mul",
+            inputs=(output_nnef_tensor, multiplier),
+            pass_quantization_params=True,
+        )
 
     return ["tract_core"]
 
@@ -251,7 +285,7 @@ def fft_fft(
     inference_target,
     **kwargs,
 ):
-    """ Operator mapping PyTorch: 'aten:fft_fft' to NNEF """
+    """Operator mapping PyTorch: 'aten:fft_fft' to NNEF"""
     return _fft(
         node,
         g,
@@ -269,7 +303,7 @@ def fft_ifft(
     inference_target,
     **kwargs,
 ):
-    """ Operator mapping PyTorch: 'aten:fft_ifft' to NNEF """
+    """Operator mapping PyTorch: 'aten:fft_ifft' to NNEF"""
     return _fft(
         node,
         g,

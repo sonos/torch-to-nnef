@@ -22,17 +22,41 @@ class MyFFT(nn.Module):
 
 
 class MySTFT(nn.Module):
-    def forward(self, x):
+    def __init__(
+        self,
+        window,
+        n_fft=6,
+        hop_length=1,
+        win_length=6,
+        center=False,
+        pad_mode="reflect",
+        normalized=False,
+        onesided=True,
+    ) -> None:
+        super().__init__()
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.win_length = win_length
+        self.center = center
+        self.pad_mode = pad_mode
+        self.normalized = normalized
+        self.onesided = onesided
+        self.window = window
+
+    def forward(
+        self,
+        x,
+    ):
         spec_f = torch.stft(
             input=x,
-            n_fft=6,
-            hop_length=1,
-            win_length=6,
-            window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1]),
-            center=False,
-            pad_mode="reflect",
-            normalized=False,
-            onesided=True,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            center=self.center,
+            pad_mode=self.pad_mode,
+            normalized=self.normalized,
+            onesided=self.onesided,
             return_complex=True,
         )
         return torch.view_as_real(spec_f)
@@ -53,7 +77,18 @@ def add_test(*args):
 
 
 add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
-add_test(torch.arange(12).float(), MySTFT())
+add_test(
+    torch.arange(12).float(),
+    MySTFT(window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1])),
+)
+
+add_test(
+    torch.arange(12).float(),
+    MySTFT(
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1]), normalized=True
+    ),
+)
+
 add_test(
     torch.arange(4.0).reshape((2, 2)),
     UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
