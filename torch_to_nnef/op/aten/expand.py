@@ -326,17 +326,31 @@ def _fill_negone_with_dim_by_rank_order(
 
 
 @OP_REGISTRY.register()
-def repeat(g, node, name_to_tensor, **kwargs):
-    """ Operator mapping PyTorch: 'aten:repeat' to NNEF """
+def repeat(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Operator mapping PyTorch: 'aten:repeat' to NNEF"""
     (input_node, axis_node) = node.inputs
+    nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if input_node.rank != len(axis_node.data) and isinstance(
+        inference_target, TractNNEF
+    ):
+        qte_missing_dim = len(axis_node.data) - input_node.rank
+        assert qte_missing_dim > 0, qte_missing_dim
+
+        nnef_input_tensor = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=nnef_input_tensor,
+            attrs={"axes": [0] * qte_missing_dim},
+            output_tensor_name_suffix="unsqueeze_align",
+        )
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         "tile",
-        inputs=get_or_add_tensor_variable_in_nnef(
-            g, input_node, name_to_tensor
-        ),
+        inputs=nnef_input_tensor,
         attrs={"repeats": axis_node.data},
     )
 

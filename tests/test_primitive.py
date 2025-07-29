@@ -1039,6 +1039,11 @@ test_suite.add(
     BinaryPrimitive(torch.logical_xor),
     inference_conditions=skip_khronos_interpreter,
 )
+test_suite.add(
+    torch.rand(2, 3),
+    TensorFnPrimitive("repeat", kwargs={}, args=([1, 2, 1],)),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 
 def test_should_fail_since_no_input():

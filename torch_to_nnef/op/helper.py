@@ -209,11 +209,23 @@ def add_tensor_variable_node_as_nnef_tensor(
         else:
             nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
-            if not prevent_variable and (
-                node.data.numel() > 1
-                or (
-                    nnef_tensor_ref.data.numel() == 1
-                    and "e" in str(nnef_tensor_ref.data.item())
+            if (
+                not prevent_variable
+                and (
+                    node.data.numel() > 1
+                    or (
+                        nnef_tensor_ref.data.numel() == 1
+                        and "e" in str(nnef_tensor_ref.data.item())
+                    )
+                    or (  # special dtype need to avoid dtype undefined in NNEF graph
+                        node.dtype
+                        in [
+                            torch.int16,
+                            # torch.int64, # avoid for tract that create confusion with TDim
+                            torch.float16,
+                            torch.float64,
+                        ]
+                    )
                 )
             ):
                 add_nnef_operation(

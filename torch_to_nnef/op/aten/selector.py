@@ -1,10 +1,11 @@
 import logging
 from copy import copy
 
+import torch
 import nnef
 import numpy as np
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
+from torch_to_nnef.dtypes import NUMPY_DTYPE_TO_STR, TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -31,7 +32,7 @@ def slice_(
     op_helper,
     **kwargs,
 ):
-    """ Operator mapping PyTorch: 'aten:slice' to NNEF """
+    """Operator mapping PyTorch: 'aten:slice' to NNEF"""
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.version < "0.21.7"
@@ -247,7 +248,7 @@ def tract_pre_0_21_7_slice(
 
 @OP_REGISTRY.register()
 def where(node, op_helper, **kwargs):
-    """ Operator mapping PyTorch: 'aten:where' to NNEF """
+    """Operator mapping PyTorch: 'aten:where' to NNEF"""
     (condition_node, true_value_node, false_value_node) = node.inputs
 
     inputs = op_helper.data_nodes_to_nnef_tensors(
@@ -300,7 +301,7 @@ def narrow(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def select(node, op_helper, **kwargs):
-    """ Operator mapping PyTorch: 'aten:select' to NNEF """
+    """Operator mapping PyTorch: 'aten:select' to NNEF"""
     input_node, axis_node, index_node = node.inputs
     begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
     out = op_helper.add_single_output_op_from_nnef_tensors(
@@ -331,7 +332,7 @@ def select(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def gather(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:gather' to NNEF """
+    """Operator mapping PyTorch: 'aten:gather' to NNEF"""
     # gather
     input_node, dim_node, indexes_node, *_ = node.inputs
     # input_node = TensorVariable([?], shape=(169,4))
@@ -484,7 +485,7 @@ def _gather_nd(node, op_helper):
 
 @OP_REGISTRY.register()
 def embedding(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:embedding' to NNEF """
+    """Operator mapping PyTorch: 'aten:embedding' to NNEF"""
     (
         weight_node,
         indices_node,
@@ -525,7 +526,7 @@ def embedding(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def masked_fill(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:masked_fill' to NNEF """
+    """Operator mapping PyTorch: 'aten:masked_fill' to NNEF"""
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
@@ -552,13 +553,22 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
         true_value_node.data = true_value_node.data.repeat(
             *([1] * false_value_node.rank)
         )
+        inp = op_helper.get_or_add_tensor_variable_in_nnef(
+            true_value_node, name_suffix="true_scalar"
+        )
+        if inp.dtype == np.int64 and node.outputs[0].dtype == torch.int64:
+            inp = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "tract_core_cast",
+                inputs=inp,
+                attrs={"to": NUMPY_DTYPE_TO_STR[np.int64]},
+                output_tensor_name_suffix="true_expanded_casted",
+            )
 
         true_nnef_tensor = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             "tile",
-            inputs=op_helper.get_or_add_tensor_variable_in_nnef(
-                true_value_node, name_suffix="true_scalar"
-            ),
+            inputs=inp,
             attrs={"repeats": nnef.Identifier(str(out.name))},
             output_tensor_name_suffix="true_expanded",
         )
@@ -590,7 +600,7 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def argsort(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:argsort' to NNEF """
+    """Operator mapping PyTorch: 'aten:argsort' to NNEF"""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -660,7 +670,7 @@ def argsort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def sort(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:sort' to NNEF """
+    """Operator mapping PyTorch: 'aten:sort' to NNEF"""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -723,7 +733,7 @@ def sort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def topk(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:topk' to NNEF """
+    """Operator mapping PyTorch: 'aten:topk' to NNEF"""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -758,7 +768,7 @@ def topk(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def index_select(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:index_select' to NNEF """
+    """Operator mapping PyTorch: 'aten:index_select' to NNEF"""
     input_node, dim_node, indexes_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(inference_target)
@@ -784,7 +794,7 @@ def index_select(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def scatter(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:scatter' to NNEF """
+    """Operator mapping PyTorch: 'aten:scatter' to NNEF"""
     input_node, dim_node, indexes_node, src_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(inference_target)
@@ -812,7 +822,7 @@ def scatter(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:_pack_padded_sequence' to NNEF """
+    """Operator mapping PyTorch: 'aten:_pack_padded_sequence' to NNEF"""
     raise TorchToNNEFNotImplementedError(
         "support for .pack_padded_sequence not added in tract yet"
     )
