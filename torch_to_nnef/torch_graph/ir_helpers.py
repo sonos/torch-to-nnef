@@ -1,5 +1,6 @@
 import logging
 import typing as T
+import importlib
 
 import torch
 from torch import jit, nn
@@ -27,6 +28,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
     ATEN_CONTIGUOUS_KIND,
     ATEN_INT,
+    ATEN_RELU,
     ATEN_STARTID,
     CALL_KIND,
     CONSTANT_KIND,
@@ -578,20 +580,49 @@ def _extract_op_infos(
         module_getter_ref, op_ref = _unfold_graph_getattr_by_node(
             module, value_call_ref.node()
         )
+        qualname = value_call_ref.type().qualified_name()
+        if qualname.startswith("__torch__.") and not module_getter_ref:
+            # NOTE: this part of the code is
+            # non generic: the problem arise from:
+            # the call to a function that is passed as input of the PyTorch IR 'graph'
+            # in this case finding the Python object reference based on
+            # PyTorch IR python API is hard.
+            ref_cls_path = ".".join(
+                [
+                    _
+                    for _ in qualname.replace("__torch__.", "").split(".")
+                    if "___torch_mangle_" not in _
+                ]
+            )
+            ref_mod_path, ref_cls_name = ref_cls_path.rsplit(".", 1)
+            ref_cls = getattr(
+                importlib.import_module(ref_mod_path), ref_cls_name
+            )
+            module_getter_ref, op_ref = next(
+                (name, mod)
+                for name, mod in module.named_modules()
+                if isinstance(mod, ref_cls)
+            )
+            inputs = inputs[1:]
+            if isinstance(op_ref, torch.nn.ReLU):
+                kind = ATEN_RELU
+            else:
+                raise TorchToNNEFNotImplementedError(op_ref)
+        else:
+            inputs = inputs[1:]
+            # use appropriate graph
+            _, op_ref_traced = _unfold_graph_getattr_by_node(
+                traced_module, value_call_ref.node()
+            )
+            op_ref = TorchModuleTracer(
+                op_ref, op_ref_traced, fn_name=node.s("name")
+            )
+        call_name = value_call_ref.debugName()
         if op_ref == module:
             raise TorchToNNEFError(
                 "Bug: Recursive call detected ! "
                 f"Trying to parse same Pytorch IR sub-module twice: {op_ref}"
             )
-        call_name = value_call_ref.debugName()
-        inputs = inputs[1:]
-        # use appropriate graph
-        _, op_ref_traced = _unfold_graph_getattr_by_node(
-            traced_module, value_call_ref.node()
-        )
-        op_ref = TorchModuleTracer(
-            op_ref, op_ref_traced, fn_name=node.s("name")
-        )
 
     elif kind.startswith("quantized::"):
         module_getter_ref = MODULE_PATH_QUANTIZED
