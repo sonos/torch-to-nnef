@@ -1,6 +1,8 @@
+from copy import deepcopy
 import pytest
 import torch
 from torch import nn
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torchaudio import transforms
 
 from tests.wrapper import UnaryPrimitive
@@ -89,38 +91,6 @@ add_test(
     ),
 )
 
-add_test(
-    torch.arange(12).float(),
-    MySTFT(
-        n_fft=6,
-        win_length=4,
-        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
-        normalized=False,
-        onesided=False,
-    ),
-)
-
-add_test(
-    torch.arange(12).float(),
-    MySTFT(
-        n_fft=7,
-        win_length=4,
-        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
-        normalized=False,
-        onesided=False,
-    ),
-)
-
-add_test(
-    torch.arange(12).float(),
-    MySTFT(
-        n_fft=7,
-        win_length=4,
-        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
-        normalized=False,
-        center=True,
-    ),
-)
 
 add_test(
     torch.arange(4.0).reshape((2, 2)),
@@ -134,12 +104,59 @@ add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.MelSpectrogram(),
 )
-""" precision issue for now
-add_test(
+
+
+def change_tol_close(it):
+    it = deepcopy(it)
+    it.check_io_tolerance = TractCheckTolerance.SUPER
+    return it
+
+
+def cond_tract_gt_0_21_14(i) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.14"
+
+
+test_suite.add(
     torch.arange(400 * 2).float() / 400,
     transforms.MFCC(),
+    inference_conditions=cond_tract_gt_0_21_14,
+    inference_modifier=change_tol_close,
 )
-"""
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=6,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
+
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
+
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        center=True,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
 
 
 @pytest.mark.parametrize(
