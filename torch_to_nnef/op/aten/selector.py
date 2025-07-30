@@ -5,7 +5,12 @@ import torch
 import nnef
 import numpy as np
 
-from torch_to_nnef.dtypes import NUMPY_DTYPE_TO_STR, TORCH_DTYPE_TO_TRACT_STR
+from torch_to_nnef.dtypes import (
+    NUMPY_DTYPE_TO_STR,
+    STR_TO_NUMPY_DTYPE,
+    TORCH_DTYPE_TO_TRACT_STR,
+    TORCH_TO_NUMPY_DTYPE,
+)
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -246,6 +251,25 @@ def tract_pre_0_21_7_slice(
     return ["tract_core"]
 
 
+def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
+    casted_inputs = [inputs[0]]
+    expected_dtype = TORCH_TO_NUMPY_DTYPE[target_torch_dtype]
+    for inp in inputs[1:]:
+        if inp.dtype != expected_dtype or (
+            np.prod(inp.shape) == 1
+            and inp.dtype not in [torch.float32, torch.int64]
+        ):
+            inp = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                nnef_op_type="tract_core_cast",
+                inputs=inp,
+                attrs={"to": NUMPY_DTYPE_TO_STR[expected_dtype]},
+                output_tensor_name_suffix="_casted",
+            )
+        casted_inputs.append(inp)
+    return casted_inputs
+
+
 @OP_REGISTRY.register()
 def where(node, op_helper, **kwargs):
     """Operator mapping PyTorch: 'aten:where' to NNEF"""
@@ -257,7 +281,9 @@ def where(node, op_helper, **kwargs):
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         nnef_op_type="select",
-        inputs=inputs,
+        inputs=_select_maybe_cast(
+            op_helper, node, inputs, node.outputs[0].dtype
+        ),
     )
 
 
