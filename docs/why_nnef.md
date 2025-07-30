@@ -1,137 +1,196 @@
-# :jigsaw: Why use NNEF ?
+# :jigsaw: Why Use NNEF?
 
-Wait but **what** is NNEF ?
+## :thinking: Wait, What Is NNEF?
 
-It's stand for Neural Network Exchange Format.
+NNEF stands for Neural Network Exchange Format.
 
 <figure markdown="span">
     ![NNEF Idea](/img/nnef_idea.jpg){ align=center }
 </figure>
 
-Landed in 2018 (1 year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}), it solves the same problem as ONNX & the specification is developed by the
+Introduced in 2018—just a year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}).
+
+NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.
 
 <figure markdown="span">
     ![Khronos group](/img/khronos.png){: style="width: 360px;margin:0;" align=center}
 </figure>
 
-An open, non-profit member driven consortium of ~170 companies.
+It is specified by the Khronos Group, an open, non-profit consortium of around 170 member organizations, better known for defining major graphics and compute standards such as WebGL, OpenCL, and Vulkan.
 
-They are better known for standardizing the Graphic Rendering
-(WebGL, OpenCL, Vulkan, …).
+## :tools: Tools and Ecosystem
 
-Beyond the specification, they provides few [code tools](https://github.com/KhronosGroup/NNEF-Tools)
-, that allow to do some partial conversions (by example from Tensorflow or ONNX).
-But none directly from PyTorch and none has complete as we propose in this
-package. NOTE that we use those package to apply final serialization in `torch_to_nnef`.
-Also to the best of our knowledge the only inference engine supporting NNEF (that is not a full blown training framework) as first class citizen is [tract](github.com/sonos/tract) the SONOS open source neural inference engine.
+Beyond the specification itself, Khronos also provides several reference tools to enable partial model conversion (e.g., from TensorFlow or ONNX). However, these tools:
 
-## NNEF Specification the good
+- Do not support PyTorch directly,
 
-- Stop reinvent the wheel, just use container system that are used everywhere, this is as efficient and more supported (Think video container/formats decoupling):
-tar is fine, and you want you can compress it.
-If another container solution is better for you, just use it.
+- And none offer the extensive support provided by this package.
 
-- Split each tensor in a binary blob .dat
-    (npy would have felt more standard but less extensible …)
-    Format specified allows to add custom data types:
+!!! note "Note"
+    We leverage these Khronos tools for final serialization within `torch_to_nnef` (thanks **Viktor Gyenes & al** for their continued support on [`NNEF-tools`](https://github.com/KhronosGroup/NNEF-Tools)).
 
-> 4-byte code indicating the item-type of the tensor
->
-> (4,2G possible custom types)
+## :brain: NNEF Inference Support
 
-- A .nnef graph representation in textual readable format
-like  any declarative language, simple no control flow, still
-Flexible to extend that’s just TEXT (read it inside your favorite editor jump to definitions ...).
+As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is [tract](github.com/sonos/tract) — the open-source neural inference engine developed by Sonos.
 
-- Quantization can be expressed as another textual file aside .quant
-With variable name and quantization function used and parameters listed
-In case of advanced quantization scheme like Q40 (per group) we can use custom data type
-.
+---
 
-- The textual representation allow for composition of pure functions avoiding anoying
-repeat and better formalism.
+## :white_check_mark: The Good: What Makes the NNEF Specification Appealing
 
-## NNEF Specification the bad
+1. **Leverages Existing, Widely-Supported Containers**
 
-✗   No reference implementation or test-suite
- (only converters for basic models from TF, and ONNX, and an ’interpreter’ in PyTorch ?)
+    Stop reinventing the wheel—NNEF embraces common container systems.
+    It's efficient, well-supported, and decouples data storage
+    from model structure (think of video formats vs. codecs).
 
-✗   Designed mostly for image predictions
+    - Example: `tar` is totally fine—and if you want compression, just apply it.
+    - Prefer another container format? You're **free to use it**.
 
-✗  Static dimension tensors
+2. **Efficient Tensor Storage**
 
-✗  No recurrent layers provided
+    Each tensor is stored as a binary `.dat` blob.
 
-✗  Undefined data-types
+    - While `.npy` might seem more standard, `.dat` offers **better extensibility**.
+    - The format supports **custom data types** with a:
 
-✗  A spec last updated v1.0.5 the 2022-02
+        > 4-byte code indicating the tensor's item-type
+        > (*Up to 4.2 billion possible custom types!*)
 
-## NNEF Tract extension
+3. **Readable Graph Structure**
 
-- Unlock text & signals neural networks thanks to extended operator set
-- Allow dynamic shapes thanks to symbol introductions.
-- Fine-grained data-types are correctly handled
-- Multiple subgraph assembly possible
+    The main `.nnef` file represents the model graph in a **simple, declarative, text-based format**:
 
-Those alterations/extensions of the specification are encapsulated inside the 'inference target'
-notion in `torch_to_nnef` allowing each inference engine to define it's own NNEF flavor,
-while maintaining broad base of operators and syntax/global format the same.
+    - No control flow complexity
+    - Easy to read and edit (e.g., jump to definitions in your favorite editor)
+    - **Flexible and extensible**—it's just **text**.
 
-## Why not ONNX or any other protocol buffer spec ?
+4. **Separation of Quantization Logic**
+
+    Quantization metadata lives in a **separate `.quant` file**:
+
+    - Defines **variables**, **quantization functions**, and **parameters**
+    - Supports **advanced schemes** (e.g., Q40 per-group) via **custom data types**
+
+5. **Textual Composition with Pure Functions**
+
+    Neural-network are made of repetition of blocks (group of layers), the text format promotes **reusability**, avoids repetition, and enables a **clean functional structure**.
+
+
+## :material-close: The Bad: Limitations of the NNEF Specification
+
+1. **No Reference Implementation or Test Suite**
+
+    Only basic converters exist (TensorFlow/ONNX), and a rudimentary interpreter in PyTorch—**nothing production-grade**.
+
+2. **Image-Centric Design**
+
+    The spec was initially tailored for **image inference tasks**, limiting its general applicability.
+
+3. **Static Tensor Shapes**
+
+    No support for **dynamic dimensions**.
+
+4. **No Built-In Support for Recurrent Layers**
+
+5. **Undefined or Poorly-Specified Data Types** for activations
+
+6. **Stagnant Development**
+
+    Last official update: **`v1.0.5` on 2022-02**
+
+
+## :rocket: NNEF Extensions in Tract
+
+1. **Supports Text and Signal Models**
+
+    Through an **extended operator set**.
+
+2. **Dynamic Shape Support**
+
+    Enabled by **symbolic dimensions**.
+
+3. **Advanced Data Type Handling**
+
+    **Fine-grained, low-level types** are natively supported.
+
+4. **Modular Subgraph Assembly**
+
+    Enables **flexible architecture composition**.
+
+> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure**.
+
+---
+
+## :thinking: Why Not ONNX or Other Protocol Buffer-Based Formats?
 
 !!! abstract
-    First off let's be clear ONNX is good enough for a wide variety
-    of Neural Network usecase.
-    It's the defacto standard in the industry we are **not** denying it.
-    Also the tooling around it is mature and more optimized than for NNEF (for general purpose).
 
-That said.
+    Let's be clear: **ONNX is a great standard.**
+    It's **mature**, **widely adopted**, and works well for many neural network applications.
 
-ONNX is a protocol buffer specification and protocol buffer suffer from problems when creating neural networks asset as stated in their [own official documentation](https://protobuf.dev/overview/):
+However, ONNX is based on **Protocol Buffers**, which introduce real limitations—**even acknowledged in [their own docs](https://protobuf.dev/overview/)**:
 
-1.
+1. **Not Suitable for Large Data Assets**
 
-> Protocol buffers  assume entire messages can be loaded into memory at once and are not larger than an object graph. {==For data that exceeds a few megabytes, consider a different solution;==} when working with larger data, you may effectively end up with several copies of the data due to serialized copies, which can cause surprising spikes in memory usage.
+    > ... assume that entire messages can be loaded into memory at once and are not larger than an object graph. For data that exceeds a few megabytes, consider a different solution; when working with larger data, you may effectively end up with several copies of the data due to serialized copies, which can cause surprising spikes in memory usage.
 
-2.
+2. **Inefficient for Large Float Arrays**
 
-> Protocol buffer messages are {==less than maximally efficient in both size and speed for many scientific and engineering uses that involve large, multi-dimensional arrays of floating point numbers.==} For these applications, FITS and similar formats have less overhead.
+    > Protocol buffer messages are less than maximally efficient in both size and speed for many scientific and engineering uses that involve large, multi-dimensional arrays of floating point numbers ...
 
-3.
+3. **No Built-In Compression**
 
-> Messages are not compressed
 
-There is more argument on their own page but the gist is here.
+### :material-robot-angry: Opinionated Grievances (Specific to NN Use Cases)
 
-### Opinionated grief
+1. **Tightly Coupled Graph & Tensors**
+   Want to patch a model with new PEFT weights or tweak a few parameters? **Good luck**—everything’s entangled.
 
-Additional grief against it for the NN use case:
+2. **Unreadable Without Specialized Tools**
+   Tools like [TensorBoard](https://www.tensorflow.org/tensorboard) or [Netron](https://netron.app/) become **unusable** with more than 10 I/O tensors per operator (having long residual connection is unreadable).
 
-1. Too tight coupling between tensors & graph
-    (what if I just want to patch a model with my latest PEFT, or just change few finetuned parameters or ...)
+3. **No Direct Tensor Access**
+   Requires **full graph parsing** and **multi-hop traversal**.
 
-2. Used as intermediate representation but unreadable without dedicated tools
-([tensorboard](https://www.tensorflow.org/tensorboard?hl=fr) or [Netron](https://netron.app/) viewers become unreadable as soon as you have more than 10 variables in or out an operator, not even speaking about residual connections).
+4. **Quantization is Awkward**
+   Especially for **custom formats** or precision below Q4.
 
-3. Can not access specific tensors without parsing the full graph and doing multiple hop inside it (seek).
+5. **Extensibility is Hard**
+   Adding new ops or formats is **significantly harder** than working with plain text.
 
-4. Doing quantization with it is painful especially as you go bellow Q4 or have custom
-quantization operations/methods.
+---
 
-5. Extensibility is still lagging behind and will always be harder to do than on a plain text file.
+## :vs: Safetensors
 
-## vs .safetensors
+**Safetensors** is essentially a secure, structured list of tensors stored in binary—plus minimal metadata.
 
-Safetensor is a gloried list of tensor saved in a binary file that can be reloaded directly to the right device without pickle risks (+ a bit of metadata).
-Most of the benefit is this direct device addressing unrelated to the format itself
-It could as well as been tar archive, but well ...
+1. **Directly Loadable to Devices**
 
-The big issue is that it does not hold any information about the graph of computation that is the NN itself,
-this lead to rewriting every single architecture on inference side (error prone & uselessly time consuming),
-while also leaving the responsibility to optimize/fuse operators to the 'implementer' on a per model basis (no consolidation).
+2. **Avoids Pickle Security Issues**
 
-## vs GGUF
+> 🔍 But: Its benefits are tied to loading efficiency—not the format itself.
+> It could just as well have been implemented using `tar`.
 
-GGUF has the same limitation as *.safetensors* with the additional benefit that they define a lot of custom formats.
-To be clear we like what they propose in term of quantization format and even borrow Q40 in tract/torch_to_nnef from theirs,
-but no graph to the horizon.
+### :material-close: Major Drawback
+
+- **No Computation Graph**
+
+    Every model architecture must be **re-implemented manually** on top of the inference engine—**error-prone** and **wasteful**.
+
+- **No Operator Fusion or Optimization Guidance**
+
+    That burden falls entirely on the implementer, **per model**.
+
+---
+
+## :vs: GGUF
+
+**GGUF** is similar to `.safetensors`, but includes a lot of **quantization format definitions**.
+
+1. **Vast choices of Quantization formats**
+
+    Especially the **Q40 format**, which we've borrowed in `tract/torch_to_nnef`.
+
+2. **Still No Graph Structure**
+
+    **Just like `.safetensors`**, GGUF lacks a way to express **model computation graphs**.
