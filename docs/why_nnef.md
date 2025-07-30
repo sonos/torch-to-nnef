@@ -8,7 +8,7 @@ NNEF stands for Neural Network Exchange Format.
     ![NNEF Idea](/img/nnef_idea.jpg){ align=center }
 </figure>
 
-Introduced in 2018—just a year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}).
+Introduced in 2018—just a year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}.
 
 NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.
 
