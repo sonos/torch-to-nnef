@@ -142,6 +142,8 @@ def stft(
             onesided_node,  # Optional[bool] = None
             _,  # return_complex_node Optional[bool] = None
         ) = node.inputs
+        is_center = True
+        pad_kind = "reflect"
     else:
         (
             input_node,  # Tensor
@@ -155,10 +157,14 @@ def stft(
             onesided_node,  # Optional[bool] = None
             *_,  # return_complex_node Optional[bool] = None
         ) = node.inputs
+        is_center = center_node.data
+        pad_kind = pad_node.data
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
-    assert isinstance(win_length_node.data, int)
+    assert isinstance(win_length_node.data, int) or win_length_node.data is None
     assert window_node.dtype == torch.float32
+    if win_length_node.data is None:
+        win_length_node.data = n_fft_node.data
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
@@ -197,10 +203,14 @@ def stft(
     else:
         casted_complex_input_tensor = nnef_tensor
     dim = pick_axis(input_node, -1)
+
+    if window_node.data is None:
+        window_node.data = torch.ones(win_length_node.data)
+
     window_tensor = get_or_add_tensor_variable_in_nnef(
         g, window_node, name_to_tensor
     )
-    frame = win_length_node.data
+    frame = n_fft_node.data
     stride = hop_length_node.data
     # n_fft_node not exposed ?
     output_nnef_tensor = add_single_output_op(
@@ -217,10 +227,10 @@ def stft(
         },
         output_tensor_name_suffix="core_op",
     )
-    if onesided_node.data:
+    if onesided_node.data is None or onesided_node.data:
         # with length == window size
         # slice rank: dim - 1 by $onesided_max_dim
-        onesided_max_idx = (window_node.shape[0] >> 1) + 1
+        onesided_max_idx = (n_fft_node.data >> 1) + 1
         output_nnef_tensor = add_single_output_op(
             g,
             node,

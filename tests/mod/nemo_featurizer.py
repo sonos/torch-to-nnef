@@ -311,7 +311,6 @@ class FilterbankFeatures(nn.Module):
         # guard is needed for sqrt if grads are passed through
         guard = 0 if not self.use_grads else CONSTANT
         x = torch.view_as_real(x)
-        return x, seq_len
         x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         if self.training and self.nb_augmentation_prob > 0.0:

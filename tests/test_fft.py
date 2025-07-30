@@ -90,6 +90,39 @@ add_test(
 )
 
 add_test(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=6,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+)
+
+add_test(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+)
+
+add_test(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        center=True,
+    ),
+)
+
+add_test(
     torch.arange(4.0).reshape((2, 2)),
     UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
 )

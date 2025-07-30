@@ -6,8 +6,6 @@ import nnef
 import numpy as np
 
 from torch_to_nnef.dtypes import (
-    NUMPY_DTYPE_TO_STR,
-    STR_TO_NUMPY_DTYPE,
     TORCH_DTYPE_TO_TRACT_STR,
     TORCH_TO_NUMPY_DTYPE,
 )
@@ -263,7 +261,7 @@ def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
                 node,
                 nnef_op_type="tract_core_cast",
                 inputs=inp,
-                attrs={"to": NUMPY_DTYPE_TO_STR[expected_dtype]},
+                attrs={"to": TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]},
                 output_tensor_name_suffix="_casted",
             )
         casted_inputs.append(inp)
@@ -587,7 +585,7 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
                 node,
                 "tract_core_cast",
                 inputs=inp,
-                attrs={"to": NUMPY_DTYPE_TO_STR[np.int64]},
+                attrs={"to": TORCH_DTYPE_TO_TRACT_STR[torch.int64]},
                 output_tensor_name_suffix="true_expanded_casted",
             )
 
