@@ -414,11 +414,14 @@ class TractCli:
             stderr=subprocess.STDOUT,
         )
 
-    def run(self, args):
+    def run(self, args, quiet=False):
         cmd_ = [
             self.tract_path,
         ] + args
-        return subprocess.check_call(cmd_)
+        kwargs = {}
+        if quiet:
+            kwargs["stdout"] = open(os.devnull, "wb")
+        return subprocess.call(cmd_, **kwargs)
 
     def assert_io_cmd_str(
         self,

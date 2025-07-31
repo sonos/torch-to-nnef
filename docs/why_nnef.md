@@ -117,7 +117,7 @@ As of today, the only inference engine (excluding full training frameworks) that
 
     Enables **flexible architecture composition**.
 
-> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure**.
+> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure and common set of 'specified' operators**.
 
 ---
 
