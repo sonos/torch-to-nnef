@@ -7,7 +7,10 @@ from functools import partial, wraps
 
 import torch
 
+from torch_to_nnef.utils import SemanticVersion
+
 try:
+    import transformers
     from transformers import AutoModelForCausalLM, cache_utils
 except ImportError as exp:
     raise ValueError(
@@ -63,6 +66,14 @@ def ctx_dtype_dyn_cache():
         same as original except force device alignment
         this is to avoid issues with 'accelerate' package
         """
+        if SemanticVersion.from_str(transformers.__version__) >= "4.54.0":
+            self.append_new_layers(layer_idx)
+            lay = self.layers[layer_idx]
+            if lay.keys is not None:
+                key_states = key_states.to(lay.keys.device)
+            if lay.values is not None:
+                value_states = value_states.to(lay.values.device)
+            return lay.update(key_states, value_states, cache_kwargs)
         # Update the number of seen tokens
         if layer_idx == 0:
             self._seen_tokens += key_states.shape[-2]
