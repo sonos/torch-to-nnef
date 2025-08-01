@@ -7,6 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from torch_to_nnef.llm_tract.config import LlamaSLugs
 from torch_to_nnef.llm_tract.models.base import BaseCausalWithDynCacheAndTriu
+from torch_to_nnef.utils import torch_version
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -23,33 +24,34 @@ test_suite = TestSuiteInferenceExactnessBuilder(
 )
 
 
-# working exports
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
-tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
-causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
-striped_model = BaseCausalWithDynCacheAndTriu(causal_llama)
-inputs = tokenizer("Hello, I am happy", return_tensors="pt")
+if torch_version() > "1.13.0":
+    # working exports
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
+    tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
+    causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
+    striped_model = BaseCausalWithDynCacheAndTriu(causal_llama)
+    inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 
-S = 10
-test_suite.add(
-    (
-        # can only be 1 @ export time since regressive model
-        inputs.input_ids[:, :1],
-        # kv cache
-        torch.rand((1, 2, S, 4)),
-        torch.rand((1, 2, S, 4)),
-    ),
-    striped_model,
-    inference_modifier=partial(
-        change_dynamic_axes,
-        dynamic_axes={
-            "input_0": {1: "S"},
-            "input_1": {2: "P"},
-            "input_2": {2: "P"},
-        },
-    ),
-)
+    S = 10
+    test_suite.add(
+        (
+            # can only be 1 @ export time since regressive model
+            inputs.input_ids[:, :1],
+            # kv cache
+            torch.rand((1, 2, S, 4)),
+            torch.rand((1, 2, S, 4)),
+        ),
+        striped_model,
+        inference_modifier=partial(
+            change_dynamic_axes,
+            dynamic_axes={
+                "input_0": {1: "S"},
+                "input_1": {2: "P"},
+                "input_2": {2: "P"},
+            },
+        ),
+    )
 
 
 @pytest.mark.parametrize(

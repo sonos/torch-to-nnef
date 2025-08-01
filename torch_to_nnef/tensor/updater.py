@@ -7,6 +7,7 @@ import torch
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.tensor.named import NamedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
+from torch_to_nnef.tensor.utils import get_named_buffers, get_named_parameters
 from torch_to_nnef.utils import torch_version
 
 
@@ -56,7 +57,9 @@ class ModTensorUpdater:
         self._disabled_requires_grad_names = []
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)
-        for param_name, param in model.named_parameters(remove_duplicate=False):
+        for param_name, param in get_named_parameters(
+            model, remove_duplicate=False
+        ):
             id_tensor = id(param)
             if disable_requires_grad and param.requires_grad:
                 param.requires_grad = False
@@ -68,8 +71,8 @@ class ModTensorUpdater:
             self.id_to_kind[id_tensor] = TensorHoldKind.PARAMETER
 
         if add_buffers:
-            for buffer_name, buffer in model.named_buffers(
-                remove_duplicate=False
+            for buffer_name, buffer in get_named_buffers(
+                model, remove_duplicate=False
             ):
                 id_tensor = id(buffer)
                 self.name_to_id[buffer_name] = id(buffer)

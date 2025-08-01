@@ -8,6 +8,7 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.tensor.utils import get_named_parameters
 from torch_to_nnef.utils import select_ctx_disable_torch_fn
 
 LOGGER = logging.getLogger(__name__)
@@ -196,7 +197,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
     mod_tensor_updater = ModTensorUpdater(model)
-    for full_name, param in model.named_parameters(remove_duplicate=False):
+    for full_name, param in get_named_parameters(model, remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue
         param.nnef_name = full_name

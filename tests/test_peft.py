@@ -5,7 +5,15 @@ import tempfile
 from pathlib import Path
 
 import torch
-from peft import LoraConfig, TaskType, get_peft_model
+import pytest
+
+MISSING_PEFT = False
+try:
+    from peft import LoraConfig, TaskType, get_peft_model
+except ImportError as exp:
+    MISSING_PEFT = True
+    print("no peft tests")
+
 from transformers import AutoModelForCausalLM
 
 from torch_to_nnef.llm_tract.config import LlamaSLugs
@@ -19,6 +27,7 @@ from torch_to_nnef.utils import cd
 DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
 
 
+@pytest.mark.skip(MISSING_PEFT, reason="peft not installed")
 def test_export_LoRA():
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
     peft_config = LoraConfig(
@@ -61,6 +70,7 @@ def test_export_LoRA():
         ]
 
 
+@pytest.mark.skip(MISSING_PEFT, reason="peft not installed")
 def test_export_DoRA():
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
     peft_config = LoraConfig(

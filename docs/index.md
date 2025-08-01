@@ -21,7 +21,13 @@ This unlock extended NNEF operators and specificities to express:
 
 This package keeps minimal dependencies (to allow easy integration in other project).
 
-We support officially PyTorch > 1.8.0 with tract last 2 major releases patched (>= 0.20.22 to date) over Linux and MacOS systems.
+We support officially PyTorch >= 1.9.0 with tract last 2 major releases patched (>= 0.20.22 to date) over Linux and MacOS systems.
+
+!!! info
+
+    As time pass, we only maintain/test Python version that are [not end of life](https://devguide.python.org/versions/), we do not recompile PyTorch or dependencies so this support
+    evolve over time.
+
 
 ## Install
 

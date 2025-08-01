@@ -39,14 +39,13 @@ peft = ["peft"]
 test = [
     "isort>=5.8.0,<6",
     "mypy~=1.13",
-    "peft",
     "pytest-cov>=6.0.0,<7",
     "pytest>=8.3.3,<9",
     "ruff<1.0",
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
-    "torchaudio>=2.6.0,<3",
-    "torchvision>=0.21.0,<0.22",
+    "torchaudio>=0.9.0,<3",
+    "torchvision>=0.10.0,<0.22",
     "transformers>=4.35.2,<5",
     "librosa",
     "coverage[toml]",
@@ -182,7 +181,7 @@ exclude_lines = [
 ]
 
 [tool.tox.env_run_base]
-extras = ["test"]
+extras = ["test", "peft"]
 passenv = ["*"]
 commands = [
     [
@@ -195,6 +194,30 @@ commands = [
         "--cov-report=xml",
         "--cov-report=term-missing",
         "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+[tool.tox.env.legacy]
+basepython = ["python3.9"]
+extras = ["test"]
+constrain_package_deps=true
+deps = ["torch==1.10.0", "torchvision==0.10.0","torchaudio==0.10.1", "numpy<2.0.0"]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests/test_primitive.py",
     ],
     [
         "pytest",
@@ -254,5 +277,5 @@ extras = ["dev"]
 commands = [["uv", "build"]]
 
 [[tool."gh-actions".python]]
-3.9 = ["py39"]
+3.9 = ["py39", "legacy"]
 3.12 = ["py312", "format_check", "static_check"]

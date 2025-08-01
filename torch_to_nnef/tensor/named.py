@@ -6,6 +6,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
+
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,

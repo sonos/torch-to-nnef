@@ -77,15 +77,16 @@ test_suite.add(
     torch.rand((100, 1, 64)).float(),
     SelfAttn(need_weights=True),
 )
-test_suite.add(
-    (Xmini, Xmini, Xmini),
-    TernaryPrimitive(
-        partial(
-            F.scaled_dot_product_attention,
-            attn_mask=torch.randint(high=1, size=(2, 1)).float(),
-        )
-    ),
-)
+if hasattr(F, "scaled_dot_product_attention"):
+    test_suite.add(
+        (Xmini, Xmini, Xmini),
+        TernaryPrimitive(
+            partial(
+                F.scaled_dot_product_attention,
+                attn_mask=torch.randint(high=1, size=(2, 1)).float(),
+            )
+        ),
+    )
 test_suite.add(
     torch.randint(high=5, size=(3, 1, 4)).float(),
     SelfAttn(size=4, batch_size=3, need_weights=False),

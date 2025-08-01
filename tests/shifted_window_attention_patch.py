@@ -28,7 +28,13 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
-from torchvision.models.swin_transformer import SwinTransformerBlock
+
+MISSING_SWIN = False
+try:
+    from torchvision.models.swin_transformer import SwinTransformerBlock
+except ImportError:
+    MISSING_SWIN = True
+    print("swin_transformer not found in torchvision.")
 
 
 def shifted_window_attention(
@@ -302,32 +308,36 @@ class ExportableShiftedWindowAttention(nn.Module):
         )
 
 
-class ExportableSwinTransformerBlock(SwinTransformerBlock):
-    """Important to overwrite as well due attn_layer default"""
+if not MISSING_SWIN:
 
-    # pylint: disable-next=useless-parent-delegation
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        window_size: List[int],
-        shift_size: List[int],
-        mlp_ratio: float = 4.0,
-        dropout: float = 0.0,
-        attention_dropout: float = 0.0,
-        stochastic_depth_prob: float = 0.0,
-        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
-        attn_layer: Callable[..., nn.Module] = ExportableShiftedWindowAttention,
-    ):
-        super().__init__(
-            dim,
-            num_heads,
-            window_size,
-            shift_size,
-            mlp_ratio,
-            dropout,
-            attention_dropout,
-            stochastic_depth_prob,
-            norm_layer,
-            attn_layer,
-        )
+    class ExportableSwinTransformerBlock(SwinTransformerBlock):
+        """Important to overwrite as well due attn_layer default"""
+
+        # pylint: disable-next=useless-parent-delegation
+        def __init__(
+            self,
+            dim: int,
+            num_heads: int,
+            window_size: List[int],
+            shift_size: List[int],
+            mlp_ratio: float = 4.0,
+            dropout: float = 0.0,
+            attention_dropout: float = 0.0,
+            stochastic_depth_prob: float = 0.0,
+            norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+            attn_layer: Callable[
+                ..., nn.Module
+            ] = ExportableShiftedWindowAttention,
+        ):
+            super().__init__(
+                dim,
+                num_heads,
+                window_size,
+                shift_size,
+                mlp_ratio,
+                dropout,
+                attention_dropout,
+                stochastic_depth_prob,
+                norm_layer,
+                attn_layer,
+            )

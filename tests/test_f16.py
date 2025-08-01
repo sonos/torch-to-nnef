@@ -32,15 +32,16 @@ def set_inference_supper(inference_target):
     return new_inference_target
 
 
-attn_test_suite.add(
-    # q, k, v
-    (
-        torch.arange(12).reshape(1, 3, 4).half(),
-        torch.arange(12).reshape(1, 3, 4).half(),
-        torch.arange(12).reshape(1, 3, 4).half(),
-    ),
-    TernaryPrimitive(op=F.scaled_dot_product_attention),
-)
+if torch_version() > "1.13.0":
+    attn_test_suite.add(
+        # q, k, v
+        (
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+        ),
+        TernaryPrimitive(op=F.scaled_dot_product_attention),
+    )
 
 bn_test_suite = TestSuiteInferenceExactnessBuilder(
     FORCE_F32_INFERENCES + TRACT_INFERENCES_TO_TESTS_APPROX
