@@ -327,7 +327,7 @@ def einsum(g, node, name_to_tensor, inference_target, **kwargs):
             "breaking it down to primitive ops would be a siginficant work"
         )
 
-    expr_node, args_node, _ = node.inputs
+    expr_node, args_node = node.inputs[:2]
     inps_dtypes = {_.dtype for _ in args_node.data}
     assert inps_dtypes, inps_dtypes
     dtype_str = TORCH_DTYPE_TO_TRACT_STR[inps_dtypes.pop()]

@@ -204,8 +204,13 @@ commands = [
 [tool.tox.env.legacy]
 basepython = ["python3.9"]
 extras = ["test"]
-constrain_package_deps=true
-deps = ["torch==1.10.0", "torchvision==0.10.0","torchaudio==0.10.1", "numpy<2.0.0"]
+constrain_package_deps = true
+deps = [
+    "torch==1.10.0",
+    "torchvision==0.10.0",
+    "torchaudio==0.10.1",
+    "numpy<2.0.0",
+]
 passenv = ["*"]
 commands = [
     [
@@ -217,7 +222,7 @@ commands = [
         "--cov-branch",
         "--cov-report=xml",
         "--cov-report=term-missing",
-        "tests/test_primitive.py",
+        "tests",
     ],
     [
         "pytest",

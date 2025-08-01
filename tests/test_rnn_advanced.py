@@ -1,7 +1,8 @@
+from copy import deepcopy
+
 import pytest
 import torch
 from torch import nn
-from transformers.models.deprecated.tvlt.modeling_tvlt import deepcopy
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 

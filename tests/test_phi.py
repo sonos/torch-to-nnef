@@ -12,6 +12,9 @@ from transformers.generation.utils import DynamicCache
 MISSING_PHI = False
 try:
     from transformers.models.phi import configuration_phi, modeling_phi
+
+    # ensure that import is loaded
+    hasattr(modeling_phi, "PhiSdpaAttention")
 except ImportError:
     MISSING_PHI = True
 

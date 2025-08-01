@@ -159,7 +159,7 @@ class ModTensorUpdater:
         if not isinstance(new_tensor, torch.nn.Parameter):
             kind = self.id_to_kind[id(ref)]
             if kind == TensorHoldKind.PARAMETER:
-                if self.add_parameter_if_unset:
+                if self.add_parameter_if_unset and torch_version() >= "2.0.0":
                     new_tensor = torch.nn.Parameter(
                         new_tensor, requires_grad=False
                     )
