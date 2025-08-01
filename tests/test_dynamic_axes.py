@@ -3,6 +3,7 @@
 import os
 from functools import partial
 
+from numpy import test
 import pytest
 import torch
 from torch import nn
@@ -98,23 +99,24 @@ test_suite.add(
     ),
 )
 
-test_suite.add(
-    torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
-    LambdaOp(lambda x: x[..., : x.shape[-1] // 2]),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
-    ),
-)
+if torch_version() > "2.3.0":  # uint64 support in torch
+    test_suite.add(
+        torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+        LambdaOp(lambda x: x[..., : x.shape[-1] // 2]),
+        inference_conditions=ge_tract_0_21_5,
+        inference_modifier=partial(
+            change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+        ),
+    )
 
-test_suite.add(
-    torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
-    LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
-    ),
-)
+    test_suite.add(
+        torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+        LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
+        inference_conditions=ge_tract_0_21_5,
+        inference_modifier=partial(
+            change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+        ),
+    )
 test_suite.add(
     torch.rand(2, 1),
     LambdaOp(lambda x: x[:, -3:]),
@@ -216,15 +218,14 @@ inp[0, :-1] = torch.arange(start_val, end_val + start_val - 1)
 inp[1, :-3] = torch.arange(start_val, end_val + start_val - 3)
 inp[2, :-2] = torch.arange(start_val, end_val + start_val - 2)
 
-if torch_version() >= "1.12.0":
-    test_suite.add(
-        inp,
-        WrapperPickLastNonZeros(),
-        inference_conditions=ge_tract_0_21_5,
-        inference_modifier=partial(
-            change_dynamic_axes, dynamic_axes=dyn_stream_axis1
-        ),
-    )
+test_suite.add(
+    inp,
+    WrapperPickLastNonZeros(),
+    inference_conditions=ge_tract_0_21_5,
+    inference_modifier=partial(
+        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+    ),
+)
 
 
 @pytest.mark.parametrize(

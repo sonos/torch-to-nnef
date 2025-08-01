@@ -1,11 +1,13 @@
 import pickle
 
+import pytest
 import torch
 
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.tensor import NamedTensor
+from torch_to_nnef.utils import torch_version
 
 
 def test_pickle_named_tensor():
@@ -15,6 +17,10 @@ def test_pickle_named_tensor():
     assert restored_named_tensor.nnef_name == named_tensor.nnef_name
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "1.12.0",
+    reason="QTensor is supported only starting pytorch v1.12",
+)
 def test_pickle_qtensor():
     fp_tensor = torch.rand(2, 32)
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(
