@@ -193,6 +193,10 @@ def _simulate_scaled_dot_product_attention(Q, K, V, attn_mask, dropout_p=0.0):
     return attn_weight @ V
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="F.scaled_dot_product_attention is only appearing in Pytorch>=2",
+)
 def test_equivalent_implementation():
     val = torch.arange(8.0).reshape(1, 2, 4).float()
     query = val
