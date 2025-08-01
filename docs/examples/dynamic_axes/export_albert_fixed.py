@@ -21,7 +21,7 @@ export_model_to_nnef(
             "attention_mask": {0: "B", 1: "S"},
             "token_type_ids": {0: "B", 1: "S"},
         },
-        version="0.21.13",
+        version=TractNNEF.latest_version(),
         check_io=True,
     ),
     input_names=input_names,

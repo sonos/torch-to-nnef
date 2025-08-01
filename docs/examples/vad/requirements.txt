@@ -1,0 +1,5 @@
+numpy
+librosa
+matplotlib
+nemo_toolkit[asr]
+

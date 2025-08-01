@@ -222,7 +222,7 @@ Due to it's internal structure we discussed upper.
 ```bash
 tract custom_deepspeech.nnef.tgz \
     --nnef-tract-core \
-    --pulse 8 \
+    --pulse S=8 \
     dump \
     --nnef custom_deepspeech_pulse8.nnef.tgz
 ```

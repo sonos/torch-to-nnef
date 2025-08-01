@@ -1,6 +1,8 @@
+from copy import deepcopy
 import pytest
 import torch
 from torch import nn
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torchaudio import transforms
 
 from tests.wrapper import UnaryPrimitive
@@ -22,17 +24,41 @@ class MyFFT(nn.Module):
 
 
 class MySTFT(nn.Module):
-    def forward(self, x):
+    def __init__(
+        self,
+        window,
+        n_fft=6,
+        hop_length=1,
+        win_length=6,
+        center=False,
+        pad_mode="reflect",
+        normalized=False,
+        onesided=True,
+    ) -> None:
+        super().__init__()
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.win_length = win_length
+        self.center = center
+        self.pad_mode = pad_mode
+        self.normalized = normalized
+        self.onesided = onesided
+        self.window = window
+
+    def forward(
+        self,
+        x,
+    ):
         spec_f = torch.stft(
             input=x,
-            n_fft=6,
-            hop_length=1,
-            win_length=6,
-            window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1]),
-            center=False,
-            pad_mode="reflect",
-            normalized=False,
-            onesided=True,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            center=self.center,
+            pad_mode=self.pad_mode,
+            normalized=self.normalized,
+            onesided=self.onesided,
             return_complex=True,
         )
         return torch.view_as_real(spec_f)
@@ -53,7 +79,19 @@ def add_test(*args):
 
 
 add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
-add_test(torch.arange(12).float(), MySTFT())
+add_test(
+    torch.arange(12).float(),
+    MySTFT(window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1])),
+)
+
+add_test(
+    torch.arange(12).float(),
+    MySTFT(
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1]), normalized=True
+    ),
+)
+
+
 add_test(
     torch.arange(4.0).reshape((2, 2)),
     UnaryPrimitive(lambda x: torch.view_as_complex(x).abs()),
@@ -66,12 +104,59 @@ add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.MelSpectrogram(),
 )
-""" precision issue for now
-add_test(
+
+
+def change_tol_close(it):
+    it = deepcopy(it)
+    it.check_io_tolerance = TractCheckTolerance.SUPER
+    return it
+
+
+def cond_tract_gt_0_21_14(i) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.14"
+
+
+test_suite.add(
     torch.arange(400 * 2).float() / 400,
     transforms.MFCC(),
+    inference_conditions=cond_tract_gt_0_21_14,
+    inference_modifier=change_tol_close,
 )
-"""
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=6,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
+
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        onesided=False,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
+
+test_suite.add(
+    torch.arange(12).float(),
+    MySTFT(
+        n_fft=7,
+        win_length=4,
+        window=torch.tensor([0.1, 0.5, 0.5, 0.1]),
+        normalized=False,
+        center=True,
+    ),
+    inference_conditions=cond_tract_gt_0_21_14,
+)
 
 
 @pytest.mark.parametrize(

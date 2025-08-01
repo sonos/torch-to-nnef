@@ -48,6 +48,7 @@ test = [
     "torchaudio>=2.6.0,<3",
     "torchvision>=0.21.0,<0.22",
     "transformers>=4.35.2,<5",
+    "librosa",
 ]
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"

@@ -38,7 +38,7 @@ export_model_to_nnef(
         dynamic_axes={
             "melbank": {0: "B", 1: "S"},
         },
-        version="0.21.13",
+        version=TractNNEF.latest_version(),
         check_io=True,
     ),
     input_names=["melbank"],

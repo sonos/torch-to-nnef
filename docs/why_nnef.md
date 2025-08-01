@@ -8,7 +8,7 @@ NNEF stands for Neural Network Exchange Format.
     ![NNEF Idea](/img/nnef_idea.jpg){ align=center }
 </figure>
 
-Introduced in 2018—just a year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}).
+Introduced in 2018—just a year after ![ONNX](/img/onnx.png){: style="width: 100px;margin:0;"}.
 
 NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.
 
@@ -117,7 +117,7 @@ As of today, the only inference engine (excluding full training frameworks) that
 
     Enables **flexible architecture composition**.
 
-> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure**.
+> These extensions are encapsulated under the concept of **inference targets** in `torch_to_nnef`, allowing inference engines to define their own "NNEF flavor"—while retaining a shared **syntax and graph structure and common set of 'specified' operators**.
 
 ---
 
