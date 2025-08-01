@@ -17,16 +17,40 @@ class TensorHoldKind(str, enum.Enum):
 
 
 class ModTensorUpdater:
-    """Helper to update parameter/buffer/unregistred tensor of a model cleanly"""
+    """Helper to update parameter/buffer/unregistred tensor of a model cleanly.
+
+    Cleanly means without breaking shared reference between Tensors.
+
+    An example is the shared reference on transformers between first input_ids embedding and
+    last linear layer projection weights.
+
+    """
 
     def __init__(
         self,
         model: torch.nn.Module,
-        add_parameter_if_unset=True,
+        add_parameter_if_unset: bool = True,
         add_buffers: bool = False,
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
     ):
+        """
+        Args:
+            model:
+                nn.Module model that will have tensors updated with this class
+
+            add_parameter_if_unset:
+                if you add a tensor where there is not yet a torch.nn.Parameters in the model it will add it
+
+            add_buffers:
+                Scope all nn.Buffer PyTorch object of the model to be 'updatable'
+
+            add_unregistred_tensor:
+                Scope all tensor PyTorch object of the model not referenced in nn.Parameters & nn.Buffer
+
+            disable_requires_grad:
+                If set it force tensors replaced to be with no 'requires_grad' at update time
+        """
         self.name_to_id = {}
         self.id_to_kind = {}
         self._disabled_requires_grad_names = []
@@ -199,6 +223,7 @@ class ModTensorUpdater:
         new_tensor: torch.Tensor,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
+        """Update tensor based on it's  reference object"""
         new_tensor = self.maybe_parameterize(ref, new_tensor)
         if enforce_tensor_consistency:
             self.check_consistency(ref, new_tensor)
@@ -212,6 +237,7 @@ class ModTensorUpdater:
         tie_replacements: bool = True,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
+        """Update tensor based on it's  reference name"""
         mod = self.name_to_parent_module[name]
         _, p_local_name = self.split_param_name(name)
         ref = getattr(mod, p_local_name)
