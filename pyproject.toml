@@ -147,7 +147,7 @@ disable = [
     "unused-wildcard-import",
     "wrong-import-position",
     "import-error",                  # prospector have trouble with nnef, nnef_tools
-    "cyclic-import", # false trigger in prospector
+    "cyclic-import",                 # false trigger in prospector
 ]
 
 [tool.pylint.DESIGN]
@@ -246,10 +246,7 @@ commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 
 [tool.tox.env.static_check]
 extras = ["test"]
-commands = [
-    ["pip", "uninstall", "-y", "pylint-django"],
-    ["prospector"]
-]
+commands = [["prospector", "--no-autodetect"]]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
