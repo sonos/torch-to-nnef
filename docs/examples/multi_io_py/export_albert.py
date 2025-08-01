@@ -14,7 +14,7 @@ export_model_to_nnef(
     args=[inputs[k] for k in input_names],
     file_path_export=file_path_export,
     inference_target=TractNNEF(
-        version="0.21.13",
+        version=TractNNEF.latest_version(),
         check_io=True,
     ),
     input_names=input_names,

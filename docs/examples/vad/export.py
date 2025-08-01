@@ -40,7 +40,7 @@ export_model_to_nnef(
     ),  # list of model arguments (here simply an example of tensor image)
     file_path_export=file_path_export,  # filepath to dump NNEF archive
     inference_target=TractNNEF(  # inference engine to target
-        version="0.21.13",  # tract version (to ensure compatible operators)
+        version=TractNNEF.latest_version(),  # tract version (to ensure compatible operators)
         check_io=True,  # default False (tract binary will be installed on the machine on fly)
         dynamic_axes={"input_signal": {0: "B", 1: "S"}, "input_len": {0: "B"}},
     ),
