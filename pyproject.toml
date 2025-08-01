@@ -148,7 +148,6 @@ disable = [
     "wrong-import-position",
     "import-error",                  # prospector have trouble with nnef, nnef_tools
     "cyclic-import", # false trigger in prospector
-    "django-not-configured"
 ]
 
 [tool.pylint.DESIGN]
@@ -247,7 +246,10 @@ commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 
 [tool.tox.env.static_check]
 extras = ["test"]
-commands = [["prospector"]]
+commands = [
+    ["pip", "uninstall", "-y", "pylint-django"],
+    ["prospector"]
+]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
