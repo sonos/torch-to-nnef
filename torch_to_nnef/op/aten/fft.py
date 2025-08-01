@@ -150,8 +150,8 @@ def stft(
             hop_length_node,  # Optional[int] = None
             win_length_node,  # Optional[int] = None
             window_node,  # Optional[Tensor] = None
-            center_node,
-            pad_node,
+            _,  # center_node
+            _,  # pad_node
             normalized_node,  # bool = False
             onesided_node,  # Optional[bool] = None
             *_,  # return_complex_node Optional[bool] = None

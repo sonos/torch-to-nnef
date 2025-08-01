@@ -49,7 +49,8 @@ test = [
     "torchvision>=0.21.0,<0.22",
     "transformers>=4.35.2,<5",
     "librosa",
-    "coverage[toml]"
+    "coverage[toml]",
+    "prospector",
 ]
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"
@@ -109,10 +110,9 @@ profile = "black"
 line_length = 80
 skip = [".gitignore", ".dockerignore"]
 
-[tool.pytest]
-addopts = "--strict-markers -p no:warnings -s"
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
@@ -147,6 +147,8 @@ disable = [
     "unused-wildcard-import",
     "wrong-import-position",
     "import-error",                  # prospector have trouble with nnef, nnef_tools
+    "cyclic-import", # false trigger in prospector
+    "django-not-configured"
 ]
 
 [tool.pylint.DESIGN]
@@ -169,28 +171,39 @@ envlist = ["py39", "py312", "format", "lint", "build"]
 
 [tool.coverage.report]
 exclude_lines = [
-   "pragma: no cover",
-   "def __repr__",
-   "if self.debug:",
-   "if settings.DEBUG",
-   "raise AssertionError",
-   "raise NotImplementedError",
-   "if 0:",
-   "if __name__ == .__main__.:",
-   "def main"
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "def main",
 ]
 
 [tool.tox.env_run_base]
 extras = ["test"]
 passenv = ["*"]
 commands = [
-    ["pytest", "-m", "not ci_skip", "-x", "--cov=torch_to_nnef",
-        "--cov-branch", "--cov-report=xml", "--cov-report=term-missing",
-        "tests"
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
     ],
-    ["pytest", "--doctest-modules", "torch_to_nnef"]
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
 ]
-[[tool.tox.env_run_base.setenv ]]
+[[tool.tox.env_run_base.setenv]]
 PYTHONPATH = "{toxinidir}"
 PYTHONWARNINGS = "ignore"
 MODELS = "1"
@@ -199,20 +212,42 @@ MODELS = "1"
 [tool.tox.env.format]
 extras = ["test"]
 commands = [
-    ["isort", "torch_to_nnef"],
-    ["ruff", "format", "torch_to_nnef", "tests"]
+    [
+        "isort",
+        "torch_to_nnef",
+    ],
+    [
+        "ruff",
+        "format",
+        "torch_to_nnef",
+        "tests",
+    ],
 ]
 
 [tool.tox.env.format_check]
 extras = ["test"]
 commands = [
-    ["isort", "-c", "torch_to_nnef"],
-    ["ruff", "format", "--check", "torch_to_nnef", "tests"]
+    [
+        "isort",
+        "-c",
+        "torch_to_nnef",
+    ],
+    [
+        "ruff",
+        "format",
+        "--check",
+        "torch_to_nnef",
+        "tests",
+    ],
 ]
 
 [tool.tox.env.lint]
 extras = ["test"]
-commands = [ ["ruff", "check", "-q", "torch_to_nnef", "tests"] ]
+commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
+
+[tool.tox.env.static_check]
+extras = ["test"]
+commands = [["prospector"]]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
@@ -221,4 +256,4 @@ commands = [["uv", "build"]]
 
 [[tool."gh-actions".python]]
 3.9 = ["py39"]
-3.12 = ["py312", "format_check"]
+3.12 = ["py312", "format_check", "static_check"]
