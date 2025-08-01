@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.utils import torch_version
 
 from .wrapper import TernaryPrimitive
 from .utils import (  # noqa: E402
@@ -210,6 +211,10 @@ def test_equivalent_implementation():
     )
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="F.scaled_dot_product_attention is only appearing in Pytorch>=2",
+)
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,

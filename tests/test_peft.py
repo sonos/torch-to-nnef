@@ -27,7 +27,7 @@ from torch_to_nnef.utils import cd
 DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
 
 
-@pytest.mark.skip(MISSING_PEFT, reason="peft not installed")
+@pytest.mark.skipif(condition=MISSING_PEFT, reason="peft not installed")
 def test_export_LoRA():
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
     peft_config = LoraConfig(
@@ -70,7 +70,7 @@ def test_export_LoRA():
         ]
 
 
-@pytest.mark.skip(MISSING_PEFT, reason="peft not installed")
+@pytest.mark.skipif(condition=MISSING_PEFT, reason="peft not installed")
 def test_export_DoRA():
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
     peft_config = LoraConfig(

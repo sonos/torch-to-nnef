@@ -137,6 +137,10 @@ def check_contains_f32_upcast_norm(inference_target, path):
         graph_filepath.unlink()
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.2.0",
+    reason="torch older than 2.2.0 lack too much of half operators support on CPU",
+)
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     bn_test_suite.test_samples,
