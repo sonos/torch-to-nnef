@@ -90,7 +90,7 @@ def external(
 
 @OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
-    """ Operator mapping PyTorch: 'aten:dropout', 'aten:native_dropout' to NNEF """
+    """Operator mapping PyTorch: 'aten:dropout', 'aten:native_dropout' to NNEF"""
     (
         input_node,
         _,  # probability
@@ -121,7 +121,7 @@ def contiguous(node, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def to(g, node, name_to_tensor, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:to' to NNEF """
+    """Operator mapping PyTorch: 'aten:to' to NNEF"""
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
@@ -171,7 +171,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def type_as(g, node, name_to_tensor, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:type_as' to NNEF """
+    """Operator mapping PyTorch: 'aten:type_as' to NNEF"""
     (
         input_node,
         _,  # ref_node
@@ -327,7 +327,7 @@ def size(
 
 @OP_REGISTRY.register()
 def numel(node, inference_target, op_helper, **kwargs):
-    """ Operator mapping PyTorch: 'aten:numel' to NNEF """
+    """Operator mapping PyTorch: 'aten:numel' to NNEF"""
     assert len(node.inputs) == 1
     input_node = node.inputs[0]
     soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
@@ -359,7 +359,7 @@ def numel(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
-    """ Operator mapping PyTorch: 'aten:scalar_tensor' to NNEF """
+    """Operator mapping PyTorch: 'aten:scalar_tensor' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError("need casting")
     val_node, dtype_node, *_ = node.inputs
@@ -378,7 +378,7 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def _to_copy(node, inference_target, op_helper, **kwargs):
-    """ Operator mapping PyTorch: 'aten:_to_copy' to NNEF """
+    """Operator mapping PyTorch: 'aten:_to_copy' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError("need casting")
     val_node, dtype_node, *_ = node.inputs

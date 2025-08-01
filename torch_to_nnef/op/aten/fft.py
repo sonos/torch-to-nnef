@@ -10,7 +10,6 @@ from torch_to_nnef.op.helper import (
     pick_axis,
 )
 from torch_to_nnef.torch_graph import PythonConstant
-from torch_to_nnef.torch_graph.ir_data import TensorVariable
 from torch_to_nnef.utils import torch_version
 
 OP_REGISTRY = AtenOpRegistry()
@@ -142,8 +141,8 @@ def stft(
             onesided_node,  # Optional[bool] = None
             _,  # return_complex_node Optional[bool] = None
         ) = node.inputs
-        is_center = True
-        pad_kind = "reflect"
+        # is_center = True
+        # pad_kind = "reflect"
     else:
         (
             input_node,  # Tensor
@@ -157,8 +156,8 @@ def stft(
             onesided_node,  # Optional[bool] = None
             *_,  # return_complex_node Optional[bool] = None
         ) = node.inputs
-        is_center = center_node.data
-        pad_kind = pad_node.data
+        # is_center = center_node.data
+        # pad_kind = pad_node.data
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
     assert isinstance(win_length_node.data, int) or win_length_node.data is None

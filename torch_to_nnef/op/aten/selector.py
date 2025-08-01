@@ -1,14 +1,11 @@
 import logging
 from copy import copy
 
-import torch
 import nnef
 import numpy as np
+import torch
 
-from torch_to_nnef.dtypes import (
-    TORCH_DTYPE_TO_TRACT_STR,
-    TORCH_TO_NUMPY_DTYPE,
-)
+from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, TORCH_TO_NUMPY_DTYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (

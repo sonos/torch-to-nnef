@@ -1,6 +1,6 @@
+import importlib
 import logging
 import typing as T
-import importlib
 
 import torch
 from torch import jit, nn
