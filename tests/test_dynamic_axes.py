@@ -9,6 +9,7 @@ from torch import nn
 from torchaudio import models as audio_mdl
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.utils import torch_version
 
 from .wrapper import TorchFnPrimitive
 from .utils import (  # noqa: E402
@@ -215,14 +216,15 @@ inp[0, :-1] = torch.arange(start_val, end_val + start_val - 1)
 inp[1, :-3] = torch.arange(start_val, end_val + start_val - 3)
 inp[2, :-2] = torch.arange(start_val, end_val + start_val - 2)
 
-test_suite.add(
-    inp,
-    WrapperPickLastNonZeros(),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis1
-    ),
-)
+if torch_version() >= "1.12.0":
+    test_suite.add(
+        inp,
+        WrapperPickLastNonZeros(),
+        inference_conditions=ge_tract_0_21_5,
+        inference_modifier=partial(
+            change_dynamic_axes, dynamic_axes=dyn_stream_axis1
+        ),
+    )
 
 
 @pytest.mark.parametrize(

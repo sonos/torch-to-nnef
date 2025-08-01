@@ -24,6 +24,7 @@ from torch_to_nnef.inference_target.tract import build_io
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
+from torch_to_nnef.utils import torch_version
 
 
 class MyDumbNN(nn.Module):
@@ -312,6 +313,10 @@ def test_export_tensors_to_nnef_basic():
     _test_export_tensors_base(fn)
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "1.12.0",
+    reason="QTensor is supported only starting pytorch v1.12",
+)
 def test_export_tensors_to_nnef_qtensor():
     samples = {
         "qalpha": fp_to_tract_q4_0_with_min_max_calibration(torch.rand((2, 32)))

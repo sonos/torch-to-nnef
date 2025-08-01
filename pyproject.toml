@@ -201,7 +201,7 @@ commands = [
         "torch_to_nnef",
     ],
 ]
-[tool.tox.env.legacy]
+[tool.tox.env.legacy_torch_1_10]
 basepython = ["python3.9"]
 extras = ["test"]
 constrain_package_deps = true
@@ -282,5 +282,5 @@ extras = ["dev"]
 commands = [["uv", "build"]]
 
 [[tool."gh-actions".python]]
-3.9 = ["py39", "legacy"]
+3.9 = ["py39", "legacy_torch_1_10"]
 3.12 = ["py312", "format_check", "static_check"]
