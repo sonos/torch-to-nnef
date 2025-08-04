@@ -5,9 +5,9 @@ import time
 from datetime import datetime
 import operator
 
-import pytest
 import torch
 from torch import nn
+import pytest
 
 from torch_to_nnef.tensor.quant import (
     U8Compressor,
@@ -16,15 +16,16 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.utils import torch_version
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
+    skipif_unsupported_qtensor,
 )
 
 
+@skipif_unsupported_qtensor
 def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     original_weight = torch.arange(64).reshape(2, 32).float()
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
@@ -49,10 +50,7 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -84,10 +82,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
         )
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -121,10 +116,7 @@ def test_quantize_with_tract_q4_0_controled(inference_target):
         )
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
@@ -162,10 +154,7 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
         )
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -210,6 +199,7 @@ class DummyU8Compressor(U8Compressor):
         return u8_tensor
 
 
+@skipif_unsupported_qtensor
 def test_u8_compressors():
     fp_tensor = torch.rand(2, 32)
     with torch.no_grad():
@@ -251,10 +241,7 @@ def test_u8_compressors():
         )
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -279,10 +266,7 @@ TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
 ]
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
@@ -310,10 +294,7 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
 
 # conv1d: linear (aka kernel=1)
 # conv1d with various kernel size (3, 9)
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "kernel_size,inference_target",
     [(k, i) for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV for k in [1, 3, 9]],
@@ -350,10 +331,7 @@ def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
 
 
 # conv1d with various in-channels size (32, 64, 128)
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "in_size,inference_target",
     [
@@ -394,10 +372,7 @@ def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
 
 
 # conv1d with stride
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "stride,inference_target",
     [
@@ -439,10 +414,7 @@ def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
 
 
 # conv1d with dilation
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "dilation,inference_target",
     [
@@ -486,10 +458,7 @@ def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
 
 
 # conv1d with groups
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "groups,inference_target",
     [
@@ -531,10 +500,7 @@ def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
 
 
 # conv2d vanilla
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX_CONV
 )

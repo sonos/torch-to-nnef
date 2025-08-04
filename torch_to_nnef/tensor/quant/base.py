@@ -184,6 +184,10 @@ class U8Compressor:
         return self
 
 
+QTENSOR_UNSUPPORTED = torch_version() < "1.12.0"
+QTENSOR_UNSUPPORTED_MSG = "QTensor is supported only starting pytorch v1.12"
+
+
 class QTensor(OpaqueTensor):
     """Common interface for all Compressed storage"""
 
@@ -197,10 +201,8 @@ class QTensor(OpaqueTensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        if torch_version() < "1.12.0":
-            raise TorchToNNEFNotImplementedError(
-                "QTensor only work with torch>=1.12.0"
-            )
+        if QTENSOR_UNSUPPORTED:
+            raise TorchToNNEFNotImplementedError(QTENSOR_UNSUPPORTED_MSG)
         return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(

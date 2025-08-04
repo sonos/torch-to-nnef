@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 import inspect
 
+import pytest
 import numpy as np
 import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
@@ -19,6 +20,10 @@ from torch_to_nnef.inference_target import (
     InferenceTarget,
     KhronosNNEF,
     TractNNEF,
+)
+from torch_to_nnef.tensor.quant.base import (
+    QTENSOR_UNSUPPORTED,
+    QTENSOR_UNSUPPORTED_MSG,
 )
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
@@ -236,3 +241,14 @@ def id_tests(test_fixtures):
         test_name = f"{module}({data_fmt})"
         test_names.append(test_name)
     return test_names
+
+
+def skipif_unsupported_qtensor(f):
+    @pytest.mark.skipif(
+        condition=QTENSOR_UNSUPPORTED,
+        reason=QTENSOR_UNSUPPORTED_MSG,
+    )
+    def wrap(*args, **kargs):
+        return f(*args, **kargs)
+
+    return wrap

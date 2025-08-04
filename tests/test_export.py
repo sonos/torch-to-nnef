@@ -13,7 +13,7 @@ import torch
 from safetensors.torch import save_file
 from torch import nn
 
-from tests.utils import INFERENCE_TARGETS_TO_TESTS
+from tests.utils import INFERENCE_TARGETS_TO_TESTS, skipif_unsupported_qtensor
 from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
 from torch_to_nnef.export import (
     export_model_to_nnef,
@@ -313,10 +313,7 @@ def test_export_tensors_to_nnef_basic():
     _test_export_tensors_base(fn)
 
 
-@pytest.mark.skipif(
-    condition=torch_version() < "1.12.0",
-    reason="QTensor is supported only starting pytorch v1.12",
-)
+@skipif_unsupported_qtensor
 def test_export_tensors_to_nnef_qtensor():
     samples = {
         "qalpha": fp_to_tract_q4_0_with_min_max_calibration(torch.rand((2, 32)))
