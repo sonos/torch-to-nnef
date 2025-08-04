@@ -987,7 +987,6 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 if torch_version() >= "1.13.0":
-    test_suite.reset()
     var_kwargs = {}
     if torch_version() >= "2.0.0":
         var_kwargs["correction"] = 0
