@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import operator
 
+import numpy as np
 import torch
 from torch import nn
 import pytest

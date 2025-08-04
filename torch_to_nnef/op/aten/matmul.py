@@ -2,7 +2,7 @@ import typing as T
 
 import torch
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
+from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -375,7 +375,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(["baddbmm", "addmm"])
-def baddbmm(g, node, name_to_tensor, **kwargs):
+def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF"""
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     for ab_node in [alpha_node, beta_node]:
@@ -383,15 +383,35 @@ def baddbmm(g, node, name_to_tensor, **kwargs):
             ab_node.data = float(ab_node.data)
         else:
             raise TorchToNNEFNotImplementedError()
+    inputs = [
+        get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+        for _ in [input_node, batch1_node, batch2_node]
+    ]
+
+    new_inputs = []
+    target_dtype = node.outputs[0].dtype
+    for inp in inputs:
+        if NUMPY_TO_TORCH_DTYPE[inp.dtype] != target_dtype and isinstance(
+            inference_target, TractNNEF
+        ):
+            target_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_dtype]
+            inp = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=inp,
+                attrs={"to": target_dtype_tract},
+                force_full_output_tensor_name=f"{inp.name}_cast_{target_dtype_tract}",
+            )
+        new_inputs.append(inp)
+    inputs = new_inputs
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         "addmm",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            for _ in [input_node, batch1_node, batch2_node]
-        ],
+        inputs=inputs,
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["addmm"]

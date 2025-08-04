@@ -249,17 +249,21 @@ def tract_pre_0_21_7_slice(
 def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
     casted_inputs = [inputs[0]]
     expected_dtype = TORCH_TO_NUMPY_DTYPE[target_torch_dtype]
+    expected_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]
     for inp in inputs[1:]:
-        if inp.dtype != expected_dtype or (
-            np.prod(inp.shape) == 1
-            and inp.dtype not in [torch.float32, torch.int64]
-        ):
+        if (
+            inp.dtype != expected_dtype
+            or (
+                np.prod(inp.shape) == 1
+                and inp.dtype not in [torch.float32, torch.int64]
+            )
+        ) and isinstance(op_helper.inference_target, TractNNEF):
             inp = op_helper.add_single_output_op_from_nnef_tensors(
                 node,
                 nnef_op_type="tract_core_cast",
                 inputs=inp,
-                attrs={"to": TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]},
-                output_tensor_name_suffix="_casted",
+                attrs={"to": expected_dtype_tract},
+                force_full_output_tensor_name=f"{inp.name}_cast_{expected_dtype_tract}",
             )
         casted_inputs.append(inp)
     return casted_inputs
@@ -277,7 +281,10 @@ def where(node, op_helper, **kwargs):
         node,
         nnef_op_type="select",
         inputs=_select_maybe_cast(
-            op_helper, node, inputs, node.outputs[0].dtype
+            op_helper,
+            node,
+            inputs,
+            node.outputs[0].dtype,
         ),
     )
 
@@ -611,11 +618,16 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         nnef_op_type="select",
-        inputs=[
-            op_helper.get_or_add_tensor_variable_in_nnef(condition_node),
-            true_nnef_tensor,
-            false_nnef_tensor,
-        ],
+        inputs=_select_maybe_cast(
+            op_helper,
+            node,
+            [
+                op_helper.get_or_add_tensor_variable_in_nnef(condition_node),
+                true_nnef_tensor,
+                false_nnef_tensor,
+            ],
+            node.outputs[0].dtype,
+        ),
     )
 
 
