@@ -1,10 +1,18 @@
 import tempfile
 from pathlib import Path
 
+import pytest
 import numpy as np
 
-from torch_to_nnef.llm_tract.config import LlamaSLugs
-from torch_to_nnef.llm_tract.exporter import LLMExporter
+DISABLE_TESTS = False
+try:
+    from torch_to_nnef.llm_tract.config import LlamaSLugs
+    from torch_to_nnef.llm_tract.exporter import LLMExporter
+
+    LLMExporter.load(LlamaSLugs.DUMMY.value)
+except ImportError as exp:
+    print("disable test_llm_cli because:", exp)
+    DISABLE_TESTS = True
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
@@ -15,6 +23,18 @@ inference_targets = [
 ]
 
 
+def skipif_unable_import(f):
+    @pytest.mark.skipif(
+        condition=DISABLE_TESTS,
+        reason="disabled since import of transformers failed in some way",
+    )
+    def wrap(*args, **kargs):
+        return f(*args, **kargs)
+
+    return wrap
+
+
+@skipif_unable_import
 def test_llama_export_io_npz_from_LLMExporter():
     llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
     new_llm_exporter = LLMExporter(
@@ -26,6 +46,7 @@ def test_llama_export_io_npz_from_LLMExporter():
         new_llm_exporter.dump(export_dirpath=export_dirpath)
 
 
+@skipif_unable_import
 def test_llama_export_io_npz():
     llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
     with tempfile.TemporaryDirectory() as td:

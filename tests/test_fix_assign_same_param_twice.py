@@ -8,7 +8,11 @@ import torch
 from torch_to_nnef.utils import cd
 from torch_to_nnef.compress import dynamic_load_registry
 
-from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
+from .utils import (
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    check_model_io_test,
+    skipif_unsupported_qtensor,
+)
 
 
 # Check no duplicates of weights
@@ -57,6 +61,7 @@ def test_issue_dup_if_shared_tensor_export():
     )
 
 
+@skipif_unsupported_qtensor
 def test_issue_dup_compress_if_shared_tensor_export():
     """Test issue with duplicate tensor."""
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
