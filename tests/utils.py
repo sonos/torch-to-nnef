@@ -264,3 +264,14 @@ def skipif_unsupported_tensor_updater(f):
         return f(*args, **kargs)
 
     return wrap
+
+
+def skipif_limited_offload_support(f):
+    @pytest.mark.skipif(
+        condition=torch_version() < "1.12.0",
+        reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
+    )
+    def wrap(*args, **kargs):
+        return f(*args, **kargs)
+
+    return wrap
