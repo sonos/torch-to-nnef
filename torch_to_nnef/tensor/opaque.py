@@ -18,10 +18,7 @@ IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 
 def maybe_custom_op(f):
     if torch_version() >= "2.4.0":
-
-        @torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())
-        def wrap(*args, **kargs):
-            return f(*args, **kargs)
+        wrap = torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())(f)
     else:
 
         def wrap(*args, **kargs):

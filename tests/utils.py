@@ -244,34 +244,18 @@ def id_tests(test_fixtures):
     return test_names
 
 
-def skipif_unsupported_qtensor(f):
-    @pytest.mark.skipif(
-        condition=QTENSOR_UNSUPPORTED,
-        reason=QTENSOR_UNSUPPORTED_MSG,
-    )
-    def wrap(*args, **kargs):
-        return f(*args, **kargs)
-
-    return wrap
+skipif_unsupported_qtensor = pytest.mark.skipif(
+    QTENSOR_UNSUPPORTED, reason=QTENSOR_UNSUPPORTED_MSG
+)
 
 
-def skipif_unsupported_tensor_updater(f):
-    @pytest.mark.skipif(
-        condition=torch_version() < "2.0.0",
-        reason="torch version need to be >= 2.0 to use ModTensorUpdater",
-    )
-    def wrap(*args, **kargs):
-        return f(*args, **kargs)
-
-    return wrap
+skipif_unsupported_tensor_updater = pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="torch version need to be >= 2.0 to use ModTensorUpdater",
+)
 
 
-def skipif_limited_offload_support(f):
-    @pytest.mark.skipif(
-        condition=torch_version() < "1.12.0",
-        reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
-    )
-    def wrap(*args, **kargs):
-        return f(*args, **kargs)
-
-    return wrap
+skipif_limited_offload_support = pytest.mark.skipif(
+    condition=torch_version() < "1.12.0",
+    reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
+)
