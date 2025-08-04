@@ -64,6 +64,8 @@ class _RNNMixin:
                             continue
                     break
         new_args = [torch_graph.tracer.args[o] for o in order]
+        if len(new_args) == 0:  # fallback: observed in torch==1.10
+            new_args = torch_graph.tracer.args
         return new_args
 
     def _check_rank(self, node, module):

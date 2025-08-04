@@ -165,28 +165,37 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         # if this function call is hooked via ModuleInfoExtractor
         # then it become the responssability of
         # .convert_to_nnef to provide right output
-        #
+
         gouts = list(torch_graph.tracer.traced_module.graph.outputs())
         go_kind = gouts[0].type().kind()
         if len(gouts) == 1 and go_kind == "TupleType":
             gouts = list(gouts[0].node().inputs())
         elif not all(go.type().kind() == "TensorType" for go in gouts):
-            raise NotImplementedError([go.type().kind() for go in gouts])
+            raise TorchToNNEFNotImplementedError(
+                [go.type().kind() for go in gouts]
+            )
         used_outputs_order = [_.offset() for _ in gouts]
-        for idx, result in enumerate(expanded_results):
-            if provided_outputs and idx in used_outputs_order:
-                tensor_variable = provided_outputs[
-                    used_outputs_order.index(idx)
-                ]
-            else:
-                tensor_variable = tg.TensorVariable(
-                    name=f"{self._cname_slug}_output_{idx}",
-                    shape=list(result.shape),
-                    dtype=result.dtype,
-                    quant=None,  # would probably need better handling
-                    data=None,
-                )
-            outputs.append(tensor_variable)
+        if provided_outputs and len(gouts) > len(provided_outputs):
+            raise TorchToNNEFNotImplementedError(
+                "Unclear how to mitigate in such case n output from "
+                f"PyTorch Python: {len(results)} but "
+                f"PyTorch IR graph has: {len(gouts)} "
+                "(this problem was not observed in PyTorch>=2.0)"
+            )
+        else:
+            for idx, result in enumerate(expanded_results):
+                if provided_outputs and idx in used_outputs_order:
+                    po_ix = used_outputs_order.index(idx)
+                    tensor_variable = provided_outputs[po_ix]
+                else:
+                    tensor_variable = tg.TensorVariable(
+                        name=f"{self._cname_slug}_output_{idx}",
+                        shape=list(result.shape),
+                        dtype=result.dtype,
+                        quant=None,  # would probably need better handling
+                        data=None,
+                    )
+                outputs.append(tensor_variable)
         torch_graph.inputs = inputs
         torch_graph.outputs = [outputs[uidx] for uidx in used_outputs_order]
         torch_graph.data_nodes = inputs + outputs
