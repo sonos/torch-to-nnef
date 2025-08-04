@@ -39,7 +39,7 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.tensor.opaque import OpaqueTensor
-from torch_to_nnef.utils import select_ctx_disable_torch_fn
+from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 AUTO_DEVICE_MAP_KEY = "t2n_auto"
 ON_DISK_DEVICE_MAP_KEY = "t2n_offload_disk"
@@ -56,6 +56,15 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OffloadedTensor(OpaqueTensor):
+    """Tensor subclass that maintains data on disk
+
+    It hold an virtual internal memory storage (permanent)
+    and a temporary instantiation at each operation accessing it on targeted device.
+
+    Warning:
+        we recommend to version of PyTorch > 1.12 for best compatibility.
+    """
+
     @staticmethod
     def __new__(
         cls,
@@ -65,16 +74,24 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: Path,
         **kwargs,
     ):
+        if torch_version() < "1.12.0":
+            warnings.warn(
+                "OffloadedTensor expect PyTorch aten ops support 'meta' "
+                "device tensors (which is very limited before 1.12)"
+            )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=TracerWarning)
+            mk_sub_kwargs = {}
+            if torch_version() >= "1.13.0":
+                mk_sub_kwargs = {
+                    "dispatch_device": True,
+                    "device_for_backend_keys": device,
+                }
             self = torch.Tensor._make_subclass(
-                cls,
-                elem,
-                elem.requires_grad,
-                dispatch_device=True,
-                device_for_backend_keys=device,
+                cls, elem, elem.requires_grad, **mk_sub_kwargs
             )
-        torch._C._set_warn_deprecated_on_mutable_data_ptr(self)
+        if torch_version() >= "2.4.0":
+            torch._C._set_warn_deprecated_on_mutable_data_ptr(self)
         assert elem.device.type == "meta", elem.device.type
         device = (
             device if isinstance(device, torch.device) else torch.device(device)
@@ -85,6 +102,9 @@ class OffloadedTensor(OpaqueTensor):
             from torch._subclasses.fake_tensor import init_gpu_context
 
             init_gpu_context(device)
+        devs = []
+        if torch_version() > "2.4.0":
+            devs = [torch._C._get_privateuse1_backend_name()]
         if (
             device.type
             in [
@@ -92,8 +112,8 @@ class OffloadedTensor(OpaqueTensor):
                 "hpu",
                 "xpu",
                 "mps",
-                torch._C._get_privateuse1_backend_name(),
             ]
+            + devs
             and device.index is None
         ):
             if (
@@ -247,7 +267,10 @@ class OffloadedTensor(OpaqueTensor):
 
     def reload(self):
         if issubclass(self.offloaded_tensor_type, OpaqueTensor):
-            return torch.load(self.offload_path, weights_only=False).to(
+            load_kwargs = {}
+            if torch_version() >= "1.13.0":
+                load_kwargs["weights_only"] = False
+            return torch.load(self.offload_path, **load_kwargs).to(
                 self.target_device
             )
         return torch.load(self.offload_path).to(self.target_device)

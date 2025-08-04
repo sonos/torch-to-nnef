@@ -9,11 +9,25 @@ from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.tensor.utils import get_named_parameters
-from torch_to_nnef.utils import select_ctx_disable_torch_fn
+from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 LOGGER = logging.getLogger(__name__)
 
 IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
+
+
+def maybe_custom_op(f):
+    if torch_version() >= "2.4.0":
+
+        @torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())
+        def wrap(*args, **kargs):
+            return f(*args, **kargs)
+    else:
+
+        def wrap(*args, **kargs):
+            return f(*args, **kargs)
+
+    return wrap
 
 
 def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
@@ -58,7 +72,7 @@ class OpaqueTensor(torch.Tensor):
     def to_base_tensor(self):
         """wrap _to_base_tensor with jit export infos"""
 
-        @torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())
+        @maybe_custom_op
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
             tensor = self._to_base_tensor()
             return tensor
