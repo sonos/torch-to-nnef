@@ -12,6 +12,7 @@ from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     check_model_io_test,
     skipif_unsupported_qtensor,
+    skipif_unsupported_tensor_updater,
 )
 
 
@@ -45,6 +46,7 @@ def check_no_dup_dat(inference_target, path):
                 raise ValueError(f"too much .dat produced: {names}")
 
 
+@skipif_unsupported_tensor_updater
 def test_issue_dup_if_shared_tensor_export():
     """Test issue with duplicate tensor."""
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
@@ -62,6 +64,7 @@ def test_issue_dup_if_shared_tensor_export():
 
 
 @skipif_unsupported_qtensor
+@skipif_unsupported_tensor_updater
 def test_issue_dup_compress_if_shared_tensor_export():
     """Test issue with duplicate tensor."""
     latest_tract_inference = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])

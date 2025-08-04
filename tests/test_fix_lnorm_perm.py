@@ -5,8 +5,6 @@ import torch
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
-# add unit test for https://github.com/{project}/issues/18
-# export was fine but tract failed to find that -1 is 80 in reality
 class MyModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
