@@ -987,9 +987,15 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 if torch_version() >= "1.13.0":
+    test_suite.reset()
+    var_kwargs = {}
+    if torch_version() >= "2.0.0":
+        var_kwargs["correction"] = 0
+    else:
+        var_kwargs["unbiased"] = False
     test_suite.add(
         torch.arange(10).float(),
-        UnaryPrimitive(partial(torch.var, correction=0)),
+        UnaryPrimitive(partial(torch.var, **var_kwargs)),
         inference_conditions=skip_khronos_interpreter,
     )
 
