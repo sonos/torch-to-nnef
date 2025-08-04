@@ -1,6 +1,7 @@
 import enum
 import typing as T
 from collections import defaultdict
+import warnings
 
 import torch
 
@@ -24,6 +25,9 @@ class ModTensorUpdater:
 
     An example is the shared reference on transformers between first input_ids embedding and
     last linear layer projection weights.
+
+    This is not usefull for PyTorch < 2.0.0 since it filters duplicate in init,
+    since torch API are missing remove_duplicate before that.
 
     """
 
@@ -55,6 +59,11 @@ class ModTensorUpdater:
         self.name_to_id = {}
         self.id_to_kind = {}
         self._disabled_requires_grad_names = []
+        if torch_version() < "2.0.0":
+            warnings.warn(
+                "Try to use `ModTensorUpdater` with PyTorch<2.0, "
+                " it will not apply tight variable update as you might expect."
+            )
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)
         for param_name, param in get_named_parameters(
@@ -263,3 +272,7 @@ class ModTensorUpdater:
                 setattr(mod._buffers, p_local_name, new_tensor)
             self._update_reference(ref, new_tensor)
         return new_tensor
+
+    @property
+    def available_names(self):
+        return [_ for fs in self.id_to_names.values() for _ in fs]

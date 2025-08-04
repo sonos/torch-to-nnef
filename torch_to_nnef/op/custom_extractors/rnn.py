@@ -44,9 +44,7 @@ class _RNNMixin:
 
         real_order = list(rnn_op.inputs())[:3]
         received_order = list(torch_graph.tracer.torch_graph.inputs())[1:]
-        # received_order = [_.offset() for _ in received_order]
         order = []
-        states_args = []
         for rinp in real_order[:-1]:
             try:
                 order.append(received_order.index(rinp))
@@ -63,27 +61,9 @@ class _RNNMixin:
                             assert sinp_node.kind() == ATEN_ZEROS, (
                                 sinp_node.kind()
                             )
-                            # zdims = []
-                            # for zdim in (
-                            #     next(sinp.node().inputs()).node().inputs()
-                            # ):
-                            #     if zdim.toIValue() is not None:
-                            #         zdims.append(zdim.toIValue())
-                            #     else:
-                            #         assert zdim.node().kind() == ATEN_INT
-                            #         val = zdim.node().input()
-                            #         if val.node().kind() == ATEN_SELECT:
-                            #             select_vals = list(val.node().inputs())
-                            #             # assume today observed case
-                            #             assert select_vals[1].toIValue() == 0
-                            #             assert select_vals[2].toIValue() == 0
-                            #             continue  # do not add init
-                            #         if val.node().kind() == NUMTOTENSOR_KIND:
-                            #             continue  # do not add init
-                            # states_args.append(torch.zeros(zdims))
                             continue
                     break
-        new_args = [torch_graph.tracer.args[o] for o in order] + states_args
+        new_args = [torch_graph.tracer.args[o] for o in order]
         return new_args
 
     def _check_rank(self, node, module):

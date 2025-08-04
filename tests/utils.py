@@ -32,6 +32,7 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import torch_version
 
 TRACT_INFERENCES_TO_TESTS_APPROX = [
     # we maintain last 3 majors of tract
@@ -247,6 +248,17 @@ def skipif_unsupported_qtensor(f):
     @pytest.mark.skipif(
         condition=QTENSOR_UNSUPPORTED,
         reason=QTENSOR_UNSUPPORTED_MSG,
+    )
+    def wrap(*args, **kargs):
+        return f(*args, **kargs)
+
+    return wrap
+
+
+def skipif_unsupported_tensor_updater(f):
+    @pytest.mark.skipif(
+        condition=torch_version() < "2.0.0",
+        reason="torch version need to be >= 2.0 to use ModTensorUpdater",
     )
     def wrap(*args, **kargs):
         return f(*args, **kargs)
