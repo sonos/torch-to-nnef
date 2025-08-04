@@ -146,6 +146,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         model,
         add_buffers=True,
         add_unregistred_tensor=True,
+        warn_old_torch=False,
     )
     LOGGER.debug("started to apply NamedTensor")
     for names in list(mod_tensor_updater.id_to_names.values()):

@@ -230,6 +230,68 @@ commands = [
         "torch_to_nnef",
     ],
 ]
+
+[tool.tox.env.legacy_torch_1_13]
+basepython = ["python3.9"]
+extras = ["test"]
+constrain_package_deps = true
+deps = [
+    "torch==1.13.0",
+    "torchvision==0.13.0",
+    "torchaudio==0.13.1",
+    "numpy<2.0.0",
+]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+
+[tool.tox.env.legacy_torch_2_1]
+basepython = ["python3.9"]
+extras = ["test"]
+constrain_package_deps = true
+deps = [
+    "torch==2.1.2",
+    "torchvision==0.16.2",
+    "torchaudio==2.1.2",
+    "numpy<2.0.0",
+]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
 [[tool.tox.env_run_base.setenv]]
 PYTHONPATH = "{toxinidir}"
 PYTHONWARNINGS = "ignore"

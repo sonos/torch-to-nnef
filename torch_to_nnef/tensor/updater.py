@@ -38,6 +38,7 @@ class ModTensorUpdater:
         add_buffers: bool = False,
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
+        warn_old_torch: bool = True,
     ):
         """
         Args:
@@ -59,7 +60,7 @@ class ModTensorUpdater:
         self.name_to_id = {}
         self.id_to_kind = {}
         self._disabled_requires_grad_names = []
-        if torch_version() < "2.0.0":
+        if torch_version() < "2.0.0" and warn_old_torch:
             warnings.warn(
                 "Try to use `ModTensorUpdater` with PyTorch<2.0, "
                 " it will not apply tight variable update as you might expect."
