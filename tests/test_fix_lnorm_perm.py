@@ -10,12 +10,12 @@ from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 class MyModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv = torch.nn.Conv2d(1, 10, 3)
+        self.conv = torch.nn.Conv2d(5, 10, 3)
         self.lnorm = torch.nn.LayerNorm(10)
 
     def forward(self, x):
         x = self.conv(x)
-        x = x.permute(2, 1, 0)
+        x = x.permute(0, 3, 2, 1)
         return self.lnorm(x)
 
 
@@ -69,7 +69,7 @@ def test_issue_lnorm_export():
     }
     check_model_io_test(
         model=MyModule(),
-        test_input=torch.rand(1, 10, 1000),
+        test_input=torch.rand(1, 5, 5, 1000),
         inference_target=latest_tract_inference,
         callback=check_align_with_reserialized,
     )
