@@ -2,7 +2,6 @@ from enum import Enum
 from pathlib import Path
 import typing as T
 import struct
-import sys
 import os
 
 import torch
