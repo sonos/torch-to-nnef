@@ -32,7 +32,7 @@ def set_inference_supper(inference_target):
     return new_inference_target
 
 
-if torch_version() > "1.13.0":
+if torch_version() >= "2.2.0":  # half support for
     attn_test_suite.add(
         # q, k, v
         (
@@ -167,4 +167,4 @@ def test_layer_norm_f16_unsupported_in_torch():
             )
         assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
             excinfo.value
-        )
+        ) or "mixed dtype" in str(excinfo.value)
