@@ -134,6 +134,11 @@ class QScalePerGroupF16(QScheme):
 
 
 if torch_version() > "2.0.0":
+    import torch._dynamo
+
+    # avoid crash if missing deps like openmp
+    torch._dynamo.config.suppress_errors = True
+
     QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
     QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
         QScalePerGroupF16._dequantize

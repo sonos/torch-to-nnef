@@ -137,7 +137,7 @@ class DatBinHeader:
         if self.item_type_vendor == self.TRACT_ITEM_TYPE_VENDOR:
             return self.TractCustomTypes(self.item_type)
         return NUMPY_TO_TORCH_DTYPE[
-            _numpy_dtype_make(self.item_type, self.bits_per_item)
+            _numpy_dtype_make(int(self.item_type, 16), self.bits_per_item)
         ]
 
     @classmethod
