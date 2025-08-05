@@ -208,7 +208,7 @@ extras = ["test"]
 constrain_package_deps = true
 deps = [
     "torch==1.10.0",
-    "torchvision==0.10.0",
+    "torchvision==0.10.1",
     "torchaudio==0.10.0",
     "numpy<2.0.0",
 ]
@@ -238,7 +238,7 @@ extras = ["test"]
 constrain_package_deps = true
 deps = [
     "torch==1.13.0",
-    "torchvision==0.13.0",
+    "torchvision==0.13.1",
     "torchaudio==0.13.0",
     "numpy<2.0.0",
 ]
