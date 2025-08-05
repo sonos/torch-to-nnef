@@ -16,6 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "mako>=1.0.0,<2.0",
@@ -208,7 +209,7 @@ constrain_package_deps = true
 deps = [
     "torch==1.10.0",
     "torchvision==0.10.0",
-    "torchaudio==0.10.1",
+    "torchaudio==0.10.0",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -238,7 +239,7 @@ constrain_package_deps = true
 deps = [
     "torch==1.13.0",
     "torchvision==0.13.0",
-    "torchaudio==0.13.1",
+    "torchaudio==0.13.0",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -263,7 +264,7 @@ commands = [
 
 
 [tool.tox.env.legacy_torch_2_1]
-basepython = ["python3.9"]
+basepython = ["python3.12"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
