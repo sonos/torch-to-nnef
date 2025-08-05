@@ -15,15 +15,22 @@ LOGGER = logging.getLogger(__name__)
 
 IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
 
+# Since pytorch 2.4 added: `torch.library.custom_op`
+# we can trace with jit.trace with meta reference
+#
+# On Prior version we use legacy technique with
+# OpaqueTensorRef that contains 'real' data
+# this legacy is less optimal since it duplicate
+# weights at export time between with Opaque and
+# OpaqueTensorRef.
+NEW_OPAQUE_TRACING_STRATEGY = torch_version() >= "2.4.0"
+
 
 def maybe_custom_op(f):
-    if torch_version() >= "2.4.0":
+    if NEW_OPAQUE_TRACING_STRATEGY:
         wrap = torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())(f)
     else:
-
-        def wrap(*args, **kargs):
-            return f(*args, **kargs)
-
+        wrap = f
     return wrap
 
 
@@ -161,7 +168,7 @@ class OpaqueTensorRef(torch.Tensor):
                 _ in str(func)
                 for _ in ["'__get__'", "'__set__'", "Tensor.__reduce_ex__"]
             )
-            if not skip_expansion:
+            if not skip_expansion and NEW_OPAQUE_TRACING_STRATEGY:
                 args = [
                     a.opaque_tensor.to_base_tensor()
                     if isinstance(a, cls)
@@ -174,6 +181,7 @@ class OpaqueTensorRef(torch.Tensor):
                     else v
                     for k, v in kwargs.items()
                 }
+
             ret = func(*args, **kwargs)
             if skip_expansion:
                 return ret
@@ -216,7 +224,9 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
         mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(
-                opaque_to_final_tensor(param).to("meta"),
+                opaque_to_final_tensor(param).to(
+                    "meta" if NEW_OPAQUE_TRACING_STRATEGY else "cpu"
+                ),
                 param,
             ),
         )
