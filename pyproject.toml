@@ -342,7 +342,3 @@ commands = [["prospector", "--no-autodetect"]]
 allowlist_externals = ["uv"]
 extras = ["dev"]
 commands = [["uv", "build"]]
-
-[[tool."gh-actions".python]]
-3.9 = ["py39", "legacy_torch_1_10", "legacy_torch_1_13"]
-3.12 = ["py312", "format_check", "static_check", "legacy_torch_2_1"]
