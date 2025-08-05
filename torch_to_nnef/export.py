@@ -10,8 +10,8 @@ from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
-from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
-from torch_to_nnef.custom_nnef_writer import (
+from torch_to_nnef.nnef_io.writer import Writer as NNEFWriter
+from torch_to_nnef.nnef_io.writer import (
     write_nnef_tensor,
     write_tensor_quantization_infos,
 )

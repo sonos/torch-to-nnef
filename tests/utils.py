@@ -144,7 +144,7 @@ def check_model_io_test(
     output_names=None,
     nnef_variable_naming_scheme=VariableNamingScheme.default(),
     custom_extensions=None,
-    callback=None,
+    callback_post_export=None,
     unit_test_naming=None,
 ):
     dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
@@ -209,8 +209,8 @@ def check_model_io_test(
                 io_npz_path,
                 dump_test_tz_path.with_suffix(".io.npz"),
             )
-        if callback is not None:
-            callback(inference_target, export_path)
+        if callback_post_export is not None:
+            callback_post_export(inference_target, export_path)
 
 
 def remove_weight_norm(module):

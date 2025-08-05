@@ -1,6 +1,9 @@
+import typing as T
 from copy import deepcopy
-from functools import reduce
+from functools import partial, reduce
+from pathlib import Path
 import platform
+import subprocess
 import time
 from datetime import datetime
 import operator
@@ -10,13 +13,17 @@ import torch
 from torch import nn
 import pytest
 
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
     U8Compressor,
     qscale_per_group_f16_min_max_calibration,
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
+from torch_to_nnef.tensor.quant.base import QTensor
+from torch_to_nnef.utils import cd
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -267,6 +274,58 @@ TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
 ]
 
 
+def check_tensor_in_nnef_archive(
+    inference_target: InferenceTarget,
+    path: Path,
+    labels: T.Union[T.List[str], T.Dict[str, T.Dict[str, T.Any]]],
+):
+    assert isinstance(inference_target, InferenceTarget)
+    if not isinstance(inference_target, TractNNEF):
+        return
+    assert path.exists()
+    exdir = path.parent / "extract"
+    exdir.mkdir(parents=True, exist_ok=True)
+    graph_filename = "graph.nnef"
+    with cd(exdir):
+        subprocess.check_call(["tar", "-xzf", str(path), graph_filename])
+        graph_filepath = exdir / graph_filename
+        graph_content = graph_filepath.read_text()
+        found_labels = set()
+        probe1 = "variable<scalar>(label = "
+        probe2 = "variable(label = "
+        for line in graph_content.split("\n"):
+            for probe in [probe1, probe2]:
+                if probe in line:
+                    col_ix = line.index(probe)
+                    start_ix = col_ix + len(probe)
+                    line_label = line[start_ix + 1 :].split("'", maxsplit=1)[0]
+                    for lab in labels:
+                        if line_label == lab:
+                            assert lab not in found_labels, (
+                                "duplicate weight label"
+                            )
+                            found_labels.add(lab)
+        remaining_labels = set(labels).difference(found_labels)
+        if remaining_labels:
+            raise ValueError(
+                f"Some tensor where not found in exported NNEF archive: {remaining_labels}"
+            )
+        if isinstance(labels, dict):
+            for label_name, label_opt_checks in labels.items():
+                expected_dtype = label_opt_checks.get("dtype")
+                if expected_dtype is not None:
+                    dat_filename = f"{label_name}.dat"
+                    subprocess.check_call(
+                        ["tar", "-xzf", str(path), dat_filename]
+                    )
+                    bin_header = DatBinHeader.from_dat(dat_filename)
+                    if bin_header.torch_dtype_or_custom != expected_dtype:
+                        raise ValueError(
+                            "wrong dtype in NNEF archive "
+                            f"{label_name}: {bin_header.torch_dtype_or_custom} but expected {expected_dtype}"
+                        )
+
+
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
@@ -328,6 +387,16 @@ def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_base.__name__
             + f"_kernel{kernel_size}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 

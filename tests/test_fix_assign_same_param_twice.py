@@ -59,7 +59,7 @@ def test_issue_dup_if_shared_tensor_export():
         model=mod,
         test_input=torch.rand(10, 1),
         inference_target=latest_tract_inference,
-        callback=check_no_dup_dat,
+        callback_post_export=check_no_dup_dat,
     )
 
 
@@ -85,5 +85,5 @@ def test_issue_dup_compress_if_shared_tensor_export():
             model=mod,
             test_input=torch.rand(10, 1),
             inference_target=latest_tract_inference,
-            callback=check_no_dup_dat,
+            callback_post_export=check_no_dup_dat,
         )

@@ -114,7 +114,7 @@ def test_upcast_f32_attn(id, test_input, model, inference_target):
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        callback=check_contains_f32_upcast_attn,
+        callback_post_export=check_contains_f32_upcast_attn,
     )
 
 
@@ -152,7 +152,7 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        callback=check_contains_f32_upcast_norm,
+        callback_post_export=check_contains_f32_upcast_norm,
     )
 
 

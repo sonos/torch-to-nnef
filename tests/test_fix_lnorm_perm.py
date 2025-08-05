@@ -69,5 +69,5 @@ def test_issue_lnorm_export():
         model=MyModule(),
         test_input=torch.rand(1, 5, 5, 1000),
         inference_target=latest_tract_inference,
-        callback=check_align_with_reserialized,
+        callback_post_export=check_align_with_reserialized,
     )
