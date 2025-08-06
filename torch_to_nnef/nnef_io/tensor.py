@@ -1,16 +1,13 @@
+import os
+import struct
+import typing as T
 from enum import Enum
 from pathlib import Path
-import typing as T
-import struct
-import os
 
-import torch
 import numpy as np
+import torch
+from nnef.binary import _fromfile, _numpy_dtype_make
 
-from nnef.binary import (
-    _fromfile,
-    _numpy_dtype_make,
-)
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
 
 
@@ -34,6 +31,7 @@ class DatBinHeader:
 
         Custom tract quantisation types used in NNEF headers.
         """
+
         Q40 = "4030"
         Q40_LEGACY = "4020"
 

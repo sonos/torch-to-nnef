@@ -1,5 +1,7 @@
 import typing as T
+
 from torch import nn
+
 from torch_to_nnef.utils import torch_version
 
 
