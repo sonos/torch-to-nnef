@@ -7,10 +7,10 @@ from torch import jit, nn
 
 from torch_to_nnef.dtypes import str_to_torch_dtype
 from torch_to_nnef.exceptions import (
-    T2NErrorTorchNotFoundDataNode,
-    T2NErrorTorchOpTranslatedDifferently,
     T2NError,
     T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundDataNode,
+    T2NErrorTorchOpTranslatedDifferently,
 )
 from torch_to_nnef.tensor.opaque import IR_OPAQUE_NAME, find_opaque_ref_by_py_id
 from torch_to_nnef.torch_graph.ir_data import (
@@ -246,7 +246,9 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
 def _find_data_node(data_nodes: ReactiveNamedItemDict, name: str):
     data_node = data_nodes.get_by_name(cleanup_data_name(name))
     if data_node is None:
-        raise T2NErrorTorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
+        raise T2NErrorTorchNotFoundDataNode(
+            f"'{name}' not found in {data_nodes}"
+        )
     return data_node
 
 
@@ -317,9 +319,7 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
     try:
         return _find_data_node(data_nodes, c_node.output().debugName())
     except T2NErrorTorchNotFoundDataNode as exp:
-        raise T2NErrorNotImplemented(
-            "_fetch_backward c_node:", c_node
-        ) from exp
+        raise T2NErrorNotImplemented("_fetch_backward c_node:", c_node) from exp
 
 
 def _parse_list_construct_values(node, data_nodes: ReactiveNamedItemDict):
@@ -490,10 +490,14 @@ def _rerouted_parsing(
         )
     if kind == GETATTR_KIND:
         _parse_getattr_tensor(node, module, data_nodes)
-        raise T2NErrorTorchOpTranslatedDifferently("geattr handled as TensorVariable")
+        raise T2NErrorTorchOpTranslatedDifferently(
+            "geattr handled as TensorVariable"
+        )
     if kind == CONSTANT_KIND:
         _parse_constant(node, data_nodes)
-        raise T2NErrorTorchOpTranslatedDifferently("constant become PythonConstant")
+        raise T2NErrorTorchOpTranslatedDifferently(
+            "constant become PythonConstant"
+        )
     if kind == LISTCONSTRUCT_KIND:
         _parse_list_construct(node, data_nodes)
         raise T2NErrorTorchOpTranslatedDifferently(

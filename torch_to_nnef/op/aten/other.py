@@ -82,9 +82,7 @@ def external(
         )
         custom_fragments.append("tract_core")
     else:
-        raise T2NErrorNotImplemented(
-            f"inference_target: {inference_target}"
-        )
+        raise T2NErrorNotImplemented(f"inference_target: {inference_target}")
     return nnef_tensor_ref, custom_fragments
 
 

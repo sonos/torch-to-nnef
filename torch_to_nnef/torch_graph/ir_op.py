@@ -21,10 +21,10 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
+    T2NErrorNotImplemented,
     T2NErrorRuntime,
     T2NErrorTorchCheck,
     T2NErrorTorchOpTranslatedDifferently,
-    T2NErrorNotImplemented,
     T2NErrorTorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.ir_data import (

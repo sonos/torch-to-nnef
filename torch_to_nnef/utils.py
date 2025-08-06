@@ -464,7 +464,9 @@ class ReactiveNamedItemDict:
             item.name in self._protected_names
             and not raise_exception_if_protected_name
         ):
-            raise T2NErrorDataNodeValue(f"Not authorized to remove: '{item.name}'")
+            raise T2NErrorDataNodeValue(
+                f"Not authorized to remove: '{item.name}'"
+            )
         self.detach_listener_name_change_for_item(item)
         del self._map[item.name]
 

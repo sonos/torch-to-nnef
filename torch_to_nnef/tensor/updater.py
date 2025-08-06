@@ -5,10 +5,7 @@ from collections import defaultdict
 
 import torch
 
-from torch_to_nnef.exceptions import (
-    T2NErrorInconsistentTensor,
-    T2NErrorMissUse,
-)
+from torch_to_nnef.exceptions import T2NErrorInconsistentTensor, T2NErrorMissUse
 from torch_to_nnef.tensor.named import NamedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
 from torch_to_nnef.tensor.utils import get_named_buffers, get_named_parameters
@@ -186,9 +183,7 @@ class ModTensorUpdater:
                         new_tensor, persistent=ref.persistent
                     )
             else:
-                raise T2NErrorMissUse(
-                    f"{new_tensor} must be a parameter"
-                )
+                raise T2NErrorMissUse(f"{new_tensor} must be a parameter")
         return new_tensor
 
     def _set_tensor(self, old, new):
@@ -198,9 +193,7 @@ class ModTensorUpdater:
             and not isinstance(new, torch.nn.Parameter)
             and not self.add_parameter_if_unset
         ):
-            raise T2NErrorMissUse(
-                "new tensor setted should be a parameter"
-            )
+            raise T2NErrorMissUse("new tensor setted should be a parameter")
         if old.requires_grad:
             need_grad = True
             old.requires_grad = False

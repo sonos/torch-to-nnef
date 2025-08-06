@@ -8,8 +8,8 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import (
-    T2NErrorTorchJitTraceFailed,
     T2NErrorNotImplemented,
+    T2NErrorTorchJitTraceFailed,
 )
 from torch_to_nnef.tensor.utils import get_named_parameters
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
@@ -44,7 +44,9 @@ def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
             opaque_uuid = id(_.opaque_tensor)
             if opaque_uuid == py_id:
                 return _
-    raise T2NErrorTorchJitTraceFailed(f"OpaqueTensor with id({py_id}) not found")
+    raise T2NErrorTorchJitTraceFailed(
+        f"OpaqueTensor with id({py_id}) not found"
+    )
 
 
 class OpaqueTensor(torch.Tensor):

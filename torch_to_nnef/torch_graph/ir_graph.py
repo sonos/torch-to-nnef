@@ -7,12 +7,12 @@ import torch
 from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
+    T2NError,
     T2NErrorNotFoundModuleExtractor,
+    T2NErrorNotImplemented,
     T2NErrorTorchCheck,
     T2NErrorTorchNotFoundOp,
     T2NErrorTorchOpTranslatedDifferently,
-    T2NError,
-    T2NErrorNotImplemented,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.torch_graph.ir_data import (

@@ -44,9 +44,7 @@ def check_no_dup_dat(inference_target, path):
             dats = [_ for _ in td.iterdir() if ".dat" in _.suffixes]
             if len(dats) != 2:
                 names = [_.name for _ in dats]
-                raise T2NErrorMissUse(
-                    f"too much .dat produced: {names}"
-                )
+                raise T2NErrorMissUse(f"too much .dat produced: {names}")
 
 
 @skipif_unsupported_tensor_updater

@@ -15,10 +15,7 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
     str_to_torch_dtype,
 )
-from torch_to_nnef.exceptions import (
-    T2NErrorConsistency,
-    T2NErrorNotImplemented,
-)
+from torch_to_nnef.exceptions import T2NErrorConsistency, T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor import OpaqueTensorRef, QTensor
 from torch_to_nnef.tensor.offload import OffloadedTensor
@@ -687,9 +684,7 @@ def get_list_of_int(
                     f"too much unknown dimensions for view {int_list}"
                 )
     else:
-        raise T2NErrorNotImplemented(
-            "Extracting int list from ", data_node
-        )
+        raise T2NErrorNotImplemented("Extracting int list from ", data_node)
 
     assert all(isinstance(_, (nnef.Identifier, int)) for _ in int_list), (
         int_list
@@ -767,9 +762,7 @@ class OpHelper:
 
         if nnef_op_type == "slice":
             if len(attrs["begin"]) != 1:
-                raise T2NErrorNotImplemented(
-                    "len(begin) != 1 in slicing"
-                )
+                raise T2NErrorNotImplemented("len(begin) != 1 in slicing")
             if (
                 isinstance(attrs["begin"][0], int)
                 and isinstance(attrs["end"][0], int)

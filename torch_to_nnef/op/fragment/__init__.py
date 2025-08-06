@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mako.template import Template
 
-from torch_to_nnef.exceptions import T2NErrorFragmentFile, T2NError
+from torch_to_nnef.exceptions import T2NError, T2NErrorFragmentFile
 
 EXTENSION = ".nnef"
 TMPL_EXTENSION = ".tmpl"

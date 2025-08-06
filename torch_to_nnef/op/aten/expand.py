@@ -313,9 +313,7 @@ def _fill_negone_with_dim_by_rank_order(
                     )
                 )
             else:
-                raise T2NErrorNotImplemented(
-                    "unexpected dim value: ", s
-                )
+                raise T2NErrorNotImplemented("unexpected dim value: ", s)
         elif s == -1:
             new_shapes.append(input_node.shape[axis])
         elif s > 0:

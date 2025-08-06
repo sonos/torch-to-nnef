@@ -7,8 +7,8 @@ from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
 from torch_to_nnef.exceptions import (
-    T2NErrorStrictNNEFSpec,
     T2NErrorNotImplemented,
+    T2NErrorStrictNNEFSpec,
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor

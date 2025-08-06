@@ -148,9 +148,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         if len(gouts) == 1 and go_kind == "TupleType":
             gouts = list(gouts[0].node().inputs())
         elif not all(go.type().kind() == "TensorType" for go in gouts):
-            raise T2NErrorNotImplemented(
-                [go.type().kind() for go in gouts]
-            )
+            raise T2NErrorNotImplemented([go.type().kind() for go in gouts])
         used_outputs_order = [_.offset() for _ in gouts]
         if provided_outputs and len(gouts) > len(provided_outputs):
             raise T2NErrorNotImplemented(

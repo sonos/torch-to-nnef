@@ -344,9 +344,7 @@ class FilterbankFeatures(nn.Module):
                     torch.clamp(x, min=self.log_zero_guard_value_fn(x))
                 )
             else:
-                raise T2NErrorMissUse(
-                    "log_zero_guard_type was not understood"
-                )
+                raise T2NErrorMissUse("log_zero_guard_type was not understood")
 
         # frame splicing if required
         if self.frame_splicing > 1:

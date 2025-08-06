@@ -9,11 +9,11 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import (
+    T2NError,
     T2NErrorIoQuantity,
     T2NErrorIR,
-    T2NErrorTorchNotFoundOp,
-    T2NError,
     T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundOp,
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops

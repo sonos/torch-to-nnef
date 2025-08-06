@@ -104,9 +104,7 @@ def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:avg_pool1d' to NNEF"""
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
-        raise T2NErrorNotImplemented(
-            "not implemented count_include_pad=False"
-        )
+        raise T2NErrorNotImplemented("not implemented count_include_pad=False")
     inputs_name_tuple = node.inputs[:-1]  # count_include_pad excluded
     inputs_name_tuple.insert(4, None)  # set missing dilation
 
@@ -153,9 +151,7 @@ def avg_pool_nd(g, node, name_to_tensor, inference_target, **kwargs):
 
     count_include_pad = node.inputs[-2].data
     if not count_include_pad:
-        raise T2NErrorNotImplemented(
-            "not implemented count_include_pad=False"
-        )
+        raise T2NErrorNotImplemented("not implemented count_include_pad=False")
 
     divisor_overide = node.inputs[-1].data
     if divisor_overide:

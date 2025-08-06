@@ -63,9 +63,7 @@ class QScalePerGroupF16(QScheme):
         self.n_bits = n_bits  # needed for bit-shift before packing
 
     def quantize_as_torch(self, fp_tensor):
-        raise T2NErrorNotImplemented(
-            "native torch does not suport per chunk"
-        )
+        raise T2NErrorNotImplemented("native torch does not suport per chunk")
 
     @staticmethod
     def reshape_tensor_per_group(fp_tensor, group_size: int):
@@ -372,9 +370,7 @@ class QTensor(OpaqueTensor):
         """Only support device change"""
         if isinstance(new_data, self.__class__) and torch.all(self == new_data):
             return
-        raise T2NErrorNotImplemented(
-            f"Trying to alter a QTensor.data: {self}"
-        )
+        raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         """Called at NNEF write time.

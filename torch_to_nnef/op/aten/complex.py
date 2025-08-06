@@ -33,9 +33,7 @@ def view_as_complex(
 ):
     """Operator mapping PyTorch: 'aten:view_as_complex' to NNEF"""
     if tract_complex_support(inference_target):
-        raise T2NErrorNotImplemented(
-            "Complex not supported in vanilla spec"
-        )
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
     # in such case we simulate complex with additional last axis being x2
     # 1 for real
     # 1 for imaginary
@@ -55,9 +53,7 @@ def view_as_real(
 ):
     """Operator mapping PyTorch: 'aten:view_as_real' to NNEF"""
     if tract_complex_support(inference_target):
-        raise T2NErrorNotImplemented(
-            "Complex not supported by vanilla NNEF"
-        )
+        raise T2NErrorNotImplemented("Complex not supported by vanilla NNEF")
     # in such case we simulate complex with additional last axis being x2
     # 1 for real
     # 1 for imaginary

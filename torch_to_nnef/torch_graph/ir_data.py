@@ -20,10 +20,10 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
-    T2NErrorTorchNotFoundDataNode,
-    T2NErrorConsistency,
     T2NError,
+    T2NErrorConsistency,
     T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundDataNode,
     T2NErrorTorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.torch_const import (
@@ -273,9 +273,7 @@ class PythonConstant(Data):
         data = self.data
         if not isinstance(data, torch.Tensor):
             if self.data == "none":
-                raise T2NError(
-                    "'None' can not be transformed TensorVariable"
-                )
+                raise T2NError("'None' can not be transformed TensorVariable")
             data = torch.tensor(self.data)
         return TensorVariable(
             name=self.name, data=data, shape=list(data.shape), dtype=data.dtype

@@ -24,9 +24,7 @@ def pad(node, **kwargs):
     if kind.data == "replicate":
         node.inputs = node.inputs[:2]
         return replication_padnd(node=node, **kwargs)
-    raise T2NErrorNotImplemented(
-        f"pad kind={kind.data} not implemented"
-    )
+    raise T2NErrorNotImplemented(f"pad kind={kind.data} not implemented")
 
 
 def _pad_format(pads, node):

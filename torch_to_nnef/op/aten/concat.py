@@ -25,9 +25,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise T2NErrorNotImplemented(
-                f"cat with input_item: {input_item}"
-            )
+            raise T2NErrorNotImplemented(f"cat with input_item: {input_item}")
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
@@ -57,9 +55,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise T2NErrorNotImplemented(
-                f"stack with input_item: {input_item}"
-            )
+            raise T2NErrorNotImplemented(f"stack with input_item: {input_item}")
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
