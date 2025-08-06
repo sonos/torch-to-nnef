@@ -2,6 +2,7 @@ import abc
 import logging
 import typing as T
 from pathlib import Path
+import warnings
 
 import torch
 from torch._tensor import _convert
@@ -139,10 +140,15 @@ if torch_version() > "2.0.0":
     # avoid crash if missing deps like openmp
     torch._dynamo.config.suppress_errors = True
 
-    QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
-    QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
-        QScalePerGroupF16._dequantize
-    )
+    try:
+        QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
+        QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
+            QScalePerGroupF16._dequantize
+        )
+    except RuntimeError as exp:
+        warnings.warn(
+            f"dequant of QTensor are not torch.compiled because:{exp}"
+        )
 
 
 class U8Compressor:
