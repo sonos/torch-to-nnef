@@ -212,6 +212,7 @@ deps = [
     "torch==1.10.1",
     "torchvision==0.11.2",
     "torchaudio==0.10.1",
+    "safetensors<=0.4.2",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -242,6 +243,7 @@ deps = [
     "torch==1.13.1",
     "torchvision==0.14.1",
     "torchaudio==0.13.1",
+    "safetensors<=0.4.2",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -266,7 +268,7 @@ commands = [
 
 
 [tool.tox.env.torch_2_2]
-basepython = ["python3.13"]
+basepython = ["python3.12", "python3.13"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
@@ -274,6 +276,7 @@ deps = [
     "torchvision==0.17.2",
     "torchaudio==2.2.2",
     "numpy<2.0.0",
+    "safetensors<=0.4.2",
 ]
 passenv = ["*"]
 commands = [
