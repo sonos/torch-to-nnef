@@ -20,6 +20,7 @@ from torch_to_nnef.op.helper import (
     add_nnef_operation,
     add_single_output_op,
 )
+from torch_to_nnef.utils import torch_version
 
 OP_REGISTRY = QuantizedOpRegistry()
 
@@ -39,10 +40,11 @@ def torch_qtensor_to_ntensor(g, tensor, name):
             f"not suported quantization scheme {qscheme}"
         )
     n_bits = np_dtype().nbytes * 8
-    if tensor.dtype == torch.quint2x4:
-        n_bits = 2
-    elif tensor.dtype == torch.quint4x2:
-        n_bits = 4
+    if torch_version() >= "1.11.0":
+        if tensor.dtype == torch.quint2x4:
+            n_bits = 2
+        elif tensor.dtype == torch.quint4x2:
+            n_bits = 4
 
     return NTensor(
         g,

@@ -22,7 +22,7 @@ from torch_to_nnef.tensor.quant import (
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.tensor.quant.base import QTensor
-from torch_to_nnef.utils import cd
+from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -252,7 +252,10 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
 def test_quantize_with_tract_q4_0_arange(inference_target):
     """basic quantization values"""
     with torch.no_grad():
-        if "arm" in platform.uname().machine.lower():
+        if (
+            "arm" in platform.uname().machine.lower()
+            or torch_version() < "2.0.0"
+        ):
             inference_target = deepcopy(inference_target)
             inference_target.check_io_tolerance = TractCheckTolerance.SUPER
 

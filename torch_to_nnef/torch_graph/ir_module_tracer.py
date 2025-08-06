@@ -1,3 +1,11 @@
+"""Google‑style module documentation for :mod:`torch_to_nnef.torch_graph.ir_module_tracer`.
+
+The module implements a :class:`TorchModuleTracer` class that traces a
+``torch.nn.Module`` with ``torch.jit.trace`` and exposes the resulting graph.
+The helper functions inside (e.g. ``_is_io_quantized_module`` and
+``maybe_quantize_args_tensor``) provide small utilities used during tracing.
+"""
+
 import typing as T
 
 import torch
