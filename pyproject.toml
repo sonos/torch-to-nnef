@@ -185,7 +185,7 @@ exclude_lines = [
 extras = ["test", "peft"]
 passenv = ["*"]
 constrain_package_deps = true
-deps = ["torchvision==0.22.2"]
+deps = ["torchvision==0.22.1"]
 commands = [
     [
         "pytest",
