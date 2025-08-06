@@ -146,8 +146,8 @@ if torch_version() > "2.0.0":
             QScalePerGroupF16._dequantize
         )
     except RuntimeError as exp:
-        warnings.warn(
-            f"dequant of QTensor are not torch.compiled because:{exp}"
+        logging.warning(
+            "dequant of QTensor are not torch.compiled because:%s", exp
         )
 
 
