@@ -3,7 +3,7 @@ import math
 import torch
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -54,7 +54,7 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
             params_nodes.append(bias_node)
         for param_node in params_nodes:
             if isinstance(param_node.data, QTensorTract):
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "should write unsqueeze within NNEF graph"
                 )
             param_node.data = param_node.data.unsqueeze(0)
@@ -293,13 +293,13 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         _,  # is_affine_node
     ) = node.inputs
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "use tract_core_cast in 'group_norm' fragment"
         )
     for nd in [offset_node, scale_node]:
         for _ in range(input_node.rank - nd.rank - 1):
             if isinstance(nd.data, QTensorTract):
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "should write unsqueeze within NNEF graph"
                 )
             nd.data = nd.data.unsqueeze(-1)

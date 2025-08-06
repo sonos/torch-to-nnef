@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, dtype_is_whole_number
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
@@ -104,7 +104,7 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
 
     if io_casting_with_dtype is not None:
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "What NNEF compliance mean in such case ?", inference_target
             )
         _, custom_fragments = op_helper.cast_to_if_not_dtype_and_variable(
@@ -346,7 +346,7 @@ def _abs(
     """Operator mapping PyTorch: 'aten:abs' to NNEF"""
     if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "NNEF compliance does not allow complex"
             )
         input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
@@ -511,11 +511,11 @@ def var(node, op_helper, **kwargs):
         )
         dnode = PythonConstant(name=f"{node.outputs[0].name}_dims", data=None)
     else:
-        raise TorchToNNEFNotImplementedError(len(node.inputs))
+        raise T2NErrorNotImplemented(len(node.inputs))
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
     axes = dnode.data or list(range(input_tensor.rank))
     if cornode.data != 0:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "only variance without correction translated"
         )
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -532,7 +532,7 @@ def logical_xor(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:logical_xor' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
         nnef_op_type="tract_core_xor", node=node
     )
@@ -544,7 +544,7 @@ def bitwise_xor(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:bitwise_xor' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
         nnef_op_type="tract_core_bitxor", node=node
     )
@@ -556,7 +556,7 @@ def bitwise_and(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:bitwise_and', 'aten:bitwise_cpu' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
         nnef_op_type="tract_core_bitand", node=node
     )
@@ -568,7 +568,7 @@ def bitwise_not(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
         nnef_op_type="tract_core_bitnot", node=node
     )
@@ -580,7 +580,7 @@ def bitwise_or(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:bitwise_or' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
         nnef_op_type="tract_core_bitor", node=node
     )

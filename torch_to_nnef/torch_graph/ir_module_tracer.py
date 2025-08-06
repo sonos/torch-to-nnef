@@ -11,7 +11,7 @@ import torch
 from torch import jit, nn
 
 from torch_to_nnef.dtypes import is_quantized_dtype
-from torch_to_nnef.exceptions import TorchJitTraceFailed
+from torch_to_nnef.exceptions import T2NErrorTorchJitTraceFailed
 from torch_to_nnef.utils import cache, torch_version
 
 
@@ -112,7 +112,7 @@ class TorchModuleTracer:
         ``jit.trace`` on ``self.mod`` with ``self.args`` while handling
         possible PyTorch version nuances.  Any ``RuntimeError`` raised by
         ``torch.jit.trace`` is wrapped into a
-        :class:`~torch_to_nnef.exceptions.TorchJitTraceFailed` exception.
+        :class:`~torch_to_nnef.exceptions.T2NErrorTorchJitTraceFailed` exception.
         """
         if self._traced_module is None:
             try:
@@ -124,7 +124,7 @@ class TorchModuleTracer:
                     strict=False,
                 )
             except RuntimeError as exp:
-                raise TorchJitTraceFailed(
+                raise T2NErrorTorchJitTraceFailed(
                     "Unable to trace with jit one of following submodule:"
                     f"{[(k, v.__class__) for k, v in self.mod.named_children()]} "
                     f"with original error:\n\n'{exp}'\n\n"

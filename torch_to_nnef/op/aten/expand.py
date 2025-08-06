@@ -4,7 +4,7 @@ import nnef
 import numpy as np
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.op.helper import (
@@ -116,7 +116,7 @@ def div_expand_repeat_build(
     inference_target,
 ):
     if not inference_target.has_dynamic_axes:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     assert isinstance(input_dim, int)
     assert isinstance(shape_dim, TensorVariable)
@@ -177,13 +177,13 @@ def _append_repeats_on_existing_dims(
                 repeats.append(1)
                 continue
             if shape_dim < 0:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     f"expected positive but got {shape_dim}"
                 )
             repeats.append(int(shape_dim / input_dim))
             continue
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(f"{inference_target}")
+            raise T2NErrorNotImplemented(f"{inference_target}")
 
         if shape_dim == -1 or (
             isinstance(shape_dim, Data) and shape_dim.data == -1
@@ -260,7 +260,7 @@ def _expand_build_repeats(
             if base_mul == 1 and len(mul_to_ids) == 1:
                 base_mul = nnef.Identifier(mul_to_ids[0].export_name)
             else:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "In such case would need to apply mul chain ops "
                     "and replace base_mul with related assigned symbol"
                 )
@@ -304,7 +304,7 @@ def _fill_negone_with_dim_by_rank_order(
                     )
             elif s == -1:
                 if not isinstance(inference_target, TractNNEF):
-                    raise TorchToNNEFNotImplementedError(inference_target)
+                    raise T2NErrorNotImplemented(inference_target)
                 new_shapes.append(
                     nnef.Identifier(
                         get_tract_dyn_axis_size_soc(
@@ -313,7 +313,7 @@ def _fill_negone_with_dim_by_rank_order(
                     )
                 )
             else:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "unexpected dim value: ", s
                 )
         elif s == -1:
@@ -321,7 +321,7 @@ def _fill_negone_with_dim_by_rank_order(
         elif s > 0:
             new_shapes.append(s)
         else:
-            raise TorchToNNEFNotImplementedError("unexpected dim value: ", s)
+            raise T2NErrorNotImplemented("unexpected dim value: ", s)
     return new_shapes
 
 
@@ -371,9 +371,11 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
     """
     (input_node, n_repeats, axis_node, *_) = node.inputs
     if not isinstance(axis_node.data, int):
-        raise NotImplementedError("case with flattening tensor not implemented")
+        raise T2NErrorNotImplemented(
+            "case with flattening tensor not implemented"
+        )
     if not isinstance(n_repeats.data, int):
-        raise NotImplementedError(
+        raise T2NErrorNotImplemented(
             "case with more than 1 dim repeats not implemented"
         )
 
@@ -407,7 +409,7 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
     nnef_modules = []
     if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(inference_target)
+            raise T2NErrorNotImplemented(inference_target)
         input_shape_nnef_tensor = add_single_output_op(
             g,
             node,

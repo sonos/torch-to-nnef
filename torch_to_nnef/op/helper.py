@@ -15,7 +15,10 @@ from torch_to_nnef.dtypes import (
     numpy_dtype_to_tract_str,
     str_to_torch_dtype,
 )
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import (
+    T2NErrorConsistency,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor import OpaqueTensorRef, QTensor
 from torch_to_nnef.tensor.offload import OffloadedTensor
@@ -95,7 +98,7 @@ class OpRegistry:
         try:
             return self._registry[name]
         except KeyError as exp:
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"'{name}' operator as not yet been translated "
                 "to NNEF or registred"
             ) from exp
@@ -103,7 +106,7 @@ class OpRegistry:
     def __add__(self, other: "OpRegistry"):
         new = OpRegistry(self.torch_mod_id)
         if self.torch_mod_id != other.torch_mod_id:
-            raise ValueError(
+            raise T2NErrorConsistency(
                 "try to group different torch_mod:"
                 f"{self.torch_mod_id} != {other.torch_mod_id}"
             )
@@ -419,10 +422,9 @@ def pick_index_in_axis(
     if not isinstance(index, int) and not (
         isinstance(index, float) and index.is_integer()
     ):
-        if isinstance(index, torch.Tensor):
-            index = index.tolist()
-        else:
-            raise TorchToNNEFNotImplementedError(type(index))
+        if not isinstance(index, torch.Tensor):
+            raise T2NErrorNotImplemented(type(index))
+        index = index.tolist()
     if index >= 0:
         return index
     new_index = input_node.shape[rank] + index
@@ -524,7 +526,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
             return _prevent_raw_number_with_e_notation(
                 g, name_to_tensor, nvalue
             )
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"Wrong {value} value of type: {type(value)}"
         )
 
@@ -681,11 +683,11 @@ def get_list_of_int(
                         ax_data.data = ax_data.data.tolist()
             int_list = [cast_element(_, accepted_none) for _ in data_node.data]
             if len([_ for _ in int_list if _ is None]) > 1:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     f"too much unknown dimensions for view {int_list}"
                 )
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Extracting int list from ", data_node
         )
 
@@ -765,7 +767,9 @@ class OpHelper:
 
         if nnef_op_type == "slice":
             if len(attrs["begin"]) != 1:
-                raise NotImplementedError()
+                raise T2NErrorNotImplemented(
+                    "len(begin) != 1 in slicing"
+                )
             if (
                 isinstance(attrs["begin"][0], int)
                 and isinstance(attrs["end"][0], int)
@@ -804,7 +808,7 @@ class OpHelper:
                 list(input_nodes[0].shape),
             )
 
-        raise NotImplementedError(nnef_op_type)
+        raise T2NErrorNotImplemented(nnef_op_type)
 
     def get_or_add_tensor_variable_in_nnef(self, node, **kwargs):
         return get_or_add_tensor_variable_in_nnef(

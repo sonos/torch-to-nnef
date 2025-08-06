@@ -12,6 +12,7 @@ from pathlib import Path
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorMissUse
 from torch_to_nnef.export import (
     export_tensors_from_disk_to_nnef,
     iter_torch_tensors_from_disk,
@@ -116,11 +117,11 @@ def export_peft(
     def fn_check_found_tensors(to_export):
         qte = len(to_export)
         if qte == 0:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 f"no tensors found in provided file with pattern: {patterns}"
             )
         if qte % len(patterns) != 0:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 f"Number of PEFT matrices found is {qte} "
                 f"should be multiple of {len(patterns)}"
             )
@@ -144,7 +145,7 @@ def export_peft(
                     prefix_tensor_name = match.group("name")
                     break
             if prefix_tensor_name is None:
-                raise ValueError(k, patterns)
+                raise T2NErrorMissUse(k, patterns)
             ref_matrix_name = map_name.format(name=prefix_tensor_name)
             mapping_table[ref_matrix_name].append(k)
             to_check_tensors.add(check_map_name.format(name=prefix_tensor_name))
@@ -161,7 +162,7 @@ def export_peft(
             missing_ref_tensors = set(expanded_ref_names).difference(
                 found_ref_tensors
             )
-            raise ValueError(
+            raise T2NErrorMissUse(
                 "missing following ref tensors in provided "
                 f"read file: {missing_ref_tensors}"
             )

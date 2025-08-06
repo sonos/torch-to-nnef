@@ -1,6 +1,6 @@
 import typing as T
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -40,7 +40,7 @@ def _pooling_op(
     ) = node_inputs
 
     if ceil_mode_node and ceil_mode_node.data:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Use of ceil to compute output shape is not implem"
         )
 
@@ -104,7 +104,7 @@ def avg_pool1d(g, node, name_to_tensor, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:avg_pool1d' to NNEF"""
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "not implemented count_include_pad=False"
         )
     inputs_name_tuple = node.inputs[:-1]  # count_include_pad excluded
@@ -153,13 +153,13 @@ def avg_pool_nd(g, node, name_to_tensor, inference_target, **kwargs):
 
     count_include_pad = node.inputs[-2].data
     if not count_include_pad:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "not implemented count_include_pad=False"
         )
 
     divisor_overide = node.inputs[-1].data
     if divisor_overide:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"not implemented divisor_override={divisor_overide}"
         )
     inputs_tups = node.inputs[:-2]
@@ -179,7 +179,7 @@ def _adaptive_pool(nnef_op_name: str, g, node, name_to_tensor):
     if not all(
         dim and dim > 0 for dim in input_node.shape[-len(pool_values) :]
     ):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "dynamic dim used in adaptive pool is not Implemented yet"
         )
     # fixed at export auto adaptation

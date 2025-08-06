@@ -6,6 +6,7 @@ from functools import partial
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.llm_tract.models.base import (
     BaseCausal,
     BaseCausalWithDynCacheAndTriu,
@@ -40,7 +41,7 @@ class DtypeStr(str, Enum):
         for ds in DtypeStr:
             if ds.torch_dtype == dtype:
                 return ds
-        raise NotImplementedError(dtype)
+        raise T2NErrorNotImplemented(dtype)
 
 
 # collection of tested examples for cli {

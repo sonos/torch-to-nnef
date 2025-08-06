@@ -7,8 +7,8 @@ from nnef_tools.model import Tensor as NTensor
 from torch import nn
 
 from torch_to_nnef.exceptions import (
-    StrictNNEFSpecError,
-    TorchToNNEFNotImplementedError,
+    T2NErrorStrictNNEFSpec,
+    T2NErrorNotImplemented,
 )
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.custom_extractors.base import ModuleInfoExtractor
@@ -30,7 +30,7 @@ class _RNNMixin:
         backward: bool,
         **kwargs,
     ):
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     def ordered_args(self, torch_graph):
         """
@@ -376,7 +376,7 @@ class _RNNMixin:
                         )
                     )
             else:
-                raise NotImplementedError(item)
+                raise T2NErrorNotImplemented(item)
 
         return name_to_nnef_variable
 
@@ -656,7 +656,7 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
         assert len(node.inputs) <= 3, node.inputs
         assert len(node.outputs) <= 3, node.outputs
         if not isinstance(inference_target, TractNNEF):
-            raise StrictNNEFSpecError(
+            raise T2NErrorStrictNNEFSpec(
                 "Impossible to export LSTM with NNEF spec compliance activated"
             )
 
@@ -828,7 +828,7 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
         **kwargs,
     ):
         if not isinstance(inference_target, TractNNEF):
-            raise StrictNNEFSpecError(
+            raise T2NErrorStrictNNEFSpec(
                 "Impossible to export GRU with NNEF spec compliance activated"
             )
         gru = node.op_ref
@@ -947,7 +947,7 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
         **kwargs,
     ):
         if not isinstance(inference_target, TractNNEF):
-            raise StrictNNEFSpecError(
+            raise T2NErrorStrictNNEFSpec(
                 "Impossible to export RNN with NNEF spec compliance activated"
             )
 

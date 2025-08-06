@@ -157,7 +157,7 @@ import typing as T
 import torch
 from torch import nn
 from torch_to_nnef.compress import offloaded_tensor_qtensor
-from torch_to_nnef.exceptions import TorchToNNEFImpossibleQuantization
+from torch_to_nnef.exceptions import T2NErrorImpossibleQuantization
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant import QTensor
 from torch_to_nnef.tensor.updater import ModTensorUpdater
@@ -223,7 +223,7 @@ def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
                     q_weight = offloaded_tensor_qtensor(
                         q_fn, mod.weight, "q40_mse"
                     )
-                except TorchToNNEFImpossibleQuantization as exp:
+                except T2NErrorImpossibleQuantization as exp:
                     LOGGER.error(f"quant layer: {name} error: {exp}")
                     continue
                 # => needs assignation next cause update_by_ref may create new Parameter object

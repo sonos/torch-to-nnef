@@ -7,10 +7,10 @@ from torch import jit, nn
 
 from torch_to_nnef.dtypes import str_to_torch_dtype
 from torch_to_nnef.exceptions import (
-    TorchNotFoundDataNode,
-    TorchOpTranslatedDifferently,
-    TorchToNNEFError,
-    TorchToNNEFNotImplementedError,
+    T2NErrorTorchNotFoundDataNode,
+    T2NErrorTorchOpTranslatedDifferently,
+    T2NError,
+    T2NErrorNotImplemented,
 )
 from torch_to_nnef.tensor.opaque import IR_OPAQUE_NAME, find_opaque_ref_by_py_id
 from torch_to_nnef.torch_graph.ir_data import (
@@ -232,10 +232,10 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
     )
     used_in = node_c_value.uses()
     if len(used_in) != 1:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
     use_op = used_in[0].user
     if use_op.kind() != LISTUNPACK_KIND:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     return FixedTensorList(
         name=node_c_value.debugName(),
@@ -246,7 +246,7 @@ def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
 def _find_data_node(data_nodes: ReactiveNamedItemDict, name: str):
     data_node = data_nodes.get_by_name(cleanup_data_name(name))
     if data_node is None:
-        raise TorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
+        raise T2NErrorTorchNotFoundDataNode(f"'{name}' not found in {data_nodes}")
     return data_node
 
 
@@ -305,7 +305,7 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
         # dereferencing it from full graph
         pass
     else:
-        raise TorchToNNEFNotImplementedError(dtype)
+        raise T2NErrorNotImplemented(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
     return data_nodes[-1]
 
@@ -316,8 +316,8 @@ def _fetch_backward(data_nodes, c_node: torch._C.Node):
         return _fetch_backward(data_nodes, c_node.input().node())
     try:
         return _find_data_node(data_nodes, c_node.output().debugName())
-    except TorchNotFoundDataNode as exp:
-        raise TorchToNNEFNotImplementedError(
+    except T2NErrorTorchNotFoundDataNode as exp:
+        raise T2NErrorNotImplemented(
             "_fetch_backward c_node:", c_node
         ) from exp
 
@@ -340,10 +340,10 @@ def _parse_list_construct_values(node, data_nodes: ReactiveNamedItemDict):
             elif str(cvalue.type()) in ["Tensor", "int"]:
                 try:
                     value = _find_data_node(data_nodes, cvalue.debugName())
-                except TorchNotFoundDataNode:
+                except T2NErrorTorchNotFoundDataNode:
                     value = TensorVariable.parse(cvalue)
             else:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "parse list construct argument", cvalue
                 )
         values.append(value)
@@ -361,7 +361,7 @@ def _parse_list_construct(node, data_nodes: ReactiveNamedItemDict):
                 if not data_nodes.get_by_name(value.name):
                     data_nodes.append(value)
             else:
-                raise TorchToNNEFNotImplementedError()
+                raise T2NErrorNotImplemented()
             tensor_values.append(value)
 
         data_nodes.append(
@@ -430,7 +430,7 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
 
         n_inputs = len(abstracted_inputs)
         if n_inputs < 2 or n_inputs > 4:
-            raise TorchToNNEFNotImplementedError(n_inputs, abstracted_inputs)
+            raise T2NErrorNotImplemented(n_inputs, abstracted_inputs)
         if n_inputs == 2:
             dnode = PythonConstant(
                 f"ar_{abstracted_inputs[0].name}_stub_start", data=0
@@ -465,7 +465,7 @@ def _rerouted_parsing(
 
     to improve readability of intermediate representation
 
-        If specific kind matched it raise TorchOpTranslatedDifferently
+        If specific kind matched it raise T2NErrorTorchOpTranslatedDifferently
         meaning it is handled differently than vanilla torch graph
 
     """
@@ -482,30 +482,32 @@ def _rerouted_parsing(
             )
             assert tv.shaped_and_typed
             data_nodes.append(tv)
-            raise TorchOpTranslatedDifferently(
+            raise T2NErrorTorchOpTranslatedDifferently(
                 "geattr handled as TensorVariable"
             )
-        raise NotImplementedError(f"node: {node} dispatch is not implemented")
+        raise T2NErrorNotImplemented(
+            f"node: {node} dispatch is not implemented"
+        )
     if kind == GETATTR_KIND:
         _parse_getattr_tensor(node, module, data_nodes)
-        raise TorchOpTranslatedDifferently("geattr handled as TensorVariable")
+        raise T2NErrorTorchOpTranslatedDifferently("geattr handled as TensorVariable")
     if kind == CONSTANT_KIND:
         _parse_constant(node, data_nodes)
-        raise TorchOpTranslatedDifferently("constant become PythonConstant")
+        raise T2NErrorTorchOpTranslatedDifferently("constant become PythonConstant")
     if kind == LISTCONSTRUCT_KIND:
         _parse_list_construct(node, data_nodes)
-        raise TorchOpTranslatedDifferently(
+        raise T2NErrorTorchOpTranslatedDifferently(
             "List Construct handled as PythonConstant"
         )
     if kind == ATEN_INT:
         ancestor_node = _fetch_backward(data_nodes, node)
         if ancestor_node not in data_nodes:
             data_nodes.append(ancestor_node)
-            raise TorchOpTranslatedDifferently("Int added tensor")
+            raise T2NErrorTorchOpTranslatedDifferently("Int added tensor")
         # will be remaped to
         tensor_out = TensorVariable.parse(node.output())
         data_nodes.append(tensor_out)
-        raise TorchOpTranslatedDifferently(
+        raise T2NErrorTorchOpTranslatedDifferently(
             "Int to be remaped", tensor_out, ancestor_node
         )
 
@@ -521,14 +523,14 @@ def _rerouted_parsing(
                     stype = "int"
                     shape = [1]
                 else:
-                    raise NotImplementedError(o_type.kind())
+                    raise T2NErrorNotImplemented(o_type.kind())
 
                 dtype = str_to_torch_dtype(stype) if stype else None
                 dnode.name = o_node_c_value.debugName()
                 dnode.shape = shape
                 dnode.dtype = dtype
                 dnode.data = o_node_c_value.toIValue()
-            raise TorchOpTranslatedDifferently("Tuple unpacked")
+            raise T2NErrorTorchOpTranslatedDifferently("Tuple unpacked")
         if kind == TUPLECONSTRUCT_KIND:
             data_nodes.append(
                 TupleTensors(
@@ -539,25 +541,25 @@ def _rerouted_parsing(
                     ],
                 )
             )
-            raise TorchOpTranslatedDifferently("Tuple Construct")
+            raise T2NErrorTorchOpTranslatedDifferently("Tuple Construct")
         if kind == NUMTOTENSOR_KIND:
             return
         if kind == LISTUNPACK_KIND:
             # note: maybe should be replace dataNode to a FixedTensorList
-            raise TorchOpTranslatedDifferently("List unpacked")
+            raise T2NErrorTorchOpTranslatedDifferently("List unpacked")
         if kind == DICTCONSTRUCT_KIND:
             data_nodes.append(
                 DictTensors.parse_from_dic_node_c_value(
                     node.output(), data_nodes
                 )
             )
-            raise TorchOpTranslatedDifferently("Dict Construct")
+            raise T2NErrorTorchOpTranslatedDifferently("Dict Construct")
         if kind != CALL_KIND:
-            raise TorchToNNEFNotImplementedError(node)
+            raise T2NErrorNotImplemented(node)
     if kind == CALL_KIND and not any(
         bool(use) for onode in node.outputs() for use in onode.uses()
     ):
-        raise TorchOpTranslatedDifferently(
+        raise T2NErrorTorchOpTranslatedDifferently(
             "This method outputs are not used anywhere in graph"
         )
 
@@ -593,7 +595,7 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
         if isinstance(op_ref, torch.nn.ReLU):
             kind = ATEN_RELU
         else:
-            raise TorchToNNEFNotImplementedError(op_ref)
+            raise T2NErrorNotImplemented(op_ref)
     else:
         inputs = inputs[1:]
         # use appropriate graph
@@ -605,7 +607,7 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
         )
     call_name = value_call_ref.debugName()
     if op_ref == module:
-        raise TorchToNNEFError(
+        raise T2NError(
             "Bug: Recursive call detected ! "
             f"Trying to parse same Pytorch IR sub-module twice: {op_ref}"
         )
@@ -637,7 +639,7 @@ def _extract_op_infos(
             in_name = inp.debugName()
             try:
                 _find_data_node(data_nodes, in_name)
-            except TorchNotFoundDataNode:
+            except T2NErrorTorchNotFoundDataNode:
                 _parse_getattr_script_obj(inp.node(), module, data_nodes)
     else:
         module_getter_ref = MODULE_PATH_ATEN
@@ -646,7 +648,7 @@ def _extract_op_infos(
         elif kind.startswith(ATEN_STARTID):
             op_ref, inputs = _aten_inputs_and_op_ref(kind, inputs, data_nodes)
         else:
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"Unable to extract operation from {kind}"
             )
 
@@ -658,7 +660,7 @@ def _extract_op_infos(
             try:
                 dn = _find_data_node(data_nodes, inp.debugName())
                 abstracted_inputs.append(dn)
-            except TorchNotFoundDataNode:
+            except T2NErrorTorchNotFoundDataNode:
                 pass
 
     return (kind, call_name, module_getter_ref, op_ref, abstracted_inputs)

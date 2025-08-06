@@ -7,7 +7,10 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import (
+    T2NErrorTorchJitTraceFailed,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.tensor.utils import get_named_parameters
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
@@ -41,7 +44,7 @@ def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
             opaque_uuid = id(_.opaque_tensor)
             if opaque_uuid == py_id:
                 return _
-    raise ValueError(f"OpaqueTensor with id({py_id}) not found")
+    raise T2NErrorTorchJitTraceFailed(f"OpaqueTensor with id({py_id}) not found")
 
 
 class OpaqueTensor(torch.Tensor):
@@ -52,7 +55,7 @@ class OpaqueTensor(torch.Tensor):
 
     @data.setter
     def data(self, new_data):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"Trying to alter a TensorRef.data: {self}"
         )
 
@@ -71,7 +74,7 @@ class OpaqueTensor(torch.Tensor):
 
     @abc.abstractmethod
     def _to_base_tensor(self):
-        raise NotImplementedError()
+        raise T2NErrorNotImplemented()
 
     def to_base_tensor(self):
         """wrap _to_base_tensor with jit export infos"""
@@ -122,7 +125,7 @@ class OpaqueTensorRef(torch.Tensor):
 
     @data.setter
     def data(self, new_data):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"Trying to alter a TensorRef.data: {self}"
         )
 

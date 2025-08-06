@@ -1,6 +1,6 @@
 import nnef
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
 )
@@ -139,7 +139,7 @@ def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, inference_target
     ):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "complex transpose without tract complex feature flag"
         )
 
@@ -237,7 +237,7 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     if is_complex_dtype_and_complex_only_supported_as_lastdim(
         input_node.dtype, inference_target
     ):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "complex flatten without tract complex feature flag"
         )
     axis_start = start_dim.data or 0

@@ -10,8 +10,8 @@ import numpy as np
 import torch
 
 from torch_to_nnef.exceptions import (
-    TorchToNNEFImpossibleQuantization,
-    TorchToNNEFNotImplementedError,
+    T2NErrorImpossibleQuantization,
+    T2NErrorNotImplemented,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
@@ -129,7 +129,7 @@ class QTensorTractScaleOnly(QTensorTract):
                 assert new_path.exists(), new_path
                 if filecmp.cmp(path, new_path):
                     return
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "At least 2 variables in the NNEF graph, "
                 f"share same Parameters: '{label}' but they try "
                 "to use different data-type (likely quantization format). "
@@ -154,7 +154,7 @@ def fp_to_tract_q4_0_with_min_max_calibration(
         fp_tensor = fp_tensor.data
 
     if len(fp_tensor.shape) not in [2, 3, 4]:
-        raise TorchToNNEFImpossibleQuantization(
+        raise T2NErrorImpossibleQuantization(
             "tract Q4_0 does only support weight "
             f"of shape 2d, 3d or 4d but found {fp_tensor.shape}"
         )
@@ -164,7 +164,7 @@ def fp_to_tract_q4_0_with_min_max_calibration(
         reduce(operator.mul, fp_tensor.shape[multiple_axis:]) % q4_group_size
         != 0
     ):
-        raise TorchToNNEFImpossibleQuantization(
+        raise T2NErrorImpossibleQuantization(
             f"tract Q4_0 does only support weight with dim={multiple_axis} "
             f"divisible by {q4_group_size} but "
             f"found {fp_tensor.shape[multiple_axis:]}"

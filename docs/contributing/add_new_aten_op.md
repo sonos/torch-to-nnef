@@ -30,7 +30,7 @@ To implement a new operator we need to follow the following steps:
 - [ ] 2. :material-bug-check: Check we obtain as expected the following form of exception:
 
 ```bash
-torch_to_nnef.exceptions.TorchToNNEFNotImplementedError:
+torch_to_nnef.exceptions.T2NErrorNotImplemented:
 '$operator_aten_name' operator as not yet been translated to NNEF or registred
 ```
 
@@ -130,7 +130,7 @@ Other useful environment variable you can activate are:
 While adding new operators test it may happen you do not observe the error (following example in step 1.)
 
 ```bash
-torch_to_nnef.exceptions.TorchToNNEFNotImplementedError:
+torch_to_nnef.exceptions.T2NErrorNotImplemented:
 'svd' operator as not yet been translated to NNEF or registred
 ```
 
@@ -156,7 +156,7 @@ and are 1 to 1 tensor transformation in that case just add it in the map in `tor
 def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF): # (3)!
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr( # (4)!
         nnef_op_type="tract_core_bitor", node=node
     )

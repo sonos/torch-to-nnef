@@ -1,4 +1,4 @@
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -45,7 +45,7 @@ def softplus(**kwargs):
     # }
     const = node.inputs[1]
     if const.data != 1:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "This version is not implemented and"
             " would need use of a specific fragment"
         )

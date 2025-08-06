@@ -1,8 +1,8 @@
 """Regroup all Exceptions that can happen in torch_to_nnef.
 
 rational:
-    Can catch all package related error with an except TorchToNNEFError
-    same apply for tract errors with except TractError
+    Can catch all package related error with an except T2NError
+    same apply for tract errors with except T2NErrorTract
 
     This library is embedded in others codebase:
     Errors should be specific to be catchable so no builtin Exception
@@ -10,113 +10,139 @@ rational:
 """
 
 
-class TorchToNNEFError(Exception):
+class T2NError(Exception):
     """Generic error that all errors in this lib inherit"""
 
 
-class TorchToNNEFInvalidArgument(ValueError, TorchToNNEFError):
+class T2NErrorImport(T2NError):
+    """Import error that all errors in this lib inherit"""
+
+
+class T2NErrorInvalidArgument(ValueError, T2NError):
     """specification of torch_to_nnef export not respected"""
 
 
-class TorchToNNEFNotFoundFile(ValueError, TorchToNNEFError):
-    """specification of torch_to_nnef export not respected"""
+class T2NErrorNotFoundFile(ValueError, T2NError):
+    """missing exit for file path"""
 
 
-class TorchToNNEFNotImplementedError(NotImplementedError, TorchToNNEFError):
+class T2NErrorRuntime(RuntimeError, T2NError):
     pass
 
 
-class TorchToNNEFImpossibleQuantization(NotImplementedError, TorchToNNEFError):
+class T2NErrorNotImplemented(NotImplementedError, T2NError):
     pass
 
 
-class IOQuantityError(ValueError, TorchToNNEFError):
+class T2NErrorMissUse(ValueError, T2NError):
     pass
 
 
-class DataNodeValueError(ValueError, TorchToNNEFError):
+class T2NErrorTestFailed(ValueError, T2NError):
     pass
 
 
-class InconsistentTensorError(ValueError, TorchToNNEFError):
+class T2NErrorImpossibleQuantization(NotImplementedError, T2NError):
     pass
 
 
-class TorchToNNEFConsistencyError(ValueError, TorchToNNEFError):
+class T2NErrorIoQuantity(ValueError, T2NError):
     pass
 
 
-class KhronosInterpreterDiffValueError(ValueError, TorchToNNEFError):
+class T2NErrorDataNodeValue(ValueError, T2NError):
     pass
 
 
-class DynamicShapeValue(ValueError, TorchToNNEFError):
+class T2NErrorInconsistentTensor(ValueError, T2NError):
     pass
 
 
-class BitPackingError(ValueError, TorchToNNEFError):
+class T2NErrorConsistency(ValueError, T2NError):
     pass
 
 
-class FragmentFileError(KeyError, TorchToNNEFError):
+class T2NErrorKhronosNNEFModuleLoad(ValueError, T2NError):
+    pass
+
+
+class T2NErrorKhronosInterpreterDiffValue(ValueError, T2NError):
+    pass
+
+
+class T2NErrorDynamicShapeValue(ValueError, T2NError):
+    pass
+
+
+class T2NErrorBitPacking(ValueError, T2NError):
+    pass
+
+
+class T2NErrorFragmentFile(KeyError, T2NError):
     pass
 
 
 # strict NNEF spec related
-class StrictNNEFSpecError(TorchToNNEFError):
+class T2NErrorStrictNNEFSpec(T2NError):
     pass
 
 
-class IRError(TorchToNNEFError):
+class T2NErrorIR(T2NError):
     pass
 
 
-class TorchGraphExtraction(TorchToNNEFError):
+class T2NErrorTorchGraphExtraction(T2NError):
     pass
 
 
 # Torch are linked to torch_graph module errors
-class TorchJitTraceFailed(RuntimeError, TorchGraphExtraction):
+class T2NErrorTorchJitTraceFailed(RuntimeError, T2NErrorTorchGraphExtraction):
     pass
 
 
-class TorchUnableToTraceData(ValueError, TorchGraphExtraction):
+class T2NErrorTorchUnableToTraceData(ValueError, T2NErrorTorchGraphExtraction):
     pass
 
 
-class TorchOpTranslatedDifferently(ValueError, TorchGraphExtraction):
+class T2NErrorTorchOpTranslatedDifferently(
+    ValueError, T2NErrorTorchGraphExtraction
+):
     pass
 
 
-class TorchNotFoundDataNode(ValueError, TorchGraphExtraction):
+class T2NErrorTorchNotFoundDataNode(ValueError, T2NErrorTorchGraphExtraction):
     pass
 
 
-class TorchNotFoundOp(ValueError, TorchGraphExtraction):
+class T2NErrorTorchNotFoundOp(ValueError, T2NErrorTorchGraphExtraction):
     pass
 
 
-class TorchCheckError(ValueError, TorchGraphExtraction):
+class T2NErrorTorchCheck(ValueError, T2NErrorTorchGraphExtraction):
     pass
 
 
 # custom related
-class NotFoundModuleExtractor(KeyError, TorchGraphExtraction):
+class T2NErrorNotFoundModuleExtractor(KeyError, T2NErrorTorchGraphExtraction):
     pass
 
 
 # tract related
-class TractError(TorchToNNEFError):
+class T2NErrorTract(T2NError):
     pass
 
 
-class OnnxExportError(RuntimeError, TractError):
+class T2NErrorTractDownload(T2NErrorTract):
     pass
 
 
-class TractOnnxToNNEFError(RuntimeError, TractError):
+class T2NErrorOnnxExport(RuntimeError, T2NErrorTract):
     pass
 
 
-class IOPytorchTractNotISOError(ValueError, TractError):
+class T2NErrorTractOnnxToNNEF(RuntimeError, T2NErrorTract):
+    pass
+
+
+class T2NErrorIOPytorchTractNotISO(ValueError, T2NErrorTract):
     pass

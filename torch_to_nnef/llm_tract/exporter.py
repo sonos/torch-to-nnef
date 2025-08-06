@@ -12,9 +12,11 @@ from torch import nn
 
 from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import (
-    TorchToNNEFConsistencyError,
-    TorchToNNEFNotFoundFile,
-    TorchToNNEFNotImplementedError,
+    T2NErrorConsistency,
+    T2NErrorMissUse,
+    T2NErrorNotFoundFile,
+    T2NErrorNotImplemented,
+    T2NErrorRuntime,
 )
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.tract import (
@@ -57,7 +59,7 @@ try:
         build_past_kv_list,
     )
 except (ModuleNotFoundError, ImportError) as exp:
-    raise ValueError(
+    raise T2NErrorMissUse(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
 
@@ -275,7 +277,7 @@ class LLMExporter:
                     huggingface_hub.login()
                     exporter = _load_exporter_from(**exporter_from_kwargs)
                 else:
-                    raise exp
+                    raise T2NErrorRuntime(exp)
         return exporter
 
     def check_wrapper_io(self):
@@ -321,7 +323,7 @@ class LLMExporter:
                     "Likely need a torch_to_nnef fix."
                 )
                 LOGGER.error(msg)
-                raise TorchToNNEFConsistencyError(msg)
+                raise T2NErrorConsistency(msg)
 
         if isinstance(self.wrapped_model, torch.fx.GraphModule):
             LOGGER.info(
@@ -624,7 +626,7 @@ class LLMExporter:
                 tok_dir = export_dirpath
                 tok_dir.mkdir(parents=True, exist_ok=True)
             else:
-                raise TorchToNNEFNotImplementedError()
+                raise T2NErrorNotImplemented()
 
             if dump_with_tokenizer_and_conf:
                 # export_dir_struct
@@ -709,7 +711,7 @@ class LLMExporter:
             )
             test_display_token_gens = False
         if export_dirpath.exists() and not ignore_already_exist_dir:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 "'export_dirpath' should not exist but "
                 f"found: '{export_dirpath}'"
             )
@@ -791,7 +793,7 @@ def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
     """Find a subdir with filename in it"""
     found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
     if not (0 < len(found_dirs) < 2):
-        raise TorchToNNEFNotFoundFile(
+        raise T2NErrorNotFoundFile(
             f"Found {len(found_dirs)} dirs for with '{filename}' file. "
             f"found_dirs={found_dirs}. "
             + (
@@ -869,7 +871,7 @@ def load_peft_model(local_dir, kwargs):
             msg = "Should have a `model_type` key in its config.json,"
             if msg in exp.args[0]:
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise exp
+            raise T2NErrorMissUse(exp)
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
@@ -877,7 +879,7 @@ def load_peft_model(local_dir, kwargs):
                 and "size mismatch for" in exp.args[0]
             ):
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise exp
+            raise T2NErrorMissUse(exp)
         except TypeError as exp:
             msg = "__init__() got an unexpected keyword argument '"
             if exp.args[0].startswith(msg):
@@ -892,7 +894,7 @@ def load_peft_model(local_dir, kwargs):
                 ) as fh:
                     json.dump(dic, fh, indent=2)
                 continue
-            raise exp
+            raise T2NErrorMissUse(exp)
         return hf_model_causal
 
 
@@ -979,7 +981,7 @@ def load_model(
                 f"load '{hf_model_causal.config.model_type}' "
                 f"from local directory: {dir_path}"
             )
-        except (TorchToNNEFNotFoundFile, OSError):
+        except (T2NErrorNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
 
     elif hf_model_slug is not None:
@@ -988,7 +990,7 @@ def load_model(
             f"load default trained model from huggingface: '{hf_model_slug}'"
         )
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "No local nor Huggingface slug, nor custom conf ?"
         )
     if merge_peft:

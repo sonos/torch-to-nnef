@@ -12,7 +12,7 @@ from torch_to_nnef.dtypes import (
     TORCH_DTYPE_TO_TRACT_STR,
     numpy_dtype_to_tract_str,
 )
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import (
     InferenceTarget,
     KhronosNNEF,
@@ -82,7 +82,7 @@ def external(
         )
         custom_fragments.append("tract_core")
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"inference_target: {inference_target}"
         )
     return nnef_tensor_ref, custom_fragments
@@ -98,7 +98,7 @@ def dropout(node, torch_graph, **kwargs):
     ) = node.inputs
     # should wire directly input_node to output without intermediate
     if is_active_node.data:
-        raise TorchToNNEFNotImplementedError("dropout active at inference")
+        raise T2NErrorNotImplemented("dropout active at inference")
 
     # this replace order is important for graph of single nodes or starting with
     torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
@@ -129,7 +129,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
     onode = node.outputs[0]
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(f"`to` with {inference_target} ?")
+        raise T2NErrorNotImplemented(f"`to` with {inference_target} ?")
     LOGGER.debug(
         "convert .to() with tract custom operator since it can express "
         "all torch type (contrary to vanilla cast NNEF operator)"
@@ -183,7 +183,7 @@ def type_as(g, node, name_to_tensor, inference_target, **kwargs):
         "all torch type (contrary to vanilla cast NNEF operator)"
     )
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(f"`to` with {inference_target} ?")
+        raise T2NErrorNotImplemented(f"`to` with {inference_target} ?")
     add_single_output_op(
         g,
         node,
@@ -275,7 +275,7 @@ def size(
         )
         return []
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
 
     # ensure consistant name to avoid strangeness
     input_tensor = get_or_add_tensor_variable_in_nnef(
@@ -361,7 +361,7 @@ def numel(node, inference_target, op_helper, **kwargs):
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
     """Operator mapping PyTorch: 'aten:scalar_tensor' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError("need casting")
+        raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
@@ -380,7 +380,7 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
 def _to_copy(node, inference_target, op_helper, **kwargs):
     """Operator mapping PyTorch: 'aten:_to_copy' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError("need casting")
+        raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs
     op_helper.add_single_output_op_from_nnef_tensors(
         node,

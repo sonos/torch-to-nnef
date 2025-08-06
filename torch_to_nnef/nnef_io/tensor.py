@@ -9,6 +9,7 @@ import torch
 from nnef.binary import _fromfile, _numpy_dtype_make
 
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
+from torch_to_nnef.exceptions import T2NErrorMissUse
 
 
 class DatBinHeader:
@@ -154,14 +155,14 @@ class DatBinHeader:
             [0] * 32
         )
         if len(item_type_params_deprecated) != 32:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 "item_type_params_deprecated must be array of 32 int"
             )
         b_arr.extend(struct.pack("32B", *item_type_params_deprecated))
         # padding: [u32; 11],
         padding = self.padding or ([0] * 11)
         if len(padding) != 11:
-            raise ValueError("padding must be array of 11 int")
+            raise T2NErrorMissUse("padding must be array of 11 int")
         b_arr.extend(struct.pack("11I", *padding))
         binheader = bytes(b_arr)
         assert len(binheader) == 128, len(binheader)
@@ -184,7 +185,7 @@ class DatBinHeader:
     @classmethod
     def from_dat_file(cls, file) -> "DatBinHeader":
         if isinstance(file, str):
-            raise ValueError(
+            raise T2NErrorMissUse(
                 "file parameter must be a file object not a file name"
             )
 
@@ -192,7 +193,7 @@ class DatBinHeader:
             file, dtype=np.uint8, count=4
         )
         if magic1 != 0x4E or magic2 != 0xEF:
-            raise ValueError("not a valid NNEF file")
+            raise T2NErrorMissUse("not a valid NNEF file")
 
         [data_length, rank] = _fromfile(file, dtype=np.uint32, count=2)
 
@@ -200,12 +201,12 @@ class DatBinHeader:
             header_size = 128
             file_size = os.fstat(file.fileno()).st_size
             if file_size != header_size + data_length:
-                raise ValueError(
+                raise T2NErrorMissUse(
                     "invalid tensor file; size does not match header info"
                 )
 
         if rank > cls.MAX_TENSOR_RANK:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 f"tensor rank exceeds maximum possible value of {cls.MAX_TENSOR_RANK}"
             )
 

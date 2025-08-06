@@ -12,8 +12,8 @@ from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
 from torch_to_nnef.dtypes import is_quantized_dtype
 from torch_to_nnef.exceptions import (
-    TorchToNNEFInvalidArgument,
-    TorchToNNEFNotImplementedError,
+    T2NErrorInvalidArgument,
+    T2NErrorNotImplemented,
 )
 from torch_to_nnef.inference_target import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
@@ -139,7 +139,7 @@ def export_model_to_nnef(
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
     Raises:
-        torch_to_nnef.exceptions.TorchToNNEFError
+        torch_to_nnef.exceptions.T2NError
             If something fail during export process we try to provide dedicated
             exceptions (easier to control programmatically)
 
@@ -186,7 +186,7 @@ def export_model_to_nnef(
     if custom_extensions is not None and not isinstance(
         custom_extensions, list
     ):
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             "custom extensions should be a list, "
             "because some extensions may be order sensitive (in tract)."
         )
@@ -210,7 +210,7 @@ def export_model_to_nnef(
         f"start parse PyTorch model to be exported at {file_path_export}"
     )
     if not any(s == ".nnef" for s in file_path_export.suffixes):
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
@@ -289,12 +289,12 @@ def _check_io_names(
     input_names: T.Optional[T.List[str]], output_names: T.Optional[T.List[str]]
 ):
     if input_names and len(set(input_names)) != len(input_names):
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             "Each str in input_names must be different"
         )
 
     if output_names and len(set(output_names)) != len(output_names):
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             "Each str in output_names must be different"
         )
 
@@ -304,7 +304,7 @@ def _check_io_names(
         and len(set(output_names + input_names))
         != len(input_names + output_names)
     ):
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             "input_names and output_names must be different "
             "(else it could lead to wrong simplification of the graph)"
         )
@@ -386,7 +386,7 @@ def iter_torch_tensors_from_disk(
                 if filter_key(key):
                     yield key, tensor
         else:
-            raise TorchToNNEFNotImplementedError(type(res))
+            raise T2NErrorNotImplemented(type(res))
 
 
 def export_tensors_from_disk_to_nnef(
@@ -514,7 +514,7 @@ def export_tensors_to_nnef(
                         write_tensor_quantization_infos(nnef_tensor, fh)
                 else:
                     # NOTE: 2024-10-14: no engine support other torch built-in Q dtype
-                    raise TorchToNNEFNotImplementedError(tensor.dtype)
+                    raise T2NErrorNotImplemented(tensor.dtype)
             filename = f"{tensor_name}.dat"
             write_nnef_tensor(
                 np.asarray(np_tensor, order="C"),
@@ -537,7 +537,7 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
             self.msg = msg
 
         def __call__(self, *args: T.Any, **kwds: T.Any) -> T.Any:
-            raise TorchToNNEFNotImplementedError(self.msg)
+            raise T2NErrorNotImplemented(self.msg)
 
     if isinstance(inference_target, TractNNEF):
         torch.nn.utils.rnn.original_pack_padded_sequence = (

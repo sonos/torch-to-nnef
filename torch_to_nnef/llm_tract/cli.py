@@ -10,7 +10,7 @@ import logging
 import typing as T
 
 from torch_to_nnef.compress import dynamic_load_registry
-from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
@@ -259,11 +259,11 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         [f"'{cli_arg_name}'" for _, cli_arg_name in ref_model_id_args]
     )
     if n_flags == 0:
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             f"You should provide one among: {possible_model_id_args}"
         )
     if n_flags > 1:
-        raise TorchToNNEFInvalidArgument(
+        raise T2NErrorInvalidArgument(
             f"You should only provide one of {possible_model_id_args}"
         )
     return args

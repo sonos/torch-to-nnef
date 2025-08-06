@@ -28,6 +28,7 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
+from torch_to_nnef.exceptions import T2NErrorMissUse
 
 MISSING_SWIN = False
 try:
@@ -113,7 +114,7 @@ def shifted_window_attention(
     # return attn # This work upt to this point
     if sum(shift_size) > 0:
         if attn_mask is None:
-            raise ValueError("missing attn_mask with shift_size")
+            raise T2NErrorMissUse("missing attn_mask with shift_size")
         # generate attention mask
         attn = attn.view(
             x.size(0) // num_windows,
@@ -174,7 +175,9 @@ class ExportableShiftedWindowAttention(nn.Module):
     ):
         super().__init__()
         if len(window_size) != 2 or len(shift_size) != 2:
-            raise ValueError("window_size and shift_size must be of length 2")
+            raise T2NErrorMissUse(
+                "window_size and shift_size must be of length 2"
+            )
         self.window_size = window_size
         self.shift_size = shift_size
         self.num_heads = num_heads

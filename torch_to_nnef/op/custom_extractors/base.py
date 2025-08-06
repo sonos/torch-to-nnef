@@ -4,8 +4,8 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import (
-    NotFoundModuleExtractor,
-    TorchToNNEFNotImplementedError,
+    T2NErrorNotFoundModuleExtractor,
+    T2NErrorNotImplemented,
 )
 
 CUSTOMOP_KIND = "wired_custom::"
@@ -45,7 +45,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     def __init__(self):
         if self.MODULE_CLASS is None:
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"Need to specify MODULE_CLASS in class {self.__class__}"
             )
 
@@ -58,7 +58,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         }.get(classname)
         if extractor_cls is not None:
             return extractor_cls()
-        raise NotFoundModuleExtractor(classname)
+        raise T2NErrorNotFoundModuleExtractor(classname)
 
     @classmethod
     def get_by_module(cls, module: nn.Module):
@@ -69,7 +69,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         extractor_cls = cls.get_registry().get(module.__class__)
         if extractor_cls is not None:
             return extractor_cls()
-        raise NotFoundModuleExtractor(module.__class__)
+        raise T2NErrorNotFoundModuleExtractor(module.__class__)
 
     def generate_in_torch_graph(self, torch_graph, *args, **kwargs):
         """Internal method called by torch_to_nnef ir_graph"""
@@ -148,12 +148,12 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         if len(gouts) == 1 and go_kind == "TupleType":
             gouts = list(gouts[0].node().inputs())
         elif not all(go.type().kind() == "TensorType" for go in gouts):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 [go.type().kind() for go in gouts]
             )
         used_outputs_order = [_.offset() for _ in gouts]
         if provided_outputs and len(gouts) > len(provided_outputs):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "Unclear how to mitigate in such case n output from "
                 f"PyTorch Python: {len(results)} but "
                 f"PyTorch IR graph has: {len(gouts)} "
@@ -245,4 +245,4 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
         It is no different than any op implemented in `torch_to_nnef` in the module
         """
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()

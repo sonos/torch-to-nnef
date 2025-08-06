@@ -1,6 +1,6 @@
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.helper import AtenOpRegistry
 
@@ -33,7 +33,7 @@ def view_as_complex(
 ):
     """Operator mapping PyTorch: 'aten:view_as_complex' to NNEF"""
     if tract_complex_support(inference_target):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Complex not supported in vanilla spec"
         )
     # in such case we simulate complex with additional last axis being x2
@@ -55,7 +55,7 @@ def view_as_real(
 ):
     """Operator mapping PyTorch: 'aten:view_as_real' to NNEF"""
     if tract_complex_support(inference_target):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Complex not supported by vanilla NNEF"
         )
     # in such case we simulate complex with additional last axis being x2

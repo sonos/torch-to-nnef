@@ -6,7 +6,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.utils import (
     get_parent_module_and_param_name,
     select_ctx_disable_torch_fn,
@@ -58,7 +58,7 @@ class NamedTensor(torch.Tensor):
 
     @data.setter
     def data(self, new_data):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"Trying to alter a TensorRef.data: {self}"
         )
 
