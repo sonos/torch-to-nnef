@@ -161,6 +161,12 @@ def torch_dtype_to_str(torch_type):
 
 
 def numpy_dtype_to_tract_str(dtype) -> str:
+    if dtype in [
+        np.uint16,
+        np.uint32,
+        np.uint64,
+    ]:
+        return {np.uint16: "u16", np.uint32: "u32", np.uint64: "u64"}[dtype]
     torch_dtype = NUMPY_TO_TORCH_DTYPE[dtype]
     return TORCH_DTYPE_TO_TRACT_STR[torch_dtype]
 

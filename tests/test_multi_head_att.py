@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.utils import torch_version
 
 from .wrapper import TernaryPrimitive
 from .utils import (  # noqa: E402
@@ -77,15 +78,16 @@ test_suite.add(
     torch.rand((100, 1, 64)).float(),
     SelfAttn(need_weights=True),
 )
-test_suite.add(
-    (Xmini, Xmini, Xmini),
-    TernaryPrimitive(
-        partial(
-            F.scaled_dot_product_attention,
-            attn_mask=torch.randint(high=1, size=(2, 1)).float(),
-        )
-    ),
-)
+if hasattr(F, "scaled_dot_product_attention"):
+    test_suite.add(
+        (Xmini, Xmini, Xmini),
+        TernaryPrimitive(
+            partial(
+                F.scaled_dot_product_attention,
+                attn_mask=torch.randint(high=1, size=(2, 1)).float(),
+            )
+        ),
+    )
 test_suite.add(
     torch.randint(high=5, size=(3, 1, 4)).float(),
     SelfAttn(size=4, batch_size=3, need_weights=False),
@@ -191,6 +193,10 @@ def _simulate_scaled_dot_product_attention(Q, K, V, attn_mask, dropout_p=0.0):
     return attn_weight @ V
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="F.scaled_dot_product_attention is only appearing in Pytorch>=2",
+)
 def test_equivalent_implementation():
     val = torch.arange(8.0).reshape(1, 2, 4).float()
     query = val
@@ -209,6 +215,10 @@ def test_equivalent_implementation():
     )
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="F.scaled_dot_product_attention is only appearing in Pytorch>=2",
+)
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,

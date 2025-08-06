@@ -1,5 +1,6 @@
 import enum
 import typing as T
+import warnings
 from collections import defaultdict
 
 import torch
@@ -7,6 +8,7 @@ import torch
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.tensor.named import NamedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
+from torch_to_nnef.tensor.utils import get_named_buffers, get_named_parameters
 from torch_to_nnef.utils import torch_version
 
 
@@ -24,6 +26,9 @@ class ModTensorUpdater:
     An example is the shared reference on transformers between first input_ids embedding and
     last linear layer projection weights.
 
+    This is not usefull for PyTorch < 2.0.0 since it filters duplicate in init,
+    since torch API are missing remove_duplicate before that.
+
     """
 
     def __init__(
@@ -33,6 +38,7 @@ class ModTensorUpdater:
         add_buffers: bool = False,
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
+        warn_old_torch: bool = True,
     ):
         """
         Args:
@@ -54,9 +60,16 @@ class ModTensorUpdater:
         self.name_to_id = {}
         self.id_to_kind = {}
         self._disabled_requires_grad_names = []
+        if torch_version() < "2.0.0" and warn_old_torch:
+            warnings.warn(
+                "Try to use `ModTensorUpdater` with PyTorch<2.0, "
+                " it will not apply tight variable update as you might expect."
+            )
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)
-        for param_name, param in model.named_parameters(remove_duplicate=False):
+        for param_name, param in get_named_parameters(
+            model, remove_duplicate=False
+        ):
             id_tensor = id(param)
             if disable_requires_grad and param.requires_grad:
                 param.requires_grad = False
@@ -68,8 +81,8 @@ class ModTensorUpdater:
             self.id_to_kind[id_tensor] = TensorHoldKind.PARAMETER
 
         if add_buffers:
-            for buffer_name, buffer in model.named_buffers(
-                remove_duplicate=False
+            for buffer_name, buffer in get_named_buffers(
+                model, remove_duplicate=False
             ):
                 id_tensor = id(buffer)
                 self.name_to_id[buffer_name] = id(buffer)
@@ -156,7 +169,7 @@ class ModTensorUpdater:
         if not isinstance(new_tensor, torch.nn.Parameter):
             kind = self.id_to_kind[id(ref)]
             if kind == TensorHoldKind.PARAMETER:
-                if self.add_parameter_if_unset:
+                if self.add_parameter_if_unset and torch_version() >= "2.0.0":
                     new_tensor = torch.nn.Parameter(
                         new_tensor, requires_grad=False
                     )
@@ -260,3 +273,7 @@ class ModTensorUpdater:
                 setattr(mod._buffers, p_local_name, new_tensor)
             self._update_reference(ref, new_tensor)
         return new_tensor
+
+    @property
+    def available_names(self):
+        return [_ for fs in self.id_to_names.values() for _ in fs]

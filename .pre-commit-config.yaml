@@ -27,12 +27,6 @@ repos:
     hooks:
     - id: pyupgrade
       args: ['--py37-plus']
-  - repo: git@github.com:PyCQA/prospector.git
-    rev: v1.15.3
-    hooks:
-      - id: prospector
-        types: [python]
-        args: ['-X']
   - repo: local
     hooks:
       - id: ruff-check

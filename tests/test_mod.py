@@ -89,5 +89,5 @@ def test_complex_and_fft_export(id, test_input, model, inference_target):
         test_input=test_input,
         inference_target=inference_target,
         custom_extensions=custom_extensions,
-        callback=check_non_concretized_tract_interp,
+        callback_post_export=check_non_concretized_tract_interp,
     )

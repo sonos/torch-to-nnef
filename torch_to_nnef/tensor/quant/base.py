@@ -134,10 +134,20 @@ class QScalePerGroupF16(QScheme):
 
 
 if torch_version() > "2.0.0":
-    QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
-    QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
-        QScalePerGroupF16._dequantize
-    )
+    import torch._dynamo
+
+    # avoid crash if missing deps like openmp
+    torch._dynamo.config.suppress_errors = True
+
+    try:
+        QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
+        QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
+            QScalePerGroupF16._dequantize
+        )
+    except RuntimeError as exp:
+        logging.warning(
+            "dequant of QTensor are not torch.compiled because:%s", exp
+        )
 
 
 class U8Compressor:
@@ -184,6 +194,10 @@ class U8Compressor:
         return self
 
 
+QTENSOR_UNSUPPORTED = torch_version() < "1.12.0"
+QTENSOR_UNSUPPORTED_MSG = "QTensor is supported only starting pytorch v1.12"
+
+
 class QTensor(OpaqueTensor):
     """Common interface for all Compressed storage"""
 
@@ -197,10 +211,8 @@ class QTensor(OpaqueTensor):
         u8_compressors: T.Optional[T.List[U8Compressor]] = None,
         **kwargs,
     ):
-        if torch_version() < "1.12.0":
-            raise TorchToNNEFNotImplementedError(
-                "QTensor only work with torch>=1.12.0"
-            )
+        if QTENSOR_UNSUPPORTED:
+            raise TorchToNNEFNotImplementedError(QTENSOR_UNSUPPORTED_MSG)
         return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(

@@ -6,6 +6,7 @@ import os
 import pytest
 import torch
 from torch import nn
+from torch_to_nnef.utils import torch_version
 
 
 from .utils import (  # noqa: E402
@@ -25,7 +26,13 @@ test_suite = TestSuiteInferenceExactnessBuilder([tract_latest])
 if tract_latest.version >= "0.21.11":
     mod = nn.Linear(3, 4)
     mod = mod.half()
-    test_suite.add(torch.arange(6).reshape(1, 2, 3).half(), mod)
+    inp = torch.arange(6).reshape(1, 2, 3).half()
+    try:
+        with torch.inference_mode():
+            mod(inp)
+        test_suite.add(inp, mod)
+    except RuntimeError as exp:
+        print("failed to add the test because torch:", exp)
 
 
 @pytest.mark.parametrize(

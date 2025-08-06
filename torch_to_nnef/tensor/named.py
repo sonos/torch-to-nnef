@@ -28,7 +28,16 @@ class NamedTensor(torch.Tensor):
     ):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=TracerWarning)
-            return super().__new__(cls, fp_tensor, *args, **kwargs)
+            try:
+                return super().__new__(cls, fp_tensor, *args, **kwargs)
+            except TypeError:  # legacy mode
+                # legacy_tensor = torch.Tensor.__new__(cls, dtype=fp_tensor.dtype)
+                legacy_tensor = fp_tensor.as_subclass(cls)
+                legacy_tensor.__dict__["_fp_tensor"] = fp_tensor
+                legacy_tensor.__dict__["nnef_name"] = nnef_name
+                assert legacy_tensor.dtype == fp_tensor.dtype
+                assert legacy_tensor.shape == fp_tensor.shape
+                return legacy_tensor
 
     def __init__(
         self,
@@ -38,6 +47,9 @@ class NamedTensor(torch.Tensor):
         super().__init__()
         self._fp_tensor = fp_tensor
         self.nnef_name = nnef_name
+
+    def __hash__(self):
+        return self._fp_tensor.__hash__()
 
     @property
     def data(self):
@@ -133,6 +145,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         model,
         add_buffers=True,
         add_unregistred_tensor=True,
+        warn_old_torch=False,
     )
     LOGGER.debug("started to apply NamedTensor")
     for names in list(mod_tensor_updater.id_to_names.values()):

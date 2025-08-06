@@ -16,6 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "mako>=1.0.0,<2.0",
@@ -39,16 +40,17 @@ peft = ["peft"]
 test = [
     "isort>=5.8.0,<6",
     "mypy~=1.13",
-    "peft",
     "pytest-cov>=6.0.0,<7",
     "pytest>=8.3.3,<9",
     "ruff<1.0",
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
-    "torchaudio>=2.6.0,<3",
-    "torchvision>=0.21.0,<0.22",
+    "torchaudio>=0.9.0,<3",
+    "torchvision>=0.10.0,<0.25",
     "transformers>=4.35.2,<5",
     "librosa",
+    "coverage[toml]",
+    "prospector",
 ]
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"
@@ -108,10 +110,9 @@ profile = "black"
 line_length = 80
 skip = [".gitignore", ".dockerignore"]
 
-[tool.pytest]
-addopts = "--strict-markers -p no:warnings -s"
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
@@ -146,6 +147,7 @@ disable = [
     "unused-wildcard-import",
     "wrong-import-position",
     "import-error",                  # prospector have trouble with nnef, nnef_tools
+    "cyclic-import",                 # false trigger in prospector
 ]
 
 [tool.pylint.DESIGN]
@@ -153,6 +155,7 @@ max-attributes = 15
 
 [tool.mypy]
 python_version = "3.9"
+ignore_missing_imports = true
 
 
 [[tool.mypy.overrides]]
@@ -160,3 +163,188 @@ module = "torch"
 ignore_missing_imports = true
 follow_imports = "skip"
 follow_imports_for_stubs = true
+
+[tool.tox]
+isolated_build = true
+envlist = ["py39", "py313", "format", "lint", "build"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "def main",
+]
+
+[tool.tox.env_run_base]
+extras = ["test", "peft"]
+passenv = ["*"]
+constrain_package_deps = true
+deps = ["torchvision==0.22.1"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+[tool.tox.env.torch_1_10]
+basepython = ["python3.9"]
+extras = ["test"]
+constrain_package_deps = true
+deps = [
+    "torch==1.10.1",
+    "torchvision==0.11.2",
+    "torchaudio==0.10.1",
+    "safetensors<=0.4.2",
+    "numpy<2.0.0",
+]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+[tool.tox.env.torch_1_13]
+basepython = ["python3.9"]
+extras = ["test"]
+constrain_package_deps = true
+deps = [
+    "torch==1.13.1",
+    "torchvision==0.14.1",
+    "torchaudio==0.13.1",
+    "safetensors<=0.4.2",
+    "numpy<2.0.0",
+]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+
+[tool.tox.env.torch_2_2]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = [
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "torchaudio==2.2.2",
+    "numpy<2.0.0",
+    "safetensors<=0.4.2",
+]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-s",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+[[tool.tox.env_run_base.setenv]]
+PYTHONPATH = "{toxinidir}"
+PYTHONWARNINGS = "ignore"
+MODELS = "1"
+
+
+[tool.tox.env.format]
+extras = ["test"]
+commands = [
+    [
+        "isort",
+        "torch_to_nnef",
+    ],
+    [
+        "ruff",
+        "format",
+        "torch_to_nnef",
+        "tests",
+    ],
+]
+
+[tool.tox.env.format_check]
+extras = ["test"]
+commands = [
+    [
+        "isort",
+        "-c",
+        "torch_to_nnef",
+    ],
+    [
+        "ruff",
+        "format",
+        "--check",
+        "torch_to_nnef",
+        "tests",
+    ],
+]
+
+[tool.tox.env.lint]
+extras = ["test"]
+commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
+
+[tool.tox.env.static_check]
+extras = ["test"]
+commands = [["prospector", "--no-autodetect"]]
+
+[tool.tox.env.build]
+allowlist_externals = ["uv"]
+extras = ["dev"]
+commands = [["uv", "build"]]

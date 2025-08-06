@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 import inspect
 
+import pytest
 import numpy as np
 import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
@@ -20,6 +21,10 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
+from torch_to_nnef.tensor.quant.base import (
+    QTENSOR_UNSUPPORTED,
+    QTENSOR_UNSUPPORTED_MSG,
+)
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
     TractCli,
@@ -27,6 +32,7 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import torch_version
 
 TRACT_INFERENCES_TO_TESTS_APPROX = [
     # we maintain last 3 majors of tract
@@ -138,7 +144,7 @@ def check_model_io_test(
     output_names=None,
     nnef_variable_naming_scheme=VariableNamingScheme.default(),
     custom_extensions=None,
-    callback=None,
+    callback_post_export=None,
     unit_test_naming=None,
 ):
     dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
@@ -203,8 +209,8 @@ def check_model_io_test(
                 io_npz_path,
                 dump_test_tz_path.with_suffix(".io.npz"),
             )
-        if callback is not None:
-            callback(inference_target, export_path)
+        if callback_post_export is not None:
+            callback_post_export(inference_target, export_path)
 
 
 def remove_weight_norm(module):
@@ -236,3 +242,20 @@ def id_tests(test_fixtures):
         test_name = f"{module}({data_fmt})"
         test_names.append(test_name)
     return test_names
+
+
+skipif_unsupported_qtensor = pytest.mark.skipif(
+    QTENSOR_UNSUPPORTED, reason=QTENSOR_UNSUPPORTED_MSG
+)
+
+
+skipif_unsupported_tensor_updater = pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="torch version need to be >= 2.0 to use ModTensorUpdater",
+)
+
+
+skipif_limited_offload_support = pytest.mark.skipif(
+    condition=torch_version() < "1.12.0",
+    reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
+)

@@ -15,6 +15,7 @@ from torch_to_nnef.op.helper import (
     weight_bias_and_output_tensor,
 )
 from torch_to_nnef.tensor.quant import QTensorTract
+from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -138,7 +139,9 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     return custom_fragments
 
 
-@OP_REGISTRY.register(["norm", "linalg_vector_norm", "linalg_norm"])
+@OP_REGISTRY.register(
+    ["norm", "linalg_vector_norm", "linalg_norm", "frobenius_norm"]
+)
 def norm(g, node, name_to_tensor, inference_target, **kwargs):
     """
     NOTE this is only the normed vector
@@ -146,6 +149,9 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
     if node.kind in ["aten::linalg_vector_norm", "aten::linalg_norm"]:
         # new in PyTorch 2.0
         input_node, p_node, axes_node, keep_dim_node, _ = node.inputs
+    elif node.kind == "aten::frobenius_norm":
+        input_node, axes_node, keep_dim_node = node.inputs
+        p_node = PythonConstant(name=f"{node.outputs[0].name}_p_node", data=2)
     else:
         input_node, p_node, axes_node, keep_dim_node = node.inputs
     if p_node.data is None:
@@ -228,7 +234,7 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["layer_norm", "native_layer_norm"])
 def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
-    """ Operator mapping PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF """
+    """Operator mapping PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF"""
     (
         input_tensor_node,
         normalized_shape_node,

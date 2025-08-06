@@ -8,11 +8,30 @@ from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
-from torch_to_nnef.utils import select_ctx_disable_torch_fn
+from torch_to_nnef.tensor.utils import get_named_parameters
+from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 LOGGER = logging.getLogger(__name__)
 
 IR_OPAQUE_NAME = "t2n::opaque_tensor_expand"
+
+# Since pytorch 2.4 added: `torch.library.custom_op`
+# we can trace with jit.trace with meta reference
+#
+# On Prior version we use legacy technique with
+# OpaqueTensorRef that contains 'real' data
+# this legacy is less optimal since it duplicate
+# weights at export time between with Opaque and
+# OpaqueTensorRef.
+NEW_OPAQUE_TRACING_STRATEGY = torch_version() >= "2.4.0"
+
+
+def maybe_custom_op(f):
+    if NEW_OPAQUE_TRACING_STRATEGY:
+        wrap = torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())(f)
+    else:
+        wrap = f
+    return wrap
 
 
 def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
@@ -57,7 +76,7 @@ class OpaqueTensor(torch.Tensor):
     def to_base_tensor(self):
         """wrap _to_base_tensor with jit export infos"""
 
-        @torch.library.custom_op(IR_OPAQUE_NAME, mutates_args=())
+        @maybe_custom_op
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
             tensor = self._to_base_tensor()
             return tensor
@@ -149,7 +168,7 @@ class OpaqueTensorRef(torch.Tensor):
                 _ in str(func)
                 for _ in ["'__get__'", "'__set__'", "Tensor.__reduce_ex__"]
             )
-            if not skip_expansion:
+            if not skip_expansion and NEW_OPAQUE_TRACING_STRATEGY:
                 args = [
                     a.opaque_tensor.to_base_tensor()
                     if isinstance(a, cls)
@@ -162,6 +181,7 @@ class OpaqueTensorRef(torch.Tensor):
                     else v
                     for k, v in kwargs.items()
                 }
+
             ret = func(*args, **kwargs)
             if skip_expansion:
                 return ret
@@ -195,8 +215,8 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     LOGGER.debug(
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
-    mod_tensor_updater = ModTensorUpdater(model)
-    for full_name, param in model.named_parameters(remove_duplicate=False):
+    mod_tensor_updater = ModTensorUpdater(model, warn_old_torch=False)
+    for full_name, param in get_named_parameters(model, remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue
         param.nnef_name = full_name
@@ -204,7 +224,9 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
         mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(
-                opaque_to_final_tensor(param).to("meta"),
+                opaque_to_final_tensor(param).to(
+                    "meta" if NEW_OPAQUE_TRACING_STRATEGY else "cpu"
+                ),
                 param,
             ),
         )

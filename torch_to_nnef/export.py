@@ -10,11 +10,6 @@ from nnef_tools.model import Graph
 from torch.onnx import TrainingMode  # type: ignore
 from torch.onnx.utils import select_model_mode_for_export  # type: ignore
 
-from torch_to_nnef.custom_nnef_writer import Writer as NNEFWriter
-from torch_to_nnef.custom_nnef_writer import (
-    write_nnef_tensor,
-    write_tensor_quantization_infos,
-)
 from torch_to_nnef.dtypes import is_quantized_dtype
 from torch_to_nnef.exceptions import (
     TorchToNNEFInvalidArgument,
@@ -25,6 +20,11 @@ from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.log import set_lib_log_level
 from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
+from torch_to_nnef.nnef_io.writer import Writer as NNEFWriter
+from torch_to_nnef.nnef_io.writer import (
+    write_nnef_tensor,
+    write_tensor_quantization_infos,
+)
 from torch_to_nnef.op.fragment import FRAGMENTS, Fragment
 from torch_to_nnef.op.quantized import torch_qtensor_to_ntensor
 from torch_to_nnef.tensor import (
@@ -181,6 +181,7 @@ def export_model_to_nnef(
         add_buffers=False,
         add_unregistred_tensor=False,
         disable_requires_grad=True,
+        warn_old_torch=False,
     )
     if custom_extensions is not None and not isinstance(
         custom_extensions, list

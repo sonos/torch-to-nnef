@@ -501,7 +501,17 @@ def fmod(node, op_helper, **kwargs):
 @OP_REGISTRY.register()
 def var(node, op_helper, **kwargs):
     """aten::var"""
-    inode, dnode, cornode = node.inputs[:3]
+    if len(node.inputs) >= 3:
+        inode, dnode, cornode = node.inputs[:3]
+    elif len(node.inputs) == 2:  # legacy pytorch
+        inode, unbiased_node = node.inputs
+        cor_val = 1 if unbiased_node.data else 0
+        cornode = PythonConstant(
+            name=f"{node.outputs[0].name}_corr", data=cor_val
+        )
+        dnode = PythonConstant(name=f"{node.outputs[0].name}_dims", data=None)
+    else:
+        raise TorchToNNEFNotImplementedError(len(node.inputs))
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
     axes = dnode.data or list(range(input_tensor.rank))
     if cornode.data != 0:

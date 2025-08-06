@@ -2,7 +2,7 @@ import typing as T
 
 import torch
 
-from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
+from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -40,7 +40,7 @@ def _get_padding_same_symetric(
 def _convolution_mode(
     g, node, name_to_tensor, null_ref, inference_target, **kwargs
 ):
-    """ Operator mapping PyTorch: 'aten:_convolution_mode', 'aten:convolution', 'aten:conv1d', 'aten:conv2d', 'aten:conv3d' to NNEF """
+    """Operator mapping PyTorch: 'aten:_convolution_mode', 'aten:convolution', 'aten:conv1d', 'aten:conv2d', 'aten:conv3d' to NNEF"""
     (
         input_node,
         weight_node,
@@ -120,7 +120,7 @@ def _convolution_mode(
 
 @OP_REGISTRY.register()
 def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:_convolution' to NNEF """
+    """Operator mapping PyTorch: 'aten:_convolution' to NNEF"""
     (
         input_node,
         weight_node,
@@ -202,7 +202,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:linear' to NNEF """
+    """Operator mapping PyTorch: 'aten:linear' to NNEF"""
     (
         input_node,
         weight_node,
@@ -320,14 +320,14 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def einsum(g, node, name_to_tensor, inference_target, **kwargs):
-    """ Operator mapping PyTorch: 'aten:einsum' to NNEF """
+    """Operator mapping PyTorch: 'aten:einsum' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
         raise TorchToNNEFNotImplementedError(
             "einsum operator is not supported by `NNEF` and "
             "breaking it down to primitive ops would be a siginficant work"
         )
 
-    expr_node, args_node, _ = node.inputs
+    expr_node, args_node = node.inputs[:2]
     inps_dtypes = {_.dtype for _ in args_node.data}
     assert inps_dtypes, inps_dtypes
     dtype_str = TORCH_DTYPE_TO_TRACT_STR[inps_dtypes.pop()]
@@ -352,7 +352,7 @@ def einsum(g, node, name_to_tensor, inference_target, **kwargs):
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
 def matmul(g, node, name_to_tensor, **kwargs):
-    """ Operator mapping PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF """
+    """Operator mapping PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF"""
     (
         input_node,
         other_node,
@@ -375,23 +375,43 @@ def matmul(g, node, name_to_tensor, **kwargs):
 
 
 @OP_REGISTRY.register(["baddbmm", "addmm"])
-def baddbmm(g, node, name_to_tensor, **kwargs):
-    """ Operator mapping PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF """
+def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
+    """Operator mapping PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF"""
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     for ab_node in [alpha_node, beta_node]:
         if isinstance(alpha_node, PythonConstant):
             ab_node.data = float(ab_node.data)
         else:
             raise TorchToNNEFNotImplementedError()
+    inputs = [
+        get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+        for _ in [input_node, batch1_node, batch2_node]
+    ]
+
+    new_inputs = []
+    target_dtype = node.outputs[0].dtype
+    for inp in inputs:
+        if NUMPY_TO_TORCH_DTYPE[inp.dtype] != target_dtype and isinstance(
+            inference_target, TractNNEF
+        ):
+            target_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_dtype]
+            inp = add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                "tract_core_cast",
+                inputs=inp,
+                attrs={"to": target_dtype_tract},
+                force_full_output_tensor_name=f"{inp.name}_cast_{target_dtype_tract}",
+            )
+        new_inputs.append(inp)
+    inputs = new_inputs
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         "addmm",
-        inputs=[
-            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
-            for _ in [input_node, batch1_node, batch2_node]
-        ],
+        inputs=inputs,
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["addmm"]

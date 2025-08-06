@@ -1,29 +1,91 @@
+import typing as T
 from copy import deepcopy
-from functools import reduce
+from functools import partial, reduce
+from pathlib import Path
 import platform
+import subprocess
 import time
 from datetime import datetime
 import operator
 
-import pytest
 import torch
 from torch import nn
+import pytest
 
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
     U8Compressor,
     qscale_per_group_f16_min_max_calibration,
     QTensorTractScaleOnly,
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
+from torch_to_nnef.tensor.quant.base import QTensor
+from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TRACT_INFERENCES_TO_TESTS_EXACT,
     check_model_io_test,
+    skipif_unsupported_qtensor,
 )
 
 
+def check_tensor_in_nnef_archive(
+    inference_target: InferenceTarget,
+    path: Path,
+    labels: T.Union[T.List[str], T.Dict[str, T.Dict[str, T.Any]]],
+):
+    """Helper to check that .dat variable are correctly dumped with expected dtype in NNEF"""
+    assert isinstance(inference_target, InferenceTarget)
+    if not isinstance(inference_target, TractNNEF):
+        return
+    assert path.exists()
+    exdir = path.parent / "extract"
+    exdir.mkdir(parents=True, exist_ok=True)
+    graph_filename = "graph.nnef"
+    with cd(exdir):
+        subprocess.check_call(["tar", "-xzf", str(path), graph_filename])
+        graph_filepath = exdir / graph_filename
+        graph_content = graph_filepath.read_text()
+        found_labels = set()
+        probe1 = "variable<scalar>(label = "
+        probe2 = "variable(label = "
+        for line in graph_content.split("\n"):
+            for probe in [probe1, probe2]:
+                if probe in line:
+                    col_ix = line.index(probe)
+                    start_ix = col_ix + len(probe)
+                    line_label = line[start_ix + 1 :].split("'", maxsplit=1)[0]
+                    for lab in labels:
+                        if line_label == lab:
+                            assert lab not in found_labels, (
+                                "duplicate weight label"
+                            )
+                            found_labels.add(lab)
+        remaining_labels = set(labels).difference(found_labels)
+        if remaining_labels:
+            raise ValueError(
+                f"Some tensor where not found in exported NNEF archive: {remaining_labels}"
+            )
+        if isinstance(labels, dict):
+            for label_name, label_opt_checks in labels.items():
+                expected_dtype = label_opt_checks.get("dtype")
+                if expected_dtype is not None:
+                    dat_filename = f"{label_name}.dat"
+                    subprocess.check_call(
+                        ["tar", "-xzf", str(path), dat_filename]
+                    )
+                    bin_header = DatBinHeader.from_dat(dat_filename)
+                    if bin_header.torch_dtype_or_custom != expected_dtype:
+                        raise ValueError(
+                            "wrong dtype in NNEF archive "
+                            f"{label_name}: {bin_header.torch_dtype_or_custom} but expected {expected_dtype}"
+                        )
+
+
+@skipif_unsupported_qtensor
 def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     original_weight = torch.arange(64).reshape(2, 32).float()
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
@@ -48,6 +110,7 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     assert type(out) is type(inp_tensor)  # avoid propagation of qtype
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -76,9 +139,20 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -109,9 +183,20 @@ def test_quantize_with_tract_q4_0_controled(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
@@ -146,9 +231,20 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -156,7 +252,10 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
 def test_quantize_with_tract_q4_0_arange(inference_target):
     """basic quantization values"""
     with torch.no_grad():
-        if "arm" in platform.uname().machine.lower():
+        if (
+            "arm" in platform.uname().machine.lower()
+            or torch_version() < "2.0.0"
+        ):
             inference_target = deepcopy(inference_target)
             inference_target.check_io_tolerance = TractCheckTolerance.SUPER
 
@@ -174,6 +273,16 @@ def test_quantize_with_tract_q4_0_arange(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
@@ -193,6 +302,7 @@ class DummyU8Compressor(U8Compressor):
         return u8_tensor
 
 
+@skipif_unsupported_qtensor
 def test_u8_compressors():
     fp_tensor = torch.rand(2, 32)
     with torch.no_grad():
@@ -234,6 +344,7 @@ def test_u8_compressors():
         )
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
@@ -258,6 +369,7 @@ TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
 ]
 
 
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
@@ -280,11 +392,22 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv1d: linear (aka kernel=1)
 # conv1d with various kernel size (3, 9)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "kernel_size,inference_target",
     [(k, i) for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV for k in [1, 3, 9]],
@@ -317,10 +440,21 @@ def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_base.__name__
             + f"_kernel{kernel_size}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv1d with various in-channels size (32, 64, 128)
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "in_size,inference_target",
     [
@@ -357,10 +491,21 @@ def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_insize.__name__
             + f"{in_size}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv1d with stride
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "stride,inference_target",
     [
@@ -398,10 +543,21 @@ def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_stride.__name__
             + f"{stride}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv1d with dilation
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "dilation,inference_target",
     [
@@ -441,10 +597,21 @@ def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_dilation.__name__
             + f"{dilation}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv1d with groups
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "groups,inference_target",
     [
@@ -482,10 +649,21 @@ def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
             inference_target=inference_target,
             unit_test_naming=test_quantize_with_tract_q4_0_conv_groups.__name__
             + f"{groups}",
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )
 
 
 # conv2d vanilla
+@skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX_CONV
 )
@@ -516,4 +694,14 @@ def test_quantize_with_tract_q4_0_conv2d(inference_target):
             model=model,
             test_input=test_input,
             inference_target=inference_target,
+            callback_post_export=partial(
+                check_tensor_in_nnef_archive,
+                labels={
+                    "weight": {
+                        "dtype": DatBinHeader.TractCustomTypes.Q40
+                        if inference_target.version >= "0.21.11"
+                        else DatBinHeader.TractCustomTypes.Q40_LEGACY
+                    }
+                },
+            ),
         )

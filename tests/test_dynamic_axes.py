@@ -3,12 +3,14 @@
 import os
 from functools import partial
 
+from numpy import test
 import pytest
 import torch
 from torch import nn
 from torchaudio import models as audio_mdl
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.utils import torch_version
 
 from .wrapper import TorchFnPrimitive
 from .utils import (  # noqa: E402
@@ -97,23 +99,24 @@ test_suite.add(
     ),
 )
 
-test_suite.add(
-    torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
-    LambdaOp(lambda x: x[..., : x.shape[-1] // 2]),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
-    ),
-)
+if torch_version() > "2.3.0":  # uint64 support in torch
+    test_suite.add(
+        torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+        LambdaOp(lambda x: x[..., : x.shape[-1] // 2]),
+        inference_conditions=ge_tract_0_21_5,
+        inference_modifier=partial(
+            change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+        ),
+    )
 
-test_suite.add(
-    torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
-    LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
-    inference_conditions=ge_tract_0_21_5,
-    inference_modifier=partial(
-        change_dynamic_axes, dynamic_axes=dyn_stream_axis3
-    ),
-)
+    test_suite.add(
+        torch.tensor([[[[1, 2, 3, 4]], [[5, 6, 7, 8]]]]).float(),
+        LambdaOp(lambda x: x[..., x.shape[-1] // 2 :]),
+        inference_conditions=ge_tract_0_21_5,
+        inference_modifier=partial(
+            change_dynamic_axes, dynamic_axes=dyn_stream_axis3
+        ),
+    )
 test_suite.add(
     torch.rand(2, 1),
     LambdaOp(lambda x: x[:, -3:]),

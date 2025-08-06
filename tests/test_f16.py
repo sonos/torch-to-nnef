@@ -32,15 +32,16 @@ def set_inference_supper(inference_target):
     return new_inference_target
 
 
-attn_test_suite.add(
-    # q, k, v
-    (
-        torch.arange(12).reshape(1, 3, 4).half(),
-        torch.arange(12).reshape(1, 3, 4).half(),
-        torch.arange(12).reshape(1, 3, 4).half(),
-    ),
-    TernaryPrimitive(op=F.scaled_dot_product_attention),
-)
+if torch_version() >= "2.2.0":  # half support for
+    attn_test_suite.add(
+        # q, k, v
+        (
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+            torch.arange(12).reshape(1, 3, 4).half(),
+        ),
+        TernaryPrimitive(op=F.scaled_dot_product_attention),
+    )
 
 bn_test_suite = TestSuiteInferenceExactnessBuilder(
     FORCE_F32_INFERENCES + TRACT_INFERENCES_TO_TESTS_APPROX
@@ -113,7 +114,7 @@ def test_upcast_f32_attn(id, test_input, model, inference_target):
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        callback=check_contains_f32_upcast_attn,
+        callback_post_export=check_contains_f32_upcast_attn,
     )
 
 
@@ -136,6 +137,10 @@ def check_contains_f32_upcast_norm(inference_target, path):
         graph_filepath.unlink()
 
 
+@pytest.mark.skipif(
+    condition=torch_version() < "2.2.0",
+    reason="torch older than 2.2.0 lack too much of half operators support on CPU",
+)
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     bn_test_suite.test_samples,
@@ -147,7 +152,7 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        callback=check_contains_f32_upcast_norm,
+        callback_post_export=check_contains_f32_upcast_norm,
     )
 
 
@@ -162,4 +167,4 @@ def test_layer_norm_f16_unsupported_in_torch():
             )
         assert "\"LayerNormKernelImpl\" not implemented for 'Half'" in str(
             excinfo.value
-        )
+        ) or "mixed dtype" in str(excinfo.value)

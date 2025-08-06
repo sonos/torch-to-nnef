@@ -1,8 +1,8 @@
 import logging
 
 import nnef
-import torch
 import numpy as np
+import torch
 
 from torch_to_nnef.dtypes import NUMPY_DTYPE_TO_STR, SCALAR_TYPE_TO_PYTORCH_TYPE
 from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError

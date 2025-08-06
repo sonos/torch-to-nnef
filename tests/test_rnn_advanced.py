@@ -1,9 +1,17 @@
+from copy import deepcopy
+
 import pytest
 import torch
 from torch import nn
-from transformers.models.deprecated.tvlt.modeling_tvlt import deepcopy
+from torch_to_nnef.utils import torch_version
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
+
+
+skipif_sub_torch2 = pytest.mark.skipif(
+    condition=torch_version() < "2.0.0",
+    reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
+)
 
 
 class LSTMWrapper(nn.Module):
@@ -166,6 +174,7 @@ class EncoderJoin(nn.Module):
         return torch.cat([x1[-1], x2[-1]], dim=1)
 
 
+@skipif_sub_torch2
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_reused_lstm_on_2_inputs(inference_target):
     seqlen = 10

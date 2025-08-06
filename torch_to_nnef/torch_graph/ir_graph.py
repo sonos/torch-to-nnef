@@ -190,8 +190,7 @@ class TorchModuleIRGraph:
         for torch_ir_inp in self._tracer.torch_graph.inputs():
             if torch_ir_inp.type().kind() == CLASSTYPE_KIND and is_start_cls:
                 continue
-            else:
-                is_start_cls = False
+            is_start_cls = False
             graph_inputs.append(torch_ir_inp)
 
         if provided_inputs is None:

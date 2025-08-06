@@ -16,16 +16,34 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "test"
-  test:
-    # The type of runner that the job will run on
-    strategy:
-      matrix:
-        python-versions: [3.9, 3.12]
+  prepare:
+    runs-on: ubuntu-latest
 
-        os: [s2-player-builder-rust]
-        # macos-latest disabled since we have limited use
-        #ubuntu-latest on private repo as only 7 GB RAM which is hypothesized to be too little for full test suite
-    runs-on: ${{ matrix.os }}
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create matrix
+        id: create_matrix
+        uses: fabiocaccamo/create-matrix-action@v3
+        with:
+          matrix: |
+            python-version {3.9}, tox-env {"py39", "torch_1_10", "torch_1_13"}
+            python-version {3.12}, tox-env {"torch_2_2"}
+            python-version {3.13}, tox-env {"py313", "format_check", "static_check"}
+
+    outputs:
+      matrix: ${{ steps.create_matrix.outputs.matrix }}
+
+  test:
+
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.prepare.outputs.matrix)}}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -48,15 +66,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-versions }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tox==4.23.2 tox-gh-actions==3.2.0
+          pip install tox==4.23.2
 
       - name: test with tox
-        run: tox
-
-      - name: list files
-        run: ls -l .
+        run: tox run -e ${{ matrix.tox-env }}

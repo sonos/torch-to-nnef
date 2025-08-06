@@ -4,6 +4,7 @@ from torch import nn
 
 from torch_to_nnef.exceptions import InconsistentTensorError
 from torch_to_nnef.tensor.updater import ModTensorUpdater
+from tests.utils import skipif_unsupported_tensor_updater
 
 
 class CustomMod(nn.Module):
@@ -33,6 +34,7 @@ class CustomMod(nn.Module):
         return x
 
 
+@skipif_unsupported_tensor_updater
 def test_parameter_update_by_ref_with_tied():
     model = CustomMod()
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
@@ -52,6 +54,7 @@ def test_parameter_update_by_ref_with_tied():
     ).all()
 
 
+@skipif_unsupported_tensor_updater
 def test_parameter_update_by_name_with_tied():
     model = CustomMod()
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
@@ -72,6 +75,7 @@ def test_parameter_update_by_name_with_tied():
     assert torch.eq(new_tensor, model.last_lin_proj.weight).all()
 
 
+@skipif_unsupported_tensor_updater
 def test_parameter_update_by_name_with_tied_modified_separatly():
     model = CustomMod()
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
@@ -92,6 +96,7 @@ def test_parameter_update_by_name_with_tied_modified_separatly():
     assert not torch.eq(new_tensor, model.last_lin_proj.weight).all()
 
 
+@skipif_unsupported_tensor_updater
 def test_parameter_update_by_name_with_tied_modified_separatly_meta():
     model = CustomMod()
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters
@@ -128,6 +133,7 @@ def test_parameter_update_by_name_with_tied_modified_separatly_meta():
     )
 
 
+@skipif_unsupported_tensor_updater
 def test_add_parameter_if_unset():
     model = CustomMod()
     model.last_lin_proj.weight = model.embedding.weight  # Tied parameters

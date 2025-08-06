@@ -1,7 +1,6 @@
 import filecmp
 import operator
 import platform
-import struct
 import tempfile
 import typing as T
 from functools import reduce
@@ -16,74 +15,12 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
+from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,
     QTensor,
     qscale_per_group_f16_min_max_calibration,
 )
-
-
-class DatBinHeaderBuilder:
-    TRACT_ITEM_TYPE_VENDOR = struct.pack(
-        "h", struct.unpack("B", b"T")[0] << 8 | struct.unpack("B", b"R")[0]
-    )
-
-    def __init__(self, item_type, shape):
-        # magic: [u8; 2],
-        self.magic = bytes.fromhex("4eef")
-
-        # version_maj: u8,
-        self.version_maj = struct.pack("B", 1)
-
-        # version_min: u8,
-        self.version_min = struct.pack("B", 0)
-
-        # data_size_bytes: u32,
-        vol = 1
-        for s in shape:
-            vol *= s
-        data_size_in_bytes = int((vol * 4 + vol / 32 * 16) / 8)
-        self.data_size_bytes = struct.pack("I", data_size_in_bytes)
-
-        # rank: u32
-        self.rank = struct.pack("I", len(shape))
-
-        # dims: [u32; 8],
-        sh = list(shape)
-        sh += [0] * (8 - len(sh))
-        self.dims = struct.pack("8I", *sh)
-
-        # bits_per_item: u32,
-        self.bits_per_item = bytes.fromhex("FFFFFFFF")
-
-        # item_type: u16,
-        self.item_type = bytes.fromhex(item_type)
-
-        # item_type_vendor: u16,
-        self.item_type_vendor = self.TRACT_ITEM_TYPE_VENDOR
-
-        # item_type_params_deprecated: [u8; 32],
-        self.item_type_params_deprecated = struct.pack("32B", *([0] * 32))
-
-        # padding: [u32; 11],
-        self.padding = struct.pack("11I", *([0] * 11))
-
-    def to_bytes(self):
-        b_arr = bytearray(b"")
-        b_arr.extend(self.magic)
-        b_arr.extend(self.version_maj)
-        b_arr.extend(self.version_min)
-        b_arr.extend(self.data_size_bytes)
-        b_arr.extend(self.rank)
-        b_arr.extend(self.dims)
-        b_arr.extend(self.bits_per_item)
-        b_arr.extend(self.item_type)
-        b_arr.extend(self.item_type_vendor)
-        b_arr.extend(self.item_type_params_deprecated)
-        b_arr.extend(self.padding)
-        binheader = bytes(b_arr)
-        assert len(binheader) == 128, len(binheader)
-        return binheader
 
 
 class QTensorTract(QTensor):
@@ -141,11 +78,11 @@ class QTensorTractScaleOnly(QTensorTract):
 
     def _build_binary_dat_header(self, post_tract_21_11: bool = False) -> bytes:
         if post_tract_21_11:
-            q4_0_hex_code = "4030"
+            item_type = DatBinHeader.TractCustomTypes.Q40
         else:
-            q4_0_hex_code = "4020"
-        return DatBinHeaderBuilder(
-            q4_0_hex_code, self.decompressed_shape
+            item_type = DatBinHeader.TractCustomTypes.Q40_LEGACY
+        return DatBinHeader.build_tract_qtensor(
+            item_type, self.decompressed_shape
         ).to_bytes()
 
     def _build_binary_dat_content(

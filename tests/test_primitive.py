@@ -207,21 +207,22 @@ for op in [
     )
 
 # special cases arround division
-test_suite.add(
-    (torch.tensor(1), torch.tensor(3)),
-    BinaryPrimitive(torch.div),
-    inference_conditions=skip_khronos_interpreter,
-)
-test_suite.add(
-    (torch.tensor(1), torch.tensor(3)),
-    BinaryPrimitive(partial(torch.div, rounding_mode="trunc")),
-    inference_conditions=skip_khronos_interpreter,
-)
-test_suite.add(
-    (torch.tensor(1), torch.tensor(3)),
-    BinaryPrimitive(partial(torch.div, rounding_mode="floor")),
-    inference_conditions=skip_khronos_interpreter,
-)
+if torch_version() > "2.3.0":  # pytorch support of uint64
+    test_suite.add(
+        (torch.tensor(1), torch.tensor(3)),
+        BinaryPrimitive(torch.div),
+        inference_conditions=skip_khronos_interpreter,
+    )
+    test_suite.add(
+        (torch.tensor(1), torch.tensor(3)),
+        BinaryPrimitive(partial(torch.div, rounding_mode="trunc")),
+        inference_conditions=skip_khronos_interpreter,
+    )
+    test_suite.add(
+        (torch.tensor(1), torch.tensor(3)),
+        BinaryPrimitive(partial(torch.div, rounding_mode="floor")),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 for op in [
     torch.matmul,
@@ -336,7 +337,6 @@ for activation in [
     nn.Softplus(),
     UnaryPrimitive(torch.erf),
     nn.GELU(),
-    nn.GELU(approximate="tanh"),
     nn.SELU(),
     nn.SiLU(),
     nn.Hardtanh(-1.0, 10.0),
@@ -350,6 +350,15 @@ for activation in [
         activation,
         inference_conditions=skip_khronos_interpreter,
     )
+
+try:
+    test_suite.add(
+        torch.rand(1, 10, 100),
+        nn.GELU(approximate="tanh"),
+        inference_conditions=skip_khronos_interpreter,
+    )
+except TypeError:
+    print("test on gelu disabled (probably too old pytorch)")
 
 # Test composition is expanded correctly
 test_suite.add(
@@ -620,10 +629,11 @@ test_suite.add(
     UnaryPrimitive(TensorFnPrimitive("flatten")),
 )
 
-test_suite.add(
-    torch.arange(4).reshape(1, 1, 4),
-    UnaryPrimitive(TensorFnPrimitive("unflatten", args=(-1, (2, 2)))),
-)
+if torch_version() > "2.0.0":  # named tensor un-jitatble through unflatten
+    test_suite.add(
+        torch.arange(4).reshape(1, 1, 4),
+        UnaryPrimitive(TensorFnPrimitive("unflatten", args=(-1, (2, 2)))),
+    )
 
 test_suite.add(
     (torch.tensor(1), torch.tensor(6), torch.tensor(3)),
@@ -809,17 +819,18 @@ for axis in [0, 1, -1]:
         )
 
 
-class WrapNumel(nn.Module):
-    def forward(self, x):
-        return torch.tensor(x.numel())
+if torch_version() >= "1.13.0":
 
+    class WrapNumel(nn.Module):
+        def forward(self, x):
+            return torch.tensor(x.numel())
 
-inp = torch.arange(10).reshape(1, 2, 5)
-test_suite.add(
-    (inp,),
-    WrapNumel(),
-    inference_conditions=skip_khronos_interpreter,
-)
+    inp = torch.arange(10).reshape(1, 2, 5)
+    test_suite.add(
+        (inp,),
+        WrapNumel(),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 inp = torch.arange(10).reshape(1, 2, 5)
 test_suite.add(
@@ -975,11 +986,17 @@ test_suite.add(
     nn.AdaptiveMaxPool1d(32),
     inference_conditions=skip_khronos_interpreter,
 )
-test_suite.add(
-    torch.arange(10).float(),
-    UnaryPrimitive(partial(torch.var, correction=0)),
-    inference_conditions=skip_khronos_interpreter,
-)
+if torch_version() >= "1.13.0":
+    var_kwargs = {}
+    if torch_version() >= "2.0.0":
+        var_kwargs["correction"] = 0
+    else:
+        var_kwargs["unbiased"] = False
+    test_suite.add(
+        torch.arange(10).float(),
+        UnaryPrimitive(partial(torch.var, **var_kwargs)),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 if False:  # tract not support variable filter and bias yet
     conv_dim = 1

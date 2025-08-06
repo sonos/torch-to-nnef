@@ -61,13 +61,11 @@ class InferenceTarget:
         output_names: T.Optional[T.List[str]],
     ):
         """Get called just before PyTorch graph is traced (after auto wrapper)"""
-        pass
 
     def post_trace(
         self, nnef_graph: NGraph, active_custom_extensions: T.List[str]
     ):
         """Get called just after PyTorch graph is parsed"""
-        pass
 
     def post_export(
         self,
@@ -81,7 +79,6 @@ class InferenceTarget:
 
         This is typically where check_io is effectively applied.
         """
-        pass
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.version.to_str()}>"

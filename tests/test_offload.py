@@ -4,7 +4,12 @@ import tempfile
 import pytest
 import torch
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
+from tests.utils import (
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    check_model_io_test,
+    skipif_limited_offload_support,
+    skipif_unsupported_qtensor,
+)
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.tensor.offload import OffloadedTensor
 from torch_to_nnef.tensor.quant.qtract import (
@@ -12,6 +17,7 @@ from torch_to_nnef.tensor.quant.qtract import (
 )
 
 
+@skipif_limited_offload_support
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_offload_tensor_export_with_tract_and_conv2d(inference_target):
     with torch.no_grad():
@@ -50,6 +56,7 @@ INFERENCE_TARGET = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX[0])
 INFERENCE_TARGET.check_io_tolerance = TractCheckTolerance.VERY
 
 
+@skipif_unsupported_qtensor
 def test_offload_qtensor_export():
     with torch.no_grad():
         k = 3
@@ -89,6 +96,7 @@ def test_offload_qtensor_export():
             )
 
 
+@skipif_limited_offload_support
 def test_offload_change_dtype():
     with tempfile.TemporaryDirectory() as td:
         offloaded_value = OffloadedTensor.from_original_tensor(

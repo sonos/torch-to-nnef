@@ -12,10 +12,14 @@ from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 from transformers import AlbertModel, AlbertTokenizer
 
-from tests.shifted_window_attention_patch import (
-    ExportableShiftedWindowAttention,
-    ExportableSwinTransformerBlock,
-)
+try:
+    from tests.shifted_window_attention_patch import (
+        ExportableShiftedWindowAttention,
+        ExportableSwinTransformerBlock,
+    )
+except ImportError:
+    pass
+
 from torch_to_nnef.inference_target import TractNNEF
 
 from .utils import (  # noqa: E402
@@ -49,11 +53,14 @@ test_suite.add(
     vision_mdl.mnasnet1_0(pretrained=True, progress=False),
     test_name="mnasnet1_0",
 )
-test_suite.add(
-    torch.rand(1, 3, 256, 256),
-    vision_mdl.efficientnet_b0(pretrained=True, progress=False),
-    test_name="efficientnet_b0",
-)
+if hasattr(vision_mdl, "efficientnet_b0"):
+    test_suite.add(
+        torch.rand(1, 3, 256, 256),
+        vision_mdl.efficientnet_b0(pretrained=True, progress=False),
+        test_name="efficientnet_b0",
+    )
+else:
+    print("missing efficientnet_b0 in vision package")
 
 test_suite.add(
     torch.rand(1, 1, 100, 64),
@@ -131,11 +138,14 @@ test_suite.add(
 # ) # 1: eval() called on a Dummy op. This is a bug.
 
 # export pretrained work but multi_head might give different values
-test_suite.add(
-    torch.rand(1, 3, 224, 224),
-    vision_mdl.vit_b_16(pretrained=False),
-    test_name="vit_b_16",
-)
+if hasattr(vision_mdl, "vit_b_16"):
+    test_suite.add(
+        torch.rand(1, 3, 224, 224),
+        vision_mdl.vit_b_16(pretrained=False),
+        test_name="vit_b_16",
+    )
+else:
+    print("missing vit_b_16 in vision package")
 
 
 # swin_transformer {
@@ -163,9 +173,6 @@ if hasattr(vision_mdl, "swin_transformer"):
 
 
 # albert {
-
-tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
-inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 
 
 class ALBERTModel(torch.nn.Module):
@@ -199,13 +206,19 @@ def tract_upper_than_21_7_or_not_arm(inference_target):
     ) or "arm" not in platform.uname().machine.lower()
 
 
-test_suite.add(
-    tuple(inputs.values()),
-    ALBERTModel(),
-    test_name="albert",
-    inference_conditions=tract_upper_than_21_7_or_not_arm,
-    inference_modifier=inference_modifier_tract_tol_arm,
-)
+try:
+    tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
+    inputs = tokenizer("Hello, I am happy", return_tensors="pt")
+
+    test_suite.add(
+        tuple(inputs.values()),
+        ALBERTModel(),
+        test_name="albert",
+        inference_conditions=tract_upper_than_21_7_or_not_arm,
+        inference_modifier=inference_modifier_tract_tol_arm,
+    )
+except ImportError:
+    print("missing deps to test on albert model")
 
 
 @pytest.mark.parametrize(
