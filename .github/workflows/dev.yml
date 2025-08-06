@@ -29,8 +29,8 @@ jobs:
         uses: fabiocaccamo/create-matrix-action@v3
         with:
           matrix: |
-            python-version {3.9}, tox-env {"py39", "legacy_torch_1_10", "legacy_torch_1_13"}
-            python-version {3.13}, tox-env {"py313", "legacy_torch_2_2", "format_check", "static_check"}
+            python-version {3.9}, tox-env {"py39", "torch_1_10", "torch_1_13"}
+            python-version {3.13}, tox-env {"py313", "torch_2_2", "format_check", "static_check"}
 
     outputs:
       matrix: ${{ steps.create_matrix.outputs.matrix }}

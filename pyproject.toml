@@ -202,7 +202,7 @@ commands = [
         "torch_to_nnef",
     ],
 ]
-[tool.tox.env.legacy_torch_1_10]
+[tool.tox.env.torch_1_10]
 basepython = ["python3.9"]
 extras = ["test"]
 constrain_package_deps = true
@@ -232,7 +232,7 @@ commands = [
     ],
 ]
 
-[tool.tox.env.legacy_torch_1_13]
+[tool.tox.env.torch_1_13]
 basepython = ["python3.9"]
 extras = ["test"]
 constrain_package_deps = true
@@ -263,7 +263,7 @@ commands = [
 ]
 
 
-[tool.tox.env.legacy_torch_2_2]
+[tool.tox.env.torch_2_2]
 basepython = ["python3.13"]
 extras = ["test"]
 constrain_package_deps = true
