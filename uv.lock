@@ -3336,7 +3336,7 @@ requires-dist = [
     { name = "tokenizers", marker = "extra == 'test'", specifier = ">=0.13.3" },
     { name = "torch", specifier = ">=1.8.0,<3" },
     { name = "torchaudio", marker = "extra == 'test'", specifier = ">=0.9.0,<3" },
-    { name = "torchvision", marker = "extra == 'test'", specifier = ">=0.10.0,<0.22" },
+    { name = "torchvision", marker = "extra == 'test'", specifier = ">=0.10.0,<0.25" },
     { name = "transformers", marker = "extra == 'llm-tract'", specifier = ">=4.35.2,<5" },
     { name = "transformers", marker = "extra == 'test'", specifier = ">=4.35.2,<5" },
 ]

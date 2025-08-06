@@ -46,7 +46,7 @@ test = [
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
     "torchaudio>=0.9.0,<3",
-    "torchvision>=0.10.0,<0.22",
+    "torchvision>=0.10.0,<0.25",
     "transformers>=4.35.2,<5",
     "librosa",
     "coverage[toml]",
