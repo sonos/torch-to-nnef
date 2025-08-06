@@ -100,6 +100,7 @@ add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.Spectrogram(),
 )
+
 add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.MelSpectrogram(),
@@ -145,7 +146,6 @@ test_suite.add(
     ),
     inference_conditions=cond_tract_gt_0_21_14,
 )
-
 test_suite.add(
     torch.arange(12).float(),
     MySTFT(

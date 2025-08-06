@@ -150,14 +150,14 @@ def stft(
             hop_length_node,  # Optional[int] = None
             win_length_node,  # Optional[int] = None
             window_node,  # Optional[Tensor] = None
-            _,  # center_node
-            _,  # pad_node
             normalized_node,  # bool = False
             onesided_node,  # Optional[bool] = None
+            center_node,
+            pad_node,
             *_,  # return_complex_node Optional[bool] = None
         ) = node.inputs
-        # is_center = center_node.data
-        # pad_kind = pad_node.data
+        assert center_node.data is True
+        assert pad_node.data is None
     assert isinstance(n_fft_node.data, int)
     assert isinstance(hop_length_node.data, int)
     assert isinstance(win_length_node.data, int) or win_length_node.data is None
