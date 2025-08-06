@@ -166,7 +166,7 @@ follow_imports_for_stubs = true
 
 [tool.tox]
 isolated_build = true
-envlist = ["py39", "py312", "format", "lint", "build"]
+envlist = ["py39", "py313", "format", "lint", "build"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -207,9 +207,9 @@ basepython = ["python3.9"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
-    "torch==1.10.0",
-    "torchvision==0.10.1",
-    "torchaudio==0.10.0",
+    "torch==1.10.1",
+    "torchvision==0.11.2",
+    "torchaudio==0.10.1",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -237,9 +237,9 @@ basepython = ["python3.9"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
-    "torch==1.13.0",
-    "torchvision==0.13.1",
-    "torchaudio==0.13.0",
+    "torch==1.13.1",
+    "torchvision==0.14.1",
+    "torchaudio==0.13.1",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
@@ -263,14 +263,14 @@ commands = [
 ]
 
 
-[tool.tox.env.legacy_torch_2_1]
-basepython = ["python3.12"]
+[tool.tox.env.legacy_torch_2_2]
+basepython = ["python3.13"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
-    "torch==2.1.2",
-    "torchvision==0.16.2",
-    "torchaudio==2.1.2",
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "torchaudio==2.2.2",
     "numpy<2.0.0",
 ]
 passenv = ["*"]
