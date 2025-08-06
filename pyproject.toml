@@ -184,6 +184,8 @@ exclude_lines = [
 [tool.tox.env_run_base]
 extras = ["test", "peft"]
 passenv = ["*"]
+constrain_package_deps = true
+deps = ["torchvision==0.22.2"]
 commands = [
     [
         "pytest",
