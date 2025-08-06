@@ -69,7 +69,9 @@ class KhronosNNEF(InferenceTarget):
                     self._maybe_dump_debug_bundle(
                         debug_bundle_path, td, exported_filepath
                     )
-                    raise T2NErrorKhronosNNEFModuleLoad(exp)
+                    raise T2NErrorKhronosNNEFModuleLoad(
+                        "unable to instanciate NNEFModule"
+                    ) from exp
                 interpreter_outs = nnef_mod(*args)
                 reference_outs = model(*args)
                 if not isinstance(reference_outs, tuple):

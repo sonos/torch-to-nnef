@@ -99,4 +99,4 @@ def aten_to_nnef_tensor_and_ops(
         )
     except KeyError as exp:
         torch_graph.printall()
-        raise T2NErrorNotImplemented(exp)
+        raise T2NErrorNotImplemented(f"unregistered {aten_op_id}") from exp

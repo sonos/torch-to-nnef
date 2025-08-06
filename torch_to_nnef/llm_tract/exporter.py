@@ -277,7 +277,9 @@ class LLMExporter:
                     huggingface_hub.login()
                     exporter = _load_exporter_from(**exporter_from_kwargs)
                 else:
-                    raise T2NErrorRuntime(exp)
+                    raise T2NErrorRuntime(
+                        "OSError while loading model"
+                    ) from exp
         return exporter
 
     def check_wrapper_io(self):
@@ -871,7 +873,7 @@ def load_peft_model(local_dir, kwargs):
             msg = "Should have a `model_type` key in its config.json,"
             if msg in exp.args[0]:
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMissUse(exp)
+            raise T2NErrorMissUse(msg) from exp
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
@@ -879,7 +881,7 @@ def load_peft_model(local_dir, kwargs):
                 and "size mismatch for" in exp.args[0]
             ):
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMissUse(exp)
+            raise T2NErrorMissUse(msg) from exp
         except TypeError as exp:
             msg = "__init__() got an unexpected keyword argument '"
             if exp.args[0].startswith(msg):
@@ -894,7 +896,7 @@ def load_peft_model(local_dir, kwargs):
                 ) as fh:
                     json.dump(dic, fh, indent=2)
                 continue
-            raise T2NErrorMissUse(exp)
+            raise T2NErrorMissUse(msg) from exp
         return hf_model_causal
 
 
