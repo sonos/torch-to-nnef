@@ -3,6 +3,17 @@
 
 ## Unreleased
 
+## [0.19.1] - 2025-08-06
+
+### Added
+
+- CI/CD for torch version bellow 2.7: 2.2, 1.13 and 1.10
+- specific checks around dtype for qtensors tests generated assets
+
+### Fixes
+
+- make this package work again for torch version between 1.10 and 2.3.
+
 ## [0.19.0] - 2025-07-25
 
 ### Added
