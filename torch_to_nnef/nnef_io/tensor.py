@@ -15,15 +15,25 @@ from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE
 
 
 class DatBinHeader:
-    """Parse and Serialize .dat NNEF Binary header"""
+    """DatBinHeader
 
-    MAX_TENSOR_RANK = 8
+    Parse and serialize .dat NNEF binary header.
+
+    This class handles parsing and serializing the binary header for
+    NNEF tensor files.
+    """
+
+    MAX_TENSOR_RANK = 8  # Maximum supported tensor rank
 
     TRACT_ITEM_TYPE_VENDOR = struct.pack(
         "h", struct.unpack("B", b"T")[0] << 8 | struct.unpack("B", b"R")[0]
-    )  # hexa: 5254
+    )  # Vendor code for tract custom types (hex 5254)
 
     class TractCustomTypes(str, Enum):
+        """TractCustomTypes
+
+        Custom tract quantisation types used in NNEF headers.
+        """
         Q40 = "4030"
         Q40_LEGACY = "4020"
 
@@ -41,6 +51,21 @@ class DatBinHeader:
         bits_per_item: int = 32,
         magic: str = "4eef",
     ):
+        """DatBinHeader initialization.
+
+        Args:
+            data_size_bytes (int): Size of the data section in bytes.
+            rank (int): Rank of the tensor.
+            dims (List[int]): Dimensions of the tensor.
+            item_type (str): Hex string representing the item type.
+            item_type_vendor (bytes): Vendor specific code for the item type.
+            version_maj (int, optional): Major version number.
+            version_min (int, optional): Minor version number.
+            item_type_params_deprecated (Optional[List[int]], optional): Deprecated item type parameters.
+            padding (Optional[List[int]], optional): Padding values.
+            bits_per_item (int, optional): Bits per item.
+            magic (str, optional): Magic string for the header.
+        """
         assert isinstance(magic, str) and len(magic) == 4
         self.magic = magic
         assert isinstance(version_maj, int)
@@ -77,7 +102,15 @@ class DatBinHeader:
     def build_tract_qtensor(
         cls, item_type: TractCustomTypes, shape: T.Tuple[int]
     ) -> "DatBinHeader":
-        """Build binary header for tract custom types"""
+        """Build a binary header for tract custom types.
+
+        Args:
+            item_type (TractCustomTypes): Tract custom quantisation type.
+            shape (Tuple[int]): Shape of the tensor.
+
+        Returns:
+            DatBinHeader: Constructed header instance.
+        """
         vol = 1
         for s in shape:
             vol *= s
@@ -93,7 +126,11 @@ class DatBinHeader:
         )
 
     def to_bytes(self):
-        """Serialize Binary Header in bytes"""
+        """Serialize the binary header into bytes.
+
+        Returns:
+            bytes: Serialized header data.
+        """
         b_arr = bytearray(b"")
         # magic: [u8; 2],
         b_arr.extend(bytes.fromhex(self.magic))
@@ -134,6 +171,12 @@ class DatBinHeader:
 
     @property
     def torch_dtype_or_custom(self) -> T.Union[torch.dtype, "TractCustomTypes"]:
+        """Return the torch dtype or custom tract type based on the header.
+
+        This property interprets the ``item_type_vendor`` and ``item_type`` fields
+        to provide a convenient ``torch.dtype`` object for standard types or a
+        ``TractCustomTypes`` enum member for tract‑specific quantised formats.
+        """
         if self.item_type_vendor == self.TRACT_ITEM_TYPE_VENDOR:
             return self.TractCustomTypes(self.item_type)
         return NUMPY_TO_TORCH_DTYPE[
