@@ -172,7 +172,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
                     data=None,
                 )
             outputs.append(tensor_variable)
-        return [outputs[uidx] for uidx in used_outputs_order]
+        return [outputs[uidx] for uidx in used_outputs_order], outputs
 
     def _extract_inputs(self, provided_inputs, o_args):
         # pylint: disable-next=import-outside-toplevel
@@ -211,9 +211,11 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         if isinstance(results, torch.Tensor):
             results = (results,)
 
-        outputs = self._extract_outputs(torch_graph, provided_outputs, results)
+        ordered_outputs, outputs = self._extract_outputs(
+            torch_graph, provided_outputs, results
+        )
         torch_graph.inputs = inputs
-        torch_graph.outputs = outputs
+        torch_graph.outputs = ordered_outputs
         torch_graph.data_nodes = inputs + outputs
         torch_graph.op_nodes.append(
             tg.TorchOp(
