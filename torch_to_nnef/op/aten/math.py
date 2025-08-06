@@ -510,6 +510,8 @@ def var(node, op_helper, **kwargs):
             name=f"{node.outputs[0].name}_corr", data=cor_val
         )
         dnode = PythonConstant(name=f"{node.outputs[0].name}_dims", data=None)
+    else:
+        raise TorchToNNEFNotImplementedError(len(node.inputs))
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
     axes = dnode.data or list(range(input_tensor.rank))
     if cornode.data != 0:

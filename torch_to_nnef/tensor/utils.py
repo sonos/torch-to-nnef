@@ -10,8 +10,7 @@ def get_named_parameters(
 ) -> T.Iterator[T.Tuple[str, nn.Parameter]]:
     if torch_version() < "2.0.0":
         return mod.named_parameters()
-    else:
-        return mod.named_parameters(remove_duplicate=remove_duplicate)
+    return mod.named_parameters(remove_duplicate=remove_duplicate)
 
 
 def get_named_buffers(
@@ -21,5 +20,4 @@ def get_named_buffers(
 ]:  # legacy version of torch doesn't have Buffer
     if torch_version() < "2.0.0":
         return mod.named_buffers()
-    else:
-        return mod.named_buffers(remove_duplicate=remove_duplicate)
+    return mod.named_buffers(remove_duplicate=remove_duplicate)

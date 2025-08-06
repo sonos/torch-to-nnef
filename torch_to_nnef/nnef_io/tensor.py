@@ -206,9 +206,7 @@ class DatBinHeader:
 
         if rank > cls.MAX_TENSOR_RANK:
             raise ValueError(
-                "tensor rank exceeds maximum possible value of {}".format(
-                    cls.MAX_TENSOR_RANK
-                )
+                f"tensor rank exceeds maximum possible value of {cls.MAX_TENSOR_RANK}"
             )
 
         shape = _fromfile(file, dtype=np.uint32, count=cls.MAX_TENSOR_RANK)
