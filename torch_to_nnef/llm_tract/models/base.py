@@ -7,13 +7,14 @@ from functools import partial, wraps
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorImport
 from torch_to_nnef.utils import SemanticVersion
 
 try:
     import transformers
     from transformers import AutoModelForCausalLM, cache_utils
 except ImportError as exp:
-    raise ValueError(
+    raise T2NErrorImport(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
     ) from exp
 

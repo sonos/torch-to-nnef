@@ -10,7 +10,7 @@ import typing as T
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.utils import flatten_dict_tuple_or_list
 
 LOGGER = log.getLogger(__name__)
@@ -145,7 +145,7 @@ def _build_new_names_and_elements(
     for _, idxes, elm in flat_elms:
         root_idx, *rest_idxes = idxes
         if not isinstance(root_idx, int):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "'_build_new_names_and_elements' do only support iterable "
                 "as elements not dict like"
             )

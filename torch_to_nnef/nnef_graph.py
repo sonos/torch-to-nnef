@@ -9,11 +9,11 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import (
-    IOQuantityError,
-    IRError,
-    TorchNotFoundOp,
-    TorchToNNEFError,
-    TorchToNNEFNotImplementedError,
+    T2NError,
+    T2NErrorIoQuantity,
+    T2NErrorIR,
+    T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundOp,
 )
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.aten import aten_ops_registry, aten_to_nnef_tensor_and_ops
@@ -107,7 +107,7 @@ class TorchToNGraphExtractor:
                 inference_target=self._inference_target,
             )
 
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"NNEF Operation for {node} NOT implmented"
         )
 
@@ -140,7 +140,7 @@ class TorchToNGraphExtractor:
                             continue
                         explored_user_op_nodes.add(user_op_node)
                         forward_clean_values_for_dyn_axes(user_op_node)
-                except TorchNotFoundOp as exp:
+                except T2NErrorTorchNotFoundOp as exp:
                     if data_node_to_clean not in self._torch_ir_graph.outputs:
                         raise exp
 
@@ -186,7 +186,7 @@ class TorchToNGraphExtractor:
                     "unable to realise operators with outputs",
                     [out.name for op in operators_nodes for out in op.outputs],
                 )
-                raise IRError("DAG seems impossible to unfold")
+                raise T2NErrorIR("DAG seems impossible to unfold")
             operators_nodes = [
                 _ for _ in operators_nodes if _ not in done_nodes
             ]
@@ -220,7 +220,7 @@ class TorchToNGraphExtractor:
             assert len(self._forced_inputs_names) > 0
             if self._check_io_names_qte_match:
                 if len(self._forced_inputs_names) != len(self.g.inputs):
-                    raise IOQuantityError(
+                    raise T2NErrorIoQuantity(
                         f"miss-aligned quantity of `input_names`: {len(self._forced_inputs_names)}"
                         f" and quantity of inputs in NNEF graph: {len(self.g.inputs)}\n"
                         f"\t- with input_names: {self._forced_inputs_names}\n"
@@ -240,7 +240,7 @@ class TorchToNGraphExtractor:
             assert len(self._forced_outputs_names) > 0
             if self._check_io_names_qte_match:
                 if len(self._forced_outputs_names) != len(self.g.outputs):
-                    raise IOQuantityError(
+                    raise T2NErrorIoQuantity(
                         f"miss-aligned quantity of `output_names`: {len(self._forced_outputs_names)}"
                         f" and quantity of outputs in NNEF graph: {len(self.g.outputs)}\n"
                         f"\t- with output_names: {self._forced_inputs_names}\n"
@@ -251,7 +251,7 @@ class TorchToNGraphExtractor:
                 self.g.outputs, self._forced_outputs_names
             ):
                 if onode.name in self._forced_inputs_names:
-                    raise TorchToNNEFError(
+                    raise T2NError(
                         f"input tensor named: '{onode.name}' tryied to "
                         f"be replaced by output named: '{new_name}'."
                         "This is forbidden as it leads to nop for this tensor"

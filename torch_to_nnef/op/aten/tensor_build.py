@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.dtypes import NUMPY_DTYPE_TO_STR, SCALAR_TYPE_TO_PYTORCH_TYPE
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError, TractError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented, T2NErrorTract
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -41,13 +41,13 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
         # for now should never happen since dtype info is
         (start_node, end_node, step_node, dtype_node) = node.inputs
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
         )
 
     if dtype_node.data not in [6, None, 4]:  # accept float, int64
         # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"dtype {dtype_node} not implemented for arange"
         )
 
@@ -55,9 +55,9 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
         inference_target, TractNNEF
     ):
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(inference_target)
+            raise T2NErrorNotImplemented(inference_target)
         if inference_target.version < "0.20.0":
-            raise TractError(
+            raise T2NErrorTract(
                 "please update to latest tract to use 'tract_core_range'"
             )
 
@@ -87,7 +87,7 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
         )
         return ["tract_core"]
     if start_node.data is None or end_node.data is None:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Dynamic arange not handled in strict NNEF For now"
         )
 
@@ -482,10 +482,10 @@ def _post_graph_creation_remap(g, node, name_to_tensor, torch_graph, **kwargs):
 def _trilu(g, name_to_tensor, node, inference_target, is_upper: bool = True):
     (input_node, diag_node) = node.inputs
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError("trilu need `tract_core_trilu`")
+        raise T2NErrorNotImplemented("trilu need `tract_core_trilu`")
 
     if inference_target.version < "0.21.3":
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "triu need `tract_core_trilu` from tract >= 0.21.4 "
             "(prior nnef deserialization was failing)"
         )

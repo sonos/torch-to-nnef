@@ -2,7 +2,7 @@ import torch
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -130,7 +130,7 @@ def reduce_max(node, op_helper, **kwargs):
     """Operator mapping PyTorch: 'aten:reduce_max', 'aten:amax' to NNEF"""
     n_outputs = len(node.outputs)
     if n_outputs > 2:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"unknown 'max' variant with {n_outputs} outputs used"
         )
     _reducer("max_reduce", node, op_helper)
@@ -143,7 +143,7 @@ def reduce_min(node, op_helper, **kwargs):
     """Operator mapping PyTorch: 'aten:reduce_min', 'aten:amin' to NNEF"""
     n_outputs = len(node.outputs)
     if n_outputs > 2:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"unknown 'min' variant with {n_outputs} outputs used"
         )
     _reducer("min_reduce", node, op_helper)
@@ -172,6 +172,6 @@ def prod(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:prod' to NNEF"""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     _reducer("tract_core_product_reduce", node, op_helper)
     return ["tract_core"]

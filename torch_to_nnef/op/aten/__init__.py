@@ -5,6 +5,7 @@ import operator
 import typing as T
 from functools import reduce
 
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import InferenceTarget
 
 # pylint: disable-next=redefined-builtin
@@ -98,4 +99,4 @@ def aten_to_nnef_tensor_and_ops(
         )
     except KeyError as exp:
         torch_graph.printall()
-        raise exp
+        raise T2NErrorNotImplemented(f"unregistered {aten_op_id}") from exp

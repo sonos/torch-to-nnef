@@ -1,4 +1,4 @@
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -25,9 +25,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise TorchToNNEFNotImplementedError(
-                f"cat with input_item: {input_item}"
-            )
+            raise T2NErrorNotImplemented(f"cat with input_item: {input_item}")
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
@@ -57,9 +55,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise TorchToNNEFNotImplementedError(
-                f"stack with input_item: {input_item}"
-            )
+            raise T2NErrorNotImplemented(f"stack with input_item: {input_item}")
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
         )
@@ -87,7 +83,7 @@ def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"vstack with input_item: {input_item}"
             )
         tensor_ref = get_or_add_tensor_variable_in_nnef(
@@ -117,7 +113,7 @@ def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
             and input_item.data is None
         ):
             torch_graph.printall()
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"vstack with input_item: {input_item}"
             )
         tensor_ref = get_or_add_tensor_variable_in_nnef(
@@ -148,7 +144,7 @@ def roll(g, node, name_to_tensor, inference_target, **kwargs):
     if inference_target.has_dynamic_axes and not isinstance(
         inference_target, TractNNEF
     ):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     custom_fragments = []
     for i, _ in enumerate(shifts):
         tensor_chunks = []

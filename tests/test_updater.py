@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import InconsistentTensorError
+from torch_to_nnef.exceptions import T2NErrorInconsistentTensor
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 from tests.utils import skipif_unsupported_tensor_updater
 
@@ -106,21 +106,21 @@ def test_parameter_update_by_name_with_tied_modified_separatly_meta():
     assert id(model.last_lin_proj.weight) == id(model.embedding.weight)
 
     new_tensor = torch.arange(5 * 2).reshape(5, 2).float()
-    with pytest.raises(InconsistentTensorError):
+    with pytest.raises(T2NErrorInconsistentTensor):
         param_updaters.update_by_name(
             name="embedding.weight",
             new_tensor=new_tensor,
         )
 
     new_tensor = torch.arange(5 * 3).reshape(5, 3).half()
-    with pytest.raises(InconsistentTensorError):
+    with pytest.raises(T2NErrorInconsistentTensor):
         param_updaters.update_by_name(
             name="embedding.weight",
             new_tensor=new_tensor,
         )
 
     new_tensor = torch.arange(5 * 3).reshape(5, 3).float().to("meta")
-    with pytest.raises(InconsistentTensorError):
+    with pytest.raises(T2NErrorInconsistentTensor):
         param_updaters.update_by_name(
             name="embedding.weight",
             new_tensor=new_tensor,

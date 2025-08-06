@@ -14,7 +14,10 @@ from safetensors.torch import save_file
 from torch import nn
 
 from tests.utils import INFERENCE_TARGETS_TO_TESTS, skipif_unsupported_qtensor
-from torch_to_nnef.exceptions import TorchToNNEFInvalidArgument
+from torch_to_nnef.exceptions import (
+    T2NErrorInvalidArgument,
+    T2NErrorTestFailed,
+)
 from torch_to_nnef.export import (
     export_model_to_nnef,
     export_tensors_from_disk_to_nnef,
@@ -134,19 +137,19 @@ def test_export_no_name_collision():
 
 
 def test_export_inputs_name_collision():
-    with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
+    with pytest.raises(T2NErrorInvalidArgument) as e_info:
         _test_export_io_names(["a", "a"], ["c", "d"])
     assert "Each str in input_names" in str(e_info.value)
 
 
 def test_export_outputs_name_collision():
-    with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
+    with pytest.raises(T2NErrorInvalidArgument) as e_info:
         _test_export_io_names(["a", "b"], ["c", "c"])
     assert "Each str in output_names" in str(e_info.value)
 
 
 def test_export_io_name_collision():
-    with pytest.raises(TorchToNNEFInvalidArgument) as e_info:
+    with pytest.raises(T2NErrorInvalidArgument) as e_info:
         _test_export_io_names(["a", "b"], ["a", "c"])
     assert "input_names and output_names must be different" in str(e_info.value)
 
@@ -338,7 +341,9 @@ def test_export_tensors_to_nnef_from_disk():
     def fn_check_found_tensors(to_export):
         not_found = set(tensor_name_to_export).difference(to_export.keys())
         if len(not_found) > 0:
-            raise ValueError(f"missing keys in provided file: {not_found}")
+            raise T2NErrorTestFailed(
+                f"missing keys in provided file: {not_found}"
+            )
         return True
 
     def fn(td, samples):
@@ -360,7 +365,9 @@ def test_export_tensors_to_nnef_from_safetensors():
     def fn_check_found_tensors(to_export):
         not_found = set(tensor_name_to_export).difference(to_export.keys())
         if len(not_found) > 0:
-            raise ValueError(f"missing keys in provided file: {not_found}")
+            raise T2NErrorTestFailed(
+                f"missing keys in provided file: {not_found}"
+            )
         return True
 
     def fn(td, samples):

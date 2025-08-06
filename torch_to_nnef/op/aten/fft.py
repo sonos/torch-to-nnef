@@ -1,7 +1,7 @@
 import nnef
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -28,10 +28,10 @@ def _fft(
         not isinstance(inference_target, TractNNEF)
         or inference_target.version < "0.20.7"
     ):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     input_node, n_node, dim_node, norm_node = node.inputs
     if n_node.data is not None or norm_node.data is not None:
-        raise TorchToNNEFNotImplementedError("n or norm unexpected")
+        raise T2NErrorNotImplemented("n or norm unexpected")
 
     dim = pick_axis(input_node, dim_node.data)
 
@@ -63,7 +63,7 @@ def _fft(
         )
         casted_complex_input_tensor = output_nnef_tensor
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
     else:
         casted_complex_input_tensor = nnef_tensor
 
@@ -84,7 +84,7 @@ def _fft(
     )
     if inverse and norm_node.data == "backward":
         if inference_target.has_dynamic_axes:
-            raise TorchToNNEFNotImplementedError("Need to use implement")
+            raise T2NErrorNotImplemented("Need to use implement")
 
         divisor_value = input_node.shape[dim]
         divisor_tensor = get_or_add_tensor_variable_in_nnef(
@@ -129,7 +129,7 @@ def stft(
         not isinstance(inference_target, TractNNEF)
         or inference_target.version < "0.20.7"
     ):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     if torch_version() < "2.7.0":
         (
             input_node,  # Tensor
@@ -196,7 +196,7 @@ def stft(
         )
         casted_complex_input_tensor = output_nnef_tensor
     elif input_node.dtype not in [torch.complex64, torch.complex128]:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"complex type not supported: {input_node.dtype}"
         )
     else:

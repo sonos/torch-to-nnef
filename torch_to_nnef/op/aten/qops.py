@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -66,7 +66,7 @@ def dequantize(g, node, name_to_tensor, inference_target, **kwargs):
         g, input_node, name_to_tensor
     )
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     _, fragment_names = cast_to_if_not_dtype_and_variable(
         g,
         name_to_tensor,

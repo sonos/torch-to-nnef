@@ -908,7 +908,7 @@
 
 ### Change
 
-- `Exceptions` are now unified under TorchToNNEFError
+- `Exceptions` are now unified under T2NError
 
 ## [0.5.3] - 2022-09-08
 

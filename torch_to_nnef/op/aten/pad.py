@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
@@ -24,9 +24,7 @@ def pad(node, **kwargs):
     if kind.data == "replicate":
         node.inputs = node.inputs[:2]
         return replication_padnd(node=node, **kwargs)
-    raise TorchToNNEFNotImplementedError(
-        f"pad kind={kind.data} not implemented"
-    )
+    raise T2NErrorNotImplemented(f"pad kind={kind.data} not implemented")
 
 
 def _pad_format(pads, node):

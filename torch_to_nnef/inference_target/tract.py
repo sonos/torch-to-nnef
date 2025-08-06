@@ -37,12 +37,13 @@ from torch_to_nnef.collect_env import (
     python_version,
 )
 from torch_to_nnef.exceptions import (
-    DynamicShapeValue,
-    IOPytorchTractNotISOError,
-    OnnxExportError,
-    TorchToNNEFNotImplementedError,
-    TractError,
-    TractOnnxToNNEFError,
+    T2NErrorDynamicShapeValue,
+    T2NErrorIOPytorchTractNotISO,
+    T2NErrorNotImplemented,
+    T2NErrorOnnxExport,
+    T2NErrorTract,
+    T2NErrorTractDownload,
+    T2NErrorTractOnnxToNNEF,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.utils import SemanticVersion, cd, dedup_list, torch_version
@@ -166,7 +167,7 @@ class TractNNEF(InferenceTarget):
 
         if specific_tract_binary_path is None:
             if self.feature_flags:
-                raise TorchToNNEFNotImplementedError(
+                raise T2NErrorNotImplemented(
                     "feature_flags need specific_tract_binary_path provided"
                 )
             tract_cli = TractCli.download(self.version)
@@ -278,7 +279,7 @@ class TractNNEF(InferenceTarget):
             _output_names = set(output_names)
             _input_names = set(input_names)
             if len(_output_names.difference(_input_names)) == 0:
-                raise TractError(
+                raise T2NErrorTract(
                     "Tract does not support input passed as output without any transform: "
                     f"outputs={_output_names} inputs={_input_names}"
                 )
@@ -321,7 +322,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                 ], external_op.type
                 for axis, axis_name in named_dims.items():
                     if len(axis_name) != 1:
-                        raise DynamicShapeValue(
+                        raise T2NErrorDynamicShapeValue(
                             "axis_name in dynamic_axes must "
                             "be of length 1 to follow tract convention "
                             f"but was given '{axis_name}' "
@@ -329,7 +330,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                         )
                     shape = external_op.attribs["shape"]
                     if len(shape) - 1 < abs(axis):
-                        raise DynamicShapeValue(
+                        raise T2NErrorDynamicShapeValue(
                             f"axis of '{node_name}' in dynamic_axes "
                             f"must be within rank size: {len(shape)} but "
                             f"provided {axis}."
@@ -360,7 +361,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     "useless to set output dynamic axes "
                     "since not interpreted by inference engines"
                 )
-            raise DynamicShapeValue(
+            raise T2NErrorDynamicShapeValue(
                 f"Requested dynamic_axes on input named: '{node_name}', "
                 f"is not in graph inputs: {nnef_graph.inputs}"
             )
@@ -501,12 +502,12 @@ class TractCli:
                 if raise_exception:
                     if any(_ in serr for _ in ["RUST_BACKTRACE", "ERROR"]):
                         log_io_check_call_err(cmd_shell, serr)
-                        raise IOPytorchTractNotISOError(serr)
+                        raise T2NErrorIOPytorchTractNotISO(serr)
                     # NOTE: tract up to at least 0.20.7 stderr info and trace messages
                     # we filter those to check if any other messages remain
                     err_filtered = tract_err_filter(serr)
                     if len(err_filtered) > 0:
-                        raise TractError(cmd_shell, err_filtered)
+                        raise T2NErrorTract(cmd_shell, err_filtered)
                     return True
                 log_io_check_call_err(cmd_shell, serr)
                 return False
@@ -569,7 +570,8 @@ class TractBinaryDownloader:
                 return "x86_64-unknown-linux-musl"
             if machine in ["arm64", "aarch64"]:
                 return "aarch64-unknown-linux-musl"
-            raise NotImplementedError(
+
+            raise T2NErrorNotImplemented(
                 f"No binary prebuild for machine: {machine}"
             )
             # missing: tract-armv7-unknown-linux-musleabihf-0.20.5.tgz ?
@@ -579,13 +581,14 @@ class TractBinaryDownloader:
                 return "x86_64-apple-darwin"
             if machine in ["arm64", "aarch64"]:
                 return "aarch64-apple-darwin"
-            raise NotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"No binary prebuild for machine: {machine}"
             )
         if sys.platform == "win32":
             # Windows...
-            raise NotImplementedError("No binary prebuild for Windows OS")
-        raise NotImplementedError(f"No binary prebuild for {sys.platform}")
+            raise T2NErrorNotImplemented("No binary prebuild for Windows OS")
+
+        raise T2NErrorNotImplemented(f"No binary prebuild for {sys.platform}")
 
     @property
     def archive_name(self):
@@ -608,7 +611,7 @@ class TractBinaryDownloader:
             try:
                 urllib.request.urlretrieve(self.binary_url, archive_gz_path)
             except urllib.error.HTTPError as exc:
-                raise RuntimeError(
+                raise T2NErrorTractDownload(
                     f"Error downloading tract at URL {self.binary_url}"
                 ) from exc
             subprocess.check_output(["tar", "-xzf", str(archive_gz_path)])
@@ -632,7 +635,7 @@ def _unfold_outputs(test_outputs):
         elif isinstance(out, int):
             unfolded_outputs.append(torch.tensor(out))
         else:
-            raise NotImplementedError(type(out))
+            raise T2NErrorNotImplemented(type(out))
     return unfolded_outputs
 
 
@@ -702,7 +705,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
         # pylint: disable-next=broad-except
         except Exception as exp:
             if raise_export_error:
-                raise OnnxExportError(exp.args) from exp
+                raise T2NErrorOnnxExport(exp.args) from exp
             LOGGER.warning(f"ONNX export error: {exp}")
             return False, str(exp.args)
         try:
@@ -715,7 +718,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
         # pylint: disable-next=broad-except
         except Exception as exp:
             if raise_export_error:
-                raise TractOnnxToNNEFError(exp.args) from exp
+                raise T2NErrorTractOnnxToNNEF(exp.args) from exp
             error_msg = str(exp.args[-1])
             if isinstance(exp, subprocess.CalledProcessError):
                 error_msg = exp.output.decode("utf8")
@@ -786,38 +789,35 @@ def assert_io(
 
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        try:
-            if io_npz_path is None:
-                io_npz_path = Path(tmpdir) / "io.npz"
-                build_io(
-                    model,
-                    test_input,
-                    io_npz_path=io_npz_path,
-                    input_names=input_names,
-                    output_names=output_names,
-                )
-
-            del model
-            del test_input
-            gc.collect()
-
-            assert nnef_file_path.exists(), nnef_file_path
-            assert io_npz_path.exists()
-            LOGGER.info("Start checking IO is ISO between tract and PyTorch")
-            raise_exception = bool(
-                int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
+        if io_npz_path is None:
+            io_npz_path = Path(tmpdir) / "io.npz"
+            build_io(
+                model,
+                test_input,
+                io_npz_path=io_npz_path,
+                input_names=input_names,
+                output_names=output_names,
             )
-            if tract_cli.assert_io(
-                nnef_file_path,
-                io_npz_path,
-                raise_exception=raise_exception,
-                check_tolerance=check_tolerance,
-            ):
-                LOGGER.info(
-                    f"IO bit match between tract and PyTorch for {nnef_file_path}"
-                )
-        except (IOPytorchTractNotISOError, TractError) as exp:
-            raise exp
+
+        del model
+        del test_input
+        gc.collect()
+
+        assert nnef_file_path.exists(), nnef_file_path
+        assert io_npz_path.exists()
+        LOGGER.info("Start checking IO is ISO between tract and PyTorch")
+        raise_exception = bool(
+            int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
+        )
+        if tract_cli.assert_io(
+            nnef_file_path,
+            io_npz_path,
+            raise_exception=raise_exception,
+            check_tolerance=check_tolerance,
+        ):
+            LOGGER.info(
+                f"IO bit match between tract and PyTorch for {nnef_file_path}"
+            )
 
 
 def assert_io_and_debug_bundle(
@@ -859,7 +859,7 @@ def assert_io_and_debug_bundle(
             LOGGER.info(
                 f"IO bit match between tract and PyTorch for {nnef_file_path}"
             )
-        except (IOPytorchTractNotISOError, TractError) as exp:
+        except (T2NErrorIOPytorchTractNotISO, T2NErrorTract) as exp:
             if debug_bundle_path is None:
                 raise exp
             nnef_file_path = nnef_file_path.absolute()

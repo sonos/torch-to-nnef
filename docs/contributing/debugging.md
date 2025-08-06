@@ -11,7 +11,7 @@ things broke in the first place. There is a [`torch_to_nnef.log`](/reference/tor
 
 ## <span style="color:#6666aa">**:material-bug:**</span> Errors
 
-In `torch_to_nnef` we try to derive all possible errors from [`torch_to_nnef.exceptions.TorchToNNEFError`](/reference/torch_to_nnef/exceptions),
+In `torch_to_nnef` we try to derive all possible errors from [`torch_to_nnef.exceptions.T2NError`](/reference/torch_to_nnef/exceptions),
 so it should help to interpret why issue arise, but also control it on upper level control flow.
 
 ## <span style="color:#6666aa">**:material-graph:**</span> Graph Display

@@ -12,7 +12,7 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 from torch_to_nnef.op.helper import (
     OpHelper,
@@ -36,7 +36,7 @@ def torch_qtensor_to_ntensor(g, tensor, name):
         qscale = tensor.q_scale()
         qzerop = tensor.q_zero_point()
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"not suported quantization scheme {qscheme}"
         )
     n_bits = np_dtype().nbytes * 8
@@ -135,7 +135,7 @@ def _weight_bias(g, node, weight, bias, name_to_tensor, inference_target):
             qscale = weight.q_scale()
             qzerop = weight.q_zero_point()
         else:
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"not suported quantization scheme {qscheme}"
             )
 
@@ -417,7 +417,7 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 @OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
     """Operator mapping PyTorch: 'quantized:add_relu' to NNEF"""
-    raise TorchToNNEFNotImplementedError()
+    raise T2NErrorNotImplemented()
 
 
 def math_op_binary(

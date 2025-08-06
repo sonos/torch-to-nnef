@@ -2,7 +2,7 @@
 
 import torch
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.fragment import TMPL_FRAGMENTS
 from torch_to_nnef.op.helper import (
@@ -33,12 +33,12 @@ def scaled_dot_product_attention(
     ) = node.inputs
 
     if dropout_p_node.data != 0.0:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "scaled_dot_product_attention with > 0 dropout_p not implemented"
         )
 
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "Only support tract since: "
             " type casting is need, "
             " and getting shape of tensor is important too "

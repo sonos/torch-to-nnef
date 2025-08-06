@@ -7,12 +7,12 @@ import torch
 from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
-    NotFoundModuleExtractor,
-    TorchCheckError,
-    TorchNotFoundOp,
-    TorchOpTranslatedDifferently,
-    TorchToNNEFError,
-    TorchToNNEFNotImplementedError,
+    T2NError,
+    T2NErrorNotFoundModuleExtractor,
+    T2NErrorNotImplemented,
+    T2NErrorTorchCheck,
+    T2NErrorTorchNotFoundOp,
+    T2NErrorTorchOpTranslatedDifferently,
 )
 from torch_to_nnef.op.custom_extractors import ModuleInfoExtractor
 from torch_to_nnef.torch_graph.ir_data import (
@@ -140,13 +140,13 @@ class TorchModuleIRGraph:
         """`inputs` or `outputs` reference items must exists in `data_nodes`"""
         for inode in self.inputs:
             if not self.data_nodes.contains(inode, strict=True):
-                raise TorchCheckError(
+                raise T2NErrorTorchCheck(
                     f"not referenced correctly input: {inode}"
                 )
 
         for onode in self.outputs:
             if not self.data_nodes.contains(onode, strict=True):
-                raise TorchCheckError(
+                raise T2NErrorTorchCheck(
                     f"not referenced correctly output: {onode}"
                 )
 
@@ -216,7 +216,7 @@ class TorchModuleIRGraph:
                         if dtype_is_whole_number(arg.dtype):
                             tv._traced_data = arg
                     else:
-                        raise TorchToNNEFNotImplementedError(type(arg))
+                        raise T2NErrorNotImplemented(type(arg))
                 else:
                     tv.shape = original_input.shape
                     tv.dtype = original_input.dtype
@@ -270,7 +270,7 @@ class TorchModuleIRGraph:
                             traced_module=self._tracer.traced_module,
                         )
                         self.op_nodes.append(op)
-                    except TorchOpTranslatedDifferently as exp:
+                    except T2NErrorTorchOpTranslatedDifferently as exp:
                         maybe_gather_remap(exp.args)
 
             else:
@@ -283,7 +283,7 @@ class TorchModuleIRGraph:
                         traced_module=self._tracer.traced_module,
                     )
                     self.op_nodes.append(op)
-                except TorchOpTranslatedDifferently as exp:
+                except T2NErrorTorchOpTranslatedDifferently as exp:
                     maybe_gather_remap(exp.args)
 
         # remap if needed
@@ -306,7 +306,7 @@ class TorchModuleIRGraph:
                 provided_outputs
             )
             if len(outputs) != len(original_outputs):
-                raise TorchCheckError(
+                raise T2NErrorTorchCheck(
                     f"{len(outputs)} == {len(original_outputs)}"
                 )
             for original_output, output in zip(original_outputs, outputs):
@@ -318,7 +318,7 @@ class TorchModuleIRGraph:
                     output.dtype = original_output.dtype
                     output.quant = original_output.quant
                 else:
-                    raise TorchToNNEFNotImplementedError(
+                    raise T2NErrorNotImplemented(
                         f"output={output}\ncompared to:\n"
                         f"original_output={original_output}"
                     )
@@ -394,7 +394,7 @@ class TorchModuleIRGraph:
             if start_len == end_len:
                 msg = f"missing unshaped_data: {unshaped_data}"
                 if raise_error:
-                    raise TorchToNNEFNotImplementedError(msg)
+                    raise T2NErrorNotImplemented(msg)
                 LOGGER.debug(msg)
                 break
 
@@ -498,7 +498,7 @@ class TorchModuleIRGraph:
                 if set(self.tracer.torch_graph.outputs()) == set(
                     op.op_ref.torch_graph.outputs()
                 ):
-                    raise TorchToNNEFError(
+                    raise T2NError(
                         "Bug: Recursive call detected ! "
                         f"Trying to parse same Pytorch IR sub-module twice: {op}"
                     )
@@ -639,7 +639,7 @@ class TorchModuleIRGraph:
                 self, provided_inputs, provided_outputs
             )
             return self
-        except NotFoundModuleExtractor:
+        except T2NErrorNotFoundModuleExtractor:
             pass
         self._parse_inputs(provided_inputs)
         self._parse_core()
@@ -674,7 +674,9 @@ class TorchModuleIRGraph:
             if forced_outputs_names:
                 self.data_nodes.protect_item_names(forced_outputs_names)
         elif forced_inputs_names or forced_outputs_names:
-            raise NotImplementedError("forced names are only for root module")
+            raise T2NErrorNotImplemented(
+                "forced names are only for root module"
+            )
 
         if nnef_variable_naming_scheme:
             apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
@@ -693,7 +695,7 @@ class TorchModuleIRGraph:
             for op_out_dnode in _expand_node_containers_if_exists(op.outputs):
                 if op_out_dnode is data_node:
                     return op
-        raise TorchNotFoundOp("Did not find operation node")
+        raise T2NErrorTorchNotFoundOp("Did not find operation node")
 
     def printall(self):
         """Display Helper Graph infos in stdout of your tty"""

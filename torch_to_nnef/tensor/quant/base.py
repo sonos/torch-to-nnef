@@ -7,7 +7,10 @@ import torch
 from torch._tensor import _convert
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import (
+    T2NErrorImpossibleQuantization,
+    T2NErrorNotImplemented,
+)
 from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
@@ -17,14 +20,14 @@ LOGGER = logging.getLogger(__name__)
 class QScheme(abc.ABC):
     @abc.abstractmethod
     def quantize_as_torch(self, fp_tensor):
-        raise NotImplementedError()
+        raise T2NErrorNotImplemented()
 
     def quantize_as_u8(self, fp_tensor):
-        raise NotImplementedError()
+        raise T2NErrorNotImplemented()
 
     @abc.abstractmethod
     def dequantize(self, u8_tensor, target_dtype):
-        raise NotImplementedError()
+        raise T2NErrorNotImplemented()
 
     def to_device(self, new_device):
         """specific device handling.
@@ -60,9 +63,7 @@ class QScalePerGroupF16(QScheme):
         self.n_bits = n_bits  # needed for bit-shift before packing
 
     def quantize_as_torch(self, fp_tensor):
-        raise TorchToNNEFNotImplementedError(
-            "native torch does not suport per chunk"
-        )
+        raise T2NErrorNotImplemented("native torch does not suport per chunk")
 
     @staticmethod
     def reshape_tensor_per_group(fp_tensor, group_size: int):
@@ -212,7 +213,7 @@ class QTensor(OpaqueTensor):
         **kwargs,
     ):
         if QTENSOR_UNSUPPORTED:
-            raise TorchToNNEFNotImplementedError(QTENSOR_UNSUPPORTED_MSG)
+            raise T2NErrorNotImplemented(QTENSOR_UNSUPPORTED_MSG)
         return super().__new__(cls, fp_tensor, *args, **kwargs)
 
     def __init__(
@@ -284,7 +285,7 @@ class QTensor(OpaqueTensor):
                     # other args
                     continue
                 else:
-                    raise TorchToNNEFNotImplementedError(arg)
+                    raise T2NErrorNotImplemented(arg)
 
         if self.dtype == new_dtype:
             new_dtype = None
@@ -369,9 +370,7 @@ class QTensor(OpaqueTensor):
         """Only support device change"""
         if isinstance(new_data, self.__class__) and torch.all(self == new_data):
             return
-        raise TorchToNNEFNotImplementedError(
-            f"Trying to alter a QTensor.data: {self}"
-        )
+        raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")
 
     def write_in_file(self, dirpath: T.Union[str, Path], label: str):
         """Called at NNEF write time.
@@ -380,7 +379,7 @@ class QTensor(OpaqueTensor):
         the file dump prefered.
 
         """
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
 
 def qscale_per_group_f16_min_max_calibration(
@@ -402,7 +401,7 @@ def qscale_per_group_f16_min_max_calibration(
     for fp_dim in fp_tensor.shape:
         volume *= fp_dim
     if volume % group_size != 0:
-        raise ValueError(
+        raise T2NErrorImpossibleQuantization(
             f"tensor provided volume: {volume} but group size are {group_size} "
             "incomplete groups aren't supported."
         )

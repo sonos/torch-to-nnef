@@ -11,7 +11,10 @@ from nnef_tools.interpreter.pytorch import NNEFModule
 from nnef_tools.model import Graph as NGraph
 from torch import nn
 
-from torch_to_nnef.exceptions import KhronosInterpreterDiffValueError
+from torch_to_nnef.exceptions import (
+    T2NErrorKhronosInterpreterDiffValue,
+    T2NErrorKhronosNNEFModuleLoad,
+)
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.utils import SemanticVersion, cd
 
@@ -66,7 +69,9 @@ class KhronosNNEF(InferenceTarget):
                     self._maybe_dump_debug_bundle(
                         debug_bundle_path, td, exported_filepath
                     )
-                    raise exp
+                    raise T2NErrorKhronosNNEFModuleLoad(
+                        "unable to instanciate NNEFModule"
+                    ) from exp
                 interpreter_outs = nnef_mod(*args)
                 reference_outs = model(*args)
                 if not isinstance(reference_outs, tuple):
@@ -78,7 +83,7 @@ class KhronosNNEF(InferenceTarget):
                         self._maybe_dump_debug_bundle(
                             debug_bundle_path, td, exported_filepath
                         )
-                        raise KhronosInterpreterDiffValueError(
+                        raise T2NErrorKhronosInterpreterDiffValue(
                             f"outputs[{idx}] is different expected:{ref} "
                             f"but got: {obs}"
                         )

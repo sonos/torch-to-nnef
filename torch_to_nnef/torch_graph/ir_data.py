@@ -20,10 +20,11 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
-    TorchNotFoundDataNode,
-    TorchToNNEFError,
-    TorchToNNEFNotImplementedError,
-    TorchUnableToTraceData,
+    T2NError,
+    T2NErrorConsistency,
+    T2NErrorNotImplemented,
+    T2NErrorTorchNotFoundDataNode,
+    T2NErrorTorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_SCALARIMPLICIT,
@@ -81,7 +82,7 @@ class Data(NamedItem):
 
     @property
     def is_constant(self):
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     def __hash__(self):
         return hash(self.name)
@@ -166,13 +167,13 @@ class TensorVariable(Data):
 
         """
         if not self.tracable:
-            raise TorchUnableToTraceData(self)
+            raise T2NErrorTorchUnableToTraceData(self)
 
         if self.data is not None:
             return self.data
         if self._traced_data is None:
             if dtype_is_whole_number(self.dtype):
-                raise ValueError(f"whole number need {self}")
+                raise T2NErrorConsistency(f"whole number need {self}")
         else:
             return self._traced_data
 
@@ -202,7 +203,7 @@ class TensorVariable(Data):
                 if parent_node.kind() == ATEN_SCALARIMPLICIT:
                     node_type = parent_node.input().type()
                 else:
-                    raise NotImplementedError()
+                    raise T2NErrorNotImplemented()
             stype = node_type.scalarType()
             dtype = str_to_torch_dtype(stype) if stype else None
         return cls(
@@ -252,7 +253,7 @@ class PythonConstant(Data):
 
     @property
     def np_dtype(self) -> np.dtype:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     @property
     def tracable(self) -> bool:
@@ -272,9 +273,7 @@ class PythonConstant(Data):
         data = self.data
         if not isinstance(data, torch.Tensor):
             if self.data == "none":
-                raise TorchToNNEFError(
-                    "'None' can not be transformed TensorVariable"
-                )
+                raise T2NError("'None' can not be transformed TensorVariable")
             data = torch.tensor(self.data)
         return TensorVariable(
             name=self.name, data=data, shape=list(data.shape), dtype=data.dtype
@@ -291,7 +290,7 @@ class BlobTorchScriptObject(Data):
 
     @property
     def np_dtype(self) -> np.dtype:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
 
     @property
     def tracing_data(self):
@@ -347,7 +346,7 @@ class TupleTensors(Data):
                 stype = "int"
                 shape = [1]
             else:
-                raise TorchToNNEFNotImplementedError(elm.kind())
+                raise T2NErrorNotImplemented(elm.kind())
             dtype = str_to_torch_dtype(stype) if stype else None
             elm_data = TensorVariable(
                 name=f"{name}_{idx}",
@@ -446,14 +445,14 @@ class DictTensors(Data):
                 ):
                     key = c_val.node()["value"]
                 else:
-                    raise TorchToNNEFNotImplementedError()
+                    raise T2NErrorNotImplemented()
             else:
                 assert key is not None
                 try:
                     elm_data = data_nodes.get_by_name(
                         cleanup_data_name(c_val.debugName())
                     )
-                except TorchNotFoundDataNode:
+                except T2NErrorTorchNotFoundDataNode:
                     ctype = c_val.type()
                     stype = ctype.scalarType()
                     dtype = str_to_torch_dtype(stype) if stype else None

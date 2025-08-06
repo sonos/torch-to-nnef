@@ -38,6 +38,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
+from torch_to_nnef.exceptions import T2NErrorMissUse
 from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
@@ -447,12 +448,12 @@ def load_state_dict(
         metadata = {"format": "pt"}
 
     if metadata.get("format") not in ["pt", "tf", "flax"]:
-        raise OSError(
+        raise T2NErrorMissUse(
             f"The safetensors archive passed at {checkpoint_file} does not contain the valid metadata. Make sure "
             "you save your model with the `save_pretrained` method."
         )
     if metadata["format"] != "pt":
-        raise ValueError(
+        raise T2NErrorMissUse(
             f"The checkpoint passed was saved with {metadata['format']}, we need a the pt format."
         )
     if device_map is None:
@@ -572,16 +573,16 @@ def t2n_load_checkpoint_and_dispatch(
                 if f.name.endswith(".index.json")
             ]
             if len(potential_index) == 0:
-                raise ValueError(
+                raise T2NErrorMissUse(
                     f"{checkpoint} is not a folder containing a `.index.json` file or a {WEIGHTS_NAME} or a {SAFE_WEIGHTS_NAME} file"
                 )
             if len(potential_index) != 1:
-                raise ValueError(
+                raise T2NErrorMissUse(
                     f"{checkpoint} containing more than one `.index.json` file, delete the irrelevant ones."
                 )
             index_filename = checkpoint / potential_index[0]
     else:
-        raise ValueError(
+        raise T2NErrorMissUse(
             "`checkpoint` should be the path to a file containing a whole state dict, or the index of a sharded "
             f"checkpoint, or a folder containing a sharded checkpoint or the whole state dict, but got {checkpoint}."
         )
@@ -624,7 +625,7 @@ def t2n_load_checkpoint_and_dispatch(
                 while len(module_name) > 0 and module_name not in device_map:
                     module_name = ".".join(module_name.split(".")[:-1])
                 if module_name == "" and "" not in device_map:
-                    raise ValueError(
+                    raise T2NErrorMissUse(
                         f"{param_name} doesn't have any device set."
                     )
                 param_device = device_map[module_name]
@@ -681,7 +682,7 @@ def set_module_tensor_to_device(
         for split in splits[:-1]:
             new_module = getattr(module, split)
             if new_module is None:
-                raise ValueError(f"{module} has no attribute {split}.")
+                raise T2NErrorMissUse(f"{module} has no attribute {split}.")
             module = new_module
         tensor_name = splits[-1]
 
@@ -689,7 +690,7 @@ def set_module_tensor_to_device(
         tensor_name not in module._parameters
         and tensor_name not in module._buffers
     ):
-        raise ValueError(
+        raise T2NErrorMissUse(
             f"{module} does not have a parameter or a buffer named {tensor_name}."
         )
     old_value = getattr(module, tensor_name)
@@ -702,11 +703,11 @@ def set_module_tensor_to_device(
     param_cls = type(param)
 
     if value is None:
-        raise ValueError("Missing value")
+        raise T2NErrorMissUse("Missing value")
     # We can expect mismatches when using bnb 4bit since Params4bit will reshape and pack the weights.
     # In other cases, we want to make sure we're not loading checkpoints that do not match the config.
     if old_value.shape != value.shape and param_cls.__name__ != "Params4bit":
-        raise ValueError(
+        raise T2NErrorMissUse(
             f'Trying to set a tensor of shape {value.shape} in "{tensor_name}" '
             f"(which has shape {old_value.shape}), this looks incorrect."
         )

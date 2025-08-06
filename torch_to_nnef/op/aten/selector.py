@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, TORCH_TO_NUMPY_DTYPE
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -94,7 +94,7 @@ def slice_(
 
     if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(inference_target)
+            raise T2NErrorNotImplemented(inference_target)
         # Cases with TractNNEF.version < 0.21.7 are handled upper
         attrs = {
             "axis": pick_axis(input_node, dim),
@@ -370,7 +370,7 @@ def gather(node, op_helper, inference_target, **kwargs):
             (isinstance(idx, PythonConstant) and idx.data is None)
             for idx in indexes_node.data[:-1]
         ):
-            raise TorchToNNEFNotImplementedError(
+            raise T2NErrorNotImplemented(
                 "index dim>1 implemented only with all prior dim slice being [:]"
             )
 
@@ -379,7 +379,7 @@ def gather(node, op_helper, inference_target, **kwargs):
         op_name = "tract_core_gather_elements"
         custom_fragments += ["tract_core"]
     else:
-        raise TorchToNNEFNotImplementedError()
+        raise T2NErrorNotImplemented()
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         op_name,
@@ -567,7 +567,7 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
         true_value_node.data = true_value_node.data.to(false_value_node.dtype)
     if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
-            raise TorchToNNEFNotImplementedError(inference_target)
+            raise T2NErrorNotImplemented(inference_target)
         # repeats on non const not working in tract<=0.21.3
         # so while correct graph notation, tract will fail
         out = op_helper.add_single_output_op_from_nnef_tensors(
@@ -777,7 +777,7 @@ def topk(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node.data, int), dim_node
     assert isinstance(k_node.data, int), k_node
     if not sorted_node.data:
-        raise TorchToNNEFNotImplementedError("non sorted topk not implemented")
+        raise T2NErrorNotImplemented("non sorted topk not implemented")
     dim = pick_axis(input_node, dim_node.data)
 
     output_tensors = [
@@ -804,7 +804,7 @@ def index_select(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:index_select' to NNEF"""
     input_node, dim_node, indexes_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
     attrs = {
         "axis": dim_node.data,
     }
@@ -830,7 +830,7 @@ def scatter(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:scatter' to NNEF"""
     input_node, dim_node, indexes_node, src_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(inference_target)
+        raise T2NErrorNotImplemented(inference_target)
 
     # is a select with indexes
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -856,7 +856,7 @@ def scatter(node, op_helper, inference_target, **kwargs):
 @OP_REGISTRY.register()
 def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:_pack_padded_sequence' to NNEF"""
-    raise TorchToNNEFNotImplementedError(
+    raise T2NErrorNotImplemented(
         "support for .pack_padded_sequence not added in tract yet"
     )
     # input_node, lengths_node, batch_first_node = node.inputs[:3]

@@ -3,7 +3,7 @@ import typing as T
 import torch
 
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, TORCH_DTYPE_TO_TRACT_STR
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
@@ -23,7 +23,7 @@ def _get_padding_same_symetric(
 ) -> T.Tuple[int, int]:
     """This function computes the number of elements to add for zero-padding."""
     if stride > 1:
-        raise TorchToNNEFNotImplementedError("stride > 1 not implemented")
+        raise T2NErrorNotImplemented("stride > 1 not implemented")
     offset = -dilation * (kernel_size - 1) - 1 + 1
     L_out = L_in + offset
     qte_pad = L_in - L_out
@@ -83,7 +83,7 @@ def _convolution_mode(
                 )
             )
     else:
-        raise TorchToNNEFNotImplementedError(padding)
+        raise T2NErrorNotImplemented(padding)
 
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
@@ -237,13 +237,13 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
             if input_node.rank == 3:
                 expr = "bij,kj->bik"
                 if weight_node.rank != 2:
-                    raise TorchToNNEFNotImplementedError(weight_node.rank)
+                    raise T2NErrorNotImplemented(weight_node.rank)
             elif input_node.rank == 4:
                 expr = "bcij,ckj->bcik"
                 if weight_node.rank != 3:
-                    raise TorchToNNEFNotImplementedError(weight_node.rank)
+                    raise T2NErrorNotImplemented(weight_node.rank)
             else:
-                raise TorchToNNEFNotImplementedError(node.inputs[0].rank)
+                raise T2NErrorNotImplemented(node.inputs[0].rank)
 
             intermediate_output = add_single_output_op(
                 g,
@@ -322,7 +322,7 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 def einsum(g, node, name_to_tensor, inference_target, **kwargs):
     """Operator mapping PyTorch: 'aten:einsum' to NNEF"""
     if not isinstance(inference_target, TractNNEF):
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             "einsum operator is not supported by `NNEF` and "
             "breaking it down to primitive ops would be a siginficant work"
         )
@@ -382,7 +382,7 @@ def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
         if isinstance(alpha_node, PythonConstant):
             ab_node.data = float(ab_node.data)
         else:
-            raise TorchToNNEFNotImplementedError()
+            raise T2NErrorNotImplemented()
     inputs = [
         get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
         for _ in [input_node, batch1_node, batch2_node]

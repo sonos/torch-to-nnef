@@ -12,6 +12,7 @@ import torch
 from torch import nn
 import pytest
 
+from torch_to_nnef.exceptions import T2NErrorTestFailed
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
@@ -66,7 +67,7 @@ def check_tensor_in_nnef_archive(
                             found_labels.add(lab)
         remaining_labels = set(labels).difference(found_labels)
         if remaining_labels:
-            raise ValueError(
+            raise T2NErrorTestFailed(
                 f"Some tensor where not found in exported NNEF archive: {remaining_labels}"
             )
         if isinstance(labels, dict):
@@ -79,7 +80,7 @@ def check_tensor_in_nnef_archive(
                     )
                     bin_header = DatBinHeader.from_dat(dat_filename)
                     if bin_header.torch_dtype_or_custom != expected_dtype:
-                        raise ValueError(
+                        raise T2NErrorTestFailed(
                             "wrong dtype in NNEF archive "
                             f"{label_name}: {bin_header.torch_dtype_or_custom} but expected {expected_dtype}"
                         )

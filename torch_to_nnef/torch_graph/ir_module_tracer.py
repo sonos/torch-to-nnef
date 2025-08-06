@@ -1,8 +1,7 @@
-"""Google‑style module documentation for :mod:`torch_to_nnef.torch_graph.ir_module_tracer`.
-
-The module implements a :class:`TorchModuleTracer` class that traces a
+"""module implements a :class:`TorchModuleTracer` class that traces a
 ``torch.nn.Module`` with ``torch.jit.trace`` and exposes the resulting graph.
-The helper functions inside (e.g. ``_is_io_quantized_module`` and
+
+with few related helper functions (e.g. ``_is_io_quantized_module`` and
 ``maybe_quantize_args_tensor``) provide small utilities used during tracing.
 """
 
@@ -12,11 +11,21 @@ import torch
 from torch import jit, nn
 
 from torch_to_nnef.dtypes import is_quantized_dtype
-from torch_to_nnef.exceptions import TorchJitTraceFailed
+from torch_to_nnef.exceptions import T2NErrorTorchJitTraceFailed
 from torch_to_nnef.utils import cache, torch_version
 
 
 def _is_io_quantized_module(module):
+    """Return ``True`` if *module* is a quantized module used in I/O.
+
+    Args:
+        module: a ``torch.nn.Module`` or ``torch.nn.Sequential``.
+
+    The function first unwraps ``nn.Sequential`` by using its first child
+    if exists, then checks the type name for the
+    presence of quantization namespaces while excluding the ``Quantize``
+    activation node itself.
+    """
     if isinstance(module, nn.Sequential):
         module = module[0]
     return not isinstance(module, torch.nn.quantized.Quantize) and any(
@@ -29,6 +38,25 @@ def _is_io_quantized_module(module):
 
 
 def maybe_quantize_args_tensor(module, args):
+    """Quantize tensors in *args* if *module* expects quantized input.
+
+    The function walks the *args* tuple, and for each tensor that is not
+    already quantized, it creates a fake quantized representation using
+    ``torch.quantize_per_tensor`` with a dummy scale/zero point.  The
+    quantized tensor is not representative of real data; it is solely
+    used to keep the tracing machinery happy when the module expects
+    quantized inputs.
+
+    Args:
+        module: A ``torch.nn.Module`` instance.
+        args: A tuple of inputs supplied to the module.  ``None`` is
+            accepted for modules that do not require any positional
+            arguments.
+
+    Returns:
+        A potentially modified tuple where tensors are quantized when
+        necessary.
+    """
     if _is_io_quantized_module(module) and args is not None:
         args = [
             # force cast in quantized form
@@ -57,11 +85,20 @@ class TorchModuleTracer:
     def __init__(
         self,
         module: nn.Module,
-        traced_module: torch.jit.TracedModule = None,
+        traced_module: T.Optional[torch.jit.TracedModule] = None,
         fn_name: str = "forward",
         # likely mostly torch tensors
         args: T.Optional[T.Tuple[T.Any, ...]] = None,
     ):
+        """Create a tracer for *module*.
+
+        The tracer stores the original module, an optional pre‑traced
+        ``torch.jit.TracedModule`` (which allows re‑use of a previously
+        computed trace), the name of the forward method to trace, and the
+        arguments used for tracing.  The arguments are post‑processed by
+        :func:`maybe_quantize_args_tensor` to ensure compatibility with
+        quantized modules.
+        """
         self.mod = module
         self._traced_module = traced_module
         self.fn_name = fn_name
@@ -69,6 +106,14 @@ class TorchModuleTracer:
 
     @property
     def traced_module(self):
+        """Return the traced module, computing it lazily if required.
+
+        If ``self._traced_module`` is ``None`` the method will perform a
+        ``jit.trace`` on ``self.mod`` with ``self.args`` while handling
+        possible PyTorch version nuances.  Any ``RuntimeError`` raised by
+        ``torch.jit.trace`` is wrapped into a
+        :class:`~torch_to_nnef.exceptions.T2NErrorTorchJitTraceFailed` exception.
+        """
         if self._traced_module is None:
             try:
                 self._traced_module = jit.trace(
@@ -79,7 +124,7 @@ class TorchModuleTracer:
                     strict=False,
                 )
             except RuntimeError as exp:
-                raise TorchJitTraceFailed(
+                raise T2NErrorTorchJitTraceFailed(
                     "Unable to trace with jit one of following submodule:"
                     f"{[(k, v.__class__) for k, v in self.mod.named_children()]} "
                     f"with original error:\n\n'{exp}'\n\n"
@@ -92,12 +137,25 @@ class TorchModuleTracer:
     @property  # type: ignore
     @cache
     def torch_graph(self):
+        """Return the underlying PyTorch graph object.
+
+        The actual ``torch.Graph`` is retrieved from the traced module.
+        When a different forward method is requested (``fn_name`` differs
+        from "forward"), the corresponding sub‑graph is returned instead.
+        """
         trace = self.traced_module
         if self.fn_name and self.fn_name != "forward":
             trace = getattr(trace, self.fn_name)
         return trace.graph
 
     def __call__(self, *args, **kwargs):
+        """Invoke the traced forward method.
+
+        The call path mirrors the internal logic of ``torch.jit``.
+        ``RecursiveScriptModule`` exposes its ``forward`` through a public
+        attribute, whereas plain ``TracedModule`` stores the actual
+        implementation in ``_actual_script_module``.
+        """
         # _actual_script_module is an implementation details
         # from torch/jit/_trace.py:l1076 in TracedModule
         if self.fn_name == "forward" and not isinstance(

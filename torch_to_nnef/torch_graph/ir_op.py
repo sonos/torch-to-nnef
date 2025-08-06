@@ -21,10 +21,11 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
-    TorchCheckError,
-    TorchOpTranslatedDifferently,
-    TorchToNNEFNotImplementedError,
-    TorchUnableToTraceData,
+    T2NErrorNotImplemented,
+    T2NErrorRuntime,
+    T2NErrorTorchCheck,
+    T2NErrorTorchOpTranslatedDifferently,
+    T2NErrorTorchUnableToTraceData,
 )
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
@@ -325,7 +326,7 @@ class TorchOp:
         _rerouted_parsing(node, data_nodes, module)
 
         if node.kind() in [ATEN_INT]:  # , NUMTOTENSOR_KIND
-            raise NotImplementedError(f"node: {node} should create an ops")
+            raise T2NErrorNotImplemented(f"node: {node} should create an ops")
         (
             kind,
             call_name,
@@ -337,7 +338,7 @@ class TorchOp:
         outputs = cls._parse_outputs(node, data_nodes)
 
         if not outputs:
-            raise TorchOpTranslatedDifferently(
+            raise T2NErrorTorchOpTranslatedDifferently(
                 "Avoid reccording no return operations"
             )
 
@@ -403,10 +404,10 @@ class TorchOp:
             try:
                 return self.op_ref(*args, **kwargs)
             except RuntimeError as exp:
-                raise RuntimeError(
+                raise T2NErrorRuntime(
                     f"running {self.op_ref}(args={args}, kwargs={kwargs})"
                 ) from exp
-        raise TorchToNNEFNotImplementedError(self)
+        raise T2NErrorNotImplemented(self)
 
     @property
     def has_constant_inputs(self) -> bool:
@@ -467,7 +468,7 @@ class TorchOp:
         # generate all data and call ops to infer missing infos
         try:
             results = self._infer_trace_result()
-        except TorchUnableToTraceData:
+        except T2NErrorTorchUnableToTraceData:
             return False
 
         if isinstance(results, int):
@@ -485,7 +486,7 @@ class TorchOp:
             _expand_containers_if_exists(results, filter_container=True)
         )
         if len(output_nodes) != len(output_values):
-            raise TorchCheckError(
+            raise T2NErrorTorchCheck(
                 "Arity Missmatch between extracted from graph "
                 f"len({len(output_nodes)}) and the one experienced "
                 f"in tracing simulation len({len(output_values)}) "
@@ -518,7 +519,7 @@ class TorchOp:
                         data_node.dtype = str_to_torch_dtype("float")
                         data_node.shape = []
                     else:
-                        raise TorchToNNEFNotImplementedError(result)
+                        raise T2NErrorNotImplemented(result)
         return True
 
     def __repr__(self):

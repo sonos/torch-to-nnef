@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mako.template import Template
 
-from torch_to_nnef.exceptions import FragmentFileError, TorchToNNEFError
+from torch_to_nnef.exceptions import T2NError, T2NErrorFragmentFile
 
 EXTENSION = ".nnef"
 TMPL_EXTENSION = ".tmpl"
@@ -58,7 +58,7 @@ class Fragment:
                 if ".tmpl" in path.suffixes:
                     continue
                 if path.name in names_loaded:
-                    raise FragmentFileError(
+                    raise T2NErrorFragmentFile(
                         f"This fragment name: {path.name} is already used"
                     )
                 names_loaded.add(path.name)
@@ -79,7 +79,7 @@ class TmplFragment(Fragment):
                 )
                 break
         if not main_entry_found or not name:
-            raise TorchToNNEFError(
+            raise T2NError(
                 f"Missing '{main_fragment_str}' in fragment template: {self.name}"
             )
         concrete_definition = concrete_definition.replace(
@@ -99,7 +99,7 @@ class TmplFragment(Fragment):
                 if ".tmpl" not in path.suffixes:
                     continue
                 if path.name in names_loaded:
-                    raise FragmentFileError(
+                    raise T2NErrorFragmentFile(
                         f"This TmplFragment name: {path.name} is already used"
                     )
                 names_loaded.add(path.name)

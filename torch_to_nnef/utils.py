@@ -11,8 +11,9 @@ import torch
 from torch import _C
 
 from torch_to_nnef.exceptions import (
-    DataNodeValueError,
-    TorchToNNEFNotImplementedError,
+    T2NErrorDataNodeValue,
+    T2NErrorMissUse,
+    T2NErrorNotImplemented,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -333,7 +334,7 @@ def select_ctx_disable_torch_fn():
     elif hasattr(_C, "DisableTorchFunction"):  # pre torch 2.0.0
         ctx_disable_torch_fn = _C.DisableTorchFunction()
     else:
-        raise TorchToNNEFNotImplementedError(
+        raise T2NErrorNotImplemented(
             f"How to disable torch function in torch=={torch_version()}"
         )
     return ctx_disable_torch_fn
@@ -362,7 +363,7 @@ class NamedItem(ABC):
         if not hasattr(self, "_name_hooks"):
             self._name_hooks = set()
         if listener in self._name_hooks:
-            raise DataNodeValueError("Already registered  listener !")
+            raise T2NErrorDataNodeValue("Already registered  listener !")
         self._name_hooks.add(listener)
 
     def detach_listener_name_change(self, listener):
@@ -403,7 +404,7 @@ class ReactiveNamedItemDict:
         >>> try:
         ...     namespace.append(DummyItem("a"))
         ...     assert False
-        ... except DataNodeValueError:
+        ... except T2NErrorDataNodeValue:
         ...     pass
         >>> item.name = "world"
         >>> namespace.append(DummyItem("hello"))
@@ -427,11 +428,11 @@ class ReactiveNamedItemDict:
     def _change_name_hook(self, old_name: str, new_name: str):
         """maintain sync between data structure and name changes in items"""
         if old_name in self._protected_names:
-            raise DataNodeValueError(
+            raise T2NErrorDataNodeValue(
                 f"Not allowed to alter protected_name: {old_name}"
             )
         if new_name in self._protected_names:
-            raise DataNodeValueError(
+            raise T2NErrorDataNodeValue(
                 f"Not allowed to alter protected_name: {new_name}"
             )
         if new_name == old_name:
@@ -440,7 +441,7 @@ class ReactiveNamedItemDict:
             msg = f"node with name:{new_name} overwritten in {self}"
             LOGGER.debug(msg)
             if self.avoid_name_collision:
-                raise DataNodeValueError(msg)
+                raise T2NErrorDataNodeValue(msg)
         self._map[new_name] = self._map[old_name]
         del self._map[old_name]
 
@@ -456,14 +457,16 @@ class ReactiveNamedItemDict:
         if item.name not in self._map:
             msg = f"item '{item.name}' requested for deletion. Not Found !"
             if raise_exception_if_not_found:
-                raise DataNodeValueError(msg)
+                raise T2NErrorDataNodeValue(msg)
             LOGGER.debug(msg)
             return
         if (
             item.name in self._protected_names
             and not raise_exception_if_protected_name
         ):
-            raise DataNodeValueError(f"Not authorized to remove: '{item.name}'")
+            raise T2NErrorDataNodeValue(
+                f"Not authorized to remove: '{item.name}'"
+            )
         self.detach_listener_name_change_for_item(item)
         del self._map[item.name]
 
@@ -483,7 +486,7 @@ class ReactiveNamedItemDict:
         function as it set the hook to listen to name changes
         """
         if item.name in self._map:
-            raise DataNodeValueError(
+            raise T2NErrorDataNodeValue(
                 f"`{item.name}` already exist in container:"
                 f" {self._map[item.name]}, "
                 f"but tried to add an item: {item} with same name."
@@ -501,11 +504,11 @@ class ReactiveNamedItemDict:
     def __getitem__(self, index: T.Any):
         if index == -1:
             if self._last_inserted_item is None:
-                raise ValueError("No last value found")
+                raise T2NErrorMissUse("No last value found")
             return self._last_inserted_item
         if isinstance(index, (slice, int)):
             return list(self._map.values())[index]
-        raise NotImplementedError(index)
+        raise T2NErrorNotImplemented(index)
 
     def iter_renamable(self):
         for item_name, item in self._map.items():
@@ -519,7 +522,7 @@ class ReactiveNamedItemDict:
         return self
 
     def __setitem__(self, index: T.Any, value: NamedItem):
-        raise NotImplementedError(
+        raise T2NErrorNotImplemented(
             "Assigning a specific index is not supported to date"
         )
 

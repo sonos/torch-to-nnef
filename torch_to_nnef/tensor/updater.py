@@ -5,7 +5,7 @@ from collections import defaultdict
 
 import torch
 
-from torch_to_nnef.exceptions import InconsistentTensorError
+from torch_to_nnef.exceptions import T2NErrorInconsistentTensor, T2NErrorMissUse
 from torch_to_nnef.tensor.named import NamedTensor
 from torch_to_nnef.tensor.opaque import OpaqueTensor, OpaqueTensorRef
 from torch_to_nnef.tensor.utils import get_named_buffers, get_named_parameters
@@ -142,19 +142,19 @@ class ModTensorUpdater:
 
     def check_same_dtype(self, tensor0: torch.Tensor, tensor1: torch.Tensor):
         if tensor0.dtype != tensor1.dtype:
-            raise InconsistentTensorError(
+            raise T2NErrorInconsistentTensor(
                 f"not same dtype between {tensor0.dtype} and {tensor1.dtype}"
             )
 
     def check_same_device(self, tensor0: torch.Tensor, tensor1: torch.Tensor):
         if tensor0.device != tensor1.device:
-            raise InconsistentTensorError(
+            raise T2NErrorInconsistentTensor(
                 f"not same device between {tensor0.device} and {tensor1.device}"
             )
 
     def check_same_shape(self, tensor0: torch.Tensor, tensor1: torch.Tensor):
         if tensor0.shape != tensor1.shape:
-            raise InconsistentTensorError(
+            raise T2NErrorInconsistentTensor(
                 f"not same shape between {tensor0.shape} and {tensor1.shape}"
             )
 
@@ -183,7 +183,7 @@ class ModTensorUpdater:
                         new_tensor, persistent=ref.persistent
                     )
             else:
-                raise ValueError(f"{new_tensor} must be a parameter")
+                raise T2NErrorMissUse(f"{new_tensor} must be a parameter")
         return new_tensor
 
     def _set_tensor(self, old, new):
@@ -193,7 +193,7 @@ class ModTensorUpdater:
             and not isinstance(new, torch.nn.Parameter)
             and not self.add_parameter_if_unset
         ):
-            raise ValueError("new tensor setted should be a parameter")
+            raise T2NErrorMissUse("new tensor setted should be a parameter")
         if old.requires_grad:
             need_grad = True
             old.requires_grad = False

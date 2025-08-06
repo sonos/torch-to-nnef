@@ -6,6 +6,10 @@ import math
 
 import torch
 from torch import nn
+from torch_to_nnef.exceptions import (
+    T2NErrorMissUse,
+    T2NErrorNotImplemented,
+)
 
 CONSTANT = 1e-5
 
@@ -38,7 +42,7 @@ def normalize_batch(x, seq_len, normalize_type):
             and not torch.cuda.is_current_stream_capturing()
             and torch.any(seq_len == 1).item()
         ):
-            raise ValueError(
+            raise T2NErrorMissUse(
                 "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
                 "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
                 "feature (ex. at least `hop_length` for Mel Spectrograms)."
@@ -134,7 +138,7 @@ class FilterbankFeatures(nn.Module):
                 "as needed."
             )
         if exact_pad and n_window_stride % 2 == 1:
-            raise NotImplementedError(
+            raise T2NErrorNotImplemented(
                 f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
                 "returned spectrogram would not be of length audio_length // hop_size. Please use an even hop_size."
             )
@@ -147,7 +151,7 @@ class FilterbankFeatures(nn.Module):
             or n_window_size <= 0
             or n_window_stride <= 0
         ):
-            raise ValueError(
+            raise T2NErrorMissUse(
                 f"{self} got an invalid value for either n_window_size or "
                 f"n_window_stride. Both must be positive ints."
             )
@@ -212,7 +216,7 @@ class FilterbankFeatures(nn.Module):
         # We want to avoid taking the log of zero
         # There are two options: either adding or clamping to a small value
         if log_zero_guard_type not in ["add", "clamp"]:
-            raise ValueError(
+            raise T2NErrorMissUse(
                 f"{self} received {log_zero_guard_type} for the "
                 f"log_zero_guard_type parameter. It must be either 'add' or "
                 f"'clamp'."
@@ -251,7 +255,7 @@ class FilterbankFeatures(nn.Module):
             elif self.log_zero_guard_value == "eps":
                 return torch.finfo(x.dtype).eps
             else:
-                raise ValueError(
+                raise T2NErrorMissUse(
                     f"{self} received {self.log_zero_guard_value} for the "
                     f"log_zero_guard_type parameter. It must be either a "
                     f"number, 'tiny', or 'eps'"
@@ -340,7 +344,7 @@ class FilterbankFeatures(nn.Module):
                     torch.clamp(x, min=self.log_zero_guard_value_fn(x))
                 )
             else:
-                raise ValueError("log_zero_guard_type was not understood")
+                raise T2NErrorMissUse("log_zero_guard_type was not understood")
 
         # frame splicing if required
         if self.frame_splicing > 1:

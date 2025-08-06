@@ -4,7 +4,7 @@ import string
 import typing as T
 from collections import Counter, defaultdict
 
-from torch_to_nnef.exceptions import TorchToNNEFNotImplementedError
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.torch_graph.ir_data import (
     BlobTorchScriptObject,
     Data,
@@ -55,7 +55,7 @@ def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
         torch_ir_graph.data_nodes.avoid_name_collision = False
         return
 
-    raise TorchToNNEFNotImplementedError(f"renaming scheme: {scheme}")
+    raise T2NErrorNotImplemented(f"renaming scheme: {scheme}")
 
 
 def rename_natural_verbose(torch_ir_graph, lower: bool = True) -> None:
@@ -76,7 +76,7 @@ def rename_natural_verbose(torch_ir_graph, lower: bool = True) -> None:
                 elif isinstance(dn, FixedTensorList):
                     new_name = f"l{new_name}"
                 else:
-                    raise NotImplementedError(dn)
+                    raise T2NErrorNotImplemented(dn)
 
         if dn.name[-1] in string.digits:
             producers = out_data_to_ops_node.get(dn)
