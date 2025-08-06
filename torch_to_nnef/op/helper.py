@@ -27,6 +27,7 @@ from torch_to_nnef.torch_graph import (
 )
 from torch_to_nnef.torch_graph.ir_data import cleanup_data_name
 from torch_to_nnef.torch_graph.ir_op import TorchOp
+from torch_to_nnef.utils import torch_version
 
 LOGGER = logging.getLogger(__name__)
 
@@ -709,6 +710,12 @@ def cast_to_if_not_dtype_and_variable(
     issues.
 
     """
+    if torch_version() < "1.13.0" and cast_to == np.uint64:
+        logging.warning(
+            f"discarded force casting to dtype={cast_to} "
+            "since obverved bug prior 1.13.0"
+        )
+        cast_to = nnef_tensor.dtype
     out = add_single_output_op(
         g,
         node,
