@@ -101,6 +101,7 @@ impl ImageClassifier {
         let pred = prediction_res.map_err(|err| JsError::new(format!("{:?}", err).as_str()))?;
         Ok(serde_wasm_bindgen::to_value(&pred)?)
     }
+
     pub fn load() -> ImageClassifier {
         web_sys::console::log_1(&"try loading".into());
         let result = ImageClassifier::load_internal()

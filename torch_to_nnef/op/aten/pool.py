@@ -15,6 +15,8 @@ from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
 
+TRACT_SUPPORT_DYNAMIC_POOLING = False  # to update if that's the case 1 day
+
 
 def _pooling_op(
     nnef_op_name: str,
@@ -167,7 +169,8 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
     onode = node.outputs[0]
     is_reducer = all(pv == 1 for pv in pool_values)
     if (
-        isinstance(op_helper.inference_target, TractNNEF)
+        TRACT_SUPPORT_DYNAMIC_POOLING
+        and isinstance(op_helper.inference_target, TractNNEF)
         and op_helper.inference_target.has_dynamic_axes
         and not is_reducer
     ):

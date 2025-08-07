@@ -346,3 +346,124 @@ Here again we introduce a new notation the modes:
 
 To avoid each new user of this library to define these cumbersome settings we provide
 a dedicated set of helpers for Languages models as we will see in the [next section](./5_llm.md)
+### VAD based on tract running in browser with WASM
+
+<div class="grid cards">
+    <div id="vad-preview" class="card">
+        <div id="vad-prestart" style="justify-content: 'center'">
+            <p>You need a microphone on your device and a browser that support WASM.</p>
+            <button id="vad-click" class="center md-button md-button--primary">Start VAD stream</button>
+        </div>
+    </div>
+</div>
+<link rel="stylesheet" href="/js/uPlot.min.css">
+<script src="/js/uPlot.iife.min.js"></script>
+<script type="module">
+import init, { VadClassifier } from '/js/vad_wasm.js';
+let vad_classifier = null;
+const constraints = {
+    'video': false,
+    'audio': true
+}
+let now = 0;
+let length = 500; // 5sec
+let tick_ms = 10;
+let shift = 0;
+let times_elapsed_arr = Array.from({length}, (v, i) => now + i * tick_ms - (length * tick_ms));
+let vad_scores = Array.from({length}, (v, i) => 0);
+let data = getData(shift);
+function getData(time_offset, score) {
+	return [
+		times_elapsed_arr = times_elapsed_arr.slice(1).concat(now + time_offset),
+		vad_scores = vad_scores.slice(1).concat(score),
+	];
+}
+const opts = {
+	title: "VAD detection @ 100fps",
+	width: 700,
+	height: 200,
+	pxAlign: false,
+	scales: {
+        x: {
+            time:false,
+        },
+		y: {
+		//	auto: false,
+			range: [0, 1.1],
+		}
+	},
+	axes: [
+		{
+			space: 300,
+		}
+	],
+	series: [
+		{
+        },
+		{
+			label: "detection score",
+			stroke: "blue",
+			fill: "#0000ff20",
+		},
+	],
+};
+const vad_preview_dom = document.getElementById('vad-preview');
+let inited = false;
+init().then(() => {
+    console.log("start wasm");
+    vad_classifier = VadClassifier.load();
+    console.log("inited wasm");
+    inited = true;
+})
+function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+  if (outSampleRate === sampleRate) return buffer;
+  const sampleRateRatio = sampleRate / outSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+    let accum = 0, count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+      accum += buffer[i];
+      count++;
+    }
+    result[offsetResult] = accum / count;
+    offsetResult++;
+    offsetBuffer = nextOffsetBuffer;
+  }
+  return result;
+}
+document.getElementById('vad-click').addEventListener('click', function(e) {
+    console.log("try start VAD demo");
+    if (inited) {
+        console.log("start VAD demo");
+        const desiredSampleRate = 16000;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                document.getElementById('vad-prestart').remove();
+                let u = new uPlot(opts, data, vad_preview_dom);
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(512, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                processor.onaudioprocess = function (e) {
+                    const inputBuffer = e.inputBuffer;
+                    const inputData = inputBuffer.getChannelData(0); // Float32Array
+                    const resampledData = downsampleBuffer(inputData, audioContext.sampleRate, desiredSampleRate);
+                    if (resampledData) {
+                        // You can now save or process this further
+                        let score = vad_classifier.predict_speech_presence(resampledData.slice(0, 160));
+                        console.log(score);
+                        shift += tick_ms;
+                        data = getData(shift, score);
+                        u.setData(data);
+                    }
+                };
+            })
+            .catch(console.error);
+    }
+});
+</script>
