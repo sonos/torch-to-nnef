@@ -365,21 +365,24 @@ const constraints = {
     'video': false,
     'audio': true
 }
-let now = 0;
-let length = 500; // 5sec
-let tick_ms = 10;
-let shift = 0;
-let times_elapsed_arr = Array.from({length}, (v, i) => now + i * tick_ms - (length * tick_ms));
-let vad_scores = Array.from({length}, (v, i) => 0);
-let data = getData(shift);
+const desiredSampleRate = 16000;
+const realSampleRate = 44100;
+const bufferSize = 1024;
+const hopDuration = 1 / realSampleRate * bufferSize  * 1000; // in ms
+const fps = Math.floor(1000 / hopDuration);
+let length = 500; // n predictions stacked
+let currentTimeValue = 0;
+let timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
+let vadScores = Array.from({length}, (v, i) => 0);
+let data = getData(currentTimeValue);
 function getData(time_offset, score) {
 	return [
-		times_elapsed_arr = times_elapsed_arr.slice(1).concat(now + time_offset),
-		vad_scores = vad_scores.slice(1).concat(score),
+		timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset),
+		vadScores = vadScores.slice(1).concat(score),
 	];
 }
 const opts = {
-	title: "VAD detection @ 100fps",
+	title: `VAD detection @ ${fps}fps:`,
 	width: 700,
 	height: 200,
 	pxAlign: false,
@@ -439,26 +442,31 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
     console.log("try start VAD demo");
     if (inited) {
         console.log("start VAD demo");
-        const desiredSampleRate = 16000;
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
                 document.getElementById('vad-prestart').remove();
                 let u = new uPlot(opts, data, vad_preview_dom);
                 const source = audioContext.createMediaStreamSource(stream);
-                const processor = audioContext.createScriptProcessor(512, 1, 1);
+                const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
                 source.connect(processor);
                 processor.connect(audioContext.destination);
                 processor.onaudioprocess = function (e) {
                     const inputBuffer = e.inputBuffer;
-                    const inputData = inputBuffer.getChannelData(0); // Float32Array
-                    const resampledData = downsampleBuffer(inputData, audioContext.sampleRate, desiredSampleRate);
+                    const numChannels = inputBuffer.numberOfChannels;
+                    let mergedData = new Float32Array(inputBuffer.length);
+                    for (let channel = 0; channel < numChannels; channel++) {
+                        const inputData = inputBuffer.getChannelData(channel);
+                        for (let i = 0; i < inputData.length; i++) {
+                            mergedData[i] += inputData[i] / numChannels;
+                        }
+                    }
+                    const resampledData = downsampleBuffer(mergedData, audioContext.sampleRate, desiredSampleRate);
                     if (resampledData) {
                         // You can now save or process this further
-                        let score = vad_classifier.predict_speech_presence(resampledData.slice(0, 160));
-                        console.log(score);
-                        shift += tick_ms;
-                        data = getData(shift, score);
+                        let score = vad_classifier.predict_speech_presence(resampledData);
+                        currentTimeValue += hopDuration;
+                        data = getData(currentTimeValue, score);
                         u.setData(data);
                     }
                 };
