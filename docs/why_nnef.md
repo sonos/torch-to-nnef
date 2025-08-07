@@ -147,16 +147,16 @@ However, ONNX is based on **Protocol Buffers**, which introduce real limitations
    Want to patch a model with new PEFT weights or tweak a few parameters? **Good luck**—everything’s entangled.
 
 2. **Unreadable Without Specialized Tools**
-   Tools like [TensorBoard](https://www.tensorflow.org/tensorboard) or [Netron](https://netron.app/) become **unusable** with more than 10 I/O tensors per operator (having long residual connection is unreadable).
+   Tools like [TensorBoard](https://www.tensorflow.org/tensorboard) or [Netron](https://netron.app/) are needed for visualization but **difficult to read** when more than 10 I/O tensors are linked to an operator (e.g having long residual connection deforms the graph visuals).
 
 3. **No Direct Tensor Access**
    Requires **full graph parsing** and **multi-hop traversal**.
 
-4. **Quantization is Awkward**
+4. **Quantization definition is not very flexible**
    Especially for **custom formats** or precision below Q4.
 
-5. **Extensibility is Hard**
-   Adding new ops or formats is **significantly harder** than working with plain text.
+5. **Extensibility is Harder**
+   To add new data formats, you need change of protocol buffer spec, features like `symbols` definition in tract need to be defined ad-hoc. Adding plain text extensions is easier to do and read (at the cost of loosing code-gen ser/deser from protobuf). Prior PyTorch 2.0, adding custom ops (when it has no-equivalent chain of supported ops) is also tedious and partly unspecified.
 
 ---
 

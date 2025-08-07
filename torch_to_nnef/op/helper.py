@@ -897,11 +897,15 @@ class OpHelper:
         node,
         nnef_op_type: str,
         inputs,
+        maybe_cast_align_tract: bool = True,
         **kwargs,
     ):
         if not isinstance(inputs, (list, tuple)):
             inputs = (inputs,)
-        if isinstance(self.inference_target, TractNNEF):
+        if (
+            isinstance(self.inference_target, TractNNEF)
+            and maybe_cast_align_tract
+        ):
             inputs = self._implicits_input_casting(node, nnef_op_type, inputs)
         return add_single_output_op(
             node=node,
