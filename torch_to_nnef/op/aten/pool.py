@@ -1,3 +1,4 @@
+from copy import deepcopy
 import typing as T
 
 import nnef
@@ -6,10 +7,9 @@ from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    add_single_output_op,
-    get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
 )
+from torch_to_nnef.op.aten.reducer import reducer_helper
 from torch_to_nnef.torch_graph import Data
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -165,9 +165,11 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         )
     # fixed at export auto adaptation
     onode = node.outputs[0]
+    is_reducer = all(pv == 1 for pv in pool_values)
     if (
         isinstance(op_helper.inference_target, TractNNEF)
         and op_helper.inference_target.has_dynamic_axes
+        and not is_reducer
     ):
         stride = []
         start_ix = input_node.rank - len(pool_values) - 1
@@ -210,18 +212,35 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         missing_n_dims = onode.rank - len(stride)
         stride = ([1] * missing_n_dims) + stride
 
-    op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        nnef_op_name,
-        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-        attrs={
-            "size": list(stride),
-            "padding": [(0, 0) for _ in stride],
-            "stride": list(stride),
-            "dilation": [1 for _ in stride],
-            "border": "ignore",
-        },
-    )
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if is_reducer:
+        reduce_node = node
+        axes_node = reduce_node.inputs[1]
+        axes_node.name += "_reducer"
+        axes_node.data = [
+            input_node.rank - _ - 1 for _ in range(len(axes_node.data))
+        ]
+        return reducer_helper(
+            {
+                "max_pool": "max_reduce",
+                "avg_pool": "mean_reduce",
+            }[nnef_op_name],
+            reduce_node,
+            op_helper,
+        )
+    else:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_name,
+            inputs=inp,
+            attrs={
+                "size": list(stride),
+                "padding": [(0, 0) for _ in stride],
+                "stride": list(stride),
+                "dilation": [1 for _ in stride],
+                "border": "ignore",
+            },
+        )
 
 
 # warning! no support for return_indice=True

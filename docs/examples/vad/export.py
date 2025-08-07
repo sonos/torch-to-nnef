@@ -64,6 +64,18 @@ class DummyDecoder(torch.nn.Module):
         return encoder_output
 
 
+class EncoderWrapper(torch.nn.Module):
+    """Avoid to expose input_len (that doesn't make sense in streaming)"""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        dim1 = torch.tensor(x.size(1)).repeat(x.size(0))
+        return self.model(x, dim1)
+
+
 def export(
     tract_path: Path,
     dump_path: Path,
@@ -97,19 +109,13 @@ def export(
 
     enc_path_export = dump_path / "vad_marblenet.encoder.nnef.tgz"
     export_model_to_nnef(
-        model=vad_model,  # any nn.Module
-        args=(
-            torch.rand(1, 512),
-            torch.tensor([512]),
-        ),
+        model=EncoderWrapper(vad_model),  # any nn.Module
+        args=(torch.rand(1, 512)),
         file_path_export=enc_path_export,
         inference_target=TractNNEF(
             version=TractNNEF.latest_version(),
             check_io=True,
-            dynamic_axes={
-                "input_signal": {0: "B", 1: "S"},
-                "input_len": {0: "B"},
-            },
+            dynamic_axes={"input_signal": {0: "B", 1: "S"}},
             check_io_tolerance=TractCheckTolerance.SUPER,
         ),
         input_names=["input_signal", "input_len"],
