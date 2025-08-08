@@ -1,0 +1,131 @@
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <style>
+        .to-pred-img {
+            max-height: 300px;
+            max-width: 100%;
+        }
+        </style>
+        <script type="module">
+import init, { ImageClassifier } from '/html/imageclass_wasm.js';
+const image_preview = document.getElementById('image-preview');
+let img_classifier = null;
+function file_predict(file) {
+    if (!file || !file.type.startsWith("image/")) {
+        return;
+    }
+    image_preview.innerHTML = "";
+    const img = document.createElement("img");
+    img.classList.add("obj");
+    img.classList.add("to-pred-img");
+    img.file = file;
+    image_preview.appendChild(img);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let fileTextContent = e.target.result;
+        img.src = fileTextContent;
+        console.log("requested file process" + file.name);
+        let startTime = performance.now();
+        let res = img_classifier.predict_class(fileTextContent);
+        let endTime = performance.now();
+        let timeDiff = endTime - startTime; //in ms
+        console.log(res);
+        console.log(res.label);
+        const cp = document.getElementById("class-predicted");
+        cp.innerHTML = res.label;
+        const ci = document.getElementById("class-id");
+         ci.innerHTML =res.class_id;
+        const cs = document.getElementById("class-score");
+        cs.innerHTML = "<g>" + res.score.toFixed(2) + "</g>"
+        const te = document.getElementById("time-elapsed");
+        te.innerHTML = timeDiff + " ms";
+    };
+    reader.readAsDataURL(file);
+}
+init().then(() => {
+    img_classifier = ImageClassifier.load();
+    console.log("inited wasm");
+    document.getElementById('img').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        document.getElementById('img-placeholder').setAttribute("placeholder", file.name)
+        file_predict(file);
+    });
+    fetch("/img/cat.jpg")
+        .then(response => response.blob())
+        .then(myBlob => {
+            file_predict(myBlob);
+        })
+})
+    </script>
+    </head>
+    <body class="container">
+        <div class="grid cards">
+            <div class="card">
+                <div class="card-content" style="justify-content: 'center'">
+                    <span class="card-title">👀 Image class prediction live demo</span>
+                    <p>
+                        Run a small <a href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
+                        This model predict from a class from the <a href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a>.
+                    </p>
+                    <br />
+                    <p>
+                        Since this model fully run on your browser there is no server needed beyond serving the initial
+                        asset, this is private by design (You can send whatever photo), no data is collected,
+                        if you are in doubt just turn off your network and try the playground (without reloading).
+                    </p>
+                    <div class="row card">
+                        <div class="col s6" >
+                            <div id="image-preview" class="center-align"></div>
+                        </div>
+                        <div class="col s6" id="image-result"  class="valign-wrapper">
+                            <ul class="collection">
+                                <li class="collection-item">
+                                    <span class="title">Class Predicted</span>
+                                    <h3 id="class-predicted" class="blue-text text-darken-2">
+                                        -
+                                    </h3>
+                                </li>
+                                <li class="collection-item">
+                                    <span class="title">Class id</span>
+                                    <p id="class-id" class="blue-text text-darken-2">
+                                        -
+                                    </p>
+                                </li>
+                                <li class="collection-item">
+                                    <span class="title">Class Score (0-1)</span>
+                                    <p id="class-score" class="blue-text text-darken-2">
+                                        0.0
+                                    </p>
+                                </li>
+                                <li class="collection-item">
+                                    <span class="title">Time to process & predict image</span>
+                                    <p id="time-elapsed" class="blue-text text-darken-2">
+                                        0ms
+                                    </p>
+                                </li>
+                                </ul>
+
+                        </div>
+                    </div>
+
+                </div>
+                <div class="card-action">
+                    <label for="avatar">Select a picture:</label>
+                      <form action="#">
+                        <div class="file-field input-field">
+                        <div class="btn blue darken-3 waves-effect waves-light">
+                            <span>Image File</span>
+                            <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                        </div>
+                            <div class="file-path-wrapper">
+                                <input id="img-placeholder" class="file-path validate" type="text" placeholder="select one file from your device">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
