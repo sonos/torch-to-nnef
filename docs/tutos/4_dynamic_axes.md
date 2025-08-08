@@ -346,7 +346,8 @@ Here again we introduce a new notation the modes:
 
 To avoid each new user of this library to define these cumbersome settings we provide
 a dedicated set of helpers for Languages models as we will see in the [next section](./5_llm.md)
-### VAD based on tract running in browser with WASM
+
+## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: VAD with tract running in browser
 
 As an example of what we just learned we propose a simple VAD running live in this web-page.
 
