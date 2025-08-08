@@ -348,5 +348,13 @@ To avoid each new user of this library to define these cumbersome settings we pr
 a dedicated set of helpers for Languages models as we will see in the [next section](./5_llm.md)
 ### VAD based on tract running in browser with WASM
 
-<iframe src="/html/demo_vad.html" style="width:90%; height:500px; border: 0 solid #fff;">
+As an example of what we just learned we propose a simple VAD running live in this web-page.
+
+<iframe src="/html/demo_vad.html" style="width:100%; height:230px; border: 0 solid #fff;">
 </iframe>
+
+!!! note
+    This model is not trained by SONOS so prediction accuracy is responsibility of original [nemo](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speech_classification/models.html) authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient (no SIMD WASM, no WebGPU kernels),
+    this demo is for demonstration purpose.
+
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/vad) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_vad.html).

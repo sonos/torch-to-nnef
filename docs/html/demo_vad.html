@@ -1,5 +1,6 @@
 <html>
     <head>
+        <meta charset="UTF-8">
         <link rel="stylesheet" href="/html/uPlot.min.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <script src="/html/uPlot.iife.min.js"></script>
@@ -52,10 +53,15 @@ const opts = {
     },
     axes: [
         {
-            space: 300,
+            space: 50,
+            ticks: [
+                1,
+                1000,
+            ],
             values: (self, val) => {
-                let n_sec = val / 1000 || 0;
-                return [`${n_sec}s`]
+                return val.map((v) => (
+                    `${v/ 1000}s`
+                ));
             },
         }
     ],
