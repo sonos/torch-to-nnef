@@ -40,7 +40,6 @@ function file_predict(file) {
         let endTime = performance.now();
         let timeDiff = endTime - startTime; //in ms
         console.log(res);
-        console.log(res.label);
         const cp = document.getElementById("class-predicted");
         cp.innerHTML = res.label;
         const ci = document.getElementById("class-id");
@@ -55,13 +54,39 @@ function file_predict(file) {
 init().then(() => {
     img_classifier = ImageClassifier.load();
     console.log("inited wasm");
-    document.getElementById('img').addEventListener('change', function(e) {
-        const file = e.target.files[0];
+    const predFile = (file) => {
         const ph = document.getElementById('img-placeholder');
         ph.setAttribute("placeholder", file.name);
         ph.value = "";
         file_predict(file);
+    };
+    document.getElementById('img').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        predFile(file);
     });
+    const dropHandler = (ev) => {
+        console.log("File(s) dropped");
+        // Prevent default behavior (Prevent file from being opened)
+        ev.preventDefault();
+
+        if (ev.dataTransfer.items) {
+            // Use DataTransferItemList interface to access the file(s)
+            [...ev.dataTransfer.items].forEach((item, i) => {
+                // If dropped items aren't files, reject them
+                if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    predFile(file);
+                }
+            });
+        } else {
+            // Use DataTransfer interface to access the file(s)
+            [...ev.dataTransfer.files].forEach((file, i) => {
+                predFile(file);
+            });
+        }
+    };
+    document.getElementById("drop_zone_0").addEventListener("drop", dropHandler);
+    document.getElementById("drop_zone_1").addEventListener("drop", dropHandler);
     fetch("/img/cat.jpg")
         .then(response => response.blob())
         .then(myBlob => {
@@ -73,7 +98,7 @@ init().then(() => {
     <body class="container">
         <div class="grid cards">
             <div class="card">
-                <div class="card-content" style="justify-content: 'center'">
+                <div class="card-content" style="justify-content: 'center'"  >
                     <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Image class prediction </span>
                     <p>
                         It runs a small <a  target="_blank" rel="noopener noreferrer" href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
@@ -82,10 +107,10 @@ init().then(() => {
                     <br />
                     <p>
                         Since this model fully run on your browser there is no server needed beyond serving the initial
-                        asset, this is private by design (You can send whatever photo), no data is collected,
+                        asset, this is private by design (You can use whatever photo), no data is collected,
                         if you are in doubt just turn off your network and try the playground (without reloading).
                     </p>
-                    <div class="row card">
+                    <div class="row card" id="drop_zone_0" ondragover="event.preventDefault()">
                         <div class="col s6 center-align" >
                             <div id="image-preview-container">
                                 <div id="image-preview"></div>
@@ -122,7 +147,7 @@ init().then(() => {
                     </div>
 
                 </div>
-                <div class="card-action">
+                <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault()">
                     <label for="avatar">Select a picture:</label>
                     <form action="#">
                         <div class="file-field input-field">
