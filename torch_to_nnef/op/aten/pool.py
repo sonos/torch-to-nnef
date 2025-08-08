@@ -1,15 +1,12 @@
-from copy import deepcopy
 import typing as T
+from copy import deepcopy
 
 import nnef
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
-from torch_to_nnef.op.helper import (
-    AtenOpRegistry,
-    get_tract_dyn_axis_size_soc,
-)
 from torch_to_nnef.op.aten.reducer import reducer_helper
+from torch_to_nnef.op.helper import AtenOpRegistry, get_tract_dyn_axis_size_soc
 from torch_to_nnef.torch_graph import Data
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
@@ -222,7 +219,7 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         axes_node.name += "_reducer"
         axes_node.data = [
             input_node.rank - _ - 1 for _ in range(len(axes_node.data))
-        ]
+        ][::-1]
         return reducer_helper(
             {
                 "max_pool": "max_reduce",

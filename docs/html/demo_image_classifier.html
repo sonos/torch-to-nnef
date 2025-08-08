@@ -4,12 +4,15 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <style>
         .to-pred-img {
-        max-height: 300px;
-        max-width: 100%;
-        padding: 5px;
+            max-height: 300px;
+            max-width: 100%;
+            padding: 5px;
         }
         #image-preview-container {
-        margin: 20px;
+            margin: 20px;
+        }
+        #img-placeholder {
+            color: #888;
         }
         </style>
         <script type="module">
@@ -54,7 +57,9 @@ init().then(() => {
     console.log("inited wasm");
     document.getElementById('img').addEventListener('change', function(e) {
         const file = e.target.files[0];
-        document.getElementById('img-placeholder').setAttribute("placeholder", file.name)
+        const ph = document.getElementById('img-placeholder');
+        ph.setAttribute("placeholder", file.name);
+        ph.value = "";
         file_predict(file);
     });
     fetch("/img/cat.jpg")
@@ -69,10 +74,10 @@ init().then(() => {
         <div class="grid cards">
             <div class="card">
                 <div class="card-content" style="justify-content: 'center'">
-                    <span class="card-title">👀 Image class prediction live demo</span>
+                    <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Image class prediction </span>
                     <p>
-                        Run a small <a href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
-                        This model predict from a class from the <a href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a>.
+                        It runs a small <a href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
+                        This model predict a class from the <a href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a>.
                     </p>
                     <br />
                     <p>
@@ -126,7 +131,7 @@ init().then(() => {
                                 <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
                             </div>
                             <div class="file-path-wrapper">
-                                <input id="img-placeholder" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
+                                <input id="img-placeholder" onchange="document.getElementById('img-placeholder').value = '';" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
                             </div>
                         </div>
                     </form>

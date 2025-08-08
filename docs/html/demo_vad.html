@@ -2,6 +2,12 @@
     <head>
         <meta charset="UTF-8">
         <link rel="stylesheet" href="/html/uPlot.min.css">
+        <style>
+        #vad-preview .u-hz {
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        </style>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <script src="/html/uPlot.iife.min.js"></script>
         <script type="module">
@@ -151,9 +157,9 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
     <body class="container">
         <div>
             <div id="vad-preview" class="card">
-                <div id="vad-prestart" >
+                <div id="vad-prestart">
                     <div class="card-content" style="justify-content: 'center'">
-                        <span class="card-title">👀 Voice Activity Detection live demo</span>
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
                         <p>You need a microphone on your device and a browser that support WASM.</p>
                     </div>
                     <div class="card-action">

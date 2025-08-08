@@ -437,10 +437,10 @@ result: Some((9.439479, 652))
     You first exported the network with `torch_to_nnef` and
     ran a successful standalone rust cli command with tract based inference in it.
 
-## <span style="color:#6666aa">**:material-step-forward:  Live Demo**</span> :fontawesome-brands-rust: Image classifier
+## <span style="color:#6666aa">**:material-step-forward:  Demo:**</span> :fontawesome-brands-rust: Image classifier
 
- Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html)
- The demo use a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure fast download of the asset for you - 22Mo for the model).
+ Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
+ We demo the use a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model).
 
 <iframe src="/html/demo_image_classifier.html" style="width:100%; height:730px; border: 0 solid #fff;">
 </iframe>
