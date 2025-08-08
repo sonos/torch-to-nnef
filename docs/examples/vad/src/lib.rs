@@ -38,7 +38,7 @@ impl VadClassifier {
     }
 
     fn predict_speech_presence_internal(&self, raw_audio_data: Vec<f32>) -> TractResult<f32> {
-        web_sys::console::debug_1(&"start predict voice presence".into());
+        // web_sys::console::debug_1(&"start predict voice presence".into());
 
         // prep audio data
         let nd_audio_data = Array1::from_vec(raw_audio_data)
@@ -47,7 +47,7 @@ impl VadClassifier {
         // run the model on the input
         let enc_result = self.encoder_model.run(tvec!(nd_audio_data))?;
         let dec_result = self.decoder_model.run(enc_result)?;
-        web_sys::console::debug_1(&"model prediction done".into());
+        // web_sys::console::debug_1(&"model prediction done".into());
         // find and display the max value with its index
         let score: ArrayView2<f32> = dec_result[0]
             .to_array_view::<f32>()?

@@ -456,7 +456,7 @@ if you are in doubt just turn off your network and try the playground (without r
     </div>
     <div id="image-preview" class="card"></div>
     <script type="module">
-import init, { ImageClassifier } from '/js/imageclass_wasm.js';
+import init, { ImageClassifier } from '/html/imageclass_wasm.js';
 const image_preview = document.getElementById('image-preview');
 let img_classifier = null;
 function file_predict(file) {

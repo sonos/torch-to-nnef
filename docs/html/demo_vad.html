@@ -1,0 +1,162 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="/html/uPlot.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <script src="/html/uPlot.iife.min.js"></script>
+        <script type="module">
+import init, { VadClassifier } from '/html/vad_wasm.js';
+
+let vad_classifier = null;
+
+const desiredSampleRate = 16000;
+const realSampleRate = 44100;
+const bufferSize = 1024;
+const hopDuration = 1 / realSampleRate * bufferSize  * 1000; // in ms
+const hz = Math.floor(1000 / hopDuration);
+let length = 500; // n predictions stacked
+let currentTimeValue = 0;
+let timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
+let vadScores = Array.from({length}, (v, i) => 0);
+let vadDet = Array.from({length}, (v, i) => 0);
+let threshold = 0.15;
+let postProcindowSize = 20;
+let data = getData(currentTimeValue);
+function getData(time_offset, score) {
+    return [
+        timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset),
+        vadScores = vadScores.slice(1).concat(score),
+        vadDet = vadDet.slice(1).concat(Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0),
+    ];
+}
+const vad_preview_dom = document.getElementById('vad-preview');
+function getSize() {
+    return {
+        width: vad_preview_dom.clientWidth - 50,
+        height: 150,
+    }
+}
+let sizes = getSize();
+const opts = {
+    title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:`,
+    width: sizes.width,
+    height: sizes.height,
+    pxAlign: false,
+    scales: {
+        x: {
+            time:false,
+        },
+        y: {
+            //	auto: false,
+            range: [0, 1.1],
+        }
+    },
+    axes: [
+        {
+            space: 300,
+            values: (self, val) => {
+                let n_sec = val / 1000 || 0;
+                return [`${n_sec}s`]
+            },
+        }
+    ],
+    series: [
+        {
+        },
+        {
+            label: "detection score",
+            stroke: "blue",
+            fill: "#0000ff20",
+        },
+        {
+            label: `detection threshold:${threshold}`,
+            stroke: "red",
+            fill: "#ff00ff10",
+        },
+    ],
+};
+let inited = false;
+init().then(() => {
+    console.log("start wasm");
+    vad_classifier = VadClassifier.load();
+    console.log("inited wasm");
+    inited = true;
+})
+function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+    if (outSampleRate === sampleRate) return buffer;
+    const sampleRateRatio = sampleRate / outSampleRate;
+    const newLength = Math.round(buffer.length / sampleRateRatio);
+    const result = new Float32Array(newLength);
+    let offsetResult = 0;
+    let offsetBuffer = 0;
+    while (offsetResult < result.length) {
+        const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+        let accum = 0, count = 0;
+        for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+            accum += buffer[i];
+            count++;
+        }
+        result[offsetResult] = accum / count;
+        offsetResult++;
+        offsetBuffer = nextOffsetBuffer;
+    }
+    return result;
+}
+document.getElementById('vad-click').addEventListener('click', function(e) {
+    console.log("try start VAD demo");
+    if (inited) {
+        console.log("start VAD demo");
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                document.getElementById('vad-prestart').remove();
+                let u = new uPlot(opts, data, vad_preview_dom);
+                window.addEventListener("resize", e => {
+                    u.setSize(getSize());
+                });
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                processor.onaudioprocess = function (e) {
+                    const inputBuffer = e.inputBuffer;
+                    const numChannels = inputBuffer.numberOfChannels;
+                    let mergedData = new Float32Array(inputBuffer.length);
+                    for (let channel = 0; channel < numChannels; channel++) {
+                        const inputData = inputBuffer.getChannelData(channel);
+                        for (let i = 0; i < inputData.length; i++) {
+                            mergedData[i] += inputData[i] / numChannels;
+                        }
+                    }
+                    const resampledData = downsampleBuffer(mergedData, audioContext.sampleRate, desiredSampleRate);
+                    if (resampledData) {
+                        // You can now save or process this further
+                        let score = vad_classifier.predict_speech_presence(resampledData);
+                        currentTimeValue += hopDuration;
+                        data = getData(currentTimeValue, score);
+                        u.setData(data);
+                    }
+                };
+            })
+            .catch(console.error);
+    }
+});
+</script>
+    </head>
+    <body class="container">
+        <div>
+            <div id="vad-preview" class="card">
+                <div id="vad-prestart" >
+                    <div class="card-content" style="justify-content: 'center'">
+                        <span class="card-title">👀 Voice Activity Detection live demo</span>
+                        <p>You need a microphone on your device and a browser that support WASM.</p>
+                    </div>
+                    <div class="card-action">
+                        <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light">
+                            [ ▸ ] Start VAD stream
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
