@@ -220,6 +220,12 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         axes_node.data = [
             input_node.rank - _ - 1 for _ in range(len(axes_node.data))
         ][::-1]
+        node.inputs.append(
+            PythonConstant(
+                name=f"{reduce_node.outputs[0].export_name}_keep_dim", data=True
+            )
+        )
+
         return reducer_helper(
             {
                 "max_pool": "max_reduce",
