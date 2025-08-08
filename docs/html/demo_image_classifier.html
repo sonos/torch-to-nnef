@@ -4,8 +4,12 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <style>
         .to-pred-img {
-            max-height: 300px;
-            max-width: 100%;
+        max-height: 300px;
+        max-width: 100%;
+        padding: 5px;
+        }
+        #image-preview-container {
+        margin: 20px;
         }
         </style>
         <script type="module">
@@ -19,6 +23,7 @@ function file_predict(file) {
     image_preview.innerHTML = "";
     const img = document.createElement("img");
     img.classList.add("obj");
+    img.classList.add("z-depth-2");
     img.classList.add("to-pred-img");
     img.file = file;
     image_preview.appendChild(img);
@@ -36,7 +41,7 @@ function file_predict(file) {
         const cp = document.getElementById("class-predicted");
         cp.innerHTML = res.label;
         const ci = document.getElementById("class-id");
-         ci.innerHTML =res.class_id;
+        ci.innerHTML =res.class_id;
         const cs = document.getElementById("class-score");
         cs.innerHTML = "<g>" + res.score.toFixed(2) + "</g>"
         const te = document.getElementById("time-elapsed");
@@ -58,7 +63,7 @@ init().then(() => {
             file_predict(myBlob);
         })
 })
-    </script>
+</script>
     </head>
     <body class="container">
         <div class="grid cards">
@@ -76,8 +81,10 @@ init().then(() => {
                         if you are in doubt just turn off your network and try the playground (without reloading).
                     </p>
                     <div class="row card">
-                        <div class="col s6" >
-                            <div id="image-preview" class="center-align"></div>
+                        <div class="col s6 center-align" >
+                            <div id="image-preview-container">
+                                <div id="image-preview"></div>
+                            </div>
                         </div>
                         <div class="col s6" id="image-result"  class="valign-wrapper">
                             <ul class="collection">
@@ -105,22 +112,21 @@ init().then(() => {
                                         0ms
                                     </p>
                                 </li>
-                                </ul>
-
+                            </ul>
                         </div>
                     </div>
 
                 </div>
                 <div class="card-action">
                     <label for="avatar">Select a picture:</label>
-                      <form action="#">
+                    <form action="#">
                         <div class="file-field input-field">
-                        <div class="btn blue darken-3 waves-effect waves-light">
-                            <span>Image File</span>
-                            <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
-                        </div>
+                            <div class="btn blue darken-3 waves-effect waves-light">
+                                <span>Image File</span>
+                                <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                            </div>
                             <div class="file-path-wrapper">
-                                <input id="img-placeholder" class="file-path validate" type="text" placeholder="select one file from your device">
+                                <input id="img-placeholder" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
                             </div>
                         </div>
                     </form>
