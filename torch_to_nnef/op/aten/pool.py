@@ -1,5 +1,4 @@
 import typing as T
-from copy import deepcopy
 
 import nnef
 
@@ -234,19 +233,19 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
             reduce_node,
             op_helper,
         )
-    else:
-        op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            nnef_op_name,
-            inputs=inp,
-            attrs={
-                "size": list(stride),
-                "padding": [(0, 0) for _ in stride],
-                "stride": list(stride),
-                "dilation": [1 for _ in stride],
-                "border": "ignore",
-            },
-        )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        nnef_op_name,
+        inputs=inp,
+        attrs={
+            "size": list(stride),
+            "padding": [(0, 0) for _ in stride],
+            "stride": list(stride),
+            "dilation": [1 for _ in stride],
+            "border": "ignore",
+        },
+    )
+    return []
 
 
 # warning! no support for return_indice=True
