@@ -1,2 +1,2 @@
-wasm-pack build --target web --out-dir ../../js
-rm ../../js/.gitignore ../../js/*.ts ../../js/*.json
+wasm-pack build --target web --out-dir ../../html
+rm ../../html/.gitignore ../../html/*.ts ../../html/*.json
