@@ -19,10 +19,8 @@
 import init, { ImageClassifier } from '/html/imageclass_wasm.js';
 const image_preview = document.getElementById('image-preview');
 let img_classifier = null;
+
 function file_predict(file) {
-    if (!file || !file.type.startsWith("image/")) {
-        return;
-    }
     image_preview.innerHTML = "";
     const img = document.createElement("img");
     img.classList.add("obj");
@@ -67,17 +65,31 @@ init().then(() => {
     const dropHandler = (ev) => {
         console.log("File(s) dropped");
         // Prevent default behavior (Prevent file from being opened)
+        ev.stopPropagation();
         ev.preventDefault();
 
         if (ev.dataTransfer.items) {
             // Use DataTransferItemList interface to access the file(s)
+            let noPred = true;
             [...ev.dataTransfer.items].forEach((item, i) => {
                 // If dropped items aren't files, reject them
                 if (item.kind === "file") {
                     const file = item.getAsFile();
                     predFile(file);
+                    noPred = false;
                 }
             });
+            if (noPred) {
+                var imageUrl = event.dataTransfer.getData('URL');
+                console.log(imageUrl);
+                var fileName = imageUrl.split('/').pop();
+                fetch(imageUrl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                    var file = new File([blob], fileName);
+                    predFile(file);
+                });
+            }
         } else {
             // Use DataTransfer interface to access the file(s)
             [...ev.dataTransfer.files].forEach((file, i) => {
@@ -110,7 +122,7 @@ init().then(() => {
                         asset, this is private by design (You can use whatever photo), no data is collected,
                         if you are in doubt just turn off your network and try the playground (without reloading).
                     </p>
-                    <div class="row card" id="drop_zone_0" ondragover="event.preventDefault()">
+                    <div class="row card" id="drop_zone_0" ondragover="event.preventDefault();event.stopPropagation();">
                         <div class="col s6 center-align" >
                             <div id="image-preview-container">
                                 <div id="image-preview"></div>
@@ -147,7 +159,7 @@ init().then(() => {
                     </div>
 
                 </div>
-                <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault()">
+                <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault();event.stopPropagation()">
                     <label for="avatar">Select a picture:</label>
                     <form action="#">
                         <div class="file-field input-field">
