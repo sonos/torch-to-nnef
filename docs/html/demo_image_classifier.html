@@ -37,10 +37,10 @@
             transform: -moz-translate(-50%, -50%);
             transform: -ms-translate(-50%, -50%);
         }
-
         </style>
         <script type="module">
 import init, { ImageClassifier } from '/html/imageclass_wasm.js';
+document.getElementById("loadstatus").innerHTML = "wasm initing";
 const image_preview = document.getElementById('image-preview');
 let img_classifier = null;
 
@@ -74,7 +74,9 @@ function file_predict(file) {
     reader.readAsDataURL(file);
 }
 init().then(() => {
+    document.getElementById("loadstatus").innerHTML = "model load in tract";
     img_classifier = ImageClassifier.load();
+    document.getElementById("loadstatus").innerHTML = "default prediction running";
     console.log("inited wasm");
     const predFile = (file) => {
         const ph = document.getElementById('img-placeholder');
@@ -127,8 +129,11 @@ init().then(() => {
         .then(response => response.blob())
         .then(myBlob => {
             file_predict(myBlob);
-            setVisible('page', true);
-            setVisible('loading', false);
+            setTimeout(() => {
+                document.getElementById("loadstatus").innerHTML = "ready";
+                setVisible('page', true);
+                setVisible('loading', false);
+            }, 4000);
             console.log("setted visible");
         })
 })
@@ -225,6 +230,9 @@ setVisible('loading', true);
                 <h4>
                     <span>👀 <span style="color:teal">Loading Live Demo:</span> Image class prediction </span>
                 </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
             </div>
         </div>
     </body>
