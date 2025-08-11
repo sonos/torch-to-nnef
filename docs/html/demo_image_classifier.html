@@ -137,9 +137,6 @@ init().then(() => {
         })
 })
 
-const wait = (delay = 0) =>
-  new Promise(resolve => setTimeout(resolve, delay));
-
 const setVisible = (idName, visible) => {
   let elm = document.getElementById(idName);
   console.log(idName, elm);

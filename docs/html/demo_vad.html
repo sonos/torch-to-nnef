@@ -3,6 +3,30 @@
         <meta charset="UTF-8">
         <link rel="stylesheet" href="/html/uPlot.min.css">
         <style>
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+
         #vad-preview .u-hz {
             padding-top: 10px;
             padding-bottom: 10px;
@@ -92,6 +116,8 @@ init().then(() => {
     vad_classifier = VadClassifier.load();
     console.log("inited wasm");
     inited = true;
+    setVisible('page', true);
+    setVisible('loading', false);
 })
 function downsampleBuffer(buffer, sampleRate, outSampleRate) {
     if (outSampleRate === sampleRate) return buffer;
@@ -118,6 +144,7 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
     if (inited) {
         console.log("start VAD demo");
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log("request microphone access");
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
                 document.getElementById('vad-prestart').remove();
@@ -149,18 +176,41 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
                     }
                 };
             })
-            .catch(console.error);
+            .catch((data) => {
+                setVisible('error-container', true);
+                let msg = (
+                    data +
+                    " If you are on mobile ensure that your browser app " +
+                    "have access to microphone: " +
+                    "<a target='_blank' rel='noopener noreferrer' href='https://support.proof.com/hc/en-us/articles/14237306788503-Enable-camera-and-microphone-for-mobile'>documentation</a>"
+                );
+                document.getElementById("error").innerHTML = msg;
+                console.error(data);
+            });
     }
 });
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  console.log(idName, elm);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('error-container', false);
+setVisible('page', false);
+setVisible('loading', true);
 </script>
     </head>
-    <body class="container">
-        <div>
+    <body>
+        <div class="container" id="page">
             <div id="vad-preview" class="card">
                 <div id="vad-prestart">
                     <div class="card-content" style="justify-content: 'center'">
                         <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
                         <p>You need a microphone on your device and a browser that support WASM.</p>
+                        <div id="error-container" class="card-panel red lighten-4">
+                            <span id="error"></span>
+                        </div>
                     </div>
                     <div class="card-action">
                         <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light">
@@ -168,6 +218,19 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span class="card-title">👀 <span style="color:teal">Live Demo: </span> Voice Activity Detection</span>
+                </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
             </div>
         </div>
     </body>
