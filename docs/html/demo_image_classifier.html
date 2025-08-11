@@ -76,7 +76,6 @@ function file_predict(file) {
 init().then(() => {
     document.getElementById("loadstatus").innerHTML = "model load in tract";
     img_classifier = ImageClassifier.load();
-    document.getElementById("loadstatus").innerHTML = "default prediction running";
     console.log("inited wasm");
     const predFile = (file) => {
         const ph = document.getElementById('img-placeholder');
@@ -125,15 +124,15 @@ init().then(() => {
     };
     document.getElementById("drop_zone_0").addEventListener("drop", dropHandler);
     document.getElementById("drop_zone_1").addEventListener("drop", dropHandler);
+    document.getElementById("loadstatus").innerHTML = "loading default image";
     fetch("/img/cat.jpg")
         .then(response => response.blob())
         .then(myBlob => {
+            document.getElementById("loadstatus").innerHTML = "classify default image";
             file_predict(myBlob);
-            setTimeout(() => {
-                document.getElementById("loadstatus").innerHTML = "ready";
-                setVisible('page', true);
-                setVisible('loading', false);
-            }, 4000);
+            document.getElementById("loadstatus").innerHTML = "ready";
+            setVisible('page', true);
+            setVisible('loading', false);
             console.log("setted visible");
         })
 })
