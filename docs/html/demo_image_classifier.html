@@ -1,6 +1,7 @@
 <html>
     <head>
         <meta charset="UTF-8">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" rel="stylesheet"/>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <style>
         .to-pred-img {
@@ -14,6 +15,29 @@
         #img-placeholder {
             color: #888;
         }
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+
         </style>
         <script type="module">
 import init, { ImageClassifier } from '/html/imageclass_wasm.js';
@@ -103,76 +127,104 @@ init().then(() => {
         .then(response => response.blob())
         .then(myBlob => {
             file_predict(myBlob);
+            setVisible('page', true);
+            setVisible('loading', false);
+            console.log("setted visible");
         })
 })
+
+const wait = (delay = 0) =>
+  new Promise(resolve => setTimeout(resolve, delay));
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  console.log(idName, elm);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('page', false);
+setVisible('loading', true);
+
 </script>
     </head>
-    <body class="container">
-        <div class="grid cards">
-            <div class="card">
-                <div class="card-content" style="justify-content: 'center'"  >
-                    <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Image class prediction </span>
-                    <p>
-                        It runs a small <a  target="_blank" rel="noopener noreferrer" href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
-                        This model predict a class from the <a target="_blank" rel="noopener noreferrer" href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a> (complete class list <a target="_blank" rel="noopener noreferrer" href="/html/1klabels.html">available here</a>).
-                    </p>
-                    <br />
-                    <p>
-                        Since this model fully run on your browser there is no server needed beyond serving the initial
-                        asset, this is private by design (You can use whatever photo), no data is collected,
-                        if you are in doubt just turn off your network and try the playground (without reloading).
-                    </p>
-                    <div class="row card" id="drop_zone_0" ondragover="event.preventDefault();event.stopPropagation();">
-                        <div class="col s12 m6 center-align" >
-                            <div id="image-preview-container">
-                                <div id="image-preview"></div>
+    <body>
+        <div class="container" id="page">
+            <div class="grid cards" >
+                <div class="card">
+                    <div class="card-content" style="justify-content: 'center'"  >
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Image class prediction </span>
+
+                        <p style="padding-top:20px">
+                            It runs a small <a  target="_blank" rel="noopener noreferrer" href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
+                            This model predict a class from the <a target="_blank" rel="noopener noreferrer" href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a> (complete class list <a target="_blank" rel="noopener noreferrer" href="/html/1klabels.html">available here</a>).
+                        </p>
+                        <br />
+                        <p style="padding-bottom:20px">
+                            Since this model fully run on your browser there is no server needed beyond serving the initial
+                            asset, this is private by design (You can use whatever photo), no data is collected,
+                            if you are in doubt just turn off your network and try the playground (without reloading).
+                        </p>
+                        <div class="row card" id="drop_zone_0" ondragover="event.preventDefault();event.stopPropagation();">
+                            <div class="col s12 m6 center-align" >
+                                <div id="image-preview-container">
+                                    <div id="image-preview"></div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col s12 m6" id="image-result"  class="valign-wrapper">
-                            <ul class="collection">
-                                <li class="collection-item">
-                                    <span class="title">Class Predicted</span>
-                                    <h3 id="class-predicted" class="blue-text text-darken-2">
-                                        -
-                                    </h3>
-                                </li>
-                                <li class="collection-item">
-                                    <span class="title">Class id</span>
-                                    <p id="class-id" class="blue-text text-darken-2">
-                                        -
-                                    </p>
-                                </li>
-                                <li class="collection-item">
-                                    <span class="title">Class Score (>0)</span>
-                                    <p id="class-score" class="blue-text text-darken-2">
-                                        0.0
-                                    </p>
-                                </li>
-                                <li class="collection-item">
-                                    <span class="title">Time to process & predict image</span>
-                                    <p id="time-elapsed" class="blue-text text-darken-2">
-                                        0ms
-                                    </p>
-                                </li>
-                            </ul>
+                            <div class="col s12 m6" id="image-result"  class="valign-wrapper">
+                                <ul class="collection">
+                                    <li class="collection-item">
+                                        <span class="title">Class Predicted</span>
+                                        <h3 id="class-predicted" class="blue-text text-darken-2">
+                                            -
+                                        </h3>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Class id</span>
+                                        <p id="class-id" class="blue-text text-darken-2">
+                                            -
+                                        </p>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Class Score (>0)</span>
+                                        <p id="class-score" class="blue-text text-darken-2">
+                                            0.0
+                                        </p>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Time to process & predict image</span>
+                                        <p id="time-elapsed" class="blue-text text-darken-2">
+                                            0ms
+                                        </p>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
-
-                </div>
-                <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault();event.stopPropagation()">
-                    <label for="avatar">Select a picture:</label>
-                    <form action="#">
-                        <div class="file-field input-field">
-                            <div class="btn blue darken-3 waves-effect waves-light">
-                                <span>Image File</span>
-                                <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                    <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault();event.stopPropagation()">
+                        <label for="avatar">Select a picture:</label>
+                        <form action="#">
+                            <div class="file-field input-field">
+                                <div class="btn blue darken-3 waves-effect waves-light">
+                                    <span>Image File</span>
+                                    <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                                </div>
+                                <div class="file-path-wrapper">
+                                    <input id="img-placeholder" onchange="document.getElementById('img-placeholder').value = '';" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
+                                </div>
                             </div>
-                            <div class="file-path-wrapper">
-                                <input id="img-placeholder" onchange="document.getElementById('img-placeholder').value = '';" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
-                            </div>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span>👀 <span style="color:teal">Loading Live Demo:</span> Image class prediction </span>
+                </h4>
             </div>
         </div>
     </body>
