@@ -49,14 +49,17 @@ let currentTimeValue = 0;
 let timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
 let vadScores = Array.from({length}, (v, i) => 0);
 let vadDet = Array.from({length}, (v, i) => 0);
-let threshold = 0.15;
-let postProcindowSize = 20;
+let threshold = 0.85;
+let postProcindowSize = 10;
 let data = getData(currentTimeValue);
 function getData(time_offset, score) {
+    let maxDet = Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0;
+    let isDet = vadDet[vadDet.length - 1] === 1 ? maxDet: ((score > threshold) ? 1.0: 0.0);
+    let propDet = maxDet;
     return [
         timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset),
         vadScores = vadScores.slice(1).concat(score),
-        vadDet = vadDet.slice(1).concat(Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0),
+        vadDet = vadDet.slice(1).concat(isDet),
     ];
 }
 const vad_preview_dom = document.getElementById('vad-preview');
@@ -156,7 +159,12 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
                 const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
                 source.connect(processor);
                 processor.connect(audioContext.destination);
+                let init_time = performance.now();
                 processor.onaudioprocess = function (e) {
+                    if (performance.now() - init_time < 200) {
+                        // delay first mic received signal to avoid pop & burst
+                        return;
+                    }
                     const inputBuffer = e.inputBuffer;
                     const numChannels = inputBuffer.numberOfChannels;
                     let mergedData = new Float32Array(inputBuffer.length);
@@ -192,7 +200,6 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
 
 const setVisible = (idName, visible) => {
   let elm = document.getElementById(idName);
-  console.log(idName, elm);
   elm.style.display = visible ? 'block' : 'none';
 };
 
