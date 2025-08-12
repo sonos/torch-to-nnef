@@ -1,0 +1,92 @@
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <style>
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+        </style>
+        <script type="module">
+import init, { LLM, LLMState } from '/html/llm_wasm.js';
+let llm = null;
+let inited = false;
+init().then(() => {
+    console.log("start wasm");
+    llm = LLM.load();
+    console.log("inited wasm");
+    inited = true;
+    setVisible('page', true);
+    setVisible('loading', false);
+})
+document.getElementById('llm-click').addEventListener('click', function(e) {
+    console.log("try start LLM demo");
+    if (inited) {
+    }
+});
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('error-container', false);
+setVisible('page', false);
+setVisible('loading', true);
+</script>
+    </head>
+    <body>
+        <div class="container" id="page">
+            <div id="llm-preview" class="card">
+                <div id="llm-prestart">
+                    <div class="card-content" style="justify-content: 'center'">
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator</span>
+                        <p>You need a a browser that support WASM.</p>
+                        <div id="error-container" class="card-panel red lighten-4">
+                            <span id="error"></span>
+                        </div>
+
+                    </div>
+                    <div class="card-action">
+                        <button id="llm-click" class="btn btn-large blue darken-3 waves-effect waves-light">
+                            💬 Generate a Poem on this theme
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span class="card-title">👀 <span style="color:teal">Live Demo: </span> LLM Poem Generator</span>
+                </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
+            </div>
+        </div>
+    </body>
+</html>
