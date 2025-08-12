@@ -1,2 +1,2 @@
-torch_to_nnef
+-e ../../../
 torchvision==0.22.0
