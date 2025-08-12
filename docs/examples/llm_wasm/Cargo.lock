@@ -33,9 +33,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.98"
+version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
+checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
 name = "anymap2"
@@ -142,7 +142,6 @@ dependencies = [
 [[package]]
 name = "causal_llm"
 version = "0.1.0"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "anyhow",
  "float-ord",
@@ -719,7 +718,6 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "tokenizers",
  "tract-nnef",
  "tract-transformers",
  "wasm-bindgen",
@@ -998,9 +996,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pastey"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3a8cb46bdc156b1c90460339ae6bfd45ba0394e5effbaa640badb4987fdc261"
+checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
 
 [[package]]
 name = "percent-encoding"
@@ -1099,9 +1097,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.96"
+version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beef09f85ae72cea1ef96ba6870c51e6382ebfa4f0e85b643459331f3daa5be0"
+checksum = "d61789d7719defeb74ea5fe81f2fdfdbd28a803847077cecce2ff14e1472f6f1"
 dependencies = [
  "unicode-ident",
 ]
@@ -1440,18 +1438,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "0b0949c3a6c842cbde3f1686d6eea5a010516deb7085f79db747562d4102f41e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "cc5b44b4ab9c2fdd0e0512e6bece8388e214c0749f5862b114cc5b7a25daf227"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1542,7 +1540,6 @@ dependencies = [
 [[package]]
 name = "tract-core"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "anyhow",
  "anymap3",
@@ -1567,7 +1564,6 @@ dependencies = [
 [[package]]
 name = "tract-data"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "anyhow",
  "downcast-rs",
@@ -1592,7 +1588,6 @@ dependencies = [
 [[package]]
 name = "tract-gpu"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1605,7 +1600,6 @@ dependencies = [
 [[package]]
 name = "tract-linalg"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "byteorder",
  "cc",
@@ -1632,7 +1626,6 @@ dependencies = [
 [[package]]
 name = "tract-metal"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1649,7 +1642,6 @@ dependencies = [
 [[package]]
 name = "tract-nnef"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "byteorder",
  "flate2",
@@ -1665,7 +1657,6 @@ dependencies = [
 [[package]]
 name = "tract-transformers"
 version = "0.21.14-pre"
-source = "git+https://github.com/sonos/tract?rev=711f267#711f267fa37273c7527a0020e749808c28f519ab"
 dependencies = [
  "tract-nnef",
 ]

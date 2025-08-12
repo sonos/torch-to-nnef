@@ -1,8 +1,6 @@
-use causal_llm::{CausalLlmModel, CausalLlmState, CausalLlmStateConfig};
-use tokenizers::Tokenizer;
+use anyhow::anyhow;
+use causal_llm::{CausalLlmModel, CausalLlmState};
 use tract_nnef::internal::TractErrorContext;
-use tract_nnef::internal::anyhow;
-use tract_nnef::prelude::Framework;
 use tract_nnef::prelude::*;
 use tract_transformers::WithTractTransformers;
 use wasm_bindgen::prelude::*;
@@ -30,26 +28,11 @@ struct LLMState {
 #[wasm_bindgen]
 impl LLM {
     fn load_internal() -> TractResult<LLM> {
-        let llm_model_bytes = include_bytes!("../dump_model/model/model.nnef.tgz");
-        let mut llm_read = std::io::Cursor::new(llm_model_bytes);
-
+        web_sys::console::log_1(&"bytes get".into());
         let tokenizer_bytes = include_bytes!("../dump_model/tokenizer/tokenizer.json");
-
-        let tokenizer = Tokenizer::from_bytes(tokenizer_bytes).map_err(|e| anyhow!(e))?;
-
-        let nnef = tract_nnef::nnef().with_tract_transformers();
-        let mut nn = nnef.model_for_read(&mut llm_read)?.into_decluttered()?;
-
-        let transform = nnef
-            .get_transform("transformers-detect-all")?
-            .context("transformers-detect-all not found")?;
-        nn.transform(&*transform)?;
-        nn.optimize()?; // no memory arena for wasm so simple optimize
-        let nn = nn.into_runnable()?;
-        let llm_model = Arc::new(CausalLlmModel {
-            tokenizer,
-            nn: Arc::new(nn),
-        });
+        let llm_model_bytes = include_bytes!("../dump_model/model/model.nnef.tgz");
+        web_sys::console::log_1(&"bytes ready".into());
+        let llm_model = CausalLlmModel::from_bytes(tokenizer_bytes, llm_model_bytes)?;
         web_sys::console::log_1(&"model loaded/optimized".into());
         Ok(LLM { llm_model })
     }
@@ -67,12 +50,9 @@ impl LLM {
         })
     }
 
-    pub fn load() -> LLM {
-        web_sys::console::log_1(&"try loading".into());
-        let result = LLM::load_internal()
-            .map_err(|err| JsError::new(format!("{:?}", err).as_str()))
-            .expect("unable to load");
-        result
+    pub fn load() -> Result<LLM, JsError> {
+        web_sys::console::log_1(&"Try loading".into());
+        LLM::load_internal().map_err(|err| JsError::new(format!("{:?}", err).as_str()))
     }
 }
 

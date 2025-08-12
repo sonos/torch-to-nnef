@@ -31,17 +31,20 @@
 import init, { LLM, LLMState } from '/html/llm_wasm.js';
 let llm = null;
 let inited = false;
+document.getElementById("loadstatus").innerHTML = "wasm initing";
 init().then(() => {
+    inited = true;
+    document.getElementById("loadstatus").innerHTML = "instanciate model";
     console.log("start wasm");
     llm = LLM.load();
     console.log("inited wasm");
-    inited = true;
     setVisible('page', true);
     setVisible('loading', false);
 })
 document.getElementById('llm-click').addEventListener('click', function(e) {
     console.log("try start LLM demo");
     if (inited) {
+        console.log("requested generation")
     }
 });
 
