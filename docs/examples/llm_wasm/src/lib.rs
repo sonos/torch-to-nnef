@@ -62,8 +62,8 @@ impl LLMState {
         self.state.decode(&[self.last_token], false).unwrap().into()
     }
 
-    pub fn process_prompt(&mut self, prompt: &str) -> Result<JsValue, JsError> {
-        self.last_token = self.state.process_text(prompt).unwrap();
+    pub fn process_prompt(&mut self, prompt: String) -> Result<JsValue, JsError> {
+        self.last_token = self.state.process_text(&prompt).unwrap();
         self.prompt_processed = true;
         Ok(self.get_last_tok())
     }

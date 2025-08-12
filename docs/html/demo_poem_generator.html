@@ -1,6 +1,7 @@
 <html>
     <head>
         <meta charset="UTF-8">
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <style>
         .page    { display: none; padding: 0 0.5em; }
@@ -28,26 +29,66 @@
         }
         </style>
         <script type="module">
-import init, { LLM, LLMState } from '/html/llm_wasm.js';
-let llm = null;
-let inited = false;
-document.getElementById("loadstatus").innerHTML = "wasm initing";
-init().then(() => {
-    inited = true;
-    document.getElementById("loadstatus").innerHTML = "instanciate model";
-    console.log("start wasm");
-    llm = LLM.load();
-    console.log("inited wasm");
-    setVisible('page', true);
-    setVisible('loading', false);
-})
-document.getElementById('llm-click').addEventListener('click', function(e) {
-    console.log("try start LLM demo");
-    if (inited) {
-        console.log("requested generation")
-    }
-});
+/// core llm prompt
+import init, { LLM } from '/html/llm_wasm.js';
+const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
+let systemPrompt = genMsg(
+    "system",
+    "You are a great poem writer full of humor and joy, " +
+    "write a short poem for each requested user message " +
+    "based on its content"
+);
+let assistantStart = '<|im_start|>assistant\n';
 
+if (window.Worker) {
+    console.log("init worker");
+    let llmWorker = new Worker(
+        new URL("/html/llm_worker.js", import.meta.url),
+        { type: 'module' }
+    );
+    llmWorker.postMessage({ kind: "initLLM" });
+    console.log("loaded worker");
+    let inited = false;
+
+    document.getElementById("loadstatus").innerHTML = "wasm initing";
+    llmWorker.onmessage = (e) => {
+        let msg=  e.data;
+        if (msg.kind == "llmStatus" && msg.value == "loading") {
+            document.getElementById("loadstatus").innerHTML = "loading model (this might take a while)";
+        } else if (msg.kind == "llmStatus" && msg.value == "ready") {
+            inited = true;
+            document.getElementById("loadstatus").innerHTML = "model ready";
+            setVisible('page', true);
+            setVisible('loading', false);
+        } else if (msg.kind == "llmStatus" && msg.value == "fail") {
+            setVisible('error-container', true);
+            document.getElementById("error").innerHTML = msg.message;
+        } else if (msg.kind == "poemGen") {
+            console.log(msg);
+            document.getElementById("poem").innerHTML += msg.value;
+        } else {
+            console.log("NOT handled", msg);
+        }
+    };
+    document.getElementById('llm-click').addEventListener('click', function(e) {
+        console.log("request generation poem");
+        if (inited) {
+            let prefill = (
+                systemPrompt +
+                genMsg("user", document.getElementById("poemtheme").innerHTML) +
+                assistantStart
+            );
+            console.log("requested generation", prefill)
+            llmWorker.postMessage({
+                kind: "generatePoem",
+                value: prefill
+            });
+            console.log("sent generation request");
+        }
+    });
+} else {
+    document.getElementById("loadstatus").innerHTML = "unable to load missing 'Worker' feature in your browser";
+}
 const setVisible = (idName, visible) => {
   let elm = document.getElementById(idName);
   elm.style.display = visible ? 'block' : 'none';
@@ -60,20 +101,40 @@ setVisible('loading', true);
     </head>
     <body>
         <div class="container" id="page">
-            <div id="llm-preview" class="card">
-                <div id="llm-prestart">
-                    <div class="card-content" style="justify-content: 'center'">
-                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator</span>
-                        <p>You need a a browser that support WASM.</p>
-                        <div id="error-container" class="card-panel red lighten-4">
-                            <span id="error"></span>
+            <div id="llm-preview">
+                <div class="card">
+                        <div class="card-content" style="justify-content: 'center'">
+                            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator</span>
+                            <p>You need a a browser that support WASM.</p>
+                            <div id="error-container" class="card-panel red lighten-4">
+                                <span id="error"></span>
+                            </div>
+                            <div class="row">
+                                <form class="col s12">
+                                    <div class="row">
+                                        <div class="input-field col s12">
+                                            <i class="material-icons prefix">mode_edit</i>
+                                            <textarea id="poemtheme" class="materialize-textarea">explore what you dare</textarea>
+                                            <label for="poemtheme">Poem theme:</label>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-
-                    </div>
-                    <div class="card-action">
-                        <button id="llm-click" class="btn btn-large blue darken-3 waves-effect waves-light">
-                            💬 Generate a Poem on this theme
-                        </button>
+                        <div class="card-action">
+                            <button id="llm-click" class="btn btn-large blue darken-3 waves-effect waves-light">
+                                💬 Generate a Poem on this theme
+                            </button>
+                        </div>
+                </div>
+                <div class="card">
+                    <div class="card-content" style="justify-content: 'center'">
+                        <div class="row">
+                            <div class="col s12">
+                                <label for="poem">Poem generated:</label>
+                                <div id="poem"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
