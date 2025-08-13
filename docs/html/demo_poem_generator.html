@@ -60,9 +60,8 @@ import init, { LLM } from '/html/llm_wasm.js';
 const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
 let systemPrompt = genMsg(
     "system",
-    "You are a great poem writer full of humor and joy, " +
-    "write a short poem for each requested user message " +
-    "based on its content"
+    // "You are a great poem writer full of humor and joy, " +
+    "write a short joyfull poem based on user theme"
 );
 let assistantStart = '<|im_start|>assistant\n';
 
@@ -90,15 +89,18 @@ if (window.Worker) {
             document.getElementById("loadstatus").innerHTML = "model ready";
             setVisible('page', true);
             setVisible('loading', false);
-        } else if (msg.kind == "llmStatus" && msg.value == "fail") {
+        } else if (
+            (msg.kind == "poemFinished" && msg.reason == "error") ||
+            (msg.kind == "llmStatus" && msg.value == "fail")
+        ) {
             setVisible('error-container', true);
             document.getElementById("error").innerHTML = msg.message;
         } else if (msg.kind == "poemGen") {
             document.getElementById("poem").innerHTML = fullMessage;
-            typed.append(msg.value);
+            typed.append(msg.value || "");
             fullMessage += msg.value;
         } else if (msg.kind == "poemFinished") {
-            console.log("finished generation");
+            console.log("finished generation", msg);
             typed.destroy();
 
             button.disabled = false;
@@ -112,8 +114,8 @@ if (window.Worker) {
             button.disabled = true;
             let prefill = (
                 systemPrompt +
-                genMsg("user", document.getElementById("poemtheme").value) +
-                assistantStart
+                    genMsg("user", document.getElementById("poemtheme").value) +
+                    assistantStart
             );
             console.log("requested generation", prefill)
             llmWorker.postMessage({
@@ -122,14 +124,14 @@ if (window.Worker) {
             });
             console.log("sent generation request");
             typed = new Typed("#poem", {
-        strings: [""],
-        typeSpeed: 15,
-        backSpeed: 0,
-        backDelay: 500,
-        loop: false,
-        backSpeed: 0,
-        shouldBackspace: false,
-    })
+                strings: [""],
+                typeSpeed: 15,
+                backSpeed: 0,
+                backDelay: 500,
+                loop: false,
+                backSpeed: 0,
+                shouldBackspace: false,
+            })
         }
     });
     M.updateTextFields();
@@ -151,26 +153,33 @@ setVisible('loading', true);
             <div id="llm-preview">
                 <div class="card">
                         <div class="card-content" style="justify-content: 'center'; padding-bottom: 15px;">
-                            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator</span>
-                            <div class="row card-panel blue lighten-5 ">
-                                <div class="col s1">
-                                    <i class="medium material-icons blue-text">info</i>
+                            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator (with smolLM 135m)</span>
+                            <div>
+                                <div class="row card-panel blue lighten-5 ">
+                                    <div class="col s1">
+                                        <i class="medium material-icons blue-text">info</i>
+                                    </div>
+                                    <p style="padding-bottom:20px" class="col s11">
+                                        Since this model fully run on your browser there is no server needed beyond serving the initial
+                                        asset, this is private by design (You can generate any poem you wish), no data is collected,
+                                        if you are in doubt just turn off your network and try the playground (without reloading).
+                                    </p>
                                 </div>
-                                <p style="padding-bottom:20px" class="col s11">
-                                    Since this model fully run on your browser there is no server needed beyond serving the initial
-                                    asset, this is private by design (You can generate any poem you wish), no data is collected,
-                                    if you are in doubt just turn off your network and try the playground (without reloading).
-                                </p>
-                            </div>
-                            <div class="row" style="margin: 0px">
-                                <div class="input-field col s12">
-                                    <i class="material-icons prefix">mode_edit</i>
-                                    <input value="explore what you dare" id="poemtheme" type="text" class="validate">
-                                    <label class="active" for="poemtheme">Poem theme:</label>
+                                <div class="row">
+                                    We use a 'tiny' pre-trained Large language model named <a href="https://huggingface.co/HuggingFaceTB/SmolLM-135M-Instruct">SmolLM-135M</a> for the
+                                    purpose of this demo. It was selected to allow fast download and okish speed in wasm.
+                                    Remember that best performance are unlocked when running directly on hardware with GPU access (tract supports: MacOS and NVIDIA GPU).
                                 </div>
-                            </div>
-                            <div id="error-container" class="card-panel red lighten-4">
-                                <span id="error"></span>
+                                <div class="row" style="margin: 0px">
+                                    <div class="input-field col s12">
+                                        <i class="material-icons prefix">mode_edit</i>
+                                        <input value="explore what you dare" id="poemtheme" type="text" class="validate">
+                                        <label class="active" for="poemtheme">Poem theme:</label>
+                                    </div>
+                                </div>
+                                <div id="error-container" class="card-panel red lighten-4">
+                                    <span id="error"></span>
+                                </div>
                             </div>
                         </div>
                         <div class="card-action">
