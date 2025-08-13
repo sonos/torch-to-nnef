@@ -60,8 +60,7 @@ import init, { LLM } from '/html/llm_wasm.js';
 const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
 let systemPrompt = genMsg(
     "system",
-    // "You are a great poem writer full of humor and joy, " +
-    "write a short joyfull poem based on user theme"
+    "You are a joyfull poet, answser concisely to user, directly with a poem."
 );
 let assistantStart = '<|im_start|>assistant\n';
 
@@ -114,8 +113,10 @@ if (window.Worker) {
             button.disabled = true;
             let prefill = (
                 systemPrompt +
-                    genMsg("user", document.getElementById("poemtheme").value) +
-                    assistantStart
+                    genMsg("user",
+                        "Create an short poem full of rhyme with following theme:\n- " +
+                        document.getElementById("poemtheme").value) +
+                    assistantStart + '"'
             );
             console.log("requested generation", prefill)
             llmWorker.postMessage({
@@ -125,7 +126,7 @@ if (window.Worker) {
             console.log("sent generation request");
             typed = new Typed("#poem", {
                 strings: [""],
-                typeSpeed: 15,
+                typeSpeed: 10,
                 backSpeed: 0,
                 backDelay: 500,
                 loop: false,
