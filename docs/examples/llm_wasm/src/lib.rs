@@ -1,15 +1,6 @@
-use anyhow::anyhow;
 use causal_llm::{CausalLlmModel, CausalLlmState};
-use tract_nnef::internal::TractErrorContext;
 use tract_nnef::prelude::*;
-use tract_transformers::WithTractTransformers;
 use wasm_bindgen::prelude::*;
-
-extern crate wee_alloc;
-
-// Use `wee_alloc` as the global allocator.
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 extern crate web_sys;
 
