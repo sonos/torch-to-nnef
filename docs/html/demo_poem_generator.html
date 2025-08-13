@@ -8,7 +8,12 @@
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+        <script src="/html/typed.umd.js"></script>
         <style>
+        @keyframes blink {
+            50% { border-color: #ffffff; }
+        }
+
         .progress {
             background-color: #fff;
         }
@@ -38,14 +43,16 @@
             transform: -moz-translate(-50%, -50%);
             transform: -ms-translate(-50%, -50%);
         }
-        #poem {
+        #poemcontainer {
             white-space: pre-line;
             font-family: "Merienda", cursive;
             font-weight: 400;
             font-style: normal;
             font-size: 2em;
         }
-
+        #poem {
+            display: "inline" !important;
+        }
         </style>
         <script type="module">
 /// core llm prompt
@@ -59,6 +66,7 @@ let systemPrompt = genMsg(
 );
 let assistantStart = '<|im_start|>assistant\n';
 
+
 if (window.Worker) {
     console.log("init worker");
     let llmWorker = new Worker(
@@ -71,6 +79,8 @@ if (window.Worker) {
 
     document.getElementById("loadstatus").innerHTML = "wasm initing";
     let button = document.getElementById('llm-click');
+    var typed = null;
+    var fullMessage = "";
     llmWorker.onmessage = (e) => {
         let msg=  e.data;
         if (msg.kind == "llmStatus" && msg.value == "loading") {
@@ -84,11 +94,13 @@ if (window.Worker) {
             setVisible('error-container', true);
             document.getElementById("error").innerHTML = msg.message;
         } else if (msg.kind == "poemGen") {
-            console.log(msg);
-            document.getElementById("poem").innerHTML += msg.value;
+            document.getElementById("poem").innerHTML = fullMessage;
+            typed.append(msg.value);
+            fullMessage += msg.value;
         } else if (msg.kind == "poemFinished") {
-            setVisible("poem-loading", false);
             console.log("finished generation");
+            typed.destroy();
+
             button.disabled = false;
         } else {
             console.log("NOT handled", msg);
@@ -109,7 +121,15 @@ if (window.Worker) {
                 value: prefill
             });
             console.log("sent generation request");
-            setVisible("poem-loading", true);
+            typed = new Typed("#poem", {
+        strings: [""],
+        typeSpeed: 15,
+        backSpeed: 0,
+        backDelay: 500,
+        loop: false,
+        backSpeed: 0,
+        shouldBackspace: false,
+    })
         }
     });
     M.updateTextFields();
@@ -122,7 +142,6 @@ const setVisible = (idName, visible) => {
 };
 
 setVisible('error-container', false);
-setVisible("poem-loading", false)
 setVisible('page', false);
 setVisible('loading', true);
 </script>
@@ -166,13 +185,10 @@ setVisible('loading', true);
                             <div class="col s3">
                             </div>
                             <div class="col s6">
-                                <label for="poem">Poem generated:</label>
-                                <div id="poem"></div>
-                            </div>
-                        </div>
-                        <div id="poem-loading" class="col s12">
-                            <div class="progress">
-                                <div class="indeterminate"></div>
+                                <label for="poemcontainer">Poem generated:</label>
+                                <div id="poemcontainer" >
+                                    <span id="poem"></span>
+                                </div>
                             </div>
                         </div>
                     </div>

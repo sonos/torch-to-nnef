@@ -43,6 +43,10 @@ onmessage = (e) => {
             });
             idx++;
         }
+        postMessage({
+            kind: "poemFinished",
+            reason: "maxSize"
+        });
     } else {
         console.log("Un-expected request in worker:", e);
     }
