@@ -28,12 +28,12 @@ struct LLMState {
 #[wasm_bindgen]
 impl LLM {
     fn load_internal() -> TractResult<LLM> {
-        web_sys::console::log_1(&"bytes get".into());
+        web_sys::console::log_1(&"> bytes get".into());
         let tokenizer_bytes = include_bytes!("../dump_model/tokenizer/tokenizer.json");
         let llm_model_bytes = include_bytes!("../dump_model/model/model.nnef.tgz");
-        web_sys::console::log_1(&"bytes ready".into());
+        web_sys::console::log_1(&"> bytes ready".into());
         let llm_model = CausalLlmModel::from_bytes(tokenizer_bytes, llm_model_bytes)?;
-        web_sys::console::log_1(&"model loaded/optimized".into());
+        web_sys::console::log_1(&"> model loaded/optimized".into());
         Ok(LLM { llm_model })
     }
 
@@ -51,7 +51,7 @@ impl LLM {
     }
 
     pub fn load() -> Result<LLM, JsError> {
-        web_sys::console::log_1(&"Try loading".into());
+        web_sys::console::log_1(&"> Try loading".into());
         LLM::load_internal().map_err(|err| JsError::new(format!("{:?}", err).as_str()))
     }
 }
@@ -63,7 +63,9 @@ impl LLMState {
     }
 
     pub fn process_prompt(&mut self, prompt: String) -> Result<JsValue, JsError> {
+        web_sys::console::log_1(&"> start process text".into());
         self.last_token = self.state.process_text(&prompt).unwrap();
+        web_sys::console::log_1(&"> finished process text".into());
         self.prompt_processed = true;
         Ok(self.get_last_tok())
     }
