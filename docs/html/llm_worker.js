@@ -2,6 +2,9 @@ import init, { LLM, LLMState } from '/html/llm_wasm.js';
 var llm = null;
 var llmState = null;
 
+const MAX_N_TOKENS_GENERATED = 512;
+const endTokens = ["<|im_end|>", "<|endoftext|>"];
+
 const processInitialMessage = (prompt) => {
     try {
         llmState = llm.new_state();
@@ -31,12 +34,23 @@ const processNextToken = () => {
     try {
         console.log("start next token processing");
         let newToken = llmState.process_next_token();
-        console.log("finished next token processing");
+        console.log("finished next token processing", newToken);
+        console.log("next token sent");
+        if (endTokens.includes(newToken) || !newToken) {
+            postMessage({
+                kind: "poemGen",
+                value: " ",
+            });
+            postMessage({
+                kind: "poemFinished",
+                reason: "success",
+            });
+            return false;
+        }
         postMessage({
             kind: "poemGen",
             value: newToken
         });
-        console.log("next token sent");
         return true;
     } catch (error) {
         console.log("newToken generation worker error", error);
@@ -53,7 +67,9 @@ const processNextToken = () => {
 const generatePoemTask = (prompt) => {
     let idx = 0;
     if (!processInitialMessage(prompt)) return;
-    while (idx < 100) {
+    // safe guard to limit
+    // garbage
+    while (idx < MAX_N_TOKENS_GENERATED) {
         if (!processNextToken()) return;
         idx++;
     }
