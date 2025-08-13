@@ -1,9 +1,20 @@
 <html>
     <head>
         <meta charset="UTF-8">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Merienda:wght@300..900&family=Shadows+Into+Light&family=Shadows+Into+Light+Two&display=swap" rel="stylesheet">
+
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
         <style>
+        .progress {
+            background-color: #fff;
+        }
+        .progress .indeterminate {
+            background-color: teal;
+        }
         .page    { display: none; padding: 0 0.5em; }
         .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
         .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
@@ -27,6 +38,14 @@
             transform: -moz-translate(-50%, -50%);
             transform: -ms-translate(-50%, -50%);
         }
+        #poem {
+            white-space: pre-line;
+            font-family: "Merienda", cursive;
+            font-weight: 400;
+            font-style: normal;
+            font-size: 2em;
+        }
+
         </style>
         <script type="module">
 /// core llm prompt
@@ -51,6 +70,7 @@ if (window.Worker) {
     let inited = false;
 
     document.getElementById("loadstatus").innerHTML = "wasm initing";
+    let button = document.getElementById('llm-click');
     llmWorker.onmessage = (e) => {
         let msg=  e.data;
         if (msg.kind == "llmStatus" && msg.value == "loading") {
@@ -66,16 +86,21 @@ if (window.Worker) {
         } else if (msg.kind == "poemGen") {
             console.log(msg);
             document.getElementById("poem").innerHTML += msg.value;
+        } else if (msg.kind == "poemFinished") {
+            setVisible("poem-loading", false);
+            console.log("finished generation");
+            button.disabled = false;
         } else {
             console.log("NOT handled", msg);
         }
     };
-    document.getElementById('llm-click').addEventListener('click', function(e) {
+    button.addEventListener('click', function(e) {
         console.log("request generation poem");
         if (inited) {
+            button.disabled = true;
             let prefill = (
                 systemPrompt +
-                genMsg("user", document.getElementById("poemtheme").innerHTML) +
+                genMsg("user", document.getElementById("poemtheme").value) +
                 assistantStart
             );
             console.log("requested generation", prefill)
@@ -84,8 +109,10 @@ if (window.Worker) {
                 value: prefill
             });
             console.log("sent generation request");
+            setVisible("poem-loading", true);
         }
     });
+    M.updateTextFields();
 } else {
     document.getElementById("loadstatus").innerHTML = "unable to load missing 'Worker' feature in your browser";
 }
@@ -95,6 +122,7 @@ const setVisible = (idName, visible) => {
 };
 
 setVisible('error-container', false);
+setVisible("poem-loading", false)
 setVisible('page', false);
 setVisible('loading', true);
 </script>
@@ -103,22 +131,27 @@ setVisible('loading', true);
         <div class="container" id="page">
             <div id="llm-preview">
                 <div class="card">
-                        <div class="card-content" style="justify-content: 'center'">
+                        <div class="card-content" style="justify-content: 'center'; padding-bottom: 15px;">
                             <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator</span>
-                            <p>You need a a browser that support WASM.</p>
+                            <div class="row card-panel blue lighten-5 ">
+                                <div class="col s1">
+                                    <i class="medium material-icons blue-text">info</i>
+                                </div>
+                                <p style="padding-bottom:20px" class="col s11">
+                                    Since this model fully run on your browser there is no server needed beyond serving the initial
+                                    asset, this is private by design (You can generate any poem you wish), no data is collected,
+                                    if you are in doubt just turn off your network and try the playground (without reloading).
+                                </p>
+                            </div>
+                            <div class="row" style="margin: 0px">
+                                <div class="input-field col s12">
+                                    <i class="material-icons prefix">mode_edit</i>
+                                    <input value="explore what you dare" id="poemtheme" type="text" class="validate">
+                                    <label class="active" for="poemtheme">Poem theme:</label>
+                                </div>
+                            </div>
                             <div id="error-container" class="card-panel red lighten-4">
                                 <span id="error"></span>
-                            </div>
-                            <div class="row">
-                                <form class="col s12">
-                                    <div class="row">
-                                        <div class="input-field col s12">
-                                            <i class="material-icons prefix">mode_edit</i>
-                                            <textarea id="poemtheme" class="materialize-textarea">explore what you dare</textarea>
-                                            <label for="poemtheme">Poem theme:</label>
-                                        </div>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                         <div class="card-action">
@@ -130,9 +163,16 @@ setVisible('loading', true);
                 <div class="card">
                     <div class="card-content" style="justify-content: 'center'">
                         <div class="row">
-                            <div class="col s12">
+                            <div class="col s3">
+                            </div>
+                            <div class="col s6">
                                 <label for="poem">Poem generated:</label>
                                 <div id="poem"></div>
+                            </div>
+                        </div>
+                        <div id="poem-loading" class="col s12">
+                            <div class="progress">
+                                <div class="indeterminate"></div>
                             </div>
                         </div>
                     </div>
