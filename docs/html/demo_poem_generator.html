@@ -121,7 +121,7 @@ if (window.Worker) {
     llmWorker.onmessage = (e) => {
         let msg=  e.data;
         if (msg.kind == "llmStatus" && msg.value == "loading") {
-            document.getElementById("loadstatus").innerHTML = "loading model (this might take a while)";
+            document.getElementById("loadstatus").innerHTML = "loading model<br/>(this might take a while)";
         } else if (msg.kind == "llmStatus" && msg.value == "ready") {
             inited = true;
             document.getElementById("loadstatus").innerHTML = "model ready";

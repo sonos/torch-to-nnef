@@ -66,6 +66,6 @@
 .responsive-iframe {
   overflow: hidden;
   width: 100%;
-  min-height: 400px;
+  min-height: 250px;
   border: 0 solid #fff;
 }
