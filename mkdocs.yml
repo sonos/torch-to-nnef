@@ -43,6 +43,11 @@ markdown_extensions:
 
 plugins:
   - search
+  - git-revision-date-localized:
+      exclude:
+        - index.md
+        - "reference/*"
+        - "CHANGELOG.md"
   - api-autonav:
       modules: ["torch_to_nnef"]
       nav_section_title: "Internals API"
