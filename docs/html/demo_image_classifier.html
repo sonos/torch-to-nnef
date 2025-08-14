@@ -145,6 +145,14 @@ const setVisible = (idName, visible) => {
 setVisible('page', false);
 setVisible('loading', true);
 
+// Trigger on load and whenever content changes {
+const sendHeight = () => {
+    const height = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: 'resize', height }, '*');
+};
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+//}
 </script>
     </head>
     <body>

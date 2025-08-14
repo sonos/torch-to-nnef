@@ -1,4 +1,4 @@
-use causal_llm::{CausalLlmModel, CausalLlmState};
+use causal_llm::{CausalLlmModel, CausalLlmState, CausalLlmStateConfig};
 use tract_nnef::prelude::*;
 use wasm_bindgen::prelude::*;
 
@@ -31,7 +31,7 @@ impl LLM {
     pub fn new_state(&mut self) -> Result<LLMState, JsError> {
         let state = self
             .llm_model
-            .spawn()
+            .spawn_with_config(CausalLlmStateConfig::new(Some(512), 1.2, 64).unwrap())
             .map_err(|err| JsError::new(format!("{:?}", err).as_str()))?;
 
         Ok(LLMState {

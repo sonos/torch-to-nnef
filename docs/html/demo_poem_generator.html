@@ -159,9 +159,10 @@ if (window.Worker) {
             let prefill = (
                 systemPrompt +
                     genMsg("user",
-                        "Create an short poem full of rhyme with following theme:\n- " +
+                        "Create an short poem. Do not use parenthesis. " +
+                        "Stop writting at end of poem. Ensure the follwing theme is in the poem:\n- " +
                         document.getElementById("poemtheme").value) +
-                    assistantStart + 'here is the requested haiku:\n"'
+                    assistantStart + 'here is the requested poem:\n"'
             );
             poemContainer.style.height = "500px";
 
@@ -253,6 +254,15 @@ const setVisible = (idName, visible) => {
 setVisible('error-container', false);
 setVisible('page', false);
 setVisible('loading', true);
+
+// Trigger on load and whenever content changes {
+const sendHeight = () => {
+    const height = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: 'resize', height }, '*');
+};
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+//}
 </script>
     </head>
     <body>
@@ -263,10 +273,10 @@ setVisible('loading', true);
                             <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator (with smolLM 135m)</span>
                             <div>
                                 <div class="row card-panel blue lighten-5 ">
-                                    <div class="col s1">
-                                        <i class="medium material-icons blue-text">info</i>
+                                    <div class="col s12 m1">
+                                        <i style="font-size: 3.2em" class="material-icons blue-text">info</i>
                                     </div>
-                                    <p style="padding-bottom:20px" class="col s11">
+                                    <p style="padding-bottom:20px" class="col s12 m11">
                                         Since this model fully run on your browser there is no server needed beyond serving the initial
                                         asset, this is private by design (You can generate any poem you wish), no data is collected,
                                         if you are in doubt just turn off your network and try the playground (without reloading).
@@ -298,16 +308,16 @@ setVisible('loading', true);
                 <div class="card">
                     <div class="card-content" style="justify-content: 'center'">
                         <div class="row">
-                            <div class="col s12 m3">
+                            <div class="col s12 m2 l3">
                             </div>
-                            <div class="col s12 m6">
+                            <div class="col s12 m8 l6">
                                 <label for="poemcontainer">Poem generated:</label>
                                 <div id="poemcontainer" >
                                     <span id="poem"></span>
                                     <p style="padding: 20px"></p> <!-- trick to all better display  -->
                                 </div>
                             </div>
-                            <div class="col s12 m3">
+                            <div class="col s12 m2 l3">
                                 <div class="row">
                                     <button id="copyBtn" class="copy-btn" type="button" aria-label="Copy to clipboard" title="Copy to clipboard">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

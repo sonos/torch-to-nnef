@@ -351,7 +351,11 @@ a dedicated set of helpers for Languages models as we will see in the [next sect
 
 As an example of what we just learned we propose a simple VAD running live in this web-page.
 
-<iframe src="/html/demo_vad.html" style="width:100%; height:250px; border: 0 solid #fff;">
+<script src="/html/iframe_demo_parent.js"></script>
+<iframe
+    id="iframe-demo-0"
+    class="responsive-iframe"
+    src="/html/demo_vad.html">
 </iframe>
 
 !!! note

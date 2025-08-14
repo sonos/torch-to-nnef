@@ -142,6 +142,7 @@ dependencies = [
 [[package]]
 name = "causal_llm"
 version = "0.1.0"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "anyhow",
  "float-ord",
@@ -1527,6 +1528,7 @@ dependencies = [
 [[package]]
 name = "tract-core"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "anyhow",
  "anymap3",
@@ -1551,6 +1553,7 @@ dependencies = [
 [[package]]
 name = "tract-data"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "anyhow",
  "downcast-rs",
@@ -1575,6 +1578,7 @@ dependencies = [
 [[package]]
 name = "tract-gpu"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1587,6 +1591,7 @@ dependencies = [
 [[package]]
 name = "tract-linalg"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "byteorder",
  "cc",
@@ -1613,6 +1618,7 @@ dependencies = [
 [[package]]
 name = "tract-metal"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1629,6 +1635,7 @@ dependencies = [
 [[package]]
 name = "tract-nnef"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "byteorder",
  "flate2",
@@ -1644,6 +1651,7 @@ dependencies = [
 [[package]]
 name = "tract-transformers"
 version = "0.21.14-pre"
+source = "git+https://github.com/sonos/tract?branch=feat%2Fwasm-llm#b25e7708006e61c3731f9f0c57037af98df2d46b"
 dependencies = [
  "tract-nnef",
 ]

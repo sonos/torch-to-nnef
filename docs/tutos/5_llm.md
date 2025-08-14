@@ -194,3 +194,22 @@ regard to [`dynamic axes`](./4_dynamic_axes.md) and [basic api](./1_getting_star
     If you release a custom LLM NNEF export for a different library
     than `transformers` based on `torch_to_nnef`
     Please reach to us we would love to hear your feedback 😊
+
+
+## <span style="color:#6666aa">**:material-step-forward:  Demo:**</span> :fontawesome-brands-rust: LLM Poetry generator
+
+ Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
+ We demo the use a minimal Large Language model named `Smollm 125m` running in your browser (total experiment is <100 mo download).
+
+<script src="/html/iframe_demo_parent.js"></script>
+<iframe
+    id="iframe-demo-0"
+    class="responsive-iframe"
+    src="/html/demo_poem_generator.html">
+</iframe>
+
+!!! note
+    This model is not trained by SONOS so generation accuracy is responsibility of original [HuggingFace]() authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient,
+    this demo is for demonstration purpose.
+
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/llm_wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/hml/demo_poem_generator.html).
