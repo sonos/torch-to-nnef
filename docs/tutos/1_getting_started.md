@@ -442,11 +442,15 @@ result: Some((9.439479, 652))
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
  We demo the use a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model).
 
-<iframe src="/html/demo_image_classifier.html" style="width:100%; height:730px; border: 0 solid #fff;">
+<script src="/html/iframe_demo_parent.js"></script>
+<iframe
+    id="iframe-demo-0"
+    class="responsive-iframe"
+    src="/html/demo_image_classifier.html">
 </iframe>
 
 !!! note
     This model is not trained by SONOS so prediction accuracy is responsibility of original [torchvision](https://docs.pytorch.org/vision/stable/index.html) authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient (no SIMD WASM, no WebGPU kernels),
     this demo is for demonstration purpose.
 
-Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/blob/main/docs/tutos/1_getting_started.md).
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/hml/demo_image_classifier.html).

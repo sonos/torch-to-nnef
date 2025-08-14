@@ -60,3 +60,12 @@
 .progress-0plus .progress-bar {
   background-color: #f50057;
 }
+
+
+/* Then style the iframe to fit in the container div with full height and width */
+.responsive-iframe {
+  overflow: hidden;
+  width: 100%;
+  min-height: 400px;
+  border: 0 solid #fff;
+}
