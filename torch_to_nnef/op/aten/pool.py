@@ -1,6 +1,7 @@
 import typing as T
 
 import nnef
+from numpy import size
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
@@ -267,3 +268,26 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
     node.outputs = node.outputs[:1]
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("max_pool", op_helper, node)
+
+
+@OP_REGISTRY.register(["upsample_nearest2d"])
+def upsample_nearest2d(node, op_helper, **kwargs):
+    """Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF"""
+    (input_node, size_node, scale_factor_node) = node.inputs
+    if size_node.data:
+        raise T2NErrorNotImplemented("size in upsampling not defined in NNEF")
+    if scale_factor_node.data is None or not all(
+        isinstance(_, float) for _ in scale_factor_node.data
+    ):
+        raise T2NErrorNotImplemented(
+            f"unable to export scale_factor {scale_factor_node.data}"
+        )
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "nearest_upsample",
+        inputs=inp,
+        attrs={
+            "factor": list(scale_factor_node.data),
+        },
+    )

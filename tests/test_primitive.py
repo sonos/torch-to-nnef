@@ -1062,6 +1062,13 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+test_suite.reset()
+test_suite.add(
+    torch.arange(1, 5, dtype=torch.float32).view(1, 1, 2, 2),
+    UnaryPrimitive(torch.nn.UpsamplingNearest2d(scale_factor=2)),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
