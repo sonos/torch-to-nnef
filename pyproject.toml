@@ -100,6 +100,24 @@ build-backend = "hatchling.build"
 line-length = 80
 target-version = 'py39'
 
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    # "I",
+    # flake8-logging-format
+    "G",
+]
+ignore = ["E501"]
+
+
 [tool.isort]
 multi_line_output = 3
 include_trailing_comma = true
@@ -110,7 +128,6 @@ skip_gitignore = true
 profile = "black"
 line_length = 80
 skip = [".gitignore", ".dockerignore"]
-
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers -p no:warnings -s"

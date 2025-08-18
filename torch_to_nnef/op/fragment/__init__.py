@@ -80,7 +80,8 @@ class TmplFragment(Fragment):
                 break
         if not main_entry_found or not name:
             raise T2NError(
-                f"Missing '{main_fragment_str}' in fragment template: {self.name}"
+                f"Missing '{main_fragment_str}' "
+                f"in fragment template: {self.name}"
             )
         concrete_definition = concrete_definition.replace(
             main_fragment_str, "fragment"

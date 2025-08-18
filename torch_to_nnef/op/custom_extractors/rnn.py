@@ -71,8 +71,8 @@ class _RNNMixin:
     def _check_rank(self, node, module):
         batch_rank = 0 if module.batch_first else 1
         assert node.inputs[0].shape[batch_rank] == 1, (
-            f"should be dim=1 for rank={batch_rank} since batch_size beyond are "
-            f"not supported but provided shape is {node.inputs[0].shape}"
+            f"should be dim=1 for rank={batch_rank} since batch_size beyond "
+            f"are not supported but provided shape is {node.inputs[0].shape}"
         )
 
     @staticmethod
@@ -158,10 +158,18 @@ class _RNNMixin:
 
         ie:
         @code nnef
-            h_0 = variable<scalar>(label = 'gru_output_0_l0_h_0_store', shape = [1, 1, 5]);
-            input_shape = tract_core_shape_of(input);
-            batch_size = slice(input_shape, axes=[0], begin=[1], end=[2], stride=[1]);
-            h_batch_expanded_0 = tile(h_0, repeats=[1, batch_size, 1]);
+          h_0 = variable<scalar>(
+            label = 'gru_output_0_l0_h_0_store',
+            shape = [1, 1, 5]);
+          input_shape = tract_core_shape_of(input);
+          batch_size = slice(
+            input_shape,
+            axes=[0],
+            begin=[1],
+            end=[2],
+            stride=[1]
+          );
+          h_batch_expanded_0 = tile(h_0, repeats=[1, batch_size, 1]);
         @end
 
         """
@@ -335,7 +343,7 @@ class _RNNMixin:
                     reference_state_nnef_tensor = name_to_tensor[
                         tensor_variable.export_name
                     ]
-                    input_layer_states_tensor = helper.add_tensor_variable_node_as_nnef_tensor(
+                    input_layer_states_tensor = helper.add_tensor_variable_node_as_nnef_tensor(  # noqa: E501
                         g=g,
                         node=tg.TensorVariable(
                             name=node.outputs[0].name,

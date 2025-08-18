@@ -140,8 +140,9 @@ class TractNNEF(InferenceTarget):
             and self.version < "0.21.7"
         ):
             LOGGER.warning(
-                f"check_io_tolerance='{check_io_tolerance}' can NOT be applied "
-                "on tract version prior 0.21.7 (please use newer version)"
+                "check_io_tolerance='%s' can NOT be applied "
+                "on tract version prior 0.21.7 (please use newer version)",
+                check_io_tolerance,
             )
         if (
             check_io_tolerance
@@ -149,8 +150,9 @@ class TractNNEF(InferenceTarget):
             and self.version == "0.21.7"
         ):
             LOGGER.warning(
-                f"tract version 0.21.7 have not check_io_tolerance='{check_io_tolerance}' "
-                "falling-back to 'super' (use newer version to solve this)"
+                "tract version 0.21.7 have not check_io_tolerance='%s' "
+                "falling-back to 'super' (use newer version to solve this)",
+                check_io_tolerance,
             )
             check_io_tolerance = TractCheckTolerance.SUPER
 
@@ -163,7 +165,7 @@ class TractNNEF(InferenceTarget):
         self.force_norm_in_f32 = force_norm_in_f32
         self.dump_identity_properties = dump_identity_properties
         if self.feature_flags:
-            LOGGER.info(f"use tract features flags: {self.feature_flags}")
+            LOGGER.info("use tract features flags: %s", self.feature_flags)
 
         if specific_tract_binary_path is None:
             if self.feature_flags:
@@ -174,7 +176,7 @@ class TractNNEF(InferenceTarget):
             # we can not check easily feature flags compat so it's left
         else:
             tract_cli = TractCli(specific_tract_binary_path)
-        LOGGER.info(f"use tract:{tract_cli.tract_path.absolute()}")
+        LOGGER.info("use tract: %s", tract_cli.tract_path.absolute())
         self.tract_cli = tract_cli
         assert tract_cli.version == self.version
 
@@ -371,10 +373,10 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
 
 
 def log_io_check_call_err(cmd_shell: str, serr: str):
-    LOGGER.error(f"check_io call: {cmd_shell}")
+    LOGGER.error("check_io call: %s", cmd_shell)
     for errline in tract_err_filter(serr).split("\n"):
         if errline.strip():
-            LOGGER.error(f"> {errline}")
+            LOGGER.error("> %s", errline)
 
 
 class TractCli:
@@ -432,7 +434,9 @@ class TractCli:
         kwargs = {}
         if quiet:
             # pylint: disable-next=consider-using-with
-            kwargs["stdout"] = open(os.devnull, "wb")
+            with open(os.devnull, "wb") as fh:
+                kwargs["stdout"] = fh
+                return subprocess.call(cmd_, **kwargs)
         return subprocess.call(cmd_, **kwargs)
 
     def assert_io_cmd_str(
@@ -443,7 +447,7 @@ class TractCli:
     ):
         """Assert a NNEF asset has outputs within tolerance bound with tract cli"""
         extra_param = (
-            ["--nnef-tract-extra"] if "0.20.20" <= self.version else []
+            ["--nnef-tract-extra"] if self.version >= "0.20.20" else []
         )
         cmd_ = (
             [
@@ -706,7 +710,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
         except Exception as exp:
             if raise_export_error:
                 raise T2NErrorOnnxExport(exp.args) from exp
-            LOGGER.warning(f"ONNX export error: {exp}")
+            LOGGER.warning("ONNX export error: %s", exp)
             return False, str(exp.args)
         try:
             tract_cli.convert_onnx_to_nnef(
@@ -722,7 +726,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
             error_msg = str(exp.args[-1])
             if isinstance(exp, subprocess.CalledProcessError):
                 error_msg = exp.output.decode("utf8")
-            LOGGER.warning(f"tract ONNX->NNEF export error: {error_msg}")
+            LOGGER.warning("tract ONNX->NNEF export error: %s", error_msg)
             return False, error_msg
         return True, ""
 
@@ -766,11 +770,10 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
 
 def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
     for wpath, owpath in weight_map_file_paths.items():
-        with wpath.open("rb") as fh:
-            with owpath.open("rb") as fh_o:
-                arr = nnef.read_tensor(fh)
-                oarr = nnef.read_tensor(fh_o)
-                assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
+        with wpath.open("rb") as fh, owpath.open("rb") as fh_o:
+            arr = nnef.read_tensor(fh)
+            oarr = nnef.read_tensor(fh_o)
+            assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
 
 
 def assert_io(
@@ -816,7 +819,7 @@ def assert_io(
             check_tolerance=check_tolerance,
         ):
             LOGGER.info(
-                f"IO bit match between tract and PyTorch for {nnef_file_path}"
+                "IO bit match between tract and PyTorch for %s", nnef_file_path
             )
 
 
@@ -857,7 +860,7 @@ def assert_io_and_debug_bundle(
                 check_tolerance=check_tolerance,
             )
             LOGGER.info(
-                f"IO bit match between tract and PyTorch for {nnef_file_path}"
+                "IO bit match between tract and PyTorch for %s", nnef_file_path
             )
         except (T2NErrorIOPytorchTractNotISO, T2NErrorTract) as exp:
             if debug_bundle_path is None:
@@ -936,7 +939,7 @@ def assert_io_and_debug_bundle(
                     )
                 # rm acceptable since dir created ensured empty before use
                 shutil.rmtree(no_suffix_debug_bundle_path)
-            LOGGER.info(f"debug bundle built at {debug_bundle_path}")
+            LOGGER.info("debug bundle built at %s", debug_bundle_path)
 
             exp.args = tuple(
                 [f"test with model: {model}\n" + exp.args[0]]

@@ -170,7 +170,8 @@ def _generic_auto_tensor_expansion(
         # late bug catching
         if base_tensor_node.data.dtype != base_tensor_node.dtype:
             LOGGER.warning(
-                "late 'dtype' miss-alignment catched in _generic_auto_tensor_expansion"
+                "late 'dtype' miss-alignment catched in "
+                "_generic_auto_tensor_expansion"
             )
             base_tensor_node.data = base_tensor_node.data.to(
                 base_tensor_node.dtype
@@ -382,7 +383,8 @@ def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         _,  # requires_grad_node
     ) = node.inputs
     LOGGER.warning(
-        "the aten::zeros replaced by constant traced values (follows NNEF spec)."
+        "the aten::zeros replaced by constant traced values "
+        "(follows NNEF spec)."
         "Keeping dynamism would require custom operator in tract internals."
     )
     dtype = (
@@ -475,7 +477,14 @@ def copy(
     torch_op_ids=[_.replace("aten::", "") for _ in MAP_TO_NOP]
 )
 def _post_graph_creation_remap(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:prim::NumToTensor', 'aten:prim::ListConstruct', 'aten:ScalarImplicit', 'aten:alias' to NNEF"""
+    """Operator mapping PyTorch: no-ops to NNEF
+
+    List of no-ops:
+        'aten:prim::NumToTensor',
+        'aten:prim::ListConstruct',
+        'aten:ScalarImplicit',
+        'aten:alias'
+    """
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
 
 

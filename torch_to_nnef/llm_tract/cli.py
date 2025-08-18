@@ -277,9 +277,8 @@ def main():
         log_level = log.DEBUG
     kwargs = vars(args)
     del kwargs["verbose"]
-    if kwargs["device_map"] is not None:
-        if "{" in kwargs["device_map"]:
-            kwargs["device_map"] = json.loads(kwargs["device_map"])
+    if kwargs["device_map"] is not None and "{" in kwargs["device_map"]:
+        kwargs["device_map"] = json.loads(kwargs["device_map"])
     dump_llm(
         **kwargs,
         log_level=log_level,

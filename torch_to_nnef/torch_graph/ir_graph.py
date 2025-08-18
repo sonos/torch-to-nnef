@@ -34,6 +34,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
     apply_nnef_variable_naming_scheme,
     rename_variable_by_incr,
@@ -55,7 +56,7 @@ def module_tracer_into_ir_graph(
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
     forced_inputs_names: T.Optional[T.List[str]] = None,
     forced_outputs_names: T.Optional[T.List[str]] = None,
-    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
@@ -169,10 +170,7 @@ class TorchModuleIRGraph:
             if dnode.is_container:
                 new_data = []
                 for subdnode in dnode.iter():
-                    if subdnode is from_node:
-                        value = to_node
-                    else:
-                        value = subdnode
+                    value = to_node if subdnode is from_node else subdnode
                     new_data.append(value)
                 dnode.data = new_data
 
@@ -201,11 +199,10 @@ class TorchModuleIRGraph:
         for idx, (node_c_value, original_input, arg) in enumerate(
             zip(graph_inputs, provided_inputs, self._tracer.args)
         ):
-            if self._omit_useless_nodes:
-                if (
-                    len(node_c_value.uses()) == 0
-                ):  # number of user of the node_c_value (= number of outputs/ fanout)
-                    continue
+            if self._omit_useless_nodes and len(node_c_value.uses()) == 0:
+                # number of user of the node_c_value
+                # (= number of outputs/ fanout)
+                continue
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
@@ -259,7 +256,8 @@ class TorchModuleIRGraph:
                     )
                 else:
                     attr_to_scope[attr_name] = f"__module.{attr_name}"
-                # We don't need classtype nodes; scope will provide this information
+                # We don't need classtype nodes; scope will provide
+                # this information
                 if node.output().type().kind() != CLASSTYPE_KIND:
                     try:
                         op = TorchOp.parse(
@@ -459,7 +457,9 @@ class TorchModuleIRGraph:
                     )
                     LOGGER.info(
                         "potential name collision detected rename"
-                        f"new '{dn.name}' into '{new_name}'"
+                        "new '%s' into '%s'",
+                        dn.name,
+                        new_name,
                     )
                     dn.name = new_name
                 self.data_nodes.append(dn)
@@ -479,7 +479,8 @@ class TorchModuleIRGraph:
         Some part of the submodule may not be serializable to JIT
         this is for this very API limitation that we do not use directly
         the method torch.jit._get_trace_graph that is used in
-        ONNX builtin pytorch serialization and instead build on recursive jit.parse.
+        ONNX builtin pytorch serialization and instead build on recursive
+        jit.parse.
 
         If the serialization to jit FAIL you will be able to put a full hook
         on the concerned sub-module with declarative enonciation of what
@@ -500,7 +501,8 @@ class TorchModuleIRGraph:
                 ):
                     raise T2NError(
                         "Bug: Recursive call detected ! "
-                        f"Trying to parse same Pytorch IR sub-module twice: {op}"
+                        "Trying to parse same Pytorch IR sub-module twice: "
+                        f"{op}"
                     )
                 submodule_graph = module_tracer_into_ir_graph(
                     op.op_ref,
@@ -623,15 +625,15 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,  # noqa: E501
         provided_inputs=None,
         provided_outputs=None,
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
-        """Core parsing function transforming a pytorch nn.Module into torch_to_nnef IR"""
+        """Core parsing transforming nn.Module into torch_to_nnef IR"""
         LOGGER.debug(
-            f"start parse to IR: {self._tracer.mod.__class__.__name__}"
+            "start parse to IR: %s", self._tracer.mod.__class__.__name__
         )
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
@@ -668,7 +670,8 @@ class TorchModuleIRGraph:
                     onode.name = new_name
                     assert onode.name == onode.export_name
             # need to repeat the if's:
-            # in case of input paramater directly in outputs (ie. torchaudio.Conformer)
+            # in case of input paramater directly in outputs
+            # (ie. torchaudio.Conformer)
             if forced_inputs_names:
                 self.data_nodes.protect_item_names(forced_inputs_names)
             if forced_outputs_names:
@@ -681,7 +684,7 @@ class TorchModuleIRGraph:
         if nnef_variable_naming_scheme:
             apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
 
-        LOGGER.debug(f"parsed to IR: {self._tracer.mod.__class__.__name__}")
+        LOGGER.debug("parsed to IR: %s", self._tracer.mod.__class__.__name__)
         return self
 
     def _cleanup_dangling_data_node_hooks(self):
@@ -749,7 +752,7 @@ class TorchModuleIRGraph:
             if isinstance(_, FixedTensorList):
                 refs = ", ".join([d.export_name for d in _.data])
                 cprint(
-                    f"\t\t[type]List[/type] "
+                    "\t\t[type]List[/type] "
                     f"[var]{_.export_name}[/var] := ({refs})"
                 )
 
@@ -785,8 +788,8 @@ class TorchModuleIRGraph:
                 ]
             )
             cprint(
-                "\t\t "
-                f"{outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
+                f"\t\t {outputs_str} := "
+                f"[kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
         outputs_str = ", ".join(_.slug for _ in self.outputs)

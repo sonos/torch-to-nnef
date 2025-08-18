@@ -78,7 +78,8 @@ class TorchModuleTracer:
     """Evaluate Optimized traced Function code so that signature always match
 
     original Module is passed to do proper un-boxing later on.
-    This is needed because we have a re-routing based on actual module classtype.
+    This is needed because we have a re-routing based on actual
+    module classtype.
 
     """
 
@@ -112,7 +113,8 @@ class TorchModuleTracer:
         ``jit.trace`` on ``self.mod`` with ``self.args`` while handling
         possible PyTorch version nuances.  Any ``RuntimeError`` raised by
         ``torch.jit.trace`` is wrapped into a
-        :class:`~torch_to_nnef.exceptions.T2NErrorTorchJitTraceFailed` exception.
+        :class:`~torch_to_nnef.exceptions.T2NErrorTorchJitTraceFailed`
+        exception.
         """
         if self._traced_module is None:
             try:
@@ -124,13 +126,16 @@ class TorchModuleTracer:
                     strict=False,
                 )
             except RuntimeError as exp:
+                submod_classes = [
+                    (k, v.__class__) for k, v in self.mod.named_children()
+                ]
                 raise T2NErrorTorchJitTraceFailed(
                     "Unable to trace with jit one of following submodule:"
-                    f"{[(k, v.__class__) for k, v in self.mod.named_children()]} "
-                    f"with original error:\n\n'{exp}'\n\n"
+                    f"{submod_classes} with original error:\n\n'{exp}'\n\n"
                     "This maybe due to provided input dimension. "
-                    "If not, you can aleviate this issue by applying a special hook"
-                    "this module (explaination available in torch_to_nnef README)"
+                    "If not, you can aleviate this issue by applying "
+                    " a special hook to this module "
+                    "(explaination available in torch_to_nnef README)"
                 ) from exp
         return self._traced_module
 

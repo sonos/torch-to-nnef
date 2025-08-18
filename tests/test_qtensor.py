@@ -22,7 +22,6 @@ from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
 from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
-from torch_to_nnef.tensor.quant.base import QTensor
 from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (
@@ -90,9 +89,9 @@ def check_tensor_in_nnef_archive(
 def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     original_weight = torch.arange(64).reshape(2, 32).float()
     q_tensor = fp_to_tract_q4_0_with_min_max_calibration(original_weight)
-    q_tensor.u8_blob  # check access works
+    _ = q_tensor.u8_blob  # check access works
     new_q_tensor = q_tensor.to(torch.float32)
-    new_q_tensor.u8_blob  # check access works
+    _ = new_q_tensor.u8_blob  # check access works
 
     class Test(nn.Module):
         def __init__(self):

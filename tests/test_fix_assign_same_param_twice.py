@@ -76,7 +76,7 @@ def test_issue_dup_compress_if_shared_tensor_export():
     registry = dynamic_load_registry(
         "torch_to_nnef.compress.DEFAULT_COMPRESSION"
     )
-    for k, fn in registry.items():
+    for fn in registry.values():
         mod = MyModule()
         mod.lin1.weight = mod.lin2.weight
         # WARNING: if new parameter used it will fail

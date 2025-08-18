@@ -30,18 +30,23 @@ class InferenceTarget:
         if self.version > newest_supported:
             LOGGER.warning(
                 "`torch_to_nnef` maintainers did not tests "
-                f"inference target '{self.__class__.__name__}' "
-                f"beyond '{newest_supported.to_str()}', "
-                f"but you requested upper version: '{self.version.to_str()}', "
-                "some features may be missing"
+                "inference target '%s' "
+                "beyond '%s', "
+                "but you requested upper version: '%s', "
+                "some features may be missing",
+                self.__class__.__name__,
+                newest_supported.to_str(),
+                self.version.to_str(),
             )
         oldest_supported = self.OFFICIAL_SUPPORTED_VERSIONS[-1]
         if self.version < oldest_supported:
             LOGGER.warning(
                 "`torch_to_nnef` maintainers do not tests (anymore) "
-                f"inference target '{self.__class__.__name__}' "
-                f"beyond '{oldest_supported.to_str()}', "
-                f"but you requested lower version: '{self.version.to_str()}', "
+                "inference target '%s' beyond '%s', "
+                "but you requested lower version: '%s', ",
+                self.__class__.__name__,
+                oldest_supported.to_str(),
+                self.version.to_str(),
             )
         self.check_io = check_io
 

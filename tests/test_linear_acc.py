@@ -6,7 +6,6 @@ import os
 import pytest
 import torch
 from torch import nn
-from torch_to_nnef.utils import torch_version
 
 
 from .utils import (  # noqa: E402

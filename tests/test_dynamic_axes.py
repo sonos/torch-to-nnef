@@ -3,7 +3,6 @@
 import os
 from functools import partial
 
-from numpy import test
 import pytest
 import torch
 from torch import nn

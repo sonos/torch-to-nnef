@@ -1,5 +1,7 @@
-"""`op.custom_extractors` provide mechanism to extract to NNEF while bypassing full expension
-of `torch.Module` within `torch_graph` which by default use torch.jit.trace .
+"""`op.custom_extractors` provides mechanism to control extraction to NNEF
+
+while bypassing PyTorch full expansion of `torch.Module` within `torch_graph`
+which by default use torch.jit.trace .
 
 This may be for two main reasons:
     - Some layer such as LSTM/GRU have complex expension which are better

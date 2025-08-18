@@ -88,7 +88,8 @@ class QTensorTractScaleOnly(QTensorTract):
     def _build_binary_dat_content(
         self, post_tract_21_11: bool = False
     ) -> bytes:
-        # NOTE: implementation with multiple call to .tobytes, not tested if bottleneck
+        # NOTE: implementation with multiple call to .tobytes,
+        # not tested if bottleneck
 
         n_bytes_per_group = 18
         tensor_flat = self.decompress_to_u8().clone().flatten()
@@ -116,8 +117,10 @@ class QTensorTractScaleOnly(QTensorTract):
         self,
         dirpath: T.Union[str, Path],
         label: str,
-        inference_target: InferenceTarget = TractNNEF.latest(),
+        inference_target: T.Optional[InferenceTarget] = None,
     ):
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
         path = Path(dirpath) / f"{label}.dat"
         if path.exists():
             # already created a variable dump with that name.

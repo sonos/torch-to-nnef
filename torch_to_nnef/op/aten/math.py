@@ -46,9 +46,8 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
             and len({input_node.dtype, divisor_node.dtype}) == 2
         ):
             LOGGER.warning(
-                "div: Mixing input of 2 different dtype:"
-                f" {(input_node.dtype, divisor_node.dtype)}"
-                " force cast to f32"
+                "div: Mixing input of 2 different dtype: %s force cast to f32",
+                (input_node.dtype, divisor_node.dtype),
             )
             c_node.cast_float_inplace()
 

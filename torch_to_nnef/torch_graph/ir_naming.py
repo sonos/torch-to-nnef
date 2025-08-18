@@ -33,7 +33,12 @@ class VariableNamingScheme(str, enum.Enum):
         return cls.NATURAL_VERBOSE
 
 
-def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
+DEFAULT_VARNAME_SCHEME = VariableNamingScheme.default()
+
+
+def apply_nnef_variable_naming_scheme(
+    torch_ir_graph, scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME
+):
     """Rename availlable data node following a scheme
 
     by default the natural_verbose pattern built is as close as possible
@@ -49,7 +54,7 @@ def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
         torch_ir_graph.data_nodes.avoid_name_collision = True  # safety
         {
             VariableNamingScheme.NATURAL_VERBOSE: rename_natural_verbose,
-            VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,
+            VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,  # noqa: E501
             VariableNamingScheme.NUMERIC: rename_compact_numeric,
         }[scheme](torch_ir_graph)
         torch_ir_graph.data_nodes.avoid_name_collision = False
@@ -174,10 +179,7 @@ def replace_last_number(
             assert len(suffix) > 0
             return f"{suffix}{new_idx}"
 
-    if idx == -1:
-        trunced_name = name
-    else:
-        trunced_name = name[: idx + 1]
+    trunced_name = name if idx == -1 else name[: idx + 1]
     if suffix and trunced_name.endswith(suffix):
         trunced_name = trunced_name[: -len(suffix)]
     if suffix and trunced_name[:-1].endswith(suffix):

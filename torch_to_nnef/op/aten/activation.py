@@ -46,8 +46,7 @@ def softplus(**kwargs):
     const = node.inputs[1]
     if const.data != 1:
         raise T2NErrorNotImplemented(
-            "This version is not implemented and"
-            " would need use of a specific fragment"
+            "This version is not implemented and would need use of a specific fragment"
         )
     node.inputs = node.inputs[:1]
     return unary_output_op_without_attr("softplus", **kwargs)

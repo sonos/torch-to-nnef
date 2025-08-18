@@ -57,7 +57,8 @@ def external(
         if node.dtype not in _EXTERNAL_DTYPE_PRECISE_ENOUGHT:
             LOGGER.warning(
                 "NNEF Spec is not precise enough "
-                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+                "to ensure correct mapping of numpy type %s",
+                nnef_tensor_ref.dtype,
             )
         add_nnef_operation(
             graph=g,
@@ -88,7 +89,7 @@ def external(
 
 @OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:dropout', 'aten:native_dropout' to NNEF"""
+    """Operator mapping PyTorch: 'aten:dropout' to NNEF"""
     (
         input_node,
         _,  # probability
@@ -135,23 +136,26 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
     input_nnef = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
-        if not platform.machine().startswith("arm"):
-            LOGGER.warning(
-                "reinterpret cast to unsigned, if negative number is cpu "
-                "device dependant (arm trunk bits while intel circular buffer left)"
-            )
-            # simulate a reinterpret_cast as implicitly done in PyTorch
-            input_nnef = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_cast",
-                inputs=input_nnef,
-                attrs={
-                    "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
-                },
-            )
+    if (
+        node.inputs[0].dtype == torch.float32
+        and not onode.dtype.is_signed
+        and not platform.machine().startswith("arm")
+    ):
+        LOGGER.warning(
+            "reinterpret cast to unsigned, if negative number is cpu "
+            "device dependant (arm trunk bits while intel circular buffer left)"
+        )
+        # simulate a reinterpret_cast as implicitly done in PyTorch
+        input_nnef = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=input_nnef,
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
 
     add_single_output_op(
         g,

@@ -205,7 +205,9 @@ class LLMExporter:
             and force_inputs_dtype is None
             and force_module_dtype.torch_dtype in HALF_TYPES
         ):
-            LOGGER.info(f"request inputs aligned dtype: '{force_module_dtype}'")
+            LOGGER.info(
+                "request inputs aligned dtype: '%s'", force_module_dtype
+            )
             force_inputs_dtype = DtypeStr.FLOAT16
         self.force_inputs_dtype = force_inputs_dtype
 
@@ -339,8 +341,9 @@ class LLMExporter:
             ):
                 err_check(kv_name, ref, cand)
             LOGGER.info(
-                f"In PyTorch wrapped_model:{self.model_infos.wrapper_class} "
-                f"provide same results as {self.hf_model_causal.__class__}"
+                "In PyTorch wrapped_model:%s provide same results as %s",
+                self.model_infos.wrapper_class,
+                self.hf_model_causal.__class__,
             )
 
     def generate_inputs_io_names_and_dynaxes(
@@ -427,7 +430,8 @@ class LLMExporter:
         except Exception as exp:
             LOGGER.error(
                 "Prompt with past, does not run in PyTorch "
-                f"(likely modeling limit): {exp}"
+                "(likely modeling limit): %s",
+                exp,
             )
         text_gen_npz_filepath = io_npz_dirpath / "text_generation_io.npz"
         self.build_io_npz(
@@ -456,7 +460,7 @@ class LLMExporter:
             generation_config=generation_config,
         )
         text = self.tokenizer.decode(iids[0])
-        LOGGER.info(f"generated text: {text}")
+        LOGGER.info("generated text: %s", text)
 
     def _update_inference_target_options(self, inference_target):
         inference_target.__dict__.update(self._inference_target_options)
@@ -498,7 +502,7 @@ class LLMExporter:
         # compression method may sometime need
         # gradient optimization so avoid context manager no_grad
         if compression_method:
-            LOGGER.info(f"start compresssion: {compression_method}")
+            LOGGER.info("start compresssion: %s", compression_method)
             registry = dynamic_load_registry(compression_registry)
             self.wrapped_model = registry[compression_method](
                 self.wrapped_model,
@@ -510,7 +514,7 @@ class LLMExporter:
                 local_dir=self.local_dir,
             )
             LOGGER.info(
-                f"successfully applied compression: {compression_method}"
+                "successfully applied compression: %s", compression_method
             )
 
         with torch.no_grad():
@@ -602,7 +606,8 @@ class LLMExporter:
             if check_inference_modes and sample_generation_total_size > 0:
                 LOGGER.info(
                     "'inference mode' evaluation started with "
-                    f"sample_generation_total_size={sample_generation_total_size}"
+                    "sample_generation_total_size=%d",
+                    sample_generation_total_size,
                 )
                 modes = [
                     p.with_suffix("").name.replace("_io", "")
@@ -656,8 +661,7 @@ class LLMExporter:
                 custom_extensions=[
                     "tract_assert P >= 0",
                     "tract_assert S >= 1",
-                    "tract_assert S+P < "
-                    f"{self.model_infos.max_position_embeddings}",
+                    f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
                     # information about modes
                     "tract_assert tg: S==1",  # text generation
                     "tract_assert pp: P==0",  # prompt processing
@@ -708,14 +712,12 @@ class LLMExporter:
             wrapper_io_check = False
         if no_verify and test_display_token_gens:
             LOGGER.info(
-                "force disable 'test_display_token_gens' because "
-                "'no_verify=True'"
+                "force disable 'test_display_token_gens' because 'no_verify=True'"
             )
             test_display_token_gens = False
         if export_dirpath.exists() and not ignore_already_exist_dir:
             raise T2NErrorMissUse(
-                "'export_dirpath' should not exist but "
-                f"found: '{export_dirpath}'"
+                f"'export_dirpath' should not exist but found: '{export_dirpath}'"
             )
 
         self.prepare(
@@ -923,7 +925,7 @@ def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
             import accelerate
 
             device_map = accelerate.infer_auto_device_map(model)
-            LOGGER.info(f"device map selected: {device_map}")
+            LOGGER.info("device map selected: %s", device_map)
         if any(
             _ in device_map
             for _ in [
@@ -971,7 +973,7 @@ def load_model(
             custom_config, trust_remote_code=True
         )
         LOGGER.info(
-            f"load custom config: '{hf_model_slug}', un-initialized weights"
+            "load custom config: '%s', un-initialized weights", hf_model_slug
         )
     elif local_dir:
         try:
@@ -980,8 +982,9 @@ def load_model(
             assert_model_safetensors_exists(dir_path)
             hf_model_causal = _from_pretrained(dir_path, **kwargs)
             LOGGER.info(
-                f"load '{hf_model_causal.config.model_type}' "
-                f"from local directory: {dir_path}"
+                "load '%s' from local directory: %s",
+                hf_model_causal.config.model_type,
+                dir_path,
             )
         except (T2NErrorNotFoundFile, OSError):
             hf_model_causal = load_peft_model(local_dir, kwargs)
@@ -989,7 +992,7 @@ def load_model(
     elif hf_model_slug is not None:
         hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
         LOGGER.info(
-            f"load default trained model from huggingface: '{hf_model_slug}'"
+            "load default trained model from huggingface: '%s'", hf_model_slug
         )
     else:
         raise T2NErrorNotImplemented(
@@ -1003,14 +1006,14 @@ def load_model(
             hf_model_causal = hf_model_causal.merge_and_unload()
         else:
             LOGGER.warning(
-                f"no 'Peft' model found: {hf_model_causal.__class__} "
-                "(so no merge applied)"
+                "no 'Peft' model found: %s (so no merge applied)",
+                hf_model_causal.__class__,
             )
 
     if force_module_dtype is not None:
         force_dtype = DtypeStr(force_module_dtype).torch_dtype
         hf_model_causal = hf_model_causal.to(force_dtype)
-        LOGGER.info(f"force casted model internals to: '{force_module_dtype}'")
+        LOGGER.info("force casted model internals to: '%s'", force_module_dtype)
     return hf_model_causal
 
 
@@ -1065,7 +1068,7 @@ def dump_llm(
             kwargs["tract_check_io_tolerance"]
         )
     exporter.dump(**kwargs)
-    export_path = kwargs.get("export_dirpath", None)
+    export_path = kwargs.get("export_dirpath")
     return (
         Path(export_path) if export_path else None,
         exporter,

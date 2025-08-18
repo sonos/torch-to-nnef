@@ -162,8 +162,11 @@ def _build_new_names_and_elements(
             LOGGER.warning(
                 "Can only keep trace dynamic for torch.Tensor inputs/outputs  "
                 "rest is CONSTANTIZED like: "
-                f"'{root_name}' value: {elm} at index: {ix_str} "
-                "(if its a container we assume no torch.Tensor inside)"
+                "'%s' value: %s at index: %s "
+                "(if its a container we assume no torch.Tensor inside)",
+                root_name,
+                elm,
+                ix_str,
             )
             continue
         new_names.append(root_name + str_idxes if str_idxes else root_name)
@@ -187,8 +190,8 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     )
     if new_input_names != input_names:
         LOGGER.warning(
-            "Graph inputs have been flattened "
-            f"so NNEF inputs are: {new_input_names}"
+            "Graph inputs have been flattened so NNEF inputs are: %s",
+            new_input_names,
         )
         input_names = new_input_names
 
@@ -197,8 +200,8 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     )
     if new_output_names != output_names:
         LOGGER.warning(
-            "Graph outputs have been flattened "
-            f"so NNEF outputs are: {new_output_names}"
+            "Graph outputs have been flattened so NNEF outputs are: %s",
+            new_output_names,
         )
         output_names = new_output_names
 

@@ -105,7 +105,8 @@ def register_state_node_as_variable(
         attribs={
             "label": nnef_tensor_ref.name,
             "shape": list(torch_tensor.shape),
-            "dtype": np.float32,  # since need to be marked as <scalar> in graph.nnef
+            "dtype": np.float32,  # since need to be marked as <scalar>
+            # in graph.nnef
         },
     )
 
@@ -264,9 +265,10 @@ def _conv(
     )
 
     # NOTE: Shall I use qconv instead ?
-    # does not seems to work better on unit tests, nor full model export --> fail compaction
+    # does not seems to work better on unit tests, nor full model export
+    # --> fail compaction
     #
-    # but add zp and scale for all IO see: /home/epi/SONOS/src/tract/nnef/src/ops/core/qconv.rs
+    # but add zp and scale for all IO see: /tract/nnef/src/ops/core/qconv.rs
     #
     # NOperation(
     #     graph=g,

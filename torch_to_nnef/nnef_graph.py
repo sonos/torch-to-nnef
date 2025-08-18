@@ -29,7 +29,10 @@ from torch_to_nnef.torch_graph import (
     TorchModuleTracer,
     module_tracer_into_ir_graph,
 )
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
+    VariableNamingScheme,
+)
 from torch_to_nnef.torch_graph.ir_op import (
     CacheDataNodeTarget,
     CacheDataToOpsNode,
@@ -47,7 +50,7 @@ class TorchToNGraphExtractor:
         model: torch.nn.Module,
         args: T.Tuple[torch.Tensor, ...],
         inference_target: InferenceTarget,
-        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
         forced_inputs_names: T.Optional[T.List[str]] = None,
         forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
@@ -82,11 +85,10 @@ class TorchToNGraphExtractor:
                 torch_graph=self._torch_ir_graph,
                 inference_target=self._inference_target,
             )
-        if node.kind.startswith("prim::"):
-            if node.kind in MAP_TO_NOP:
-                assert len(node.inputs) == 1 and len(node.outputs) == 1
-                self._torch_ir_graph.remap_node(node.outputs[0], node.inputs[0])
-                return []
+        if node.kind.startswith("prim::") and node.kind in MAP_TO_NOP:
+            assert len(node.inputs) == 1 and len(node.outputs) == 1
+            self._torch_ir_graph.remap_node(node.outputs[0], node.inputs[0])
+            return []
 
         if node.kind.startswith("quantized::"):
             return quantized_node_to_nnef_tensor_and_ops(
@@ -160,9 +162,9 @@ class TorchToNGraphExtractor:
             if node.is_container and any(
                 is_missing(subnode) for subnode in node.data
             ):
-                # case where partial data is available for container
                 return True
-            if not isinstance(node, TensorVariable) or node.data is not None:
+
+            if not isinstance(node, TensorVariable) or node.data is not None:  # noqa: SIM103
                 return False
             return True
 
@@ -218,14 +220,15 @@ class TorchToNGraphExtractor:
         self.g.inputs = ginputs
         if self._forced_inputs_names is not None:
             assert len(self._forced_inputs_names) > 0
-            if self._check_io_names_qte_match:
-                if len(self._forced_inputs_names) != len(self.g.inputs):
-                    raise T2NErrorIoQuantity(
-                        f"miss-aligned quantity of `input_names`: {len(self._forced_inputs_names)}"
-                        f" and quantity of inputs in NNEF graph: {len(self.g.inputs)}\n"
-                        f"\t- with input_names: {self._forced_inputs_names}\n"
-                        f"\t- with graph inputs: {self.g.inputs}"
-                    )
+            if self._check_io_names_qte_match and len(
+                self._forced_inputs_names
+            ) != len(self.g.inputs):
+                raise T2NErrorIoQuantity(
+                    f"miss-aligned quantity of `input_names`: {len(self._forced_inputs_names)}"
+                    f" and quantity of inputs in NNEF graph: {len(self.g.inputs)}\n"
+                    f"\t- with input_names: {self._forced_inputs_names}\n"
+                    f"\t- with graph inputs: {self.g.inputs}"
+                )
             # still needed since some .remap_node in ._add_operators may araise
             for inode, new_name in zip(
                 self.g.inputs, self._forced_inputs_names
@@ -238,14 +241,15 @@ class TorchToNGraphExtractor:
         if self._forced_outputs_names is not None:
             # only allow at least 1 output
             assert len(self._forced_outputs_names) > 0
-            if self._check_io_names_qte_match:
-                if len(self._forced_outputs_names) != len(self.g.outputs):
-                    raise T2NErrorIoQuantity(
-                        f"miss-aligned quantity of `output_names`: {len(self._forced_outputs_names)}"
-                        f" and quantity of outputs in NNEF graph: {len(self.g.outputs)}\n"
-                        f"\t- with output_names: {self._forced_inputs_names}\n"
-                        f"\t- with graph outputs: {self.g.outputs}"
-                    )
+            if self._check_io_names_qte_match and len(
+                self._forced_outputs_names
+            ) != len(self.g.outputs):
+                raise T2NErrorIoQuantity(
+                    f"miss-aligned quantity of `output_names`: {len(self._forced_outputs_names)}"
+                    f" and quantity of outputs in NNEF graph: {len(self.g.outputs)}\n"
+                    f"\t- with output_names: {self._forced_inputs_names}\n"
+                    f"\t- with graph outputs: {self.g.outputs}"
+                )
             # still needed since some .remap_node in ._add_operators may araise
             for onode, new_name in zip(
                 self.g.outputs, self._forced_outputs_names

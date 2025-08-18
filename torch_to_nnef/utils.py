@@ -98,15 +98,8 @@ def flatten_dict_tuple_or_list(
                 ((list, dict), (0, "b"), 3),
             )
     """
-    if collected_idxes is None:
-        collected_idxes = []
-    else:
-        collected_idxes = collected_idxes[:]
-
-    if collected_types is None:
-        collected_types = []
-    else:
-        collected_types = collected_types[:]
+    collected_idxes = [] if collected_idxes is None else collected_idxes[:]
+    collected_types = [] if collected_types is None else collected_types[:]
 
     collected_types.append(type(obj))
     if isinstance(obj, (tuple, list)):
@@ -146,12 +139,14 @@ def flatten_dict_tuple_or_list(
 @contextlib.contextmanager
 def init_empty_weights(include_buffers: T.Optional[bool] = None):
     """Borrowed from `accelerate`
-    A context manager under which models are initialized with all parameters on the meta device, therefore creating an
-    empty model. Useful when just initializing the model would blow the available RAM.
+    A context manager under which models are initialized with all parameters
+    on the meta device, therefore creating an empty model.
+    Useful when just initializing the model would blow the available RAM.
 
     Args:
         include_buffers (`bool`, *optional*):
-            Whether or not to also put all buffers on the meta device while initializing.
+            Whether or not to also put all buffers on the meta device
+            while initializing.
 
     Example:
 
@@ -159,17 +154,19 @@ def init_empty_weights(include_buffers: T.Optional[bool] = None):
     import torch.nn as nn
     from  import init_empty_weights
 
-    # Initialize a model with 100 billions parameters in no time and without using any RAM.
+    # Initialize a model with 100 billions parameters in no time and
+    # without using any RAM.
     with init_empty_weights():
         tst = nn.Sequential(*[nn.Linear(10000, 10000) for _ in range(1000)])
     ```
 
     <Tip warning={true}>
 
-    Any model created under this context manager has no weights. As such you can't do something like
-    `model.to(some_device)` with it. To load weights inside your empty model, see [`load_checkpoint_and_dispatch`].
-    Make sure to overwrite the default device_map param for [`load_checkpoint_and_dispatch`], otherwise dispatch is not
-    called.
+    Any model created under this context manager has no weights.
+    As such you can't do something like `model.to(some_device)` with it.
+    To load weights inside an empty model, see [`load_checkpoint_and_dispatch`].
+    Make sure to overwrite the default device_map param
+    for [`load_checkpoint_and_dispatch`], otherwise dispatch is not called.
 
     </Tip>
     """
@@ -185,13 +182,15 @@ def init_on_device(
     device: torch.device, include_buffers: T.Optional[bool] = None
 ):
     """Borrowed from `accelerate`
-    A context manager under which models are initialized with all parameters on the specified device.
+    A context manager under which models are initialized with all parameters
+    on the specified device.
 
     Args:
         device (`torch.device`):
             Device to initialize all parameters on.
         include_buffers (`bool`, *optional*):
-            Whether or not to also put all buffers on the meta device while initializing.
+            Whether or not to also put all buffers on the meta device
+            while initializing.
 
     Example:
 
@@ -248,7 +247,7 @@ def init_on_device(
         torch.nn.Module.register_parameter = register_empty_parameter
         if include_buffers:
             torch.nn.Module.register_buffer = register_empty_buffer
-        for torch_function_name in tensor_constructors_to_patch.keys():
+        for torch_function_name in tensor_constructors_to_patch:
             setattr(
                 torch,
                 torch_function_name,
@@ -538,4 +537,7 @@ class ReactiveNamedItemDict:
         if self._protected_names:
             pnames = ",\n".join(f"\t'{k}'" for k in self._protected_names)
             protected = f"\nprotected_names=[\n{pnames}]\n"
-        return f"<ReactiveNamedItemDict ({len(self._map)}) stored_names=[{names}] {protected}>"
+        return (
+            f"<ReactiveNamedItemDict ({len(self._map)}) "
+            f"stored_names=[{names}] {protected}>"
+        )

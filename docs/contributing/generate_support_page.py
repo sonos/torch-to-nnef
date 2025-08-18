@@ -173,10 +173,7 @@ def print_t(text, file):
             lines = text.split("\n")
             new_lines = []
             for line in lines:
-                if line.strip():
-                    new_line = f"    {line}"
-                else:
-                    new_line = line
+                new_line = f"    {line}" if line.strip() else line
                 new_lines.append(new_line)
             text = "\n".join(new_lines)
         else:

@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import logging
 import typing as T
@@ -450,10 +451,8 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
 def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
     abstracted_inputs = _prepare_arguments(kind, inputs, data_nodes)
     op_ref = None
-    try:
+    with contextlib.suppress(AttributeError):
         op_ref = aten_name_to_torch_fn(kind)
-    except AttributeError:
-        pass
     return op_ref, abstracted_inputs
 
 
@@ -578,7 +577,8 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
     if qualname.startswith("__torch__.") and not module_getter_ref:
         # NOTE: this part of the code is
         # non generic: the problem arise from:
-        # the call to a function that is passed as input of the PyTorch IR 'graph'
+        # the call to a function that is passed as
+        # input of the PyTorch IR 'graph'
         # in this case finding the Python object reference based on
         # PyTorch IR python API is hard.
         ref_cls_path = ".".join(
