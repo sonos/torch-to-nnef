@@ -23,8 +23,8 @@ class ModTensorUpdater:
 
     Cleanly means without breaking shared reference between Tensors.
 
-    An example is the shared reference on transformers between first input_ids embedding and
-    last linear layer projection weights.
+    An example is the shared reference on transformers between
+    first input_ids embedding and last linear layer projection weights.
 
     This is not usefull for PyTorch < 2.0.0 since it filters duplicate in init,
     since torch API are missing remove_duplicate before that.
@@ -46,16 +46,20 @@ class ModTensorUpdater:
                 nn.Module model that will have tensors updated with this class
 
             add_parameter_if_unset:
-                if you add a tensor where there is not yet a torch.nn.Parameters in the model it will add it
+                if you add a tensor where there is not yet a torch.nn.Parameters
+                in the model it will add it
 
             add_buffers:
-                Scope all nn.Buffer PyTorch object of the model to be 'updatable'
+                Scope all nn.Buffer PyTorch object of the model
+                to be 'updatable'
 
             add_unregistred_tensor:
-                Scope all tensor PyTorch object of the model not referenced in nn.Parameters & nn.Buffer
+                Scope all tensor PyTorch object of the model not referenced in
+                nn.Parameters & nn.Buffer
 
             disable_requires_grad:
-                If set it force tensors replaced to be with no 'requires_grad' at update time
+                If set it force tensors replaced to be with no 'requires_grad'
+                at update time
         """
         self.name_to_id = {}
         self.id_to_kind = {}

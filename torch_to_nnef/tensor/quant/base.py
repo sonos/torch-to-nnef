@@ -127,7 +127,10 @@ class QScalePerGroupF16(QScheme):
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(group_size={self.group_size}, scale={self.scale})"
+        return (
+            f"{self.__class__.__name__}"
+            f"(group_size={self.group_size}, scale={self.scale})"
+        )
 
 
 if torch_version() > "2.0.0":

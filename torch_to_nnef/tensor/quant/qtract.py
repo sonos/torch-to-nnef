@@ -88,7 +88,8 @@ class QTensorTractScaleOnly(QTensorTract):
     def _build_binary_dat_content(
         self, post_tract_21_11: bool = False
     ) -> bytes:
-        # NOTE: implementation with multiple call to .tobytes, not tested if bottleneck
+        # NOTE: implementation with multiple call to .tobytes,
+        # not tested if bottleneck
 
         n_bytes_per_group = 18
         tensor_flat = self.decompress_to_u8().clone().flatten()

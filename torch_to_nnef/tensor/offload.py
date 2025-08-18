@@ -123,7 +123,8 @@ class OffloadedTensor(OpaqueTensor):
                 and getattr(torch, device.type).is_initialized()
             ):
                 device = torch.device(
-                    f"{device.type}:{getattr(torch, device.type).current_device()}"
+                    f"{device.type}:"
+                    f"{getattr(torch, device.type).current_device()}"
                 )
             else:
                 device = torch.device(f"{device.type}:0")
@@ -173,13 +174,15 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: T.Optional[Path] = None,
         suffix_log_msg: str = "",
     ):
-        """Take an torch.Tensor or torch_to_nnef.tensor.OpaqueTensor and offload it to disk
+        """Take an torch.Tensor or OpaqueTensor and offload it to disk
 
         Args:
             tensor:
-                the torch.Tensor or torch_to_nnef.tensor.OpaqueTensor to dump on disk
+                the torch.Tensor or torch_to_nnef.tensor.OpaqueTensor
+                to dump on disk
             name:
-                the name of the tensor that will be used to create the filename store on disk
+                the name of the tensor that will be used to create
+                the filename store on disk
             offload_dir:
                 The directory where this file will be stored (temporarly)
         """
@@ -356,7 +359,8 @@ def safe_load_file(
             if offload is applyied or left to cpu
 
     Returns:
-        `Dict[str, torch.Tensor]`: dictionary that contains name as key, value as `torch.Tensor`
+        `Dict[str, torch.Tensor]`: dictionary that contains name as key,
+        value as `torch.Tensor`
 
     Example:
 
@@ -416,20 +420,24 @@ def load_state_dict(
     offload_dir: T.Optional[Path] = None,
     apply_offload: bool = False,
 ):
-    """
-    Load a checkpoint from a given file. If the checkpoint is in the safetensors format and a device map is passed, the
-    weights can be fast-loaded directly on the GPU.
+    """Load a checkpoint from a given file.
+
+    If the checkpoint is in the safetensors format and a device map is passed,
+    the weights can be fast-loaded directly on the GPU.
 
     Args:
         checkpoint_file (`str`): The path to the checkpoint to load.
         device_map (`Dict[str, Union[int, str, torch.device]]`, *optional*):
-            A map that specifies where each submodule should go. It doesn't need to be refined to each parameter/buffer
-            name, once a given module name is inside, every submodule of it will be sent to the same device.
+            A map that specifies where each submodule should go.
+            It doesn't need to be refined to each parameter/buffer
+            name, once a given module name is inside, every submodule of
+            it will be sent to the same device.
         offload_dir: Path *optional*
             Offload directory to store tensors
         apply_offload: bool
             if activated it will offload each loaded tensor as soon as possible
-            (we disable it in most case to allow set_module_tensor_to_device dtype casting in memory directly)
+            (we disable it in most case to allow set_module_tensor_to_device
+            dtype casting in memory directly)
     """
 
     if not checkpoint_file.name.endswith(".safetensors"):
@@ -444,7 +452,8 @@ def load_state_dict(
     if metadata is None:
         LOGGER.warning(
             "The safetensors archive passed at %s does not contain metadata. "
-            "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata.",
+            "Make sure to save your model with the `save_pretrained` method. "
+            "Defaulting to 'pt' metadata.",
             checkpoint_file,
             stacklevel=2,
         )
@@ -452,12 +461,14 @@ def load_state_dict(
 
     if metadata.get("format") not in ["pt", "tf", "flax"]:
         raise T2NErrorMissUse(
-            f"The safetensors archive passed at {checkpoint_file} does not contain the valid metadata. Make sure "
-            "you save your model with the `save_pretrained` method."
+            f"The safetensors archive passed at {checkpoint_file} does not "
+            "contain the valid metadata. "
+            "Make sure you save your model with the `save_pretrained` method."
         )
     if metadata["format"] != "pt":
         raise T2NErrorMissUse(
-            f"The checkpoint passed was saved with {metadata['format']}, we need a the pt format."
+            f"The checkpoint passed was saved with {metadata['format']}, "
+            "we need a the pt format."
         )
     if device_map is None:
         return safe_load_file(
@@ -577,17 +588,21 @@ def t2n_load_checkpoint_and_dispatch(
             ]
             if len(potential_index) == 0:
                 raise T2NErrorMissUse(
-                    f"{checkpoint} is not a folder containing a `.index.json` file or a {WEIGHTS_NAME} or a {SAFE_WEIGHTS_NAME} file"
+                    f"{checkpoint} is not a folder containing a `.index.json`"
+                    f" file or a {WEIGHTS_NAME} or a {SAFE_WEIGHTS_NAME} file"
                 )
             if len(potential_index) != 1:
                 raise T2NErrorMissUse(
-                    f"{checkpoint} containing more than one `.index.json` file, delete the irrelevant ones."
+                    f"{checkpoint} containing more than one `.index.json` file,"
+                    " delete the irrelevant ones."
                 )
             index_filename = checkpoint / potential_index[0]
     else:
         raise T2NErrorMissUse(
-            "`checkpoint` should be the path to a file containing a whole state dict, or the index of a sharded "
-            f"checkpoint, or a folder containing a sharded checkpoint or the whole state dict, but got {checkpoint}."
+            "`checkpoint` should be the path to a file containing "
+            "a whole state dict, or the index of a sharded "
+            "checkpoint, or a folder containing a sharded checkpoint or "
+            f"the whole state dict, but got {checkpoint}."
         )
     if index_filename is not None:
         checkpoint_folder = index_filename.parent
@@ -648,7 +663,8 @@ def t2n_load_checkpoint_and_dispatch(
             "Some weights of the model checkpoint at %s were not used when"
             " initializing %s: %s. "
             "This may or may not be an issue - make sure that the checkpoint "
-            "does not have unnecessary parameters, or that the model definition "
+            "does not have unnecessary parameters, "
+            "or that the model definition "
             "correctly corresponds to the checkpoint.",
             checkpoint,
             model.__class__.__name__,
@@ -665,9 +681,12 @@ def set_module_tensor_to_device(
     dtype: T.Optional[T.Union[str, torch.dtype]] = None,
     offload_dir: T.Optional[Path] = None,
 ):
-    """
-    A helper function to set a given tensor (parameter of buffer) of a module on a specific device (note that doing
-    `param.to(device)` creates a new tensor not linked to the parameter, which is why we need this function).
+    """A helper function to set a given tensor (parameter of buffer) to device
+
+    (
+        note that doing `param.to(device)` creates a new tensor not linked
+        to the parameter, which is why we need this function
+    ).
 
     Args:
         module (`torch.nn.Module`):
@@ -677,10 +696,12 @@ def set_module_tensor_to_device(
         device (`int`, `str` or `torch.device`):
             The device on which to set the tensor.
         value (`torch.Tensor`, *optional*):
-            The value of the tensor (useful when going from the meta device to any other device).
+            The value of the tensor (useful when going from the meta device to
+            any other device).
         dtype (`torch.dtype`, *optional*):
-            If passed along the value of the parameter will be cast to this `dtype`. Otherwise, `value` will be cast to
-            the dtype of the existing parameter in the model.
+            If set, the value of the parameter will be cast to this `dtype`.
+            Otherwise, `value` will be cast to the dtype
+            of the existing parameter in the model.
     """
     # Recurse if needed
     original_tensor_name = tensor_name
@@ -698,7 +719,8 @@ def set_module_tensor_to_device(
         and tensor_name not in module._buffers
     ):
         raise T2NErrorMissUse(
-            f"{module} does not have a parameter or a buffer named {tensor_name}."
+            f"{module} does not have a parameter or "
+            f"a buffer named {tensor_name}."
         )
     old_value = getattr(module, tensor_name)
 
@@ -707,15 +729,18 @@ def set_module_tensor_to_device(
 
     if value is None:
         raise T2NErrorMissUse("Missing value")
-    # We can expect mismatches when using bnb 4bit since Params4bit will reshape and pack the weights.
-    # In other cases, we want to make sure we're not loading checkpoints that do not match the config.
+    # We can expect mismatches when using bnb 4bit since Params4bit will reshape
+    # and pack the weights.
+    # In other cases, we want to make sure we're not loading checkpoints
+    # that do not match the config.
     if old_value.shape != value.shape and param_cls.__name__ != "Params4bit":
         raise T2NErrorMissUse(
             f'Trying to set a tensor of shape {value.shape} in "{tensor_name}" '
             f"(which has shape {old_value.shape}), this looks incorrect."
         )
 
-    # For compatibility with PyTorch load_state_dict which converts state dict dtype to existing dtype in model
+    # For compatibility with PyTorch load_state_dict which converts
+    # state dict dtype to existing dtype in model
     if dtype is None:
         value = value.to(old_value.dtype)
     elif not str(value.dtype).startswith(

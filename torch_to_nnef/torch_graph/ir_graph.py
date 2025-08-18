@@ -199,9 +199,9 @@ class TorchModuleIRGraph:
         for idx, (node_c_value, original_input, arg) in enumerate(
             zip(graph_inputs, provided_inputs, self._tracer.args)
         ):
-            if (
-                self._omit_useless_nodes and len(node_c_value.uses()) == 0
-            ):  # number of user of the node_c_value (= number of outputs/ fanout)
+            if self._omit_useless_nodes and len(node_c_value.uses()) == 0:
+                # number of user of the node_c_value
+                # (= number of outputs/ fanout)
                 continue
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
@@ -256,7 +256,8 @@ class TorchModuleIRGraph:
                     )
                 else:
                     attr_to_scope[attr_name] = f"__module.{attr_name}"
-                # We don't need classtype nodes; scope will provide this information
+                # We don't need classtype nodes; scope will provide
+                # this information
                 if node.output().type().kind() != CLASSTYPE_KIND:
                     try:
                         op = TorchOp.parse(
@@ -478,7 +479,8 @@ class TorchModuleIRGraph:
         Some part of the submodule may not be serializable to JIT
         this is for this very API limitation that we do not use directly
         the method torch.jit._get_trace_graph that is used in
-        ONNX builtin pytorch serialization and instead build on recursive jit.parse.
+        ONNX builtin pytorch serialization and instead build on recursive
+        jit.parse.
 
         If the serialization to jit FAIL you will be able to put a full hook
         on the concerned sub-module with declarative enonciation of what
@@ -499,7 +501,8 @@ class TorchModuleIRGraph:
                 ):
                     raise T2NError(
                         "Bug: Recursive call detected ! "
-                        f"Trying to parse same Pytorch IR sub-module twice: {op}"
+                        "Trying to parse same Pytorch IR sub-module twice: "
+                        f"{op}"
                     )
                 submodule_graph = module_tracer_into_ir_graph(
                     op.op_ref,
@@ -622,13 +625,13 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,  # noqa: E501
         provided_inputs=None,
         provided_outputs=None,
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
-        """Core parsing function transforming a pytorch nn.Module into torch_to_nnef IR"""
+        """Core parsing transforming nn.Module into torch_to_nnef IR"""
         LOGGER.debug(
             "start parse to IR: %s", self._tracer.mod.__class__.__name__
         )
@@ -667,7 +670,8 @@ class TorchModuleIRGraph:
                     onode.name = new_name
                     assert onode.name == onode.export_name
             # need to repeat the if's:
-            # in case of input paramater directly in outputs (ie. torchaudio.Conformer)
+            # in case of input paramater directly in outputs
+            # (ie. torchaudio.Conformer)
             if forced_inputs_names:
                 self.data_nodes.protect_item_names(forced_inputs_names)
             if forced_outputs_names:
@@ -748,7 +752,8 @@ class TorchModuleIRGraph:
             if isinstance(_, FixedTensorList):
                 refs = ", ".join([d.export_name for d in _.data])
                 cprint(
-                    f"\t\t[type]List[/type] [var]{_.export_name}[/var] := ({refs})"
+                    "\t\t[type]List[/type] "
+                    f"[var]{_.export_name}[/var] := ({refs})"
                 )
 
         cprint("")
@@ -783,7 +788,8 @@ class TorchModuleIRGraph:
                 ]
             )
             cprint(
-                f"\t\t {outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
+                f"\t\t {outputs_str} := "
+                f"[kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
         outputs_str = ", ".join(_.slug for _ in self.outputs)

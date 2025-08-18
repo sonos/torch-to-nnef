@@ -104,7 +104,10 @@ class TensorVariable(Data):
         return (
             f"{self.export_name}: {self.dtype}@{self.shape}" + ""
             if not self.quant
-            else f"q8(scale={self.quant['scale']}, zerop={self.quant['zero_point']})"
+            else (
+                f"q8(scale={self.quant['scale']}, "
+                f"zerop={self.quant['zero_point']})"
+            )
         )
 
     def cast_float_inplace(self):
