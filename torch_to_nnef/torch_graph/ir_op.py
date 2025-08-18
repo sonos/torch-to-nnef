@@ -117,7 +117,7 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_PROD: cls.aten_prod,
             ATEN_REPEAT_INTERLEAVE: cls.aten_repeat_interleave,
             ATEN_SCALAR_TENSOR: cls.aten_scalar_tensor,
-            ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,
+            ATEN_SCALED_DOT_PRODUCT_ATTENTION: cls.aten_scaled_dot_product_attention,  # noqa: E501
             ATEN_TO: cls.aten_to,
             ATEN_TO_COPY: cls.aten_to_copy,
             ATEN_WHERE: cls.aten_where,

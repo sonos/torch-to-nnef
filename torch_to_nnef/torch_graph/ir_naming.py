@@ -36,7 +36,9 @@ class VariableNamingScheme(str, enum.Enum):
 DEFAULT_VARNAME_SCHEME = VariableNamingScheme.default()
 
 
-def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
+def apply_nnef_variable_naming_scheme(
+    torch_ir_graph, scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME
+):
     """Rename availlable data node following a scheme
 
     by default the natural_verbose pattern built is as close as possible
@@ -52,7 +54,7 @@ def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
         torch_ir_graph.data_nodes.avoid_name_collision = True  # safety
         {
             VariableNamingScheme.NATURAL_VERBOSE: rename_natural_verbose,
-            VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,
+            VariableNamingScheme.NATURAL_VERBOSE_CAMEL: rename_natural_verbose_camel,  # noqa: E501
             VariableNamingScheme.NUMERIC: rename_compact_numeric,
         }[scheme](torch_ir_graph)
         torch_ir_graph.data_nodes.avoid_name_collision = False

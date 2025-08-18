@@ -577,7 +577,8 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
     if qualname.startswith("__torch__.") and not module_getter_ref:
         # NOTE: this part of the code is
         # non generic: the problem arise from:
-        # the call to a function that is passed as input of the PyTorch IR 'graph'
+        # the call to a function that is passed as
+        # input of the PyTorch IR 'graph'
         # in this case finding the Python object reference based on
         # PyTorch IR python API is hard.
         ref_cls_path = ".".join(
