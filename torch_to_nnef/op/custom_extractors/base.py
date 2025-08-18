@@ -19,8 +19,10 @@ class _ModuleInfoRegistery(type):
     REGISTRY: T.Dict[T.Type[nn.Module], "_ModuleInfoRegistery"] = {}
 
     def __new__(cls, name, bases, attrs):
-        # instantiate a new type corresponding to the type of class being defined
-        # this is currently RegisterBase but in child classes will be the child class
+        # instantiate a new type corresponding to the type
+        # of class being defined
+        # this is currently RegisterBase but in child classes
+        # will be the child class
         new_cls = type.__new__(cls, name, bases, attrs)
         if new_cls.MODULE_CLASS is not None:
             cls.REGISTRY[new_cls.MODULE_CLASS] = new_cls
@@ -126,7 +128,8 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
         expanded_results = self._expand_results(results)
         outputs = []
-        # ugly hack in case provided multi output operators with TupleTensors packing
+        # ugly hack in case provided multi output operators
+        # with TupleTensors packing
         if (
             provided_outputs is not None
             and isinstance(
@@ -237,10 +240,14 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         inference_target,
         **kwargs,
     ):
-        """Control NNEF content to be written for each MODULE_CLASS encountered at serialization
+        """Control NNEF content to be written for each MODULE_CLASS
+
+        This happen at macro level when converting from
+        internal IR to NNEF IR stage.
 
         This is the Core method to overwrite in subclass.
 
-        It is no different than any op implemented in `torch_to_nnef` in the module
+        It is no different than any op implemented in `torch_to_nnef`
+        in the module
         """
         raise T2NErrorNotImplemented()

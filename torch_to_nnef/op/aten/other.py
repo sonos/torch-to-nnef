@@ -89,7 +89,7 @@ def external(
 
 @OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:dropout', 'aten:native_dropout' to NNEF"""
+    """Operator mapping PyTorch: 'aten:dropout' to NNEF"""
     (
         input_node,
         _,  # probability

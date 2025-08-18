@@ -96,7 +96,8 @@ class OpRegistry:
             return self._registry[name]
         except KeyError as exp:
             raise T2NErrorNotImplemented(
-                f"'{name}' operator as not yet been translated to NNEF or registred"
+                f"'{name}' operator as not yet been translated "
+                "to NNEF or registred"
             ) from exp
 
     def __add__(self, other: "OpRegistry"):
@@ -209,23 +210,22 @@ def add_tensor_variable_node_as_nnef_tensor(
         else:
             nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
-            if (
-                not prevent_variable
-                and (
-                    node.data.numel() > 1
-                    or (
-                        nnef_tensor_ref.data.numel() == 1
-                        and "e" in str(nnef_tensor_ref.data.item())
-                    )
-                    or (  # special dtype need to avoid dtype undefined in NNEF graph
-                        node.dtype
-                        in [
-                            torch.int16,
-                            # torch.int64, # avoid for tract that create confusion with TDim
-                            torch.float16,
-                            torch.float64,
-                        ]
-                    )
+            if not prevent_variable and (
+                node.data.numel() > 1
+                or (
+                    nnef_tensor_ref.data.numel() == 1
+                    and "e" in str(nnef_tensor_ref.data.item())
+                )
+                or (  # special dtype need to avoid dtype undefined
+                    # in NNEF graph
+                    node.dtype
+                    in [
+                        torch.int16,
+                        # torch.int64, # avoid for tract that create
+                        # confusion with TDim
+                        torch.float16,
+                        torch.float64,
+                    ]
                 )
             ):
                 add_nnef_operation(
@@ -494,7 +494,7 @@ def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
 
 
 def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
-    """Catch all input or attr that would still be torch_graph values into NNEF"""
+    """Catch input or attr that would still be torch_graph values into NNEF"""
     casted_inputs = []
     casted_attrs = {}
 
@@ -566,7 +566,8 @@ def add_multi_output_op(
 ):
     if len(node.outputs) == 1:
         LOGGER.debug(
-            "Obverved multi to be single output (which may be normal depending on graph)"
+            "Obverved multi to be single output "
+            "(which may be normal depending on graph)"
         )
     output_tensors = []
     for out_node in node.outputs:
@@ -706,7 +707,8 @@ def cast_to_if_not_dtype_and_variable(
     """
     if torch_version() < "1.13.0" and cast_to == np.uint64:
         logging.warning(
-            "discarded force casting to dtype=%s since obverved bug prior 1.13.0",
+            "discarded force casting to dtype=%s "
+            "since obverved bug prior 1.13.0",
             cast_to,
         )
         cast_to = nnef_tensor.dtype
@@ -813,7 +815,7 @@ class OpHelper:
         )
 
     def _implicits_input_casting(self, node, nnef_op_type, inputs):
-        """Express implicit casting of inputs with different dtype in final graph
+        """Express implicit torch inputs casting with different dtype in NNEF
 
         Those known implicit casting rules have been observed in math operators
         and tested empirically on PyTorch 2.2:

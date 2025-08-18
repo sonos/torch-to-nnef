@@ -31,7 +31,6 @@ class NamedTensor(torch.Tensor):
             try:
                 return super().__new__(cls, fp_tensor, *args, **kwargs)
             except TypeError:  # legacy mode
-                # legacy_tensor = torch.Tensor.__new__(cls, dtype=fp_tensor.dtype)
                 legacy_tensor = fp_tensor.as_subclass(cls)
                 legacy_tensor.__dict__["_fp_tensor"] = fp_tensor
                 legacy_tensor.__dict__["nnef_name"] = nnef_name

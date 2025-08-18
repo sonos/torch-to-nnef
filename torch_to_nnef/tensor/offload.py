@@ -13,7 +13,8 @@ spread once the layout of your network accross the different
 devices available, but preventing to move data to other device afterward.
 
 Indeed we use the torch "Tensor" API instead of the torch.device("meta")
-allowing to hold more informations such as the final targeted device (and other stuff).
+allowing to hold more informations such as the final targeted device
+(and other stuff).
 
 This avoid us to have any need for the Hooking system done in accelerate,
 and skip need to align data flow graph by pre&post casting.
@@ -60,7 +61,8 @@ class OffloadedTensor(OpaqueTensor):
     """Tensor subclass that maintains data on disk
 
     It hold an virtual internal memory storage (permanent)
-    and a temporary instantiation at each operation accessing it on targeted device.
+    and a temporary instantiation at each operation accessing it
+    on targeted device.
 
     Warning:
         we recommend to version of PyTorch > 1.12 for best compatibility.

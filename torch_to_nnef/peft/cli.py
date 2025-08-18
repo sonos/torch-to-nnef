@@ -44,7 +44,8 @@ def parser_cli(
         "-r",
         "--read-filepath",
         required=True,
-        help="file to read containing the tensors to extract (.pt, .pth, .bin, .safetensors)",
+        help="file to read containing the tensors to extract "
+        "(.pt, .pth, .bin, .safetensors)",
     )
 
     parser.add_argument(
