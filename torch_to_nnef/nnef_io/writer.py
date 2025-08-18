@@ -331,7 +331,7 @@ class Writer:
                         qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
                     qtensor.write_in_file(folder, label, self._inference_target)
-                    LOGGER.info(f"written qtensor: '{label}'")
+                    LOGGER.info("written qtensor: '%s'", label)
                 else:
                     filename = op.attribs["label"] + ".dat"
                     write_nnef_tensor(
@@ -343,7 +343,7 @@ class Writer:
                     )
 
     def __call__(self, graph, path):
-        LOGGER.info(f"start writting NNEF graph into: '{path}'")
+        LOGGER.info("start writting NNEF graph into: '%s'", path)
         folder = None
         try:
             if self._compression is not None:
@@ -396,7 +396,7 @@ class Writer:
                     folder, path + ".tgz", compression_level=self._compression
                 )
                 shutil.rmtree(folder)
-        LOGGER.info(f"finished writting NNEF graph into: {path}")
+        LOGGER.info("finished writting NNEF graph into: %s", path)
 
     @staticmethod
     def _used_operators(graph, dependencies):

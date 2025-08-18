@@ -155,7 +155,7 @@ class FilterbankFeatures(nn.Module):
                 f"{self} got an invalid value for either n_window_size or "
                 f"n_window_stride. Both must be positive ints."
             )
-        logging.info(f"PADDING: {pad_to}")
+        logging.info("PADDING: %s", pad_to)
 
         self.win_length = n_window_size
         self.hop_length = n_window_stride

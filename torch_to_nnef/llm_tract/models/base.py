@@ -324,8 +324,9 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                 )
             else:
                 LOGGER.warning(
-                    f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
-                    "so we inference exported may be suboptimal "
+                    "model of class: %s.forward as no 'num_logits_to_keep'"
+                    "so we inference exported may be suboptimal ",
+                    model.__class__,
                 )
 
         self.forward_kwargs = fkwargs

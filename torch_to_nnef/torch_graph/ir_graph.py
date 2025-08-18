@@ -456,7 +456,9 @@ class TorchModuleIRGraph:
                     )
                     LOGGER.info(
                         "potential name collision detected rename"
-                        f"new '{dn.name}' into '{new_name}'"
+                        "new '%s' into '%s'",
+                        dn.name,
+                        new_name,
                     )
                     dn.name = new_name
                 self.data_nodes.append(dn)
@@ -628,7 +630,7 @@ class TorchModuleIRGraph:
     ):
         """Core parsing function transforming a pytorch nn.Module into torch_to_nnef IR"""
         LOGGER.debug(
-            f"start parse to IR: {self._tracer.mod.__class__.__name__}"
+            "start parse to IR: %s", self._tracer.mod.__class__.__name__
         )
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
@@ -678,7 +680,7 @@ class TorchModuleIRGraph:
         if nnef_variable_naming_scheme:
             apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
 
-        LOGGER.debug(f"parsed to IR: {self._tracer.mod.__class__.__name__}")
+        LOGGER.debug("parsed to IR: %s", self._tracer.mod.__class__.__name__)
         return self
 
     def _cleanup_dangling_data_node_hooks(self):
@@ -746,8 +748,7 @@ class TorchModuleIRGraph:
             if isinstance(_, FixedTensorList):
                 refs = ", ".join([d.export_name for d in _.data])
                 cprint(
-                    f"\t\t[type]List[/type] "
-                    f"[var]{_.export_name}[/var] := ({refs})"
+                    f"\t\t[type]List[/type] [var]{_.export_name}[/var] := ({refs})"
                 )
 
         cprint("")
@@ -782,8 +783,7 @@ class TorchModuleIRGraph:
                 ]
             )
             cprint(
-                "\t\t "
-                f"{outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
+                f"\t\t {outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
         outputs_str = ", ".join(_.slug for _ in self.outputs)

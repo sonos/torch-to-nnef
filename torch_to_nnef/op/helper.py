@@ -96,8 +96,7 @@ class OpRegistry:
             return self._registry[name]
         except KeyError as exp:
             raise T2NErrorNotImplemented(
-                f"'{name}' operator as not yet been translated "
-                "to NNEF or registred"
+                f"'{name}' operator as not yet been translated to NNEF or registred"
             ) from exp
 
     def __add__(self, other: "OpRegistry"):
@@ -567,8 +566,7 @@ def add_multi_output_op(
 ):
     if len(node.outputs) == 1:
         LOGGER.debug(
-            "Obverved multi to be single output "
-            "(which may be normal depending on graph)"
+            "Obverved multi to be single output (which may be normal depending on graph)"
         )
     output_tensors = []
     for out_node in node.outputs:
@@ -708,8 +706,8 @@ def cast_to_if_not_dtype_and_variable(
     """
     if torch_version() < "1.13.0" and cast_to == np.uint64:
         logging.warning(
-            f"discarded force casting to dtype={cast_to} "
-            "since obverved bug prior 1.13.0"
+            "discarded force casting to dtype=%s since obverved bug prior 1.13.0",
+            cast_to,
         )
         cast_to = nnef_tensor.dtype
     out = add_single_output_op(

@@ -49,12 +49,13 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
-                LOGGER.info(f"quantize layer: {name}")
+                LOGGER.info("quantize layer: %s", name)
                 weight_id = id(mod.weight)
                 if weight_id in ids_to_qtensor:
                     LOGGER.info(
-                        "detected shared weight between: "
-                        f"'{ids_to_qtensor[weight_id].nnef_name}' and '{name}.weight'"
+                        "detected shared weight between: '%s' and '%s.weight'",
+                        ids_to_qtensor[weight_id].nnef_name,
+                        name,
                     )
                     continue
                 if not all(
@@ -66,8 +67,11 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                         for m in mod_tensor_updater.id_to_modules[weight_id]
                     ]
                     LOGGER.warning(
-                        f"detected shared weight: '{name}' candidate has incompatible layer usage: {clss}, "
-                        f" but requested {to_quantize_module_classes}"
+                        "detected shared weight: '%s' candidate has incompatible "
+                        "layer usage: %s,  but requested %s",
+                        name,
+                        clss,
+                        to_quantize_module_classes,
                     )
                     continue
                 try:
@@ -77,7 +81,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                         "q40_min_max",
                     )
                 except T2NErrorImpossibleQuantization as exp:
-                    LOGGER.error(f"quant layer: {name} error: {exp}")
+                    LOGGER.error("quant layer: %s error: %s", name, exp)
                     continue
                 # => needs assignation next cause update_by_ref may create new Parameter object
                 q_weight = mod_tensor_updater.update_by_ref(

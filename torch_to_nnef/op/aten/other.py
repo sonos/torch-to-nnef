@@ -57,7 +57,8 @@ def external(
         if node.dtype not in _EXTERNAL_DTYPE_PRECISE_ENOUGHT:
             LOGGER.warning(
                 "NNEF Spec is not precise enough "
-                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+                "to ensure correct mapping of numpy type %s",
+                nnef_tensor_ref.dtype,
             )
         add_nnef_operation(
             graph=g,

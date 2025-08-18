@@ -210,7 +210,7 @@ def export_model_to_nnef(
     _check_io_names(input_names, output_names)
 
     LOGGER.info(
-        f"start parse PyTorch model to be exported at {file_path_export}"
+        "start parse PyTorch model to be exported at %s", file_path_export
     )
     if not any(s == ".nnef" for s in file_path_export.suffixes):
         raise T2NErrorInvalidArgument(
@@ -268,11 +268,12 @@ def export_model_to_nnef(
         if len(active_custom_extensions) > 0:
             LOGGER.info(
                 "The exported NNEF model need special custom extensions "
-                f"such as {active_custom_extensions}, be sure "
-                f"to use the inference engine you specified: {inference_target}"
+                "such as %s, be sure to use the inference engine you specified: %s",
+                active_custom_extensions,
+                inference_target,
             )
         LOGGER.info(
-            f"model exported successfully as NNEF at: {nnef_exp_file_path}"
+            "model exported successfully as NNEF at: %s", nnef_exp_file_path
         )
         exported_filepath = file_path_export.parent / (
             nnef_exp_file_path.name + ".tgz"

@@ -89,7 +89,7 @@ try:
     )
 except (ModuleNotFoundError, ImportError) as exp:
     LOGGER.debug(
-        f"Phi3 not available since too old version of transformers: {exp}"
+        "Phi3 not available since too old version of transformers: %s", exp
     )
 try:
     from transformers.models.mistral.configuration_mistral import MistralConfig
@@ -108,7 +108,7 @@ try:
     )
 except (ModuleNotFoundError, ImportError) as exp:
     LOGGER.debug(
-        f"Mistral not available since too old version of transformers: {exp}"
+        "Mistral not available since too old version of transformers: %s", exp
     )
 
 REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
@@ -140,7 +140,9 @@ class HFConfigHelper:
         else:
             self.wrapper_class = BaseCausal
         LOGGER.info(
-            f"detected arch:'{conf.model_type}' using wrapper '{self.wrapper_class}'"
+            "detected arch:'%s' using wrapper '%s'",
+            conf.model_type,
+            self.wrapper_class,
         )
 
     def get_head_dim(self):

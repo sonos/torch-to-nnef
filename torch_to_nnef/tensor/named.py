@@ -114,7 +114,9 @@ def get_or_add_named_tensor(
     if weight_id in ids_to_ntensor:
         named_tensor = ids_to_ntensor[weight_id]
         LOGGER.info(
-            f"detected shared weight between: '{named_tensor.nnef_name}' and '{full_name}'"
+            "detected shared weight between: '%s' and '%s'",
+            named_tensor.nnef_name,
+            full_name,
         )
     else:
         named_tensor = NamedTensor(data, nnef_name=full_name)
@@ -154,7 +156,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         ref = getattr(ref_mod, local_name)
         if isinstance(ref, skip_tensor_types):
             continue
-        LOGGER.debug(f"apply NamedTensor: {name}")
+        LOGGER.debug("apply NamedTensor: %s", name)
         named_tensor = NamedTensor(ref, nnef_name=name)
         mod_tensor_updater.update_by_ref(ref, named_tensor)
     LOGGER.debug("sucessfull to apply NamedTensor everywhere")

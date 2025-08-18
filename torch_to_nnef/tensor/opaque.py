@@ -225,7 +225,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
         if not isinstance(param, OpaqueTensor):
             continue
         param.nnef_name = full_name
-        LOGGER.debug(f"apply opaque tensor reference: {full_name}")
+        LOGGER.debug("apply opaque tensor reference: %s", full_name)
         mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(

@@ -198,7 +198,7 @@ class OffloadedTensor(OpaqueTensor):
             offloaded_tensor_type=type(tensor),
         )
         LOGGER.info(
-            f"Offloaded param (kept on-disk): '{name}' {suffix_log_msg}"
+            "Offloaded param (kept on-disk): '%s' %s", name, suffix_log_msg
         )
         return off_tensor
 
@@ -229,7 +229,7 @@ class OffloadedTensor(OpaqueTensor):
                 self.elem = self.elem.to(dtype)
                 self.__dict__["dtype"] = dtype
                 LOGGER.info(
-                    f"[casted to {dtype}] offload tensor '{self._name}'"
+                    "[casted to %s] offload tensor '%s'", dtype, self._name
                 )
         if kwargs.get("device") is not None:
             self.target_device = torch.device(kwargs["device"])
@@ -259,7 +259,7 @@ class OffloadedTensor(OpaqueTensor):
             self.offload_dir, self._name, values.dtype
         ).exists()
         OffloadedTensor._save(values, self.offload_dir, self._name)
-        LOGGER.debug(f"updated values: '{self._name}'")
+        LOGGER.debug("updated values: '%s'", self._name)
 
     @classmethod
     def _save(cls, tensor, offload_dir, name):
@@ -443,8 +443,9 @@ def load_state_dict(
 
     if metadata is None:
         LOGGER.warning(
-            f"The safetensors archive passed at {checkpoint_file} does not contain metadata. "
+            "The safetensors archive passed at %s does not contain metadata. "
             "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata.",
+            checkpoint_file,
             stacklevel=2,
         )
         metadata = {"format": "pt"}
@@ -644,11 +645,14 @@ def t2n_load_checkpoint_and_dispatch(
         gc.collect()
     if not strict and len(unexpected_keys) > 0:
         LOGGER.warning(
-            f"Some weights of the model checkpoint at {checkpoint} were not used when"
-            f" initializing {model.__class__.__name__}: {unexpected_keys}. "
+            "Some weights of the model checkpoint at %s were not used when"
+            " initializing %s: %s. "
             "This may or may not be an issue - make sure that the checkpoint "
             "does not have unnecessary parameters, or that the model definition "
             "correctly corresponds to the checkpoint.",
+            checkpoint,
+            model.__class__.__name__,
+            unexpected_keys,
             stacklevel=2,
         )
 

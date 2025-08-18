@@ -84,8 +84,7 @@ class KhronosNNEF(InferenceTarget):
                             debug_bundle_path, td, exported_filepath
                         )
                         raise T2NErrorKhronosInterpreterDiffValue(
-                            f"outputs[{idx}] is different expected:{ref} "
-                            f"but got: {obs}"
+                            f"outputs[{idx}] is different expected:{ref} but got: {obs}"
                         )
 
     def _maybe_dump_debug_bundle(
