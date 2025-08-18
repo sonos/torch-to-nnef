@@ -7,13 +7,6 @@ from pathlib import Path
 import torch
 import pytest
 
-MISSING_PEFT = False
-try:
-    from peft import LoraConfig, TaskType, get_peft_model
-except ImportError as exp:
-    MISSING_PEFT = True
-    print("no peft tests")
-
 from transformers import AutoModelForCausalLM
 
 from torch_to_nnef.llm_tract.config import LlamaSLugs
@@ -23,6 +16,14 @@ from torch_to_nnef.peft.cli import (
     export_peft,
 )
 from torch_to_nnef.utils import cd
+
+MISSING_PEFT = False
+try:
+    from peft import LoraConfig, TaskType, get_peft_model
+except ImportError:
+    MISSING_PEFT = True
+    print("no peft tests")
+
 
 DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
 

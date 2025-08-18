@@ -1,7 +1,6 @@
 """Simple export script of MarbleNet VAD"""
 
 import argparse
-import os
 from pathlib import Path
 import copy
 import subprocess

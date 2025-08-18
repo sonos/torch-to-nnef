@@ -11,7 +11,7 @@ def tract_complex_support(inference_target: InferenceTarget) -> bool:
     return (
         isinstance(inference_target, TractNNEF)
         and "complex" in inference_target.feature_flags
-        and "0.20.0" > inference_target.version
+        and inference_target.version < "0.20.0"
     )
 
 

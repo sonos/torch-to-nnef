@@ -157,7 +157,7 @@ test_suite.add(
 
 def cond_tract_not_within_0_20_0_and_0_20_7(i):
     return isinstance(i, TractNNEF) and (
-        i.version < "0.20.0" or "0.20.7" < i.version
+        i.version < "0.20.0" or i.version > "0.20.7"
     )
 
 

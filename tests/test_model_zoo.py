@@ -1,5 +1,6 @@
 """Tests canonical models."""
 
+import contextlib
 import platform
 from copy import deepcopy
 import os
@@ -12,13 +13,11 @@ from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 from transformers import AlbertModel, AlbertTokenizer
 
-try:
+with contextlib.suppress(ImportError):
     from tests.shifted_window_attention_patch import (
         ExportableShiftedWindowAttention,
         ExportableSwinTransformerBlock,
     )
-except ImportError:
-    pass
 
 from torch_to_nnef.inference_target import TractNNEF
 

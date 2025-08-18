@@ -4,6 +4,9 @@ from pathlib import Path
 import pytest
 import numpy as np
 
+
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
+
 DISABLE_TESTS = False
 try:
     from torch_to_nnef.llm_tract.config import LlamaSLugs
@@ -13,8 +16,6 @@ try:
 except ImportError as exp:
     print("disable test_llm_cli because:", exp)
     DISABLE_TESTS = True
-
-from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
 
 inference_targets = [
     (str(_), _)

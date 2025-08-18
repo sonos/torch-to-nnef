@@ -1,5 +1,4 @@
 from copy import deepcopy
-from ultralytics.data import build
 import torch_to_nnef
 from ultralytics import YOLO
 from ultralytics.utils import LOGGER, colorstr
@@ -15,8 +14,10 @@ model = YOLO(
     "yolo11n-pose.pt"
 )  # load a pretrained model (recommended for training)
 
+PREFIX_DEFAULT = colorstr("NNEF:")
 
-def global_export_nnef(self, prefix=colorstr("NNEF:")):
+
+def global_export_nnef(self, prefix=PREFIX_DEFAULT):
     """Export YOLO model to NNEF format."""
 
     LOGGER.info(

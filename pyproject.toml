@@ -111,6 +111,23 @@ profile = "black"
 line_length = 80
 skip = [".gitignore", ".dockerignore"]
 
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    # "I",
+    # flake8-logging-format
+    "G",
+]
+ignore = ["E501", "G004"]
+
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers -p no:warnings -s"

@@ -34,6 +34,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
     apply_nnef_variable_naming_scheme,
     rename_variable_by_incr,
@@ -55,7 +56,7 @@ def module_tracer_into_ir_graph(
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
     forced_inputs_names: T.Optional[T.List[str]] = None,
     forced_outputs_names: T.Optional[T.List[str]] = None,
-    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
@@ -169,10 +170,7 @@ class TorchModuleIRGraph:
             if dnode.is_container:
                 new_data = []
                 for subdnode in dnode.iter():
-                    if subdnode is from_node:
-                        value = to_node
-                    else:
-                        value = subdnode
+                    value = to_node if subdnode is from_node else subdnode
                     new_data.append(value)
                 dnode.data = new_data
 
@@ -201,11 +199,10 @@ class TorchModuleIRGraph:
         for idx, (node_c_value, original_input, arg) in enumerate(
             zip(graph_inputs, provided_inputs, self._tracer.args)
         ):
-            if self._omit_useless_nodes:
-                if (
-                    len(node_c_value.uses()) == 0
-                ):  # number of user of the node_c_value (= number of outputs/ fanout)
-                    continue
+            if (
+                self._omit_useless_nodes and len(node_c_value.uses()) == 0
+            ):  # number of user of the node_c_value (= number of outputs/ fanout)
+                continue
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
@@ -623,7 +620,7 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
         provided_inputs=None,
         provided_outputs=None,
         forced_inputs_names=None,

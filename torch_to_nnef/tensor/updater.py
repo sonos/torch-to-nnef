@@ -63,7 +63,8 @@ class ModTensorUpdater:
         if torch_version() < "2.0.0" and warn_old_torch:
             warnings.warn(
                 "Try to use `ModTensorUpdater` with PyTorch<2.0, "
-                " it will not apply tight variable update as you might expect."
+                " it will not apply tight variable update as you might expect.",
+                stacklevel=2,
             )
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)

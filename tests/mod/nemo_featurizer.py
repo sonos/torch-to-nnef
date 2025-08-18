@@ -174,7 +174,7 @@ class FilterbankFeatures(nn.Module):
             "bartlett": torch.bartlett_window,
             "none": None,
         }
-        window_fn = torch_windows.get(window, None)
+        window_fn = torch_windows.get(window)
         window_tensor = (
             window_fn(self.win_length, periodic=False) if window_fn else None
         )
@@ -243,7 +243,7 @@ class FilterbankFeatures(nn.Module):
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             win_length=self.win_length,
-            center=False if self.exact_pad else True,
+            center=not self.exact_pad,
             window=self.window.to(dtype=torch.float, device=x.device),
             return_complex=True,
         )

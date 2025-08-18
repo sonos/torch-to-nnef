@@ -116,8 +116,10 @@ class QTensorTractScaleOnly(QTensorTract):
         self,
         dirpath: T.Union[str, Path],
         label: str,
-        inference_target: InferenceTarget = TractNNEF.latest(),
+        inference_target: T.Optional[InferenceTarget] = None,
     ):
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
         path = Path(dirpath) / f"{label}.dat"
         if path.exists():
             # already created a variable dump with that name.

@@ -31,7 +31,7 @@ from torch_to_nnef.inference_target.tract import (
     build_io,
 )
 from torch_to_nnef.log import log
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import DEFAULT_VARNAME_SCHEME
 from torch_to_nnef.utils import torch_version
 
 TRACT_INFERENCES_TO_TESTS_APPROX = [
@@ -142,7 +142,7 @@ def check_model_io_test(
     inference_target,
     input_names=None,
     output_names=None,
-    nnef_variable_naming_scheme=VariableNamingScheme.default(),
+    nnef_variable_naming_scheme=DEFAULT_VARNAME_SCHEME,
     custom_extensions=None,
     callback_post_export=None,
     unit_test_naming=None,

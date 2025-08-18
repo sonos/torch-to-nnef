@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import logging
 import typing as T
@@ -450,10 +451,8 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
 def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
     abstracted_inputs = _prepare_arguments(kind, inputs, data_nodes)
     op_ref = None
-    try:
+    with contextlib.suppress(AttributeError):
         op_ref = aten_name_to_torch_fn(kind)
-    except AttributeError:
-        pass
     return op_ref, abstracted_inputs
 
 

@@ -135,23 +135,26 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
     input_nnef = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
-        if not platform.machine().startswith("arm"):
-            LOGGER.warning(
-                "reinterpret cast to unsigned, if negative number is cpu "
-                "device dependant (arm trunk bits while intel circular buffer left)"
-            )
-            # simulate a reinterpret_cast as implicitly done in PyTorch
-            input_nnef = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_cast",
-                inputs=input_nnef,
-                attrs={
-                    "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
-                },
-            )
+    if (
+        node.inputs[0].dtype == torch.float32
+        and not onode.dtype.is_signed
+        and not platform.machine().startswith("arm")
+    ):
+        LOGGER.warning(
+            "reinterpret cast to unsigned, if negative number is cpu "
+            "device dependant (arm trunk bits while intel circular buffer left)"
+        )
+        # simulate a reinterpret_cast as implicitly done in PyTorch
+        input_nnef = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=input_nnef,
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
 
     add_single_output_op(
         g,

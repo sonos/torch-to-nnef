@@ -1065,7 +1065,7 @@ def dump_llm(
             kwargs["tract_check_io_tolerance"]
         )
     exporter.dump(**kwargs)
-    export_path = kwargs.get("export_dirpath", None)
+    export_path = kwargs.get("export_dirpath")
     return (
         Path(export_path) if export_path else None,
         exporter,

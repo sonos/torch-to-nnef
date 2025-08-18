@@ -78,7 +78,8 @@ class OffloadedTensor(OpaqueTensor):
         if torch_version() < "1.12.0":
             warnings.warn(
                 "OffloadedTensor expect PyTorch aten ops support 'meta' "
-                "device tensors (which is very limited before 1.12)"
+                "device tensors (which is very limited before 1.12)",
+                stacklevel=2,
             )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=TracerWarning)
@@ -374,7 +375,7 @@ def safe_load_file(
     with safetensors.safe_open(
         filename, framework="pt", device=maybe_extract_target_device(device)
     ) as f:
-        for k in f.keys():
+        for k in f:
             v = f.get_tensor(k)
             if apply_offload:
                 v = maybe_load_offload_tensor(v, device, k, offload_dir)
@@ -443,7 +444,8 @@ def load_state_dict(
     if metadata is None:
         LOGGER.warning(
             f"The safetensors archive passed at {checkpoint_file} does not contain metadata. "
-            "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata."
+            "Make sure to save your model with the `save_pretrained` method. Defaulting to 'pt' metadata.",
+            stacklevel=2,
         )
         metadata = {"format": "pt"}
 
@@ -646,7 +648,8 @@ def t2n_load_checkpoint_and_dispatch(
             f" initializing {model.__class__.__name__}: {unexpected_keys}. "
             "This may or may not be an issue - make sure that the checkpoint "
             "does not have unnecessary parameters, or that the model definition "
-            "correctly corresponds to the checkpoint."
+            "correctly corresponds to the checkpoint.",
+            stacklevel=2,
         )
 
 
@@ -695,11 +698,7 @@ def set_module_tensor_to_device(
         )
     old_value = getattr(module, tensor_name)
 
-    param = (
-        module._parameters[tensor_name]
-        if tensor_name in module._parameters
-        else None
-    )
+    param = module._parameters.get(tensor_name)
     param_cls = type(param)
 
     if value is None:

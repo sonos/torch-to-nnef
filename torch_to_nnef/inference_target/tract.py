@@ -432,7 +432,9 @@ class TractCli:
         kwargs = {}
         if quiet:
             # pylint: disable-next=consider-using-with
-            kwargs["stdout"] = open(os.devnull, "wb")
+            with open(os.devnull, "wb") as fh:
+                kwargs["stdout"] = fh
+                return subprocess.call(cmd_, **kwargs)
         return subprocess.call(cmd_, **kwargs)
 
     def assert_io_cmd_str(
@@ -443,7 +445,7 @@ class TractCli:
     ):
         """Assert a NNEF asset has outputs within tolerance bound with tract cli"""
         extra_param = (
-            ["--nnef-tract-extra"] if "0.20.20" <= self.version else []
+            ["--nnef-tract-extra"] if self.version >= "0.20.20" else []
         )
         cmd_ = (
             [
@@ -766,11 +768,10 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
 
 def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
     for wpath, owpath in weight_map_file_paths.items():
-        with wpath.open("rb") as fh:
-            with owpath.open("rb") as fh_o:
-                arr = nnef.read_tensor(fh)
-                oarr = nnef.read_tensor(fh_o)
-                assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
+        with wpath.open("rb") as fh, owpath.open("rb") as fh_o:
+            arr = nnef.read_tensor(fh)
+            oarr = nnef.read_tensor(fh_o)
+            assert np.allclose(arr, oarr), f"{wpath} vs {owpath}"
 
 
 def assert_io(

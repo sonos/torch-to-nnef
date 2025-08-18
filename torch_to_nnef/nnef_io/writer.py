@@ -21,6 +21,7 @@ import logging
 import os
 import shutil
 import tempfile
+import typing as T
 
 import nnef
 import numpy as np
@@ -309,8 +310,10 @@ class Writer:
         generate_custom_fragments=False,
         version_custom_fragments=True,
         annotate_shapes=False,
-        inference_target: InferenceTarget = KhronosNNEF.latest(),
+        inference_target: T.Optional[InferenceTarget] = None,
     ):
+        if inference_target is None:
+            inference_target = KhronosNNEF.latest()
         self._compression = compression
         self._extensions = extensions or []
         self._fragments = fragments or {}

@@ -110,9 +110,7 @@ def export_peft(
     def filter_key(key):
         matches = re.match(jpattern, key)
         LOGGER.debug(f"found '{key}' match '{jpattern}' {matches}")
-        if matches:
-            return True
-        return False
+        return bool(matches)
 
     def fn_check_found_tensors(to_export):
         qte = len(to_export)

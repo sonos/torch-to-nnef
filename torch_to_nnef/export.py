@@ -34,7 +34,10 @@ from torch_to_nnef.tensor import (
     set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
+    VariableNamingScheme,
+)
 from torch_to_nnef.utils import dedup_list, torch_version
 
 LOGGER = log.getLogger(__name__)
@@ -49,7 +52,7 @@ def export_model_to_nnef(
     output_names: T.Optional[T.List[str]] = None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
@@ -214,74 +217,74 @@ def export_model_to_nnef(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
-    with _unsupported_module_alerter(inference_target):
-        with select_model_mode_for_export(model, TrainingMode.EVAL):
-            set_opaque_tensor_in_params_as_ref(model)
-            model, args, input_names, output_names = (
-                may_wrap_model_to_flatten_io(
-                    model, args, outs, input_names, output_names
-                )
-            )
-            inference_target.pre_trace(model, input_names, output_names)
+    with (
+        _unsupported_module_alerter(inference_target),
+        select_model_mode_for_export(model, TrainingMode.EVAL),
+    ):
+        set_opaque_tensor_in_params_as_ref(model)
+        model, args, input_names, output_names = may_wrap_model_to_flatten_io(
+            model, args, outs, input_names, output_names
+        )
+        inference_target.pre_trace(model, input_names, output_names)
 
-            graph_extractor = TorchToNGraphExtractor(
-                model,
-                args,
-                inference_target=inference_target,
-                nnef_variable_naming_scheme=nnef_variable_naming_scheme,
-                check_io_names_qte_match=check_io_names_qte_match,
-                forced_inputs_names=input_names,
-                forced_outputs_names=output_names,
-            )
-            nnef_graph = graph_extractor.parse()
+        graph_extractor = TorchToNGraphExtractor(
+            model,
+            args,
+            inference_target=inference_target,
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
+            check_io_names_qte_match=check_io_names_qte_match,
+            forced_inputs_names=input_names,
+            forced_outputs_names=output_names,
+        )
+        nnef_graph = graph_extractor.parse()
 
-            active_custom_extensions = _get_active_custom_extensions(
-                graph_extractor
-            )
-            inference_target.post_trace(nnef_graph, active_custom_extensions)
-            if custom_extensions is not None:
-                active_custom_extensions = dedup_list(
-                    active_custom_extensions + custom_extensions
-                )
-
-            active_custom_fragments = inference_target.specific_fragments(model)
-            active_custom_fragments.update(
-                _get_active_custom_fragments(graph_extractor)
-            )
-            del graph_extractor
-            nnef_exp_file_path = _real_export_path(
-                file_path_export, compression_level
+        active_custom_extensions = _get_active_custom_extensions(
+            graph_extractor
+        )
+        inference_target.post_trace(nnef_graph, active_custom_extensions)
+        if custom_extensions is not None:
+            active_custom_extensions = dedup_list(
+                active_custom_extensions + custom_extensions
             )
 
-            NNEFWriter(
-                compression=compression_level,
-                fragments=active_custom_fragments,
-                generate_custom_fragments=False,
-                extensions=list(active_custom_extensions),
-                version_custom_fragments=None,  # using version sometime create conflict with ops
-                inference_target=inference_target,
-            )(nnef_graph, str(nnef_exp_file_path))
+        active_custom_fragments = inference_target.specific_fragments(model)
+        active_custom_fragments.update(
+            _get_active_custom_fragments(graph_extractor)
+        )
+        del graph_extractor
+        nnef_exp_file_path = _real_export_path(
+            file_path_export, compression_level
+        )
 
-            if len(active_custom_extensions) > 0:
-                LOGGER.info(
-                    "The exported NNEF model need special custom extensions "
-                    f"such as {active_custom_extensions}, be sure "
-                    f"to use the inference engine you specified: {inference_target}"
-                )
+        NNEFWriter(
+            compression=compression_level,
+            fragments=active_custom_fragments,
+            generate_custom_fragments=False,
+            extensions=list(active_custom_extensions),
+            version_custom_fragments=None,  # using version sometime create conflict with ops
+            inference_target=inference_target,
+        )(nnef_graph, str(nnef_exp_file_path))
+
+        if len(active_custom_extensions) > 0:
             LOGGER.info(
-                f"model exported successfully as NNEF at: {nnef_exp_file_path}"
+                "The exported NNEF model need special custom extensions "
+                f"such as {active_custom_extensions}, be sure "
+                f"to use the inference engine you specified: {inference_target}"
             )
-            exported_filepath = file_path_export.parent / (
-                nnef_exp_file_path.name + ".tgz"
+        LOGGER.info(
+            f"model exported successfully as NNEF at: {nnef_exp_file_path}"
+        )
+        exported_filepath = file_path_export.parent / (
+            nnef_exp_file_path.name + ".tgz"
+        )
+        with _fixed_backend():
+            inference_target.post_export(
+                model,
+                nnef_graph,
+                args,
+                exported_filepath,
+                debug_bundle_path=debug_bundle_path,
             )
-            with _fixed_backend():
-                inference_target.post_export(
-                    model,
-                    nnef_graph,
-                    args,
-                    exported_filepath,
-                    debug_bundle_path=debug_bundle_path,
-                )
     mod_tensor_updater.restore_require_grad()
 
 
@@ -372,7 +375,7 @@ def iter_torch_tensors_from_disk(
         from safetensors import safe_open
 
         with safe_open(store_filepath, framework="pt", device="cpu") as fh:
-            for key in fh.keys():
+            for key in fh.keys():  # noqa: SIM118
                 if filter_key(key):
                     yield key, fh.get_tensor(key)
     elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):

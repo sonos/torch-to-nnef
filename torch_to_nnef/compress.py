@@ -50,7 +50,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
                 LOGGER.info(f"quantize layer: {name}")
-                weight_id = id(getattr(mod, "weight"))
+                weight_id = id(mod.weight)
                 if weight_id in ids_to_qtensor:
                     LOGGER.info(
                         "detected shared weight between: "
@@ -81,7 +81,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                     continue
                 # => needs assignation next cause update_by_ref may create new Parameter object
                 q_weight = mod_tensor_updater.update_by_ref(
-                    getattr(mod, "weight"), q_weight
+                    mod.weight, q_weight
                 )
                 ids_to_qtensor[id(q_weight)] = q_weight
     return model

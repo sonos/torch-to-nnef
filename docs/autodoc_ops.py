@@ -22,17 +22,16 @@ def gen_codedoc_if_missing(func):
         shutil.copy(base_file, bak_file)
         signature_line = None
         found_signature = False
-        with base_file.open("w") as write_fh:
-            with bak_file.open("r") as fh:
-                for line in fh.readlines():
-                    write_fh.write(f"{line}")
-                    if probe in line:
-                        signature_line = True
+        with base_file.open("w") as write_fh, bak_file.open("r") as fh:
+            for line in fh.readlines():
+                write_fh.write(f"{line}")
+                if probe in line:
+                    signature_line = True
 
-                    if signature_line and line.endswith(":\n"):
-                        found_signature = True
-                        write_fh.write(f'    """ {func.__doc__} """\n')
-                        signature_line = False
+                if signature_line and line.endswith(":\n"):
+                    found_signature = True
+                    write_fh.write(f'    """ {func.__doc__} """\n')
+                    signature_line = False
         if found_signature:
             bak_file.unlink()
         else:

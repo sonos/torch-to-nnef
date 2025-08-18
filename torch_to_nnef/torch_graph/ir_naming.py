@@ -33,6 +33,9 @@ class VariableNamingScheme(str, enum.Enum):
         return cls.NATURAL_VERBOSE
 
 
+DEFAULT_VARNAME_SCHEME = VariableNamingScheme.default()
+
+
 def apply_nnef_variable_naming_scheme(torch_ir_graph, scheme="natural_verbose"):
     """Rename availlable data node following a scheme
 
@@ -174,10 +177,7 @@ def replace_last_number(
             assert len(suffix) > 0
             return f"{suffix}{new_idx}"
 
-    if idx == -1:
-        trunced_name = name
-    else:
-        trunced_name = name[: idx + 1]
+    trunced_name = name if idx == -1 else name[: idx + 1]
     if suffix and trunced_name.endswith(suffix):
         trunced_name = trunced_name[: -len(suffix)]
     if suffix and trunced_name[:-1].endswith(suffix):

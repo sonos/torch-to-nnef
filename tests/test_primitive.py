@@ -527,7 +527,7 @@ for qte in [2, 3]:
         torch.arange(qte * 10).reshape(1, qte, 10),
         UnaryPrimitive(lambda x: x[..., 0::2]),
         inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and "0.19.0" <= i.version,
+        and i.version >= "0.19.0",
     )
 
 
@@ -552,7 +552,7 @@ def _eintest_gen(expr: str, tensors):
 
 
 def cond_tract_ge_0_20_0(i):
-    return isinstance(i, TractNNEF) and "0.20.0" <= i.version
+    return isinstance(i, TractNNEF) and i.version >= "0.20.0"
 
 
 inp = torch.arange(9).reshape(3, 3)
@@ -682,7 +682,7 @@ except ImportError as exp:
 
 
 def cond_tract_ge_0_21_4(i):
-    return isinstance(i, TractNNEF) and "0.21.4" <= i.version
+    return isinstance(i, TractNNEF) and i.version >= "0.21.4"
 
 
 test_suite.add(
@@ -798,25 +798,25 @@ def tract_post_0_21_10(i):
     return isinstance(i, TractNNEF) and i.version >= "0.21.10"
 
 
+shape = (1, 2, 5)
+inp = torch.arange(10).reshape(shape)
 for axis in [0, 1, -1]:
-    shape = (1, 2, 5)
-    inp = torch.arange(10).reshape(shape)
     test_suite.add(
         (inp,),
-        TensorFnPrimitive("argsort", {}),
+        TensorFnPrimitive("argsort", {"dim": axis}),
         inference_conditions=tract_post_0_21_10,
     )
     test_suite.add(
         (inp,),
-        TensorFnPrimitive("sort", {}),
+        TensorFnPrimitive("sort", {"dim": axis}),
         inference_conditions=tract_post_0_21_10,
     )
-    for dim, s in enumerate(shape):
-        test_suite.add(
-            (inp,),
-            TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
-            inference_conditions=tract_post_0_21_10,
-        )
+for dim, s in enumerate(shape):
+    test_suite.add(
+        (inp,),
+        TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
+        inference_conditions=tract_post_0_21_10,
+    )
 
 
 if torch_version() >= "1.13.0":

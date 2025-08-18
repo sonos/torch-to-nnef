@@ -98,15 +98,8 @@ def flatten_dict_tuple_or_list(
                 ((list, dict), (0, "b"), 3),
             )
     """
-    if collected_idxes is None:
-        collected_idxes = []
-    else:
-        collected_idxes = collected_idxes[:]
-
-    if collected_types is None:
-        collected_types = []
-    else:
-        collected_types = collected_types[:]
+    collected_idxes = [] if collected_idxes is None else collected_idxes[:]
+    collected_types = [] if collected_types is None else collected_types[:]
 
     collected_types.append(type(obj))
     if isinstance(obj, (tuple, list)):
@@ -248,7 +241,7 @@ def init_on_device(
         torch.nn.Module.register_parameter = register_empty_parameter
         if include_buffers:
             torch.nn.Module.register_buffer = register_empty_buffer
-        for torch_function_name in tensor_constructors_to_patch.keys():
+        for torch_function_name in tensor_constructors_to_patch:
             setattr(
                 torch,
                 torch_function_name,
