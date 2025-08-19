@@ -17,7 +17,7 @@ PyTorch internal representation (IR) contains more than 10^3^ operators (and les
 
 While the most common operators are already supported in `torch_to_nnef`, this list is ever expanding, so there is always a need to catch-up when a new model end up adopting one of those.
 
-In the development of this library we add operator translation (support) on a per need basis (aka we need to export a new model, ow it misses this and that operator, let's implement it). There is no commitment by SONOS to support them all, but contribution are always welcome.
+In the development of this library we add operator translation (support) on a per need basis (aka we need to export a new model, ow it misses this and that operator, let's implement it). There is no commitment by SONOS to support them all, but contributions are always welcome.
 
 In this tutorial we will share with you how to contribute a new operator.
 
@@ -25,7 +25,7 @@ In this tutorial we will share with you how to contribute a new operator.
 
 To implement a new operator we need to follow the following steps:
 
-- [ ] 0. Ensure this operator make sense in your targeted engine (by example `copy`, device layout etc) should be `nop`, implementation detail in most inference engines
+- [ ] 0. Ensure this operator makes sense in your targeted engine (by example `copy`, device layout etc) should be `nop`, implementation detail in most inference engines
 - [ ] 1. :material-test-tube: Add few unit-test covering the operator in [test_primitive.py](#)
 - [ ] 2. :material-bug-check: Check we obtain as expected the following form of exception:
 
@@ -41,7 +41,7 @@ torch_to_nnef.exceptions.T2NErrorNotImplemented:
 
 Obviously this list is indicative as in some infortunate cases:
 
-- The operator does not exists in targeted inference engine: please link the associated PR from this engine as reference (by example [tract](https://github.com/sonos/tract/pulls))
+- The operator does not exist in targeted inference engine: please link the associated PR from this engine as reference (by example [tract](https://github.com/sonos/tract/pulls))
 - There is a bug between 2. and 3.: in that case maybe you can [file an issue](./guidelines.md) or [try to debug](./debugging.md) yourself
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 0.**</span> Ensure targeted inference engine compatibility
@@ -87,7 +87,7 @@ test_suite.add(
 )
 ```
 
-Side note here: tract as no reason to expose Singular Value Decomposition (this is not part of most neural network,
+Side note here: tract has no reason to expose Singular Value Decomposition (this is not part of most neural network,
 but you can argue in tract discussions if you feel that's a need).
 
 After that you can run the test with the command:
@@ -96,7 +96,7 @@ After that you can run the test with the command:
 py.test tests/test_primitive.py::test_primitive_export
 ```
 
-If you run it as such there should be 2 failed test case. Why 2 ? because give our filter definition in our test it run on last 2 major versions of **tract**.
+If you run it as such there should be 2 failed test case. Why 2 ? Because given our test suite definition in our test it run on last 2 major versions of **tract**.
 
 What if you want to focus on 1 test case ? just run:
 
@@ -123,7 +123,7 @@ T2N_TEST_SKIP_TRACT=1 py.test tests/test_primitive.py::test_primitive_export
 Other useful environment variable you can activate are:
 
 - `DUMP_DIRPATH={my_dirpath}` that will dump all `.nnef.tgz` from successful tests (useful to create a zoo of use-case), warning that may be a lot
-- `DEBUG=1` that will build and fill a directory `failed_tests` when you run tests. It will contains all dumps of models that are not passing test suite but still are able to be exported to NNEF (either because of a translation code error or a bug in the targeted inference engine), with ad-hoc information useful to debug.
+- `DEBUG=1` that will build and fill a directory `failed_tests` when you run tests. It will contain all dumps of models that are not passing test suite but still are able to be exported to NNEF (either because of a translation code error or a bug in the targeted inference engine), with ad-hoc information useful to debug.
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 2.**</span> Un-Implemented check
 
@@ -140,16 +140,16 @@ If that happen you can either [file an issue](./guidelines.md) or [try to debug]
 
 It's now time to add your operator translation !
 
-A lot of example exists in the `torch_to_nnef.op.aten` sub modules.
+A lot of example exist in the `torch_to_nnef.op.aten` sub modules.
 Each sub-module is organized by theme. please try to find the one that is the closest
 from your operator or put it in `other` if not.
 
-There is mostly 3 kinds of operator mapping
+There are mostly 3 kinds of operator mapping
 
 **1.** Those that directly map to [NNEF spec](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html)
 and are 1 to 1 tensor transformation in that case just add it in the map in `torch_to_nnef.op.aten.unary`: `GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES` or `REMAP_ATEN_OP_NAMES`.
 
-**2.** Those that need a bit of mapping (sometime adding few composed operators NNEF side):
+**2.** Those that need a bit of mapping (sometimes adding few composed operators NNEF side):
 
 ```python title="Example of straight mapping"
 @OP_REGISTRY.register(["bitwise_or"]) # (1)!
@@ -183,11 +183,11 @@ Do not forget to remove the `test_suite.reset()` and relaunch the full test suit
 py.test
 ```
 
-To ensure nothing break due to that new addition.
+To ensure nothing breaks due to that new addition.
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 5.**</span> Check written code
 
-There is 3 things to do now run :
+There are 3 things to do now run :
 
 - [ruff](https://docs.astral.sh/ruff/) for formatting
 
