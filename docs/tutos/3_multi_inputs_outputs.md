@@ -12,8 +12,8 @@
     - [ ] PyTorch and Python basics
     - [ ] 10 min to read this page
 
-A lot neural network model requires more than 1 input or output.
-In that case we support no less that classical ONNX export.
+A lot of neural network models require more than 1 input or output.
+In that case we support no less than classical ONNX export.
 
 ## How to export ?
 
@@ -36,8 +36,7 @@ pip install torch==2.7.0 \
 touch export_albert.py
 ```
 
-We are now ready to start, load the model and prepare and
-input sample:
+We are now ready to start, load the model and prepare an input sample:
 
 ```python title="load model and input sample in ('export_albert.py' part 1)"
 
@@ -50,9 +49,9 @@ albert_model = AlbertModel.from_pretrained("albert-base-v2")
 
 What would happen if we used the same call as previously in the [getting started tutorial](./1_getting_started.md) ?
 
-Let's not forget that `inputs` generated from the tokenizer is a Python object  [`BatchEncoding`](https://github.com/huggingface/transformers/blob/a1ad9197c5756858e9014a0e01fe5fb1791efdf2/src/transformers/tokenization_utils_base.py#L192). It contains the tensors that we will use in the `forward` pass of this network in the following attributes:
+Let's not forget that `inputs` generated from the tokenizer are put in a Python object  [`BatchEncoding`](https://github.com/huggingface/transformers/blob/a1ad9197c5756858e9014a0e01fe5fb1791efdf2/src/transformers/tokenization_utils_base.py#L192). It contains the tensors that we will use in the `forward` pass of this network in the following attributes:
 `input_ids`, `attention_mask`, `token_type_ids`.
-So we need to add those in `args` and `input_names` of export API.
+So we need to add those attributes in  `args` and refer to them in `input_names` of export API.
 
 Let's try together:
 
@@ -84,11 +83,11 @@ export_model_to_nnef(
 
 !!! warning "Warning"
 
-    This export is for demonstration of multi inputs outputs only ! The [dynamic dimensions](./4_streaming_dimension.md) specification is missing which create a
+    This export is for demonstration of multi inputs outputs only ! The [dynamic dimensions](./4_streaming_dimension.md) specification is missing which creates a
     limited sub-optimal exported NNEF model.
 
 If you run this script you should get a model very close to the
-definition in transformer library with the *graph.nnef* signature that look like this:
+definition in transformers library with the *graph.nnef* signature that look like this:
 
 ```nnef title="nnef graph signature"
 graph network(
@@ -103,27 +102,27 @@ graph network(
 - This transformer model return in Python a special object:  [`BaseModelOutputWithPooling`](https://github.com/huggingface/transformers/blob/v4.53.2/src/transformers/modeling_outputs.py#L71-L99)
 - `torch_to_nnef` export is called with the `output_names` specified with 1 element named `output`
 
-##### So how come we get 2 outputs ?
+##### So how come do we get 2 outputs ?
 
-It turns out `torch_to_nnef` try hard to make sense of inputs and outputs provided.
+It turns out `torch_to_nnef` tries hard to make sense of the provided inputs and outputs.
 
-In this case, the output object have been partially filled because of the inputs provided
+In this case, the output object has been partially filled because of the inputs provided
 to the model. In the upper snippet, we did not add parameters for the `AlbertModel.forward` method: `output_attentions` or `output_hidden_states`: to `True`. So all the graph
 traced and exported use the control-flow not collecting those outputs.
 
 !!! warning "Warning"
-    This is one of the key limitation NNEF export, since it is based on internal Graph representation
-    in **PyTorch** it doesn't really know more that PyTorch. All the control-flow existing Python side are unknown.
+    This is one of the key limitation of the NNEF export, since it is based on internal Graph representation
+    in **PyTorch** it doesn't really know more than PyTorch. All the control-flow existing Python side are unknown.
     This is why selecting correctly your input so that the correct trace and outputs end up being exported is very
     important.
 
     That's also why conditional sub-model execution is not embededable directly to
-    NNEF (think Mixture Of Experts by example). But fear not we have solutions for that.
+    NNEF (think Mixture Of Experts for example). But fear not we have solutions for that.
 
 Ok now that's a bit clearer 😮‍💨, but why output names differ from those in Python modeling ?
 
-Well we requested the first output object to be named `output` so all it's '`Map`' content
-that have tensors value have been prefixed like this `output_{internal_object_key}`.
+Well we requested the first output object to be named `output`. So all its internal torch tensors are mapped
+and are automatically prefixed like this: `output_{internal_object_key}` in NNEF.
 
 ## IO Specification
 
@@ -158,11 +157,11 @@ Outputs have the same object flexibility.
 
 Also, if some names are not provided in `input_names` and `output_names` they will be automatically generated with following template `input_{}` and `output_{}` where the content of the brackets depends on indexes and keys.
 
-### Selection inputs and outputs to export
+### Selection of inputs and outputs to export
 
-Ok that's nice, we should now start to better understand what's is possible to do with simple `torch_to_nnef` export call.
+Ok that's nice, we should now start to better understand what's possible to do with simple `torch_to_nnef` export call.
 
-What about if you want something that only export the `last_hidden_states` ?
+What about if you want something that only exports the `last_hidden_states` ?
 
 In that case you can simply wrap the model into a new `nn.Module` like so:
 
@@ -183,7 +182,7 @@ wrapped_model = ALBERTModelWrapper(albert_model)
 ```
 
 You can now export this wrapped model with the same API call we specified upper.
-The same logic would apply if you wish to ignore some `inputs` to can set those in
+The same logic would apply if you wish to ignore some `inputs`, you can set those in
 the `__init__` and reference them in the `forward` pass.
 
 A concrete example of this is available in the `torch_to_nnef` codebase with regard
@@ -193,7 +192,7 @@ to LLM wrappers that need to handle the KV-cache properly: [here](https://github
 
 #### Dynamic number of input or output is not supported out of the box
 
-Given your network have a variable number of input or outputs
+Given your network has a variable number of input or outputs
 with the same shape you can envision to wrap your network inside
 a `torch.nn.Module` that will concatenate those into a single tensor
 of variable size.
