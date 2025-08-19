@@ -125,7 +125,7 @@ init().then(() => {
     document.getElementById("drop_zone_0").addEventListener("drop", dropHandler);
     document.getElementById("drop_zone_1").addEventListener("drop", dropHandler);
     document.getElementById("loadstatus").innerHTML = "loading default image";
-    fetch("/img/cat.jpg")
+    fetch("../img/cat.jpg")
         .then(response => response.blob())
         .then(myBlob => {
             document.getElementById("loadstatus").innerHTML = "classify default image";

@@ -88,7 +88,7 @@ let assistantStart = '<|im_start|>assistant\n';
 if (window.Worker) {
     console.log("init worker");
     let llmWorker = new Worker(
-        new URL("/html/llm_worker.js", import.meta.url),
+        new URL("./llm_worker.js", import.meta.url),
         { type: 'module' }
     );
     llmWorker.postMessage({ kind: "initLLM" });
