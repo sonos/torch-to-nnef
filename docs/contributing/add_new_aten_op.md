@@ -214,5 +214,5 @@ Also please follow the same prefix naming convention for your PR name and commit
 
 !!! success end "Congratulation"
 
-    :tada: you made it !
+    :tada: You made it !
     Congratulation and thank you so much for your contribution

@@ -121,7 +121,7 @@ You should be able to observe as previously a nice evaluation of network speed a
 
 !!! success "Congratulation"
 
-    you made your first dynamic network export with `torch_to_nnef` :tada: !
+    You made your first dynamic network export with `torch_to_nnef` :tada: !
 
 ## Streaming Audio with stateful model
 

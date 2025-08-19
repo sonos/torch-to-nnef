@@ -5,7 +5,7 @@
     At the end of this tutorial you will know:
 
     1. :material-toolbox: How to export multi io neural network
-    2. :octicons-cross-reference-24: data type limitations of the NNEF representation
+    2. :octicons-cross-reference-24: Data type limitations of the NNEF representation
 
 !!! example "Prerequisite"
 
