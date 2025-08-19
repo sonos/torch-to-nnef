@@ -448,9 +448,11 @@ class TractCli:
         check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         """Assert a NNEF asset has outputs within tolerance bound with tract cli"""
-        extra_param = (
-            ["--nnef-tract-extra"] if self.version >= "0.20.20" else []
-        )
+        extra_param = []
+        if self.version >= "0.20.20":
+            extra_param.append("--nnef-tract-extra")
+        if self.version >= "0.21.14":
+            extra_param.append("--nnef-tract-transformers")
         cmd_ = (
             [
                 self.tract_path,

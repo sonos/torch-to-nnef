@@ -79,6 +79,19 @@ def scaled_dot_product_attention(
     if query_node.dtype == torch.float16:
         dtype_str = "f16"
 
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.21.14"
+    ):
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_transformers_sdpa",
+            inputs=tuple(inputs),
+        )
+        return ["tract_transformers"]
+
     tmpl_fragment_name = "scaled_dot_product_attention"
     if inference_target.version < "0.21.11":
         tmpl_fragment_name = f"legacy_{tmpl_fragment_name}"
