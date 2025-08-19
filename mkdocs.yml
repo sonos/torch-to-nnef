@@ -9,6 +9,8 @@ extra:
       link: https://x.com/sonos/
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/company/sonos-inc-/jobs/
+  version:
+    provider: mike
 extra_css:
   - style.css
 
