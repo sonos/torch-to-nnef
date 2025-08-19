@@ -74,6 +74,12 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             summary: true
+  - mike:
+    alias_type: symlink
+    redirect_template: null
+    deploy_prefix: ''
+    canonical_version: null
+    version_selector: true
 
 theme:
   name: material
