@@ -2,7 +2,7 @@
     This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'v2.7.1'**. file was generated the **28 Jul 2025**.
 
 !!! warning
-     Take these information with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.  **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md).
+     Take these informations with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.  **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md).
 
 
  'is core' column refers to this [PyTorch IR documentation page](https://docs.pytorch.org/docs/main/torch.compiler_ir.html)
@@ -17,7 +17,7 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
 
     [=114/138 "114/138"]
 
-    -  and support from full `aten::`: 
+    -  and support from full `aten::`:
 
     [=186/862 "186/862"]
 
@@ -897,7 +897,7 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
 
     [=123/138 "123/138"]
 
-    -  and support from full `aten::`: 
+    -  and support from full `aten::`:
 
     [=320/862 "320/862"]
 

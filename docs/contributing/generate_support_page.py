@@ -260,7 +260,7 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         f"    This table and page are auto generated from 'a script' that dig into PyTorch."
         f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**.\n\n"
         "!!! warning\n"
-        "     Take these information with a grain of salt as this is referencing operators that may never appear"
+        "     Take these informations with a grain of salt as this is referencing operators that may never appear"
         " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
         " uncommon operators are very rare in models, hence support may be lacking. "
         " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
