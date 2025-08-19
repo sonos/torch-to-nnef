@@ -14,7 +14,7 @@
     - [ ] 10 min to read this page
 
 <figure markdown="span">
-    ![quant ilu](/img/quant_ilu.png)
+    ![quant ilu](../../img/quant_ilu.png)
     <figcaption>*Illustration by Maarten Grootendorst*</figcaption>
 </figure>
 

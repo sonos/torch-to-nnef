@@ -201,11 +201,11 @@ regard to [`dynamic axes`](./4_dynamic_axes.md) and [basic api](./1_getting_star
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
  We demo the use a minimal Large Language model named `Smollm 125m` running in your browser (total experiment is <100 mo download).
 
-<script src="/html/iframe_demo_parent.js"></script>
+<script src="../../html/iframe_demo_parent.js"></script>
 <iframe
     id="iframe-demo-0"
     class="responsive-iframe"
-    src="/html/demo_poem_generator.html">
+    src="../../html/demo_poem_generator.html">
 </iframe>
 
 !!! note

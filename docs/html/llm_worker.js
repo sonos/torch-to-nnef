@@ -1,4 +1,4 @@
-import init, { LLM, LLMState } from '/html/llm_wasm.js';
+import init, { LLM, LLMState } from './llm_wasm.js';
 var llm = null;
 var llmState = null;
 
