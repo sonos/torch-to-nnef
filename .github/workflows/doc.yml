@@ -61,4 +61,4 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
-          uv run mkdocs gh-deploy --force
+          uv run mike deploy --push --update-aliases v0.19 latest
