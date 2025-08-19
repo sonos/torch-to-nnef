@@ -61,4 +61,11 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
-          uv run mkdocs gh-deploy --force
+          TAG=$(git describe --tags --abbrev=0)
+          # Ensure tag starts with "v"
+          if [[ "$TAG" != v* ]]; then
+            echo "Tag '$TAG' does not start with 'v', skipping deploy."
+            exit 0
+          fi
+          STRIPPED_VERSION=$(echo $TAG | sed 's/\.[0-9][0-9]*$//')
+          uv run mike deploy --push --update-aliases "$STRIPPED_VERSION" latest
