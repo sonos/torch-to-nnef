@@ -442,11 +442,11 @@ result: Some((9.439479, 652))
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
  We demo the use of a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model - ).
 
-<script src="/html/iframe_demo_parent.js"></script>
+<script src="../../html/iframe_demo_parent.js"></script>
 <iframe
     id="iframe-demo-0"
     class="responsive-iframe"
-    src="/html/demo_image_classifier.html">
+    src="../../html/demo_image_classifier.html">
 </iframe>
 
 !!! note

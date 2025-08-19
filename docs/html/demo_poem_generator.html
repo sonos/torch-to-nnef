@@ -8,7 +8,7 @@
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-        <script src="/html/typed.umd.js"></script>
+        <script src="./typed.umd.js"></script>
         <style>
         @keyframes blink {
             50% { border-color: #ffffff; }
@@ -76,7 +76,7 @@
         </style>
         <script type="module">
 /// core llm prompt
-import init, { LLM } from '/html/llm_wasm.js';
+import init, { LLM } from './llm_wasm.js';
 const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
 let systemPrompt = genMsg(
     "system",
