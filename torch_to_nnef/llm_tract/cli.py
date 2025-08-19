@@ -67,7 +67,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "-s",
             "--model-slug",
             help="huggingface slug (web-page 'endpoint') to "
-            f"export by example ({slug_examples})",
+            f"export for example ({slug_examples})",
         )
         parser.add_argument(
             "-dt",

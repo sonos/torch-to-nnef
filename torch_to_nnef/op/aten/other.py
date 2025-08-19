@@ -234,7 +234,7 @@ def size(
 
     Since it is a core component to express some dynamic network that may use
     tract symbolic dimensions:
-    by example using stream size to apply an averaging:
+    for example using stream size to apply an averaging:
     We map it to `tract_core_shape_of`
 
     """

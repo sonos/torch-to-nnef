@@ -35,7 +35,7 @@ class _RNNMixin:
     def ordered_args(self, torch_graph):
         """
         sometime torch jit may reorder inputs
-        compared to targetted python ops
+        compared to targeted python ops
         in such case ordering need to be re-addressed
         """
         rnn_op = next(torch_graph.tracer.torch_graph.outputs()).node()

@@ -198,7 +198,7 @@ class OpaqueTensorRef(torch.Tensor):
 def opaque_to_final_tensor(rtensor: torch.Tensor) -> torch.Tensor:
     """Even if OpaqueTensor are composed it exposes fully expanded tensor.
 
-    So by example: an OffloadedTensor that contains a QTensor
+    So for example: an OffloadedTensor that contains a QTensor
     will 'load' then 'decompress' to show final fp tensor.
 
     """

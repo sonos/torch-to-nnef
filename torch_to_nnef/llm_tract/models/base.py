@@ -51,7 +51,7 @@ def build_past_kv_dyn_cache(
 def ctx_dtype_dyn_cache():
     """Context Manager to handle inconsistent device type in KV-cache update
 
-    This may be due by example to the use of accelerate 'meta' tensors device.
+    This may be due for example to the use of accelerate 'meta' tensors device.
 
     This manager is stackable (in such case only largest context will be applied)
     """

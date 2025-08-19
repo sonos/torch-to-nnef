@@ -11,12 +11,12 @@
     - [ ] PyTorch and Python basics
     - [ ] 5 min to read this page
 
-Sometime you wish to export only some weights, this happen by example if you
+Sometime you wish to export only some weights, this happen for example if you
 fine-tuned a LLM with a PEFT technique like LoRA. In this case only a very limited
-set of weight are modified compared to the pre-trained neural network.
+set of weights are modified compared to the pre-trained neural network.
 So this can make sense to ship to the customer the base model only once (with the graph)
-at the beginning (by example app download),
-and then to send the LoRA weights separatly as you iterate through your product (by example app update).
+at the beginning (for example app download),
+and then to send the LoRA weights separately as you iterate through your product (for example app update).
 
 This patching logic is also very interesting in case you wish to allow multiple PEFT
 to be shipped and switched/selected at model load time.

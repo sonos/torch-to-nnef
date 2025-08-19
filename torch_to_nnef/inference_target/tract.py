@@ -110,7 +110,7 @@ class TractNNEF(InferenceTarget):
 
         Args:
             version: tract version targeted for export
-            feature_flags: set of possibly added feature flags from tract (by example complex numbers)
+            feature_flags: set of possibly added feature flags from tract (for example complex numbers)
             check_io: check between tract cli and Pytorch original model that given provided input, output is similar
             dynamic_axes: Optional specification of dynamic dimension
                 By default the exported model will have the shapes of all input

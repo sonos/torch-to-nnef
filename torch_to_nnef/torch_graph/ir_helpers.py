@@ -149,7 +149,7 @@ def _reconstruct_view_dims(
 ) -> T.Tuple[int, ...]:
     """Reconstruct shapes of whished view
 
-    By example:
+    For example:
         x_reshape = x.contiguous().view((-1,) + x.shape[2:])
 
         Provide incomplete graph information about shapes filing info with None
@@ -157,7 +157,7 @@ def _reconstruct_view_dims(
 
         view((-1, None, None))
 
-        but we know input by example:
+        but we know input for example:
 
         (4, 64, 16, 128)
 

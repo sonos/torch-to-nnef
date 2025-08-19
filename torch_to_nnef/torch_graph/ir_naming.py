@@ -227,7 +227,7 @@ def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
     """Cleanup final namings in graph:
 
     - Remove useless digits from module names
-      by example:
+      for example:
         '_20__post_attention_layernorm_4__weight_expanded_1__weight'
         would become
         '_20__post_attention_layernorm__weight_expanded__weight'

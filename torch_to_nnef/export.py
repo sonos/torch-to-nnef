@@ -62,10 +62,10 @@ def export_model_to_nnef(
     Export any torch.nn.Module to NNEF file format archive
 
     Args:
-        model: an nn.Module that have a `.forward` function
+        model: a nn.Module that have a `.forward` function
             with only tensor arguments and outputs
             (no tuple, list, dict or objects)
-            Only this function will be serialised
+            Only this function will be serialized
 
         args: a flat ordered list of tensors for each forward inputs of `model`
             this list can not be of dynamic size (at serialization it will be
@@ -78,7 +78,7 @@ def export_model_to_nnef(
 
         inference_target: can be either `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
             for each you can specify version targeted:
-            - KhronosNNEF is least maintained so far, and is checked against nnef-tools PyTorch interpreter
+            - KhronosNNEF is the least maintained so far, and is checked against nnef-tools PyTorch interpreter
             - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
                 among key paramters there is
                     feature_flags: Optional[Set[str]], that may contains tract specifics
@@ -98,11 +98,11 @@ def export_model_to_nnef(
 
         input_names: Optional list of names for args, it replaces
             variable inputs names traced from graph
-            (if set it must have same size as number of args)
+            (if set it must have the same size as number of args)
 
         output_names: Optional list of names for outputs of `model.forward`,
             it replaces variable output names traced from graph
-            (if set it must have same size as number of outputs)
+            (if set it must have the same size as number of outputs)
 
         compression_level: int (>= 0)
             compression level of tar.gz (higher is more compressed)
@@ -131,7 +131,7 @@ def export_model_to_nnef(
 
         debug_bundle_path: Optional[Path]
             if specified it should create an archive bundle with all needed
-            information to allows easier debug.
+            information to allow easier debug.
 
         custom_extensions: Optional[List[str]]
             allow to add a set of extensions as defined in
@@ -143,11 +143,11 @@ def export_model_to_nnef(
             (like for example maximum number of tokens for an LLM)
     Raises:
         torch_to_nnef.exceptions.T2NError
-            If something fail during export process we try to provide dedicated
+            If something fail during the export process we try to provide dedicated
             exceptions (easier to control programmatically)
 
     Examples:
-        By example this function can be used to export as simple perceptron model:
+        For example this function can be used to export as simple perceptron model:
 
         >>> import os
         >>> import tarfile
