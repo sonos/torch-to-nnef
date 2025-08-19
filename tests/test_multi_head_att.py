@@ -73,6 +73,16 @@ class SelfAttn(torch.nn.Module):
 
 X = torch.rand((100, 1, 64)).float()
 Xmini = torch.randint(high=8, size=(1, 2, 4)).float()
+if hasattr(F, "scaled_dot_product_attention"):
+    test_suite.add(
+        (Xmini, Xmini, Xmini),
+        TernaryPrimitive(
+            partial(
+                F.scaled_dot_product_attention,
+                attn_mask=torch.randint(high=1, size=(2, 1)).float(),
+            )
+        ),
+    )
 
 test_suite.add(
     torch.rand((100, 1, 64)).float(),
@@ -204,19 +214,6 @@ def test_equivalent_implementation():
     np.testing.assert_almost_equal(
         reference_result.numpy(), torch_sim_result.numpy()
     )
-
-test_suite.reset()
-if hasattr(F, "scaled_dot_product_attention"):
-    test_suite.add(
-        (Xmini, Xmini, Xmini),
-        TernaryPrimitive(
-            partial(
-                F.scaled_dot_product_attention,
-                attn_mask=torch.randint(high=1, size=(2, 1)).float(),
-            )
-        ),
-    )
-
 
 @pytest.mark.skipif(
     condition=torch_version() < "2.0.0",
