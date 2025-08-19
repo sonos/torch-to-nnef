@@ -78,17 +78,26 @@ def scaled_dot_product_attention(
     dtype_str = "f32"
     if query_node.dtype == torch.float16:
         dtype_str = "f16"
+    inner_dtype=(
+        "f32"
+        if inference_target.force_attention_inner_in_f32
+        else dtype_str
+    )
 
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.version >= "0.21.14"
     ):
+        attrs={"d_type": dtype_str,"inner_dtype": inner_dtype}
+        if scale is not None:
+            attrs["scale"] = scale
         add_single_output_op(
             g,
             node,
             name_to_tensor,
             "tract_transformers_sdpa",
             inputs=tuple(inputs),
+            attrs=attrs
         )
         return ["tract_transformers"]
 
@@ -101,11 +110,7 @@ def scaled_dot_product_attention(
         causal=is_causal,
         rank=key_node.rank,
         dtype=dtype_str,
-        inner_dtype=(
-            "f32"
-            if inference_target.force_attention_inner_in_f32
-            else dtype_str
-        ),
+        inner_dtype=inner_dtype,
         attn_mask=has_masked_attn,
     )
 
