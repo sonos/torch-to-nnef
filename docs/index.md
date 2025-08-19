@@ -1,4 +1,4 @@
-# Welcome to **Torch to NNEF** documentation
+# Welcome to **Torch to NNEF** Documentation
 
 <figure markdown="span">
     ![torch_to_nnef](./img/torch_to_nnef.png){ align=center }
