@@ -4,15 +4,15 @@
 
     At the end of this tutorial you will know:
 
-    1. :material-toolbox: How to export specify dynamic tensor inputs neural network
-    2. :material-clock-time-one-outline: What is tract pulsification and why this is very powerfull
+    1. :material-toolbox: How to specify inputs tensor of variable lengths in neural network at export time
+    2. :material-clock-time-one-outline: What is tract pulsification and why is this very powerful ?
 
 !!! example "Prerequisite"
 
     - [ ] PyTorch and Python basics
     - [ ] 15 min to read this page
 
-Numerous neural network act on dimensions that aren't known quantity at export time.
+Numerous neural networks act on dimensions that aren't known quantity at export time.
 Batch size is a common example that is ideally selected at runtime according to the
 user need.
 Time dimension is another case were dimension may accumulate over a runtime session,
@@ -25,7 +25,7 @@ the special case of time dimension for stateful neural networks.
 ## Simple case: batch dimension only
 
 If we think of our [getting_started](./1_getting_started.md) example earlier,
-after export: the model generated is having a fixed batch dimensions of 1 sample.
+after export: the model generated is having a fixed batch dimension of 1 sample.
 Let's fix this by declaring this dimension as dynamic at export time:
 
 ```python title="setting streaming dimensions correctly"
@@ -52,7 +52,7 @@ export_model_to_nnef(
 ```
 
 After running this script you should have a new asset: `vit_b_16_batchable.nnef.tgz`.
-Looking at the `graph.nnef` there is 2 new obvious things:
+Looking at the `graph.nnef` there are 2 new obvious things:
 
 - A new extension at the beginning of the file with the introduced symbol
 
@@ -61,14 +61,14 @@ extension tract_symbol B;
 
 ```
 
-- The input external introduce this symbol in the requested dimensions:
+- The input external introduces this symbol in the requested dimensions:
 
 ```nnef
 
 input = tract_core_external(shape = [B, 3, 224, 224], datum_type = 'f32');
 ```
 
-More subtly a lot of operations now doesn't assume shape is static but instead build from this variable shape:
+More subtly a lot of operations now don't assume shape is static but instead built from this variable shape:
 
 ```nnef
 input_shape = tract_core_shape_of(input);
@@ -85,7 +85,7 @@ If you run tract with the exported model:
 tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O dump
 ```
 
-You should observe that the batch dimension flow from the input to the last output of the graph:
+You should observe that the batch dimension flows from the input to the last output of the graph:
 
 ```bash
     ━━━ B,1000,F32
@@ -107,7 +107,7 @@ That's expected as you now need to concretize this symbol before profiling anyth
 You can do that before or after the 'dump' keyword but be careful this has a different meaning:
 
 - if before this means the compiled graph by tract in memory will be of concretized dimensions you provided
-- if after this means the compiled graph by tract in memory will be offer dynamic dimensions to be defined at runtime per session:
+- if after this means the compiled graph by tract in memory will offer dynamic dimensions to be defined at runtime per session:
 The way to specify it is with the `--set B=3` where 3 can be whatever whole number upper or equal to 1.
 
 So running:
@@ -117,11 +117,11 @@ tract ./vit_b_16_batchable.nnef.tgz --nnef-tract-core -O \
     dump --set B=3 --allow-random-input --profile
 ```
 
-You should be able to observe as previously a nice evaluation of network speed and it's breakdown.
+You should be able to observe as previously a nice evaluation of network speed and its breakdown.
 
 !!! success "Congratulation"
 
-    you made your first dynamic network export with `torch_to_nnef` :tada: !
+    You made your first dynamic network export with `torch_to_nnef` :tada: !
 
 ## Streaming Audio with stateful model
 
@@ -161,7 +161,7 @@ class CustomDeepSpeech(torch.nn.Module):
         return self.deepspeech(x)
 ```
 
-We can instantiate a non trained model with it and export it with following command:
+We can instantiate a non trained model with it and export it with the following command:
 
 ```python title="export audio model with streaming dimension"
 file_path_export = Path("custom_deepspeech.nnef.tgz")
@@ -200,7 +200,7 @@ We observe a peculiar output dimension:
     ━━━ B,-3+(S+3)/4,40,F32
 ```
 
-While batch dimensions is fine, the temporal one is different.
+While batch dimension is fine, the temporal one is different.
 
 ### What did just happen ?
 
@@ -216,7 +216,7 @@ tract is able to manage this state of receptive field and the caching of RNN sta
 for you transparently. To achieve that we need to pulse the network:
 Pulsing is a concept specific to tract. It's choosing the 'time' step at which you wish your network to operate.
  By example for this neural network you can select any pulse value that would be a multiple of 4.
-Due to it's internal structure we discussed upper.
+Due to its internal structure we discussed upper.
  As an example we select 8:
 
 ```bash
@@ -319,8 +319,8 @@ to speed-up inference.
 
 To do that we need to introduce a new set of input for KV cache and a new set of
 output for the updated KV cache. This is not managed as an internal state of tract
-because we use the `transformers` that design states to be held aside a stateless model
-that receive the case and update it at each forward pass.
+because we use the HuggingFace [`transformers` library](https://github.com/huggingface/transformers/) that design states to be held aside a stateless model, and
+the update happen at each forward pass by providing proper states arguments manually.
 
 The past KV-Cache tensors in graph inputs will need
 a new symbol that we can call `P` for past and that will lead to following

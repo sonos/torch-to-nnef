@@ -1,7 +1,7 @@
 # Debugging, tips & tricks
 
 !!! info
-    This section intent to be an 'unordered' collection of debugging tricks
+    This section intends to be an 'unordered' collection of debugging tricks
     for **torch_to_nnef** internals.
 
 ## <span style="color:#6666aa">**:material-math-log:**</span> Logging

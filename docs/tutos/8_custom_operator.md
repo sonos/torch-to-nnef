@@ -4,8 +4,8 @@
 
     At the end of this tutorial you will be able to:
 
-    1. :material-toolbox: Control the transformation to NNEF of `nn.Module` you wish
-        This is often usefull in case those modules are not representable in the
+    1. :material-toolbox: Control the transformation to NNEF of `nn.Module` as you wish.
+        This is often useful in case those modules are not representable in the
         jit graph of PyTorch or because you wish to use custom NNEF operator for
         your inference engine.
 
@@ -14,7 +14,7 @@
     - [ ] PyTorch and Python basics
     - [ ] 5 min to read this page
 
-Sometime you want to control specific `torch.nn.Module` expansion to NNEF.
+Sometimes you want to control specific `torch.nn.Module` expansion to NNEF.
 It may happen because you want to use specific custom operator on inference target instead of
 basic primitives, or simply because you need to map to something that is not traceable,
 like for example (but not limited to) a physics engine.
@@ -30,8 +30,8 @@ that is defined as such:
 To make it works you need to accomplish 4 steps:
 
 1. sub-classing it
-2. defining it's `MODULE_CLASS` attribute.
-3. defining it's `convert_to_nnef`
+2. defining its `MODULE_CLASS` attribute.
+3. defining its `convert_to_nnef`
 4. ensuring that the subclass you just defined is imported in your export script
 
 This would look something like that:
@@ -60,5 +60,5 @@ You can take inspiration from our own management of RNN layers like:
     handler: python
 </div>
 
-But ultimately this is just a chain of op's that need to be written,
+But ultimately this is just a chain of op's that needs to be written,
 inside the `g` graph, like we do when [adding new aten operator](/contributing/add_new_aten_op)

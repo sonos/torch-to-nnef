@@ -278,7 +278,7 @@ def _fill_negone_with_dim_by_rank_order(
 
     This use case was encountered in pytorch .expand operator
 
-    where by example (picked from MHA in pytorch lib):
+    where for example (picked from MHA in pytorch lib):
         # given v1.shape == (10, 1, 20, 30)
         v1.expand([-1, 1, -1, -1])
         # is equivalent to

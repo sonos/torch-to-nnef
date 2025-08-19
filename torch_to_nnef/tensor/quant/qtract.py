@@ -30,7 +30,7 @@ class QTensorTract(QTensor):
 class QTensorTractScaleOnly(QTensorTract):
     """
 
-    Tract data format it serialize to: Q4_0
+    Tract data format it serializes to: Q4_0
 
     """
 

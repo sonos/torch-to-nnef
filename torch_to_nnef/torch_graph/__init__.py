@@ -2,7 +2,7 @@
 torch_graph is intended to extract full representation of PyTorch Graph
 into a stable intermediate representation suitable to then apply translation
 operation to NNEF. This means that not all PyTorch orginal graph is translated.
-By example, we ignore part linked to device location informations,
+For example, we ignore part linked to device location informations,
 memory specific operation or parameters linked to gradients.
 
 This choice which is different compared to torch.onnx module due to the

@@ -698,10 +698,10 @@ def cast_to_if_not_dtype_and_variable(
     cast_to: np.dtype,
     suffix: str = "",
 ):
-    """Force casting not expressed in IR graph in case of div by example.
+    """Force casting not expressed in IR graph in case of div for example.
 
     This is neccessary since tract and maybe other inference engine may not cast
-    implicitly to float during div operation by example leading to rounding
+    implicitly to float during div operation for example leading to rounding
     issues.
 
     """
@@ -829,7 +829,7 @@ class OpHelper:
             (specific ranked dtype list DTYPES_EXPECTED_IMPLICIT_CAST_ORDER)
 
 
-        By example:
+        For example:
 
         >>> torch.mul(1, torch.rand(10)).dtype
         torch.float32

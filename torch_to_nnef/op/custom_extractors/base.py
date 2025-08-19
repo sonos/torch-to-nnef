@@ -37,7 +37,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
     """Class to take manual control of NNEF expansion of a nn.Module
 
     You need to subclass it, and set MODULE_CLASS according to your
-    targeteded module.
+    targeted module.
 
     Then write .convert_to_nnef according to your need.
 
@@ -105,8 +105,8 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     def ordered_args(self, torch_graph):
         """
-        sometime torch jit may reorder inputs
-        compared to targetted python ops
+        sometimes torch jit may reorder inputs
+        compared to targeted python ops
         in such case ordering need to be re-addressed
         """
         return torch_graph.tracer.args
