@@ -3,7 +3,7 @@
 Tensor subclass to work around memories limit on various devices
 by offloading on disk or on a different 'memory' than final one.
 
-It hold an internal memory storage (permanent) and a temporary
+It holds an internal memory storage (permanent) and a temporary
     instantiation at each operation accessing it on targeted device.
 
 ## HuggingFace 'accelerate' difference
@@ -176,7 +176,7 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: T.Optional[Path] = None,
         suffix_log_msg: str = "",
     ):
-        """Take an torch.Tensor or OpaqueTensor and offload it to disk
+        """Take a torch.Tensor or OpaqueTensor and offload it to disk
 
         Args:
             tensor:
@@ -208,7 +208,7 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
-        """OffloadedTensor support changing the target device when in memory"""
+        """OffloadedTensor supports changing the target device when in memory"""
         if len(args) > 1:
             kwargs.update(zip(["device", "dtype"], args))
         else:
