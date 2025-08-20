@@ -112,23 +112,11 @@ select = [
     # flake8-simplify
     "SIM",
     # isort
-    # "I",
+    "I",
     # flake8-logging-format
     "G",
 ]
 ignore = ["E501"]
-
-
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_gitignore = true
-profile = "black"
-line_length = 80
-skip = [".gitignore", ".dockerignore"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers -p no:warnings -s"
@@ -325,35 +313,27 @@ MODELS = "1"
 
 [tool.tox.env.format]
 skip_install = true
-deps = [
-    "ruff",
-    "isort",
-]
+deps = ["ruff"]
 commands = [
-    [
-        "isort",
-        "torch_to_nnef",
-    ],
     [
         "ruff",
         "format",
         "torch_to_nnef",
         "tests",
     ],
+    [
+        "ruff",
+        "check",
+        "--fix",
+        "torch_to_nnef",
+        "tests",
+    ]
 ]
 
 [tool.tox.env.format_check]
 skip_install = true
-deps = [
-    "ruff",
-    "isort",
-]
+deps = ["ruff"]
 commands = [
-    [
-        "isort",
-        "-c",
-        "torch_to_nnef",
-    ],
     [
         "ruff",
         "format",
@@ -361,6 +341,12 @@ commands = [
         "torch_to_nnef",
         "tests",
     ],
+    [
+        "ruff",
+        "check",
+        "torch_to_nnef",
+        "tests",
+    ]
 ]
 
 [tool.tox.env.lint]
