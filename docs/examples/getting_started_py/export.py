@@ -1,8 +1,10 @@
 from pathlib import Path
+
 import torch
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 my_image_model = vision_mdl.vit_b_16(pretrained=True)
 

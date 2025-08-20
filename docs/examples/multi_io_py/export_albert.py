@@ -1,7 +1,8 @@
-from transformers import AlbertModel, AlbertTokenizer
 from pathlib import Path
-from torch_to_nnef import export_model_to_nnef, TractNNEF
 
+from transformers import AlbertModel, AlbertTokenizer
+
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
 inputs = tokenizer("Hello, I am happy", return_tensors="pt")

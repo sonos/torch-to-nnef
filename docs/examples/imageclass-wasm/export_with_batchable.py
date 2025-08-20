@@ -1,10 +1,12 @@
 """Same logic as VIT but with efficientnet and batch dynamic_axes"""
 
 from pathlib import Path
+
 import torch
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 base_model = vision_mdl.efficientnet_b0
 weights = vision_mdl.EfficientNet_B0_Weights

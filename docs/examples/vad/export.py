@@ -1,16 +1,16 @@
 """Simple export script of MarbleNet VAD"""
 
 import argparse
-from pathlib import Path
 import copy
-import subprocess
 import logging
+import subprocess
+from pathlib import Path
 
-from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 import torch
+from omegaconf import OmegaConf
 
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.log import init_log
 
