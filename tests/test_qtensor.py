@@ -1,27 +1,27 @@
-import typing as T
-from copy import deepcopy
-from functools import partial, reduce
-from pathlib import Path
+import operator
 import platform
 import subprocess
 import time
+import typing as T
+from copy import deepcopy
 from datetime import datetime
-import operator
+from functools import partial, reduce
+from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
-import pytest
 
 from torch_to_nnef.exceptions import T2NErrorTestFailed
 from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.nnef_io.tensor import DatBinHeader
 from torch_to_nnef.tensor.quant import (
-    U8Compressor,
-    qscale_per_group_f16_min_max_calibration,
     QTensorTractScaleOnly,
+    U8Compressor,
     fp_to_tract_q4_0_with_min_max_calibration,
+    qscale_per_group_f16_min_max_calibration,
 )
-from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
 from torch_to_nnef.utils import cd, torch_version
 
 from .utils import (

@@ -1,17 +1,18 @@
 from copy import deepcopy
+
 import pytest
 import torch
 from torch import nn
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torchaudio import transforms
 
-from tests.wrapper import UnaryPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from tests.wrapper import UnaryPrimitive
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 
 class MyFFT(nn.Module):

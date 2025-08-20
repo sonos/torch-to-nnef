@@ -12,13 +12,13 @@ from torch.nn import functional as F
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.utils import torch_version
 
-from .wrapper import TernaryPrimitive
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
 )
+from .wrapper import TernaryPrimitive
 
 set_seed(int(os.environ.get("SEED", 0)))
 

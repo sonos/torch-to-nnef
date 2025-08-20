@@ -16,20 +16,20 @@ from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.utils import torch_version
 
-from .wrapper import (
-    Einsum,
-    UnaryPrimitive,
-    BinaryPrimitive,
-    TernaryPrimitive,
-    TensorFnPrimitive,
-    TorchFnPrimitive,
-    ListInputPrim,
-)
 from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
+)
+from .wrapper import (
+    BinaryPrimitive,
+    Einsum,
+    ListInputPrim,
+    TensorFnPrimitive,
+    TernaryPrimitive,
+    TorchFnPrimitive,
+    UnaryPrimitive,
 )
 
 set_seed(int(os.environ.get("SEED", 25)))

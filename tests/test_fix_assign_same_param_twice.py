@@ -1,13 +1,13 @@
-from copy import deepcopy
-import tempfile
-from pathlib import Path
 import subprocess
+import tempfile
+from copy import deepcopy
+from pathlib import Path
 
 import torch
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import T2NErrorMissUse
 from torch_to_nnef.utils import cd
-from torch_to_nnef.compress import dynamic_load_registry
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,

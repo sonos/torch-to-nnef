@@ -1,9 +1,8 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 import numpy as np
-
+import pytest
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
 

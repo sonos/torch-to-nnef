@@ -1,12 +1,11 @@
 """Tests simple accumulator option."""
 
-from copy import deepcopy
 import os
+from copy import deepcopy
 
 import pytest
 import torch
 from torch import nn
-
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,

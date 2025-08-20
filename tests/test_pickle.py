@@ -1,12 +1,12 @@
 import pickle
 
-from tests.test_qtensor import skipif_unsupported_qtensor
 import torch
 
+from tests.test_qtensor import skipif_unsupported_qtensor
+from torch_to_nnef.tensor import NamedTensor
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.tensor import NamedTensor
 
 
 def test_pickle_named_tensor():

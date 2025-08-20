@@ -1,17 +1,18 @@
 """Tests canonical models."""
 
 import contextlib
+import os
 import platform
 from copy import deepcopy
-import os
 
 import pytest
 import torch
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
 import torchaudio
 from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 from transformers import AlbertModel, AlbertTokenizer
+
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 with contextlib.suppress(ImportError):
     from tests.shifted_window_attention_patch import (
