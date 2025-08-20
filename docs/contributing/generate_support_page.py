@@ -16,18 +16,16 @@ ONNX_SUPPORT_URL = "https://docs.pytorch.org/docs/stable/onnx_torchscript_suppor
 
 
 def get_core_ir():
-    resp = rq.get(URL_IR)
+    resp = rq.get(URL_IR, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
     res = soup.find_all("span", {"class": "pre"})
-    official_aten_names = set(
-        [
-            r.text.split(".")[1]
-            for r in res
-            if r.text.startswith("aten")
-            if "backward" not in r.text
-        ]
-    )
+    official_aten_names = {
+        r.text.split(".")[1]
+        for r in res
+        if r.text.startswith("aten")
+        if "backward" not in r.text
+    }
     official_prim_names = sorted(
         [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
     )
@@ -35,23 +33,19 @@ def get_core_ir():
 
 
 def get_onnx_support():
-    resp = rq.get(ONNX_SUPPORT_URL)
+    resp = rq.get(ONNX_SUPPORT_URL, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
-    supported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
-    unsupported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
+    supported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
+    unsupported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
     return supported_ops, unsupported_ops
 
 
@@ -85,7 +79,7 @@ class LinkToTorchDocCache:
                 continue
             if op_name in v and exclusive_pattern:
                 return
-        if rq.get(pattern.format(op_name)).status_code == 200:
+        if rq.get(pattern.format(op_name), timeout=20).status_code == 200:
             self.cache_dic[pattern].add(op_name)
             if op_name in self.cache_dic[self.UNK]:
                 self.cache_dic[self.UNK].remove(op_name)
@@ -96,6 +90,7 @@ class LinkToTorchDocCache:
         for k, v in self.cache_dic.items():
             if op_name in v and k != self.UNK:
                 return k.format(op_name)
+        return None
 
 
 official_aten_names, official_prim_names = get_core_ir()

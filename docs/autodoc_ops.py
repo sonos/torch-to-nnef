@@ -22,7 +22,10 @@ def gen_codedoc_if_missing(func):
         shutil.copy(base_file, bak_file)
         signature_line = None
         found_signature = False
-        with base_file.open("w") as write_fh, bak_file.open("r") as fh:
+        with (
+            base_file.open("w", encoding="utf8") as write_fh,
+            bak_file.open("r", encoding="utf8") as fh,
+        ):
             for line in fh.readlines():
                 write_fh.write(f"{line}")
                 if probe in line:

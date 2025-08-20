@@ -69,7 +69,9 @@ def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
     )
     with torch.no_grad():
         ids_to_qtensor: T.Dict[int, T.Tuple[QTensor, OffloadedTensor]] = {}
-        """ try to avoid quant if used in other operators like mix of embedding/linear if linear only quant """
+
+        # try to avoid quant if used in other operators like
+        # mix of embedding/linear if linear only quant
         mod_tensor_updater = ModTensorUpdater(model)
 
         for name, mod in model.named_modules():
