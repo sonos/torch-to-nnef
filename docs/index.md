@@ -23,7 +23,7 @@ Minimal dependencies are kept in this package (to allow easy integration in othe
 
 ### Support
 
-PyTorch >= 1.10.0 with the last 2 major releases of tract (>= 0.20.22 to date) over Linux and MacOS systems is officially supported, and packages are maintained/tested for Python versions that are [not end of life, nor pre-release](https://devguide.python.org/versions/).
+PyTorch >= 1.10.0 with the last 2 major releases of tract (>= 0.20.22 to date) over Linux and MacOS systems is officially supported, and the package is maintained/tested for Python versions that are [not end of life, nor pre-release](https://devguide.python.org/versions/).
 Only pre-compiled PyTorch wheels and dependencies available on [pypi](https://pypi.org/project/torch/) are used in CI, so this support evolves over time. Latest package versions ensure better opset coverage and unlock all features.
 
 
