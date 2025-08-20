@@ -1,0 +1,24 @@
+ignore-paths:
+  - .git
+  - .venv
+  - venv
+  - .tox
+  - .nox
+  - .mypy_cache
+  - .pytest_cache
+  - .ruff_cache
+  - .cache
+  # Build & dist artifacts
+  - build
+  - dist
+  - .eggs
+  - htmlcov
+  - coverage_html
+  # rust examples
+  - target
+  # Generated Python cruft
+  - __pycache__
+  - "*.pyc"
+  # Docs output
+  - docs/_build
+  - site

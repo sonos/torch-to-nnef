@@ -124,12 +124,11 @@ aliases = sorted(
     .decode("utf8")
     .split("\n")
 )
-naliases = {
+alias_map = {
     tuple(x.replace("aten::", "") for x in a.strip()[1:-2].split(", "))
     for a in aliases
     if "{" in a and "}" in a and "aten::" in a
 }
-alias_map = {k: v for (k, v) in naliases}
 ref_alias = defaultdict(list)
 for k, v in alias_map.items():
     ref_alias[v].append(k)
@@ -137,7 +136,7 @@ for k, v in alias_map.items():
 support_inplace = set()
 offset = 0
 for ix, a in enumerate(aten_torch_from_code[:]):
-    if (
+    if (  # pylint: disable-next=too-many-boolean-expressions
         a.endswith("_")
         and a[:-1] in aten_torch_from_code
         or a in alias_map
@@ -262,7 +261,8 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
         f"\n 'is core' column refers to this [PyTorch IR documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
+        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. "
+        "Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
         file=fh,
     )
     write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
