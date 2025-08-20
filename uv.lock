@@ -3344,7 +3344,6 @@ safetensors = [
 ]
 test = [
     { name = "coverage", extra = ["toml"] },
-    { name = "isort" },
     { name = "librosa" },
     { name = "mypy" },
     { name = "prospector" },
@@ -3382,7 +3381,6 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'llm-tract-accelerate'" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
     { name = "huggingface-hub", marker = "extra == 'llm-tract'", specifier = ">0.24" },
-    { name = "isort", marker = "extra == 'test'", specifier = ">=5.8.0,<6" },
     { name = "librosa", marker = "extra == 'test'" },
     { name = "mako", specifier = ">=1.0.0,<2.0" },
     { name = "mypy", marker = "extra == 'test'", specifier = "~=1.13" },

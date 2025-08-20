@@ -16,18 +16,16 @@ ONNX_SUPPORT_URL = "https://docs.pytorch.org/docs/stable/onnx_torchscript_suppor
 
 
 def get_core_ir():
-    resp = rq.get(URL_IR)
+    resp = rq.get(URL_IR, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
     res = soup.find_all("span", {"class": "pre"})
-    official_aten_names = set(
-        [
-            r.text.split(".")[1]
-            for r in res
-            if r.text.startswith("aten")
-            if "backward" not in r.text
-        ]
-    )
+    official_aten_names = {
+        r.text.split(".")[1]
+        for r in res
+        if r.text.startswith("aten")
+        if "backward" not in r.text
+    }
     official_prim_names = sorted(
         [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
     )
@@ -35,23 +33,19 @@ def get_core_ir():
 
 
 def get_onnx_support():
-    resp = rq.get(ONNX_SUPPORT_URL)
+    resp = rq.get(ONNX_SUPPORT_URL, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
-    supported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
-    unsupported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
+    supported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
+    unsupported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
     return supported_ops, unsupported_ops
 
 
@@ -85,7 +79,7 @@ class LinkToTorchDocCache:
                 continue
             if op_name in v and exclusive_pattern:
                 return
-        if rq.get(pattern.format(op_name)).status_code == 200:
+        if rq.get(pattern.format(op_name), timeout=20).status_code == 200:
             self.cache_dic[pattern].add(op_name)
             if op_name in self.cache_dic[self.UNK]:
                 self.cache_dic[self.UNK].remove(op_name)
@@ -96,6 +90,7 @@ class LinkToTorchDocCache:
         for k, v in self.cache_dic.items():
             if op_name in v and k != self.UNK:
                 return k.format(op_name)
+        return None
 
 
 official_aten_names, official_prim_names = get_core_ir()
@@ -129,12 +124,11 @@ aliases = sorted(
     .decode("utf8")
     .split("\n")
 )
-naliases = {
+alias_map = {
     tuple(x.replace("aten::", "") for x in a.strip()[1:-2].split(", "))
     for a in aliases
     if "{" in a and "}" in a and "aten::" in a
 }
-alias_map = {k: v for (k, v) in naliases}
 ref_alias = defaultdict(list)
 for k, v in alias_map.items():
     ref_alias[v].append(k)
@@ -142,7 +136,7 @@ for k, v in alias_map.items():
 support_inplace = set()
 offset = 0
 for ix, a in enumerate(aten_torch_from_code[:]):
-    if (
+    if (  # pylint: disable-next=too-many-boolean-expressions
         a.endswith("_")
         and a[:-1] in aten_torch_from_code
         or a in alias_map
@@ -267,7 +261,8 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
         f"\n 'is core' column refers to this [PyTorch IR documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
+        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. "
+        "Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
         file=fh,
     )
     write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
