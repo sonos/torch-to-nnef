@@ -1,13 +1,14 @@
 import json
+import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Set
-from torch_to_nnef.op.aten import aten_ops_registry
-import requests as rq
-import bs4
-import subprocess
 
+import bs4
+import requests as rq
+
+from torch_to_nnef.op.aten import aten_ops_registry
 
 TORCH_VERSION = "v2.7.1"
 URL_IR = "https://docs.pytorch.org/docs/main/torch.compiler_ir.html"

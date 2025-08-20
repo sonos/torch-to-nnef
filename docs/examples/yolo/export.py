@@ -1,13 +1,15 @@
 from copy import deepcopy
-import torch_to_nnef
+
 from ultralytics import YOLO
-from ultralytics.utils import LOGGER, colorstr
-from ultralytics.utils.patches import arange_patch
+from ultralytics.engine.exporter import Exporter, NMSModel
 from ultralytics.nn.tasks import (
     DetectionModel,
     SegmentationModel,
 )
-from ultralytics.engine.exporter import NMSModel, Exporter
+from ultralytics.utils import LOGGER, colorstr
+from ultralytics.utils.patches import arange_patch
+
+import torch_to_nnef
 
 tract_target = torch_to_nnef.TractNNEF.latest()
 model = YOLO(

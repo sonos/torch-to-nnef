@@ -1,11 +1,12 @@
 """Featurizer borrowed from nemo package for testing purpose."""
 
-import random
 import logging
 import math
+import random
 
 import torch
 from torch import nn
+
 from torch_to_nnef.exceptions import (
     T2NErrorMissUse,
     T2NErrorNotImplemented,

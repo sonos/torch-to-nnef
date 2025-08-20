@@ -1,20 +1,19 @@
-from pathlib import Path
-from copy import deepcopy
 import subprocess
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tests.wrapper import TernaryPrimitive, TensorFnPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from tests.wrapper import TensorFnPrimitive, TernaryPrimitive
 from torch_to_nnef.utils import torch_version
-
 
 FORCE_F32_INFERENCES = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)
 for inf in FORCE_F32_INFERENCES:

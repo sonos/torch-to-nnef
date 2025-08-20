@@ -1,5 +1,6 @@
 """Make training and any ops involving random reproducible"""
 
+import inspect
 import os
 import random
 import shutil
@@ -8,10 +9,9 @@ import typing as T
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-import inspect
 
-import pytest
 import numpy as np
+import pytest
 import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
 
@@ -21,16 +21,16 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
-from torch_to_nnef.tensor.quant.base import (
-    QTENSOR_UNSUPPORTED,
-    QTENSOR_UNSUPPORTED_MSG,
-)
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
     TractCli,
     build_io,
 )
 from torch_to_nnef.log import log
+from torch_to_nnef.tensor.quant.base import (
+    QTENSOR_UNSUPPORTED,
+    QTENSOR_UNSUPPORTED_MSG,
+)
 from torch_to_nnef.torch_graph.ir_naming import DEFAULT_VARNAME_SCHEME
 from torch_to_nnef.utils import torch_version
 

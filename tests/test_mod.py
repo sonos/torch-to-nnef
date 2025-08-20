@@ -1,9 +1,9 @@
 from copy import deepcopy
-import pytest
 
-from tests.mod.nemo_featurizer import FilterbankFeatures
+import pytest
 import torch
 
+from tests.mod.nemo_featurizer import FilterbankFeatures
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,

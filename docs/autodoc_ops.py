@@ -5,8 +5,8 @@ website.
 
 """
 
-import shutil
 import inspect
+import shutil
 from pathlib import Path
 
 from torch_to_nnef.op.aten import aten_ops_registry

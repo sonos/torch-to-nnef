@@ -4,9 +4,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import torch
 import pytest
-
+import torch
 from transformers import AutoModelForCausalLM
 
 from torch_to_nnef.llm_tract.config import LlamaSLugs

@@ -3,10 +3,10 @@ from copy import deepcopy
 import pytest
 import torch
 from torch import nn
+
 from torch_to_nnef.utils import torch_version
 
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
-
 
 skipif_sub_torch2 = pytest.mark.skipif(
     condition=torch_version() < "2.0.0",

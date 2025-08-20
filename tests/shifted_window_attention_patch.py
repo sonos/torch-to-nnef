@@ -28,6 +28,7 @@ from typing import Callable, List, Optional
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
+
 from torch_to_nnef.exceptions import T2NErrorMissUse
 
 MISSING_SWIN = False

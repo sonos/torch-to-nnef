@@ -1,8 +1,9 @@
 from pathlib import Path
+
 import torch
 import torchaudio
 
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 
 class CustomDeepSpeech(torch.nn.Module):

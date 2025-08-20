@@ -11,7 +11,6 @@ from torchaudio import models as audio_mdl
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.utils import torch_version
 
-from .wrapper import TorchFnPrimitive
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -19,6 +18,7 @@ from .utils import (  # noqa: E402
     check_model_io_test,
     set_seed,
 )
+from .wrapper import TorchFnPrimitive
 
 set_seed(int(os.environ.get("SEED", 25)))
 

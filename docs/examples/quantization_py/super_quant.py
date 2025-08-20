@@ -1,8 +1,10 @@
-from functools import partial
 import logging
 import typing as T
+from functools import partial
+
 import torch
 from torch import nn
+
 from torch_to_nnef.compress import offloaded_tensor_qtensor
 from torch_to_nnef.exceptions import T2NErrorImpossibleQuantization
 from torch_to_nnef.tensor.offload import OffloadedTensor

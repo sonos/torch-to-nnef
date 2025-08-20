@@ -1,7 +1,7 @@
 """Tests export quantized models."""
 
-import sys
 import os
+import sys
 import typing as T
 
 import pytest
