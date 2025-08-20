@@ -706,9 +706,7 @@ class LLMExporter:
                 force_f32_normalization
             )
         if enable_sdpa is not None:
-            self._inference_target_options["enable_sdpa"] = (
-                enable_sdpa
-            )
+            self._inference_target_options["enable_sdpa"] = enable_sdpa
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(

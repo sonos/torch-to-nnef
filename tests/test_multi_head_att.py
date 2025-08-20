@@ -22,12 +22,14 @@ from .wrapper import TernaryPrimitive
 
 set_seed(int(os.environ.get("SEED", 0)))
 
+
 def enable_sdpa(target: TractNNEF) -> TractNNEF:
     target.__dict__["enable_sdpa"] = True
     return target
 
-defaults=TRACT_INFERENCES_TO_TESTS_APPROX
-sdpa=[enable_sdpa(t) for t in defaults]
+
+defaults = TRACT_INFERENCES_TO_TESTS_APPROX
+sdpa = [enable_sdpa(t) for t in defaults]
 test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch

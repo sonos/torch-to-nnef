@@ -87,10 +87,8 @@ def scaled_dot_product_attention(
     dtype_str = "f32"
     if query_node.dtype == torch.float16:
         dtype_str = "f16"
-    inner_dtype=(
-        "f32"
-        if inference_target.force_attention_inner_in_f32
-        else dtype_str
+    inner_dtype = (
+        "f32" if inference_target.force_attention_inner_in_f32 else dtype_str
     )
 
     if (
@@ -99,7 +97,11 @@ def scaled_dot_product_attention(
         and inference_target.enable_sdpa
     ):
         # Define SDPA attributes
-        attrs={"d_type": dtype_str,"inner_dtype": inner_dtype, "causal": is_causal}
+        attrs = {
+            "d_type": dtype_str,
+            "inner_dtype": inner_dtype,
+            "causal": is_causal,
+        }
         if scale is not None:
             attrs["scale"] = scale
 
@@ -109,7 +111,7 @@ def scaled_dot_product_attention(
             name_to_tensor,
             "tract_transformers_sdpa",
             inputs=tuple(inputs),
-            attrs=attrs
+            attrs=attrs,
         )
         return ["tract_transformers"]
 
