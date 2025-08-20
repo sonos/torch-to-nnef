@@ -26,8 +26,10 @@ import torch
 from nnef_tools.model import Graph as NGraph
 from torch import nn
 from torch.onnx import TrainingMode  # type: ignore
-from torch.onnx.utils import _validate_dynamic_axes  # type: ignore
-from torch.onnx.utils import select_model_mode_for_export  # type: ignore
+from torch.onnx.utils import (
+    _validate_dynamic_axes,  # type: ignore
+    select_model_mode_for_export,  # type: ignore
+)
 
 from torch_to_nnef.collect_env import (
     dump_environment_versions,
