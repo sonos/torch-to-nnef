@@ -60,11 +60,12 @@ def scaled_dot_product_attention(
         if scale_node.data is not None:
             scale = scale_node.data
 
-            # If we export with tract >= 0.21.14, scale is expressed as an attribute
+            # If we export with tract >= 0.21.14 with enable_sdpa, scale is expressed as an attribute
             # so we don't need to add it to the list of input.
             if (
-                isinstance(inference_target, TractNNEF)
-                and inference_target.version < "0.21.14"
+                not isinstance(inference_target, TractNNEF)
+                or inference_target.version < "0.21.14"
+                or not inference_target.enable_sdpa
             ):
                 scale_tensor = get_or_add_tensor_variable_in_nnef(
                     g, scale_node, name_to_tensor
@@ -95,6 +96,7 @@ def scaled_dot_product_attention(
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.version >= "0.21.14"
+        and inference_target.enable_sdpa
     ):
         # Define SDPA attributes
         attrs={"d_type": dtype_str,"inner_dtype": inner_dtype, "causal": is_causal}

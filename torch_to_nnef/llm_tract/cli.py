@@ -133,6 +133,12 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--enable-sdpa",
+            action="store_true",
+            help="enable conversion of scaled_dot_product_attention to tract_transformers_sdpa"
+        )
+
+        parser.add_argument(
             "--num-logits-to-keep",
             type=int,
             default=1,
