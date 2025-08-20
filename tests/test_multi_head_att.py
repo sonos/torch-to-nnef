@@ -22,10 +22,13 @@ from .wrapper import TernaryPrimitive
 
 set_seed(int(os.environ.get("SEED", 0)))
 
+def enable_sdpa(target: TractNNEF) -> TractNNEF:
+    target.__dict__["enable_sdpa"] = True
+    return target
 
-test_suite = TestSuiteInferenceExactnessBuilder(
-    TRACT_INFERENCES_TO_TESTS_APPROX
-)
+defaults=TRACT_INFERENCES_TO_TESTS_APPROX
+sdpa=[enable_sdpa(t) for t in defaults]
+test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
 n_heads = 8
@@ -73,6 +76,11 @@ class SelfAttn(torch.nn.Module):
 
 X = torch.rand((100, 1, 64)).float()
 Xmini = torch.randint(high=8, size=(1, 2, 4)).float()
+
+test_suite.add(
+    torch.rand((100, 1, 64)).float(),
+    SelfAttn(need_weights=True),
+)
 if hasattr(F, "scaled_dot_product_attention"):
     test_suite.add(
         (Xmini, Xmini, Xmini),
@@ -83,12 +91,6 @@ if hasattr(F, "scaled_dot_product_attention"):
             )
         ),
     )
-
-test_suite.add(
-    torch.rand((100, 1, 64)).float(),
-    SelfAttn(need_weights=True),
-)
-
 test_suite.add(
     torch.randint(high=5, size=(3, 1, 4)).float(),
     SelfAttn(size=4, batch_size=3, need_weights=False),
@@ -214,6 +216,7 @@ def test_equivalent_implementation():
     np.testing.assert_almost_equal(
         reference_result.numpy(), torch_sim_result.numpy()
     )
+
 
 @pytest.mark.skipif(
     condition=torch_version() < "2.0.0",
