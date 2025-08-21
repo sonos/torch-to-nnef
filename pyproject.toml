@@ -274,7 +274,7 @@ commands = [
 
 
 [tool.tox.env.torch_2_2]
-basepython = ["python3.12", "python3.13"]
+basepython = ["python3.12"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
