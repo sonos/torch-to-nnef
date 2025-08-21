@@ -177,7 +177,7 @@ envlist = ["py39", "py313", "format", "lint", "build"]
 requires = [
   "tox>=4",
   "virtualenv>20.2",
-   "tox-uv>1.27.0"
+  "tox-uv>1.27.0",
 ]
 
 [tool.coverage.report]
@@ -226,6 +226,7 @@ deps = [
     "torchaudio==0.10.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
+    "setuptools>0.70",
 ]
 passenv = ["*"]
 commands = [
