@@ -365,7 +365,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             attention_mask = (
                 torch.triu(
                     torch.full(
-                        [seq_length, seq_length],
+                        [seq_length, args[0].shape[0]],
                         torch.finfo(attn_mask_dtype).min,
                     ),
                     diagonal=1,
