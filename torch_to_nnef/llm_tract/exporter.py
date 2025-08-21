@@ -706,7 +706,9 @@ class LLMExporter:
                 force_f32_normalization
             )
         if reify_sdpa_operator is not None:
-            self._inference_target_options["reify_sdpa_operator"] = reify_sdpa_operator
+            self._inference_target_options["reify_sdpa_operator"] = (
+                reify_sdpa_operator
+            )
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
             LOGGER.info(
