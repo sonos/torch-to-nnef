@@ -428,8 +428,6 @@ class LLMExporter:
                 real_kv_cache=real_kv_cache,
             )
         except Exception as exp:
-            raise exp
-            __import__("ipdb").set_trace()
             LOGGER.error(
                 "Prompt with past, does not run in PyTorch "
                 "(likely modeling limit): %s",
