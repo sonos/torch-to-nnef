@@ -36,12 +36,8 @@ def skipif_unable_import(f):
 
 
 @skipif_unable_import
-def test_llama_export_io_npz_from_LLMExporter():
+def test_llama_export_from_LLMExporter():
     llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
-    new_llm_exporter = LLMExporter(
-        llm_exporter.hf_model_causal,
-        llm_exporter.tokenizer,
-    )
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         export_dirpath = td / "dump_here"
@@ -50,7 +46,7 @@ def test_llama_export_io_npz_from_LLMExporter():
             / "failed_tests"
             / "test_llama_export_io_npz_from_LLMExporter"
         )
-        new_llm_exporter.dump(
+        llm_exporter.dump(
             export_dirpath=export_dirpath,
             debug_bundle_path=(dbg_path if IS_DEBUG else None),
         )
