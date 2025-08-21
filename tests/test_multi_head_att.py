@@ -1,5 +1,6 @@
 """Tests attention variants."""
 
+import copy
 import math
 import os
 from functools import partial
@@ -22,14 +23,21 @@ from .wrapper import TernaryPrimitive
 
 set_seed(int(os.environ.get("SEED", 0)))
 
+# Enabling f32 upcasting in inner attention computation is required
+# to be aligned with PyTorch attention implementation & pass f16 tests.
+def enable_attention_inner_f32(target: TractNNEF) -> TractNNEF:
+    target.__dict__["force_attention_inner_in_f32"] = True
+    return target
 
+# Enabling SDPA to cover export to tract_transformers_sdpa operator
+# for tract >= 0.21.14
 def enable_sdpa(target: TractNNEF) -> TractNNEF:
     target.__dict__["enable_sdpa"] = True
     return target
 
 
-defaults = TRACT_INFERENCES_TO_TESTS_APPROX
-sdpa = [enable_sdpa(t) for t in defaults]
+defaults = [enable_attention_inner_f32(copy.copy(t)) for t in TRACT_INFERENCES_TO_TESTS_APPROX]
+sdpa = [enable_sdpa(copy.deepcopy(t)) for t in defaults]
 test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
@@ -159,6 +167,7 @@ test_suite.add(
     inference_conditions=lambda i: isinstance(i, TractNNEF)
     and i.version >= "0.21.4",
 )
+
 # 4d
 for as_f16 in [False]:  # True works but difference in precision
     inp = torch.rand((1, 2, 3, 4)).float()
