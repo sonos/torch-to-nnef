@@ -169,7 +169,7 @@ test_suite.add(
 )
 
 # 4d
-for as_f16 in [False]:  # True works but difference in precision
+for as_f16 in [False, True]:
     inp = torch.rand((1, 2, 3, 4)).float()
     test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16))
     test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16, scale=1.3))
