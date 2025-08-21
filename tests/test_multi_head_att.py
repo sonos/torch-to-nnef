@@ -31,13 +31,13 @@ def enable_attention_inner_f32(target: TractNNEF) -> TractNNEF:
 
 # Enabling SDPA to cover export to tract_transformers_sdpa operator
 # for tract >= 0.21.14
-def enable_sdpa(target: TractNNEF) -> TractNNEF:
-    target.__dict__["enable_sdpa"] = True
+def reify_sdpa_operator(target: TractNNEF) -> TractNNEF:
+    target.__dict__["reify_sdpa_operator"] = True
     return target
 
 
 defaults = [enable_attention_inner_f32(copy.copy(t)) for t in TRACT_INFERENCES_TO_TESTS_APPROX]
-sdpa = [enable_sdpa(copy.deepcopy(t)) for t in defaults]
+sdpa = [reify_sdpa_operator(copy.deepcopy(t)) for t in defaults]
 test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
