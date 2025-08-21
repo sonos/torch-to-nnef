@@ -45,6 +45,9 @@ def test_llama_export_from_LLMExporter():
             / "failed_tests"
             / "test_llama_export_io_npz_from_LLMExporter"
         )
+        # Regression: starting with huggingface/transformers 4.53.0: Jun 26
+        #
+        # Add a CI on this testing over each 10 minor versions except transformers
         llm_exporter.dump(
             export_dirpath=export_dirpath,
             debug_bundle_path=(dbg_path if IS_DEBUG else None),

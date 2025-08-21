@@ -118,6 +118,7 @@ select = [
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
+testpaths = [ "tests" ]
 addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
@@ -173,6 +174,11 @@ follow_imports_for_stubs = true
 [tool.tox]
 isolated_build = true
 envlist = ["py39", "py313", "format", "lint", "build"]
+requires = [
+  "tox>=4",
+  "virtualenv>20.2",
+   "tox-uv>1.27.0"
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -356,6 +362,51 @@ commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 [tool.tox.env.static_check]
 deps = ["prospector"]
 commands = [["prospector", "--no-autodetect", "--zero-exit"]]
+
+# testing llm_tract cli on legacy transformers
+[tool.tox.env.cli_transformers_4_50_0]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["transformers==4.50.0"]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-s",
+        "tests/test_llm_cli.py",
+    ],
+]
+
+# testing llm_tract cli on 3m old transformers
+[tool.tox.env.cli_transformers_4_52_0]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["transformers==4.52.0"]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-s",
+        "tests/test_llm_cli.py",
+    ],
+]
+
+# testing llm_tract cli on recent transformers
+[tool.tox.env.cli_transformers_4_55_0]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["transformers==4.55.0"]
+passenv = ["*"]
+commands = [
+    [
+        "pytest",
+        "-s",
+        "tests/test_llm_cli.py",
+    ],
+]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]

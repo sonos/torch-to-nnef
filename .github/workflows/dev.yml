@@ -31,7 +31,7 @@ jobs:
           matrix: |
             python-version {3.9}, tox-env {"py39", "torch_1_10", "torch_1_13"}
             python-version {3.12}, tox-env {"torch_2_2"}
-            python-version {3.13}, tox-env {"py313", "format_check", "static_check"}
+            python-version {3.13}, tox-env {"py313", "format_check", "static_check", "cli_transformers_4_55_0", "cli_transformers_4_50_0"}
 
     outputs:
       matrix: ${{ steps.create_matrix.outputs.matrix }}
