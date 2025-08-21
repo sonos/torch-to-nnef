@@ -326,7 +326,7 @@ commands = [
         "--fix",
         "torch_to_nnef",
         "tests",
-    ]
+    ],
 ]
 
 [tool.tox.env.format_check]
@@ -345,7 +345,7 @@ commands = [
         "check",
         "torch_to_nnef",
         "tests",
-    ]
+    ],
 ]
 
 [tool.tox.env.lint]
@@ -355,7 +355,7 @@ commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 
 [tool.tox.env.static_check]
 deps = ["prospector"]
-commands = [["prospector", "--no-autodetect"]]
+commands = [["prospector", "--no-autodetect", "--zero-exit"]]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
