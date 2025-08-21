@@ -549,6 +549,7 @@ class LLMExporter:
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         ignore_already_exist_dir: bool = False,
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
+        debug_bundle_path: T.Optional[Path] = None,
     ):
         """Export model has is currently in self.hf_model_causal
 
@@ -666,6 +667,7 @@ class LLMExporter:
                     "tract_assert tg: S==1",  # text generation
                     "tract_assert pp: P==0",  # prompt processing
                 ],
+                debug_bundle_path=debug_bundle_path,
             )
 
     def dump(  # pylint: disable=too-many-positional-arguments
@@ -690,6 +692,7 @@ class LLMExporter:
         force_f32_normalization: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
+        debug_bundle_path: T.Optional[Path] = None,
     ):
         """prepare and export model to NNEF"""
         if force_f32_attention is not None:
@@ -790,6 +793,7 @@ class LLMExporter:
             tract_check_io_tolerance=tract_check_io_tolerance,
             ignore_already_exist_dir=ignore_already_exist_dir,
             export_dir_struct=export_dir_struct,
+            debug_bundle_path=debug_bundle_path,
         )
 
 

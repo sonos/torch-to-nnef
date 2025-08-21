@@ -1,10 +1,11 @@
+import os
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from .utils import TRACT_INFERENCES_TO_TESTS_APPROX
+from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
 DISABLE_TESTS = False
 try:
@@ -42,8 +43,17 @@ def test_llama_export_io_npz_from_LLMExporter():
         llm_exporter.tokenizer,
     )
     with tempfile.TemporaryDirectory() as td:
-        export_dirpath = Path(td) / "dump_here"
-        new_llm_exporter.dump(export_dirpath=export_dirpath)
+        td = Path(td)
+        export_dirpath = td / "dump_here"
+        dbg_path = (
+            Path.cwd()
+            / "failed_tests"
+            / "test_llama_export_io_npz_from_LLMExporter"
+        )
+        new_llm_exporter.dump(
+            export_dirpath=export_dirpath,
+            debug_bundle_path=(dbg_path if IS_DEBUG else None),
+        )
 
 
 @skipif_unable_import
