@@ -1,12 +1,12 @@
 import tempfile
 from pathlib import Path
+import itertools
 
 import numpy as np
 import pytest
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
-DISABLE_TESTS = False
 try:
     from torch_to_nnef.llm_tract.config import LlamaSLugs
     from torch_to_nnef.llm_tract.exporter import LLMExporter
@@ -14,29 +14,25 @@ try:
     LLMExporter.load(LlamaSLugs.DUMMY.value)
 except ImportError as exp:
     print("disable test_llm_cli because:", exp)
-    DISABLE_TESTS = True
+    pytest.skip(
+        reason="disabled since import of transformers failed in some way",
+        allow_module_level=True,
+    )
 
-inference_targets = [
-    (str(_), _)
-    for _ in TRACT_INFERENCES_TO_TESTS_APPROX
-    if _.version > "0.21.5"
+SUPPORT_LLM_INFERENCE_TARGETS = [
+    _ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.5"
 ]
 
-
-def skipif_unable_import(f):
-    @pytest.mark.skipif(
-        condition=DISABLE_TESTS,
-        reason="disabled since import of transformers failed in some way",
-    )
-    def wrap(*args, **kargs):
-        return f(*args, **kargs)
-
-    return wrap
+LLM_SLUGS_TO_TEST = [LlamaSLugs.DUMMY.value]
 
 
-@skipif_unable_import
-def test_llama_export_from_LLMExporter():
-    llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
+@pytest.mark.parametrize(
+    "model_slug,inference_target",
+    list(itertools.product(LLM_SLUGS_TO_TEST, SUPPORT_LLM_INFERENCE_TARGETS)),
+    ids=LLM_SLUGS_TO_TEST,
+)
+def test_llama_export_from_llmexporter(model_slug, inference_target):
+    llm_exporter = LLMExporter.load(model_slug)
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         export_dirpath = td / "dump_here"
@@ -54,7 +50,6 @@ def test_llama_export_from_LLMExporter():
         )
 
 
-@skipif_unable_import
 def test_llama_export_io_npz():
     llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
     with tempfile.TemporaryDirectory() as td:
