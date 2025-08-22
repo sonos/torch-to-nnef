@@ -852,7 +852,9 @@ def load_tokenizer(
         assert local_dir is not None
     if local_dir is not None:
         local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
-    return AutoTokenizer.from_pretrained(local_dir or tokenizer_slug)
+    return AutoTokenizer.from_pretrained(
+        local_dir or tokenizer_slug, trust_remote_code=True
+    )
 
 
 def _try_load_peft(dir_path, kwargs, exp):
@@ -1000,7 +1002,7 @@ def load_model(
     custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
     if custom_config is not None:
         hf_model_causal = AutoModelForCausalLM.from_config(
-            custom_config, trust_remote_code=True
+            custom_config, **kwargs
         )
         LOGGER.info(
             "load custom config: '%s', un-initialized weights", hf_model_slug

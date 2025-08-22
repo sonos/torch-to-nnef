@@ -1,12 +1,24 @@
+import os
 import tempfile
 from pathlib import Path
 import itertools
 
 import numpy as np
 import pytest
+
 from torch_to_nnef.compress import DEFAULT_COMPRESSION
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.llm_tract.config import ExportDirStruct, SmolSlugs
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
+from torch_to_nnef.llm_tract.config import (
+    ExportDirStruct,
+    Gemma3Slugs,
+    MistralSlugs,
+    OpenELMSlugs,
+    PHISlugs,
+    Qwen3Slugs,
+    SmolSlugs,
+    get_tokenizer_from_slug,
+    register_raw_model_from_slug,
+)
 from torch_to_nnef.llm_tract.exporter import dump_llm
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
@@ -55,10 +67,10 @@ SUPPORT_LLM_CLI_OPTS += [
 
 # test device-map
 SUPPORT_LLM_CLI_OPTS += [
-    # {
+    # { # to fix: latter
     #     "device_map": "auto",
     # },
-    # {
+    # { # to fix: latter
     #     "device_map": "t2n_auto",
     # },
     {
@@ -78,27 +90,77 @@ BASE_LLM_SLUGS_TO_TEST = [
 ]
 
 
-TEST_SPECS = list(
+TESTS_SPECS = list(
     itertools.product(BASE_LLM_SLUGS_TO_TEST, SUPPORT_LLM_CLI_OPTS)
 )
 
 
+def add_raw_test_spec(slug, additional_options=None):
+    global TESTS_SPECS
+    options = {
+        "force_module_dtype": "f32",
+    }
+    if additional_options:
+        options.update(additional_options)
+
+    TESTS_SPECS += [
+        (
+            register_raw_model_from_slug(slug),
+            options,
+        )
+    ]
+
+
+# TESTS_SPECS += [
+#     (OpenELMSlugs.MICRO.value, {}),
+# ]
+
+TESTS_SPECS += [
+    (PHISlugs.DEBUG.value, {}),
+]
+
+if os.environ.get("HF_TOKEN"):
+    # gated huggingface repos
+    for mdl_slug in [MistralSlugs.DEBUG.value, Gemma3Slugs.TINY.value]:
+        try:
+            # allow to check access is authorized
+            _ = get_tokenizer_from_slug(mdl_slug)
+            add_raw_test_spec(mdl_slug)
+        except Exception as exp:
+            # should be missing access
+            print("skip test since exception:", exp)
+
+if (
+    TractNNEF.latest_version() == "0.21.13"
+):  # regression existed in 0.21.13 (but fixed between 0.21.13 and 0.22.0)
+    add_raw_test_spec(
+        SmolSlugs.TINY.value,
+        additional_options={"tract_specific_version": "0.21.12"},
+    )
+    add_raw_test_spec(
+        Qwen3Slugs.TINY.value,
+        additional_options={"tract_specific_version": "0.21.12"},
+    )
+
+
 @pytest.mark.parametrize(
     "model_slug,cli_kwargs",
-    TEST_SPECS,
+    TESTS_SPECS,
     ids=[
         ts[0] + "," + ",".join(f"{k}={v}" for k, v in ts[1].items())
-        for ts in TEST_SPECS
+        for ts in TESTS_SPECS
     ],
 )
-def test_llama_export_from_llmexporter(model_slug, cli_kwargs):
+def test_export_from_llmexporter(model_slug, cli_kwargs):
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         export_dirpath = td / "dump_here"
+        model_slug_dirname = model_slug.replace("/", "___")
+        cli_kwargs_slug = "__".join(f"{k}={v}" for k, v in cli_kwargs.items())
         dbg_path = (
             Path.cwd()
             / "failed_tests"
-            / "test_llama_export_io_npz_from_LLMExporter"
+            / f"test_llm_cli_{model_slug_dirname}___{cli_kwargs_slug}"
         )
         # Fixed behavior change in: huggingface/transformers 4.53.0: Jun 26
         dump_llm(
