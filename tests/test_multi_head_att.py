@@ -27,6 +27,26 @@ from .wrapper import TernaryPrimitive
 set_seed(int(os.environ.get("SEED", 0)))
 
 
+def causal_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.4"
+
+
+def approx_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.7"
+
+
+def sdpa_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.14"
+
+
+def tract_f16_friendly_condition(i: InferenceTarget) -> bool:
+    return (
+        isinstance(i, TractNNEF)
+        and approx_supported_condition(i)
+        and i.force_attention_inner_in_f32
+    )
+
+
 # Enabling f32 upcasting in inner attention computation is required
 # to avoid overflows and obtain closer results to PyTorch.
 # Tolerance needs to be relaxed (we prioritize efficiency over strict Pytorch alignement).
@@ -42,15 +62,23 @@ def reify_sdpa_operator(target: TractNNEF) -> TractNNEF:
     return target
 
 
-defaults = [
+defaults = TRACT_INFERENCES_TO_TESTS_APPROX
+defaults_f16_friendly = [
     enable_attention_inner_f32(copy.deepcopy(t))
-    for t in TRACT_INFERENCES_TO_TESTS_APPROX
+    for t in filter(
+        lambda i: approx_supported_condition(i),
+        TRACT_INFERENCES_TO_TESTS_APPROX,
+    )
 ]
 sdpa = [
     reify_sdpa_operator(copy.deepcopy(t))
-    for t in filter(lambda i: i.version >= "0.21.14", defaults)
+    for t in filter(
+        lambda i: sdpa_supported_condition(i), defaults_f16_friendly
+    )
 ]
-test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    defaults + defaults_f16_friendly + sdpa
+)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
 n_heads = 8
@@ -156,14 +184,6 @@ class FScaledDotProdAttn(torch.nn.Module):
         return res
 
 
-def causal_supported_condition(i: InferenceTarget) -> bool:
-    return isinstance(i, TractNNEF) and i.version >= "0.21.4"
-
-
-def approx_supported_condition(i: InferenceTarget) -> bool:
-    return isinstance(i, TractNNEF) and i.version >= "0.21.7"
-
-
 # 3d
 inp = torch.rand((1, 2, 3)).float()
 test_suite.add(inp, FScaledDotProdAttn())
@@ -190,8 +210,10 @@ test_suite.add(
 for as_f16 in [False, True]:
     enabled_conditions = []
     if as_f16:
-        # Only enable f16 if approx is supported by the inference target.
-        enabled_conditions.append(approx_supported_condition)
+        # Only enable f16 if:
+        #  - approx is supported by the inference_target
+        #  - inner_f32 is enabled in the inference_target
+        enabled_conditions.append(tract_f16_friendly_condition)
 
     inp = torch.rand((1, 2, 3, 4)).float()
     test_suite.add(
