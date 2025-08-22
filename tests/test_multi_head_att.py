@@ -4,7 +4,6 @@ import copy
 import math
 import os
 from functools import partial
-from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -20,6 +19,7 @@ from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
+    combine_conditions,
     set_seed,
 )
 from .wrapper import TernaryPrimitive
@@ -31,23 +31,25 @@ set_seed(int(os.environ.get("SEED", 0)))
 # to avoid overflows and obtain closer results to PyTorch.
 # Tolerance needs to be relaxed (we prioritize efficiency over strict Pytorch alignement).
 def enable_attention_inner_f32(target: TractNNEF) -> TractNNEF:
-    target.__dict__["force_attention_inner_in_f32"] = True
-    target.__dict__["check_io_tolerance"] = TractCheckTolerance.VERY
+    target.force_attention_inner_in_f32 = True
+    target.check_io_tolerance = TractCheckTolerance.VERY
     return target
 
 
 # Enabling SDPA to cover export to tract_transformers_sdpa operator
-# for tract >= 0.21.14
 def reify_sdpa_operator(target: TractNNEF) -> TractNNEF:
-    target.__dict__["reify_sdpa_operator"] = True
+    target.reify_sdpa_operator = True
     return target
 
 
 defaults = [
-    enable_attention_inner_f32(copy.copy(t))
+    enable_attention_inner_f32(copy.deepcopy(t))
     for t in TRACT_INFERENCES_TO_TESTS_APPROX
 ]
-sdpa = [reify_sdpa_operator(copy.deepcopy(t)) for t in defaults]
+sdpa = [
+    reify_sdpa_operator(copy.deepcopy(t))
+    for t in filter(lambda i: i.version >= "0.21.14", defaults)
+]
 test_suite = TestSuiteInferenceExactnessBuilder(defaults + sdpa)
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
@@ -160,10 +162,6 @@ def causal_supported_condition(i: InferenceTarget) -> bool:
 
 def approx_supported_condition(i: InferenceTarget) -> bool:
     return isinstance(i, TractNNEF) and i.version >= "0.21.7"
-
-
-def combine_conditions(conds: List[Callable[[InferenceTarget], bool]]):
-    return lambda i: all(cond(i) for cond in conds)
 
 
 # 3d
