@@ -24,17 +24,20 @@ from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
+CAN_RUN_TESTS = True
 try:
     from torch_to_nnef.llm_tract.config import LlamaSlugs
     from torch_to_nnef.llm_tract.exporter import LLMExporter
 
     LLMExporter.load(LlamaSlugs.DUMMY.value)
 except ImportError as exp:
+    CAN_RUN_TESTS = False
     print("disable test_llm_cli because:", exp)
     pytest.skip(
         reason="disabled since import of transformers failed in some way",
         allow_module_level=True,
     )
+
 
 # test all tract supported version
 SUPPORT_LLM_CLI_OPTS = [
@@ -85,62 +88,66 @@ SUPPORT_LLM_CLI_OPTS += [{"sample_generation_total_size": 8}]
 SUPPORT_LLM_CLI_OPTS += [{"naming_scheme": VariableNamingScheme.NUMERIC}]
 
 
-BASE_LLM_SLUGS_TO_TEST = [
-    LlamaSlugs.DUMMY.value,
-]
+def init_test_spec():
+    if not CAN_RUN_TESTS:
+        return []
 
+    base_llm_slugs_to_test = [
+        LlamaSlugs.DUMMY.value,
+    ]
+    tests_specs = list(
+        itertools.product(base_llm_slugs_to_test, SUPPORT_LLM_CLI_OPTS)
+    )
 
-TESTS_SPECS = list(
-    itertools.product(BASE_LLM_SLUGS_TO_TEST, SUPPORT_LLM_CLI_OPTS)
-)
+    def add_raw_test_spec(slug, additional_options=None):
+        nonlocal tests_specs
+        options = {
+            "force_module_dtype": "f32",
+        }
+        if additional_options:
+            options.update(additional_options)
 
+        tests_specs += [
+            (
+                register_raw_model_from_slug(slug),
+                options,
+            )
+        ]
 
-def add_raw_test_spec(slug, additional_options=None):
-    global TESTS_SPECS
-    options = {
-        "force_module_dtype": "f32",
-    }
-    if additional_options:
-        options.update(additional_options)
+    # tests_specs += [
+    #     (OpenELMSlugs.MICRO.value, {}),
+    # ]
 
-    TESTS_SPECS += [
-        (
-            register_raw_model_from_slug(slug),
-            options,
-        )
+    tests_specs += [
+        (PHISlugs.DEBUG.value, {}),
     ]
 
+    if os.environ.get("HF_TOKEN"):
+        # gated huggingface repos
+        for mdl_slug in [MistralSlugs.DEBUG.value, Gemma3Slugs.TINY.value]:
+            try:
+                # allow to check access is authorized
+                _ = get_tokenizer_from_slug(mdl_slug)
+                add_raw_test_spec(mdl_slug)
+            except Exception as exp:
+                # should be missing access
+                print("skip test since exception:", exp)
 
-# TESTS_SPECS += [
-#     (OpenELMSlugs.MICRO.value, {}),
-# ]
+    if (
+        TractNNEF.latest_version() == "0.21.13"
+    ):  # regression existed in 0.21.13 (but fixed between 0.21.13 and 0.22.0)
+        add_raw_test_spec(
+            SmolSlugs.TINY.value,
+            additional_options={"tract_specific_version": "0.21.12"},
+        )
+        add_raw_test_spec(
+            Qwen3Slugs.TINY.value,
+            additional_options={"tract_specific_version": "0.21.12"},
+        )
+    return tests_specs
 
-TESTS_SPECS += [
-    (PHISlugs.DEBUG.value, {}),
-]
 
-if os.environ.get("HF_TOKEN"):
-    # gated huggingface repos
-    for mdl_slug in [MistralSlugs.DEBUG.value, Gemma3Slugs.TINY.value]:
-        try:
-            # allow to check access is authorized
-            _ = get_tokenizer_from_slug(mdl_slug)
-            add_raw_test_spec(mdl_slug)
-        except Exception as exp:
-            # should be missing access
-            print("skip test since exception:", exp)
-
-if (
-    TractNNEF.latest_version() == "0.21.13"
-):  # regression existed in 0.21.13 (but fixed between 0.21.13 and 0.22.0)
-    add_raw_test_spec(
-        SmolSlugs.TINY.value,
-        additional_options={"tract_specific_version": "0.21.12"},
-    )
-    add_raw_test_spec(
-        Qwen3Slugs.TINY.value,
-        additional_options={"tract_specific_version": "0.21.12"},
-    )
+TESTS_SPECS = init_test_spec()
 
 
 @pytest.mark.parametrize(
