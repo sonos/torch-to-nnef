@@ -52,11 +52,15 @@ class PHISlugs(str, Enum):
     SMALL = "microsoft/Phi-3-small-8k-instruct"
 
 
-class LlamaSLugs(str, Enum):
+class LlamaSlugs(str, Enum):
     DUMMY = "yujiepan/llama-2-tiny-random"
     TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     LLAMA3_8B = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
     LLAMA2_7B_BASE = "meta-llama/Llama-2-7b-hf"
+
+
+class SmolSlugs(str, Enum):
+    TINY = "HuggingFaceTB/SmolLM-135M"
 
 
 class OpenELMSlugs(str, Enum):
@@ -112,7 +116,7 @@ except (ModuleNotFoundError, ImportError) as exp:
     )
 
 REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
-    "openelm": LlamaSLugs.LLAMA2_7B_BASE.value,
+    "openelm": LlamaSlugs.LLAMA2_7B_BASE.value,
     "phi3debug": PHISlugs.MINI.value,
     "mistraldebug": MistralSLugs.MISTRAL_7B_V03.value,
 }

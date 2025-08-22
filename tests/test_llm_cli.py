@@ -4,14 +4,19 @@ import itertools
 
 import numpy as np
 import pytest
+from torch_to_nnef.compress import DEFAULT_COMPRESSION
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.llm_tract.config import ExportDirStruct, SmolSlugs
+from torch_to_nnef.llm_tract.exporter import dump_llm
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
 try:
-    from torch_to_nnef.llm_tract.config import LlamaSLugs
+    from torch_to_nnef.llm_tract.config import LlamaSlugs
     from torch_to_nnef.llm_tract.exporter import LLMExporter
 
-    LLMExporter.load(LlamaSLugs.DUMMY.value)
+    LLMExporter.load(LlamaSlugs.DUMMY.value)
 except ImportError as exp:
     print("disable test_llm_cli because:", exp)
     pytest.skip(
@@ -19,20 +24,74 @@ except ImportError as exp:
         allow_module_level=True,
     )
 
-SUPPORT_LLM_INFERENCE_TARGETS = [
-    _ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.5"
+# test all tract supported version
+SUPPORT_LLM_CLI_OPTS = [
+    {"tract_specific_version": _.version}
+    for _ in TRACT_INFERENCES_TO_TESTS_APPROX
+    if _.version > "0.21.5"
 ]
 
-LLM_SLUGS_TO_TEST = [LlamaSLugs.DUMMY.value]
+# test all compression version
+SUPPORT_LLM_CLI_OPTS += [{"compression_method": _} for _ in DEFAULT_COMPRESSION]
+
+# test upcasting
+SUPPORT_LLM_CLI_OPTS += [
+    {
+        "force_module_dtype": "f16",
+        "force_f32_attention": True,
+        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+    },
+    {
+        "force_module_dtype": "f16",
+        "force_f32_linear_accumulator": True,
+        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+    },
+    {
+        "force_module_dtype": "f16",
+        "force_f32_normalization": True,
+        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+    },
+]
+
+# test device-map
+SUPPORT_LLM_CLI_OPTS += [
+    # {
+    #     "device_map": "auto",
+    # },
+    # {
+    #     "device_map": "t2n_auto",
+    # },
+    {
+        "device_map": "t2n_offload_disk",
+    },
+]
+
+# ensure dump with tokenizer works
+SUPPORT_LLM_CLI_OPTS += [{"dump_with_tokenizer_and_conf": True}]
+SUPPORT_LLM_CLI_OPTS += [{"export_dir_struct": ExportDirStruct.FLAT}]
+SUPPORT_LLM_CLI_OPTS += [{"sample_generation_total_size": 8}]
+SUPPORT_LLM_CLI_OPTS += [{"naming_scheme": VariableNamingScheme.NUMERIC}]
+
+
+BASE_LLM_SLUGS_TO_TEST = [
+    LlamaSlugs.DUMMY.value,
+]
+
+
+TEST_SPECS = list(
+    itertools.product(BASE_LLM_SLUGS_TO_TEST, SUPPORT_LLM_CLI_OPTS)
+)
 
 
 @pytest.mark.parametrize(
-    "model_slug,inference_target",
-    list(itertools.product(LLM_SLUGS_TO_TEST, SUPPORT_LLM_INFERENCE_TARGETS)),
-    ids=LLM_SLUGS_TO_TEST,
+    "model_slug,cli_kwargs",
+    TEST_SPECS,
+    ids=[
+        ts[0] + "," + ",".join(f"{k}={v}" for k, v in ts[1].items())
+        for ts in TEST_SPECS
+    ],
 )
-def test_llama_export_from_llmexporter(model_slug, inference_target):
-    llm_exporter = LLMExporter.load(model_slug)
+def test_llama_export_from_llmexporter(model_slug, cli_kwargs):
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         export_dirpath = td / "dump_here"
@@ -41,18 +100,17 @@ def test_llama_export_from_llmexporter(model_slug, inference_target):
             / "failed_tests"
             / "test_llama_export_io_npz_from_LLMExporter"
         )
-        # Regression: starting with huggingface/transformers 4.53.0: Jun 26
-        #
-        # Add a CI on this testing over each 10 minor versions except transformers
-        llm_exporter.dump_with_inference_target(
-            inference_target=inference_target,
+        # Fixed behavior change in: huggingface/transformers 4.53.0: Jun 26
+        dump_llm(
+            model_slug,
             export_dirpath=export_dirpath,
             debug_bundle_path=(dbg_path if IS_DEBUG else None),
+            **cli_kwargs,
         )
 
 
 def test_llama_export_io_npz():
-    llm_exporter = LLMExporter.load(LlamaSLugs.DUMMY.value)
+    llm_exporter = LLMExporter.load(LlamaSlugs.DUMMY.value)
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         total_tokens = 6
