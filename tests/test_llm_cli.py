@@ -25,7 +25,6 @@ from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
-
 LOGGER = logging.getLogger(__name__)
 
 CAN_RUN_TESTS = True
