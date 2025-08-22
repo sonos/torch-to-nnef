@@ -44,7 +44,8 @@ def test_llama_export_from_llmexporter(model_slug, inference_target):
         # Regression: starting with huggingface/transformers 4.53.0: Jun 26
         #
         # Add a CI on this testing over each 10 minor versions except transformers
-        llm_exporter.dump(
+        llm_exporter.dump_with_inference_target(
+            inference_target=inference_target,
             export_dirpath=export_dirpath,
             debug_bundle_path=(dbg_path if IS_DEBUG else None),
         )
