@@ -1,7 +1,7 @@
+import itertools
 import os
 import tempfile
 from pathlib import Path
-import itertools
 
 import numpy as np
 import pytest
@@ -12,7 +12,6 @@ from torch_to_nnef.llm_tract.config import (
     ExportDirStruct,
     Gemma3Slugs,
     MistralSlugs,
-    OpenELMSlugs,
     PHISlugs,
     Qwen3Slugs,
     SmolSlugs,

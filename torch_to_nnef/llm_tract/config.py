@@ -5,7 +5,7 @@ from enum import Enum
 from functools import partial
 
 import torch
-from transformers import AutoTokenizer, AutoConfig
+from transformers import AutoConfig, AutoTokenizer
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.llm_tract.models.base import (

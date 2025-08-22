@@ -381,7 +381,7 @@ def safe_load_file(
     with safetensors.safe_open(
         filename, framework="pt", device=maybe_extract_target_device(device)
     ) as f:
-        for k in f.keys():
+        for k in f.keys():  # noqa: SIM118
             v = f.get_tensor(k)
             if apply_offload:
                 v = maybe_load_offload_tensor(v, device, k, offload_dir)
