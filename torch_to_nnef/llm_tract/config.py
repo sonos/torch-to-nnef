@@ -9,6 +9,7 @@ from transformers import AutoConfig, AutoTokenizer
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.llm_tract.models.base import (
+    TRANSFORMERS_VERSION,
     BaseCausal,
     BaseCausalWithDynCacheAndTriu,
 )
@@ -133,9 +134,18 @@ REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
 
 
 def register_raw_model_from_slug(model_id, trust_remote_code: bool = True):
-    config = AutoConfig.from_pretrained(
-        model_id, trust_remote_code=trust_remote_code
-    )
+    try:
+        config = AutoConfig.from_pretrained(
+            model_id, trust_remote_code=trust_remote_code
+        )
+    except KeyError as exp:
+        LOGGER.warning(
+            "disabled test of: '%s' likely because of transformers version: %s, error: %s",
+            model_id,
+            TRANSFORMERS_VERSION.to_str(),
+            exp,
+        )
+        pass
     suffix = "__t2n_debug"
     config.model_type += suffix
     new_model_id = model_id + suffix
