@@ -1,5 +1,6 @@
 """Tests attention variants."""
 
+import copy
 import math
 import os
 from functools import partial
@@ -10,12 +11,15 @@ import torch
 from torch.nn import functional as F
 
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.utils import torch_version
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
+    combine_conditions,
     set_seed,
 )
 from .wrapper import TernaryPrimitive
@@ -23,8 +27,54 @@ from .wrapper import TernaryPrimitive
 set_seed(int(os.environ.get("SEED", 0)))
 
 
+def causal_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.4"
+
+
+def approx_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.21.7"
+
+
+def sdpa_supported_condition(i: InferenceTarget) -> bool:
+    return isinstance(i, TractNNEF) and i.version >= "0.22.0"
+
+
+def tract_f16_friendly_condition(i: InferenceTarget) -> bool:
+    return (
+        isinstance(i, TractNNEF)
+        and approx_supported_condition(i)
+        and i.force_attention_inner_in_f32
+    )
+
+
+# Enabling f32 upcasting in inner attention computation is required
+# to avoid overflows and obtain closer results to PyTorch.
+# Tolerance needs to be relaxed (we prioritize efficiency over strict Pytorch alignement).
+def enable_attention_inner_f32(target: TractNNEF) -> TractNNEF:
+    target.force_attention_inner_in_f32 = True
+    target.check_io_tolerance = TractCheckTolerance.VERY
+    return target
+
+
+# Enabling SDPA to cover export to tract_transformers_sdpa operator
+def reify_sdpa_operator(target: TractNNEF) -> TractNNEF:
+    target.reify_sdpa_operator = True
+    return target
+
+
+defaults = TRACT_INFERENCES_TO_TESTS_APPROX
+defaults_f16_friendly = [
+    enable_attention_inner_f32(copy.deepcopy(t))
+    for t in TRACT_INFERENCES_TO_TESTS_APPROX
+    if approx_supported_condition(t)
+]
+sdpa = [
+    reify_sdpa_operator(copy.deepcopy(t))
+    for t in defaults_f16_friendly
+    if sdpa_supported_condition(t)
+]
 test_suite = TestSuiteInferenceExactnessBuilder(
-    TRACT_INFERENCES_TO_TESTS_APPROX
+    defaults + defaults_f16_friendly + sdpa
 )
 
 # NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
@@ -144,45 +194,65 @@ test_suite.add(inp, FScaledDotProdAttn(attn_mask=torch.rand((1, 2, 2))))
 test_suite.add(
     inp,
     FScaledDotProdAttn(is_causal=True),
-    inference_conditions=lambda i: isinstance(i, TractNNEF)
-    and i.version >= "0.21.4",
+    inference_conditions=causal_supported_condition,
 )
 
 test_suite.add(
     inp,
     FScaledDotProdAttn(is_causal=True, scale=1.62),
-    inference_conditions=lambda i: isinstance(i, TractNNEF)
-    and i.version >= "0.21.4",
+    inference_conditions=causal_supported_condition,
 )
+
 # 4d
-for as_f16 in [False]:  # True works but difference in precision
+for as_f16 in [False, True]:
+    enabled_conditions = []
+    if as_f16:
+        # Only enable f16 if:
+        #  - approx is supported by the inference_target
+        #  - inner_f32 is enabled in the inference_target
+        enabled_conditions.append(tract_f16_friendly_condition)
+
     inp = torch.rand((1, 2, 3, 4)).float()
-    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16))
-    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16, scale=1.3))
-    test_suite.add(inp, FScaledDotProdAttn(as_f16=as_f16, scale=0.3))
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16),
+        inference_conditions=combine_conditions(enabled_conditions),
+    )
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16, scale=1.3),
+        inference_conditions=combine_conditions(enabled_conditions),
+    )
+    test_suite.add(
+        inp,
+        FScaledDotProdAttn(as_f16=as_f16, scale=0.3),
+        inference_conditions=combine_conditions(enabled_conditions),
+    )
     test_suite.add(
         inp,
         FScaledDotProdAttn(
             as_f16=as_f16, scale=0.3, attn_mask=torch.rand((1, 2, 3, 3))
         ),
+        inference_conditions=combine_conditions(enabled_conditions),
     )
     test_suite.add(
         inp,
         FScaledDotProdAttn(as_f16=as_f16, attn_mask=torch.rand((1, 2, 3, 3))),
+        inference_conditions=combine_conditions(enabled_conditions),
     )
 
+    # Only enable is_causal if inference target supports is_causal.
+    enabled_conditions.append(causal_supported_condition)
     test_suite.add(
         inp,
         FScaledDotProdAttn(as_f16=as_f16, is_causal=True),
-        inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and i.version >= "0.21.4",
+        inference_conditions=combine_conditions(enabled_conditions),
     )
 
     test_suite.add(
         inp,
         FScaledDotProdAttn(as_f16=as_f16, is_causal=True, scale=1.62),
-        inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and i.version >= "0.21.4",
+        inference_conditions=combine_conditions(enabled_conditions),
     )
 
 
@@ -224,8 +294,18 @@ def test_equivalent_implementation():
     test_suite.test_samples,
     ids=test_suite.ids,
 )
-def test_attn_layers_export(id, test_input, model, inference_target):
-    """Test simple models"""
+def test_attn_layers_export(
+    id, test_input, model, inference_target, pytestconfig
+):
+    """Test attention mechanisms"""
+    if (
+        not pytestconfig.getvalue("--run-experimental")
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.reify_sdpa_operator
+    ):
+        pytest.skip("reify_sdpa_operator activated only by --run-experimental")
+        return
+
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

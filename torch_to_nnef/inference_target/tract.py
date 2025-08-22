@@ -107,6 +107,7 @@ class TractNNEF(InferenceTarget):
         force_attention_inner_in_f32: bool = False,
         force_linear_accumulation_in_f32: bool = False,
         force_norm_in_f32: bool = False,
+        reify_sdpa_operator: bool = False,
     ):
         """Init
 
@@ -134,7 +135,7 @@ class TractNNEF(InferenceTarget):
                     usefull for unstable networks like qwen2.5
             force_linear_accumulation_in_f32: usefull for f16 models to ensure that output of f16 . f16 matmul is f32.
             force_norm_in_f32: ensure that all normalization layers are in f32 whatever the original PyTorch modeling
-
+            reify_sdpa_operator: enable the conversion of scaled_dot_product_attention as a tract operator (intead of a NNEF fragment). Experimental feature.
         """
         super().__init__(version, check_io)
         if (
@@ -165,6 +166,7 @@ class TractNNEF(InferenceTarget):
         self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         self.force_norm_in_f32 = force_norm_in_f32
+        self.reify_sdpa_operator = reify_sdpa_operator
         self.dump_identity_properties = dump_identity_properties
         if self.feature_flags:
             LOGGER.info("use tract features flags: %s", self.feature_flags)
@@ -448,9 +450,11 @@ class TractCli:
         check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
     ):
         """Assert a NNEF asset has outputs within tolerance bound with tract cli"""
-        extra_param = (
-            ["--nnef-tract-extra"] if self.version >= "0.20.20" else []
-        )
+        extra_param = []
+        if self.version >= "0.20.20":
+            extra_param.append("--nnef-tract-extra")
+        if self.version >= "0.22.0":
+            extra_param.append("--nnef-tract-transformers")
         cmd_ = (
             [
                 self.tract_path,

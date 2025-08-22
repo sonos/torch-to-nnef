@@ -1,0 +1,2 @@
+extension tract_registry tract_transformers;
+# Extension `tract_transformers` extends NNEF with operators for transformer networks.

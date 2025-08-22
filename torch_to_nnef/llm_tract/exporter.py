@@ -638,6 +638,7 @@ class LLMExporter:
                     "force_f32_attention",
                     "force_f32_linear_accumulator",
                     "force_f32_normalization",
+                    "reify_sdpa_operator",
                     "tract_check_io_tolerance",
                 ]
                 if key in kwargs
@@ -658,6 +659,7 @@ class LLMExporter:
         force_f32_attention: T.Optional[bool] = None,
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
+        reify_sdpa_operator: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         compression_method: T.Optional[str] = None,
         compression_registry: T.Optional[str] = None,
@@ -701,6 +703,10 @@ class LLMExporter:
             )
         if force_f32_normalization is not None:
             inference_target.force_norm_in_f32 = force_f32_normalization
+
+        if reify_sdpa_operator is not None:
+            inference_target.reify_sdpa_operator = reify_sdpa_operator
+
         if self.is_half_precision_model:
             self.apply_half_precision_fixes(inference_target)
 
