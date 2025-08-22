@@ -9,7 +9,6 @@ from transformers import AutoConfig, AutoTokenizer
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.llm_tract.models.base import (
-    TRANSFORMERS_VERSION,
     BaseCausal,
     BaseCausalWithDynCacheAndTriu,
 )

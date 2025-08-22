@@ -1,4 +1,5 @@
 import itertools
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -19,9 +20,13 @@ from torch_to_nnef.llm_tract.config import (
     register_raw_model_from_slug,
 )
 from torch_to_nnef.llm_tract.exporter import dump_llm
+from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
+
+
+LOGGER = logging.getLogger(__name__)
 
 CAN_RUN_TESTS = True
 try:
@@ -113,10 +118,10 @@ def init_test_spec():
                     options,
                 )
             ]
-        except KeyError as exp:
+        except ValueError as exp:
             LOGGER.warning(
                 "disabled test of: '%s' likely because of transformers version: %s, error: %s",
-                model_id,
+                slug,
                 TRANSFORMERS_VERSION.to_str(),
                 exp,
             )
