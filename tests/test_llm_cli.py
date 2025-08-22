@@ -106,12 +106,20 @@ def init_test_spec():
         if additional_options:
             options.update(additional_options)
 
-        tests_specs += [
-            (
-                register_raw_model_from_slug(slug),
-                options,
+        try:
+            tests_specs += [
+                (
+                    register_raw_model_from_slug(slug),
+                    options,
+                )
+            ]
+        except KeyError as exp:
+            LOGGER.warning(
+                "disabled test of: '%s' likely because of transformers version: %s, error: %s",
+                model_id,
+                TRANSFORMERS_VERSION.to_str(),
+                exp,
             )
-        ]
 
     # tests_specs += [
     #     (OpenELMSlugs.MICRO.value, {}),
