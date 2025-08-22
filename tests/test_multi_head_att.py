@@ -36,7 +36,7 @@ def approx_supported_condition(i: InferenceTarget) -> bool:
 
 
 def sdpa_supported_condition(i: InferenceTarget) -> bool:
-    return isinstance(i, TractNNEF) and i.version >= "0.21.14"
+    return isinstance(i, TractNNEF) and i.version >= "0.22.0"
 
 
 def tract_f16_friendly_condition(i: InferenceTarget) -> bool:
@@ -65,16 +65,13 @@ def reify_sdpa_operator(target: TractNNEF) -> TractNNEF:
 defaults = TRACT_INFERENCES_TO_TESTS_APPROX
 defaults_f16_friendly = [
     enable_attention_inner_f32(copy.deepcopy(t))
-    for t in filter(
-        lambda i: approx_supported_condition(i),
-        TRACT_INFERENCES_TO_TESTS_APPROX,
-    )
+    for t in TRACT_INFERENCES_TO_TESTS_APPROX
+    if approx_supported_condition(t)
 ]
 sdpa = [
     reify_sdpa_operator(copy.deepcopy(t))
-    for t in filter(
-        lambda i: sdpa_supported_condition(i), defaults_f16_friendly
-    )
+    for t in defaults_f16_friendly
+    if sdpa_supported_condition(t)
 ]
 test_suite = TestSuiteInferenceExactnessBuilder(
     defaults + defaults_f16_friendly + sdpa
@@ -297,8 +294,18 @@ def test_equivalent_implementation():
     test_suite.test_samples,
     ids=test_suite.ids,
 )
-def test_attn_layers_export(id, test_input, model, inference_target):
-    """Test simple models"""
+def test_attn_layers_export(
+    id, test_input, model, inference_target, pytestconfig
+):
+    """Test attention mechanisms"""
+    if (
+        not pytestconfig.getvalue("--run-experimental")
+        and isinstance(inference_target, TractNNEF)
+        and inference_target.reify_sdpa_operator
+    ):
+        pytest.skip("reify_sdpa_operator activated only by --run-experimental")
+        return
+
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

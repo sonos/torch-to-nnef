@@ -453,7 +453,7 @@ class TractCli:
         extra_param = []
         if self.version >= "0.20.20":
             extra_param.append("--nnef-tract-extra")
-        if self.version >= "0.21.14":
+        if self.version >= "0.22.0":
             extra_param.append("--nnef-tract-transformers")
         cmd_ = (
             [

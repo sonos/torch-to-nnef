@@ -19,7 +19,7 @@ OP_REGISTRY = AtenOpRegistry()
 def reify_with_tract_transformers_sdpa(i: InferenceTarget) -> bool:
     return (
         isinstance(i, TractNNEF)
-        and i.version >= "0.21.14"
+        and i.version >= "0.22.0"
         and i.reify_sdpa_operator
     )
 
@@ -64,14 +64,15 @@ def scaled_dot_product_attention(
     inputs = [query_tensor, key_tensor, value_tensor]
 
     scale = None
+    reify_tract_spda = reify_with_tract_transformers_sdpa(inference_target)
     if len(node.inputs) >= 7:  # added param between torch 1.13 and 2.2
         scale_node = node.inputs[6]
         if scale_node.data is not None:
             scale = scale_node.data
 
-            # If we export with tract >= 0.21.14 with reify_sdpa_operator, scale is expressed as an attribute
+            # If we export with tract >= 0.22.0 with reify_sdpa_operator, scale is expressed as an attribute
             # so we don't need to add it to the list of input.
-            if not reify_with_tract_transformers_sdpa(inference_target):
+            if not reify_tract_spda:
                 scale_tensor = get_or_add_tensor_variable_in_nnef(
                     g, scale_node, name_to_tensor
                 )
@@ -96,7 +97,7 @@ def scaled_dot_product_attention(
         "f32" if inference_target.force_attention_inner_in_f32 else dtype_str
     )
 
-    if reify_with_tract_transformers_sdpa(inference_target):
+    if reify_tract_spda:
         # Define SDPA attributes
         attrs = {
             "d_type": dtype_str,
