@@ -31,5 +31,8 @@ extension tract_registry tract_core;
 % endif
   scaled_dot_qk = mul(dot_qk, scale) ${("+ attn_mask_as_"+inner_dtype) if attn_mask else ""}${"+ attn_bias" if causal else ""};
   attn_weight = softmax(scaled_dot_qk,  axes=[${rank - 1}]);
+% if inner_dtype != dtype:
+  # Accumulation in f16 in the last einsum is kept with f16 accumulation for efficiency reasons, but outputs are not expected to be aligned with PyTorch.
+% endif
   out = tract_core_einsum(inputs=[attn_weight, value], expr="${"bcij,bcjk->bcik" if rank == 4 else "bij,bjk->bik"}", acc="${dtype}");
 }

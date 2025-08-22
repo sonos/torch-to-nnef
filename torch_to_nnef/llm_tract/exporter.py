@@ -688,6 +688,7 @@ class LLMExporter:
         force_f32_attention: T.Optional[bool] = None,
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
+        reify_sdpa_operator: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
     ):
@@ -703,6 +704,10 @@ class LLMExporter:
         if force_f32_normalization is not None:
             self._inference_target_options["force_norm_in_f32"] = (
                 force_f32_normalization
+            )
+        if reify_sdpa_operator is not None:
+            self._inference_target_options["reify_sdpa_operator"] = (
+                reify_sdpa_operator
             )
         export_dirpath = Path(export_dirpath)
         if no_verify and wrapper_io_check:
