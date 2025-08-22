@@ -192,7 +192,6 @@ class LLMExporter:
         self.wrapped_model = self.model_infos.wrapper_class(
             self.hf_model_causal, num_logits_to_keep=num_logits_to_keep
         )
-        self._inference_target_options: T.Dict[str, T.Any] = {}
         force_module_dtype = (
             DtypeStr(force_module_dtype) if force_module_dtype else None
         )
@@ -462,10 +461,7 @@ class LLMExporter:
         text = self.tokenizer.decode(iids[0])
         LOGGER.info("generated text: %s", text)
 
-    def _update_inference_target_options(self, inference_target):
-        inference_target.__dict__.update(self._inference_target_options)
-
-    def apply_half_precision_fixes(self):
+    def apply_half_precision_fixes(self, inference_target: TractNNEF):
         """Align float dtype arguments in few graph ops
 
         Indeed all LLM are trained using GPU/TPU/CPU kernels
@@ -478,10 +474,8 @@ class LLMExporter:
         torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
         torch.nn.functional.layer_norm = StateLessF32LayerNorm()
         if self.model_infos.conf.model_type == "qwen2":
-            self._inference_target_options = {
-                "force_attention_inner_in_f32": True,
-                "force_linear_accumulation_in_f32": True,
-            }
+            inference_target.force_attention_inner_in_f32 = True
+            inference_target.force_linear_accumulation_in_f32 = True
 
     @use_dtype_dyn_cache
     def prepare(  # pylint: disable=too-many-positional-arguments
@@ -518,9 +512,6 @@ class LLMExporter:
             )
 
         with torch.no_grad():
-            if self.is_half_precision_model:
-                self.apply_half_precision_fixes()
-
             if test_display_token_gens and (
                 compression_method or self.is_half_precision_model
             ):
@@ -532,21 +523,15 @@ class LLMExporter:
                 self.check_wrapper_io()
 
     @use_dtype_dyn_cache
-    def export_model(  # pylint: disable=too-many-positional-arguments
+    def export_model(
         self,
         export_dirpath: Path,
+        inference_target: TractNNEF,
         naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-        tract_specific_path: T.Optional[Path] = None,
-        tract_specific_version: T.Optional[
-            T.Union[SemanticVersion, str]
-        ] = None,
-        tract_specific_properties: T.Optional[T.Dict[str, str]] = None,
         log_level=logging.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         sample_generation_total_size: int = 0,
-        no_verify: bool = False,
-        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
         ignore_already_exist_dir: bool = False,
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
         debug_bundle_path: T.Optional[Path] = None,
@@ -559,11 +544,6 @@ class LLMExporter:
             if not ignore_already_exist_dir:
                 assert not export_dirpath.exists(), export_dirpath
             assert sample_generation_total_size >= 2
-            assert (  # mutualy exclusive arguments
-                (tract_specific_path is None and tract_specific_version is None)
-                or tract_specific_path is None
-                or tract_specific_version is None
-            )
             (
                 inputs,
                 input_names,
@@ -572,33 +552,8 @@ class LLMExporter:
             ) = self.generate_inputs_io_names_and_dynaxes()
 
             LOGGER.info("start export with 'torch_to_nnef'")
-            if tract_specific_version:
-                assert tract_specific_path is None, "set either version or path"
-                inference_target = TractNNEF(
-                    SemanticVersion.from_str(tract_specific_version)
-                    if isinstance(tract_specific_version, str)
-                    else tract_specific_version
-                )
-            elif tract_specific_path:
-                tract_cli_path = Path(tract_specific_path)
-                assert tract_cli_path.exists(), tract_cli_path
-                tract_cli = TractCli(tract_cli_path)
-                inference_target = TractNNEF(
-                    tract_cli.version,
-                    specific_tract_binary_path=tract_cli_path,
-                )
-            else:
-                inference_target = TractNNEF.latest()
+            assert hasattr(inference_target, "dynamic_axes")
             inference_target.dynamic_axes = dynamic_axes
-            inference_target.specific_properties = tract_specific_properties
-            inference_target.check_io_tolerance = tract_check_io_tolerance
-
-            self._update_inference_target_options(inference_target)
-            if no_verify:
-                LOGGER.info(
-                    "tract inference is not checked because 'no_verify=True'"
-                )
-            inference_target.check_io = not no_verify
 
             # Add io.npz test in exproted dir for dbg purpose
             test_dir = export_dirpath / "tests"
@@ -670,67 +625,98 @@ class LLMExporter:
                 debug_bundle_path=debug_bundle_path,
             )
 
-    def dump(  # pylint: disable=too-many-positional-arguments
+    def dump(self, **kwargs):
+        """prepare and export model to NNEF"""
+        inference_target = self.build_inference_target(
+            **{
+                key: kwargs.pop(key)
+                for key in [
+                    "tract_specific_path",
+                    "tract_specific_version",
+                    "tract_specific_properties",
+                    "no_verify",
+                    "force_f32_attention",
+                    "force_f32_linear_accumulator",
+                    "force_f32_normalization",
+                    "tract_check_io_tolerance",
+                ]
+                if key in kwargs
+            },
+            compression_method=kwargs.get("compression_method"),
+            compression_registry=kwargs.get("compression_registry"),
+        )
+        return self.dump_with_inference_target(
+            inference_target=inference_target, **kwargs
+        )
+
+    def build_inference_target(
         self,
-        export_dirpath: T.Union[str, Path],
         tract_specific_path: T.Optional[Path] = None,
         tract_specific_version: T.Optional[str] = None,
         tract_specific_properties: T.Optional[T.Dict[str, str]] = None,
-        compression_method: T.Optional[str] = None,
-        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
-        test_display_token_gens: bool = False,
-        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
-        dump_with_tokenizer_and_conf: bool = False,
-        check_inference_modes: bool = True,
-        wrapper_io_check: bool = True,
-        log_level: int = logging.INFO,
-        sample_generation_total_size: int = 6,
         no_verify: bool = False,
-        ignore_already_exist_dir: bool = False,
         force_f32_attention: T.Optional[bool] = None,
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
         tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
-        export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
-        debug_bundle_path: T.Optional[Path] = None,
-    ):
-        """prepare and export model to NNEF"""
-        if force_f32_attention is not None:
-            self._inference_target_options["force_attention_inner_in_f32"] = (
-                force_f32_attention
-            )
-        if force_f32_linear_accumulator is not None:
-            self._inference_target_options[
-                "force_linear_accumulation_in_f32"
-            ] = force_f32_linear_accumulator
-        if force_f32_normalization is not None:
-            self._inference_target_options["force_norm_in_f32"] = (
-                force_f32_normalization
-            )
-        export_dirpath = Path(export_dirpath)
-        if no_verify and wrapper_io_check:
-            LOGGER.info(
-                "force disable 'wrapper_io_check' because 'no_verify=True'"
-            )
-            wrapper_io_check = False
-        if no_verify and test_display_token_gens:
-            LOGGER.info(
-                "force disable 'test_display_token_gens' because 'no_verify=True'"
-            )
-            test_display_token_gens = False
-        if export_dirpath.exists() and not ignore_already_exist_dir:
-            raise T2NErrorMissUse(
-                f"'export_dirpath' should not exist but found: '{export_dirpath}'"
-            )
-
-        self.prepare(
-            compression_method=compression_method,
-            compression_registry=compression_registry,
-            test_display_token_gens=test_display_token_gens,
-            wrapper_io_check=wrapper_io_check,
-            export_dirpath=export_dirpath,
-            log_level=log_level,
+        compression_method: T.Optional[str] = None,
+        compression_registry: T.Optional[str] = None,
+    ) -> TractNNEF:
+        assert (  # mutualy exclusive arguments
+            (tract_specific_path is None and tract_specific_version is None)
+            or tract_specific_path is None
+            or tract_specific_version is None
         )
+        if tract_specific_version:
+            assert tract_specific_path is None, "set either version or path"
+            inference_target = TractNNEF(
+                SemanticVersion.from_str(tract_specific_version)
+                if isinstance(tract_specific_version, str)
+                else tract_specific_version
+            )
+        elif tract_specific_path:
+            tract_cli_path = Path(tract_specific_path)
+            assert tract_cli_path.exists(), tract_cli_path
+            tract_cli = TractCli(tract_cli_path)
+            inference_target = TractNNEF(
+                tract_cli.version,
+                specific_tract_binary_path=tract_cli_path,
+            )
+        else:
+            inference_target = TractNNEF.latest()
+        inference_target.specific_properties = (
+            self._get_tract_properties_from_prep(
+                tract_specific_properties,
+                compression_registry,
+                compression_method,
+            )
+        )
+        inference_target.check_io_tolerance = tract_check_io_tolerance
+
+        if force_f32_attention is not None:
+            inference_target.force_attention_inner_in_f32 = force_f32_attention
+        if force_f32_linear_accumulator is not None:
+            inference_target.force_linear_accumulation_in_f32 = (
+                force_f32_linear_accumulator
+            )
+        if force_f32_normalization is not None:
+            inference_target.force_norm_in_f32 = force_f32_normalization
+        if self.is_half_precision_model:
+            self.apply_half_precision_fixes(inference_target)
+
+        if no_verify:
+            LOGGER.info(
+                "tract inference is not checked because 'no_verify=True'"
+            )
+        inference_target.check_io = not no_verify
+        return inference_target
+
+    def _get_tract_properties_from_prep(
+        self,
+        tract_specific_properties,
+        compression_registry,
+        compression_method,
+    ) -> T.Dict[str, str]:
         tract_specific_properties = tract_specific_properties or {}
         tract_specific_properties.update(
             {
@@ -779,18 +765,58 @@ class LLMExporter:
                 tract_specific_properties[f"peft_{k}_target_modules"] = (
                     ",".join(self.hf_model_causal.peft_config[k].target_modules)
                 )
+        return tract_specific_properties
+
+    def dump_with_inference_target(
+        self,
+        inference_target: TractNNEF,
+        export_dirpath: T.Union[str, Path],
+        compression_method: T.Optional[str] = None,
+        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
+        test_display_token_gens: bool = False,
+        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        dump_with_tokenizer_and_conf: bool = False,
+        check_inference_modes: bool = True,
+        wrapper_io_check: bool = True,
+        log_level: int = logging.INFO,
+        sample_generation_total_size: int = 6,
+        no_verify: bool = False,
+        ignore_already_exist_dir: bool = False,
+        export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
+        debug_bundle_path: T.Optional[Path] = None,
+    ):
+        export_dirpath = Path(export_dirpath)
+        if no_verify and wrapper_io_check:
+            LOGGER.info(
+                "force disable 'wrapper_io_check' because 'no_verify=True'"
+            )
+            wrapper_io_check = False
+        if no_verify and test_display_token_gens:
+            LOGGER.info(
+                "force disable 'test_display_token_gens' because 'no_verify=True'"
+            )
+            test_display_token_gens = False
+        if export_dirpath.exists() and not ignore_already_exist_dir:
+            raise T2NErrorMissUse(
+                f"'export_dirpath' should not exist but found: '{export_dirpath}'"
+            )
+
+        self.prepare(
+            compression_method=compression_method,
+            compression_registry=compression_registry,
+            test_display_token_gens=test_display_token_gens,
+            wrapper_io_check=wrapper_io_check,
+            export_dirpath=export_dirpath,
+            log_level=log_level,
+        )
         self.export_model(
             export_dirpath,
             naming_scheme=naming_scheme,
-            tract_specific_path=tract_specific_path,
-            tract_specific_version=tract_specific_version,
-            tract_specific_properties=tract_specific_properties,
+            inference_target=inference_target,
             log_level=log_level,
             dump_with_tokenizer_and_conf=dump_with_tokenizer_and_conf,
             check_inference_modes=check_inference_modes,
             sample_generation_total_size=sample_generation_total_size,
-            no_verify=no_verify,
-            tract_check_io_tolerance=tract_check_io_tolerance,
             ignore_already_exist_dir=ignore_already_exist_dir,
             export_dir_struct=export_dir_struct,
             debug_bundle_path=debug_bundle_path,
