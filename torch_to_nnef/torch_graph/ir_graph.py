@@ -451,10 +451,14 @@ class TorchModuleIRGraph:
             dn.name = f"{prefix}.{dn.name}"
 
         for dn in submodule_graph.data_nodes[:]:
-            if not self.data_nodes.contains(dn, strict=True):
-                if self.data_nodes.get_by_name(dn.name):
+            if not self.data_nodes.contains(
+                dn, strict=True
+            ) and self.data_nodes.get_by_name(dn.name):
+                for start_index in range(1, 4):  # give 3 try
                     new_name = rename_variable_by_incr(
-                        dn.name, [self.data_nodes, submodule_graph.data_nodes]
+                        dn.name,
+                        [self.data_nodes, submodule_graph.data_nodes],
+                        start_index=start_index,
                     )
                     LOGGER.info(
                         "potential name collision detected rename"
@@ -462,11 +466,16 @@ class TorchModuleIRGraph:
                         dn.name,
                         new_name,
                     )
-                    dn.name = new_name
-                try:
-                    self.data_nodes.append(dn)
-                except T2NErrorDataNodeValue:
-                    assert self.data_nodes.contains(dn, strict=True)
+                    try:
+                        dn.name = new_name
+                        self.data_nodes.append(dn)
+                        break
+                    except T2NErrorDataNodeValue as exp:
+                        LOGGER.warning(
+                            "tried to append '%s' in data_nodes but failed: %s",
+                            new_name,
+                            exp,
+                        )
         search_and_replace_data_nodes(
             submodule_graph.outputs, callmethod_node.outputs, "outputs"
         )
