@@ -461,7 +461,7 @@ class LLMExporter:
         text = self.tokenizer.decode(iids[0])
         LOGGER.info("generated text: %s", text)
 
-    def apply_half_precision_fixes(self, inference_target: TractNNEF):
+    def apply_half_precision_fixes(self):
         """Align float dtype arguments in few graph ops
 
         Indeed all LLM are trained using GPU/TPU/CPU kernels
@@ -609,7 +609,7 @@ class LLMExporter:
                 self.tokenizer.save_pretrained(tok_dir)
 
             if self.is_half_precision_model:
-                self.apply_half_precision_fixes(inference_target)
+                self.apply_half_precision_fixes()
 
             build_io(
                 self.wrapped_model,
