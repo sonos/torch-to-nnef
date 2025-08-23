@@ -184,7 +184,6 @@ def export_model_to_nnef(
         add_buffers=False,
         add_unregistred_tensor=False,
         disable_requires_grad=True,
-        warn_old_torch=False,
     )
     if custom_extensions is not None and not isinstance(
         custom_extensions, list
