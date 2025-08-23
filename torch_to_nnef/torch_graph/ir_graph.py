@@ -8,6 +8,7 @@ from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     T2NError,
+    T2NErrorDataNodeValue,
     T2NErrorNotFoundModuleExtractor,
     T2NErrorNotImplemented,
     T2NErrorTorchCheck,
@@ -451,18 +452,36 @@ class TorchModuleIRGraph:
 
         for dn in submodule_graph.data_nodes[:]:
             if not self.data_nodes.contains(dn, strict=True):
-                if self.data_nodes.get_by_name(dn.name):
-                    new_name = rename_variable_by_incr(
-                        dn.name, [self.data_nodes, submodule_graph.data_nodes]
-                    )
-                    LOGGER.info(
-                        "potential name collision detected rename"
-                        "new '%s' into '%s'",
-                        dn.name,
-                        new_name,
-                    )
-                    dn.name = new_name
-                self.data_nodes.append(dn)
+                # A failure mode is not fully understood here:
+                # in some edge-cases (only observed in CI)
+                # there is a collision that is detected between
+                # names and append do not work
+                # (which is supposed to not happen thanks to `rename_variable_by_incr`)
+                # hence this retry logic
+                for start_index in range(1, 4):  # give 3 try
+                    new_name = dn.name
+                    if self.data_nodes.get_by_name(dn.name):
+                        new_name = rename_variable_by_incr(
+                            dn.name,
+                            [self.data_nodes, submodule_graph.data_nodes],
+                            start_index=start_index,
+                        )
+                        LOGGER.info(
+                            "potential name collision detected rename"
+                            "new '%s' into '%s'",
+                            dn.name,
+                            new_name,
+                        )
+                        dn.name = new_name
+                    try:
+                        self.data_nodes.append(dn)
+                        break
+                    except T2NErrorDataNodeValue as exp:
+                        LOGGER.warning(
+                            "tried to append '%s' in data_nodes but failed: %s",
+                            new_name,
+                            exp,
+                        )
         search_and_replace_data_nodes(
             submodule_graph.outputs, callmethod_node.outputs, "outputs"
         )

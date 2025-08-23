@@ -477,8 +477,6 @@ class TractCli:
             ]
         else:
             cmd_ += [
-                "--input-facts-from-bundle",
-                io_npz_path,
                 "run",
                 "--input-from-bundle",
                 io_npz_path,

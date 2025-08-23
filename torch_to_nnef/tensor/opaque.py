@@ -220,7 +220,7 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     LOGGER.debug(
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
-    mod_tensor_updater = ModTensorUpdater(model, warn_old_torch=False)
+    mod_tensor_updater = ModTensorUpdater(model)
     for full_name, param in get_named_parameters(model, remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue

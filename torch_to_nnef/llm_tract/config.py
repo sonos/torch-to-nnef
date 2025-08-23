@@ -5,6 +5,7 @@ from enum import Enum
 from functools import partial
 
 import torch
+from transformers import AutoConfig, AutoTokenizer
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.llm_tract.models.base import (
@@ -52,11 +53,15 @@ class PHISlugs(str, Enum):
     SMALL = "microsoft/Phi-3-small-8k-instruct"
 
 
-class LlamaSLugs(str, Enum):
+class LlamaSlugs(str, Enum):
     DUMMY = "yujiepan/llama-2-tiny-random"
     TINY = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     LLAMA3_8B = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
     LLAMA2_7B_BASE = "meta-llama/Llama-2-7b-hf"
+
+
+class SmolSlugs(str, Enum):
+    TINY = "HuggingFaceTB/SmolLM-135M"
 
 
 class OpenELMSlugs(str, Enum):
@@ -66,9 +71,17 @@ class OpenELMSlugs(str, Enum):
     BIG = "apple/OpenELM-3B-Instruct"
 
 
-class MistralSLugs(str, Enum):
+class MistralSlugs(str, Enum):
     DEBUG = "mistral_debug"
     MISTRAL_7B_V03 = "mistralai/Mistral-7B-Instruct-v0.3"
+
+
+class Gemma3Slugs(str, Enum):
+    TINY = "google/gemma-3-270m"
+
+
+class Qwen3Slugs(str, Enum):
+    TINY = "Qwen/Qwen3-0.6B"
 
 
 # }
@@ -94,7 +107,7 @@ except (ModuleNotFoundError, ImportError) as exp:
 try:
     from transformers.models.mistral.configuration_mistral import MistralConfig
 
-    CUSTOM_CONFIGS[MistralSLugs.DEBUG] = MistralConfig(
+    CUSTOM_CONFIGS[MistralSlugs.DEBUG] = MistralConfig(
         vocab_size=32768,
         hidden_size=256,
         intermediate_size=512,
@@ -111,11 +124,33 @@ except (ModuleNotFoundError, ImportError) as exp:
         "Mistral not available since too old version of transformers: %s", exp
     )
 
+
 REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG: T.Dict[str, str] = {
-    "openelm": LlamaSLugs.LLAMA2_7B_BASE.value,
+    "openelm": LlamaSlugs.LLAMA2_7B_BASE.value,
     "phi3debug": PHISlugs.MINI.value,
-    "mistraldebug": MistralSLugs.MISTRAL_7B_V03.value,
+    "mistraldebug": MistralSlugs.MISTRAL_7B_V03.value,
 }
+
+
+def register_raw_model_from_slug(model_id, trust_remote_code: bool = True):
+    config = AutoConfig.from_pretrained(
+        model_id, trust_remote_code=trust_remote_code
+    )
+    suffix = "__t2n_debug"
+    config.model_type += suffix
+    new_model_id = model_id + suffix
+    CUSTOM_CONFIGS[new_model_id] = config
+    REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG[config.model_type] = model_id
+    return new_model_id
+
+
+def get_tokenizer_from_slug(mdl_slug):
+    tok_slug = mdl_slug
+    if mdl_slug in CUSTOM_CONFIGS:
+        tok_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
+            CUSTOM_CONFIGS[mdl_slug].model_type, mdl_slug
+        )
+    return AutoTokenizer.from_pretrained(tok_slug, trust_remote_code=True)
 
 
 class HFConfigHelper:

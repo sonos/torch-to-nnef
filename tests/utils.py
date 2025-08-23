@@ -67,6 +67,10 @@ INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS_APPROX + [
 ]
 
 
+DUMP_DIRPATH = os.environ.get("DUMP_DIRPATH", "")
+IS_DEBUG = bool(int(os.environ.get("DEBUG", False)))
+
+
 def change_dynamic_axes(it, dynamic_axes):
     assert isinstance(it, TractNNEF)
     new_it = deepcopy(it)
@@ -147,9 +151,6 @@ def check_model_io_test(
     callback_post_export=None,
     unit_test_naming=None,
 ):
-    dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
-    is_debug = bool(int(os.environ.get("DEBUG", False)))
-
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
         unittest_slug = f"{unittest_slug}_{unit_test_naming}"
@@ -159,7 +160,7 @@ def check_model_io_test(
             if caller_fn_name.startswith("test_"):
                 unittest_slug = f"{unittest_slug}_{caller_fn_name}"
                 break
-    dbg_base_dir = Path(dump_dirpath) if dump_dirpath else Path.cwd()
+    dbg_base_dir = Path(DUMP_DIRPATH) if DUMP_DIRPATH else Path.cwd()
     dbg_base_dir.mkdir(exist_ok=True, parents=True)
     dbg_path = dbg_base_dir / "failed_tests" / unittest_slug
 
@@ -194,13 +195,13 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            debug_bundle_path=(dbg_path if is_debug else None),
+            debug_bundle_path=(dbg_path if IS_DEBUG else None),
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
-        if dump_dirpath:
+        if DUMP_DIRPATH:
             shutil.copy(
                 export_path,
                 dump_test_tz_path,

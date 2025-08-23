@@ -15,7 +15,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
     ExportDirStruct,
-    LlamaSLugs,
+    LlamaSlugs,
     OpenELMSlugs,
     PHISlugs,
 )
@@ -49,7 +49,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
     slug_examples = ", ".join(
         [
             f"'{_.value}'"
-            for slugsEnums in [LlamaSLugs, PHISlugs, OpenELMSlugs]
+            for slugsEnums in [LlamaSlugs, PHISlugs, OpenELMSlugs]
             for _ in slugsEnums
         ]
     )

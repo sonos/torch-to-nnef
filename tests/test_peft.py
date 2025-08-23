@@ -8,7 +8,7 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM
 
-from torch_to_nnef.llm_tract.config import LlamaSLugs
+from torch_to_nnef.llm_tract.config import LlamaSlugs
 from torch_to_nnef.peft.cli import (
     NAME_PLACEHOLDER,
     PEFT_MAPPING_FILENAME,
@@ -24,7 +24,7 @@ except ImportError:
     print("no peft tests")
 
 
-DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
+DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSlugs.DUMMY.value)
 
 
 @pytest.mark.skipif(condition=MISSING_PEFT, reason="peft not installed")

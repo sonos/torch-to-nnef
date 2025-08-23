@@ -13,6 +13,8 @@ from torch_to_nnef.utils import SemanticVersion
 try:
     import transformers
     from transformers import AutoModelForCausalLM, cache_utils
+
+    TRANSFORMERS_VERSION = SemanticVersion.from_str(transformers.__version__)
 except ImportError as exp:
     raise T2NErrorImport(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
@@ -67,7 +69,7 @@ def ctx_dtype_dyn_cache():
         same as original except force device alignment
         this is to avoid issues with 'accelerate' package
         """
-        if SemanticVersion.from_str(transformers.__version__) >= "4.54.0":
+        if TRANSFORMERS_VERSION >= "4.54.0":
             self.append_new_layers(layer_idx)
             lay = self.layers[layer_idx]
             if lay.keys is not None:
@@ -302,7 +304,11 @@ def _slice_hidden_state_to_lasts(
 
 class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
-        self, model, with_dyn_cache: bool = True, num_logits_to_keep: int = 1
+        self,
+        model,
+        with_dyn_cache: bool = True,
+        num_logits_to_keep: int = 1,
+        force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
@@ -329,6 +335,10 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                     model.__class__,
                 )
 
+        if force_causal_mask is None:
+            force_causal_mask = TRANSFORMERS_VERSION > "4.52.4"
+
+        self.force_causal_mask = force_causal_mask
         self.forward_kwargs = fkwargs
         update_forward_signature(self)
 
@@ -349,10 +359,28 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         else:
             past_key_values = build_past_kv_list(args)
 
+        if self.force_causal_mask:
+            attn_mask_dtype = torch.float32
+            seq_length = args[0].shape[0]
+            attention_mask = (
+                torch.triu(
+                    torch.full(
+                        [seq_length, seq_length],
+                        torch.finfo(attn_mask_dtype).min,
+                    ),
+                    diagonal=1,
+                )
+                .unsqueeze(0)
+                .unsqueeze(0)
+            ).to(attn_mask_dtype)
+        else:
+            attention_mask = None
+
         out_dic = self.model(
             input_ids,
             past_key_values=past_key_values,
             use_cache=True,
+            attention_mask=attention_mask,
             **self.forward_kwargs,
         )
 

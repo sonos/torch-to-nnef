@@ -277,11 +277,13 @@ def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
 
 
 def rename_variable_by_incr(
-    name: str, named_item_containers: T.List[ReactiveNamedItemDict]
+    name: str,
+    named_item_containers: T.List[ReactiveNamedItemDict],
+    start_index: int = 1,
 ) -> str:
     striped_name = rm_digits_suffix(name)
     assert len(striped_name.strip()) > 0, striped_name
-    idx = 1
+    idx = start_index
     proposed_name = f"{striped_name}{idx}"
     while any(
         c.get_by_name(proposed_name) is not None for c in named_item_containers
