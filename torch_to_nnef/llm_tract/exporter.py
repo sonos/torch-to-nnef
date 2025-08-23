@@ -471,17 +471,21 @@ class LLMExporter:
         To solve this issue we monkey patch in this cli few functional API.
         """
 
-        torch.nn.functional.original_layer_norm = torch.nn.functional.layer_norm
-        torch.nn.functional.layer_norm = StateLessF32LayerNorm()
-        if self.model_infos.conf.model_type == "qwen2":
-            inference_target.force_attention_inner_in_f32 = True
-            inference_target.force_linear_accumulation_in_f32 = True
+        if not isinstance(
+            torch.nn.functional.layer_norm, StateLessF32LayerNorm
+        ):
+            torch.nn.functional.original_layer_norm = (
+                torch.nn.functional.layer_norm
+            )
+            torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
     def reset_torch_fns(self):
-        if hasattr(torch.nn.functional, "original_layer_norm"):
+        """cleanup any torch behavior alterations"""
+        if isinstance(torch.nn.functional.layer_norm, StateLessF32LayerNorm):
             torch.nn.functional.layer_norm = (
                 torch.nn.functional.original_layer_norm
             )
+            del torch.nn.functional.original_layer_norm
 
     @use_dtype_dyn_cache
     def prepare(  # pylint: disable=too-many-positional-arguments
@@ -717,8 +721,12 @@ class LLMExporter:
         if reify_sdpa_operator is not None:
             inference_target.reify_sdpa_operator = reify_sdpa_operator
 
-        if self.is_half_precision_model:
-            self.apply_half_precision_fixes(inference_target)
+        if (
+            self.is_half_precision_model
+            and self.model_infos.conf.model_type == "qwen2"
+        ):
+            inference_target.force_attention_inner_in_f32 = True
+            inference_target.force_linear_accumulation_in_f32 = True
 
         if no_verify:
             LOGGER.info(
