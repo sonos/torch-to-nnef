@@ -26,9 +26,6 @@ class ModTensorUpdater:
     An example is the shared reference on transformers between
     first input_ids embedding and last linear layer projection weights.
 
-    This is not usefull for PyTorch < 2.0.0 since it filters duplicate in init,
-    since torch API are missing remove_duplicate before that.
-
     """
 
     def __init__(
