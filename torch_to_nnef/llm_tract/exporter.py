@@ -477,6 +477,12 @@ class LLMExporter:
             inference_target.force_attention_inner_in_f32 = True
             inference_target.force_linear_accumulation_in_f32 = True
 
+    def reset_torch_fns(self):
+        if hasattr(torch.nn.functional, "original_layer_norm"):
+            torch.nn.functional.layer_norm = (
+                torch.nn.functional.original_layer_norm
+            )
+
     @use_dtype_dyn_cache
     def prepare(  # pylint: disable=too-many-positional-arguments
         self,
@@ -598,6 +604,9 @@ class LLMExporter:
                 )
                 self.tokenizer.save_pretrained(tok_dir)
 
+            if self.is_half_precision_model:
+                self.apply_half_precision_fixes(inference_target)
+
             build_io(
                 self.wrapped_model,
                 inputs,
@@ -624,6 +633,7 @@ class LLMExporter:
                 ],
                 debug_bundle_path=debug_bundle_path,
             )
+            self.reset_torch_fns()
 
     def dump(self, **kwargs):
         """prepare and export model to NNEF"""
