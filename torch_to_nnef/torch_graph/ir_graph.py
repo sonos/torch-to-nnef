@@ -8,6 +8,7 @@ from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     T2NError,
+    T2NErrorDataNodeValue,
     T2NErrorNotFoundModuleExtractor,
     T2NErrorNotImplemented,
     T2NErrorTorchCheck,
@@ -462,7 +463,10 @@ class TorchModuleIRGraph:
                         new_name,
                     )
                     dn.name = new_name
-                self.data_nodes.append(dn)
+                try:
+                    self.data_nodes.append(dn)
+                except T2NErrorDataNodeValue:
+                    assert self.data_nodes.contains(dn, strict=True)
         search_and_replace_data_nodes(
             submodule_graph.outputs, callmethod_node.outputs, "outputs"
         )
