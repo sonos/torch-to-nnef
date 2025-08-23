@@ -22,6 +22,7 @@ from torch_to_nnef.llm_tract.config import (
 from torch_to_nnef.llm_tract.exporter import dump_llm
 from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import torch_version
 
 from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
 
@@ -50,39 +51,44 @@ SUPPORT_LLM_CLI_OPTS = [
 ]
 
 # test all compression version
-SUPPORT_LLM_CLI_OPTS += [{"compression_method": _} for _ in DEFAULT_COMPRESSION]
+if torch_version() >= "1.12.0":
+    SUPPORT_LLM_CLI_OPTS += [
+        {"compression_method": _} for _ in DEFAULT_COMPRESSION
+    ]
 
 # test upcasting
-SUPPORT_LLM_CLI_OPTS += [
-    {
-        "force_module_dtype": "f16",
-        "force_f32_attention": True,
-        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
-    },
-    {
-        "force_module_dtype": "f16",
-        "force_f32_linear_accumulator": True,
-        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
-    },
-    {
-        "force_module_dtype": "f16",
-        "force_f32_normalization": True,
-        "tract_check_io_tolerance": TractCheckTolerance.SUPER,
-    },
-]
+if torch_version() >= "2.4.0":  # good enough f16 support
+    SUPPORT_LLM_CLI_OPTS += [
+        {
+            "force_module_dtype": "f16",
+            "force_f32_attention": True,
+            "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+        },
+        {
+            "force_module_dtype": "f16",
+            "force_f32_linear_accumulator": True,
+            "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+        },
+        {
+            "force_module_dtype": "f16",
+            "force_f32_normalization": True,
+            "tract_check_io_tolerance": TractCheckTolerance.SUPER,
+        },
+    ]
 
 # test device-map
-SUPPORT_LLM_CLI_OPTS += [
-    # { # to fix: latter
-    #     "device_map": "auto",
-    # },
-    # { # to fix: latter
-    #     "device_map": "t2n_auto",
-    # },
-    {
-        "device_map": "t2n_offload_disk",
-    },
-]
+if torch_version() >= "1.13.0":  # pytorch 'meta' device support ok
+    SUPPORT_LLM_CLI_OPTS += [
+        # { # to fix: latter
+        #     "device_map": "auto",
+        # },
+        # { # to fix: latter
+        #     "device_map": "t2n_auto",
+        # },
+        {
+            "device_map": "t2n_offload_disk",
+        },
+    ]
 
 # ensure dump with tokenizer works
 SUPPORT_LLM_CLI_OPTS += [{"dump_with_tokenizer_and_conf": True}]
