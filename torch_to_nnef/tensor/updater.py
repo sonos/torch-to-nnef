@@ -1,6 +1,5 @@
 import enum
 import typing as T
-import warnings
 from collections import defaultdict
 
 import torch

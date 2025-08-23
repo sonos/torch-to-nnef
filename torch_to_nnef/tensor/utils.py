@@ -1,5 +1,5 @@
-import typing as T
 import logging
+import typing as T
 
 import torch
 from torch import nn
