@@ -118,7 +118,6 @@ select = [
     "D",
 ]
 ignore = [
-    # "E501",
     # if a docstring then ensure consistency but if it is missing do not raise issue {
     "D100",
     "D101",
