@@ -30,7 +30,9 @@ test_suite = TestSuiteInferenceExactnessBuilder(
 
 test_suite.add(torch.randint(0, 4, (2, 4), dtype=torch.int32), Mul())
 test_suite.add(torch.rand((2, 4), dtype=torch.float64), Mul())
-# (torch.rand((2, 4), dtype=torch.float16), Mul()), # tract does not support npz f16 format
+#
+# tract does not support npz f16 format
+# (torch.rand((2, 4), dtype=torch.float16), Mul()),
 
 
 @pytest.mark.parametrize(

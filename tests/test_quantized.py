@@ -207,7 +207,7 @@ test_suite.add(
 def qcheck(
     module: nn.Module, inp: torch.Tensor, inference_target: InferenceTarget
 ):
-    """Check basic ptq export align with tract"""
+    """Check basic ptq export align with tract."""
     model = torch.quantization.QuantWrapper(module)
     qconfig = torch.quantization.get_default_qconfig("qnnpack")
     torch.backends.quantized.engine = "qnnpack"

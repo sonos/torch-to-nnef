@@ -162,7 +162,7 @@ for a_from_code in aten_torch_from_code:
 
 
 def print_t(text, file):
-    """Print tabbed"""
+    """Print tabbed."""
     if text:
         if "\n" in text:
             lines = text.split("\n")

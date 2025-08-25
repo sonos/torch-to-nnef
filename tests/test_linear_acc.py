@@ -39,7 +39,7 @@ if tract_latest.version >= "0.21.11":
     ids=test_suite.ids,
 )
 def test_linear_accumulate_f32_export(id, test_input, model, inference_target):
-    """Test simple aten PyTorch core"""
+    """Test simple aten PyTorch core."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

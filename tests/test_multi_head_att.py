@@ -297,7 +297,7 @@ def test_equivalent_implementation():
 def test_attn_layers_export(
     id, test_input, model, inference_target, pytestconfig
 ):
-    """Test attention mechanisms"""
+    """Test attention mechanisms."""
     if (
         not pytestconfig.getvalue("--run-experimental")
         and isinstance(inference_target, TractNNEF)

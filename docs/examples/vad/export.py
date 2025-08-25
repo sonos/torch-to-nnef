@@ -1,4 +1,4 @@
-"""Simple export script of MarbleNet VAD"""
+"""Simple export script of MarbleNet VAD."""
 
 import argparse
 import copy
@@ -64,7 +64,7 @@ class DummyDecoder(torch.nn.Module):
 
 
 class EncoderWrapper(torch.nn.Module):
-    """Avoid to expose input_len (that doesn't make sense in streaming)"""
+    """Avoid to expose input_len (that doesn't make sense in streaming)."""
 
     def __init__(self, model):
         super().__init__()

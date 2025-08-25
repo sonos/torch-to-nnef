@@ -108,7 +108,7 @@ def check_contains_f32_upcast_attn(inference_target, path):
     ids=attn_test_suite.ids,
 )
 def test_upcast_f32_attn(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,
@@ -146,7 +146,7 @@ def check_contains_f32_upcast_norm(inference_target, path):
     ids=bn_test_suite.ids,
 )
 def test_upcast_f32_bn(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,
@@ -156,7 +156,7 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
 
 
 def test_layer_norm_f16_unsupported_in_torch():
-    """Check no layer norm support for f16"""
+    """Check no layer norm support for f16."""
     if torch_version() <= "2.2.0":
         with pytest.raises(RuntimeError) as excinfo:
             check_model_io_test(

@@ -233,7 +233,7 @@ test_suite.add(
     ids=test_suite.ids,
 )
 def test_dynamic_axes_exports(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,

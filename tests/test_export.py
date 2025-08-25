@@ -1,4 +1,4 @@
-"""E2E Test of the export function"""
+"""E2E Test of the export function."""
 
 import logging as log
 import tempfile

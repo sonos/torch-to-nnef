@@ -16,7 +16,7 @@ CONSTANT = 1e-5
 
 
 def splice_frames(x, frame_splicing):
-    """Stacks frames together across feature dim
+    """Stacks frames together across feature dim.
 
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames

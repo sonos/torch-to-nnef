@@ -69,7 +69,7 @@ def check_non_concretized_tract_interp(inference_target, export_path):
     ids=test_suite.ids,
 )
 def test_complex_and_fft_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     custom_extensions = None
     if isinstance(model, FilterbankFeatures):
         symb = set(

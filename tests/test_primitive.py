@@ -1119,7 +1119,7 @@ def test_should_fail_since_false_output():
     ids=test_suite.ids,
 )
 def test_primitive_export(id, test_input, model, inference_target):
-    """Test simple aten PyTorch core"""
+    """Test simple aten PyTorch core."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

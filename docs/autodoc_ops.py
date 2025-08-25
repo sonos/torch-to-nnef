@@ -1,4 +1,4 @@
-"""Write default op NNEF translate docstring to Python file if missing
+"""Write default op NNEF translate docstring to Python file if missing.
 
 This is helpfull to allow doc to be properly generated in documentation
 website.

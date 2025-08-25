@@ -1,4 +1,4 @@
-"""Same logic as VIT but with efficientnet and batch dynamic_axes"""
+"""Same logic as VIT but with efficientnet and batch dynamic_axes."""
 
 from pathlib import Path
 

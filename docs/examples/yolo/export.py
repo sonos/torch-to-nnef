@@ -21,7 +21,6 @@ PREFIX_DEFAULT = colorstr("NNEF:")
 
 def global_export_nnef(self, prefix=PREFIX_DEFAULT):
     """Export YOLO model to NNEF format."""
-
     LOGGER.info(
         f"\n{prefix} starting export with NNEF: {torch_to_nnef.__version__} targetting tract: {tract_target.version}..."
     )
