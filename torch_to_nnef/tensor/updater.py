@@ -35,25 +35,27 @@ class ModTensorUpdater:
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
     ):
-        """Args:
-        model:
-            nn.Module model that will have tensors updated with this class
+        """Init ModTensorUpdater.
 
-        add_parameter_if_unset:
-            if you add a tensor where there is not yet a torch.nn.Parameters
-            in the model it will add it
+        Args:
+            model:
+                nn.Module model that will have tensors updated with this class
 
-        add_buffers:
-            Scope all nn.Buffer PyTorch object of the model
-            to be 'updatable'
+            add_parameter_if_unset:
+                if you add a tensor where there is not yet a torch.nn.Parameters
+                in the model it will add it
 
-        add_unregistred_tensor:
-            Scope all tensor PyTorch object of the model not referenced in
-            nn.Parameters & nn.Buffer
+            add_buffers:
+                Scope all nn.Buffer PyTorch object of the model
+                to be 'updatable'
 
-        disable_requires_grad:
-            If set it force tensors replaced to be with no 'requires_grad'
-            at update time
+            add_unregistred_tensor:
+                Scope all tensor PyTorch object of the model not referenced in
+                nn.Parameters & nn.Buffer
+
+            disable_requires_grad:
+                If set it force tensors replaced to be with no 'requires_grad'
+                at update time
         """
         self.name_to_id = {}
         self.id_to_kind = {}
@@ -229,7 +231,7 @@ class ModTensorUpdater:
         new_tensor: torch.Tensor,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
-        """Update tensor based on it's  reference object"""
+        """Update tensor based on it's  reference object."""
         new_tensor = self.maybe_parameterize(ref, new_tensor)
         if enforce_tensor_consistency:
             self.check_consistency(ref, new_tensor)
@@ -243,7 +245,7 @@ class ModTensorUpdater:
         tie_replacements: bool = True,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
-        """Update tensor based on it's  reference name"""
+        """Update tensor based on it's  reference name."""
         mod = self.name_to_parent_module[name]
         _, p_local_name = self.split_param_name(name)
         ref = getattr(mod, p_local_name)

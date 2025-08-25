@@ -1,4 +1,4 @@
-"""Advanced QTensor (<= 8bits) with complex quant scheme non torch native"""
+"""Advanced QTensor (<= 8bits) with complex quant scheme non torch native."""
 
 from torch_to_nnef.tensor.quant.base import (
     QScalePerGroupF16,

@@ -24,13 +24,11 @@ from torch_to_nnef.tensor.quant.base import (
 
 
 class QTensorTract(QTensor):
-    """All QTensorTract implementations"""
+    """All QTensorTract implementations."""
 
 
 class QTensorTractScaleOnly(QTensorTract):
-    """Tract data format it serializes to: Q4_0
-
-    """
+    """Tract data format it serializes to: Q4_0."""
 
     qscheme: QScalePerGroupF16  # type notation for mypy
 
@@ -51,11 +49,10 @@ class QTensorTractScaleOnly(QTensorTract):
         self.specific_machine = specific_machine
 
     def decompress(self):
-        """Tract dequantization depends on hardware
+        """Tract dequantization depends on hardware.
 
-        typically dequantization happen with ops in f16
+        Typically dequantization happen with ops in f16
         on ARM and f32 (scale directly casted) on others
-
         so we overwrite the function to be consistant
         with tract.
 
@@ -149,7 +146,7 @@ class QTensorTractScaleOnly(QTensorTract):
 def fp_to_tract_q4_0_with_min_max_calibration(
     fp_tensor, percentile: float = 1.0
 ) -> QTensorTractScaleOnly:
-    """Min-Max method to quantize float tensor to tract supported Q4_0"""
+    """Min-Max method to quantize float tensor to tract supported Q4_0."""
     q4_group_size = 32
     if isinstance(fp_tensor, torch.nn.Parameter):
         fp_tensor = fp_tensor.data

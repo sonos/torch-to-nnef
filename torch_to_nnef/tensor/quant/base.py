@@ -44,9 +44,9 @@ class QScheme(abc.ABC):
 
 
 class QScalePerGroupF16(QScheme):
-    """Tract aligned
+    """f16 scale only per group.
 
-    using negative scales
+    Tract aligned using negative scales.
 
     """
 
@@ -151,7 +151,7 @@ if torch_version() > "2.0.0":
 
 
 class U8Compressor:
-    """Abstract class to add u8 compression methods
+    """Abstract class to add u8 compression methods.
 
     This can be used to
     > Apply bitpack elements bellow 8bit
@@ -164,7 +164,9 @@ class U8Compressor:
 
     @abc.abstractmethod
     def compress(self, u8_tensor) -> torch.Tensor:
-        """Args:
+        """Compress a u8 tensor (into u8).
+
+        Args:
             u8_tensor:  tensor to be compressed with dtype torch.uint8
         Return:
             compressed tensor with dtype torch.uint8
@@ -172,7 +174,9 @@ class U8Compressor:
 
     @abc.abstractmethod
     def decompress(self, u8_tensor) -> torch.Tensor:
-        """Args:
+        """Decompress an u8 torch tensor (into u8).
+
+        Args:
             u8_tensor:  compressed tensor with dtype torch.uint8
         Return:
             tensor decompressed with dtype torch.uint8
@@ -197,7 +201,7 @@ QTENSOR_UNSUPPORTED_MSG = "QTensor is supported only starting pytorch v1.12"
 
 
 class QTensor(OpaqueTensor):
-    """Common interface for all Compressed storage"""
+    """Common interface for all Compressed storage."""
 
     @staticmethod
     def __new__(
@@ -311,7 +315,7 @@ class QTensor(OpaqueTensor):
         return new_obj
 
     def to_device(self, new_device):
-        """Specific device handling"""
+        """Specific device handling."""
         self.qscheme = self.qscheme.to_device(new_device)
         self.u8_compressors = [
             u8_compressor.to_device(new_device)
@@ -321,10 +325,13 @@ class QTensor(OpaqueTensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """This __torch_function__ implementation wraps subclasses such that
+        """This __torch_function__ alteration.
+
+        This implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
-        we modify it so it's always reference torch.Tensor.
+        We modify it so it's always reference torch.Tensor.
+
         """
         if kwargs is None:
             kwargs = {}
@@ -362,7 +369,7 @@ class QTensor(OpaqueTensor):
 
     @data.setter
     def data(self, new_data):
-        """Only support device change"""
+        """Only support device change."""
         if isinstance(new_data, self.__class__) and torch.all(self == new_data):
             return
         raise T2NErrorNotImplemented(f"Trying to alter a QTensor.data: {self}")

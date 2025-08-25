@@ -1,4 +1,5 @@
-"""Abstractions used in torch_to_nnef internal graph Operations IR
+"""Abstractions used in torch_to_nnef internal graph Operations IR.
+
 (decoupled from PyTorch and NNEF)
 
 The goal is that these elements are:
@@ -91,7 +92,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class InputsAlignBetweenAtenAndTorch:
-    """Mapping inputs between Python `torch.$1` and cpp `aten::$2`
+    """Mapping inputs between Python `torch.$1` and cpp `aten::$2`.
+
     Because function arguments are not 1 to 1
     """
 
@@ -353,7 +355,7 @@ class TorchOp:
         )
 
     def update_call_op_arg_kwargs(self, args):
-        """Custom adaptation to call aten fn with torch exposed py fn"""
+        """Custom adaptation to call aten fn with torch exposed py fn."""
         kwargs = {}
         if self.kind == "aten::div" and len(args) >= 3:
             kwargs["rounding_mode"] = args[2]
@@ -366,7 +368,7 @@ class TorchOp:
         return args, kwargs
 
     def call_op(self):
-        """Produce operation output based on traced inputs with real torch call
+        """Produce operation output based on traced inputs with real torch call.
 
         This operation call is done via self.args arguments (for now).
         Which means that we need to have all args needed in parameters order,
@@ -455,7 +457,7 @@ class TorchOp:
 
     # pylint: disable-next=too-many-branches
     def realise_output_type_and_size(self, approx: bool = True) -> bool:
-        """Trace output and try to find type shape and constant realisation"""
+        """Trace output and try to find type shape and constant realisation."""
         if self.kind == CALL_KIND:
             return False
 

@@ -114,9 +114,22 @@ select = [
     "I",
     # flake8-logging-format
     "G",
+    # docstring
     "D",
 ]
-ignore = ["E501"]
+ignore = [
+    "E501",
+    # if a docstring then ensure consistency but if it is missing do not raise issue {
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    # }
+]
 
 
 [tool.ruff.lint.pydocstyle]

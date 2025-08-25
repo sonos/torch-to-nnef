@@ -77,9 +77,9 @@ def flatten_dict_tuple_or_list(
 ) -> T.Tuple[
     T.Tuple[T.Tuple[T.Type, ...], T.Tuple[T.Union[int, str], ...], T.Any], ...
 ]:
-    """Flatten dict/list/tuple recursively, return types, indexes and values
+    """Flatten dict/list/tuple recursively, return types, indexes and values.
 
-    Flatten in depth first search order
+    Flatten happen in depth first search order
 
     Args:
         obj: dict/tuple/list or anything else (structure can be arbitrary deep)
@@ -142,10 +142,14 @@ def flatten_dict_tuple_or_list(
 def init_empty_weights(
     include_buffers: T.Optional[bool] = None,
 ) -> T.Iterator[None]:
-    """Borrowed from `accelerate`
+    """A context manager under which models init with meta device.
+
+    Borrowed from `accelerate`
+
     A context manager under which models are initialized with all parameters
     on the meta device, therefore creating an empty model.
     Useful when just initializing the model would blow the available RAM.
+
 
     Args:
         include_buffers:
@@ -187,9 +191,9 @@ def init_empty_weights(
 def init_on_device(
     device: torch.device, include_buffers: T.Optional[bool] = None
 ) -> T.Iterator[None]:
-    """Borrowed from `accelerate`
-    A context manager under which models are initialized with all parameters
-    on the specified device.
+    """A context manager under which models are initialized on the specified device.
+
+    Borrowed from `accelerate`
 
     Args:
         device:
@@ -338,7 +342,7 @@ class SemanticVersion:
 
 
 def torch_version() -> SemanticVersion:
-    """Semantic version for torch"""
+    """Semantic version for torch."""
     return SemanticVersion.from_str(torch.__version__.split("+")[0])
 
 
@@ -393,7 +397,7 @@ class NamedItem(ABC):
 
 
 class ReactiveNamedItemDict:
-    """Named items ordered Dict data structure
+    """Named items ordered Dict data structure.
 
     Ensure that 'NO' 2 items are inserted with same 'name' attribute
     and maintains fast name update and with some additive colision
@@ -439,7 +443,7 @@ class ReactiveNamedItemDict:
         return cls() + items
 
     def _change_name_hook(self, old_name: str, new_name: str):
-        """Maintain sync between data structure and name changes in items"""
+        """Maintain sync between data structure and name changes in items."""
         if old_name in self._protected_names:
             raise T2NErrorDataNodeValue(
                 f"Not allowed to alter protected_name: {old_name}"
@@ -493,7 +497,7 @@ class ReactiveNamedItemDict:
         return name_exists
 
     def append(self, item: NamedItem):
-        """Append item to ordered set
+        """Append item to ordered set.
 
         WARNING: This is crucial that all added items use this
         function as it set the hook to listen to name changes

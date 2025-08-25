@@ -10,7 +10,7 @@ def striptags(data):
 
 
 class Console:
-    """Inspired by rich.console without the deps on rich
+    """Inspired by rich.console without the deps on rich.
 
     Only support linux/Mac TTY
 
@@ -19,6 +19,17 @@ class Console:
     COLORMAP = {"blue": "34", "grey82": "82", "yellow": "33", "red": "31"}
 
     def __init__(self, theme: T.Optional[T.Dict[str, str]]):
+        """Initialize the Console with an optional theme.
+
+        This constructor sets up the underlying printer. If the ``rich``
+        library is available, it will be used; otherwise a simple fallback
+        printing routine is installed.
+
+        Args:
+            theme: Optional mapping of color names to ANSI codes for custom
+                styling. If ``None`` the default ``rich`` theme is used.
+
+        """
         self.theme = theme
         try:
             # pylint: disable-next=import-outside-toplevel

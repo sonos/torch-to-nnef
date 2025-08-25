@@ -1,5 +1,6 @@
-"""module implements a :class:`TorchModuleTracer` class that traces a
-``torch.nn.Module`` with ``torch.jit.trace`` and exposes the resulting graph.
+"""implements :class:`TorchModuleTracer`.
+
+It traces a ``torch.nn.Module`` with ``torch.jit.trace`` and exposes the resulting graph.
 
 with few related helper functions (e.g. ``_is_io_quantized_module`` and
 ``maybe_quantize_args_tensor``) provide small utilities used during tracing.
@@ -75,7 +76,7 @@ def maybe_quantize_args_tensor(module, args):
 
 
 class TorchModuleTracer:
-    """Evaluate Optimized traced Function code so that signature always match
+    """Evaluate Optimized traced Function code so that signature always match.
 
     original Module is passed to do proper un-boxing later on.
     This is needed because we have a re-routing based on actual

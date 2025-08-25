@@ -208,7 +208,7 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
-        """OffloadedTensor supports changing the target device when in memory"""
+        """OffloadedTensor supports changing the target device when in memory."""
         if len(args) > 1:
             kwargs.update(zip(["device", "dtype"], args))
         else:
@@ -249,7 +249,7 @@ class OffloadedTensor(OpaqueTensor):
         return self
 
     def update_values(self, values: torch.Tensor):
-        """Replace offloaded tensor by new 'values' tensor
+        """Replace offloaded tensor by new 'values' tensor.
 
         Args:
             values:
@@ -299,7 +299,9 @@ class OffloadedTensor(OpaqueTensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """This __torch_function__ implementation wraps subclasses such that
+        """Custom __torch_function__.
+
+        This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
@@ -539,12 +541,13 @@ def t2n_load_checkpoint_and_dispatch(
     strict: bool = False,
     offload_at_load_state_dict: bool = False,
 ):
-    """offload_at_load_state_dict:
-    Allow to offload as soon as possible
-    this may be benefical in some rare case where
+    """Allow to offload as soon as possible.
+
+    This may be benefical in some rare case where
     partitioned safetensors file are too big for RAM
     else it's better to offload after
-    dtype cast in set_module_tensor_to_device
+    dtype cast in set_module_tensor_to_device.
+
     """
     if isinstance(device_map, str):
         if device_map == AUTO_DEVICE_MAP_KEY:
@@ -676,7 +679,7 @@ def set_module_tensor_to_device(
     dtype: T.Optional[T.Union[str, torch.dtype]] = None,
     offload_dir: T.Optional[Path] = None,
 ):
-    """A helper function to set a given tensor (parameter of buffer) to device
+    """A helper function to set a given tensor (parameter of buffer) to device.
 
     (
         note that doing `param.to(device)` creates a new tensor not linked
@@ -697,6 +700,8 @@ def set_module_tensor_to_device(
             If set, the value of the parameter will be cast to this `dtype`.
             Otherwise, `value` will be cast to the dtype
             of the existing parameter in the model.
+        offload_dir:
+            The directory where tensor offloaded on disk will be stored.
     """
     # Recurse if needed
     original_tensor_name = tensor_name
