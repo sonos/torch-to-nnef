@@ -273,8 +273,10 @@ class ExportableShiftedWindowAttention(nn.Module):
         return num_windows, attn_mask
 
     def forward(self, x: Tensor):
-        """Args:
-            x (Tensor): Tensor with layout of [B, H, W, C]
+        """Forward pass of shifted window attention module.
+
+        Args:
+            x (Tensor): Tensor with layout of [B, H, W, C].
 
         Returns:
             Tensor with same layout as inp, i.e. [B, H, W, C]
@@ -314,7 +316,7 @@ class ExportableShiftedWindowAttention(nn.Module):
 if not MISSING_SWIN:
 
     class ExportableSwinTransformerBlock(SwinTransformerBlock):
-        """Important to overwrite as well due attn_layer default"""
+        """Important to overwrite as well due attn_layer default."""
 
         # pylint: disable-next=useless-parent-delegation
         def __init__(
