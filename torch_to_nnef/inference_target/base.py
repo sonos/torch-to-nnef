@@ -19,7 +19,12 @@ class InferenceTarget:
     def __init__(
         self, version: T.Union[SemanticVersion, str], check_io: bool = False
     ):
-        """Each inference engine is supposed to have at least a version and a way to check output given an input."""
+        """Init InferenceTarget.
+
+        Each inference engine is supposed to have at least a version
+        and a way to check output given an input.
+
+        """
         self.version = (
             SemanticVersion.from_str(version)
             if isinstance(version, str)
@@ -52,7 +57,10 @@ class InferenceTarget:
 
     @property
     def has_dynamic_axes(self) -> bool:
-        """Define if the inference engine request dynamic axes to be in the NNEF graph."""
+        """Define if user request dynamic axes to be in the NNEF graph.
+
+        Some inference engines may not support it hence False by default.
+        """
         return False
 
     def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
@@ -65,7 +73,10 @@ class InferenceTarget:
         input_names: T.Optional[T.List[str]],
         output_names: T.Optional[T.List[str]],
     ):
-        """Get called just before PyTorch graph is traced (after auto wrapper)."""
+        """Get called just before PyTorch graph is traced.
+
+        (after auto wrapper)
+        """
 
     def post_trace(
         self, nnef_graph: NGraph, active_custom_extensions: T.List[str]

@@ -50,7 +50,7 @@ class TorchToNGraphExtractor:
         model: torch.nn.Module,
         args: T.Tuple[torch.Tensor, ...],
         inference_target: InferenceTarget,
-        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,  # noqa: E501
         forced_inputs_names: T.Optional[T.List[str]] = None,
         forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,

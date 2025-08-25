@@ -32,7 +32,7 @@ def run_lambda(command):
 
 
 def run_and_read_all(command):
-    """Runs command using run_lambda; reads and returns entire output if rc is 0."""
+    """Runs command; reads and returns entire output if rc is 0."""
     rc, out, _ = run_lambda(command)
     if rc != 0:
         return None
@@ -60,7 +60,7 @@ def get_platform() -> str:
 
 
 def run_and_parse_first_match(command, regex):
-    """Runs command using run_lambda, returns the first regex match if it exists."""
+    """Runs command, returns the first regex match if it exists."""
     rc, out, _ = run_lambda(command)
     if rc != 0:
         return None
@@ -71,7 +71,7 @@ def run_and_parse_first_match(command, regex):
 
 
 def check_release_file():
-    """Tries to read /etc/*-release file to get a pretty name for linux distros."""
+    """Read /etc/*-release file to get a pretty name for linux distros."""
     return run_and_parse_first_match(
         "cat /etc/*-release", r'PRETTY_NAME="(.*)"'
     )
@@ -103,7 +103,7 @@ def get_hostname():
 
 
 def get_user():
-    """Returns the current user name, or empty string if it cannot be determined."""
+    """OS current user name, or empty string if it cannot be determined."""
     try:
         return pwd.getpwuid(os.getuid()).pw_name
     except Exception:
@@ -175,7 +175,7 @@ def get_gcc_version():
 
 
 def dump_environment_versions(pathdir: Path, tract_path: Path):
-    """Dumps environment versions to a file named 'versions' in the given directory."""
+    """Dumps software versions to a file 'versions' in the given folder."""
     with (pathdir / "versions").open("w", encoding="utf8") as fh:
         fh.write(f"tract: {tract_path.absolute()}\n")
         fh.write("\n")

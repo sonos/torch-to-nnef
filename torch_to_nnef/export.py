@@ -76,24 +76,32 @@ def export_model_to_nnef(
         file_path_export: a Path to the exported NNEF serialized model archive.
             It must by convention end with `.nnef.tgz` suffixes
 
-        inference_target: can be either `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
+        inference_target:
+            can be `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
             for each you can specify version targeted:
-            - KhronosNNEF is the least maintained so far, and is checked against nnef-tools PyTorch interpreter
-            - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
-                among key paramters there is
-                    feature_flags: Optional[Set[str]], that may contains tract specifics
-                    dynamic_axes: Optional
-                        By default the exported model will have the shapes of all input
-                        and output tensors set to exactly match those given in args.
-                        To specify axes of tensors as dynamic (i.e. known only at run-time)
-                        set dynamic_axes to a dict with schema:
-                            KEY (str): an input or output name. Each name must also
-                                be provided in input_names or output_names.
-                            VALUE (dict or list): If a dict, keys are axis indices
-                                and values are axis names. If a list, each element is
-                                an axis index.
+            - KhronosNNEF is the least maintained so far,
+                and is checked against nnef-tools PyTorch interpreter
+            - TractNNEF is our main focus at SONOS,
+              it is checked against tract inference engine
+              among key paramters there is
+                feature_flags: Optional[Set[str]],
+                that may contains tract specifics
+                dynamic_axes: Optional
+                  By default the exported model will have
+                  the shapes of all input and output tensors set
+                  to exactly match those given in args.
+                  To specify axes of tensors as dynamic
+                  (i.e. known only at runtime)
+                  set dynamic_axes to a dict with schema:
+                      KEY (str):
+                        an input or output name. Each name must also
+                        be provided in input_names or output_names.
+                      VALUE (dict or list): If a dict, keys are axis indices
+                        and values are axis names. If a list, each element is
+                        an axis index.
 
-        specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
+        specific_tract_binary_path:
+            Optional[Path] ideal to check io against new tract versions
 
 
         input_names: Optional list of names for args, it replaces
@@ -144,11 +152,12 @@ def export_model_to_nnef(
 
     Raises:
         torch_to_nnef.exceptions.T2NError
-            If something fail during the export process we try to provide dedicated
-            exceptions (easier to control programmatically)
+            If something fail during the export process we try to provide
+            dedicated exceptions (easier to control programmatically)
 
     Examples:
-        For example this function can be used to export as simple perceptron model:
+        For example this function can be used to export
+        as simple perceptron model:
 
         >>> import os
         >>> import tarfile
@@ -256,19 +265,22 @@ def export_model_to_nnef(
             file_path_export, compression_level
         )
 
+        # NNEFWriter: using version sometime create conflict with ops
+        # hence set to None
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
             generate_custom_fragments=False,
             extensions=list(active_custom_extensions),
-            version_custom_fragments=None,  # using version sometime create conflict with ops
+            version_custom_fragments=None,
             inference_target=inference_target,
         )(nnef_graph, str(nnef_exp_file_path))
 
         if len(active_custom_extensions) > 0:
             LOGGER.info(
                 "The exported NNEF model need special custom extensions "
-                "such as %s, be sure to use the inference engine you specified: %s",
+                "such as %s, be sure to use the inference engine "
+                "you specified: %s",
                 active_custom_extensions,
                 inference_target,
             )
@@ -361,11 +373,12 @@ def iter_torch_tensors_from_disk(
         store_filepath: path to the container file holding PyTorch tensors
             (.pt, .pth, .bin and .safetensors)
         filter_key:
-            if set, this function filter over tensor by name stored in those format
+            if set, this function filter over tensor by name
+            stored in those format
 
     Yields:
-       provide each tensor that are validated by filter within store filepath one at
-            a time as tuple with name first then the torch.Tensor itself
+       provide each tensor that are validated by filter within store filepath
+       one at a time as tuple with name first then the torch.Tensor itself
 
     """
     if filter_key is None:
@@ -405,13 +418,15 @@ def export_tensors_from_disk_to_nnef(
 
     Args:
         store_filepath:
-            the filepath that hold the .safetensors , .pt or .bin containing the state dict
+            the filepath that hold the .safetensors , .pt or .bin
+            containing the state dict
         output_dir:
             directory to dump the NNEF tensor .dat files
         filter_key:
             An optional function to filter specific keys to be exported
         fn_check_found_tensors:
-            post checking function to ensure all requested tensors have effectively been dumped
+            post checking function to ensure all requested tensors have
+            effectively been dumped
 
     Returns:
         a dict of tensor name as key and torch.Tensor values,
@@ -519,7 +534,8 @@ def export_tensors_to_nnef(
                     with quant_filename.open("a", encoding="utf8") as fh:
                         write_tensor_quantization_infos(nnef_tensor, fh)
                 else:
-                    # NOTE: 2024-10-14: no engine support other torch built-in Q dtype
+                    # NOTE: 2024-10-14: no engine support
+                    # other torch built-in Q dtype
                     raise T2NErrorNotImplemented(tensor.dtype)
             filename = f"{tensor_name}.dat"
             write_nnef_tensor(

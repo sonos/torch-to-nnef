@@ -10,7 +10,10 @@ import numpy as np
 import torch
 from torch import nn
 
-from torch_to_nnef.compress import dynamic_load_registry
+from torch_to_nnef.compress import (
+    DEFAULT_COMPRESSION_REGISTRY,
+    dynamic_load_registry,
+)
 from torch_to_nnef.exceptions import (
     T2NErrorConsistency,
     T2NErrorMissUse,
@@ -73,6 +76,9 @@ TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
         torch.device,
     ]
 ]
+
+LM_VAR_SCHEME = VariableNamingScheme.NATURAL_VERBOSE_CAMEL
+LM_CHECK_TOLERANCE = TractCheckTolerance.APPROXIMATE
 
 # NOTE: this assume LLM exported will always 'speak' english
 # which may not be the case in the future
@@ -181,7 +187,8 @@ class LLMExporter:
                 Force PyTorch dtype in inputs of the models.
             num_logits_to_keep: int number of token to keep (if 0 all are kept)
                 by default for classical inference setting it to 1 is fine,
-                in case of speculative decoding it may be more (typically 2 or 3)
+                in case of speculative decoding it may be more
+                (typically 2 or 3)
 
         """
         self.hf_model_causal = hf_model_causal
@@ -296,7 +303,7 @@ class LLMExporter:
         return exporter
 
     def check_wrapper_io(self):
-        """Checking that wrapper given consistent outputs compared to vanilla model."""
+        """Check the wrapper gives same outputs compared to vanilla model."""
         (
             inputs,
             _,
@@ -342,7 +349,8 @@ class LLMExporter:
 
         if isinstance(self.wrapped_model, torch.fx.GraphModule):
             LOGGER.info(
-                "skip checks wrapped_model vs hf_model_causal since use of GraphModule "
+                "skip checks wrapped_model vs hf_model_causal "
+                "since use of GraphModule "
                 "(which copied graph and could have been quantized in meantime)"
             )
         else:
@@ -502,7 +510,7 @@ class LLMExporter:
     def prepare(  # pylint: disable=too-many-positional-arguments
         self,
         compression_method: T.Optional[str] = None,
-        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
+        compression_registry: str = DEFAULT_COMPRESSION_REGISTRY,
         test_display_token_gens: bool = False,
         wrapper_io_check: bool = True,
         export_dirpath: T.Optional[Path] = None,
@@ -548,7 +556,7 @@ class LLMExporter:
         self,
         export_dirpath: Path,
         inference_target: TractNNEF,
-        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        naming_scheme: VariableNamingScheme = LM_VAR_SCHEME,
         log_level=logging.INFO,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
@@ -641,7 +649,8 @@ class LLMExporter:
                 custom_extensions=[
                     "tract_assert P >= 0",
                     "tract_assert S >= 1",
-                    f"tract_assert S+P < {self.model_infos.max_position_embeddings}",
+                    "tract_assert S+P < "
+                    f"{self.model_infos.max_position_embeddings}",
                     # information about modes
                     "tract_assert tg: S==1",  # text generation
                     "tract_assert pp: P==0",  # prompt processing
@@ -685,7 +694,7 @@ class LLMExporter:
         force_f32_linear_accumulator: T.Optional[bool] = None,
         force_f32_normalization: T.Optional[bool] = None,
         reify_sdpa_operator: T.Optional[bool] = None,
-        tract_check_io_tolerance: TractCheckTolerance = TractCheckTolerance.APPROXIMATE,
+        tract_check_io_tolerance: TractCheckTolerance = LM_CHECK_TOLERANCE,
         compression_method: T.Optional[str] = None,
         compression_registry: T.Optional[str] = None,
     ) -> TractNNEF:
@@ -807,9 +816,9 @@ class LLMExporter:
         inference_target: TractNNEF,
         export_dirpath: T.Union[str, Path],
         compression_method: T.Optional[str] = None,
-        compression_registry: str = "torch_to_nnef.compress.DEFAULT_COMPRESSION",
+        compression_registry: str = DEFAULT_COMPRESSION_REGISTRY,
         test_display_token_gens: bool = False,
-        naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
+        naming_scheme: VariableNamingScheme = LM_VAR_SCHEME,
         dump_with_tokenizer_and_conf: bool = False,
         check_inference_modes: bool = True,
         wrapper_io_check: bool = True,
@@ -828,12 +837,14 @@ class LLMExporter:
             wrapper_io_check = False
         if no_verify and test_display_token_gens:
             LOGGER.info(
-                "force disable 'test_display_token_gens' because 'no_verify=True'"
+                "force disable 'test_display_token_gens' "
+                "because 'no_verify=True'"
             )
             test_display_token_gens = False
         if export_dirpath.exists() and not ignore_already_exist_dir:
             raise T2NErrorMissUse(
-                f"'export_dirpath' should not exist but found: '{export_dirpath}'"
+                "'export_dirpath' should not exist but found: "
+                f"'{export_dirpath}'"
             )
 
         self.prepare(

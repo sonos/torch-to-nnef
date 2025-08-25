@@ -58,7 +58,8 @@ class WrapStructIO(nn.Module):
                     )
                 cur_struct = cur_struct[idx]
 
-        # tupleization happen after structure is built because tuples are immutables
+        # tupleization happen after structure is built
+        # because tuples are immutables
         return self._tupleization(inps)
 
     def _tupleization(self, inps):
@@ -123,7 +124,10 @@ def _build_new_names_and_elements(
             original_names: ['plop']
             elms: [[tensor, tensor, tensor], tensor, tensor]
     Expected output names:
-        ["plop_0", plop_1", "plop_2", default_element_name_tmpl %ix=1, default_element_name_tmpl %ix=2]
+        ["plop_0", plop_1", "plop_2",
+          default_element_name_tmpl %ix=1,
+          default_element_name_tmpl %ix=2
+        ]
 
     Usecase 3: (dict with prefix)
         provide:

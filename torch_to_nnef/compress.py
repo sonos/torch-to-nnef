@@ -67,8 +67,9 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                         for m in mod_tensor_updater.id_to_modules[weight_id]
                     ]
                     LOGGER.warning(
-                        "detected shared weight: '%s' candidate has incompatible "
-                        "layer usage: %s,  but requested %s",
+                        "detected shared weight: '%s' candidate "
+                        "has incompatible layer usage: %s, "
+                        "but requested %s",
                         name,
                         clss,
                         to_quantize_module_classes,
@@ -83,7 +84,8 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                 except T2NErrorImpossibleQuantization as exp:
                     LOGGER.error("quant layer: %s error: %s", name, exp)
                     continue
-                # => needs assignation next cause update_by_ref may create new Parameter object
+                # => needs assignation next cause update_by_ref
+                # may create new Parameter object
                 q_weight = mod_tensor_updater.update_by_ref(
                     mod.weight, q_weight
                 )
@@ -94,7 +96,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
 def offloaded_tensor_qtensor(
     q_fn, tensor: torch.Tensor, suffix_name: str
 ) -> torch.Tensor:
-    """Maintain a QTensor offloaded if original targeted tensor was already offloaded."""
+    """Maintains a QTensor offloaded if original tensor is offloaded."""
     original_tensor = tensor
     if isinstance(original_tensor, OffloadedTensor):
         tensor = original_tensor.to_base_tensor()
@@ -120,6 +122,7 @@ def dynamic_load_registry(compression_registry_full_path: str):
     return registry
 
 
+DEFAULT_COMPRESSION_REGISTRY = "torch_to_nnef.compress.DEFAULT_COMPRESSION"
 DEFAULT_COMPRESSION = {
     "min_max_q4_0": quantize_weights_min_max_Q4_0,
     "min_max_q4_0_with_embeddings": partial(
