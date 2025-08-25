@@ -22,12 +22,12 @@ C = T.TypeVar("C")
 
 
 def cache(func: T.Callable[..., C]) -> C:
-    """LRU cache helper that avoid pylint complains"""
+    """LRU cache helper that avoid pylint complains."""
     return functools.lru_cache()(func)  # type: ignore
 
 
 def fullname(o) -> str:
-    """Full class name with module path from an object"""
+    """Full class name with module path from an object."""
     klass = o.__class__
     module = klass.__module__
     if module == "builtins":
@@ -37,6 +37,7 @@ def fullname(o) -> str:
 
 @contextlib.contextmanager
 def cd(path):
+    """Context manager for changing the current working directory."""
     old_path = os.getcwd()
     os.chdir(path)
     try:
@@ -48,6 +49,7 @@ def cd(path):
 def flatten_dict(
     d: MutableMapping, parent_key: str = "", sep: str = "."
 ) -> MutableMapping:
+    """Flatten a nested dictionary."""
     items: T.List[T.Tuple[str, T.Any]] = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -59,6 +61,7 @@ def flatten_dict(
 
 
 def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
+    """Remove duplicates from list while preserving order."""
     new_lst = []
     for item in lst:
         if item not in new_lst:
@@ -274,10 +277,7 @@ class SemanticVersion:
     Attributes:
         TAGS: each versions level (should not be modified in most cases)
             ordering being done from left to right.
-    Args: (depends on TAGS but default is:)
-        major: int
-        minor: int
-        patch: int
+
     Example:
         >>> version = SemanticVersion.from_str("1.2.13")
         >>> "1.2.12" < version < "1.2.14"
@@ -291,6 +291,13 @@ class SemanticVersion:
     TAGS = ["major", "minor", "patch"]
 
     def __init__(self, **kwargs):
+        """Init.
+
+        Args: (depends on TAGS but default is:)
+            major: int
+            minor: int
+            patch: int
+        """
         for t in self.TAGS:
             assert isinstance(kwargs[t], int), kwargs[t]
             assert kwargs[t] >= 0, kwargs[t]

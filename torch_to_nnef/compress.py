@@ -1,4 +1,4 @@
-"""Compression module mostly used as demonstration purpose
+"""Compression module mostly used as demonstration purpose.
 
 Examplify: how to implement quantization
 """
@@ -31,7 +31,7 @@ def _calib_q40_fn(weight, name, kwargs):
 
 
 def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
-    """Example of quantization function for a model to Q40"""
+    """Example of quantization function for a model to Q40."""
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -94,7 +94,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
 def offloaded_tensor_qtensor(
     q_fn, tensor: torch.Tensor, suffix_name: str
 ) -> torch.Tensor:
-    """Maintain a QTensor offloaded if original targeted tensor was already offloaded"""
+    """Maintain a QTensor offloaded if original targeted tensor was already offloaded."""
     original_tensor = tensor
     if isinstance(original_tensor, OffloadedTensor):
         tensor = original_tensor.to_base_tensor()
