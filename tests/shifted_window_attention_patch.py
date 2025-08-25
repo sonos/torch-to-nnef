@@ -55,9 +55,9 @@ def shifted_window_attention(
     num_windows: Optional[int] = None,
     input_shape: List[int] = None,
 ):
-    """
-    Window based multi-head self attention (W-MSA) module with relative position bias.
+    """Window based multi-head self attention (W-MSA) module with relative position bias.
     It supports both of shifted and non-shifted window.
+
     Args:
         inp (Tensor[N, H, W, C]): The inp tensor or 4-dimensions.
         qkv_weight (Tensor[in_dim, out_dim]): The weight tensor of query, key, value.
@@ -70,6 +70,7 @@ def shifted_window_attention(
         dropout (float): Dropout ratio of output. Default: 0.0.
         qkv_bias (Tensor[out_dim], optional): The bias tensor of query, key, value. Default: None.
         proj_bias (Tensor[out_dim], optional): The bias tensor of projection. Default: None.
+
     Returns:
         Tensor[N, H, W, C]: The output tensor after shifted window attention.
     """
@@ -159,8 +160,7 @@ def shifted_window_attention(
 
 
 class ExportableShiftedWindowAttention(nn.Module):
-    """
-    See :func:`shifted_window_attention`.
+    """See :func:`shifted_window_attention`.
     """
 
     def __init__(
@@ -274,9 +274,9 @@ class ExportableShiftedWindowAttention(nn.Module):
         return num_windows, attn_mask
 
     def forward(self, x: Tensor):
-        """
-        Args:
+        """Args:
             x (Tensor): Tensor with layout of [B, H, W, C]
+
         Returns:
             Tensor with same layout as inp, i.e. [B, H, W, C]
         """

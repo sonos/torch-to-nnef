@@ -81,9 +81,7 @@ class OpRegistry:
                 ops_str = ", ".join(
                     f"'{self.torch_mod_id}:{o}'" for o in torch_op_ids
                 )
-                decorated.__doc__ = (
-                    f"Map PyTorch: {ops_str} to NNEF"
-                )
+                decorated.__doc__ = f"Map PyTorch: {ops_str} to NNEF"
                 decorated._auto_gen_doc = True
             else:
                 decorated._auto_gen_doc = False
