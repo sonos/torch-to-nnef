@@ -408,6 +408,8 @@ def export_tensors_from_disk_to_nnef(
             the filepath that hold the .safetensors , .pt or .bin containing the state dict
         output_dir:
             directory to dump the NNEF tensor .dat files
+        filter_key:
+            An optional function to filter specific keys to be exported
         fn_check_found_tensors:
             post checking function to ensure all requested tensors have effectively been dumped
 

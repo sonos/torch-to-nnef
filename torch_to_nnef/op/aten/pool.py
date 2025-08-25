@@ -20,7 +20,9 @@ def _pooling_op(
     node,
     op_helper,
 ):
-    """NNEF (avg|max)_pool params (not dimension specific):.
+    """Generic pool operator translation from aten to NNEF.
+
+    NNEF (avg|max)_pool params (not dimension specific):.
     input: tensor<scalar>,
     size: integer[],
     border: string = 'constant',
@@ -113,7 +115,9 @@ def max_pool_nd(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(["avg_pool2d", "avg_pool3d"])
 def avg_pool_nd(node, op_helper, **kwargs):
-    """Cpp func parameters:.
+    """Operator mapping PyTorch: 'aten:avg_pool(2|3)d', 'aten:max_pool3d' to NNEF.
+
+    Cpp func parameters:.
     (const Tensor& input,
     IntArrayRef kernel_size,
     IntArrayRef stride,

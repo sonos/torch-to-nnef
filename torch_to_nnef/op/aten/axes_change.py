@@ -223,7 +223,9 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def flatten(g, node, name_to_tensor, inference_target, **kwargs):
-    """Using NNEF:.
+    """Translate operator: `aten::flatten` to NNEF.
+
+    Using NNEF:.
     fragment reshape<?>(
         input: tensor<?>,
         shape: integer[],

@@ -65,7 +65,9 @@ def ctx_dtype_dyn_cache():
         layer_idx: int,
         cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> T.Tuple[torch.Tensor, torch.Tensor]:
-        """Same as original except force device alignment.
+        """Force dtype in dyn cache to be aligned at update.
+
+        Same as original update, excepted it forces device alignment.
         this is to avoid issues with 'accelerate' package
         """
         if TRANSFORMERS_VERSION >= "4.54.0":

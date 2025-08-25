@@ -55,7 +55,9 @@ def quantize_per_tensor(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def dequantize(g, node, name_to_tensor, inference_target, **kwargs):
-    """We will only handle the case of zero_point affine quantization for now..
+    """Translate `aten::dequantize` to NNEF.
+
+    We will only handle the case of zero_point affine quantization for now..
     which in reverse of quantization is:
 
        (x - zero_point) * scale

@@ -401,7 +401,9 @@ def gather(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(node, op_helper, inference_target, **kwargs):
-    """Fragment gather<?>(.
+    """Translate `aten::index` to NNEF.
+
+    Fragment gather<?>(.
         input: tensor<?>,                 # the tensor to gather from
         indices: tensor<integer>,         # the indices to gather at
         axis: integer = 0 )               # the axis to gather at

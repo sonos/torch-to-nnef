@@ -14,7 +14,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def split_with_sizes(g, node, name_to_tensor, **kwargs):
-    """We are aware that.
+    """Translate `aten::split_with_sizes` to NNEF.
+
+    We are aware that.
     split<?>(
         value: tensor<?>,
         axis: integer,

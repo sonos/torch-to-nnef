@@ -166,9 +166,22 @@ class LLMExporter:
         force_inputs_dtype: T.Optional[DtypeStr] = None,
         num_logits_to_keep: int = 1,
     ):
-        """num_logits_to_keep: int number of token to keep (if 0 all are kept).
-        by default for classical inference setting it to 1 is fine,
-        in case of speculative decoding it may be more (typically 2 or 3)
+        """Init LLMExporter.
+
+        Args:
+            hf_model_causal:
+                Any Causal model from `transformers` library
+            tokenizer:
+                Any tokenizer from `transformers` library
+            local_dir:
+                If set this is the local directory from where model was loaded.
+            force_module_dtype:
+                Force PyTorch dtype in parameters.
+            force_inputs_dtype:
+                Force PyTorch dtype in inputs of the models.
+            num_logits_to_keep: int number of token to keep (if 0 all are kept)
+                by default for classical inference setting it to 1 is fine,
+                in case of speculative decoding it may be more (typically 2 or 3)
 
         """
         self.hf_model_causal = hf_model_causal
@@ -1080,7 +1093,8 @@ class StateLessF32LayerNorm(nn.Module):
         bias: T.Optional[torch.Tensor] = None,
         eps: float = 1e-5,
     ):
-        """Upcast and apply layer norm in f32..
+        """Upcast and apply layer norm in f32.
+
         This is because f16 is not implemented on CPU in PyTorch
         (only GPU) as of torch 2.2.2 (2024-09-10):
         ```

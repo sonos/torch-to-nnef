@@ -82,7 +82,9 @@ class NamedTensor(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """This __torch_function__ implementation wraps subclasses such that
+        """Custom __torch_function__.
+
+        This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.

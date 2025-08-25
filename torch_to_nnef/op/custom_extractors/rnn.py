@@ -33,7 +33,9 @@ class _RNNMixin:
         raise T2NErrorNotImplemented()
 
     def ordered_args(self, torch_graph):
-        """Sometime torch jit may reorder inputs.
+        """List of args ordered to be Python call compliant.
+
+        Sometime torch jit may reorder inputs.
         compared to targeted python ops
         in such case ordering need to be re-addressed
         """
@@ -442,7 +444,9 @@ class _RNNMixin:
         argument_names_order,
         **tensor_params_kwargs,
     ):
-        """Avoid repeated configuration of:.
+        """Core convertion to NNEF of rnn.
+
+        Avoid repeated configuration of:
         batch_first
         multi_layers
         """

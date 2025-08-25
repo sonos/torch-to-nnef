@@ -109,7 +109,9 @@ def _build_new_names_and_elements(
     elms: T.Iterable,
     default_element_name_tmpl: str,
 ):
-    """Usecase 1:.
+    """Build names of elements based on containers parents.
+
+    Usecase 1:.
         provide:
             original_names: ['input', "a"]
             elms: [[tensor, tensor, tensor], {"arm": tensor, "head": tensor}]

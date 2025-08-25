@@ -22,7 +22,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Nnef inputs:.
+    """Translate operator `aten::batch_norm` to NNEF.
+
+    Nnef inputs:.
         input: tensor<scalar>
         mean: tensor<scalar>
         variance: tensor<scalar>
@@ -141,8 +143,7 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     ["norm", "linalg_vector_norm", "linalg_norm", "frobenius_norm"]
 )
 def norm(g, node, name_to_tensor, inference_target, **kwargs):
-    """NOTE this is only the normed vector.
-    """
+    """NOTE this is only the normed vector."""
     if node.kind in ["aten::linalg_vector_norm", "aten::linalg_norm"]:
         # new in PyTorch 2.0
         input_node, p_node, axes_node, keep_dim_node, _ = node.inputs
@@ -277,7 +278,9 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
 
 @OP_REGISTRY.register(["group_norm", "native_group_norm"])
 def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
-    """It is a special case of NNEF batch_normalization.
+    """Translate operators `aten::group_norm` to NNEF.
+
+    It is a special case of NNEF batch_normalization.
     with variance and mean being tensor
     """
     (

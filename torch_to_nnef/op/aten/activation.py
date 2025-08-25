@@ -29,7 +29,9 @@ def softmax(**kwargs):
 
 @OP_REGISTRY.register()
 def softplus(**kwargs):
-    """Note: numerical stability applied in PyTorch is not done in NNEF vanilla
+    """Operator mapping PyTorch: 'aten:softplus' to NNEF.
+
+    Note: numerical stability applied in PyTorch is not done in NNEF vanilla
     implementation, nor case beta != 1.
 
     PyTorch ref:

@@ -187,6 +187,8 @@ class OffloadedTensor(OpaqueTensor):
                 the filename store on disk
             offload_dir:
                 The directory where this file will be stored (temporarly)
+            suffix_log_msg:
+                Added message log suffix for context
         """
         if offload_dir is None:
             if not hasattr(cls, "tmp_basedir"):

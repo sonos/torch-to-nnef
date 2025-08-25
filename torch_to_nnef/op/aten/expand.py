@@ -23,7 +23,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def expand(node, inference_target, op_helper, **kwargs):
-    """Illustration of expand:.
+    """Translate operator `aten::expand` to NNEF.
+
+    Illustration of expand:.
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
 
         Out[4]:
