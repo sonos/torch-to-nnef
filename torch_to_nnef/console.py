@@ -1,4 +1,4 @@
-"""Helper to display in console nicely"""
+"""Helper to display in console nicely."""
 
 import re
 import typing as T

@@ -112,7 +112,7 @@ def offloaded_tensor_qtensor(
 
 
 def dynamic_load_registry(compression_registry_full_path: str):
-    """Load a registry dynamically based on it's module path + dict name"""
+    """Load a registry dynamically based on it's module path + dict name."""
     module_str, name = compression_registry_full_path.rsplit(".", maxsplit=1)
     mod = __import__(module_str, fromlist=[""])
     registry = getattr(mod, name)
