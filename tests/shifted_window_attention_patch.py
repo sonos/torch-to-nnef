@@ -5,8 +5,12 @@ call shifted_window_attention in forward pass
 but part of the fn is assignation to mask as such:
 ```
 attn_mask = x.new_zeros((pad_H, pad_W))
-h_slices = ((0, -window_size[0]), (-window_size[0], -shift_size[0]), (-shift_size[0], None))
-w_slices = ((0, -window_size[1]), (-window_size[1], -shift_size[1]), (-shift_size[1], None))
+h_slices = ((0, -window_size[0]),
+            (-window_size[0], -shift_size[0]),
+            (-shift_size[0], None))
+w_slices = ((0, -window_size[1]),
+            (-window_size[1], -shift_size[1]),
+            (-shift_size[1], None))
 count = 0
 for h in h_slices:
     for w in w_slices:
@@ -39,7 +43,7 @@ except ImportError:
     print("swin_transformer not found in torchvision.")
 
 
-def shifted_window_attention(
+def shifted_window_attention(  # noqa: D417
     inp: Tensor,
     qkv_weight: Tensor,
     proj_weight: Tensor,
@@ -55,21 +59,33 @@ def shifted_window_attention(
     num_windows: Optional[int] = None,
     input_shape: List[int] = None,
 ):
-    """Window based multi-head self attention (W-MSA) module with relative position bias.
+    """Window based multi-head self attention module + relative position bias.
+
     It supports both of shifted and non-shifted window.
 
     Args:
-        inp (Tensor[N, H, W, C]): The inp tensor or 4-dimensions.
-        qkv_weight (Tensor[in_dim, out_dim]): The weight tensor of query, key, value.
-        proj_weight (Tensor[out_dim, out_dim]): The weight tensor of projection.
-        relative_position_bias (Tensor): The learned relative position bias added to attention.
-        window_size (List[int]): Window size.
-        num_heads (int): Number of attention heads.
-        shift_size (List[int]): Shift size for shifted window attention.
-        attention_dropout (float): Dropout ratio of attention weight. Default: 0.0.
-        dropout (float): Dropout ratio of output. Default: 0.0.
-        qkv_bias (Tensor[out_dim], optional): The bias tensor of query, key, value. Default: None.
-        proj_bias (Tensor[out_dim], optional): The bias tensor of projection. Default: None.
+        inp (Tensor[N, H, W, C]):
+            The inp tensor or 4-dimensions.
+        qkv_weight (Tensor[in_dim, out_dim]):
+            The weight tensor of query, key, value.
+        proj_weight (Tensor[out_dim, out_dim]):
+            The weight tensor of projection.
+        relative_position_bias (Tensor):
+            The learned relative position bias added to attention.
+        window_size (List[int]):
+            Window size.
+        num_heads (int):
+            Number of attention heads.
+        shift_size (List[int]):
+            Shift size for shifted window attention.
+        attention_dropout (float):
+            Dropout ratio of attention weight. Default: 0.0.
+        dropout (float):
+            Dropout ratio of output. Default: 0.0.
+        qkv_bias (Tensor[out_dim], optional):
+            The bias tensor of query, key, value. Default: None.
+        proj_bias (Tensor[out_dim], optional):
+            The bias tensor of projection. Default: None.
 
     Returns:
         Tensor[N, H, W, C]: The output tensor after shifted window attention.
@@ -81,7 +97,8 @@ def shifted_window_attention(
     x = F.pad(inp, (0, 0, 0, pad_r, 0, pad_b))  # issue here
     _, pad_H, pad_W, _ = x.shape
 
-    # If window size is larger than feature size, there is no need to shift window
+    # If window size is larger than feature size,
+    # there is no need to shift window
     if window_size[0] >= pad_H:
         shift_size[0] = 0
     if window_size[1] >= pad_W:

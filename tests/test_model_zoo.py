@@ -71,7 +71,9 @@ test_suite.add(
 if hasattr(audio_mdl, "Conformer"):
 
     class ConformerWrapper(torch.nn.Module):
-        """Avoid returning length that is not edited
+        """Wrap Conformer for export.
+
+        Avoid returning length that is not edited
         torch_to_nnef forbid to return same tensor as inputed
         by the model as this means this output is not needed
         and may introduce silent variable name alterations.

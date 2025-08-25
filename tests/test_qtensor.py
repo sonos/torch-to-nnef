@@ -37,7 +37,7 @@ def check_tensor_in_nnef_archive(
     path: Path,
     labels: T.Union[T.List[str], T.Dict[str, T.Dict[str, T.Any]]],
 ):
-    """Helper to check that .dat variable are correctly dumped with expected dtype in NNEF."""
+    """Helper to check .dat variable are dumped with expected dtype in NNEF."""
     assert isinstance(inference_target, InferenceTarget)
     if not isinstance(inference_target, TractNNEF):
         return
@@ -67,7 +67,8 @@ def check_tensor_in_nnef_archive(
         remaining_labels = set(labels).difference(found_labels)
         if remaining_labels:
             raise T2NErrorTestFailed(
-                f"Some tensor where not found in exported NNEF archive: {remaining_labels}"
+                "Some tensor where not found in exported NNEF archive: "
+                f"{remaining_labels}"
             )
         if isinstance(labels, dict):
             for label_name, label_opt_checks in labels.items():
@@ -81,7 +82,8 @@ def check_tensor_in_nnef_archive(
                     if bin_header.torch_dtype_or_custom != expected_dtype:
                         raise T2NErrorTestFailed(
                             "wrong dtype in NNEF archive "
-                            f"{label_name}: {bin_header.torch_dtype_or_custom} but expected {expected_dtype}"
+                            f"{label_name}: {bin_header.torch_dtype_or_custom}"
+                            f" but expected {expected_dtype}"
                         )
 
 

@@ -49,7 +49,8 @@ def tract_f16_friendly_condition(i: InferenceTarget) -> bool:
 
 # Enabling f32 upcasting in inner attention computation is required
 # to avoid overflows and obtain closer results to PyTorch.
-# Tolerance needs to be relaxed (we prioritize efficiency over strict Pytorch alignement).
+# Tolerance needs to be relaxed
+# (we prioritize efficiency over strict Pytorch alignement).
 def enable_attention_inner_f32(target: TractNNEF) -> TractNNEF:
     target.force_attention_inner_in_f32 = True
     target.check_io_tolerance = TractCheckTolerance.VERY
@@ -77,7 +78,8 @@ test_suite = TestSuiteInferenceExactnessBuilder(
     defaults + defaults_f16_friendly + sdpa
 )
 
-# NOTE: More than >= 16 heads seems to leads to precision differences between Tract/PyTorch
+# NOTE: More than >= 16 heads seems to leads to
+# precision differences between Tract/PyTorch
 n_heads = 8
 hidden_dim = 256  # 4  # KO: 768 or
 keys = torch.randint(2, (1, 2, hidden_dim)).float()

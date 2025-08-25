@@ -103,7 +103,8 @@ def export(
     decoder._return_logits = (
         not return_softmax  # return softmaxed output (easier to threshold from)
     )
-    # split featurizer+encoder and decoder to benefit from tract streaming cache capacity on encoder
+    # split featurizer+encoder and decoder to benefit
+    # from tract streaming cache capacity on encoder
     vad_model.decoder = DummyDecoder()
 
     enc_path_export = dump_path / "vad_marblenet.encoder.nnef.tgz"
