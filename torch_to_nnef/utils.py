@@ -67,7 +67,7 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
 
 
 def flatten_dict_tuple_or_list(
-    obj,
+    obj: T.Any,
     collected_types: T.Optional[T.List[T.Type]] = None,
     collected_idxes: T.Optional[T.List[int]] = None,
     current_idx: int = 0,
@@ -81,12 +81,11 @@ def flatten_dict_tuple_or_list(
     Args:
         obj: dict/tuple/list or anything else (structure can be arbitrary deep)
             this contains N number of element non dict/list/tuple
-
         collected_types: do not set
         collected_idxes: do not set
         current_idx: do not set
 
-    Return:
+    Returns:
         tuple of N tuples each containing a tuple of:
             types, indexes and the element
 
@@ -137,16 +136,21 @@ def flatten_dict_tuple_or_list(
 
 
 @contextlib.contextmanager
-def init_empty_weights(include_buffers: T.Optional[bool] = None):
+def init_empty_weights(
+    include_buffers: T.Optional[bool] = None,
+) -> T.Iterator[None]:
     """Borrowed from `accelerate`
     A context manager under which models are initialized with all parameters
     on the meta device, therefore creating an empty model.
     Useful when just initializing the model would blow the available RAM.
 
     Args:
-        include_buffers (`bool`, *optional*):
+        include_buffers:
             Whether or not to also put all buffers on the meta device
             while initializing.
+
+    Returns:
+        (None) Just a context manager
 
     Example:
 
@@ -180,15 +184,15 @@ def init_empty_weights(include_buffers: T.Optional[bool] = None):
 @contextlib.contextmanager
 def init_on_device(
     device: torch.device, include_buffers: T.Optional[bool] = None
-):
+) -> T.Iterator[None]:
     """Borrowed from `accelerate`
     A context manager under which models are initialized with all parameters
     on the specified device.
 
     Args:
-        device (`torch.device`):
+        device:
             Device to initialize all parameters on.
-        include_buffers (`bool`, *optional*):
+        include_buffers:
             Whether or not to also put all buffers on the meta device
             while initializing.
 
@@ -267,10 +271,16 @@ def init_on_device(
 
 @total_ordering
 class SemanticVersion:
-    """Helper to check a version is higher than another
+    """Helper to check a version is higher than another.
 
+    Attributes:
+        TAGS: each versions level (should not be modified in most cases)
+            ordering being done from left to right.
+    Args: (depends on TAGS but default is:)
+        major: int
+        minor: int
+        patch: int
     Example:
-
         >>> version = SemanticVersion.from_str("1.2.13")
         >>> "1.2.12" < version < "1.2.14"
         True
