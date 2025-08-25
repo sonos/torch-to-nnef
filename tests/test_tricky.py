@@ -59,8 +59,7 @@ class SelectNotFirstOutput(nn.Module):
 
 
 class LostDimPad(nn.Module):
-    """Simplified part with parser issue in swin rolling attention mechanism
-    """
+    """Simplified part with parser issue in swin rolling attention mechanism"""
 
     def __init__(self):
         self.window_size = [1, 2]

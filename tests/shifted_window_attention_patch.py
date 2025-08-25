@@ -160,8 +160,7 @@ def shifted_window_attention(
 
 
 class ExportableShiftedWindowAttention(nn.Module):
-    """See :func:`shifted_window_attention`.
-    """
+    """See :func:`shifted_window_attention`."""
 
     def __init__(
         self,

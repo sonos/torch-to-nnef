@@ -1,4 +1,4 @@
-"""Make training and any ops involving random reproducible"""
+"""Make training and any ops involving random reproducible."""
 
 import inspect
 import os
@@ -127,7 +127,10 @@ class TestSuiteInferenceExactnessBuilder:
         return [_[0] for _ in self.test_samples]
 
     def __repr__(self):
-        return f"<TestSuiteInferenceExactnessBuilder len({len(self.test_samples)})>"
+        return (
+            "<TestSuiteInferenceExactnessBuilder "
+            f"len({len(self.test_samples)})>"
+        )
 
 
 def set_seed(seed=0, cudnn=False, torch=True):
@@ -263,5 +266,9 @@ skipif_limited_offload_support = pytest.mark.skipif(
 
 
 def combine_conditions(conds: T.List[T.Callable[[InferenceTarget], bool]]):
-    """Combine a list of inference target conditions callback into a callback combining all of them."""
+    """Combine a list of inference target conditions callback.
+
+    Into a callback combining all of them.
+
+    """
     return lambda i: all(cond(i) for cond in conds)

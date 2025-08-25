@@ -40,8 +40,7 @@ class SqueezeExcitationBlock1d(nn.Module):
         self._initialize_weights()
 
     def forward(self, x: torch.Tensor):
-        """GlobalPooling -> bottleneck (FC-ReLU-FC) -> sigmoid -> multiply with FMs
-        """
+        """GlobalPooling -> bottleneck (FC-ReLU-FC) -> sigmoid -> multiply with FMs"""
         # Compute kernel to perform average pooling along the selected dim only
         pooling_kernel = [x.size(2), x.size(3)]
         pooling_kernel[self.__remove_dim] = 1
