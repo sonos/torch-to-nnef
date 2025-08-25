@@ -132,7 +132,8 @@ def get_os() -> str:
 
 def get_pip_packages():
     """Returns `pip list` output. Note: will also find conda-installed pytorch
-    and numpy packages."""
+    and numpy packages.
+    """
 
     # People generally have `pip` as `pip` or `pip3`
     # But here it is incoved as `python -mpip`

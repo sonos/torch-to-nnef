@@ -130,7 +130,7 @@ class TorchModuleIRGraph:
         )
 
     def _check_container_items_rely_on_data_nodes(self):
-        """container items reference must exists in `data_nodes`"""
+        """Container items reference must exists in `data_nodes`"""
         for dnode in self.data_nodes:
             if dnode.is_container:
                 for subdnode in dnode.iter():
@@ -156,7 +156,7 @@ class TorchModuleIRGraph:
         return self.data_nodes.get_by_name(node_name)
 
     def remap_node(self, from_node, to_node):
-        """remap a data_node to another."""
+        """Remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
         self.inputs = [to_node if _ is from_node else _ for _ in self.inputs]
@@ -183,7 +183,6 @@ class TorchModuleIRGraph:
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
         """Parse traced graph inputs"""
-
         graph_inputs = []
         is_start_cls = True
         for torch_ir_inp in self._tracer.torch_graph.inputs():
@@ -584,7 +583,7 @@ class TorchModuleIRGraph:
             op.outputs = self._expand_tuple_in(op.outputs)
 
     def _filter_nodes_not_in_trace_between_inputs_and_outputs(self):
-        """remove all unused graph nodes
+        """Remove all unused graph nodes
 
         Backward propagation from graph output to input to select kept nodes
 

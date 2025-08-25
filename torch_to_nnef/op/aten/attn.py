@@ -28,8 +28,7 @@ def reify_with_tract_transformers_sdpa(i: InferenceTarget) -> bool:
 def scaled_dot_product_attention(
     g, node, name_to_tensor, inference_target, **kwargs
 ):
-    """
-    reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    """reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     """
     (
         query_node,

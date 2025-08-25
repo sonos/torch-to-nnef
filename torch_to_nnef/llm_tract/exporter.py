@@ -166,8 +166,7 @@ class LLMExporter:
         force_inputs_dtype: T.Optional[DtypeStr] = None,
         num_logits_to_keep: int = 1,
     ):
-        """
-        num_logits_to_keep: int number of token to keep (if 0 all are kept)
+        """num_logits_to_keep: int number of token to keep (if 0 all are kept)
         by default for classical inference setting it to 1 is fine,
         in case of speculative decoding it may be more (typically 2 or 3)
 
@@ -470,7 +469,6 @@ class LLMExporter:
 
         To solve this issue we monkey patch in this cli few functional API.
         """
-
         if not isinstance(
             torch.nn.functional.layer_norm, StateLessF32LayerNorm
         ):
@@ -480,7 +478,7 @@ class LLMExporter:
             torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
     def reset_torch_fns(self):
-        """cleanup any torch behavior alterations"""
+        """Cleanup any torch behavior alterations"""
         if isinstance(torch.nn.functional.layer_norm, StateLessF32LayerNorm):
             torch.nn.functional.layer_norm = (
                 torch.nn.functional.original_layer_norm
@@ -640,7 +638,7 @@ class LLMExporter:
             self.reset_torch_fns()
 
     def dump(self, **kwargs):
-        """prepare and export model to NNEF"""
+        """Prepare and export model to NNEF"""
         inference_target = self.build_inference_target(
             **{
                 key: kwargs.pop(key)

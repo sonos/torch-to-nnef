@@ -1,6 +1,5 @@
 """Tools to manipulate tract programatically
 
-
 NOTE: interaction are done with *Nix tty system in mind, no support for Window
 
 """
@@ -223,7 +222,7 @@ class TractNNEF(InferenceTarget):
             items.update(self.specific_properties)
 
         def fmt(obj):
-            """minimal safety fmt"""
+            """Minimal safety fmt"""
             return (
                 str(obj)
                 .replace("\n", " ")
@@ -255,7 +254,7 @@ class TractNNEF(InferenceTarget):
         input_names: T.Optional[T.List[str]],
         output_names: T.Optional[T.List[str]],
     ):
-        """check dynamic_axes are correctly formated"""
+        """Check dynamic_axes are correctly formated"""
         _validate_dynamic_axes(
             self.dynamic_axes, model, input_names, output_names
         )
@@ -276,7 +275,7 @@ class TractNNEF(InferenceTarget):
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
-        """perform check io and build debug bundle if fail"""
+        """Perform check io and build debug bundle if fail"""
         if self.check_io:
             # CHECK input and output are different
             input_names = [str(t.name) for t in nnef_graph.inputs]
@@ -570,7 +569,7 @@ class TractBinaryDownloader:
 
     @property
     def arch(self):
-        """current OS architecture name needed to download tract cli asset"""
+        """Current OS architecture name needed to download tract cli asset"""
         machine = platform.machine()
         if sys.platform in ["linux", "linux2"]:
             # linux ARM
@@ -790,7 +789,7 @@ def assert_io(
     output_names: T.Optional[T.List[str]] = None,
     check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
-    """simple assertion without debug bundle.
+    """Simple assertion without debug bundle.
 
     With addition of gc of model once output is generated.
 

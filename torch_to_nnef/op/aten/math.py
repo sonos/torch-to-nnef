@@ -425,7 +425,7 @@ def _abs(
 
 @OP_REGISTRY.register()
 def log10(node, op_helper, **kwargs):
-    """mul val may not be good enough"""
+    """Mul val may not be good enough"""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     # maybe better puting this in the graph to avoid precision loss
     mul_val = 1 / np.log(10)

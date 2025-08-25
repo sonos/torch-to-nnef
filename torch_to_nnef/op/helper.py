@@ -66,7 +66,7 @@ class OpRegistry:
         ] = {}
 
     def register(self, torch_op_ids: T.Optional[T.List[str]] = None):
-        """by default we take the name of the function if not specified"""
+        """By default we take the name of the function if not specified"""
 
         def wrapper(decorated):
             nonlocal torch_op_ids
@@ -251,7 +251,7 @@ def maybe_align_inputs_ranks(
     outputs: T.Sequence[NTensor],
     op_type: str,
 ) -> T.Sequence[NTensor]:
-    """ensure consistent rank between inputs and outputs with regard to spec
+    """Ensure consistent rank between inputs and outputs with regard to spec
 
     - May unsqueeze at 0 rank n time to align inputs
 
@@ -544,7 +544,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
 
 
 def cast_and_add_nnef_operation(name_to_tensor: str, **kwargs):
-    """ensure to cast parameters before adding operation to NNEF graph"""
+    """Ensure to cast parameters before adding operation to NNEF graph"""
     kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
         kwargs["inputs"],
         kwargs["attribs"],

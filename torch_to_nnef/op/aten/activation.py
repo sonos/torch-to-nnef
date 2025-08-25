@@ -29,8 +29,7 @@ def softmax(**kwargs):
 
 @OP_REGISTRY.register()
 def softplus(**kwargs):
-    """
-    Note: numerical stability applied in PyTorch is not done in NNEF vanilla
+    """Note: numerical stability applied in PyTorch is not done in NNEF vanilla
     implementation, nor case beta != 1.
 
     PyTorch ref:

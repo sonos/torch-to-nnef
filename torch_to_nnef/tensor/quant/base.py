@@ -30,7 +30,7 @@ class QScheme(abc.ABC):
         raise T2NErrorNotImplemented()
 
     def to_device(self, new_device):
-        """specific device handling.
+        """Specific device handling.
 
         Each QScheme may implement support for specific device
         switching for internal quant/dequant
@@ -164,8 +164,7 @@ class U8Compressor:
 
     @abc.abstractmethod
     def compress(self, u8_tensor) -> torch.Tensor:
-        """
-        Args:
+        """Args:
             u8_tensor:  tensor to be compressed with dtype torch.uint8
         Return:
             compressed tensor with dtype torch.uint8
@@ -173,15 +172,14 @@ class U8Compressor:
 
     @abc.abstractmethod
     def decompress(self, u8_tensor) -> torch.Tensor:
-        """
-        Args:
+        """Args:
             u8_tensor:  compressed tensor with dtype torch.uint8
         Return:
             tensor decompressed with dtype torch.uint8
         """
 
     def to_device(self, new_device):
-        """specific device handling.
+        """Specific device handling.
 
         Each compressor may implement support for specific device
         (like GPU, ...)
@@ -313,7 +311,7 @@ class QTensor(OpaqueTensor):
         return new_obj
 
     def to_device(self, new_device):
-        """specific device handling"""
+        """Specific device handling"""
         self.qscheme = self.qscheme.to_device(new_device)
         self.u8_compressors = [
             u8_compressor.to_device(new_device)
@@ -323,13 +321,11 @@ class QTensor(OpaqueTensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
-        This __torch_function__ implementation wraps subclasses such that
+        """This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 

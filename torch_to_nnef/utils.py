@@ -153,7 +153,6 @@ def init_empty_weights(
         (None) Just a context manager
 
     Example:
-
     ```python
     import torch.nn as nn
     from  import init_empty_weights
@@ -197,7 +196,6 @@ def init_on_device(
             while initializing.
 
     Example:
-
     ```python
     import torch.nn as nn
     from accelerate import init_on_device
@@ -399,7 +397,6 @@ class ReactiveNamedItemDict:
     Expose a 'list' like interface. (with limited index access)
 
     Example:
-
         >>> from dataclasses import dataclass
         >>> @dataclass
         ... class DummyItem(NamedItem):
@@ -435,7 +432,7 @@ class ReactiveNamedItemDict:
         return cls() + items
 
     def _change_name_hook(self, old_name: str, new_name: str):
-        """maintain sync between data structure and name changes in items"""
+        """Maintain sync between data structure and name changes in items"""
         if old_name in self._protected_names:
             raise T2NErrorDataNodeValue(
                 f"Not allowed to alter protected_name: {old_name}"

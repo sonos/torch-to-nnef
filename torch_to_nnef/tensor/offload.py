@@ -249,8 +249,7 @@ class OffloadedTensor(OpaqueTensor):
         return self
 
     def update_values(self, values: torch.Tensor):
-        """replace offloaded tensor by new 'values' tensor
-
+        """Replace offloaded tensor by new 'values' tensor
 
         Args:
             values:
@@ -300,13 +299,11 @@ class OffloadedTensor(OpaqueTensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
-        This __torch_function__ implementation wraps subclasses such that
+        """This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 
@@ -346,8 +343,7 @@ def safe_load_file(
     offload_dir: T.Optional[Path] = None,
     apply_offload: bool = False,
 ) -> T.Dict[str, torch.Tensor]:
-    """
-    Loads a safetensors file into torch format.
+    """Loads a safetensors file into torch format.
 
     Args:
         filename (`str`, or `os.PathLike`):
@@ -365,7 +361,6 @@ def safe_load_file(
         value as `torch.Tensor`
 
     Example:
-
     ```python
     from safetensors.torch import load_file
 
@@ -441,7 +436,6 @@ def load_state_dict(
             (we disable it in most case to allow set_module_tensor_to_device
             dtype casting in memory directly)
     """
-
     if not checkpoint_file.name.endswith(".safetensors"):
         return torch.load(checkpoint_file, map_location=torch.device("cpu"))
     # pylint: disable-next=import-outside-toplevel
@@ -545,13 +539,12 @@ def t2n_load_checkpoint_and_dispatch(
     strict: bool = False,
     offload_at_load_state_dict: bool = False,
 ):
-    """
-    offload_at_load_state_dict:
-        Allow to offload as soon as possible
-        this may be benefical in some rare case where
-        partitioned safetensors file are too big for RAM
-        else it's better to offload after
-        dtype cast in set_module_tensor_to_device
+    """offload_at_load_state_dict:
+    Allow to offload as soon as possible
+    this may be benefical in some rare case where
+    partitioned safetensors file are too big for RAM
+    else it's better to offload after
+    dtype cast in set_module_tensor_to_device
     """
     if isinstance(device_map, str):
         if device_map == AUTO_DEVICE_MAP_KEY:

@@ -141,6 +141,7 @@ def export_model_to_nnef(
             those assertion allows to add limitation on dynamic shapes
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
+
     Raises:
         torch_to_nnef.exceptions.T2NError
             If something fail during the export process we try to provide dedicated
@@ -354,7 +355,7 @@ def _default_filter_key(key):
 def iter_torch_tensors_from_disk(
     store_filepath: Path, filter_key: T.Optional[T.Callable[[str], bool]] = None
 ) -> T.Iterator[T.Tuple[str, _Tensor]]:
-    """iter on torch tensors from disk .safetensors, .pt, pth, .bin
+    """Iter on torch tensors from disk .safetensors, .pt, pth, .bin
 
     Args:
         store_filepath: path to the container file holding PyTorch tensors

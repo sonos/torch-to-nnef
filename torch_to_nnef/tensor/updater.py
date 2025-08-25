@@ -35,26 +35,25 @@ class ModTensorUpdater:
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
     ):
-        """
-        Args:
-            model:
-                nn.Module model that will have tensors updated with this class
+        """Args:
+        model:
+            nn.Module model that will have tensors updated with this class
 
-            add_parameter_if_unset:
-                if you add a tensor where there is not yet a torch.nn.Parameters
-                in the model it will add it
+        add_parameter_if_unset:
+            if you add a tensor where there is not yet a torch.nn.Parameters
+            in the model it will add it
 
-            add_buffers:
-                Scope all nn.Buffer PyTorch object of the model
-                to be 'updatable'
+        add_buffers:
+            Scope all nn.Buffer PyTorch object of the model
+            to be 'updatable'
 
-            add_unregistred_tensor:
-                Scope all tensor PyTorch object of the model not referenced in
-                nn.Parameters & nn.Buffer
+        add_unregistred_tensor:
+            Scope all tensor PyTorch object of the model not referenced in
+            nn.Parameters & nn.Buffer
 
-            disable_requires_grad:
-                If set it force tensors replaced to be with no 'requires_grad'
-                at update time
+        disable_requires_grad:
+            If set it force tensors replaced to be with no 'requires_grad'
+            at update time
         """
         self.name_to_id = {}
         self.id_to_kind = {}

@@ -52,7 +52,7 @@ class InferenceTarget:
 
     @property
     def has_dynamic_axes(self) -> bool:
-        """define if the inference engine request dynamic axes to be in the NNEF graph"""
+        """Define if the inference engine request dynamic axes to be in the NNEF graph"""
         return False
 
     def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:

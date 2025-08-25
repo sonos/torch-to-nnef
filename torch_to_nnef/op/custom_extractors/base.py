@@ -104,8 +104,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         return mod(*args)
 
     def ordered_args(self, torch_graph):
-        """
-        sometimes torch jit may reorder inputs
+        """Sometimes torch jit may reorder inputs
         compared to targeted python ops
         in such case ordering need to be re-addressed
         """

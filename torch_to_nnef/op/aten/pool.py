@@ -20,14 +20,13 @@ def _pooling_op(
     node,
     op_helper,
 ):
-    """
-    NNEF (avg|max)_pool params (not dimension specific):
-        input: tensor<scalar>,
-        size: integer[],
-        border: string = 'constant',
-        padding: (integer,integer)[] = [],
-        stride: integer[] = [],
-        dilation: integer[] = [] )
+    """NNEF (avg|max)_pool params (not dimension specific):
+    input: tensor<scalar>,
+    size: integer[],
+    border: string = 'constant',
+    padding: (integer,integer)[] = [],
+    stride: integer[] = [],
+    dilation: integer[] = [] )
 
     """
     (
@@ -114,8 +113,7 @@ def max_pool_nd(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(["avg_pool2d", "avg_pool3d"])
 def avg_pool_nd(node, op_helper, **kwargs):
-    """
-    cpp func parameters:
+    """Cpp func parameters:
     (const Tensor& input,
     IntArrayRef kernel_size,
     IntArrayRef stride,
@@ -133,7 +131,6 @@ def avg_pool_nd(node, op_helper, **kwargs):
     dilation_node,
     ceil_mode_node)
     """
-
     count_include_pad = node.inputs[-2].data
     if not count_include_pad:
         raise T2NErrorNotImplemented("not implemented count_include_pad=False")

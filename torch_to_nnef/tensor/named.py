@@ -52,7 +52,7 @@ class NamedTensor(torch.Tensor):
 
     @property
     def data(self):
-        """very important to keep access to all special attr of NamedTensor"""
+        """Very important to keep access to all special attr of NamedTensor"""
         return self
 
     @data.setter
@@ -82,13 +82,11 @@ class NamedTensor(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
-        This __torch_function__ implementation wraps subclasses such that
+        """This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 

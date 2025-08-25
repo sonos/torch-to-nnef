@@ -295,8 +295,7 @@ def narrow(node, op_helper, **kwargs):
 
     torch.narrow(input, dim, start, length)
 
-    example:
-
+    Example:
     >>> import torch
     >>> x = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     >>> torch.narrow(x, 0, 0, 2)
@@ -402,8 +401,7 @@ def gather(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(node, op_helper, inference_target, **kwargs):
-    """
-    fragment gather<?>(
+    """Fragment gather<?>(
         input: tensor<?>,                 # the tensor to gather from
         indices: tensor<integer>,         # the indices to gather at
         axis: integer = 0 )               # the axis to gather at

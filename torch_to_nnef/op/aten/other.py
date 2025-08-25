@@ -213,8 +213,7 @@ def size(
     op_helper,
     **kwargs,
 ):
-    """
-    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
+    """We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
 
     ```
     The shape_of function is deprecated and is discouraged from use.

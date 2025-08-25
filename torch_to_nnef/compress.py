@@ -31,7 +31,7 @@ def _calib_q40_fn(weight, name, kwargs):
 
 
 def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
-    """example of quantization function for a model to Q40"""
+    """Example of quantization function for a model to Q40"""
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -112,7 +112,7 @@ def offloaded_tensor_qtensor(
 
 
 def dynamic_load_registry(compression_registry_full_path: str):
-    """load a registry dynamically based on it's module path + dict name"""
+    """Load a registry dynamically based on it's module path + dict name"""
     module_str, name = compression_registry_full_path.rsplit(".", maxsplit=1)
     mod = __import__(module_str, fromlist=[""])
     registry = getattr(mod, name)

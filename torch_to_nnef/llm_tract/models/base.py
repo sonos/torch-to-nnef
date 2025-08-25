@@ -65,8 +65,7 @@ def ctx_dtype_dyn_cache():
         layer_idx: int,
         cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> T.Tuple[torch.Tensor, torch.Tensor]:
-        """
-        same as original except force device alignment
+        """Same as original except force device alignment
         this is to avoid issues with 'accelerate' package
         """
         if TRANSFORMERS_VERSION >= "4.54.0":
@@ -153,7 +152,7 @@ def use_dtype_dyn_cache(f):
 
 
 def update_forward_signature(self):
-    """trickery to help torch > 2.0 new export API tracing."""
+    """Trickery to help torch > 2.0 new export API tracing."""
     # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.llm_tract.config import HFConfigHelper
 
@@ -226,7 +225,7 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
-        """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
+        """Same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
 
         This export module is extremly ineficient because no caching can be provided ...
 

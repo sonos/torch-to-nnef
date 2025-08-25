@@ -10,8 +10,7 @@ def striptags(data):
 
 
 class Console:
-    """
-    Inspired by rich.console without the deps on rich
+    """Inspired by rich.console without the deps on rich
 
     Only support linux/Mac TTY
 

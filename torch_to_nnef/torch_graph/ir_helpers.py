@@ -79,7 +79,7 @@ def quantized_name_to_torch_fn(aten_name):
 
 
 def _add_prefix_if_start_with_digit(text: str, prefix: str) -> str:
-    """ensure we do not start with integer a text"""
+    """Ensure we do not start with integer a text"""
     _prefix = ""
     if text[0] in "0123456789":
         _prefix = prefix
@@ -222,7 +222,6 @@ def _replacement_to_relative_module_path(replacements: T.List[str]):
 
 def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
     """Hold outputs of aten::chunk and other pytorch graph Tensor[]"""
-
     node_type = node_c_value.type()
     assert node_type.kind() == LISTTYPE_KIND
     LOGGER.debug(
@@ -314,7 +313,7 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
 
 
 def _fetch_backward(data_nodes, c_node: torch._C.Node):
-    """backward search of final resolution argument from list_construct"""
+    """Backward search of final resolution argument from list_construct"""
     if c_node.kind() in [ATEN_INT, NUMTOTENSOR_KIND]:
         return _fetch_backward(data_nodes, c_node.input().node())
     try:

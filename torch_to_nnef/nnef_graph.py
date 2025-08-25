@@ -128,7 +128,7 @@ class TorchToNGraphExtractor:
         explored_user_op_nodes = set()
 
         def forward_clean_values_for_dyn_axes(op_node):
-            """forward clean in all child nodes"""
+            """Forward clean in all child nodes"""
             # LOGGER.debug(f"remove concrete values from {op_node.outputs}")
             for onode in op_node.outputs:
                 onode.data = None

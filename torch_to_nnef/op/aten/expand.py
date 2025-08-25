@@ -23,8 +23,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def expand(node, inference_target, op_helper, **kwargs):
-    """
-    Illustration of expand:
+    """Illustration of expand:
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
 
         Out[4]:
@@ -355,7 +354,7 @@ def repeat(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
-    """this is same as np.repeat
+    """This is same as np.repeat
 
     Equivalent with repeat:
         te = y

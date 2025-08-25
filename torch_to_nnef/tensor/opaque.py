@@ -52,7 +52,7 @@ def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
 class OpaqueTensor(torch.Tensor):
     @property
     def data(self):
-        """very important to keep access to all special attr of OpaqueTensor"""
+        """Very important to keep access to all special attr of OpaqueTensor"""
         return self
 
     @data.setter
@@ -79,7 +79,7 @@ class OpaqueTensor(torch.Tensor):
         raise T2NErrorNotImplemented()
 
     def to_base_tensor(self):
-        """wrap _to_base_tensor with jit export infos"""
+        """Wrap _to_base_tensor with jit export infos"""
 
         @maybe_custom_op
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
@@ -148,13 +148,11 @@ class OpaqueTensorRef(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
-        This __torch_function__ implementation wraps subclasses such that
+        """This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 

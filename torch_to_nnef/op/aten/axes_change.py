@@ -223,14 +223,13 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def flatten(g, node, name_to_tensor, inference_target, **kwargs):
-    """
-    Using NNEF:
-        fragment reshape<?>(
-            input: tensor<?>,
-            shape: integer[],
-            axis_start: integer = 0,
-            axis_count: integer = -1
-        ) -> ( output: tensor<?> );
+    """Using NNEF:
+    fragment reshape<?>(
+        input: tensor<?>,
+        shape: integer[],
+        axis_start: integer = 0,
+        axis_count: integer = -1
+    ) -> ( output: tensor<?> );
     """
     (input_node, start_dim, end_dim) = node.inputs
     onode = node.outputs[0]

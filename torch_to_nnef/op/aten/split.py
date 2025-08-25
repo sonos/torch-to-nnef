@@ -59,7 +59,7 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def unbind(g, node, name_to_tensor, **kwargs):
-    """unbind is `unstack` in NNEF"""
+    """Unbind is `unstack` in NNEF"""
     input_node, axis_node = node.inputs
     add_multi_output_op(
         g,

@@ -28,9 +28,7 @@ class QTensorTract(QTensor):
 
 
 class QTensorTractScaleOnly(QTensorTract):
-    """
-
-    Tract data format it serializes to: Q4_0
+    """Tract data format it serializes to: Q4_0
 
     """
 
@@ -53,7 +51,7 @@ class QTensorTractScaleOnly(QTensorTract):
         self.specific_machine = specific_machine
 
     def decompress(self):
-        """tract dequantization depends on hardware
+        """Tract dequantization depends on hardware
 
         typically dequantization happen with ops in f16
         on ARM and f32 (scale directly casted) on others

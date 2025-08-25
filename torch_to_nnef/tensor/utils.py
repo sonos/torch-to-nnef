@@ -10,7 +10,7 @@ from torch_to_nnef.utils import torch_version
 def _legacy_named_parameters(
     self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True
 ) -> T.Iterator[T.Tuple[str, nn.Parameter]]:
-    """extend legacy named_parameters to add remove_duplicate."""
+    """Extend legacy named_parameters to add remove_duplicate."""
     gen = self._named_members(
         lambda module: module._parameters.items(),
         prefix=prefix,
@@ -24,7 +24,7 @@ def _legacy_named_parameters(
 def _legacy_named_buffers(
     self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True
 ) -> T.Iterator[T.Tuple[str, torch.Tensor]]:
-    """extend legacy named_buffers to add remove_duplicate."""
+    """Extend legacy named_buffers to add remove_duplicate."""
     gen = self._named_members(
         lambda module: module._buffers.items(),
         prefix=prefix,
