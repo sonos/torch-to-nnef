@@ -1,16 +1,16 @@
-"""simple helper to manage torch_to_nnef logging"""
+"""Simple helper to manage torch_to_nnef logging."""
 
 import logging as log
 
 
 def set_lib_log_level(log_level: int):
-    """Set torch_to_nnef log_level"""
+    """Set torch_to_nnef log_level."""
     logger = log.getLogger("torch_to_nnef")
     logger.setLevel(log_level)
 
 
 def init_log():
-    """Default init log handlers for torch_to_nnef clis"""
+    """Default init log handlers for torch_to_nnef clis."""
     _stream_log = log.StreamHandler()
     try:
         # use rich handler if availlable
