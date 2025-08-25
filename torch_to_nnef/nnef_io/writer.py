@@ -1,4 +1,4 @@
-"""Code borrowed from `nnef_tools` Khronos group package
+"""Code borrowed from `nnef_tools` Khronos group package.
 original module fullname
 `nnef_tools.io.nnef.writer`
 

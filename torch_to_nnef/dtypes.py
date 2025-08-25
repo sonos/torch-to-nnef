@@ -1,4 +1,4 @@
-"""Module referencing all data types conversions between libraries
+"""Module referencing all data types conversions between libraries.
 
 List of libraries being:PyTorch, Numpy, tract
 """

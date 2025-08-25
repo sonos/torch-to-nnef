@@ -12,7 +12,7 @@ CUSTOMOP_KIND = "wired_custom::"
 
 
 class _ModuleInfoRegistery(type):
-    """Allow extract in NNEF behavior from specific nn.Module"""
+    """Allow extract in NNEF behavior from specific nn.Module."""
 
     MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
 
@@ -34,7 +34,7 @@ class _ModuleInfoRegistery(type):
 
 
 class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
-    """Class to take manual control of NNEF expansion of a nn.Module
+    """Class to take manual control of NNEF expansion of a nn.Module.
 
     You need to subclass it, and set MODULE_CLASS according to your
     targeted module.
@@ -53,7 +53,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_kind(cls, kind: str):
-        """Get ModuleInfoExtractor by kind in torch_to_nnef internal IR"""
+        """Get ModuleInfoExtractor by kind in torch_to_nnef internal IR."""
         classname = kind.replace(CUSTOMOP_KIND, "")
         extractor_cls = {
             str(k.__name__): v for k, v in cls.get_registry().items()
@@ -64,7 +64,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_module(cls, module: nn.Module):
-        """Search if the module is one of the MODULE_CLASS registered
+        """Search if the module is one of the MODULE_CLASS registered.
 
         return appropriate ModuleInfoExtractor subclass if found
         """
@@ -74,7 +74,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         raise T2NErrorNotFoundModuleExtractor(module.__class__)
 
     def generate_in_torch_graph(self, torch_graph, *args, **kwargs):
-        """Internal method called by torch_to_nnef ir_graph"""
+        """Internal method called by torch_to_nnef ir_graph."""
         # ensure empty at first
         assert torch_graph.inputs == []
         assert torch_graph.data_nodes.is_empty()
@@ -104,7 +104,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         return mod(*args)
 
     def ordered_args(self, torch_graph):
-        """Sometimes torch jit may reorder inputs
+        """Sometimes torch jit may reorder inputs.
         compared to targeted python ops
         in such case ordering need to be re-addressed
         """
@@ -239,7 +239,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         inference_target,
         **kwargs,
     ):
-        """Control NNEF content to be written for each MODULE_CLASS
+        """Control NNEF content to be written for each MODULE_CLASS.
 
         This happen at macro level when converting from
         internal IR to NNEF IR stage.

@@ -23,7 +23,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def expand(node, inference_target, op_helper, **kwargs):
-    """Illustration of expand:
+    """Illustration of expand:.
         torch.arange(9).reshape(3, 3).expand(2, 3, 3)
 
         Out[4]:
@@ -273,7 +273,7 @@ def _fill_negone_with_dim_by_rank_order(
     shapes: T.List[int],
     inference_target: InferenceTarget,
 ) -> T.List[int]:
-    """Cast each -1 encountered in shapes to incremental rank dim in input_node
+    """Cast each -1 encountered in shapes to incremental rank dim in input_node.
 
     This use case was encountered in pytorch .expand operator
 
@@ -324,7 +324,7 @@ def _fill_negone_with_dim_by_rank_order(
 
 @OP_REGISTRY.register()
 def repeat(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:repeat' to NNEF"""
+    """Operator mapping PyTorch: 'aten:repeat' to NNEF."""
     (input_node, axis_node) = node.inputs
     nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -354,7 +354,7 @@ def repeat(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
-    """This is same as np.repeat
+    """This is same as np.repeat.
 
     Equivalent with repeat:
         te = y

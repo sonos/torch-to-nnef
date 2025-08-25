@@ -166,7 +166,7 @@ class LLMExporter:
         force_inputs_dtype: T.Optional[DtypeStr] = None,
         num_logits_to_keep: int = 1,
     ):
-        """num_logits_to_keep: int number of token to keep (if 0 all are kept)
+        """num_logits_to_keep: int number of token to keep (if 0 all are kept).
         by default for classical inference setting it to 1 is fine,
         in case of speculative decoding it may be more (typically 2 or 3)
 
@@ -262,7 +262,7 @@ class LLMExporter:
         local_dir: T.Optional[Path] = None,
         **kwargs,
     ):
-        """Load from either huggingface model slug hub or local_dir"""
+        """Load from either huggingface model slug hub or local_dir."""
         with torch.no_grad():
             exporter_from_kwargs: T.Dict[str, T.Any] = {
                 "hf_model_slug": model_slug,
@@ -283,7 +283,7 @@ class LLMExporter:
         return exporter
 
     def check_wrapper_io(self):
-        """Checking that wrapper given consistent outputs compared to vanilla model"""
+        """Checking that wrapper given consistent outputs compared to vanilla model."""
         (
             inputs,
             _,
@@ -396,7 +396,7 @@ class LLMExporter:
     def dump_all_io_npz_kind(
         self, io_npz_dirpath: Path, size: int = 6
     ) -> T.List[Path]:
-        """Realistic dump of IO's"""
+        """Realistic dump of IO's."""
         half = size // 2
         prompt_npz_filepath = io_npz_dirpath / "prompt_io.npz"
         self.build_io_npz(
@@ -461,7 +461,7 @@ class LLMExporter:
         LOGGER.info("generated text: %s", text)
 
     def apply_half_precision_fixes(self):
-        """Align float dtype arguments in few graph ops
+        """Align float dtype arguments in few graph ops.
 
         Indeed all LLM are trained using GPU/TPU/CPU kernels
         related PyTorch backend support f16 dtype in some operators
@@ -478,7 +478,7 @@ class LLMExporter:
             torch.nn.functional.layer_norm = StateLessF32LayerNorm()
 
     def reset_torch_fns(self):
-        """Cleanup any torch behavior alterations"""
+        """Cleanup any torch behavior alterations."""
         if isinstance(torch.nn.functional.layer_norm, StateLessF32LayerNorm):
             torch.nn.functional.layer_norm = (
                 torch.nn.functional.original_layer_norm
@@ -495,7 +495,7 @@ class LLMExporter:
         export_dirpath: T.Optional[Path] = None,
         log_level: int = logging.INFO,
     ):
-        """Prepare model to export (f16/compression/checks...)"""
+        """Prepare model to export (f16/compression/checks...)."""
         logging.getLogger().setLevel(log_level)
         with torch.no_grad():
             if test_display_token_gens:
@@ -544,7 +544,7 @@ class LLMExporter:
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
         debug_bundle_path: T.Optional[Path] = None,
     ):
-        """Export model has is currently in self.hf_model_causal
+        """Export model has is currently in self.hf_model_causal.
 
         and dump some npz tests to check io latter-on
         """
@@ -638,7 +638,7 @@ class LLMExporter:
             self.reset_torch_fns()
 
     def dump(self, **kwargs):
-        """Prepare and export model to NNEF"""
+        """Prepare and export model to NNEF."""
         inference_target = self.build_inference_target(
             **{
                 key: kwargs.pop(key)
@@ -846,7 +846,7 @@ class LLMExporter:
 
 
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
-    """Find a subdir with filename in it"""
+    """Find a subdir with filename in it."""
     found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
     if not (0 < len(found_dirs) < 2):
         raise T2NErrorNotFoundFile(
@@ -1080,7 +1080,7 @@ class StateLessF32LayerNorm(nn.Module):
         bias: T.Optional[torch.Tensor] = None,
         eps: float = 1e-5,
     ):
-        """Upcast and apply layer norm in f32.
+        """Upcast and apply layer norm in f32..
         This is because f16 is not implemented on CPU in PyTorch
         (only GPU) as of torch 2.2.2 (2024-09-10):
         ```
@@ -1107,7 +1107,7 @@ def dump_llm(
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
     **kwargs,
 ) -> T.Tuple[T.Union[Path, None], LLMExporter]:
-    """Util to export LLM model"""
+    """Util to export LLM model."""
     exporter = LLMExporter.load(
         model_slug,
         local_dir,

@@ -22,7 +22,7 @@ LOGGER = log.getLogger(__name__)
 
 
 class KhronosNNEF(InferenceTarget):
-    """Khronos Specification compliant NNEF asset build
+    """Khronos Specification compliant NNEF asset build.
 
     in case of check_io=True
         we perform evaluation against nnef_tool nnef to pytorch converter.
@@ -54,7 +54,7 @@ class KhronosNNEF(InferenceTarget):
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
-        """Check io via the Torch interpreter of NNEF-Tools"""
+        """Check io via the Torch interpreter of NNEF-Tools."""
         if self.check_io:
             with tempfile.TemporaryDirectory() as td:
                 # reader decompression ill written in nnef-tools

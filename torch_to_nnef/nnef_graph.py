@@ -1,4 +1,4 @@
-"""Core parsing and NNEF transformation module"""
+"""Core parsing and NNEF transformation module."""
 
 import logging
 import typing as T
@@ -43,7 +43,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TorchToNGraphExtractor:
-    """Extract PyTorch Graph and build associated nnef_tools.model.Graph"""
+    """Extract PyTorch Graph and build associated nnef_tools.model.Graph."""
 
     def __init__(
         self,
@@ -128,7 +128,7 @@ class TorchToNGraphExtractor:
         explored_user_op_nodes = set()
 
         def forward_clean_values_for_dyn_axes(op_node):
-            """Forward clean in all child nodes"""
+            """Forward clean in all child nodes."""
             # LOGGER.debug(f"remove concrete values from {op_node.outputs}")
             for onode in op_node.outputs:
                 onode.data = None

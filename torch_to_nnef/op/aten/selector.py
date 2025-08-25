@@ -32,7 +32,7 @@ def slice_(
     op_helper,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:slice' to NNEF"""
+    """Operator mapping PyTorch: 'aten:slice' to NNEF."""
     if (
         isinstance(inference_target, TractNNEF)
         and inference_target.version < "0.21.7"
@@ -145,7 +145,7 @@ def tract_pre_0_21_7_slice(
     op_helper,
     **kwargs,
 ):
-    """Old version of slice for tract version prior to 0.21.7"""
+    """Old version of slice for tract version prior to 0.21.7."""
     LOGGER.debug("use legacy tract slice pre 0.21.7")
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
 
@@ -271,7 +271,7 @@ def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
 
 @OP_REGISTRY.register()
 def where(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:where' to NNEF"""
+    """Operator mapping PyTorch: 'aten:where' to NNEF."""
     (condition_node, true_value_node, false_value_node) = node.inputs
 
     inputs = op_helper.data_nodes_to_nnef_tensors(
@@ -291,7 +291,7 @@ def where(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def narrow(node, op_helper, **kwargs):
-    """Fancy slice made in PyTorch
+    """Fancy slice made in PyTorch.
 
     torch.narrow(input, dim, start, length)
 
@@ -328,7 +328,7 @@ def narrow(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def select(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:select' to NNEF"""
+    """Operator mapping PyTorch: 'aten:select' to NNEF."""
     input_node, axis_node, index_node = node.inputs
     begin = pick_index_in_axis(input_node, axis_node.data, index_node.data)
     out = op_helper.add_single_output_op_from_nnef_tensors(
@@ -359,7 +359,7 @@ def select(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def gather(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:gather' to NNEF"""
+    """Operator mapping PyTorch: 'aten:gather' to NNEF."""
     # gather
     input_node, dim_node, indexes_node, *_ = node.inputs
     # input_node = TensorVariable([?], shape=(169,4))
@@ -401,7 +401,7 @@ def gather(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(node, op_helper, inference_target, **kwargs):
-    """Fragment gather<?>(
+    """Fragment gather<?>(.
         input: tensor<?>,                 # the tensor to gather from
         indices: tensor<integer>,         # the indices to gather at
         axis: integer = 0 )               # the axis to gather at
@@ -514,7 +514,7 @@ def _gather_nd(node, op_helper):
 
 @OP_REGISTRY.register()
 def embedding(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:embedding' to NNEF"""
+    """Operator mapping PyTorch: 'aten:embedding' to NNEF."""
     (
         weight_node,
         indices_node,
@@ -555,7 +555,7 @@ def embedding(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def masked_fill(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:masked_fill' to NNEF"""
+    """Operator mapping PyTorch: 'aten:masked_fill' to NNEF."""
     input_node, mask_node, value_node = node.inputs
 
     false_value_node = input_node
@@ -634,7 +634,7 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def argsort(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:argsort' to NNEF"""
+    """Operator mapping PyTorch: 'aten:argsort' to NNEF."""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -704,7 +704,7 @@ def argsort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def sort(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:sort' to NNEF"""
+    """Operator mapping PyTorch: 'aten:sort' to NNEF."""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -767,7 +767,7 @@ def sort(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def topk(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:topk' to NNEF"""
+    """Operator mapping PyTorch: 'aten:topk' to NNEF."""
     assert isinstance(inference_target, TractNNEF), (
         "not supported by Khronos spec"
     )
@@ -802,7 +802,7 @@ def topk(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def index_select(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:index_select' to NNEF"""
+    """Operator mapping PyTorch: 'aten:index_select' to NNEF."""
     input_node, dim_node, indexes_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -828,7 +828,7 @@ def index_select(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def scatter(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:scatter' to NNEF"""
+    """Operator mapping PyTorch: 'aten:scatter' to NNEF."""
     input_node, dim_node, indexes_node, src_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -856,7 +856,7 @@ def scatter(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:_pack_padded_sequence' to NNEF"""
+    """Operator mapping PyTorch: 'aten:_pack_padded_sequence' to NNEF."""
     raise T2NErrorNotImplemented(
         "support for .pack_padded_sequence not added in tract yet"
     )

@@ -13,7 +13,7 @@ from torch_to_nnef.exceptions import T2NErrorMissUse
 
 
 class DatBinHeader:
-    """DatBinHeader
+    """DatBinHeader.
 
     Parse and serialize .dat NNEF binary header.
 
@@ -28,7 +28,7 @@ class DatBinHeader:
     )  # Vendor code for tract custom types (hex 5254)
 
     class TractCustomTypes(str, Enum):
-        """TractCustomTypes
+        """TractCustomTypes.
 
         Custom tract quantisation types used in NNEF headers.
         """

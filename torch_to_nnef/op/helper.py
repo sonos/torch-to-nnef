@@ -66,7 +66,7 @@ class OpRegistry:
         ] = {}
 
     def register(self, torch_op_ids: T.Optional[T.List[str]] = None):
-        """By default we take the name of the function if not specified"""
+        """By default we take the name of the function if not specified."""
 
         def wrapper(decorated):
             nonlocal torch_op_ids
@@ -170,7 +170,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     prevent_variable: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
 ) -> NTensor:
-    """Create NNEF tensor and register in graph from torch_graph.Data node
+    """Create NNEF tensor and register in graph from torch_graph.Data node.
 
     It automatically adds variable if node is a torch tensor is associated
     (it avoids bloating nnef graph file with matrix values)
@@ -251,7 +251,7 @@ def maybe_align_inputs_ranks(
     outputs: T.Sequence[NTensor],
     op_type: str,
 ) -> T.Sequence[NTensor]:
-    """Ensure consistent rank between inputs and outputs with regard to spec
+    """Ensure consistent rank between inputs and outputs with regard to spec.
 
     - May unsqueeze at 0 rank n time to align inputs
 
@@ -394,7 +394,7 @@ def add_single_output_op(
 
 
 def pick_axis(input_node, rank: int) -> int:
-    """Enforce that axis, axes ect does contains only positive values"""
+    """Enforce that axis, axes ect does contains only positive values."""
     if rank >= 0:
         return rank
     if isinstance(input_node, FixedTensorList):
@@ -494,7 +494,7 @@ def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
 
 
 def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
-    """Catch input or attr that would still be torch_graph values into NNEF"""
+    """Catch input or attr that would still be torch_graph values into NNEF."""
     casted_inputs = []
     casted_attrs = {}
 
@@ -544,7 +544,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
 
 
 def cast_and_add_nnef_operation(name_to_tensor: str, **kwargs):
-    """Ensure to cast parameters before adding operation to NNEF graph"""
+    """Ensure to cast parameters before adding operation to NNEF graph."""
     kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
         kwargs["inputs"],
         kwargs["attribs"],
@@ -815,7 +815,7 @@ class OpHelper:
         )
 
     def _implicits_input_casting(self, node, nnef_op_type, inputs):
-        """Express implicit torch inputs casting with different dtype in NNEF
+        """Express implicit torch inputs casting with different dtype in NNEF.
 
         Those known implicit casting rules have been observed in math operators
         and tested empirically on PyTorch 2.2:
@@ -946,7 +946,7 @@ class OpHelper:
         reuse_if_name_exists: bool = False,
         **kwargs,
     ) -> TorchOp:
-        """Use input_nodes Data instead of nnef.Tensor
+        """Use input_nodes Data instead of nnef.Tensor.
 
         Also nnefe
         """

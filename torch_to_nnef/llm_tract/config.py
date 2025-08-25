@@ -154,7 +154,7 @@ def get_tokenizer_from_slug(mdl_slug):
 
 
 class HFConfigHelper:
-    """HuggingFace config helper
+    """HuggingFace config helper.
 
     Allow to extract usefull informations
     from config to set export parameters

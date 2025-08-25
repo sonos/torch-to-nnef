@@ -1,4 +1,4 @@
-"""PyTorch Aten::* operators translation"""
+"""PyTorch Aten::* operators translation."""
 
 import logging
 import operator
@@ -71,7 +71,7 @@ def aten_to_nnef_tensor_and_ops(
     torch_graph,
     inference_target: InferenceTarget,
 ) -> T.Optional[T.List[str]]:
-    """Main primitive dispatcher
+    """Main primitive dispatcher.
 
     Allow to write in graph any not Quantized Operation from pytorch defined in
     node attribute.

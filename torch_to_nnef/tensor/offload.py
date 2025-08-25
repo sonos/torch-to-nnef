@@ -58,7 +58,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OffloadedTensor(OpaqueTensor):
-    """Tensor subclass that maintains data on disk
+    """Tensor subclass that maintains data on disk.
 
     It hold an virtual internal memory storage (permanent)
     and a temporary instantiation at each operation accessing it
@@ -176,7 +176,7 @@ class OffloadedTensor(OpaqueTensor):
         offload_dir: T.Optional[Path] = None,
         suffix_log_msg: str = "",
     ):
-        """Take a torch.Tensor or OpaqueTensor and offload it to disk
+        """Take a torch.Tensor or OpaqueTensor and offload it to disk.
 
         Args:
             tensor:

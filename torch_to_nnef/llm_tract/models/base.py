@@ -51,7 +51,7 @@ def build_past_kv_dyn_cache(
 
 @contextmanager
 def ctx_dtype_dyn_cache():
-    """Context Manager to handle inconsistent device type in KV-cache update
+    """Context Manager to handle inconsistent device type in KV-cache update.
 
     This may be due for example to the use of accelerate 'meta' tensors device.
 
@@ -65,7 +65,7 @@ def ctx_dtype_dyn_cache():
         layer_idx: int,
         cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> T.Tuple[torch.Tensor, torch.Tensor]:
-        """Same as original except force device alignment
+        """Same as original except force device alignment.
         this is to avoid issues with 'accelerate' package
         """
         if TRANSFORMERS_VERSION >= "4.54.0":
@@ -141,7 +141,7 @@ def ctx_dtype_dyn_cache():
 
 
 def use_dtype_dyn_cache(f):
-    """Annotator for forward function applying `ctx_dtype_dyn_cache`"""
+    """Annotator for forward function applying `ctx_dtype_dyn_cache`."""
 
     @wraps(f)
     def wrapped(self, *args, **kwargs):
@@ -185,7 +185,7 @@ def update_forward_signature(self):
 
 
 class TorchToNNEFWrappedLLM(torch.nn.Module):
-    """Base module class for all LLM wrapping
+    """Base module class for all LLM wrapping.
 
     These wrapper are needed to ensure deterministic inputs/outputs
     graph signature and allow some modeling optimization of few architecture.

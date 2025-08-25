@@ -18,7 +18,7 @@ NNEF_EXTENSION_KEYWORD = "extension"
 
 @dataclass(frozen=True, eq=True)
 class Fragment:
-    """Extract definitions and extensions from our custom NNEF files"""
+    """Extract definitions and extensions from our custom NNEF files."""
 
     name: str
     extensions: T.Tuple[str, ...]

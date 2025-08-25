@@ -1,4 +1,4 @@
-"""Export any huggingface transformers LLM to tract NNEF
+"""Export any huggingface transformers LLM to tract NNEF.
 
 With options to compress it to Q4_0 and use float16
 

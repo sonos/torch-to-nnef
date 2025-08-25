@@ -57,7 +57,7 @@ def export_model_to_nnef(
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
 ):
-    """Main entrypoint of this library
+    """Main entrypoint of this library.
 
     Export any torch.nn.Module to NNEF file format archive
 
@@ -355,7 +355,7 @@ def _default_filter_key(key):
 def iter_torch_tensors_from_disk(
     store_filepath: Path, filter_key: T.Optional[T.Callable[[str], bool]] = None
 ) -> T.Iterator[T.Tuple[str, _Tensor]]:
-    """Iter on torch tensors from disk .safetensors, .pt, pth, .bin
+    """Iter on torch tensors from disk .safetensors, .pt, pth, .bin.
 
     Args:
         store_filepath: path to the container file holding PyTorch tensors
@@ -401,7 +401,7 @@ def export_tensors_from_disk_to_nnef(
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
 ) -> T.Dict[str, _Tensor]:
-    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file
+    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file.
 
     Args:
         store_filepath:
@@ -462,7 +462,7 @@ def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
 ) -> T.Dict[str, _Tensor]:
-    """Export any torch.Tensors list to NNEF .dat file
+    """Export any torch.Tensors list to NNEF .dat file.
 
     Args:
         name_to_torch_tensors: dict
@@ -572,7 +572,7 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
 
 @contextlib.contextmanager
 def _fixed_backend():
-    """Controled backend in order to limit volatility of kernel selection
+    """Controled backend in order to limit volatility of kernel selection.
 
     Useful in case of checks between PyTorch and targeted inference
     outputs.
