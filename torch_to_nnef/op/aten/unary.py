@@ -63,7 +63,7 @@ OP_REGISTRY = helper.AtenOpRegistry()
     + list(REMAP_ATEN_OP_NAMES.keys())
 )
 def generic_unary(aten_op_id, node, op_helper, **kwargs):
-    """Operator mapping PyTorch generic operators to NNEF (direct map).
+    """Map PyTorch generic operators to NNEF (direct map).
 
     List is:
         'aten:relu', 'aten:sigmoid', 'aten:log', 'aten:exp', 'aten:sin',

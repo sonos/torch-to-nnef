@@ -42,7 +42,8 @@ def _legacy_robust_torch_named_members(
 
     Add: remove_duplicate to legacy
     Fix:
-        RuntimeError: Boolean value of Tensor with more than one value is ambiguous
+        RuntimeError: Boolean value of Tensor with more than one value
+            is ambiguous
     """
     remove_duplicate = True
     if remove_duplicate:

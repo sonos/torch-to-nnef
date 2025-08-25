@@ -285,8 +285,8 @@ def _fill_negone_with_dim_by_rank_order(
         # is equivalent to
         v1.expand([10, 1, 20, 30])
 
-    We need to realise those shape at export since NNEF need concret dim value here
-    no symbolics are handled
+    We need to realise those shape at export since NNEF need concret dim value
+    here no symbolics are handled
 
     """
     new_shapes = []
@@ -326,7 +326,7 @@ def _fill_negone_with_dim_by_rank_order(
 
 @OP_REGISTRY.register()
 def repeat(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:repeat' to NNEF."""
+    """Map PyTorch: 'aten:repeat' to NNEF."""
     (input_node, axis_node) = node.inputs
     nnef_input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor

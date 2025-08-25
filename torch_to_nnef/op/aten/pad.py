@@ -14,7 +14,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def pad(node, **kwargs):
-    """Operator mapping PyTorch: 'aten:pad' to NNEF."""
+    """Map PyTorch: 'aten:pad' to NNEF."""
     kind = node.inputs.pop(2)
     if kind.data == "constant":
         return constant_pad_nd(node=node, **kwargs)
@@ -52,7 +52,7 @@ def _pad_format(pads, node):
 def reflection_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:reflection_pad{1,2,3,n}d' to NNEF."""
+    """Map PyTorch: 'aten:reflection_pad{1,2,3,n}d' to NNEF."""
     (input_node, pads_node) = node.inputs
     pads = _pad_format(
         get_list_of_int(
@@ -88,7 +88,7 @@ def reflection_padnd(
 def replication_padnd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:replication_pad{1,2,3,n}d' to NNEF."""
+    """Map PyTorch: 'aten:replication_pad{1,2,3,n}d' to NNEF."""
     (input_node, pads_node) = node.inputs
     pads = _pad_format(
         get_list_of_int(
@@ -118,7 +118,7 @@ def replication_padnd(
 def constant_pad_nd(
     g, node, name_to_tensor, torch_graph, inference_target, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:constant_pad_{1,n}d' to NNEF."""
+    """Map PyTorch: 'aten:constant_pad_{1,n}d' to NNEF."""
     (input_node, pads_node, value_node) = node.inputs
     pads = _pad_format(
         get_list_of_int(

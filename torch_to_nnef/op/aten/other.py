@@ -89,7 +89,7 @@ def external(
 
 @OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:dropout' to NNEF."""
+    """Map PyTorch: 'aten:dropout' to NNEF."""
     (
         input_node,
         _,  # probability
@@ -120,7 +120,7 @@ def contiguous(node, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def to(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:to' to NNEF."""
+    """Map PyTorch: 'aten:to' to NNEF."""
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
@@ -173,7 +173,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def type_as(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:type_as' to NNEF."""
+    """Map PyTorch: 'aten:type_as' to NNEF."""
     (
         input_node,
         _,  # ref_node
@@ -213,7 +213,9 @@ def size(
     op_helper,
     **kwargs,
 ):
-    """We can not use NNEF shape_of that have been deprecated since 1.0.1 version:.
+    """Map PyTorch `aten::size` as NNEF.
+
+    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:.
 
     ```
     The shape_of function is deprecated and is discouraged from use.
@@ -328,7 +330,7 @@ def size(
 
 @OP_REGISTRY.register()
 def numel(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:numel' to NNEF."""
+    """Map PyTorch: 'aten:numel' to NNEF."""
     assert len(node.inputs) == 1
     input_node = node.inputs[0]
     soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
@@ -360,7 +362,7 @@ def numel(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:scalar_tensor' to NNEF."""
+    """Map PyTorch: 'aten:scalar_tensor' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs
@@ -379,7 +381,7 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def _to_copy(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:_to_copy' to NNEF."""
+    """Map PyTorch: 'aten:_to_copy' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs

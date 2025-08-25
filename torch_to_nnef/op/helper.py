@@ -82,7 +82,7 @@ class OpRegistry:
                     f"'{self.torch_mod_id}:{o}'" for o in torch_op_ids
                 )
                 decorated.__doc__ = (
-                    f"Operator mapping PyTorch: {ops_str} to NNEF"
+                    f"Map PyTorch: {ops_str} to NNEF"
                 )
                 decorated._auto_gen_doc = True
             else:

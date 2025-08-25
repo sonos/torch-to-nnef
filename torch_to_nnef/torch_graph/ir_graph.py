@@ -455,7 +455,8 @@ class TorchModuleIRGraph:
                 # in some edge-cases (only observed in CI)
                 # there is a collision that is detected between
                 # names and append do not work
-                # (which is supposed to not happen thanks to `rename_variable_by_incr`)
+                # (which is supposed to not happen thanks to
+                # `rename_variable_by_incr`)
                 # hence this retry logic
                 for start_index in range(1, 4):  # give 3 try
                     new_name = dn.name

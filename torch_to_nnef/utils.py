@@ -191,7 +191,7 @@ def init_empty_weights(
 def init_on_device(
     device: torch.device, include_buffers: T.Optional[bool] = None
 ) -> T.Iterator[None]:
-    """A context manager under which models are initialized on the specified device.
+    """Context manager under which models are init on the specified device.
 
     Borrowed from `accelerate`
 

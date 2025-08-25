@@ -60,7 +60,8 @@ class DatBinHeader:
             item_type_vendor (bytes): Vendor specific code for the item type.
             version_maj (int, optional): Major version number.
             version_min (int, optional): Minor version number.
-            item_type_params_deprecated (Optional[List[int]], optional): Deprecated item type parameters.
+            item_type_params_deprecated (Optional[List[int]], optional):
+                Deprecated item type parameters.
             padding (Optional[List[int]], optional): Padding values.
             bits_per_item (int, optional): Bits per item.
             magic (str, optional): Magic string for the header.
@@ -172,9 +173,10 @@ class DatBinHeader:
     def torch_dtype_or_custom(self) -> T.Union[torch.dtype, "TractCustomTypes"]:
         """Return the torch dtype or custom tract type based on the header.
 
-        This property interprets the ``item_type_vendor`` and ``item_type`` fields
-        to provide a convenient ``torch.dtype`` object for standard types or a
-        ``TractCustomTypes`` enum member for tract‑specific quantised formats.
+        This property interprets the ``item_type_vendor`` and ``item_type``
+        fields to provide a convenient ``torch.dtype`` object
+        for standard types or a ``TractCustomTypes`` enum member
+        for tract‑specific quantised formats.
         """
         if self.item_type_vendor == self.TRACT_ITEM_TYPE_VENDOR:
             return self.TractCustomTypes(self.item_type)
@@ -207,7 +209,8 @@ class DatBinHeader:
 
         if rank > cls.MAX_TENSOR_RANK:
             raise T2NErrorMissUse(
-                f"tensor rank exceeds maximum possible value of {cls.MAX_TENSOR_RANK}"
+                "tensor rank exceeds maximum possible "
+                f"value of {cls.MAX_TENSOR_RANK}"
             )
 
         shape = _fromfile(file, dtype=np.uint32, count=cls.MAX_TENSOR_RANK)

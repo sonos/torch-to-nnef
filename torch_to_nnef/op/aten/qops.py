@@ -18,7 +18,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def quantize_per_tensor(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:quantize_per_tensor' to NNEF."""
+    """Map PyTorch: 'aten:quantize_per_tensor' to NNEF."""
     (
         input_node,
         scale_node,

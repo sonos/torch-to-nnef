@@ -14,7 +14,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def cat(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:cat' to NNEF."""
+    """Map PyTorch: 'aten:cat' to NNEF."""
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
@@ -44,7 +44,7 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def stack(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:stack' to NNEF."""
+    """Map PyTorch: 'aten:stack' to NNEF."""
     (input_node, axis_node) = node.inputs
     dim = axis_node.data
     assert isinstance(input_node, FixedTensorList)
@@ -73,7 +73,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:vstack' to NNEF."""
+    """Map PyTorch: 'aten:vstack' to NNEF."""
     input_node = node.inputs[0]
     assert isinstance(input_node, FixedTensorList)
     inputs = []
@@ -103,7 +103,7 @@ def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:hstack' to NNEF."""
+    """Map PyTorch: 'aten:hstack' to NNEF."""
     input_node = node.inputs[0]
     assert isinstance(input_node, FixedTensorList)
     inputs = []
@@ -133,7 +133,7 @@ def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def roll(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:roll' to NNEF."""
+    """Map PyTorch: 'aten:roll' to NNEF."""
     input_node, shifts_node, dims_node = node.inputs
     shifts = shifts_node.data
     dims = dims_node.data

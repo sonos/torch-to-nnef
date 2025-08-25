@@ -210,7 +210,7 @@ class OffloadedTensor(OpaqueTensor):
         return off_tensor
 
     def to(self, *args, **kwargs):
-        """OffloadedTensor supports changing the target device when in memory."""
+        """Change the target device when reloaded in memory."""
         if len(args) > 1:
             kwargs.update(zip(["device", "dtype"], args))
         else:

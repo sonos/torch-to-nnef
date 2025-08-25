@@ -71,7 +71,8 @@ def scaled_dot_product_attention(
         if scale_node.data is not None:
             scale = scale_node.data
 
-            # If we export with tract >= 0.22.0 with reify_sdpa_operator, scale is expressed as an attribute
+            # If we export with tract >= 0.22.0 with reify_sdpa_operator,
+            # scale is expressed as an attribute
             # so we don't need to add it to the list of input.
             if not reify_tract_spda:
                 scale_tensor = get_or_add_tensor_variable_in_nnef(

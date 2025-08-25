@@ -338,7 +338,7 @@ def _linear(
 
 @OP_REGISTRY.register()
 def conv1d_relu(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv1d_relu' to NNEF."""
+    """Map PyTorch: 'quantized:conv1d_relu' to NNEF."""
     conv_output_tensor = _conv(
         node,
         g,
@@ -356,7 +356,7 @@ def conv1d_relu(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
 
 @OP_REGISTRY.register()
 def conv1d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv1d' to NNEF."""
+    """Map PyTorch: 'quantized:conv1d' to NNEF."""
     _conv(
         node,
         g,
@@ -368,13 +368,13 @@ def conv1d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:linear' to NNEF."""
+    """Map PyTorch: 'quantized:linear' to NNEF."""
     _linear(node, g, name_to_tensor, inference_target)
 
 
 @OP_REGISTRY.register()
 def linear_relu(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:linear_relu' to NNEF."""
+    """Map PyTorch: 'quantized:linear_relu' to NNEF."""
     linear_output_tensor = _linear(
         node,
         g,
@@ -394,13 +394,13 @@ def linear_relu(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def conv2d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv2d' to NNEF."""
+    """Map PyTorch: 'quantized:conv2d' to NNEF."""
     _conv(node, g, name_to_tensor, null_ref, inference_target, conv_rank=2)
 
 
 @OP_REGISTRY.register()
 def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv2d_relu' to NNEF."""
+    """Map PyTorch: 'quantized:conv2d_relu' to NNEF."""
     conv_output_tensor = _conv(
         node,
         g,
@@ -419,7 +419,7 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
-    """Operator mapping PyTorch: 'quantized:add_relu' to NNEF."""
+    """Map PyTorch: 'quantized:add_relu' to NNEF."""
     raise T2NErrorNotImplemented()
 
 
@@ -492,21 +492,21 @@ def math_op_binary(
 
 @OP_REGISTRY.register()
 def mul(**kwargs):
-    """Operator mapping PyTorch: 'quantized:mul' to NNEF."""
+    """Map PyTorch: 'quantized:mul' to NNEF."""
     math_op_binary(op_type="mul", **kwargs)
     return []
 
 
 @OP_REGISTRY.register()
 def add(**kwargs):
-    """Operator mapping PyTorch: 'quantized:add' to NNEF."""
+    """Map PyTorch: 'quantized:add' to NNEF."""
     math_op_binary(op_type="add", **kwargs)
     return []
 
 
 @OP_REGISTRY.register()
 def div(**kwargs):
-    """Operator mapping PyTorch: 'quantized:div' to NNEF."""
+    """Map PyTorch: 'quantized:div' to NNEF."""
     math_op_binary(op_type="div", **kwargs)
     return []
 

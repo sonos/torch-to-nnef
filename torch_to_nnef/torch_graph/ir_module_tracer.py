@@ -1,6 +1,7 @@
 """implements :class:`TorchModuleTracer`.
 
-It traces a ``torch.nn.Module`` with ``torch.jit.trace`` and exposes the resulting graph.
+It traces a ``torch.nn.Module`` with ``torch.jit.trace`` and exposes
+the resulting graph.
 
 with few related helper functions (e.g. ``_is_io_quantized_module`` and
 ``maybe_quantize_args_tensor``) provide small utilities used during tracing.
