@@ -103,9 +103,9 @@ def scaled_dot_product_attention(
     if reify_tract_spda:
         # Define SDPA attributes
         attrs = {
-            "d_type": dtype_str,
-            "inner_dtype": inner_dtype,
-            "causal": is_causal,
+            "datum_type": dtype_str,
+            "acc_datum_type": inner_dtype,
+            "is_causal": is_causal,
         }
         if scale is not None:
             attrs["scale"] = scale
