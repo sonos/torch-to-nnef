@@ -140,7 +140,9 @@ if torch_version() > "2.0.0":
     torch._dynamo.config.suppress_errors = True
 
     try:
-        QScalePerGroupF16._dequantize_original = QScalePerGroupF16._dequantize  # type: ignore[attr-defined]
+        QScalePerGroupF16._dequantize_original = (  # type: ignore[attr-defined]
+            QScalePerGroupF16._dequantize
+        )
         QScalePerGroupF16._dequantize = torch.compile(  # type: ignore[assignment]
             QScalePerGroupF16._dequantize
         )

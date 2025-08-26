@@ -106,7 +106,7 @@ def get_user():
     """OS current user name, or empty string if it cannot be determined."""
     try:
         return pwd.getpwuid(os.getuid()).pw_name
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return ""
 
 

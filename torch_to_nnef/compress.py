@@ -30,7 +30,7 @@ def _calib_q40_fn(weight, name, kwargs):
     return q_weight
 
 
-def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
+def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
     """Example of quantization function for a model to Q40."""
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)

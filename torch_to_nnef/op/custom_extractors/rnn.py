@@ -585,11 +585,11 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
 
         # lstm weight packed in order (W_ii|W_if|W_ig|W_io)
         wi_var = getattr(module, f"weight_ih_l{suffix}")
-        W_ii, W_if, W_ig, W_io = wi_var.split(int(wi_var.shape[0] / 4))
+        w_ii, w_if, w_ig, w_io = wi_var.split(int(wi_var.shape[0] / 4))
         # lstm weight packed in order (W_hi|W_hf|W_hg|W_ho)
         wh_var = getattr(module, f"weight_hh_l{suffix}")
 
-        W_hi, W_hf, W_hg, W_ho = wh_var.split(int(wh_var.shape[0] / 4))
+        w_hi, w_hf, w_hg, w_ho = wh_var.split(int(wh_var.shape[0] / 4))
 
         bias_i_name = f"bias_ih_l{suffix}"
         if (
@@ -628,15 +628,15 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
             )
 
         # -----------
-        add_param("W_ii", W_ii)
-        add_param("W_if", W_if)
-        add_param("W_ig", W_ig)
-        add_param("W_io", W_io)
+        add_param("W_ii", w_ii)
+        add_param("W_if", w_if)
+        add_param("W_ig", w_ig)
+        add_param("W_io", w_io)
         # -----------
-        add_param("W_hi", W_hi)
-        add_param("W_hf", W_hf)
-        add_param("W_hg", W_hg)
-        add_param("W_ho", W_ho)
+        add_param("W_hi", w_hi)
+        add_param("W_hf", w_hf)
+        add_param("W_hg", w_hg)
+        add_param("W_ho", w_ho)
         # pre summed bias
         add_param("b_i", b_ii + b_hi)
         add_param("b_f", b_if + b_hf)
@@ -644,8 +644,8 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
         add_param("b_o", b_io + b_ho)
         if hasattr(module, "proj_size") and module.proj_size > 0:  # type: ignore
             # LSTM.weight_hr_l[k] may be with suffix
-            W_hr = getattr(module, f"weight_hr_l{suffix}")
-            add_param("W_hr", W_hr)
+            w_hr = getattr(module, f"weight_hr_l{suffix}")
+            add_param("W_hr", w_hr)
 
         return self._apply_layer_and_unsqueeze_to_params(
             params, layer_index, backward=backward
@@ -675,14 +675,14 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
         if hasattr(lstm, "proj_size") and lstm.proj_size > 0:
             nnef_fragment_selected = "lstm_with_projection"
 
-        D = 2 if lstm.bidirectional else 1
+        layer_multiplier = 2 if lstm.bidirectional else 1
 
         batch_rank = 0 if lstm.batch_first else 1
         batch_dim = node.inputs[0].shape[batch_rank]
         if len(node.inputs) < 2:
             h_0_tensor_variable = None
             h_0_torch = torch.zeros(
-                lstm.num_layers * D,
+                lstm.num_layers * layer_multiplier,
                 batch_dim,
                 lstm.proj_size or lstm.hidden_size,
             )
@@ -694,7 +694,7 @@ class LSTMExtractor(_RNNMixin, ModuleInfoExtractor):
         if len(node.inputs) < 3:
             c_0_tensor_variable = None
             c_0_torch = torch.zeros(
-                lstm.num_layers * D, batch_dim, lstm.hidden_size
+                lstm.num_layers * layer_multiplier, batch_dim, lstm.hidden_size
             )
         else:
             # parameter is manipulated by user
@@ -767,10 +767,10 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
         h_0_layer = self._prep_states(h_0, layer_index)
         # module weight packed in order (W_ir|W_iz|W_in)
         w_var = getattr(module, f"weight_ih_l{suffix}")
-        W_ir, W_iz, W_in = w_var.split(int(w_var.shape[0] / 3))
+        w_ir, w_iz, w_in = w_var.split(int(w_var.shape[0] / 3))
         # module weight packed in order (W_hr|W_hz|W_hn)
         w_var = getattr(module, f"weight_hh_l{suffix}")
-        W_hr, W_hz, W_hn = w_var.split(int(w_var.shape[0] / 3))
+        w_hr, w_hz, w_hn = w_var.split(int(w_var.shape[0] / 3))
 
         bias_i_name = f"bias_ih_l{suffix}"
         if (
@@ -808,13 +808,13 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
             "h_0": h_0_layer,
         }
         # -----------
-        add_param("W_ir", W_ir)
-        add_param("W_iz", W_iz)
-        add_param("W_in", W_in)
+        add_param("W_ir", w_ir)
+        add_param("W_iz", w_iz)
+        add_param("W_in", w_in)
         # -----------
-        add_param("W_hr", W_hr)
-        add_param("W_hz", W_hz)
-        add_param("W_hn", W_hn)
+        add_param("W_hr", w_hr)
+        add_param("W_hz", w_hz)
+        add_param("W_hn", w_hn)
         # pre summed bias
         add_param("b_r", b_ir + b_hr)
         add_param("b_z", b_iz + b_hz)
@@ -843,13 +843,13 @@ class GRUExtractor(_RNNMixin, ModuleInfoExtractor):
 
         nnef_fragment_selected = "gru"
 
-        D = 2 if gru.bidirectional else 1
+        layer_multiplier = 2 if gru.bidirectional else 1
 
         if len(node.inputs) < 2:
             batch_rank = 0 if gru.batch_first else 1
             batch_dim = node.inputs[0].shape[batch_rank]
             h_0_torch = torch.zeros(
-                gru.num_layers * D, batch_dim, gru.hidden_size
+                gru.num_layers * layer_multiplier, batch_dim, gru.hidden_size
             )
             h_0_tensor_variable = None
         else:
@@ -966,13 +966,13 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
             "relu": "rnn_relu",
         }[rnn.nonlinearity.lower()]
 
-        D = 2 if rnn.bidirectional else 1
+        layer_multiplier = 2 if rnn.bidirectional else 1
 
         if len(node.inputs) < 2:
             batch_rank = 0 if rnn.batch_first else 1
             batch_dim = node.inputs[0].shape[batch_rank]
             h_0_torch = torch.zeros(
-                rnn.num_layers * D, batch_dim, rnn.hidden_size
+                rnn.num_layers * layer_multiplier, batch_dim, rnn.hidden_size
             )
             h_0_tensor_variable = None
         else:

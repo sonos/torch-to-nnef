@@ -49,8 +49,8 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
     slug_examples = ", ".join(
         [
             f"'{_.value}'"
-            for slugsEnums in [LlamaSlugs, PHISlugs, OpenELMSlugs]
-            for _ in slugsEnums
+            for slugs_enums in [LlamaSlugs, PHISlugs, OpenELMSlugs]
+            for _ in slugs_enums
         ]
     )
     for parser in [loader_parser, full_parser]:

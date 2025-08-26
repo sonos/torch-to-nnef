@@ -19,14 +19,14 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 def _get_padding_same_symetric(
-    L_in: int, stride: int, kernel_size: int, dilation: int
+    l_in: int, stride: int, kernel_size: int, dilation: int
 ) -> T.Tuple[int, int]:
     """This function computes the number of elements to add for zero-padding."""
     if stride > 1:
         raise T2NErrorNotImplemented("stride > 1 not implemented")
     offset = -dilation * (kernel_size - 1) - 1 + 1
-    L_out = L_in + offset
-    qte_pad = L_in - L_out
+    l_out = l_in + offset
+    qte_pad = l_in - l_out
     side_pad = qte_pad // 2
     padding = (side_pad, qte_pad - side_pad)
     return padding
@@ -77,7 +77,7 @@ def _convolution_mode(
         for idx, _ in enumerate(stride):
             padding.append(
                 _get_padding_same_symetric(
-                    L_in=input_node.shape[-(idx + 1)],
+                    l_in=input_node.shape[-(idx + 1)],
                     stride=1,
                     kernel_size=weight_node.shape[2:][idx],
                     dilation=dilation[idx],

@@ -142,6 +142,7 @@ class OffloadedTensor(OpaqueTensor):
         offloaded_tensor_type: T.Type[torch.Tensor],
         force_gc_collect: bool = False,
     ):
+        super().__init__()
         self.elem = elem
         self.target_device = torch.device(device)
         self._name = name
