@@ -10,7 +10,7 @@ pylint:
 
 pycodestyle:
   disable:
-    - E203
+    - E203 # conflict with ruff
 
 mccabe:
   options:
