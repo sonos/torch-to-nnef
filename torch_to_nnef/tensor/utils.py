@@ -11,28 +11,24 @@ def _legacy_named_parameters(
     self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True
 ) -> T.Iterator[T.Tuple[str, nn.Parameter]]:
     """Extend legacy named_parameters to add remove_duplicate."""
-    gen = self._named_members(
+    yield from self._named_members(
         lambda module: module._parameters.items(),
         prefix=prefix,
         recurse=recurse,
         remove_duplicate=remove_duplicate,
     )
-    for elem in gen:
-        yield elem
 
 
 def _legacy_named_buffers(
     self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True
 ) -> T.Iterator[T.Tuple[str, torch.Tensor]]:
     """Extend legacy named_buffers to add remove_duplicate."""
-    gen = self._named_members(
+    yield from self._named_members(
         lambda module: module._buffers.items(),
         prefix=prefix,
         recurse=recurse,
         remove_duplicate=remove_duplicate,
     )
-    for elem in gen:
-        yield elem
 
 
 def _legacy_robust_torch_named_members(
@@ -46,8 +42,7 @@ def _legacy_robust_torch_named_members(
             is ambiguous
     """
     remove_duplicate = True
-    if remove_duplicate:
-        memo = set()
+    memo = set()
     modules = self.named_modules(prefix=prefix) if recurse else [(prefix, self)]
     for module_prefix, module in modules:
         members = get_members_fn(module)

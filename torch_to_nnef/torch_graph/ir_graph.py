@@ -396,7 +396,7 @@ class TorchModuleIRGraph:
                 LOGGER.debug(msg)
                 break
 
-    def _merge_subraph(
+    def _merge_subraph(  # noqa: MC0001
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
         # Re-Wire input and output naming => {
