@@ -59,12 +59,22 @@
         }
 
         .copy-btn{
-            appearance:none; border:1px solid var(--border); background:#d3e0ff; color:var(--text);
-            padding:10px 12px; border-radius:12px; display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+            appearance:none;
+            border:1px solid var(--border);
+            background:#d3e0ff;
+            color:var(--text);
+            padding:10px 12px;
+            border-radius:12px;
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            cursor:pointer;
             transition:.2s transform ease, .2s border-color ease, .2s background ease, .2s box-shadow ease;
         }
         .copy-btn:hover{ transform: translateY(-1px); border-color:#f3f1f5 }
-        .copy-btn:active{ transform: translateY(0) scale(.98) }
+        .copy-btn:active {
+            transform: translateY(0) scale(.98)
+        }
         .copy-btn:focus-visible{ outline:none; box-shadow:0 0 0 4px var(--ring); }
 
         .copy-icon{ width:18px; height:18px; flex:0 0 18px; }
@@ -72,177 +82,232 @@
         .tooltip{ position:absolute; inset:auto 16px 16px auto; background:#fbf2f0; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:10px; font-size:12px; opacity:.95 }
         .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
-        .success{ color:var(--accent); }
+        .success {
+            background-color: #CFE1F7 !important;
+        }
+        /* small helper to keep the action buttons aligned */
+        .card-action .actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .card-action .actions .spacer {
+            flex: 1;
+        }
         </style>
         <script type="module">
 /// core llm prompt
 import init, { LLM } from './llm_wasm.js';
 const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
-let systemPrompt = genMsg(
-    "system",
-    "You are a joyfull poet, answser concisely to user, directly with a poem."
+let systemPrompt = (
+    "You are a joyfull poet, " +
+    "answser concisely to user, " +
+    "directly with a poem."
 );
-let assistantStart = '<|im_start|>assistant\n';
+let userPrefix = (
+    "Create an short poem. Do not use parenthesis. " +
+    "Stop writting at end of poem. NO comment ! " +
+    "The follwing theme need to be in the poem:\n- "
+);
+const assistantStartTurnCeremony = '<|im_start|>assistant\n';
+let assistantStart = 'here is the requested poem:\n"';
 
 
 if (window.Worker) {
-    console.log("init worker");
-    let llmWorker = new Worker(
-        new URL("./llm_worker.js", import.meta.url),
-        { type: 'module' }
-    );
-    llmWorker.postMessage({ kind: "initLLM" });
-    console.log("loaded worker");
-    let inited = false;
+    document.addEventListener("DOMContentLoaded", () => {
+        console.log("init worker");
+        let llmWorker = new Worker(
+            new URL("./llm_worker.js", import.meta.url),
+            { type: 'module' }
+        );
+        llmWorker.postMessage({ kind: "initLLM" });
+        console.log("loaded worker");
+        let inited = false;
 
-    let poemContainer = document.getElementById("poemcontainer");
-    let poemSpan = document.getElementById("poem");
+        let poemContainer = document.getElementById("poemcontainer");
+        let poemSpan = document.getElementById("poem");
 
-    let autoScroll = true;
-    poemContainer.addEventListener("scroll", () => {
-          const nearBottom =
-            poemContainer.scrollHeight - poemContainer.scrollTop - poemContainer.clientHeight < 10;
+        let autoScroll = true;
+        poemContainer.addEventListener("scroll", () => {
+            const nearBottom =
+                poemContainer.scrollHeight - poemContainer.scrollTop - poemContainer.clientHeight < 10;
 
-        // Enable auto-scroll only if user is near bottom
-        autoScroll = nearBottom;
-    });
-    function scrollToBottom(smooth = true) {
-        poemContainer.scrollTo({
-            top: poemContainer.scrollHeight,
-            behavior: smooth ? "smooth" : "auto"
+            // Enable auto-scroll only if user is near bottom
+            autoScroll = nearBottom;
         });
-    }
-
-
-    document.getElementById("loadstatus").innerHTML = "wasm initing";
-    let button = document.getElementById('llm-click');
-    var typed = null;
-    var fullMessage = "";
-    llmWorker.onmessage = (e) => {
-        let msg=  e.data;
-        if (msg.kind == "llmStatus" && msg.value == "loading") {
-            document.getElementById("loadstatus").innerHTML = "loading model<br/>(this might take a while)";
-        } else if (msg.kind == "llmStatus" && msg.value == "ready") {
-            inited = true;
-            document.getElementById("loadstatus").innerHTML = "model ready";
-            setVisible('page', true);
-            setVisible('loading', false);
-        } else if (
-            (msg.kind == "poemFinished" && msg.reason == "error") ||
-            (msg.kind == "llmStatus" && msg.value == "fail")
-        ) {
-            setVisible('error-container', true);
-            document.getElementById("error").innerHTML = msg.message;
-        } else if (msg.kind == "poemGen") {
-            typed.append(msg.value || "");
-            fullMessage += msg.value;
-            poemSpan.innerHTML = fullMessage;
-            if (autoScroll) {
-                scrollToBottom();
-            }
-        } else if (msg.kind == "poemFinished") {
-            console.log("finished generation", msg);
-            if (msg.reason === "maxSize") {
-                poemSpan.innerHTML += "\n\n[stopped here by the generator because too lengthy]";
-            }
-            typed.reset(false);
-            typed.stop();
-            button.disabled = false;
-        } else {
-            console.log("NOT handled", msg);
-        }
-    };
-    button.addEventListener('click', function(e) {
-        console.log("request generation poem");
-        if (inited) {
-            button.disabled = true;
-            let prefill = (
-                systemPrompt +
-                    genMsg("user",
-                        "Create an short poem. Do not use parenthesis. " +
-                        "Stop writting at end of poem. Ensure the follwing theme is in the poem:\n- " +
-                        document.getElementById("poemtheme").value) +
-                    assistantStart + 'here is the requested poem:\n"'
-            );
-            poemContainer.style.height = "500px";
-
-            fullMessage = "";
-            if (typed) {
-                typed.stop();
-                poemSpan.innerHTML = "";
-                typed.strings = [""];
-                typed.reset(true);
-                typed.start();
-                console.log("typed state:", typed);
-            } else {
-                typed = new Typed("#poem", {
-                    strings: [""],
-                    typeSpeed: 10,
-                    backSpeed: 0,
-                    backDelay: 0,
-                    loop: false,
-                    backSpeed: 0,
-                    shouldBackspace: false,
-                })
-            }
-            console.log("requested generation", prefill)
-            llmWorker.postMessage({
-                kind: "generatePoem",
-                value: prefill
+        function scrollToBottom(smooth = true) {
+            poemContainer.scrollTo({
+                top: poemContainer.scrollHeight,
+                behavior: smooth ? "smooth" : "auto"
             });
-            console.log("sent generation request");
-        }
-    });
-    M.updateTextFields();
-    (function(){
-        const btn = document.getElementById('copyBtn');
-        const btnText = document.getElementById('copyBtnText');
-        const source = document.getElementById('poem');
-        let revertTimer = null;
-
-        async function copyText(text){
-            // Prefer the async Clipboard API when available (requires HTTPS or localhost)
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-                return true;
-            }
-            // Fallback for older browsers: create a temporary selection and execCommand
-            const range = document.createRange();
-            range.selectNodeContents(source);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            try {
-                const ok = document.execCommand('copy');
-                selection.removeAllRanges();
-                return ok;
-            } catch (err) {
-                selection.removeAllRanges();
-                return false;
-            }
         }
 
-        btn.addEventListener('click', async () => {
-            const text = source.innerText; // use innerText to avoid copying hidden markup
-            btn.disabled = true;
-            const ok = await copyText(text);
-            btn.disabled = false;
 
-            // Provide immediate, accessible feedback
-            if (ok){
-                btnText.textContent = 'Copied!';
-                btn.classList.add('success');
+        document.getElementById("loadstatus").innerHTML = "wasm initing";
+        let button = document.getElementById('llm-click');
+        let settingsBtn = document.getElementById("open-settings");
+        var typed = null;
+        var fullMessage = "";
+
+        llmWorker.onmessage = (e) => {
+            let msg=  e.data;
+            if (msg.kind == "llmStatus" && msg.value == "loading") {
+                document.getElementById("loadstatus").innerHTML = "loading model<br/>(this might take a while)";
+            } else if (msg.kind == "llmStatus" && msg.value == "ready") {
+                inited = true;
+                document.getElementById("loadstatus").innerHTML = "model ready";
+                setVisible('page', true);
+                setVisible('loading', false);
+            } else if (
+                (msg.kind == "poemFinished" && msg.reason == "error") ||
+                    (msg.kind == "llmStatus" && msg.value == "fail")
+            ) {
+                setVisible('error-container', true);
+                document.getElementById("error").innerHTML = msg.message;
+            } else if (msg.kind == "poemGen") {
+                typed.append(msg.value || "");
+                fullMessage += msg.value;
+                poemSpan.innerHTML = fullMessage;
+                if (autoScroll) {
+                    scrollToBottom();
+                }
+            } else if (msg.kind == "poemFinished") {
+                console.log("finished generation", msg);
+                if (msg.reason === "maxSize") {
+                    poemSpan.innerHTML += "\n\n[stopped here by the generator because too lengthy]";
+                }
+                typed.reset(false);
+                typed.stop();
+                button.disabled = false;
             } else {
-                btnText.textContent = 'Copy failed';
+                console.log("NOT handled", msg);
+            }
+        };
+        button.addEventListener('click', function(e) {
+            console.log("request generation poem");
+            if (inited) {
+                button.disabled = true;
+                let prefill = (
+                    genMsg("system", systemPrompt) +
+                        genMsg("user", userPrefix + document.getElementById("poemtheme").value) +
+                        assistantStartTurnCeremony + assistantStart
+                );
+                poemContainer.style.height = "500px";
+
+                fullMessage = "";
+                if (typed) {
+                    typed.stop();
+                    poemSpan.innerHTML = "";
+                    typed.strings = [""];
+                    typed.reset(true);
+                    typed.start();
+                    console.log("typed state:", typed);
+                } else {
+                    typed = new Typed("#poem", {
+                        strings: [""],
+                        typeSpeed: 10,
+                        backSpeed: 0,
+                        backDelay: 0,
+                        loop: false,
+                        backSpeed: 0,
+                        shouldBackspace: false,
+                    })
+                }
+                console.log("requested generation", prefill)
+                llmWorker.postMessage({
+                    kind: "generatePoem",
+                    value: prefill
+                });
+                console.log("sent generation request");
+            }
+        });
+        M.updateTextFields();
+        (function(){
+            const btn = document.getElementById('copyBtn');
+            const btnText = document.getElementById('copyBtnText');
+            const source = document.getElementById('poem');
+            let revertTimer = null;
+
+            async function copyText(text){
+                // Prefer the async Clipboard API when available (requires HTTPS or localhost)
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                }
+                // Fallback for older browsers: create a temporary selection and execCommand
+                const range = document.createRange();
+                range.selectNodeContents(source);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                try {
+                    const ok = document.execCommand('copy');
+                    selection.removeAllRanges();
+                    return ok;
+                } catch (err) {
+                    selection.removeAllRanges();
+                    return false;
+                }
             }
 
-            clearTimeout(revertTimer);
-            revertTimer = setTimeout(() => {
-                btnText.textContent = 'Copy';
-                btn.classList.remove('success');
-            }, 1600);
+            btn.addEventListener('click', async () => {
+                const text = source.innerText; // use innerText to avoid copying hidden markup
+                btn.disabled = true;
+                const ok = await copyText(text);
+                btn.disabled = false;
+
+                // Provide immediate, accessible feedback
+                if (ok){
+                    btnText.textContent = 'Copied!';
+                    btn.classList.add('success');
+                } else {
+                    btnText.textContent = 'Copy failed';
+                }
+
+                clearTimeout(revertTimer);
+                revertTimer = setTimeout(() => {
+                    btnText.textContent = 'Copy';
+                    btn.classList.remove('success');
+                }, 1600);
+            });
+        })();
+        // --- modal init + bind textareas --------------------------------------
+        // Init Materialize modals
+        const modals = document.querySelectorAll(".modal");
+        M.Modal.init(modals);
+
+        // Set initial textarea values
+        const sysTA = document.getElementById("systemPromptTA");
+        const userTA = document.getElementById("userPrefixTA");
+        const asstTA = document.getElementById("assistantStartTA");
+
+        sysTA.value = systemPrompt;
+        userTA.value = userPrefix;
+        asstTA.value = assistantStart;
+
+        M.updateTextFields();
+        M.textareaAutoResize(sysTA);
+        M.textareaAutoResize(userTA);
+        M.textareaAutoResize(asstTA);
+
+        // Keep variables in sync when the user edits textareas
+        sysTA.addEventListener("input", (e) => {
+            systemPrompt = e.target.value;
         });
-    })();
+        userTA.addEventListener("input", (e) => {
+            userPrefix = e.target.value;
+        });
+        asstTA.addEventListener("input", (e) => {
+            assistantStart = e.target.value;
+        });
+
+        // open modal on settings button click
+        settingsBtn.addEventListener("click", () => {
+            const inst = M.Modal.getInstance(document.getElementById("settingsModal"));
+            inst.open();
+        });
+    });
+    // ----------------------------------------------------------------------
 } else {
     document.getElementById("loadstatus").innerHTML = "unable to load missing 'Worker' feature in your browser";
 }
@@ -269,42 +334,56 @@ new ResizeObserver(sendHeight).observe(document.body);
         <div class="container" id="page">
             <div id="llm-preview">
                 <div class="card">
-                        <div class="card-content" style="justify-content: 'center'; padding-bottom: 15px;">
-                            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator (with smolLM 135m)</span>
-                            <div>
-                                <div class="row card-panel blue lighten-5 ">
-                                    <div class="col s12 m1">
-                                        <i style="font-size: 3.2em" class="material-icons blue-text">info</i>
-                                    </div>
-                                    <p style="padding-bottom:20px" class="col s12 m11">
-                                        Since this model fully run on your browser there is no server needed beyond serving the initial
-                                        asset, this is private by design (You can generate any poem you wish), no data is collected,
-                                        if you are in doubt just turn off your network and try the playground (without reloading).
-                                    </p>
+                    <div class="card-content" style="justify-content: 'center'; padding-bottom: 15px;">
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> LLM Poem Generator (with smolLM 135m)</span>
+                        <div>
+                            <div class="row card-panel blue lighten-5 ">
+                                <div class="col s12 m1">
+                                    <i style="font-size: 3.2em" class="material-icons blue-text">info</i>
                                 </div>
-                                <div class="row">
-                                    We use a 'tiny' pre-trained Large language model named <a href="https://huggingface.co/HuggingFaceTB/SmolLM-135M-Instruct">SmolLM-135M</a> for the
-                                    purpose of this demo. It was selected to allow fast download and okish speed in wasm.
-                                    Remember that best performance are unlocked when running directly on hardware with GPU access (tract supports: MacOS and NVIDIA GPU).
-                                    This model has been quantized in Q40 so that total size of asset is: 91Mo (model wo tokenizer being 77Mo).
-                                </div>
-                                <div class="row" style="margin: 0px">
-                                    <div class="input-field col s12">
-                                        <i class="material-icons prefix">mode_edit</i>
-                                        <input value="explore what you dare" id="poemtheme" type="text" class="validate">
-                                        <label class="active" for="poemtheme">Poem theme:</label>
-                                    </div>
-                                </div>
-                                <div id="error-container" class="card-panel red lighten-4">
-                                    <span id="error"></span>
+                                <p style="padding-bottom:20px" class="col s12 m11">
+                                    Since this model fully run on your browser there is no server needed beyond serving the initial
+                                    asset, this is private by design (You can generate any poem you wish), no data is collected,
+                                    if you are in doubt just turn off your network and try the playground (without reloading).
+                                </p>
+                            </div>
+                            <div class="row">
+                                We use a 'tiny' pre-trained Large language model named <a href="https://huggingface.co/HuggingFaceTB/SmolLM-135M-Instruct">SmolLM-135M</a> for the
+                                purpose of this demo. It was selected to allow fast download and okish speed in wasm.
+                                Remember that best performance are unlocked when running directly on hardware with GPU access (tract supports: MacOS and NVIDIA GPU).
+                                This model has been quantized in Q40 so that total size of asset is: 91Mo (model wo tokenizer being 77Mo).
+                            </div>
+                            <div class="row" style="margin: 0px">
+                                <div class="input-field col s12">
+                                    <i class="material-icons prefix">mode_edit</i>
+                                    <input value="explore what you dare" id="poemtheme" type="text" class="validate">
+                                    <label class="active" for="poemtheme">Poem theme:</label>
                                 </div>
                             </div>
+                            <div id="error-container" class="card-panel red lighten-4">
+                                <span id="error"></span>
+                            </div>
                         </div>
-                        <div class="card-action">
+                    </div>
+                    <!-- ACTION BAR with Generate + Settings -->
+                    <div class="card-action">
+                        <div class="actions">
                             <button id="llm-click" class="btn btn-large blue darken-3 waves-effect waves-light">
                                 💬 Generate a Poem on this theme
                             </button>
+                            <span class="spacer"></span>
+
+                            <!-- NEW: Settings (gear) button -->
+                            <button
+                                id="open-settings"
+                                class="btn-flat waves-effect waves-teal"
+                                title="Generation settings"
+                                aria-label="Open generation settings"
+                            >
+                                <i class="material-icons">settings</i>
+                            </button>
                         </div>
+                    </div>
                 </div>
                 <div class="card">
                     <div class="card-content" style="justify-content: 'center'">
@@ -320,7 +399,7 @@ new ResizeObserver(sendHeight).observe(document.body);
                             </div>
                             <div class="col s12 m2 l3">
                                 <div class="row">
-                                    <button id="copyBtn" class="copy-btn" type="button" aria-label="Copy to clipboard" title="Copy to clipboard">
+                                    <button id="copyBtn" class="waves-effect waves-blue blue darken-3 btn" type="button" aria-label="Copy to clipboard" title="Copy to clipboard">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -332,6 +411,46 @@ new ResizeObserver(sendHeight).observe(document.body);
                         </div>
                     </div>
                 </div>
+                <!-- Settings Modal -->
+                <div id="settingsModal" class="modal">
+                    <div class="modal-content">
+                        <h5>Generation Settings</h5>
+
+                        <div class="input-field">
+                            <textarea id="systemPromptTA" class="materialize-textarea" spellcheck="false"></textarea>
+                            <label class="active" for="systemPromptTA">systemPrompt (full string)</label>
+                            <span class="helper-text" >
+                                This is used as-is. Do NOT include
+                                <code>&lt;|im_start|&gt;</code><code>&lt;|im_end|&gt;</code>
+                                tokens.
+                            </span>
+                        </div>
+
+                        <div class="input-field">
+                            <textarea id="userPrefixTA" class="materialize-textarea" spellcheck="false"></textarea>
+                            <label class="active" for="userPrefixTA">User prefix (before the theme)</label>
+                            <span class="helper-text">
+                                The theme typed in the main input is appended right after this text.
+                            </span>
+                        </div>
+
+                        <div class="input-field">
+                            <textarea
+                                id="assistantStartTA"
+                                class="materialize-textarea"
+                                spellcheck="false"
+                            ></textarea>
+                            <label class="active" for="assistantStartTA">Assistant start text</label>
+                            <span class="helper-text">
+                                This is concatenated directly before the assistant’s first output prefill.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a class="modal-close waves-effect waves-green blue darken-3 btn">Close</a>
+                    </div>
+                </div>
+                <!-- END Settings Modal -->
             </div>
         </div>
         <div id="loading">
