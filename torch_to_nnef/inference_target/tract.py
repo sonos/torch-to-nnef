@@ -1,6 +1,6 @@
 """Tools to manipulate tract programatically.
 
-NOTE: interaction are done with *Nix tty system in mind, no support for Window
+NOTE: interaction are done with *Nix tty system in mind, no support for Windows
 
 """
 

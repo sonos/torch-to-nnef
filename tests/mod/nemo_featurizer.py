@@ -15,6 +15,24 @@ from torch_to_nnef.exceptions import (
 CONSTANT = 1e-5
 
 
+def legacy_support_amp_autocast():
+    """Legacy support for torch.amp.autocast (1.10 was torch.cuda.amp)."""
+    if hasattr(torch, "amp") and hasattr(torch.amp, "autocast"):
+        return torch.amp.autocast
+
+    class DummyContext:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            pass
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    return DummyContext
+
+
 def splice_frames(x, frame_splicing):
     """Stacks frames together across feature dim.
 
@@ -317,7 +335,7 @@ class FilterbankFeatures(nn.Module):
             )
 
         # disable autocast to get full range of stft values
-        with torch.amp.autocast(x.device.type, enabled=False):
+        with legacy_support_amp_autocast()(x.device.type, enabled=False):
             x = self.stft(x)
 
         # torch stft returns complex tensor (of shape [B,N,T]);
@@ -342,7 +360,7 @@ class FilterbankFeatures(nn.Module):
 
         # disable autocast, otherwise it might be automatically casted to fp16
         # on fp16 compatible GPUs and get NaN values for input value of 65520
-        with torch.amp.autocast(x.device.type, enabled=False):
+        with legacy_support_amp_autocast()(x.device.type, enabled=False):
             # dot with filterbank energies
             x = torch.matmul(self.fb.to(x.dtype), x)
         # log features if required
