@@ -386,7 +386,7 @@ class NamedItem(ABC):
 
     def detach_listener_name_change(self, listener):
         if not hasattr(self, "_name_hooks"):
-            self._name_hooks = set()
+            self._name_hooks = set()  # pylint: disable=attribute-defined-outside-init
         self._name_hooks.remove(listener)
 
     def __setattr__(self, attr_name, attr_value):
