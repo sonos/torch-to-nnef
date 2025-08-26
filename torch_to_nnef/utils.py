@@ -377,11 +377,9 @@ class NamedItem(ABC):
     # must implement name attribute
     name: str
 
-    def __init__(self):
-        super().__init__()
-        self._name_hooks: T.Set[T.Callable[[str, str], None]] = set()
-
     def register_listener_name_change(self, listener):
+        if not hasattr(self, "_name_hooks"):
+            self._name_hooks = set()  # pylint: disable=attribute-defined-outside-init
         if listener in self._name_hooks:
             raise T2NErrorDataNodeValue("Already registered  listener !")
         self._name_hooks.add(listener)
