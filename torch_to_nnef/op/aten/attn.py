@@ -30,7 +30,7 @@ def scaled_dot_product_attention(
 ):
     """Translate operator: `aten::scaled_dot_product_attention` to NNEF.
 
-    reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html.
+    reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html. # noqa: E501
     """
     (
         query_node,

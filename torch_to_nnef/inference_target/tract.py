@@ -629,7 +629,10 @@ class TractBinaryDownloader:
 
     @property
     def binary_url(self):
-        return f"https://github.com/sonos/tract/releases/download/{self.version}/{self.archive_name}.tgz"
+        return (
+            "https://github.com/sonos/tract/releases/download/"
+            f"{self.version}/{self.archive_name}.tgz"
+        )
 
     @property
     def tract_filepath(self) -> Path:

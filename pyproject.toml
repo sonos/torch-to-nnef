@@ -393,10 +393,13 @@ commands = [
         "prospector",
         "--no-autodetect",
         "-X",
-        # "--strictness",
-        # "high",
     ],
-    ["pyroma", ".", "-n", "10"],
+    [
+        "pyroma",
+        ".",
+        "-n",
+        "10",
+    ],
 ]
 
 # testing llm_tract cli on legacy transformers

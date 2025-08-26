@@ -496,7 +496,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
     casted_inputs = []
     casted_attrs = {}
 
-    def cast(value):
+    def cast(value):  # pylint: disable=too-many-return-statements
         if isinstance(value, (int, str, float, NTensor)):
             return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
         if isinstance(value, TensorVariable):

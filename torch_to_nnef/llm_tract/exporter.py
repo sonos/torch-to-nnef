@@ -446,7 +446,7 @@ class LLMExporter:
                 n_past_input_tokens=half,
                 real_kv_cache=real_kv_cache,
             )
-        except Exception as exp:
+        except Exception as exp:  # pylint: disable=broad-except
             LOGGER.error(
                 "Prompt with past, does not run in PyTorch "
                 "(likely modeling limit): %s",
@@ -872,7 +872,7 @@ class LLMExporter:
 def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
     """Find a subdir with filename in it."""
     found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
-    if not (0 < len(found_dirs) < 2):
+    if not 0 < len(found_dirs) < 2:
         raise T2NErrorNotFoundFile(
             f"Found {len(found_dirs)} dirs for with '{filename}' file. "
             f"found_dirs={found_dirs}. "

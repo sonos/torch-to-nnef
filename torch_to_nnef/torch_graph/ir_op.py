@@ -282,7 +282,8 @@ class TorchOp:
     def __hash__(self):
         # cache for speed-up
         if not hasattr(self, "_cached_hash"):
-            self._cached_hash = hash(f"{self.kind}{self.inputs}{self.outputs}")
+            hs = hash(f"{self.kind}{self.inputs}{self.outputs}")
+            self._cached_hash = hs  # pylint: disable=attribute-defined-outside-init
         return self._cached_hash
 
     @property
