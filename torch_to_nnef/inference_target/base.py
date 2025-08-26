@@ -11,7 +11,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class InferenceTarget:
-    """Base abstract class to implement a new inference engine target"""
+    """Base abstract class to implement a new inference engine target."""
 
     # each implementation should specify
     OFFICIAL_SUPPORTED_VERSIONS: T.List[SemanticVersion] = []
@@ -19,7 +19,12 @@ class InferenceTarget:
     def __init__(
         self, version: T.Union[SemanticVersion, str], check_io: bool = False
     ):
-        """Each inference engine is supposed to have at least a version and a way to check output given an input"""
+        """Init InferenceTarget.
+
+        Each inference engine is supposed to have at least a version
+        and a way to check output given an input.
+
+        """
         self.version = (
             SemanticVersion.from_str(version)
             if isinstance(version, str)
@@ -52,11 +57,14 @@ class InferenceTarget:
 
     @property
     def has_dynamic_axes(self) -> bool:
-        """define if the inference engine request dynamic axes to be in the NNEF graph"""
+        """Define if user request dynamic axes to be in the NNEF graph.
+
+        Some inference engines may not support it hence False by default.
+        """
         return False
 
     def specific_fragments(self, model: nn.Module) -> T.Dict[str, str]:
-        """Optional custom fragments to pass"""
+        """Optional custom fragments to pass."""
         return {}
 
     def pre_trace(
@@ -65,12 +73,15 @@ class InferenceTarget:
         input_names: T.Optional[T.List[str]],
         output_names: T.Optional[T.List[str]],
     ):
-        """Get called just before PyTorch graph is traced (after auto wrapper)"""
+        """Get called just before PyTorch graph is traced.
+
+        (after auto wrapper)
+        """
 
     def post_trace(
         self, nnef_graph: NGraph, active_custom_extensions: T.List[str]
     ):
-        """Get called just after PyTorch graph is parsed"""
+        """Get called just after PyTorch graph is parsed."""
 
     def post_export(
         self,
@@ -80,7 +91,7 @@ class InferenceTarget:
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
-        """Get called after NNEF model asset is generated
+        """Get called after NNEF model asset is generated.
 
         This is typically where check_io is effectively applied.
         """

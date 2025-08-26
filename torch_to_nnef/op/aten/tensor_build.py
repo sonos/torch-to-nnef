@@ -112,7 +112,7 @@ def _generic_auto_tensor_expansion(
     dtype=torch.float32,
     tensor_build_fn=torch.ones,
 ):
-    """In case the tensor need to be dependant on shape of another"""
+    """In case the tensor need to be dependant on shape of another."""
     if isinstance(shape_node, (list, tuple)) and all(
         isinstance(d, (int, str)) for d in shape_node
     ):
@@ -343,7 +343,7 @@ def full_like(**kwargs):
 
 @OP_REGISTRY.register()
 def new_zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:new_zeros' to NNEF"""
+    """Map PyTorch: 'aten:new_zeros' to NNEF."""
     (
         input_node,  # input_node,
         shape_node,
@@ -374,7 +374,7 @@ def new_zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:zeros' to NNEF"""
+    """Map PyTorch: 'aten:zeros' to NNEF."""
     (
         shape_node,
         dtype_node,
@@ -406,7 +406,7 @@ def zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:full' to NNEF"""
+    """Map PyTorch: 'aten:full' to NNEF."""
     (shape_node, val_node, _, _, _, _) = node.inputs  # device_node,  # False
 
     def full_fn(*args, **kwargs):
@@ -428,7 +428,7 @@ def full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 def fill(
     g, node, name_to_tensor, torch_graph, inference_target, op_helper, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:fill', 'aten:fill_' to NNEF"""
+    """Map PyTorch: 'aten:fill', 'aten:fill_' to NNEF."""
     (input_node, val_node, *_) = node.inputs  # device_node,  # False
 
     def full_fn(*args, **kwargs):
@@ -459,7 +459,7 @@ def fill(
 def copy(
     g, node, name_to_tensor, inference_target, torch_graph, null_ref, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:copy', 'aten:clone' to NNEF"""
+    """Map PyTorch: 'aten:copy', 'aten:clone' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         # nnef spec include copy fragment
         return unary_output_op_without_attr(
@@ -477,7 +477,7 @@ def copy(
     torch_op_ids=[_.replace("aten::", "") for _ in MAP_TO_NOP]
 )
 def _post_graph_creation_remap(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Operator mapping PyTorch: no-ops to NNEF
+    """Map PyTorch: no-ops to NNEF.
 
     List of no-ops:
         'aten:prim::NumToTensor',
@@ -529,7 +529,7 @@ def triu(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:triu' to NNEF"""
+    """Map PyTorch: 'aten:triu' to NNEF."""
     return _trilu(g, name_to_tensor, node, inference_target, is_upper=True)
 
 
@@ -541,5 +541,5 @@ def tril(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:tril' to NNEF"""
+    """Map PyTorch: 'aten:tril' to NNEF."""
     return _trilu(g, name_to_tensor, node, inference_target, is_upper=False)

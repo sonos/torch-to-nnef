@@ -125,7 +125,8 @@ def init_test_spec():
             ]
         except ValueError as exp:
             LOGGER.warning(
-                "disabled test of: '%s' likely because of transformers version: %s, error: %s",
+                "disabled test of: '%s' likely because of "
+                "transformers version: %s, error: %s",
                 slug,
                 TRANSFORMERS_VERSION.to_str(),
                 exp,

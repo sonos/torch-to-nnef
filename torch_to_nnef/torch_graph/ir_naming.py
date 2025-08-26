@@ -39,7 +39,7 @@ DEFAULT_VARNAME_SCHEME = VariableNamingScheme.default()
 def apply_nnef_variable_naming_scheme(
     torch_ir_graph, scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME
 ):
-    """Rename availlable data node following a scheme
+    """Rename availlable data node following a scheme.
 
     by default the natural_verbose pattern built is as close as possible
     to PyTorch graph context info. This pattern might come as too verbose.
@@ -224,7 +224,7 @@ def rm_digits_suffix(name: str):
 
 
 def remove_useless_digits_from_module_names(torch_mod_ir_graph, lower: bool):
-    """Cleanup final namings in graph:
+    """Cleanup final namings in graph.
 
     - Remove useless digits from module names
       for example:

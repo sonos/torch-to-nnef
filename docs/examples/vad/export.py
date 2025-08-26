@@ -1,4 +1,4 @@
-"""Simple export script of MarbleNet VAD"""
+"""Simple export script of MarbleNet VAD."""
 
 import argparse
 import copy
@@ -64,7 +64,7 @@ class DummyDecoder(torch.nn.Module):
 
 
 class EncoderWrapper(torch.nn.Module):
-    """Avoid to expose input_len (that doesn't make sense in streaming)"""
+    """Avoid to expose input_len (that doesn't make sense in streaming)."""
 
     def __init__(self, model):
         super().__init__()
@@ -103,7 +103,8 @@ def export(
     decoder._return_logits = (
         not return_softmax  # return softmaxed output (easier to threshold from)
     )
-    # split featurizer+encoder and decoder to benefit from tract streaming cache capacity on encoder
+    # split featurizer+encoder and decoder to benefit
+    # from tract streaming cache capacity on encoder
     vad_model.decoder = DummyDecoder()
 
     enc_path_export = dump_path / "vad_marblenet.encoder.nnef.tgz"

@@ -1,7 +1,8 @@
-"""
-torch_graph is intended to extract full representation of PyTorch Graph
-into a stable intermediate representation suitable to then apply translation
-operation to NNEF. This means that not all PyTorch orginal graph is translated.
+"""torch_graph is intended to extract full representation of PyTorch Graph.
+
+From PyTorch into a stable intermediate representation suitable to then apply
+translation operation to NNEF. This means that not all PyTorch orginal graph
+is translated.
 For example, we ignore part linked to device location informations,
 memory specific operation or parameters linked to gradients.
 

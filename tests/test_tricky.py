@@ -17,7 +17,7 @@ set_seed(int(os.environ.get("SEED", 25)))
 
 
 class DynamicDoubleBatchRank(nn.Module):
-    """Build view based on several dynamical ops
+    """Build view based on several dynamical ops.
 
     It fails for now as we do not yet have a proper tracing/solver for chain
     of generated constant. It will be needed as view at inference time need to
@@ -59,9 +59,7 @@ class SelectNotFirstOutput(nn.Module):
 
 
 class LostDimPad(nn.Module):
-    """
-    Simplified part with parser issue in swin rolling attention mechanism
-    """
+    """Simplified part with parser issue in swin rolling attention mechanism."""
 
     def __init__(self):
         self.window_size = [1, 2]

@@ -33,8 +33,9 @@ class _RNNMixin:
         raise T2NErrorNotImplemented()
 
     def ordered_args(self, torch_graph):
-        """
-        sometime torch jit may reorder inputs
+        """List of args ordered to be Python call compliant.
+
+        Sometime torch jit may reorder inputs.
         compared to targeted python ops
         in such case ordering need to be re-addressed
         """
@@ -127,8 +128,7 @@ class _RNNMixin:
     def _multi_layers_concat(
         self, g, node, name_to_tensor, last_hc_at_each_layers
     ):
-        """allow to concat last from each layers for h_t and and c_t"""
-
+        """Allow to concat last from each layers for h_t and and c_t."""
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import helper
 
@@ -154,7 +154,7 @@ class _RNNMixin:
         torch_tensor,
         input_tensor,
     ):
-        """reproduce initial states preparations before rnn layer call
+        """Reproduce initial states preparations before rnn layer call.
 
         ie:
         @code nnef
@@ -444,12 +444,12 @@ class _RNNMixin:
         argument_names_order,
         **tensor_params_kwargs,
     ):
-        """
-        Avoid repeated configuration of:
-            batch_first
-            multi_layers
-        """
+        """Core convertion to NNEF of rnn.
 
+        Avoid repeated configuration of:
+        batch_first
+        multi_layers
+        """
         # self._check_rank(node, module)
 
         used_fragments = [nnef_fragment_name]

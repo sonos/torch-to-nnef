@@ -100,7 +100,8 @@ onnx_supported, onnx_unsupported = get_onnx_support()
 aten_torch_from_code = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git clone -q git@github.com:pytorch/pytorch.git || git -C 'pytorch' pull; "
+        "git clone -q git@github.com:pytorch/pytorch.git || "
+        "git -C 'pytorch' pull; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
@@ -115,7 +116,8 @@ aten_torch_from_code = [
 aliases = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git -C 'pytorch' pull || git clone -q git@github.com:pytorch/pytorch.git; "
+        "git -C 'pytorch' pull || "
+        "git clone -q git@github.com:pytorch/pytorch.git; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         "cat ./torch/csrc/jit/passes/normalize_ops.cpp",
@@ -162,7 +164,7 @@ for a_from_code in aten_torch_from_code:
 
 
 def print_t(text, file):
-    """Print tabbed"""
+    """Print tabbed."""
     if text:
         if "\n" in text:
             lines = text.split("\n")
@@ -213,7 +215,9 @@ def write_operator_support(
             op_name = f"[{op_name}]({torch_url_doc})"
         rows.append(
             (
-                f"| {op_name} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_support_str} |",
+                f"| {op_name} | {alias_str} | "
+                f"{inplace_str} | {is_core_official_str} | "
+                f"{mapped_in_support_str} |",
                 is_core,
             )
         )
@@ -224,7 +228,8 @@ def write_operator_support(
     print_t(
         f"Total matched operators in {support_target_msg} compared to:\n\n"
         f"- core PyTorch opset:\n\n"
-        f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
+        f"[={qte_supported_core}/{qte_core} "
+        f'"{qte_supported_core}/{qte_core}"]\n\n'
         "-  and support from full `aten::`: \n\n"
         f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
         " (total registered aten "
@@ -252,23 +257,33 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     date = datetime.now().strftime("%d %b %Y")
     print(
         "!!! note\n"
-        f"    This table and page are auto generated from 'a script' that dig into PyTorch."
-        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**.\n\n"
+        "    This table and page are auto generated from 'a script' "
+        "that dig into PyTorch."
+        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated "
+        f"the **{date}**.\n\n"
         "!!! warning\n"
-        "     Take these informations with a grain of salt as this is referencing operators that may never appear"
-        " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
-        " uncommon operators are very rare in models, hence support may be lacking. "
-        " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
+        "     Take these informations with a grain of salt as this is "
+        "referencing operators that may never appear"
+        " in torch IR graph traced by `torch_to_nnef` "
+        "(because remapped to others more generic). "
+        "Also some  uncommon operators are very rare in models, "
+        "hence support may be lacking. "
+        " **SONOS only maintains operators 'per need basis'**, "
+        "but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
-        f"\n 'is core' column refers to this [PyTorch IR documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. "
-        "Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
+        "\n 'is core' column refers to this "
+        f"[PyTorch IR documentation page]({URL_IR})\n\n"
+        "We filter-out from from observed operators 'backward' and 'sym' one's "
+        "which are unwanted in inference engine. "
+        "Also in place operations are merged with memory allocated activations "
+        "as this is inference implementation detail.",
         file=fh,
     )
     write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
     write_operator_support(
         "ONNX",
-        f"builtin PyTorch `ONNX` support based on [this page]({ONNX_SUPPORT_URL})",
+        "builtin PyTorch `ONNX` support based on "
+        f"[this page]({ONNX_SUPPORT_URL})",
         onnx_supported,
     )
 

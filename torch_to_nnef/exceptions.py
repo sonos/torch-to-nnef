@@ -11,19 +11,19 @@ rational:
 
 
 class T2NError(Exception):
-    """Generic error that all errors in this lib inherit"""
+    """Generic error that all errors in this lib inherit."""
 
 
 class T2NErrorImport(T2NError):
-    """Import error that all errors in this lib inherit"""
+    """Import error that all errors in this lib inherit."""
 
 
 class T2NErrorInvalidArgument(ValueError, T2NError):
-    """specification of torch_to_nnef export not respected"""
+    """specification of torch_to_nnef export not respected."""
 
 
 class T2NErrorNotFoundFile(ValueError, T2NError):
-    """missing exit for file path"""
+    """missing exit for file path."""
 
 
 class T2NErrorRuntime(RuntimeError, T2NError):

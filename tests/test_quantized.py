@@ -20,7 +20,8 @@ from .utils import (  # noqa: E402
 )
 
 if sys.platform.startswith("darwin"):
-    # E   RuntimeError: Didn't find engine for operation quantized: : linear_prepack NoQEngine
+    # E   RuntimeError: Didn't find engine for operation quantized:
+    # : linear_prepack NoQEngine
     pytest.skip(
         "skipping darwin unsuported 'test_quantized' kernels tests",
         allow_module_level=True,
@@ -30,7 +31,8 @@ if sys.platform.startswith("darwin"):
 # in some case bug may happen with random at specific seed
 # you can alway do this to brute force find failure mode
 # in your bash
-# $ for i in {0..100}; do  echo $i; SEED=$i DEBUG=1 Q8=1 py.test || echo $i >> failed_seed.log; done;
+# $ for i in {0..100}; do  echo $i; SEED=$i DEBUG=1 Q8=1 py.test ||
+# echo $i >> failed_seed.log; done;
 set_seed(int(os.environ.get("SEED", 2)))  # 3 fail
 
 
@@ -207,7 +209,7 @@ test_suite.add(
 def qcheck(
     module: nn.Module, inp: torch.Tensor, inference_target: InferenceTarget
 ):
-    """Check basic ptq export align with tract"""
+    """Check basic ptq export align with tract."""
     model = torch.quantization.QuantWrapper(module)
     qconfig = torch.quantization.get_default_qconfig("qnnpack")
     torch.backends.quantized.engine = "qnnpack"
@@ -322,7 +324,8 @@ def test_quantize_deq_req_sigmoid(inference_target):
 # ]
 # ]
 
-# With pytorch v1.11.0 MultiheadAttention and LSTM are supported via dynamic Quantization only
+# With pytorch v1.11.0 MultiheadAttention and LSTM are
+# supported via dynamic Quantization only
 # }
 
 

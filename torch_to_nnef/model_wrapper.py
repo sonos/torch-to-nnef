@@ -17,7 +17,7 @@ LOGGER = log.getLogger(__name__)
 
 
 class WrapStructIO(nn.Module):
-    """Once traced it should be nop in final graph"""
+    """Once traced it should be nop in final graph."""
 
     def __init__(self, model: nn.Module, input_infos, output_infos) -> None:
         super().__init__()
@@ -58,7 +58,8 @@ class WrapStructIO(nn.Module):
                     )
                 cur_struct = cur_struct[idx]
 
-        # tupleization happen after structure is built because tuples are immutables
+        # tupleization happen after structure is built
+        # because tuples are immutables
         return self._tupleization(inps)
 
     def _tupleization(self, inps):
@@ -109,8 +110,9 @@ def _build_new_names_and_elements(
     elms: T.Iterable,
     default_element_name_tmpl: str,
 ):
-    """
-    Usecase 1:
+    """Build names of elements based on containers parents.
+
+    Usecase 1:.
         provide:
             original_names: ['input', "a"]
             elms: [[tensor, tensor, tensor], {"arm": tensor, "head": tensor}]
@@ -122,7 +124,10 @@ def _build_new_names_and_elements(
             original_names: ['plop']
             elms: [[tensor, tensor, tensor], tensor, tensor]
     Expected output names:
-        ["plop_0", plop_1", "plop_2", default_element_name_tmpl %ix=1, default_element_name_tmpl %ix=2]
+        ["plop_0", plop_1", "plop_2",
+          default_element_name_tmpl %ix=1,
+          default_element_name_tmpl %ix=2
+        ]
 
     Usecase 3: (dict with prefix)
         provide:

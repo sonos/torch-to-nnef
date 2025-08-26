@@ -1,4 +1,4 @@
-"""Attention mechanisms"""
+"""Attention mechanisms."""
 
 import torch
 
@@ -28,8 +28,9 @@ def reify_with_tract_transformers_sdpa(i: InferenceTarget) -> bool:
 def scaled_dot_product_attention(
     g, node, name_to_tensor, inference_target, **kwargs
 ):
-    """
-    reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    """Translate operator: `aten::scaled_dot_product_attention` to NNEF.
+
+    reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html.
     """
     (
         query_node,
@@ -70,7 +71,8 @@ def scaled_dot_product_attention(
         if scale_node.data is not None:
             scale = scale_node.data
 
-            # If we export with tract >= 0.22.0 with reify_sdpa_operator, scale is expressed as an attribute
+            # If we export with tract >= 0.22.0 with reify_sdpa_operator,
+            # scale is expressed as an attribute
             # so we don't need to add it to the list of input.
             if not reify_tract_spda:
                 scale_tensor = get_or_add_tensor_variable_in_nnef(

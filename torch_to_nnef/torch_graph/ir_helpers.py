@@ -68,7 +68,7 @@ torch._C.Node.__getitem__ = _node_get
 def aten_name_to_torch_fn(
     aten_name: str,
 ):
-    """Get aten cpp torch operator raw python binding"""
+    """Get aten cpp torch operator raw python binding."""
     name = aten_name.replace(ATEN_STARTID, "")
     return getattr(torch.ops.aten, name)
 
@@ -79,7 +79,7 @@ def quantized_name_to_torch_fn(aten_name):
 
 
 def _add_prefix_if_start_with_digit(text: str, prefix: str) -> str:
-    """ensure we do not start with integer a text"""
+    """Ensure we do not start with integer a text."""
     _prefix = ""
     if text[0] in "0123456789":
         _prefix = prefix
@@ -119,7 +119,7 @@ def _unfold_graph_getattr_by_node(
     module: T.Union[nn.Module, torch.jit.TracedModule],
     getattr_node: torch._C.Node,
 ) -> T.Tuple[str, T.Union[nn.Module, torch.jit.TracedModule]]:
-    """Unfold  nn.Module python code reference to sub...sub modules in graph"""
+    """Unfold  nn.Module python code reference to sub...sub modules in graph."""
     getter_sequence: T.List[str] = []
 
     def getter_fn(getattr_node: torch._C.Node, getter_sequence: T.List[str]):
@@ -147,7 +147,7 @@ def _unfold_graph_getattr_by_node(
 def _reconstruct_view_dims(
     original_shape: T.Tuple[int, ...], wished_view: T.Tuple[int, ...]
 ) -> T.Tuple[int, ...]:
-    """Reconstruct shapes of whished view
+    """Reconstruct shapes of whished view.
 
     For example:
         x_reshape = x.contiguous().view((-1,) + x.shape[2:])
@@ -221,8 +221,7 @@ def _replacement_to_relative_module_path(replacements: T.List[str]):
 
 
 def dynamic_tensor_list_parse(node_c_value: torch._C.Value):
-    """Hold outputs of aten::chunk and other pytorch graph Tensor[]"""
-
+    """Hold outputs of aten::chunk and other pytorch graph Tensor[] ."""
     node_type = node_c_value.type()
     assert node_type.kind() == LISTTYPE_KIND
     LOGGER.debug(
@@ -314,7 +313,7 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
 
 
 def _fetch_backward(data_nodes, c_node: torch._C.Node):
-    """backward search of final resolution argument from list_construct"""
+    """Backward search of final resolution argument from list_construct."""
     if c_node.kind() in [ATEN_INT, NUMTOTENSOR_KIND]:
         return _fetch_backward(data_nodes, c_node.input().node())
     try:
@@ -460,12 +459,10 @@ def _aten_inputs_and_op_ref(kind, inputs, data_nodes):
 def _rerouted_parsing(
     node: torch._C.Node, data_nodes: ReactiveNamedItemDict, module
 ):
-    """Specific torch kind operation are transformed
+    """Specific torch kind operation are changed to improve T2N IR.
 
-    to improve readability of intermediate representation
-
-        If specific kind matched it raise T2NErrorTorchOpTranslatedDifferently
-        meaning it is handled differently than vanilla torch graph
+    If specific kind matched it raise T2NErrorTorchOpTranslatedDifferently
+    meaning it is handled differently than vanilla torch graph
 
     """
     kind: str = node.kind()
@@ -626,7 +623,7 @@ def _extract_op_infos(
 ) -> T.Tuple[
     str, T.Optional[str], str, T.Callable[[T.Any], T.Any], T.List[Data]
 ]:
-    """Extract informations from module or torch operation"""
+    """Extract informations from module or torch operation."""
     call_name = None
     kind: str = node.kind()
     inputs = list(node.inputs())

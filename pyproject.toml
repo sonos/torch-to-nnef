@@ -114,11 +114,27 @@ select = [
     "I",
     # flake8-logging-format
     "G",
+    # docstring
+    "D",
 ]
-ignore = ["E501"]
+ignore = [
+    # if a docstring then ensure consistency but if it is missing do not raise issue {
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    # }
+]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
-testpaths = [ "tests" ]
+testpaths = ["tests"]
 addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
@@ -174,11 +190,7 @@ follow_imports_for_stubs = true
 [tool.tox]
 isolated_build = true
 envlist = ["py39", "py313", "format", "lint", "build"]
-requires = [
-  "tox>=4",
-  "virtualenv>20.2",
-  "tox-uv>1.27.0",
-]
+requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -371,13 +383,7 @@ extras = ["test"]
 constrain_package_deps = true
 deps = ["transformers==4.50.0"]
 passenv = ["*"]
-commands = [
-    [
-        "pytest",
-        "-s",
-        "tests/test_llm_cli.py",
-    ],
-]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing llm_tract cli on 3m old transformers
 [tool.tox.env.cli_transformers_4_52_0]
@@ -386,13 +392,7 @@ extras = ["test"]
 constrain_package_deps = true
 deps = ["transformers==4.52.0"]
 passenv = ["*"]
-commands = [
-    [
-        "pytest",
-        "-s",
-        "tests/test_llm_cli.py",
-    ],
-]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing llm_tract cli on recent transformers
 [tool.tox.env.cli_transformers_4_55_0]
@@ -401,13 +401,7 @@ extras = ["test"]
 constrain_package_deps = true
 deps = ["transformers==4.55.0"]
 passenv = ["*"]
-commands = [
-    [
-        "pytest",
-        "-s",
-        "tests/test_llm_cli.py",
-    ],
-]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]

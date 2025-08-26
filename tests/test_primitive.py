@@ -185,7 +185,7 @@ for op in [
         UnaryPrimitive(op),
     )
 
-# ______________________________________________________________________________________
+# ______________________________________________________________________________
 # _binary
 for op in [
     torch.min,
@@ -780,13 +780,13 @@ test_suite.add(
 
 # MONITORING:
 # bug in PyTorch with respect to .view(dtype) not serializing well
-# E               '0 INTERNAL ASSERT FAILED at "../torch/csrc/jit/ir/alias_analysis.cpp":617,
-#                    ... please report a bug to PyTorch. We don't have an op
-#                    ... for aten::view but it isn't a special case.  Argument types: Tensor, int,
+# E '0 INTERNAL ASSERT FAILED at "../torch/csrc/jit/ir/alias_analysis.cpp":617,
+#   ... please report a bug to PyTorch. We don't have an op
+#   ... for aten::view but it isn't a special case. Argument types: Tensor, int,
 # E
-# E               Candidates:
-# E                       aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)
-# E                       aten::view.dtype(Tensor(a) self, ScalarType dtype) -> Tensor(a)'
+# E Candidates:
+# E         aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)
+# E         aten::view.dtype(Tensor(a) self, ScalarType dtype) -> Tensor(a)'
 # test_suite.add(
 #     (torch.arange(10),),
 #     TensorFnPrimitive("view", args=[torch.int16]),
@@ -1119,7 +1119,7 @@ def test_should_fail_since_false_output():
     ids=test_suite.ids,
 )
 def test_primitive_export(id, test_input, model, inference_target):
-    """Test simple aten PyTorch core"""
+    """Test simple aten PyTorch core."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

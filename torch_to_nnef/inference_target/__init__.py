@@ -2,7 +2,8 @@
 
 We mainly focus our effort to best support SONOS 'tract' inference engine.
 
-Stricter Khronos NNEF specification mode also exist but is less extensively tested
+Stricter Khronos NNEF specification mode also exist
+but is less extensively tested.
 
 
 """

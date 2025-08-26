@@ -1,4 +1,4 @@
-"""Core parsing and NNEF transformation module"""
+"""Core parsing and NNEF transformation module."""
 
 import logging
 import typing as T
@@ -43,14 +43,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TorchToNGraphExtractor:
-    """Extract PyTorch Graph and build associated nnef_tools.model.Graph"""
+    """Extract PyTorch Graph and build associated nnef_tools.model.Graph."""
 
     def __init__(
         self,
         model: torch.nn.Module,
         args: T.Tuple[torch.Tensor, ...],
         inference_target: InferenceTarget,
-        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,  # noqa: E501
         forced_inputs_names: T.Optional[T.List[str]] = None,
         forced_outputs_names: T.Optional[T.List[str]] = None,
         check_io_names_qte_match: bool = True,
@@ -128,7 +128,7 @@ class TorchToNGraphExtractor:
         explored_user_op_nodes = set()
 
         def forward_clean_values_for_dyn_axes(op_node):
-            """forward clean in all child nodes"""
+            """Forward clean in all child nodes."""
             # LOGGER.debug(f"remove concrete values from {op_node.outputs}")
             for onode in op_node.outputs:
                 onode.data = None
@@ -224,8 +224,10 @@ class TorchToNGraphExtractor:
                 self._forced_inputs_names
             ) != len(self.g.inputs):
                 raise T2NErrorIoQuantity(
-                    f"miss-aligned quantity of `input_names`: {len(self._forced_inputs_names)}"
-                    f" and quantity of inputs in NNEF graph: {len(self.g.inputs)}\n"
+                    "miss-aligned quantity of `input_names`: "
+                    f"{len(self._forced_inputs_names)}"
+                    " and quantity of inputs in NNEF graph: "
+                    f"{len(self.g.inputs)}\n"
                     f"\t- with input_names: {self._forced_inputs_names}\n"
                     f"\t- with graph inputs: {self.g.inputs}"
                 )
@@ -245,8 +247,10 @@ class TorchToNGraphExtractor:
                 self._forced_outputs_names
             ) != len(self.g.outputs):
                 raise T2NErrorIoQuantity(
-                    f"miss-aligned quantity of `output_names`: {len(self._forced_outputs_names)}"
-                    f" and quantity of outputs in NNEF graph: {len(self.g.outputs)}\n"
+                    "miss-aligned quantity of `output_names`: "
+                    f"{len(self._forced_outputs_names)}"
+                    " and quantity of outputs in NNEF graph: "
+                    f"{len(self.g.outputs)}\n"
                     f"\t- with output_names: {self._forced_inputs_names}\n"
                     f"\t- with graph outputs: {self.g.outputs}"
                 )

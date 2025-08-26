@@ -72,7 +72,7 @@ def module_tracer_into_ir_graph(
 
 
 class TorchModuleIRGraph:
-    """Torch Graph intermediate representation from: jit.trace with recursion
+    """Torch Graph intermediate representation from: jit.trace with recursion.
 
     This is not direct torch._C.Graph but simpler abstraction, with:
 
@@ -130,7 +130,7 @@ class TorchModuleIRGraph:
         )
 
     def _check_container_items_rely_on_data_nodes(self):
-        """container items reference must exists in `data_nodes`"""
+        """Container items reference must exists in `data_nodes`."""
         for dnode in self.data_nodes:
             if dnode.is_container:
                 for subdnode in dnode.iter():
@@ -139,7 +139,7 @@ class TorchModuleIRGraph:
                     )
 
     def _check_io_rely_on_data_nodes(self):
-        """`inputs` or `outputs` reference items must exists in `data_nodes`"""
+        """`inputs` or `outputs` reference items must exists in `data_nodes`."""
         for inode in self.inputs:
             if not self.data_nodes.contains(inode, strict=True):
                 raise T2NErrorTorchCheck(
@@ -156,7 +156,7 @@ class TorchModuleIRGraph:
         return self.data_nodes.get_by_name(node_name)
 
     def remap_node(self, from_node, to_node):
-        """remap a data_node to another."""
+        """Remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
         self.inputs = [to_node if _ is from_node else _ for _ in self.inputs]
@@ -182,8 +182,7 @@ class TorchModuleIRGraph:
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
-        """Parse traced graph inputs"""
-
+        """Parse traced graph inputs."""
         graph_inputs = []
         is_start_cls = True
         for torch_ir_inp in self._tracer.torch_graph.inputs():
@@ -232,7 +231,7 @@ class TorchModuleIRGraph:
                 self.provided_inputs_picked_indexes.append(idx)
 
     def _parse_core(self):
-        """Parse all Operations and collect the scope infos"""
+        """Parse all Operations and collect the scope infos."""
         attr_to_scope: T.Dict[T.Any, str] = {}
 
         to_remap = []
@@ -292,7 +291,7 @@ class TorchModuleIRGraph:
     def _parse_outputs(
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
     ):
-        """Parse traced graph outputs"""
+        """Parse traced graph outputs."""
         torch_graph_outputs = self._tracer.torch_graph.outputs()
         outputs = [
             _find_data_node(self.data_nodes, _.debugName())
@@ -324,7 +323,7 @@ class TorchModuleIRGraph:
         self.outputs = outputs
 
     def _update_scope_reference(self):
-        """Update scope in op_nodes with additional infos"""
+        """Update scope in op_nodes with additional infos."""
         alias_to_name = {}
         base_name = _parse_traced_name(self._tracer.traced_module)
         for name, module in self._tracer.traced_module.named_modules(
@@ -456,7 +455,8 @@ class TorchModuleIRGraph:
                 # in some edge-cases (only observed in CI)
                 # there is a collision that is detected between
                 # names and append do not work
-                # (which is supposed to not happen thanks to `rename_variable_by_incr`)
+                # (which is supposed to not happen thanks to
+                # `rename_variable_by_incr`)
                 # hence this retry logic
                 for start_index in range(1, 4):  # give 3 try
                     new_name = dn.name
@@ -491,7 +491,7 @@ class TorchModuleIRGraph:
     def _recursive_call_method(
         self, nnef_variable_naming_scheme: VariableNamingScheme
     ):
-        """In case prim::CallMethod is encountered it tries to trace it
+        """In case prim::CallMethod is encountered it tries to trace it.
 
         It does this by recursive call to parse_module on linked submodule.
 
@@ -575,7 +575,7 @@ class TorchModuleIRGraph:
         return expanded_data_nodes
 
     def _avoid_reference_to_tuples(self):
-        """Remove all references to tuple by using only unpacked variables"""
+        """Remove all references to tuple by using only unpacked variables."""
         self._filter_tuple_tensor_from_data_nodes()
         self.inputs = self._expand_tuple_in(self.inputs)
         self.outputs = self._expand_tuple_in(self.outputs)
@@ -584,7 +584,7 @@ class TorchModuleIRGraph:
             op.outputs = self._expand_tuple_in(op.outputs)
 
     def _filter_nodes_not_in_trace_between_inputs_and_outputs(self):
-        """remove all unused graph nodes
+        """Remove all unused graph nodes.
 
         Backward propagation from graph output to input to select kept nodes
 
@@ -650,7 +650,7 @@ class TorchModuleIRGraph:
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
-        """Core parsing transforming nn.Module into torch_to_nnef IR"""
+        """Core parsing transforming nn.Module into torch_to_nnef IR."""
         LOGGER.debug(
             "start parse to IR: %s", self._tracer.mod.__class__.__name__
         )
@@ -720,7 +720,7 @@ class TorchModuleIRGraph:
         raise T2NErrorTorchNotFoundOp("Did not find operation node")
 
     def printall(self):
-        """Display Helper Graph infos in stdout of your tty"""
+        """Display Helper Graph infos in stdout of your tty."""
         console = Console(
             theme={
                 "type": "blue",

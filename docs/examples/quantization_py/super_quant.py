@@ -121,7 +121,8 @@ def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
                 except T2NErrorImpossibleQuantization as exp:
                     LOGGER.error("quant layer: %s error: %s", name, exp)
                     continue
-                # => needs assignation next cause update_by_ref may create new Parameter object
+                # => needs assignation next cause update_by_ref may
+                # create new Parameter object
                 q_weight = mod_tensor_updater.update_by_ref(
                     mod.weight, q_weight
                 )

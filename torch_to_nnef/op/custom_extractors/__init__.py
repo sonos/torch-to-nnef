@@ -1,4 +1,4 @@
-"""`op.custom_extractors` provides mechanism to control extraction to NNEF
+"""`op.custom_extractors` provides mechanism to control extraction to NNEF.
 
 while bypassing PyTorch full expansion of `torch.Module` within `torch_graph`
 which by default use torch.jit.trace .

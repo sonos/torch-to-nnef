@@ -16,7 +16,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class NamedTensor(torch.Tensor):
-    """Tensor enriched with name attribute"""
+    """Tensor enriched with name attribute."""
 
     @staticmethod
     def __new__(
@@ -52,7 +52,7 @@ class NamedTensor(torch.Tensor):
 
     @property
     def data(self):
-        """very important to keep access to all special attr of NamedTensor"""
+        """Very important to keep access to all special attr of NamedTensor."""
         return self
 
     @data.setter
@@ -82,13 +82,13 @@ class NamedTensor(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
+        """Custom __torch_function__.
+
         This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 
@@ -124,7 +124,7 @@ def get_or_add_named_tensor(
 
 
 def apply_name_to_tensor_in_module(model: torch.nn.Module):
-    """Transform torch.Tensor or Parameters into NamedTensor
+    """Transform torch.Tensor or Parameters into NamedTensor.
 
     This is applied at export time of `torch_to_nnef`
     Just before doing any tracing and allow to keep

@@ -59,7 +59,7 @@ FLATTEN_LIST_IOS = []
 
 
 def _add_flatten_example(inp, out):
-    """micro fn to clarify notation in code"""
+    """Micro fn to clarify notation in code."""
     FLATTEN_LIST_IOS.append((inp, out))
 
 

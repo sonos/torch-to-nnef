@@ -71,7 +71,9 @@ test_suite.add(
 if hasattr(audio_mdl, "Conformer"):
 
     class ConformerWrapper(torch.nn.Module):
-        """Avoid returning length that is not edited
+        """Wrap Conformer for export.
+
+        Avoid returning length that is not edited
         torch_to_nnef forbid to return same tensor as inputed
         by the model as this means this output is not needed
         and may introduce silent variable name alterations.
@@ -227,7 +229,7 @@ except ImportError:
     ids=test_suite.ids,
 )
 def test_model_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

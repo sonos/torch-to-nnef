@@ -21,7 +21,7 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def div(node, op_helper, inference_target, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:div' to NNEF"""
+    """Map PyTorch: 'aten:div' to NNEF."""
     input_node = node.inputs[0]
     divisor_node = node.inputs[1]
     suffix_div_op_output = ""
@@ -117,7 +117,7 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:floor_divide' to NNEF"""
+    """Map PyTorch: 'aten:floor_divide' to NNEF."""
     input_node, divisor_node = node.inputs
     if (
         input_node.data
@@ -172,7 +172,7 @@ def floor_divide(node, op_helper, inference_target, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def trunc(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:trunc' to NNEF"""
+    """Map PyTorch: 'aten:trunc' to NNEF."""
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "trunc",
@@ -183,7 +183,7 @@ def trunc(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["pow"])
 def pow_(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:pow' to NNEF"""
+    """Map PyTorch: 'aten:pow' to NNEF."""
     (input_node, exponent_node) = node.inputs
     inputs = [op_helper.get_or_add_tensor_variable_in_nnef(input_node)]
     if exponent_node.data:
@@ -210,7 +210,7 @@ def pow_(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(torch_op_ids=["round"])
 def round_(inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:round' to NNEF"""
+    """Map PyTorch: 'aten:round' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         LOGGER.warning(
             "round: Spec definition of round in NNEF does not follow IEEE, "
@@ -231,7 +231,7 @@ def remap_if_neutral_op(torch_graph, node, a, b):
 
 @OP_REGISTRY.register()
 def mul(node, op_helper, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:mul' to NNEF"""
+    """Map PyTorch: 'aten:mul' to NNEF."""
     input_node = node.inputs[0]
     other_node = node.inputs[1]
 
@@ -246,7 +246,8 @@ def mul(node, op_helper, torch_graph, **kwargs):
     inputs = []
     for c_node in [input_node, other_node]:
         if isinstance(c_node, PythonConstant):
-            # because torch.ops.aten.mul(float, tensor(float)) give complex number
+            # because torch.ops.aten.mul(float, tensor(float))
+            # give complex number
             c_node = c_node.into_tensor_variable()
         inputs.append(op_helper.get_or_add_tensor_variable_in_nnef(c_node))
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -258,7 +259,7 @@ def mul(node, op_helper, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:remainder' to NNEF"""
+    """Map PyTorch: 'aten:remainder' to NNEF."""
     input_node, other_node = node.inputs
     if all(
         isinstance(node, PythonConstant) for node in [input_node, other_node]
@@ -284,7 +285,7 @@ def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def rsub(node, op_helper, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:rsub' to NNEF"""
+    """Map PyTorch: 'aten:rsub' to NNEF."""
     input_node, other_node, alpha_node = node.inputs
     if all(
         isinstance(_, PythonConstant)
@@ -342,7 +343,7 @@ def _abs(
     torch_graph,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:abs' to NNEF"""
+    """Map PyTorch: 'aten:abs' to NNEF."""
     if node.inputs[0].dtype in [torch.complex64, torch.complex128]:
         if not isinstance(inference_target, TractNNEF):
             raise T2NErrorNotImplemented(
@@ -425,7 +426,7 @@ def _abs(
 
 @OP_REGISTRY.register()
 def log10(node, op_helper, **kwargs):
-    """mul val may not be good enough"""
+    """Mul val may not be good enough."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     # maybe better puting this in the graph to avoid precision loss
     mul_val = 1 / np.log(10)
@@ -445,7 +446,7 @@ def log10(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def log1p(node, op_helper, **kwargs):
-    """aten::log1p"""
+    """aten::log1p."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
@@ -457,7 +458,7 @@ def log1p(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def atan2(node, op_helper, **kwargs):
-    """aten::atan2"""
+    """aten::atan2."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     other_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
     op_helper.add_single_output_op_from_nnef_tensors(
@@ -470,7 +471,7 @@ def atan2(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def expm1(node, op_helper, **kwargs):
-    """aten::exp1m"""
+    """aten::exp1m."""
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
@@ -482,7 +483,7 @@ def expm1(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def fmod(node, op_helper, **kwargs):
-    """aten::fmod
+    """aten::fmod.
 
     equivalent:
         a - a.div(b, rounding_mode="trunc") * b
@@ -499,7 +500,7 @@ def fmod(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def var(node, op_helper, **kwargs):
-    """aten::var"""
+    """aten::var."""
     if len(node.inputs) >= 3:
         inode, dnode, cornode = node.inputs[:3]
     elif len(node.inputs) == 2:  # legacy pytorch
@@ -528,7 +529,7 @@ def var(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(["logical_xor"])
 def logical_xor(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:logical_xor' to NNEF"""
+    """Map PyTorch: 'aten:logical_xor' to NNEF."""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -540,7 +541,7 @@ def logical_xor(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["bitwise_xor"])
 def bitwise_xor(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:bitwise_xor' to NNEF"""
+    """Map PyTorch: 'aten:bitwise_xor' to NNEF."""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -552,7 +553,7 @@ def bitwise_xor(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["bitwise_and", "bitwise_cpu"])
 def bitwise_and(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:bitwise_and', 'aten:bitwise_cpu' to NNEF"""
+    """Map PyTorch: 'aten:bitwise_and', 'aten:bitwise_cpu' to NNEF."""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -564,7 +565,7 @@ def bitwise_and(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["bitwise_not", "bitwise_not_cpu"])
 def bitwise_not(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF"""
+    """Map PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF."""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
@@ -576,7 +577,7 @@ def bitwise_not(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["bitwise_or"])
 def bitwise_or(node, op_helper, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:bitwise_or' to NNEF"""
+    """Map PyTorch: 'aten:bitwise_or' to NNEF."""
     assert len(node.outputs) == 1
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)

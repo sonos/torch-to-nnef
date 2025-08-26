@@ -37,7 +37,7 @@ def check_tensor_in_nnef_archive(
     path: Path,
     labels: T.Union[T.List[str], T.Dict[str, T.Dict[str, T.Any]]],
 ):
-    """Helper to check that .dat variable are correctly dumped with expected dtype in NNEF"""
+    """Helper to check .dat variable are dumped with expected dtype in NNEF."""
     assert isinstance(inference_target, InferenceTarget)
     if not isinstance(inference_target, TractNNEF):
         return
@@ -67,7 +67,8 @@ def check_tensor_in_nnef_archive(
         remaining_labels = set(labels).difference(found_labels)
         if remaining_labels:
             raise T2NErrorTestFailed(
-                f"Some tensor where not found in exported NNEF archive: {remaining_labels}"
+                "Some tensor where not found in exported NNEF archive: "
+                f"{remaining_labels}"
             )
         if isinstance(labels, dict):
             for label_name, label_opt_checks in labels.items():
@@ -81,7 +82,8 @@ def check_tensor_in_nnef_archive(
                     if bin_header.torch_dtype_or_custom != expected_dtype:
                         raise T2NErrorTestFailed(
                             "wrong dtype in NNEF archive "
-                            f"{label_name}: {bin_header.torch_dtype_or_custom} but expected {expected_dtype}"
+                            f"{label_name}: {bin_header.torch_dtype_or_custom}"
+                            f" but expected {expected_dtype}"
                         )
 
 
@@ -116,7 +118,7 @@ def test_quantize_with_tract_q4_0_and_manipulate_tensor():
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_basic(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         test_input = torch.zeros(10, 96)
         test_input[0, :] = 1
@@ -158,7 +160,7 @@ def test_quantize_with_tract_q4_0_basic(inference_target):
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_controled(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         test_input = torch.zeros(10, 96)
         test_input[0, :] = 1
@@ -202,7 +204,7 @@ def test_quantize_with_tract_q4_0_controled(inference_target):
     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_rounding2(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         nd = 32
         test_input = torch.rand(nd).float().reshape(1, nd)
@@ -250,7 +252,7 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_arange(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         if (
             "arm" in platform.uname().machine.lower()
@@ -350,7 +352,7 @@ def test_u8_compressors():
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_assign_to(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         test_input = torch.arange(960).float().reshape(10, 96)
         test_input[0, :] = 1
@@ -375,7 +377,7 @@ TRACT_INFERENCES_TO_TESTS_APPROX_CONV = [
     [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version >= "0.21.11"],
 )
 def test_quantize_with_tract_q4_0_embedding(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         test_input = torch.arange(6)
         test_input[:3] = 3
@@ -413,7 +415,7 @@ def test_quantize_with_tract_q4_0_embedding(inference_target):
     [(k, i) for i in TRACT_INFERENCES_TO_TESTS_APPROX_CONV for k in [1, 3, 9]],
 )
 def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         test_input = torch.arange(32 * kernel_size).float()
         test_input[:3] = 3
@@ -464,7 +466,7 @@ def test_quantize_with_tract_q4_0_conv_base(kernel_size, inference_target):
     ],
 )
 def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         k = 3
         test_input = torch.arange(in_size * k).float()
@@ -515,7 +517,7 @@ def test_quantize_with_tract_q4_0_conv_insize(in_size, inference_target):
     ],
 )
 def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         k = 3
         in_size = 32
@@ -567,7 +569,7 @@ def test_quantize_with_tract_q4_0_conv_stride(stride, inference_target):
     ],
 )
 def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         k = 3
         in_size = 32
@@ -621,7 +623,7 @@ def test_quantize_with_tract_q4_0_conv_dilation(dilation, inference_target):
     ],
 )
 def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         k = 3
         y = 8
@@ -668,7 +670,7 @@ def test_quantize_with_tract_q4_0_conv_groups(groups, inference_target):
     "inference_target", TRACT_INFERENCES_TO_TESTS_APPROX_CONV
 )
 def test_quantize_with_tract_q4_0_conv2d(inference_target):
-    """basic quantization values"""
+    """Basic quantization values."""
     with torch.no_grad():
         k = 3
         y = 8
