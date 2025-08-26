@@ -20,6 +20,18 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+keywords = [
+    "nnef",
+    "pytorch",
+    "torch",
+    "deep learning",
+    "machine learning",
+    "ai",
+    "llm",
+    "transformers",
+    "export",
+    "exchange format",
+]
 dependencies = [
     "mako>=1.0.0,<2.0",
     "nnef>=1.0.7,<2",
@@ -375,8 +387,17 @@ deps = ["ruff"]
 commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 
 [tool.tox.env.static_check]
-deps = ["prospector"]
-commands = [["prospector", "--no-autodetect", "--zero-exit"]]
+deps = ["prospector[with_dodgy]", "pyroma"]
+commands = [
+    [
+        "prospector",
+        "--no-autodetect",
+        "-X",
+        # "--strictness",
+        # "high",
+    ],
+    ["pyroma", ".", "-n", "10"],
+]
 
 # testing llm_tract cli on legacy transformers
 [tool.tox.env.cli_transformers_4_50_0]
