@@ -287,10 +287,11 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         raise T2NErrorNotImplemented(
             f"unable to export scale_factor {scale_factor_node.data}"
         )
-    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    # anoyingly we need to pass the channel dim c (by default it's the 2nd dim)
-    # with classical notation:
-    # N,Cin,Hin, Win -> N,Cout,Hout,Wout
+    # NOTE: this implmentation is very suboptimal compared to resize operator:
+    # it should be reified in tract as a proper 'debox' operator.
+    # Also current implementation anoyingly need to pass
+    # the channel dim c (by default it's the 2nd dim)
+    # with classical notation: N,Cin,Hin, Win -> N,Cout,Hout,Wout
     scales = [int(sf) for sf in scale_factor_node.data]
     kernel_data = torch.ones([1, 1, 1, 1] + scales)
     kernel = TensorVariable(
@@ -304,13 +305,11 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         data=0,
     )
 
-    soc = SimpleOpChainer(op_helper, [input_node])
-    soc.chain("unsqueeze", attrs={"axes": [0, 1]})
     out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "deconv",
         inputs=(
-            op_helper.name_to_tensor[soc.output_name],
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
             op_helper.get_or_add_tensor_variable_in_nnef(kernel),
             op_helper.get_or_add_tensor_variable_in_nnef(bias),
         ),
