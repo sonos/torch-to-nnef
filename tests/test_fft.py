@@ -119,7 +119,7 @@ def cond_tract_gt_0_21_14(i) -> bool:
     return isinstance(i, TractNNEF) and i.version >= "0.21.14"
 
 
-if torch_version() < "1.11.0":
+if torch_version() > "1.11.0":
     test_suite.add(
         torch.arange(400 * 2).float() / 400,
         transforms.MFCC(),
