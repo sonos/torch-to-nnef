@@ -3,6 +3,7 @@ from copy import deepcopy
 import pytest
 import torch
 from torch import nn
+from torch_to_nnef.utils import torch_version
 from torchaudio import transforms
 
 from tests.utils import (
@@ -118,12 +119,14 @@ def cond_tract_gt_0_21_14(i) -> bool:
     return isinstance(i, TractNNEF) and i.version >= "0.21.14"
 
 
-test_suite.add(
-    torch.arange(400 * 2).float() / 400,
-    transforms.MFCC(),
-    inference_conditions=cond_tract_gt_0_21_14,
-    inference_modifier=change_tol_close,
-)
+if torch_version() > "1.10":
+    test_suite.add(
+        torch.arange(400 * 2).float() / 400,
+        transforms.MFCC(),
+        inference_conditions=cond_tract_gt_0_21_14,
+        inference_modifier=change_tol_close,
+    )
+
 test_suite.add(
     torch.arange(12).float(),
     MySTFT(
