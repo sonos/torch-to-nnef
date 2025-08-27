@@ -500,15 +500,6 @@ wheels = [
 ]
 
 [[package]]
-name = "docstring-parser-fork"
-version = "0.0.13"
-source = { registry = "https://pypi.org/simple/" }
-sdist = { url = "https://files.pythonhosted.org/packages/81/d7/b248fb8556f5180913c26c94d16a0f0ae999e419c027047e22c29e07b6ee/docstring_parser_fork-0.0.13.tar.gz", hash = "sha256:3635d3ef6438766882c25046cf2cc073c0a471e1d5cb36ee674f7de948d77749", size = 34512 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/a4/49da1e9655465d88ce82e355158f16f17526721b3630ccac25d41cb0c8e9/docstring_parser_fork-0.0.13-py3-none-any.whl", hash = "sha256:77219f949721de65916514dfcdfefc6651f92145a811927025e3f7df7cf222a8", size = 43012 },
-]
-
-[[package]]
 name = "docutils"
 version = "0.21.2"
 source = { registry = "https://pypi.org/simple/" }
@@ -2245,21 +2236,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pydoclint"
-version = "0.6.10"
-source = { registry = "https://pypi.org/simple/" }
-dependencies = [
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.10'" },
-    { name = "click", version = "8.2.1", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.10'" },
-    { name = "docstring-parser-fork" },
-    { name = "tomli", marker = "python_full_version < '3.11'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/ef/3e00c307c3bd0c2722fbd89bd05c200eace307b5a16b755c441a0e0d59fe/pydoclint-0.6.10.tar.gz", hash = "sha256:171c24f273c274715f4aa8754933cad11f2013878583e02146e416e732aae8b7", size = 159388 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/71/8d7de922c9ce149f78cea4fb23a8c1b3a84a9142d0b36c7feb987ee12e64/pydoclint-0.6.10-py3-none-any.whl", hash = "sha256:91e3d69be30e2d9201c1d34f63f01cb9d11aa6d8cbf63156bb886f6b15fb67ba", size = 68156 },
-]
-
-[[package]]
 name = "pydocstyle"
 version = "6.3.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -3393,7 +3369,6 @@ dev = [
     { name = "mkdocstrings-python" },
     { name = "pip" },
     { name = "pre-commit" },
-    { name = "pydoclint" },
     { name = "rich" },
     { name = "toml" },
     { name = "tox" },
@@ -3443,7 +3418,6 @@ dev = [
     { name = "mkdocstrings-python", specifier = ">=1.11,<1.12" },
     { name = "pip", specifier = "~=24.0" },
     { name = "pre-commit", specifier = ">=2.12.0,<3" },
-    { name = "pydoclint", specifier = ">=0.6.10" },
     { name = "rich", specifier = ">=13.7.1,<14" },
     { name = "toml", specifier = ">=0.10.2,<0.11" },
     { name = "tox", specifier = ">=4.23.2,<5" },

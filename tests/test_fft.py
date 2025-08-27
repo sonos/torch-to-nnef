@@ -3,7 +3,6 @@ from copy import deepcopy
 import pytest
 import torch
 from torch import nn
-from torch_to_nnef.utils import torch_version
 from torchaudio import transforms
 
 from tests.utils import (
@@ -14,6 +13,7 @@ from tests.utils import (
 from tests.wrapper import UnaryPrimitive
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.utils import torch_version
 
 
 class MyFFT(nn.Module):
@@ -119,7 +119,7 @@ def cond_tract_gt_0_21_14(i) -> bool:
     return isinstance(i, TractNNEF) and i.version >= "0.21.14"
 
 
-if torch_version() > "1.10.0":
+if torch_version() < "1.11.0":
     test_suite.add(
         torch.arange(400 * 2).float() / 400,
         transforms.MFCC(),
