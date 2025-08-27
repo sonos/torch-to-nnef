@@ -1,5 +1,6 @@
 import typing as T
 
+import torch
 import nnef
 from numpy import size
 
@@ -8,7 +9,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.reducer import reducer_helper
 from torch_to_nnef.op.helper import AtenOpRegistry, get_tract_dyn_axis_size_soc
 from torch_to_nnef.torch_graph import Data
-from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -283,11 +284,44 @@ def upsample_nearest2d(node, op_helper, **kwargs):
             f"unable to export scale_factor {scale_factor_node.data}"
         )
     inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "nearest_upsample",
-        inputs=inp,
-        attrs={
-            "factor": list(scale_factor_node.data),
-        },
-    )
+    # nearest upsample isn't supported tract side so use debox directly
+    # starting 0.22.0
+    if (
+        isinstance(op_helper.inference_target, TractNNEF)
+        and op_helper.inference_target.version > "0.22.0"
+    ):
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "debox",
+            inputs=inp,
+            attrs={
+                "size": [1, 1] + list(scale_factor_node.data) * 2,
+                "stride": list(scale_factor_node.data) * 2,
+                "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
+            },
+        )
+    else:
+        scales = [int(sf) for sf in scale_factor_node.data]
+        kernel = op_helper.get_or_add_tensor_variable_in_nnef(
+            TensorVariable(
+                name=f"{node.outputs[0].export_name}_kernel",
+                data=torch.ones([1, 1] + scales),
+                shape=[1, 1] + scales,
+                dtype=input_node.dtype,
+            )
+        )
+        bias = op_helper.get_or_add_tensor_variable_in_nnef(
+            PythonConstant(
+                name=f"{node.outputs[0].export_name}_bias",
+                data=0,
+            )
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "deconv",
+            inputs=(inp, kernel, bias),
+            attrs={
+                "stride": scales,
+                "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
+            },
+        )
