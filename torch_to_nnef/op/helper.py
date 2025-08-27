@@ -801,6 +801,17 @@ class OpHelper:
                 list(input_nodes[0].shape),
             )
 
+        if nnef_op_type == "transpose":
+            sh = list(input_nodes[0].shape)
+            sh = [sh[ax] for ax in attrs["axes"]]
+            return (input_nodes[0].dtype, sh)
+
+        if nnef_op_type == "unsqueeze":
+            sh = list(input_nodes[0].shape)
+            for ax in sorted(attrs["axes"]):
+                sh.insert(ax, 1)
+            return (input_nodes[0].dtype, sh)
+
         raise T2NErrorNotImplemented(nnef_op_type)
 
     def get_or_add_tensor_variable_in_nnef(self, node, **kwargs):
