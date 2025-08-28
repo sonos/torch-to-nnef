@@ -2,9 +2,9 @@ import pytest
 import torch
 from torch import nn
 
+from tests.utils import skipif_unsupported_tensor_updater
 from torch_to_nnef.exceptions import T2NErrorInconsistentTensor
 from torch_to_nnef.tensor.updater import ModTensorUpdater
-from tests.utils import skipif_unsupported_tensor_updater
 
 
 class CustomMod(nn.Module):

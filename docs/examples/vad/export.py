@@ -1,17 +1,16 @@
-"""Simple export script of MarbleNet VAD"""
+"""Simple export script of MarbleNet VAD."""
 
 import argparse
-import os
-from pathlib import Path
 import copy
-import subprocess
 import logging
+import subprocess
+from pathlib import Path
 
-from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 import torch
+from omegaconf import OmegaConf
 
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.log import init_log
 
@@ -65,7 +64,7 @@ class DummyDecoder(torch.nn.Module):
 
 
 class EncoderWrapper(torch.nn.Module):
-    """Avoid to expose input_len (that doesn't make sense in streaming)"""
+    """Avoid to expose input_len (that doesn't make sense in streaming)."""
 
     def __init__(self, model):
         super().__init__()
@@ -104,7 +103,8 @@ def export(
     decoder._return_logits = (
         not return_softmax  # return softmaxed output (easier to threshold from)
     )
-    # split featurizer+encoder and decoder to benefit from tract streaming cache capacity on encoder
+    # split featurizer+encoder and decoder to benefit
+    # from tract streaming cache capacity on encoder
     vad_model.decoder = DummyDecoder()
 
     enc_path_export = dump_path / "vad_marblenet.encoder.nnef.tgz"

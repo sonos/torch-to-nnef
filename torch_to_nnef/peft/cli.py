@@ -1,4 +1,4 @@
-"""Export any PEFT weights (LORA, ...) from .pt, .bin, .safetensors to NNEF"""
+"""Export any PEFT weights (LORA, ...) from .pt, .bin, .safetensors to NNEF."""
 
 import argparse
 import json
@@ -44,7 +44,8 @@ def parser_cli(
         "-r",
         "--read-filepath",
         required=True,
-        help="file to read containing the tensors to extract (.pt, .pth, .bin, .safetensors)",
+        help="file to read containing the tensors to extract "
+        "(.pt, .pth, .bin, .safetensors)",
     )
 
     parser.add_argument(
@@ -109,10 +110,8 @@ def export_peft(
 
     def filter_key(key):
         matches = re.match(jpattern, key)
-        LOGGER.debug(f"found '{key}' match '{jpattern}' {matches}")
-        if matches:
-            return True
-        return False
+        LOGGER.debug("found '%s' match '%s' %s", key, jpattern, matches)
+        return bool(matches)
 
     def fn_check_found_tensors(to_export):
         qte = len(to_export)
@@ -156,7 +155,7 @@ def export_peft(
             )
         )
         LOGGER.info(
-            f"found PEFT applied for {len(found_ref_tensors)} base tensors"
+            "found PEFT applied for %d base tensors", len(found_ref_tensors)
         )
         if len(found_ref_tensors) != len(mapping_table):
             missing_ref_tensors = set(expanded_ref_names).difference(
@@ -179,7 +178,7 @@ def export_peft(
             subprocess.check_call(["tar", "-czf", output_archive, "."])
 
         LOGGER.info(
-            f"successful export of PEFT tensors to NNEF: {output_archive}"
+            "successful export of PEFT tensors to NNEF: %s", output_archive
         )
 
 

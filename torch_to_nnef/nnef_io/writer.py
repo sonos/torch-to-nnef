@@ -1,13 +1,14 @@
-"""Code borrowed from `nnef_tools` Khronos group package
-original module fullname
-`nnef_tools.io.nnef.writer`
+"""Code borrowed from `nnef_tools` Khronos group package.
+
+original module fullname `nnef_tools.io.nnef.writer`
 
 This module is adapted with following goals:
 
 - 1. Handling special Tract quantization variables storage with custom .dat
   data storage format
 - 2. in `torch_to_nnef` transformation to numpy array of torch
-tensor is postponed to just before serialization. this avoid COPY to stay in memory (
+tensor is postponed to just before serialization. this avoid COPY to stay
+in memory (
     so the 'nnef.Graph' and data hold tensor of different kind
     than initially intended by Khronos group developpers
 ). This is crucial to export large models.
@@ -21,6 +22,7 @@ import logging
 import os
 import shutil
 import tempfile
+import typing as T
 
 import nnef
 import numpy as np
@@ -103,7 +105,10 @@ def _print(
     graph_inputs = [as_str(item.name) for item in graph.inputs]
     graph_outputs = [as_str(item.name) for item in graph.outputs]
 
-    graph_str = f"graph {graph_name}({', '.join(graph_inputs)}) -> ({', '.join(graph_outputs)})"
+    graph_str = (
+        f"graph {graph_name}({', '.join(graph_inputs)}) -> "
+        f"({', '.join(graph_outputs)})"
+    )
     print(graph_str, file=file)
     print("{", file=file)
 
@@ -309,8 +314,10 @@ class Writer:
         generate_custom_fragments=False,
         version_custom_fragments=True,
         annotate_shapes=False,
-        inference_target: InferenceTarget = KhronosNNEF.latest(),
+        inference_target: T.Optional[InferenceTarget] = None,
     ):
+        if inference_target is None:
+            inference_target = KhronosNNEF.latest()
         self._compression = compression
         self._extensions = extensions or []
         self._fragments = fragments or {}
@@ -328,7 +335,7 @@ class Writer:
                         qtensor = qtensor.to_base_tensor()
                     label = op.attribs["label"]
                     qtensor.write_in_file(folder, label, self._inference_target)
-                    LOGGER.info(f"written qtensor: '{label}'")
+                    LOGGER.info("written qtensor: '%s'", label)
                 else:
                     filename = op.attribs["label"] + ".dat"
                     write_nnef_tensor(
@@ -340,7 +347,7 @@ class Writer:
                     )
 
     def __call__(self, graph, path):
-        LOGGER.info(f"start writting NNEF graph into: '{path}'")
+        LOGGER.info("start writting NNEF graph into: '%s'", path)
         folder = None
         try:
             if self._compression is not None:
@@ -393,7 +400,7 @@ class Writer:
                     folder, path + ".tgz", compression_level=self._compression
                 )
                 shutil.rmtree(folder)
-        LOGGER.info(f"finished writting NNEF graph into: {path}")
+        LOGGER.info("finished writting NNEF graph into: %s", path)
 
     @staticmethod
     def _used_operators(graph, dependencies):

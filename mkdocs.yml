@@ -9,6 +9,8 @@ extra:
       link: https://x.com/sonos/
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/company/sonos-inc-/jobs/
+  version:
+    provider: mike
 extra_css:
   - style.css
 
@@ -74,6 +76,7 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             summary: true
+  - mike
 
 theme:
   name: material

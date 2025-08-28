@@ -9,7 +9,7 @@ from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class RelPosEncXL(nn.Module):
-    """Original SpeechBrain Positional encoding"""
+    """Original SpeechBrain Positional encoding."""
 
     def __init__(self, emb_dim):
         super().__init__()
@@ -55,7 +55,7 @@ class RelPosEncXL(nn.Module):
 
 
 class FixedRelPosEncXL(nn.Module):
-    """Equivalent Export friendly to SpeechBrain Positional encoding"""
+    """Equivalent Export friendly to SpeechBrain Positional encoding."""
 
     def __init__(self, emb_dim):
         super().__init__()
@@ -108,7 +108,7 @@ class FixedRelPosEncXL(nn.Module):
 
 
 class FastFixedRelPosEncXL(nn.Module):
-    """Equivalent Export friendly to SpeechBrain Positional encoding
+    """Equivalent Export friendly to SpeechBrain Positional encoding.
 
     Attempt to make implementation faster
     """
@@ -152,7 +152,7 @@ class FastFixedRelPosEncXL(nn.Module):
 
 
 class AssignSliceIssue(nn.Module):
-    """2024-04-15 -> no handling YET: tensor slice assign mutation
+    """2024-04-15 -> no handling YET: tensor slice assign mutation.
 
     This is not handled by torch ONNX export as well
 
@@ -212,7 +212,7 @@ class AssignSliceIssue(nn.Module):
     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version >= "0.21.2"],
 )
 def test_export_assign_slice(inference_target):
-    """Test simple models"""
+    """Test simple models."""
     # without dyn axes assume constant shape inputs so
     # positions and pe_future are static value tensors
     it = deepcopy(inference_target)

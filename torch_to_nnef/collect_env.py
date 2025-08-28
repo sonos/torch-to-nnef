@@ -1,4 +1,4 @@
-"""Used to collect environment status/versions for debuging purpose"""
+"""Used to collect environment status/versions for debuging purpose."""
 
 import locale
 import os
@@ -12,7 +12,11 @@ from platform import machine
 
 
 def run_lambda(command):
-    """Returns (return-code, stdout, stderr)"""
+    """Returns (return-code, stdout, stderr).
+
+    And Strips trailing newlines.
+
+    """
     with subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
     ) as p:
@@ -28,7 +32,7 @@ def run_lambda(command):
 
 
 def run_and_read_all(command):
-    """Runs command using run_lambda; reads and returns entire output if rc is 0"""
+    """Runs command; reads and returns entire output if rc is 0."""
     rc, out, _ = run_lambda(command)
     if rc != 0:
         return None
@@ -36,12 +40,14 @@ def run_and_read_all(command):
 
 
 def python_version() -> str:
+    """Returns a one-liner with python version and bitness."""
     sys_version = sys.version.replace("\n", " ")
     bits = sys.maxsize.bit_length() + 1
     return f"{sys_version} ({bits}-bit runtime)"
 
 
-def get_platform():
+def get_platform() -> str:
+    """Returns a simplified platform name."""
     if sys.platform.startswith("linux"):
         return "linux"
     if sys.platform.startswith("win32"):
@@ -54,7 +60,7 @@ def get_platform():
 
 
 def run_and_parse_first_match(command, regex):
-    """Runs command using run_lambda, returns the first regex match if it exists"""
+    """Runs command, returns the first regex match if it exists."""
     rc, out, _ = run_lambda(command)
     if rc != 0:
         return None
@@ -65,16 +71,19 @@ def run_and_parse_first_match(command, regex):
 
 
 def check_release_file():
+    """Read /etc/*-release file to get a pretty name for linux distros."""
     return run_and_parse_first_match(
         "cat /etc/*-release", r'PRETTY_NAME="(.*)"'
     )
 
 
 def get_mac_version():
+    """Returns macOS version like '10.14.6'."""
     return run_and_parse_first_match("sw_vers -productVersion", r"(.*)")
 
 
 def get_windows_version():
+    """Returns Windows version like 'Microsoft Windows 10 Pro'."""
     system_root = os.environ.get("SYSTEMROOT", "C:\\Windows")
     wmic_cmd = os.path.join(system_root, "System32", "Wbem", "wmic")
     findstr_cmd = os.path.join(system_root, "System32", "findstr")
@@ -84,25 +93,30 @@ def get_windows_version():
 
 
 def get_lsb_version():
+    """Returns lsb_release Description output like 'Ubuntu 20.04.6 LTS'."""
     return run_and_parse_first_match("lsb_release -a", r"Description:\t(.*)")
 
 
 def get_hostname():
+    """Returns the system hostname."""
     return platform.node()
 
 
 def get_user():
+    """OS current user name, or empty string if it cannot be determined."""
     try:
         return pwd.getpwuid(os.getuid()).pw_name
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return ""
 
 
 def get_uname() -> str:
+    """Returns the output of `uname -a`."""
     return subprocess.check_output(["uname", "-a"]).decode("utf8")
 
 
 def get_os() -> str:
+    """Returns a pretty string describing the OS."""
     platform_ = get_platform()
 
     if platform_ in ["win32", "cygwin"]:
@@ -131,8 +145,11 @@ def get_os() -> str:
 
 
 def get_pip_packages():
-    """Returns `pip list` output. Note: will also find conda-installed pytorch
-    and numpy packages."""
+    """Returns `pip list` output.
+
+    Note: will also find conda-installed pytorch and numpy packages.
+
+    """
 
     # People generally have `pip` as `pip` or `pip3`
     # But here it is incoved as `python -mpip`
@@ -153,10 +170,12 @@ def get_pip_packages():
 
 
 def get_gcc_version():
+    """Returns the GCC version string, or None if gcc is not found."""
     return run_and_parse_first_match("gcc --version", r"gcc (.*)")
 
 
 def dump_environment_versions(pathdir: Path, tract_path: Path):
+    """Dumps software versions to a file 'versions' in the given folder."""
     with (pathdir / "versions").open("w", encoding="utf8") as fh:
         fh.write(f"tract: {tract_path.absolute()}\n")
         fh.write("\n")

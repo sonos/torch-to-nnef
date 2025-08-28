@@ -1,17 +1,19 @@
 from copy import deepcopy
+
 import pytest
 import torch
 from torch import nn
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torchaudio import transforms
 
-from tests.wrapper import UnaryPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from tests.wrapper import UnaryPrimitive
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef.utils import torch_version
 
 
 class MyFFT(nn.Module):
@@ -117,12 +119,14 @@ def cond_tract_gt_0_21_14(i) -> bool:
     return isinstance(i, TractNNEF) and i.version >= "0.21.14"
 
 
-test_suite.add(
-    torch.arange(400 * 2).float() / 400,
-    transforms.MFCC(),
-    inference_conditions=cond_tract_gt_0_21_14,
-    inference_modifier=change_tol_close,
-)
+if torch_version() >= "1.11.0":
+    test_suite.add(
+        torch.arange(400 * 2).float() / 400,
+        transforms.MFCC(),
+        inference_conditions=cond_tract_gt_0_21_14,
+        inference_modifier=change_tol_close,
+    )
+
 test_suite.add(
     torch.arange(12).float(),
     MySTFT(
@@ -165,7 +169,7 @@ test_suite.add(
     ids=test_suite.ids,
 )
 def test_complex_and_fft_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

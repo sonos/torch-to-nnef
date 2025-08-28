@@ -1,24 +1,24 @@
 """Tests canonical models."""
 
+import contextlib
+import os
 import platform
 from copy import deepcopy
-import os
 
 import pytest
 import torch
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
 import torchaudio
 from torchaudio import models as audio_mdl
 from torchvision import models as vision_mdl
 from transformers import AlbertModel, AlbertTokenizer
 
-try:
+from torch_to_nnef.inference_target.tract import TractCheckTolerance
+
+with contextlib.suppress(ImportError):
     from tests.shifted_window_attention_patch import (
         ExportableShiftedWindowAttention,
         ExportableSwinTransformerBlock,
     )
-except ImportError:
-    pass
 
 from torch_to_nnef.inference_target import TractNNEF
 
@@ -71,7 +71,9 @@ test_suite.add(
 if hasattr(audio_mdl, "Conformer"):
 
     class ConformerWrapper(torch.nn.Module):
-        """Avoid returning length that is not edited
+        """Wrap Conformer for export.
+
+        Avoid returning length that is not edited
         torch_to_nnef forbid to return same tensor as inputed
         by the model as this means this output is not needed
         and may introduce silent variable name alterations.
@@ -227,7 +229,7 @@ except ImportError:
     ids=test_suite.ids,
 )
 def test_model_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

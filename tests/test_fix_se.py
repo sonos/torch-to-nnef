@@ -40,8 +40,14 @@ class SqueezeExcitationBlock1d(nn.Module):
         self._initialize_weights()
 
     def forward(self, x: torch.Tensor):
-        """
-        GlobalPooling -> bottleneck (FC-ReLU-FC) -> sigmoid -> multiply with FMs
+        """Squeeze & Excitation block forward pass.
+
+        Apply in order:
+            - GlobalPooling
+            - bottleneck (FC-ReLU-FC)
+            - sigmoid
+            - multiply with FMs.
+
         """
         # Compute kernel to perform average pooling along the selected dim only
         pooling_kernel = [x.size(2), x.size(3)]
@@ -64,7 +70,7 @@ class SqueezeExcitationBlock1d(nn.Module):
 
 @pytest.mark.parametrize("inference_target", TRACT_INFERENCES_TO_TESTS_APPROX)
 def test_export(inference_target):
-    """Test simple export"""
+    """Test simple export."""
     test_input = torch.rand(1, 2, 10, 20)
     model = SqueezeExcitationBlock1d(nb_input_channels=2)
     with tempfile.TemporaryDirectory() as tmpdir:

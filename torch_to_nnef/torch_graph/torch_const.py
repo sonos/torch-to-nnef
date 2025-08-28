@@ -1,4 +1,4 @@
-"""Some Core PyTorch core naming, used to trace/parse their JIT"""
+"""Some Core PyTorch core naming, used to trace/parse their JIT."""
 
 PRIM_STARTID = "prim::"
 CALL_KIND = "prim::CallMethod"

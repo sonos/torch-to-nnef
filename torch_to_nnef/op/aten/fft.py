@@ -23,7 +23,8 @@ def _fft(
     inverse=False,
 ):
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L360
-    # const Tensor& self, c10::optional<int64_t> n, int64_t dim, c10::optional<c10::string_view> norm
+    # const Tensor& self, c10::optional<int64_t> n, int64_t dim,
+    # c10::optional<c10::string_view> norm
     if (
         not isinstance(inference_target, TractNNEF)
         or inference_target.version < "0.20.7"
@@ -122,7 +123,7 @@ def stft(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:stft' to NNEF"""
+    """Map PyTorch: 'aten:stft' to NNEF."""
     # NEED SOME FACTOR OUT WITH _FFT and fix to pass window in NNEF-Tools
     # https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/SpectralOps.cpp#L826
     if (
@@ -294,7 +295,7 @@ def fft_fft(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:fft_fft' to NNEF"""
+    """Map PyTorch: 'aten:fft_fft' to NNEF."""
     return _fft(
         node,
         g,
@@ -312,7 +313,7 @@ def fft_ifft(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:fft_ifft' to NNEF"""
+    """Map PyTorch: 'aten:fft_ifft' to NNEF."""
     return _fft(
         node,
         g,

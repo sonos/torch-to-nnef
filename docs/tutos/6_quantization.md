@@ -14,17 +14,17 @@
     - [ ] 10 min to read this page
 
 <figure markdown="span">
-    ![quant ilu](/img/quant_ilu.png)
+    ![quant ilu](../../img/quant_ilu.png)
     <figcaption>*Illustration by Maarten Grootendorst*</figcaption>
 </figure>
 
-Quantization is a set of techniques that allow to reduce significantly model
+Quantization is a set of techniques that allow to reduce significantly the model
 size, and in case of memory-bound computations during model inference:
 speed up model as well. These techniques reduce the 'size' needed
 to store the numerical values representing the parameters of the neural network.
 
-In order to make those techniques efficient, the inference engine that run the
-neural network need in most cases have specific kernels to support the
+In order to make those techniques efficient, the inference engine that runs the
+neural network needs to have in most cases, specific kernels to support the
 quantization scheme selected.
 
 `torch_to_nnef` primary support today being [`tract`](github.com/sonos/tract), the quantization
@@ -32,7 +32,7 @@ presented here are all targeting this inference engine.
 
 To date tract support 2 kind of quantization:
 
-- Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it target weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
+- Q40: almost identical to [GGUF Q40](https://huggingface.co/docs/hub/en/gguf), it targets weights only (not activations) where matmul and embedding/gathering operations, transform those into float activations.
 - 8 bit asymmetric per tensor quantization built-in in PyTorch that can target weights and activations and allow integer only arithmetic
 
 Let's take a look at each in turn starting by Q40.
@@ -55,7 +55,7 @@ t2n_export_llm_to_tract \
     -c "min_max_q4_0_all"
 ```
 
-It should take around same time to export (quantization time being compensated by less content to dump on disk).
+It should take around the same time to export (quantization time being compensated by less content to dump on disk).
 
 Ok that's nice, but where does this registry come from ?
 
@@ -92,22 +92,23 @@ def my_quantization_function(
 ```
 
 A typical function will transform some model tensors (parameters, buffers, ...)
-into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L188) a concrete QTensor that support NNEF export today being:
+into [`torch_to_nnef.tensor.QTensor`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L188) a concrete QTensor that supports NNEF export today being:
 <div class="grid cards" markdown>
 - ::: torch_to_nnef.tensor.quant.qtract.QTensorTractScaleOnly
     handler: python
 </div>
-which has of now only support which is identical to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw).
 
-A `QTensor` is a Python object that behave and should be used as a
-classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to it's definition like:
+QTensor today only support export to [`Q40`](https://huggingface.co/docs/hub/en/gguf) (that means: 4bit symmetric quantization with a granularity per group of 32 elements, totaling 4.5bpw).
+
+A `QTensor` is a Python object that behaves and should be used as a
+classical `torch.Tensor` with few exceptions: it can not hold any gradient, it can not be modified, it contains internals objects necessary to its definition like:
 
 - A blob of binary data (the compressed information) named `u8_blob`
 - A [`torch_to_nnef.tensor.quant.Qscheme`](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L20) which define how to quantize/ dequantize the blob from u8 (like [QScalePerGroupF16](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L46))
 - A list of [U8Compressor](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/base.py#L144) that can act on the u8 blob and compress it further by for
 example applying bit-packing to it. Say each represented element is specified in 4 bit (16 value represented) without compressor we waste 4 bit per element because each element take 8bit (here we ignore the attached quantization information that add up to the size). Also Compressor are not necessary just bit-packing that can be any kind of classical compression algorithm (Huffman, Lzma, ...) as long as the compression is lossless.
 
-Each access to the QTensor for torch operations will make it be decompressed on-fly saving RAM allocation when unused. This QTensor will also be identified by `torch_to_nnef` at export time and translated to requested `.dat` based on the specific method:
+Each access to the QTensor for torch operations will make it be decompressed on the fly saving RAM allocation when unused. This QTensor will also be identified by `torch_to_nnef` at export time and translated to requested `.dat` based on the specific method:
 
 ```python
 def write_in_file(
@@ -119,7 +120,7 @@ def write_in_file(
     pass
 ```
 
-Each subclass will define how to dump it (by example [for tract Q40](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract.py#L178)).
+Each subclass will define how to dump it (for example [for tract Q40](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/tensor/quant/qtract.py#L178)).
 
 The transformation from a float tensor to a Q40 QTensor can be done through
 a step we call tensor quantization which may be as simple as
@@ -146,7 +147,7 @@ Let's take an example step by step:
 
 1. We will use Q40 so no need to redefine the QTensor nor the QScheme, we will just have to create a new tensor quantization function register
 
-2. Let's create a custom register on our own module `super_quant.py` were we will implement a scale grid search based on [Mean Square Error calibration](https://en.wikipedia.org/wiki/Mean_square_quantization_error) for the demo.
+2. Let's create a custom register on our own module `super_quant.py` where we will implement a scale grid search based on [Mean Square Error calibration](https://en.wikipedia.org/wiki/Mean_square_quantization_error) for the demo.
 
 3. we first copy almost same function as `quantize_weights_min_max_Q4_0` and rename it `quantize_weights_grid_mse_Q40` and adapt it slightly
 
@@ -247,7 +248,7 @@ EXAMPLE_REGISTRY = {
 }
 ```
 
-Note here the use of [`ModTensorUpdater`](/reference/torch_to_nnef/tensor/updater/) this module updater allow to avoid breaking shared reference to a common tensor inside your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
+Note here the use of [`ModTensorUpdater`](/reference/torch_to_nnef/tensor/updater/) this module updater allows to avoid breaking shared reference to a common tensor inside your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
 
 We now just need to fill the `fp_to_tract_q4_0_with_grid_mse_calibration` function and we are done. Also note that I could have done a calibration stage with external data before end at the beginning (some quantization method need to minimize quantization error for activations). In this case we opt for simplicity:
 
@@ -404,4 +405,4 @@ You should observe that operators are correctly understood as Quantized with QU8
 !!! success end "Congratulation"
 
     You exported your first quantized network with `torch_to_nnef` in 8bit
-    and learned how to create and manage own quantization registry !
+    and learned how to create and manage your own quantization registry !

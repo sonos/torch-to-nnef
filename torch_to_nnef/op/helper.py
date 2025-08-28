@@ -66,7 +66,7 @@ class OpRegistry:
         ] = {}
 
     def register(self, torch_op_ids: T.Optional[T.List[str]] = None):
-        """by default we take the name of the function if not specified"""
+        """By default we take the name of the function if not specified."""
 
         def wrapper(decorated):
             nonlocal torch_op_ids
@@ -81,9 +81,7 @@ class OpRegistry:
                 ops_str = ", ".join(
                     f"'{self.torch_mod_id}:{o}'" for o in torch_op_ids
                 )
-                decorated.__doc__ = (
-                    f"Operator mapping PyTorch: {ops_str} to NNEF"
-                )
+                decorated.__doc__ = f"Map PyTorch: {ops_str} to NNEF"
                 decorated._auto_gen_doc = True
             else:
                 decorated._auto_gen_doc = False
@@ -170,7 +168,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     prevent_variable: bool = False,
     force_full_output_tensor_name: T.Optional[str] = None,
 ) -> NTensor:
-    """Create NNEF tensor and register in graph from torch_graph.Data node
+    """Create NNEF tensor and register in graph from torch_graph.Data node.
 
     It automatically adds variable if node is a torch tensor is associated
     (it avoids bloating nnef graph file with matrix values)
@@ -210,23 +208,22 @@ def add_tensor_variable_node_as_nnef_tensor(
         else:
             nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
-            if (
-                not prevent_variable
-                and (
-                    node.data.numel() > 1
-                    or (
-                        nnef_tensor_ref.data.numel() == 1
-                        and "e" in str(nnef_tensor_ref.data.item())
-                    )
-                    or (  # special dtype need to avoid dtype undefined in NNEF graph
-                        node.dtype
-                        in [
-                            torch.int16,
-                            # torch.int64, # avoid for tract that create confusion with TDim
-                            torch.float16,
-                            torch.float64,
-                        ]
-                    )
+            if not prevent_variable and (
+                node.data.numel() > 1
+                or (
+                    nnef_tensor_ref.data.numel() == 1
+                    and "e" in str(nnef_tensor_ref.data.item())
+                )
+                or (  # special dtype need to avoid dtype undefined
+                    # in NNEF graph
+                    node.dtype
+                    in [
+                        torch.int16,
+                        # torch.int64, # avoid for tract that create
+                        # confusion with TDim
+                        torch.float16,
+                        torch.float64,
+                    ]
                 )
             ):
                 add_nnef_operation(
@@ -252,7 +249,7 @@ def maybe_align_inputs_ranks(
     outputs: T.Sequence[NTensor],
     op_type: str,
 ) -> T.Sequence[NTensor]:
-    """ensure consistent rank between inputs and outputs with regard to spec
+    """Ensure consistent rank between inputs and outputs with regard to spec.
 
     - May unsqueeze at 0 rank n time to align inputs
 
@@ -321,10 +318,7 @@ def maybe_align_inputs_ranks(
                     )
                     nnef_tensor = output_nnef_tensor
                 new_inputs.append(nnef_tensor)
-        if isinstance(inputs, list):
-            inputs = new_inputs
-        else:
-            inputs = tuple(new_inputs)
+        inputs = new_inputs if isinstance(inputs, list) else tuple(new_inputs)
     return inputs
 
 
@@ -398,7 +392,7 @@ def add_single_output_op(
 
 
 def pick_axis(input_node, rank: int) -> int:
-    """Enforce that axis, axes ect does contains only positive values"""
+    """Enforce that axis, axes ect does contains only positive values."""
     if rank >= 0:
         return rank
     if isinstance(input_node, FixedTensorList):
@@ -473,33 +467,36 @@ def unary_input_output_op_with_constant(nnef_op_type, **kwargs):
 
 
 def _prevent_raw_number_with_e_notation(g, name_to_tensor, value):
-    if not isinstance(value, bool) and isinstance(value, (int, float)):
-        if "e" in str(value):
-            # create a tensor to avoid issue with number formatting
-            # containing exp notation 'e'
-            nvalue = torch.from_numpy(np.array(value))
-            var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
-            return nnef.Identifier(
-                get_or_add_tensor_variable_in_nnef(
-                    g,
-                    TensorVariable(
-                        name=var_name,
-                        data=nvalue,
-                        shape=list(nvalue.shape),
-                        dtype=nvalue.dtype,
-                    ),
-                    name_to_tensor,
-                ).name
-            )
+    if (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and "e" in str(value)
+    ):
+        # create a tensor to avoid issue with number formatting
+        # containing exp notation 'e'
+        nvalue = torch.from_numpy(np.array(value))
+        var_name = f"var_{str(value).replace('.', '_').replace('+', 'p')}"
+        return nnef.Identifier(
+            get_or_add_tensor_variable_in_nnef(
+                g,
+                TensorVariable(
+                    name=var_name,
+                    data=nvalue,
+                    shape=list(nvalue.shape),
+                    dtype=nvalue.dtype,
+                ),
+                name_to_tensor,
+            ).name
+        )
     return value
 
 
 def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
-    """Catch all input or attr that would still be torch_graph values into NNEF"""
+    """Catch input or attr that would still be torch_graph values into NNEF."""
     casted_inputs = []
     casted_attrs = {}
 
-    def cast(value):
+    def cast(value):  # pylint: disable=too-many-return-statements
         if isinstance(value, (int, str, float, NTensor)):
             return _prevent_raw_number_with_e_notation(g, name_to_tensor, value)
         if isinstance(value, TensorVariable):
@@ -545,7 +542,7 @@ def cast_inputs_and_attrs(inputs, attrs, g, name_to_tensor):
 
 
 def cast_and_add_nnef_operation(name_to_tensor: str, **kwargs):
-    """ensure to cast parameters before adding operation to NNEF graph"""
+    """Ensure to cast parameters before adding operation to NNEF graph."""
     kwargs["inputs"], kwargs["attribs"] = cast_inputs_and_attrs(
         kwargs["inputs"],
         kwargs["attribs"],
@@ -605,12 +602,11 @@ def weight_bias_and_output_tensor(
     suffix_bias_name="",
     suffix_out_name="",
 ):
-    if suffix_weight_name == "":
-        if (
-            weight_node.data is not None
-            and not weight_node.export_name.endswith("__weight")
-        ):
-            suffix_weight_name = "weight"
+    if suffix_weight_name == "" and (
+        weight_node.data is not None
+        and not weight_node.export_name.endswith("__weight")
+    ):
+        suffix_weight_name = "weight"
 
     weight_ref = get_or_add_tensor_variable_in_nnef(
         node=weight_node,
@@ -700,17 +696,18 @@ def cast_to_if_not_dtype_and_variable(
     cast_to: np.dtype,
     suffix: str = "",
 ):
-    """Force casting not expressed in IR graph in case of div by example.
+    """Force casting not expressed in IR graph in case of div for example.
 
     This is neccessary since tract and maybe other inference engine may not cast
-    implicitly to float during div operation by example leading to rounding
+    implicitly to float during div operation for example leading to rounding
     issues.
 
     """
     if torch_version() < "1.13.0" and cast_to == np.uint64:
         logging.warning(
-            f"discarded force casting to dtype={cast_to} "
-            "since obverved bug prior 1.13.0"
+            "discarded force casting to dtype=%s "
+            "since obverved bug prior 1.13.0",
+            cast_to,
         )
         cast_to = nnef_tensor.dtype
     out = add_single_output_op(
@@ -827,7 +824,7 @@ class OpHelper:
         )
 
     def _implicits_input_casting(self, node, nnef_op_type, inputs):
-        """Express implicit casting of inputs with different dtype in final graph
+        """Express implicit torch inputs casting with different dtype in NNEF.
 
         Those known implicit casting rules have been observed in math operators
         and tested empirically on PyTorch 2.2:
@@ -841,7 +838,7 @@ class OpHelper:
             (specific ranked dtype list DTYPES_EXPECTED_IMPLICIT_CAST_ORDER)
 
 
-        By example:
+        For example:
 
         >>> torch.mul(1, torch.rand(10)).dtype
         torch.float32
@@ -866,26 +863,27 @@ class OpHelper:
         (but we do not yet support implicit dtype cast for such unusual op)
 
         """
-        if nnef_op_type in IMPLICIT_CAST_CONSISTENT_INP_SUPPORTED_OPS:
-            if len(inputs) > 1 and len({_.dtype for _ in inputs}) > 1:
-                lowest_idx = np.inf
-                for _ in inputs:
-                    idx = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(_.dtype)
-                    lowest_idx = min(lowest_idx, idx)
-                dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[
-                    lowest_idx
-                ]
-                for idx, inp in enumerate(inputs):
-                    if inp.data is not None:
-                        to_str = numpy_dtype_to_tract_str(dtype_target)
-                        out = self.add_single_output_op_from_nnef_tensors(
-                            node=node,
-                            nnef_op_type="tract_core_cast",
-                            inputs=inp,
-                            attrs={"to": to_str},
-                            force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
-                        )
-                        inputs[idx] = out
+        if (
+            nnef_op_type in IMPLICIT_CAST_CONSISTENT_INP_SUPPORTED_OPS
+            and len(inputs) > 1
+            and len({_.dtype for _ in inputs}) > 1
+        ):
+            lowest_idx = np.inf
+            for _ in inputs:
+                idx = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER.index(_.dtype)
+                lowest_idx = min(lowest_idx, idx)
+            dtype_target = NP_DTYPES_EXPECTED_IMPLICIT_CAST_ORDER[lowest_idx]
+            for idx, inp in enumerate(inputs):
+                if inp.data is not None:
+                    to_str = numpy_dtype_to_tract_str(dtype_target)
+                    out = self.add_single_output_op_from_nnef_tensors(
+                        node=node,
+                        nnef_op_type="tract_core_cast",
+                        inputs=inp,
+                        attrs={"to": to_str},
+                        force_full_output_tensor_name=f"{inp.name}_as_{to_str}",
+                    )
+                    inputs[idx] = out
         if nnef_op_type not in IMPLICIT_CAST_SUPPORTED_OPS:
             return inputs
         final_dtype = TORCH_TO_NUMPY_DTYPE[node.outputs[0].dtype]
@@ -957,7 +955,7 @@ class OpHelper:
         reuse_if_name_exists: bool = False,
         **kwargs,
     ) -> TorchOp:
-        """Use input_nodes Data instead of nnef.Tensor
+        """Use input_nodes Data instead of nnef.Tensor.
 
         Also nnefe
         """

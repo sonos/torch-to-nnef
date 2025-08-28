@@ -1,10 +1,12 @@
-"""Same logic as VIT but with efficientnet and batch dynamic_axes"""
+"""Same logic as VIT but with efficientnet and batch dynamic_axes."""
 
 from pathlib import Path
+
 import torch
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 base_model = vision_mdl.efficientnet_b0
 weights = vision_mdl.EfficientNet_B0_Weights
@@ -17,11 +19,14 @@ input_data_sample = classification_task.transforms()(img.unsqueeze(0))
 file_path_export = Path("efficientnet_b0_batchable.nnef.tgz")
 export_model_to_nnef(
     model=my_image_model,  # any nn.Module
-    args=input_data_sample,  # list of model arguments (here simply an example of tensor image)
+    args=input_data_sample,  # list of model arguments
+    # (here simply an example of tensor image)
     file_path_export=file_path_export,  # filepath to dump NNEF archive
     inference_target=TractNNEF(  # inference engine to target
-        version=TractNNEF.latest_version(),  # tract version (to ensure compatible operators)
-        check_io=True,  # default False (tract binary will be installed on the machine on fly)
+        version=TractNNEF.latest_version(),  # tract version
+        # (to ensure compatible operators)
+        check_io=True,  # default False
+        # (tract binary will be installed on the machine on fly)
         dynamic_axes={"inp": {0: "B"}},
     ),
     input_names=["inp"],

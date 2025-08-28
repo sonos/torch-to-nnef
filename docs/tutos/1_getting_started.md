@@ -76,7 +76,7 @@ Running the file:
 class id: 652 label:  military uniform
 ```
 
-The class index predicted with PyTorch (`652`) need to be the aligned with tract prediction we will develop.
+The class index predicted with PyTorch (`652`) needs to be aligned with tract prediction we will develop.
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 2.**</span> Export to NNEF
 
@@ -134,13 +134,13 @@ aten::size replaced by constant traced value (follows NNEF spec).Keeping dynamis
 exported ./vit_b_16.nnef.tgz
 ```
 
-But wait there is 2 tracing warnings here:
+But wait there are 2 tracing warnings here:
 
 - The first is inherent to tracing mechanism happening inside `torch_to_nnef` indeed behind the scene
     we use PyTorch [jit.trace](https://docs.pytorch.org/docs/stable/generated/torch.jit.trace.html).
     It is only able to capture torch control flows, so all Python manipulations
-    that does not happen in PyTorch internals is 'solidified' into a set of fixed values.
-    This also happen if you export a PyTorch model to ONNX with their internal tool.
+    that do not happen in PyTorch internals are 'solidified' into a set of fixed values.
+    This also happens if you export a PyTorch model to ONNX with their internal tool.
 
 - The second is interesting, it highlights a loss of model expressiveness because we did not specify
     that one of the input dimension is in fact the batch size, a parameter that may vary. We will show how
@@ -178,9 +178,9 @@ tract ./vit_b_16.nnef.tgz \
 Here a lot is happening:
 
 - tract loads the NNEF registry relative to core operators
-- its then load the model
-- it declutters and optimize it  (thanks to the `-O`)
-- the `--allow-random-input` avoid us to provide a concrete input example
+- it then loads the model
+- it declutters and optimizes it  (thanks to the `-O`)
+- the `--allow-random-input` avoids us to provide a concrete input example
 - the `--profile` informs the command-line that we want to observe the speed of it
 
 Output in stdout is composed of following sections in order:
@@ -197,7 +197,7 @@ The graph of computation (after decluttering and optimization) with each operati
                         ━━━ 1,1000,F32
 ```
 
-This already tell us about how network is composed and which specialized operators kernels were select.
+This already tell us about how the network is composed and which specialized operators kernels were selected.
 (this display is from an ARM CPU)
 Then we have the list of custom properties that have been exported by `torch_to_nnef`:
 
@@ -240,7 +240,7 @@ On classical networks, matrix multiplication operations should dominate the comp
 
 !!! info
 
-    This command only display time to run the inference (model load and optimization is not accounted).
+    This command only displays time to run the inference (model load and optimization are not accounted for).
 
 !!! tip "GPU usage"
 
@@ -252,7 +252,7 @@ On classical networks, matrix multiplication operations should dominate the comp
 We just created a great NNEF model, and it has been checked during export to get same output for same input
 between PyTorch and tract (thanks to the `check_io=True` option). That said you may now wish to
 interact with it to perform a fully fledged evaluation of the model (to ensure this new inference engine
-do not get imprecise results on some specific samples).
+does not get imprecise results on some specific samples).
 
 For this purpose we need to install a new package in our activated `venv`:
 
@@ -263,7 +263,7 @@ pip install "tract<0.22,>=0.21"
 Let's now create a new python file called `run.py`:
 
 Let's read our example image again with torch vision and transform it
-in `numpy` feature matrix, this part is specific to the image classifaction,
+in `numpy` feature matrix, this part is specific to the image classification,
 and could be done with any tool you wish (this is not `tract` or `torch_to_nnef` related).
 
 ```python title="run.py (part 1)"
@@ -369,7 +369,7 @@ Inside the main replace *println* with:
 ```
 
 This code is responsible to load, declutter and optimize the model.
-Prepare image to be ingested by the neural network:
+Prepare an image to be ingested by the neural network:
 
 ```rust title="main.rs (part 4)"
     // open image, resize it and make a Tensor out of it
@@ -394,7 +394,7 @@ Prepare image to be ingested by the neural network:
 
 ```
 
-Notice that tract use [ndarray](https://docs.rs/ndarray/latest/ndarray/) to manipulate tensors with it's user facing API.
+Notice that tract uses [ndarray](https://docs.rs/ndarray/latest/ndarray/) to manipulate tensors with its user facing API.
 
 This tensor is now ready to be run with our tract model:
 
@@ -440,7 +440,7 @@ result: Some((9.439479, 652))
 ## <span style="color:#6666aa">**:material-step-forward:  Demo 1:**</span> :fontawesome-brands-rust: Image classifier
 
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
- We demo the use a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model).
+ We demo the use of a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model - ).
 
 <script>
 window.addEventListener('message', (event) => {
@@ -452,10 +452,11 @@ window.addEventListener('message', (event) => {
     }
 });
 </script>
+
 <iframe
     id="iframe-demo-0"
     class="responsive-iframe"
-    src="/html/demo_image_classifier.html">
+    src="../../html/demo_image_classifier.html">
 </iframe>
 
 !!! note
@@ -482,7 +483,7 @@ window.addEventListener('message', (event) => {
 <iframe
     id="iframe-demo-1"
     class="responsive-iframe"
-    src="/html/demo_pose_estimation.html">
+    src="../../html/demo_pose_estimation.html">
 
 </iframe>
 

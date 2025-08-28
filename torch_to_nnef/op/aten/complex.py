@@ -11,7 +11,7 @@ def tract_complex_support(inference_target: InferenceTarget) -> bool:
     return (
         isinstance(inference_target, TractNNEF)
         and "complex" in inference_target.feature_flags
-        and "0.20.0" > inference_target.version
+        and inference_target.version < "0.20.0"
     )
 
 
@@ -31,7 +31,7 @@ def view_as_complex(
     torch_graph,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:view_as_complex' to NNEF"""
+    """Map PyTorch: 'aten:view_as_complex' to NNEF."""
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
     # in such case we simulate complex with additional last axis being x2
@@ -51,7 +51,7 @@ def view_as_real(
     inference_target,
     **kwargs,
 ):
-    """Operator mapping PyTorch: 'aten:view_as_real' to NNEF"""
+    """Map PyTorch: 'aten:view_as_real' to NNEF."""
     if tract_complex_support(inference_target):
         raise T2NErrorNotImplemented("Complex not supported by vanilla NNEF")
     # in such case we simulate complex with additional last axis being x2

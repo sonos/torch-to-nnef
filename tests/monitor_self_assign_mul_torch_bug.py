@@ -1,4 +1,4 @@
-"""Monitor failure of torch JIT regarding self assign mul"""
+"""Monitor failure of torch JIT regarding self assign mul."""
 
 import typing
 

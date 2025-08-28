@@ -1,6 +1,5 @@
 import enum
 import typing as T
-import warnings
 from collections import defaultdict
 
 import torch
@@ -23,11 +22,8 @@ class ModTensorUpdater:
 
     Cleanly means without breaking shared reference between Tensors.
 
-    An example is the shared reference on transformers between first input_ids embedding and
-    last linear layer projection weights.
-
-    This is not usefull for PyTorch < 2.0.0 since it filters duplicate in init,
-    since torch API are missing remove_duplicate before that.
+    An example is the shared reference on transformers between
+    first input_ids embedding and last linear layer projection weights.
 
     """
 
@@ -38,33 +34,32 @@ class ModTensorUpdater:
         add_buffers: bool = False,
         add_unregistred_tensor: bool = False,
         disable_requires_grad: bool = False,
-        warn_old_torch: bool = True,
     ):
-        """
+        """Init ModTensorUpdater.
+
         Args:
             model:
                 nn.Module model that will have tensors updated with this class
 
             add_parameter_if_unset:
-                if you add a tensor where there is not yet a torch.nn.Parameters in the model it will add it
+                if you add a tensor where there is not yet a torch.nn.Parameters
+                in the model it will add it
 
             add_buffers:
-                Scope all nn.Buffer PyTorch object of the model to be 'updatable'
+                Scope all nn.Buffer PyTorch object of the model
+                to be 'updatable'
 
             add_unregistred_tensor:
-                Scope all tensor PyTorch object of the model not referenced in nn.Parameters & nn.Buffer
+                Scope all tensor PyTorch object of the model not referenced in
+                nn.Parameters & nn.Buffer
 
             disable_requires_grad:
-                If set it force tensors replaced to be with no 'requires_grad' at update time
+                If set it force tensors replaced to be with no 'requires_grad'
+                at update time
         """
         self.name_to_id = {}
         self.id_to_kind = {}
         self._disabled_requires_grad_names = []
-        if torch_version() < "2.0.0" and warn_old_torch:
-            warnings.warn(
-                "Try to use `ModTensorUpdater` with PyTorch<2.0, "
-                " it will not apply tight variable update as you might expect."
-            )
         id_to_names = defaultdict(set)
         mod_name_to_tensor_names = defaultdict(list)
         for param_name, param in get_named_parameters(
@@ -236,7 +231,7 @@ class ModTensorUpdater:
         new_tensor: torch.Tensor,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
-        """Update tensor based on it's  reference object"""
+        """Update tensor based on it's  reference object."""
         new_tensor = self.maybe_parameterize(ref, new_tensor)
         if enforce_tensor_consistency:
             self.check_consistency(ref, new_tensor)
@@ -250,7 +245,7 @@ class ModTensorUpdater:
         tie_replacements: bool = True,
         enforce_tensor_consistency: bool = True,
     ) -> torch.Tensor:
-        """Update tensor based on it's  reference name"""
+        """Update tensor based on it's  reference name."""
         mod = self.name_to_parent_module[name]
         _, p_local_name = self.split_param_name(name)
         ref = getattr(mod, p_local_name)

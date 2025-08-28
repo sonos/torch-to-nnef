@@ -26,14 +26,15 @@ def _pooling_op(
     node,
     op_helper,
 ):
-    """
-    NNEF (avg|max)_pool params (not dimension specific):
-        input: tensor<scalar>,
-        size: integer[],
-        border: string = 'constant',
-        padding: (integer,integer)[] = [],
-        stride: integer[] = [],
-        dilation: integer[] = [] )
+    """Generic pool operator translation from aten to NNEF.
+
+    NNEF (avg|max)_pool params (not dimension specific):.
+    input: tensor<scalar>,
+    size: integer[],
+    border: string = 'constant',
+    padding: (integer,integer)[] = [],
+    stride: integer[] = [],
+    dilation: integer[] = [] )
 
     """
     (
@@ -95,13 +96,13 @@ def _pooling_op(
 
 @OP_REGISTRY.register()
 def max_pool1d(g, node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:max_pool1d' to NNEF"""
+    """Map PyTorch: 'aten:max_pool1d' to NNEF."""
     _pooling_op("max_pool", node.inputs, node, op_helper)
 
 
 @OP_REGISTRY.register()
 def avg_pool1d(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:avg_pool1d' to NNEF"""
+    """Map PyTorch: 'aten:avg_pool1d' to NNEF."""
     count_include_pad = node.inputs[-1].data
     if not count_include_pad:
         raise T2NErrorNotImplemented("not implemented count_include_pad=False")
@@ -114,14 +115,15 @@ def avg_pool1d(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(["max_pool2d", "max_pool3d"])
 def max_pool_nd(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:max_pool2d', 'aten:max_pool3d' to NNEF"""
+    """Map PyTorch: 'aten:max_pool2d', 'aten:max_pool3d' to NNEF."""
     _pooling_op("max_pool", node.inputs, node, op_helper)
 
 
 @OP_REGISTRY.register(["avg_pool2d", "avg_pool3d"])
 def avg_pool_nd(node, op_helper, **kwargs):
-    """
-    cpp func parameters:
+    """Map PyTorch: 'aten:avg_pool(2|3)d', 'aten:max_pool3d' to NNEF.
+
+    Cpp func parameters:.
     (const Tensor& input,
     IntArrayRef kernel_size,
     IntArrayRef stride,
@@ -139,7 +141,6 @@ def avg_pool_nd(node, op_helper, **kwargs):
     dilation_node,
     ceil_mode_node)
     """
-
     count_include_pad = node.inputs[-2].data
     if not count_include_pad:
         raise T2NErrorNotImplemented("not implemented count_include_pad=False")
@@ -259,7 +260,7 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
     ["adaptive_avg_pool1d", "adaptive_avg_pool2d", "adaptive_avg_pool3d"]
 )
 def adaptive_avg_poolnd(g, node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:adaptive_avg_pool1d', 'aten:adaptive_avg_pool2d', 'aten:adaptive_avg_pool3d' to NNEF"""
+    """Map PyTorch: 'aten:adaptive_avg_pool{1,2,3}d' to NNEF."""
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("avg_pool", op_helper, node)
 
@@ -269,7 +270,7 @@ def adaptive_avg_poolnd(g, node, op_helper, **kwargs):
     ["adaptive_max_pool1d", "adaptive_max_pool2d", "adaptive_max_pool3d"]
 )
 def adaptive_max_poolnd(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:adaptive_max_pool1d', 'aten:adaptive_max_pool2d', 'aten:adaptive_max_pool3d' to NNEF"""
+    """Map PyTorch: adaptive_max_pool{1,2,3}d to NNEF."""
     node.outputs = node.outputs[:1]
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("max_pool", op_helper, node)

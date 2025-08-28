@@ -1,4 +1,5 @@
-"""PyTorch quantized::* operators translation
+"""PyTorch quantized::* operators translation.
+
 Quantized layers and primitives
 
 Maybe usefull when looking at X:
@@ -105,7 +106,8 @@ def register_state_node_as_variable(
         attribs={
             "label": nnef_tensor_ref.name,
             "shape": list(torch_tensor.shape),
-            "dtype": np.float32,  # since need to be marked as <scalar> in graph.nnef
+            "dtype": np.float32,  # since need to be marked as <scalar>
+            # in graph.nnef
         },
     )
 
@@ -264,9 +266,10 @@ def _conv(
     )
 
     # NOTE: Shall I use qconv instead ?
-    # does not seems to work better on unit tests, nor full model export --> fail compaction
+    # does not seems to work better on unit tests, nor full model export
+    # --> fail compaction
     #
-    # but add zp and scale for all IO see: /home/epi/SONOS/src/tract/nnef/src/ops/core/qconv.rs
+    # but add zp and scale for all IO see: /tract/nnef/src/ops/core/qconv.rs
     #
     # NOperation(
     #     graph=g,
@@ -335,7 +338,7 @@ def _linear(
 
 @OP_REGISTRY.register()
 def conv1d_relu(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv1d_relu' to NNEF"""
+    """Map PyTorch: 'quantized:conv1d_relu' to NNEF."""
     conv_output_tensor = _conv(
         node,
         g,
@@ -353,7 +356,7 @@ def conv1d_relu(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
 
 @OP_REGISTRY.register()
 def conv1d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv1d' to NNEF"""
+    """Map PyTorch: 'quantized:conv1d' to NNEF."""
     _conv(
         node,
         g,
@@ -365,13 +368,13 @@ def conv1d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:linear' to NNEF"""
+    """Map PyTorch: 'quantized:linear' to NNEF."""
     _linear(node, g, name_to_tensor, inference_target)
 
 
 @OP_REGISTRY.register()
 def linear_relu(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:linear_relu' to NNEF"""
+    """Map PyTorch: 'quantized:linear_relu' to NNEF."""
     linear_output_tensor = _linear(
         node,
         g,
@@ -391,13 +394,13 @@ def linear_relu(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def conv2d(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv2d' to NNEF"""
+    """Map PyTorch: 'quantized:conv2d' to NNEF."""
     _conv(node, g, name_to_tensor, null_ref, inference_target, conv_rank=2)
 
 
 @OP_REGISTRY.register()
 def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'quantized:conv2d_relu' to NNEF"""
+    """Map PyTorch: 'quantized:conv2d_relu' to NNEF."""
     conv_output_tensor = _conv(
         node,
         g,
@@ -416,7 +419,7 @@ def conv2d_relu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def add_relu(g, node, name_to_tensor, null_ref, **kwargs):
-    """Operator mapping PyTorch: 'quantized:add_relu' to NNEF"""
+    """Map PyTorch: 'quantized:add_relu' to NNEF."""
     raise T2NErrorNotImplemented()
 
 
@@ -489,21 +492,21 @@ def math_op_binary(
 
 @OP_REGISTRY.register()
 def mul(**kwargs):
-    """Operator mapping PyTorch: 'quantized:mul' to NNEF"""
+    """Map PyTorch: 'quantized:mul' to NNEF."""
     math_op_binary(op_type="mul", **kwargs)
     return []
 
 
 @OP_REGISTRY.register()
 def add(**kwargs):
-    """Operator mapping PyTorch: 'quantized:add' to NNEF"""
+    """Map PyTorch: 'quantized:add' to NNEF."""
     math_op_binary(op_type="add", **kwargs)
     return []
 
 
 @OP_REGISTRY.register()
 def div(**kwargs):
-    """Operator mapping PyTorch: 'quantized:div' to NNEF"""
+    """Map PyTorch: 'quantized:div' to NNEF."""
     math_op_binary(op_type="div", **kwargs)
     return []
 

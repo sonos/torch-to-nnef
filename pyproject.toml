@@ -3,6 +3,8 @@ name = "torch_to_nnef"
 version = "0.19.1"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+license = "MIT AND Apache-2.0"
+license-files = ["LICENSE"]
 
 # weird regression in 3.13 to address shortly
 requires-python = ">=3.9.0,<4"
@@ -17,6 +19,18 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+]
+keywords = [
+    "nnef",
+    "pytorch",
+    "torch",
+    "deep learning",
+    "machine learning",
+    "ai",
+    "llm",
+    "transformers",
+    "export",
+    "exchange format",
 ]
 dependencies = [
     "mako>=1.0.0,<2.0",
@@ -38,7 +52,6 @@ llm_tract_accelerate = ["accelerate"]
 safetensors = ["safetensors"]
 peft = ["peft"]
 test = [
-    "isort>=5.8.0,<6",
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
     "pytest>=8.3.3,<9",
@@ -64,20 +77,21 @@ nnef = "docs.nnef_lexer:NNEFLexer"
 
 [dependency-groups]
 dev = [
-    "mkdocs<1.7,>=1.6",
-    "mkdocstrings-python<1.12,>=1.11",
-    "mkdocs-material<9.7,>=9.6",
-    "mkdocs-api-autonav==0.3.0",
-    "tox>=4.23.2,<5",
-    "pre-commit>=2.12.0,<3",
-    "virtualenv>=20.2.2,<21",
-    "pip~=24.0",
-    "twine>=3.3.0,<4",
-    "toml>=0.10.2,<0.11",
     "bump2version>=1.0.1,<2",
     "ipdb>=0.13.9,<0.14",
-    "rich>=13.7.1,<14",
+    "mike>=2.1.3",
+    "mkdocs-api-autonav==0.3.0",
     "mkdocs-git-revision-date-localized-plugin>=1.4.7",
+    "mkdocs-material<9.7,>=9.6",
+    "mkdocs<1.7,>=1.6",
+    "mkdocstrings-python<1.12,>=1.11",
+    "pip~=24.0",
+    "pre-commit>=2.12.0,<3",
+    "rich>=13.7.1,<14",
+    "toml>=0.10.2,<0.11",
+    "tox>=4.23.2,<5",
+    "twine>=3.3.0,<4",
+    "virtualenv>=20.2.2,<21",
 ]
 
 [tool.uv]
@@ -100,19 +114,41 @@ build-backend = "hatchling.build"
 line-length = 80
 target-version = 'py39'
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_gitignore = true
-profile = "black"
-line_length = 80
-skip = [".gitignore", ".dockerignore"]
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # flake8-logging-format
+    "G",
+    # docstring
+    "D",
+]
+ignore = [
+    # if a docstring then ensure consistency but if it is missing do not raise issue {
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    # }
+]
 
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
@@ -168,6 +204,7 @@ follow_imports_for_stubs = true
 [tool.tox]
 isolated_build = true
 envlist = ["py39", "py313", "format", "lint", "build"]
+requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -215,6 +252,7 @@ deps = [
     "torchaudio==0.10.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
+    "setuptools>0.70",
 ]
 passenv = ["*"]
 commands = [
@@ -269,7 +307,7 @@ commands = [
 
 
 [tool.tox.env.torch_2_2]
-basepython = ["python3.12", "python3.13"]
+basepython = ["python3.12"]
 extras = ["test"]
 constrain_package_deps = true
 deps = [
@@ -290,7 +328,7 @@ commands = [
         "--cov-branch",
         "--cov-report=xml",
         "--cov-report=term-missing",
-        "tests",
+        "{posargs:tests}",
     ],
     [
         "pytest",
@@ -306,28 +344,28 @@ MODELS = "1"
 
 
 [tool.tox.env.format]
-extras = ["test"]
+skip_install = true
+deps = ["ruff"]
 commands = [
-    [
-        "isort",
-        "torch_to_nnef",
-    ],
     [
         "ruff",
         "format",
         "torch_to_nnef",
         "tests",
     ],
+    [
+        "ruff",
+        "check",
+        "--fix",
+        "torch_to_nnef",
+        "tests",
+    ],
 ]
 
 [tool.tox.env.format_check]
-extras = ["test"]
+skip_install = true
+deps = ["ruff"]
 commands = [
-    [
-        "isort",
-        "-c",
-        "torch_to_nnef",
-    ],
     [
         "ruff",
         "format",
@@ -335,15 +373,61 @@ commands = [
         "torch_to_nnef",
         "tests",
     ],
+    [
+        "ruff",
+        "check",
+        "torch_to_nnef",
+        "tests",
+    ],
 ]
 
 [tool.tox.env.lint]
-extras = ["test"]
+skip_install = true
+deps = ["ruff"]
 commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 
 [tool.tox.env.static_check]
+deps = ["prospector[with_dodgy]", "pyroma"]
+commands = [
+    [
+        "prospector",
+        "--no-autodetect",
+        "-X",
+    ],
+    [
+        "pyroma",
+        ".",
+        "-n",
+        "10",
+    ],
+]
+
+# testing llm_tract cli on legacy transformers
+[tool.tox.env.cli_transformers_4_50_0]
+basepython = ["python3.12", "python3.13"]
 extras = ["test"]
-commands = [["prospector", "--no-autodetect"]]
+constrain_package_deps = true
+deps = ["transformers==4.50.0"]
+passenv = ["*"]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
+
+# testing llm_tract cli on 3m old transformers
+[tool.tox.env.cli_transformers_4_52_0]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["transformers==4.52.0"]
+passenv = ["*"]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
+
+# testing llm_tract cli on recent transformers
+[tool.tox.env.cli_transformers_4_55_0]
+basepython = ["python3.12", "python3.13"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["transformers==4.55.0"]
+passenv = ["*"]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]

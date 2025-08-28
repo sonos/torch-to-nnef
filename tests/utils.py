@@ -1,5 +1,6 @@
-"""Make training and any ops involving random reproducible"""
+"""Make training and any ops involving random reproducible."""
 
+import inspect
 import os
 import random
 import shutil
@@ -8,10 +9,9 @@ import typing as T
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-import inspect
 
-import pytest
 import numpy as np
+import pytest
 import torch as Torch
 from torch.nn.utils.weight_norm import WeightNorm
 
@@ -21,17 +21,17 @@ from torch_to_nnef.inference_target import (
     KhronosNNEF,
     TractNNEF,
 )
-from torch_to_nnef.tensor.quant.base import (
-    QTENSOR_UNSUPPORTED,
-    QTENSOR_UNSUPPORTED_MSG,
-)
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
     TractCli,
     build_io,
 )
 from torch_to_nnef.log import log
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.tensor.quant.base import (
+    QTENSOR_UNSUPPORTED,
+    QTENSOR_UNSUPPORTED_MSG,
+)
+from torch_to_nnef.torch_graph.ir_naming import DEFAULT_VARNAME_SCHEME
 from torch_to_nnef.utils import torch_version
 
 TRACT_INFERENCES_TO_TESTS_APPROX = [
@@ -65,6 +65,10 @@ for _ in TRACT_INFERENCES_TO_TESTS_EXACT:
 INFERENCE_TARGETS_TO_TESTS = TRACT_INFERENCES_TO_TESTS_APPROX + [
     KhronosNNEF(v) for v in KhronosNNEF.OFFICIAL_SUPPORTED_VERSIONS
 ]
+
+
+DUMP_DIRPATH = os.environ.get("DUMP_DIRPATH", "")
+IS_DEBUG = bool(int(os.environ.get("DEBUG", False)))
 
 
 def change_dynamic_axes(it, dynamic_axes):
@@ -123,7 +127,10 @@ class TestSuiteInferenceExactnessBuilder:
         return [_[0] for _ in self.test_samples]
 
     def __repr__(self):
-        return f"<TestSuiteInferenceExactnessBuilder len({len(self.test_samples)})>"
+        return (
+            "<TestSuiteInferenceExactnessBuilder "
+            f"len({len(self.test_samples)})>"
+        )
 
 
 def set_seed(seed=0, cudnn=False, torch=True):
@@ -142,14 +149,11 @@ def check_model_io_test(
     inference_target,
     input_names=None,
     output_names=None,
-    nnef_variable_naming_scheme=VariableNamingScheme.default(),
+    nnef_variable_naming_scheme=DEFAULT_VARNAME_SCHEME,
     custom_extensions=None,
     callback_post_export=None,
     unit_test_naming=None,
 ):
-    dump_dirpath = os.environ.get("DUMP_DIRPATH", "")
-    is_debug = bool(int(os.environ.get("DEBUG", False)))
-
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
         unittest_slug = f"{unittest_slug}_{unit_test_naming}"
@@ -159,7 +163,7 @@ def check_model_io_test(
             if caller_fn_name.startswith("test_"):
                 unittest_slug = f"{unittest_slug}_{caller_fn_name}"
                 break
-    dbg_base_dir = Path(dump_dirpath) if dump_dirpath else Path.cwd()
+    dbg_base_dir = Path(DUMP_DIRPATH) if DUMP_DIRPATH else Path.cwd()
     dbg_base_dir.mkdir(exist_ok=True, parents=True)
     dbg_path = dbg_base_dir / "failed_tests" / unittest_slug
 
@@ -194,13 +198,13 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
-            debug_bundle_path=(dbg_path if is_debug else None),
+            debug_bundle_path=(dbg_path if IS_DEBUG else None),
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
-        if dump_dirpath:
+        if DUMP_DIRPATH:
             shutil.copy(
                 export_path,
                 dump_test_tz_path,
@@ -259,3 +263,12 @@ skipif_limited_offload_support = pytest.mark.skipif(
     condition=torch_version() < "1.12.0",
     reason="torch version need to be >= 1.12.0 to use OffloadedTensor",
 )
+
+
+def combine_conditions(conds: T.List[T.Callable[[InferenceTarget], bool]]):
+    """Combine a list of inference target conditions callback.
+
+    Into a callback combining all of them.
+
+    """
+    return lambda i: all(cond(i) for cond in conds)

@@ -14,7 +14,9 @@ OP_REGISTRY = AtenOpRegistry()
 
 @OP_REGISTRY.register()
 def split_with_sizes(g, node, name_to_tensor, **kwargs):
-    """We are aware that
+    """Translate `aten::split_with_sizes` to NNEF.
+
+    We are aware that.
     split<?>(
         value: tensor<?>,
         axis: integer,
@@ -59,7 +61,7 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def unbind(g, node, name_to_tensor, **kwargs):
-    """unbind is `unstack` in NNEF"""
+    """Unbind is `unstack` in NNEF."""
     input_node, axis_node = node.inputs
     add_multi_output_op(
         g,
@@ -76,7 +78,7 @@ def unbind(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def chunk(g, node, name_to_tensor, **kwargs):
-    """Operator mapping PyTorch: 'aten:chunk' to NNEF"""
+    """Map PyTorch: 'aten:chunk' to NNEF."""
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
     assert len({tuple(o.shape) for o in node.outputs}) == 1, (

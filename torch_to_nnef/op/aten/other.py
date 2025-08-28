@@ -48,7 +48,7 @@ def external(
     name_to_tensor: T.Dict[str, NTensor],
     inference_target: InferenceTarget,
 ):
-    """Add External NNEF Operation in graph"""
+    """Add External NNEF Operation in graph."""
     nnef_tensor_ref = add_tensor_variable_node_as_nnef_tensor(
         g, node, name_to_tensor, prevent_variable=True
     )
@@ -57,7 +57,8 @@ def external(
         if node.dtype not in _EXTERNAL_DTYPE_PRECISE_ENOUGHT:
             LOGGER.warning(
                 "NNEF Spec is not precise enough "
-                f"to ensure correct mapping of numpy type {nnef_tensor_ref.dtype}"
+                "to ensure correct mapping of numpy type %s",
+                nnef_tensor_ref.dtype,
             )
         add_nnef_operation(
             graph=g,
@@ -88,7 +89,7 @@ def external(
 
 @OP_REGISTRY.register(["dropout", "native_dropout"])
 def dropout(node, torch_graph, **kwargs):
-    """Operator mapping PyTorch: 'aten:dropout', 'aten:native_dropout' to NNEF"""
+    """Map PyTorch: 'aten:dropout' to NNEF."""
     (
         input_node,
         _,  # probability
@@ -105,21 +106,21 @@ def dropout(node, torch_graph, **kwargs):
 
 @OP_REGISTRY.register()
 def detach(node, torch_graph, **kwargs):
-    """This does not translate to any operation"""
+    """This does not translate to any operation."""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 @OP_REGISTRY.register()
 def contiguous(node, torch_graph, **kwargs):
-    """This does not translate to any operation"""
+    """This does not translate to any operation."""
     torch_graph.remap_node(from_node=node.outputs[0], to_node=node.inputs[0])
     torch_graph.op_nodes = [_ for _ in torch_graph.op_nodes if _ is not node]
 
 
 @OP_REGISTRY.register()
 def to(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:to' to NNEF"""
+    """Map PyTorch: 'aten:to' to NNEF."""
     (
         input_node,
         *_,  # dtype_name, non_blocking_name, copy_name, memory_format_name
@@ -135,23 +136,26 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
     input_nnef = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if node.inputs[0].dtype == torch.float32 and not onode.dtype.is_signed:
-        if not platform.machine().startswith("arm"):
-            LOGGER.warning(
-                "reinterpret cast to unsigned, if negative number is cpu "
-                "device dependant (arm trunk bits while intel circular buffer left)"
-            )
-            # simulate a reinterpret_cast as implicitly done in PyTorch
-            input_nnef = add_single_output_op(
-                g,
-                node,
-                name_to_tensor,
-                "tract_core_cast",
-                inputs=input_nnef,
-                attrs={
-                    "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
-                },
-            )
+    if (
+        node.inputs[0].dtype == torch.float32
+        and not onode.dtype.is_signed
+        and not platform.machine().startswith("arm")
+    ):
+        LOGGER.warning(
+            "reinterpret cast to unsigned, if negative number is cpu "
+            "device dependant (arm trunk bits while intel circular buffer left)"
+        )
+        # simulate a reinterpret_cast as implicitly done in PyTorch
+        input_nnef = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_cast",
+            inputs=input_nnef,
+            attrs={
+                "to": TORCH_DTYPE_TO_TRACT_STR[torch.int64],
+            },
+        )
 
     add_single_output_op(
         g,
@@ -169,7 +173,7 @@ def to(g, node, name_to_tensor, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def type_as(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:type_as' to NNEF"""
+    """Map PyTorch: 'aten:type_as' to NNEF."""
     (
         input_node,
         _,  # ref_node
@@ -209,8 +213,9 @@ def size(
     op_helper,
     **kwargs,
 ):
-    """
-    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:
+    """Map PyTorch `aten::size` as NNEF.
+
+    We can not use NNEF shape_of that have been deprecated since 1.0.1 version:.
 
     ```
     The shape_of function is deprecated and is discouraged from use.
@@ -230,7 +235,7 @@ def size(
 
     Since it is a core component to express some dynamic network that may use
     tract symbolic dimensions:
-    by example using stream size to apply an averaging:
+    for example using stream size to apply an averaging:
     We map it to `tract_core_shape_of`
 
     """
@@ -325,7 +330,7 @@ def size(
 
 @OP_REGISTRY.register()
 def numel(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:numel' to NNEF"""
+    """Map PyTorch: 'aten:numel' to NNEF."""
     assert len(node.inputs) == 1
     input_node = node.inputs[0]
     soc = SimpleOpChainer(op_helper=op_helper, input_data_nodes=[input_node])
@@ -357,7 +362,7 @@ def numel(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def scalar_tensor(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:scalar_tensor' to NNEF"""
+    """Map PyTorch: 'aten:scalar_tensor' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs
@@ -376,7 +381,7 @@ def scalar_tensor(node, inference_target, op_helper, **kwargs):
 
 @OP_REGISTRY.register()
 def _to_copy(node, inference_target, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:_to_copy' to NNEF"""
+    """Map PyTorch: 'aten:_to_copy' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented("need casting")
     val_node, dtype_node, *_ = node.inputs

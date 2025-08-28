@@ -1,3 +1,4 @@
+# :popcorn: Backstory
 
 At **Sonos**, we’ve long been committed to building machine learning solutions that span the full pipeline—from training all the way to inference—delivering smart experiences to millions of users. A core part of this journey has been enabling **on-device neural network computation**, a challenging but critical step in making our products more responsive, private, and reliable.
 

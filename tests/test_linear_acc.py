@@ -1,13 +1,11 @@
 """Tests simple accumulator option."""
 
-from copy import deepcopy
 import os
+from copy import deepcopy
 
 import pytest
 import torch
 from torch import nn
-from torch_to_nnef.utils import torch_version
-
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -41,7 +39,7 @@ if tract_latest.version >= "0.21.11":
     ids=test_suite.ids,
 )
 def test_linear_accumulate_f32_export(id, test_input, model, inference_target):
-    """Test simple aten PyTorch core"""
+    """Test simple aten PyTorch core."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

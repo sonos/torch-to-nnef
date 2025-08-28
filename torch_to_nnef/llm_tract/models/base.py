@@ -13,6 +13,8 @@ from torch_to_nnef.utils import SemanticVersion
 try:
     import transformers
     from transformers import AutoModelForCausalLM, cache_utils
+
+    TRANSFORMERS_VERSION = SemanticVersion.from_str(transformers.__version__)
 except ImportError as exp:
     raise T2NErrorImport(
         "Should be used with 'torch_to_nnef[llm_tract]' enabled"
@@ -49,11 +51,11 @@ def build_past_kv_dyn_cache(
 
 @contextmanager
 def ctx_dtype_dyn_cache():
-    """Context Manager to handle inconsistent device type in KV-cache update
+    """Context Manager to handle inconsistent device type in KV-cache update.
 
-    This may be due by example to the use of accelerate 'meta' tensors device.
+    This may be due for example to the use of accelerate 'meta' tensors device.
 
-    This manager is stackable (in such case only largest context will be applied)
+    This manager is stackable in such case only largest context will be applied.
     """
 
     def force_dtype_dyn_cache_update(
@@ -63,11 +65,12 @@ def ctx_dtype_dyn_cache():
         layer_idx: int,
         cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> T.Tuple[torch.Tensor, torch.Tensor]:
-        """
-        same as original except force device alignment
+        """Force dtype in dyn cache to be aligned at update.
+
+        Same as original update, excepted it forces device alignment.
         this is to avoid issues with 'accelerate' package
         """
-        if SemanticVersion.from_str(transformers.__version__) >= "4.54.0":
+        if TRANSFORMERS_VERSION >= "4.54.0":
             self.append_new_layers(layer_idx)
             lay = self.layers[layer_idx]
             if lay.keys is not None:
@@ -89,10 +92,10 @@ def ctx_dtype_dyn_cache():
                 self.key_cache.append(key_states)
                 self.value_cache.append(value_states)
             elif (
-                not self.key_cache[
-                    layer_idx
-                ].numel()  # prefers not t.numel() to len(t) == 0 to export the model
-            ):  # fills previously skipped layers; checking for tensor causes errors
+                not self.key_cache[layer_idx].numel()  # prefers not t.numel()
+                # to len(t) == 0 to export the model
+            ):  # fills previously skipped layers;
+                # checking for tensor causes errors
                 self.key_cache[layer_idx] = key_states
                 self.value_cache[layer_idx] = value_states
             else:
@@ -140,7 +143,7 @@ def ctx_dtype_dyn_cache():
 
 
 def use_dtype_dyn_cache(f):
-    """Annotator for forward function applying `ctx_dtype_dyn_cache`"""
+    """Annotator for forward function applying `ctx_dtype_dyn_cache`."""
 
     @wraps(f)
     def wrapped(self, *args, **kwargs):
@@ -151,7 +154,7 @@ def use_dtype_dyn_cache(f):
 
 
 def update_forward_signature(self):
-    """trickery to help torch > 2.0 new export API tracing."""
+    """Trickery to help torch > 2.0 new export API tracing."""
     # pylint: disable-next=import-outside-toplevel
     from torch_to_nnef.llm_tract.config import HFConfigHelper
 
@@ -184,7 +187,7 @@ def update_forward_signature(self):
 
 
 class TorchToNNEFWrappedLLM(torch.nn.Module):
-    """Base module class for all LLM wrapping
+    """Base module class for all LLM wrapping.
 
     These wrapper are needed to ensure deterministic inputs/outputs
     graph signature and allow some modeling optimization of few architecture.
@@ -224,9 +227,13 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
-        """same as calling without any smart caching mechanism self.model.model+lm_head and softmax.
+        """Forward of BaseCausalWithDynCacheAndTriu.
 
-        This export module is extremly ineficient because no caching can be provided ...
+        Same as calling without any smart caching mechanism
+        self.model.model+lm_head and softmax.
+
+        This export module is extremly ineficient because
+        no caching can be provided ...
 
         """
         _, seq_length = input_ids.shape[:2]
@@ -302,7 +309,11 @@ def _slice_hidden_state_to_lasts(
 
 class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
-        self, model, with_dyn_cache: bool = True, num_logits_to_keep: int = 1
+        self,
+        model,
+        with_dyn_cache: bool = True,
+        num_logits_to_keep: int = 1,
+        force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
@@ -324,10 +335,15 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                 )
             else:
                 LOGGER.warning(
-                    f"model of class: {model.__class__}.forward as no 'num_logits_to_keep'"
-                    "so we inference exported may be suboptimal "
+                    "model of class: %s.forward as no 'num_logits_to_keep'"
+                    "so we inference exported may be suboptimal ",
+                    model.__class__,
                 )
 
+        if force_causal_mask is None:
+            force_causal_mask = TRANSFORMERS_VERSION > "4.52.4"
+
+        self.force_causal_mask = force_causal_mask
         self.forward_kwargs = fkwargs
         update_forward_signature(self)
 
@@ -341,17 +357,35 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
         # input_ids: [1, S] with torch.int64
-        # past_key_values
-        # past_key_values: Optional[List[torch.FloatTensor]] = None # type annotation in code WRONG
+        # past_key_values: Optional[List[torch.FloatTensor]] = None
+        # # type annotation in code WRONG
         if self.with_dyn_cache:
             past_key_values = build_past_kv_dyn_cache(args)
         else:
             past_key_values = build_past_kv_list(args)
 
+        if self.force_causal_mask:
+            attn_mask_dtype = torch.float32
+            seq_length = args[0].shape[0]
+            attention_mask = (
+                torch.triu(
+                    torch.full(
+                        [seq_length, seq_length],
+                        torch.finfo(attn_mask_dtype).min,
+                    ),
+                    diagonal=1,
+                )
+                .unsqueeze(0)
+                .unsqueeze(0)
+            ).to(attn_mask_dtype)
+        else:
+            attention_mask = None
+
         out_dic = self.model(
             input_ids,
             past_key_values=past_key_values,
             use_cache=True,
+            attention_mask=attention_mask,
             **self.forward_kwargs,
         )
 

@@ -34,7 +34,10 @@ from torch_to_nnef.tensor import (
     set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
+    VariableNamingScheme,
+)
 from torch_to_nnef.utils import dedup_list, torch_version
 
 LOGGER = log.getLogger(__name__)
@@ -49,20 +52,20 @@ def export_model_to_nnef(
     output_names: T.Optional[T.List[str]] = None,
     compression_level: int = 0,
     log_level: int = log.INFO,
-    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
 ):
-    """Main entrypoint of this library
+    """Main entrypoint of this library.
 
     Export any torch.nn.Module to NNEF file format archive
 
     Args:
-        model: an nn.Module that have a `.forward` function
+        model: a nn.Module that have a `.forward` function
             with only tensor arguments and outputs
             (no tuple, list, dict or objects)
-            Only this function will be serialised
+            Only this function will be serialized
 
         args: a flat ordered list of tensors for each forward inputs of `model`
             this list can not be of dynamic size (at serialization it will be
@@ -73,33 +76,41 @@ def export_model_to_nnef(
         file_path_export: a Path to the exported NNEF serialized model archive.
             It must by convention end with `.nnef.tgz` suffixes
 
-        inference_target: can be either `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
+        inference_target:
+            can be `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
             for each you can specify version targeted:
-            - KhronosNNEF is least maintained so far, and is checked against nnef-tools PyTorch interpreter
-            - TractNNEF is our main focus at SONOS, it is checked against tract inference engine
-                among key paramters there is
-                    feature_flags: Optional[Set[str]], that may contains tract specifics
-                    dynamic_axes: Optional
-                        By default the exported model will have the shapes of all input
-                        and output tensors set to exactly match those given in args.
-                        To specify axes of tensors as dynamic (i.e. known only at run-time)
-                        set dynamic_axes to a dict with schema:
-                            KEY (str): an input or output name. Each name must also
-                                be provided in input_names or output_names.
-                            VALUE (dict or list): If a dict, keys are axis indices
-                                and values are axis names. If a list, each element is
-                                an axis index.
+            - KhronosNNEF is the least maintained so far,
+                and is checked against nnef-tools PyTorch interpreter
+            - TractNNEF is our main focus at SONOS,
+              it is checked against tract inference engine
+              among key paramters there is
+                feature_flags: Optional[Set[str]],
+                that may contains tract specifics
+                dynamic_axes: Optional
+                  By default the exported model will have
+                  the shapes of all input and output tensors set
+                  to exactly match those given in args.
+                  To specify axes of tensors as dynamic
+                  (i.e. known only at runtime)
+                  set dynamic_axes to a dict with schema:
+                      KEY (str):
+                        an input or output name. Each name must also
+                        be provided in input_names or output_names.
+                      VALUE (dict or list): If a dict, keys are axis indices
+                        and values are axis names. If a list, each element is
+                        an axis index.
 
-        specific_tract_binary_path: Optional[Path] ideal to check io against new tract versions
+        specific_tract_binary_path:
+            Optional[Path] ideal to check io against new tract versions
 
 
         input_names: Optional list of names for args, it replaces
             variable inputs names traced from graph
-            (if set it must have same size as number of args)
+            (if set it must have the same size as number of args)
 
         output_names: Optional list of names for outputs of `model.forward`,
             it replaces variable output names traced from graph
-            (if set it must have same size as number of outputs)
+            (if set it must have the same size as number of outputs)
 
         compression_level: int (>= 0)
             compression level of tar.gz (higher is more compressed)
@@ -128,7 +139,7 @@ def export_model_to_nnef(
 
         debug_bundle_path: Optional[Path]
             if specified it should create an archive bundle with all needed
-            information to allows easier debug.
+            information to allow easier debug.
 
         custom_extensions: Optional[List[str]]
             allow to add a set of extensions as defined in
@@ -138,13 +149,15 @@ def export_model_to_nnef(
             those assertion allows to add limitation on dynamic shapes
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
+
     Raises:
         torch_to_nnef.exceptions.T2NError
-            If something fail during export process we try to provide dedicated
-            exceptions (easier to control programmatically)
+            If something fail during the export process we try to provide
+            dedicated exceptions (easier to control programmatically)
 
     Examples:
-        By example this function can be used to export as simple perceptron model:
+        For example this function can be used to export
+        as simple perceptron model:
 
         >>> import os
         >>> import tarfile
@@ -181,7 +194,6 @@ def export_model_to_nnef(
         add_buffers=False,
         add_unregistred_tensor=False,
         disable_requires_grad=True,
-        warn_old_torch=False,
     )
     if custom_extensions is not None and not isinstance(
         custom_extensions, list
@@ -207,81 +219,85 @@ def export_model_to_nnef(
     _check_io_names(input_names, output_names)
 
     LOGGER.info(
-        f"start parse PyTorch model to be exported at {file_path_export}"
+        "start parse PyTorch model to be exported at %s", file_path_export
     )
     if not any(s == ".nnef" for s in file_path_export.suffixes):
         raise T2NErrorInvalidArgument(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
-    with _unsupported_module_alerter(inference_target):
-        with select_model_mode_for_export(model, TrainingMode.EVAL):
-            set_opaque_tensor_in_params_as_ref(model)
-            model, args, input_names, output_names = (
-                may_wrap_model_to_flatten_io(
-                    model, args, outs, input_names, output_names
-                )
-            )
-            inference_target.pre_trace(model, input_names, output_names)
+    with (
+        _unsupported_module_alerter(inference_target),
+        select_model_mode_for_export(model, TrainingMode.EVAL),
+    ):
+        set_opaque_tensor_in_params_as_ref(model)
+        model, args, input_names, output_names = may_wrap_model_to_flatten_io(
+            model, args, outs, input_names, output_names
+        )
+        inference_target.pre_trace(model, input_names, output_names)
 
-            graph_extractor = TorchToNGraphExtractor(
-                model,
-                args,
-                inference_target=inference_target,
-                nnef_variable_naming_scheme=nnef_variable_naming_scheme,
-                check_io_names_qte_match=check_io_names_qte_match,
-                forced_inputs_names=input_names,
-                forced_outputs_names=output_names,
-            )
-            nnef_graph = graph_extractor.parse()
+        graph_extractor = TorchToNGraphExtractor(
+            model,
+            args,
+            inference_target=inference_target,
+            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
+            check_io_names_qte_match=check_io_names_qte_match,
+            forced_inputs_names=input_names,
+            forced_outputs_names=output_names,
+        )
+        nnef_graph = graph_extractor.parse()
 
-            active_custom_extensions = _get_active_custom_extensions(
-                graph_extractor
-            )
-            inference_target.post_trace(nnef_graph, active_custom_extensions)
-            if custom_extensions is not None:
-                active_custom_extensions = dedup_list(
-                    active_custom_extensions + custom_extensions
-                )
-
-            active_custom_fragments = inference_target.specific_fragments(model)
-            active_custom_fragments.update(
-                _get_active_custom_fragments(graph_extractor)
-            )
-            del graph_extractor
-            nnef_exp_file_path = _real_export_path(
-                file_path_export, compression_level
+        active_custom_extensions = _get_active_custom_extensions(
+            graph_extractor
+        )
+        inference_target.post_trace(nnef_graph, active_custom_extensions)
+        if custom_extensions is not None:
+            active_custom_extensions = dedup_list(
+                active_custom_extensions + custom_extensions
             )
 
-            NNEFWriter(
-                compression=compression_level,
-                fragments=active_custom_fragments,
-                generate_custom_fragments=False,
-                extensions=list(active_custom_extensions),
-                version_custom_fragments=None,  # using version sometime create conflict with ops
-                inference_target=inference_target,
-            )(nnef_graph, str(nnef_exp_file_path))
+        active_custom_fragments = inference_target.specific_fragments(model)
+        active_custom_fragments.update(
+            _get_active_custom_fragments(graph_extractor)
+        )
+        del graph_extractor
+        nnef_exp_file_path = _real_export_path(
+            file_path_export, compression_level
+        )
 
-            if len(active_custom_extensions) > 0:
-                LOGGER.info(
-                    "The exported NNEF model need special custom extensions "
-                    f"such as {active_custom_extensions}, be sure "
-                    f"to use the inference engine you specified: {inference_target}"
-                )
+        # NNEFWriter: using version sometime create conflict with ops
+        # hence set to None
+        NNEFWriter(
+            compression=compression_level,
+            fragments=active_custom_fragments,
+            generate_custom_fragments=False,
+            extensions=list(active_custom_extensions),
+            version_custom_fragments=None,
+            inference_target=inference_target,
+        )(nnef_graph, str(nnef_exp_file_path))
+
+        if len(active_custom_extensions) > 0:
             LOGGER.info(
-                f"model exported successfully as NNEF at: {nnef_exp_file_path}"
+                "The exported NNEF model need special custom extensions "
+                "such as %s, be sure to use the inference engine "
+                "you specified: %s",
+                active_custom_extensions,
+                inference_target,
             )
-            exported_filepath = file_path_export.parent / (
-                nnef_exp_file_path.name + ".tgz"
+        LOGGER.info(
+            "model exported successfully as NNEF at: %s", nnef_exp_file_path
+        )
+        exported_filepath = file_path_export.parent / (
+            nnef_exp_file_path.name + ".tgz"
+        )
+        with _fixed_backend():
+            inference_target.post_export(
+                model,
+                nnef_graph,
+                args,
+                exported_filepath,
+                debug_bundle_path=debug_bundle_path,
             )
-            with _fixed_backend():
-                inference_target.post_export(
-                    model,
-                    nnef_graph,
-                    args,
-                    exported_filepath,
-                    debug_bundle_path=debug_bundle_path,
-                )
     mod_tensor_updater.restore_require_grad()
 
 
@@ -351,17 +367,18 @@ def _default_filter_key(key):
 def iter_torch_tensors_from_disk(
     store_filepath: Path, filter_key: T.Optional[T.Callable[[str], bool]] = None
 ) -> T.Iterator[T.Tuple[str, _Tensor]]:
-    """iter on torch tensors from disk .safetensors, .pt, pth, .bin
+    """Iter on torch tensors from disk .safetensors, .pt, pth, .bin.
 
     Args:
         store_filepath: path to the container file holding PyTorch tensors
             (.pt, .pth, .bin and .safetensors)
         filter_key:
-            if set, this function filter over tensor by name stored in those format
+            if set, this function filter over tensor by name
+            stored in those format
 
     Yields:
-       provide each tensor that are validated by filter within store filepath one at
-            a time as tuple with name first then the torch.Tensor itself
+       provide each tensor that are validated by filter within store filepath
+       one at a time as tuple with name first then the torch.Tensor itself
 
     """
     if filter_key is None:
@@ -372,7 +389,7 @@ def iter_torch_tensors_from_disk(
         from safetensors import safe_open
 
         with safe_open(store_filepath, framework="pt", device="cpu") as fh:
-            for key in fh.keys():
+            for key in fh.keys():  # noqa: SIM118
                 if filter_key(key):
                     yield key, fh.get_tensor(key)
     elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
@@ -397,15 +414,19 @@ def export_tensors_from_disk_to_nnef(
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
 ) -> T.Dict[str, _Tensor]:
-    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file
+    """Export any statedict or safetensors file torch.Tensors to NNEF .dat file.
 
     Args:
         store_filepath:
-            the filepath that hold the .safetensors , .pt or .bin containing the state dict
+            the filepath that hold the .safetensors , .pt or .bin
+            containing the state dict
         output_dir:
             directory to dump the NNEF tensor .dat files
+        filter_key:
+            An optional function to filter specific keys to be exported
         fn_check_found_tensors:
-            post checking function to ensure all requested tensors have effectively been dumped
+            post checking function to ensure all requested tensors have
+            effectively been dumped
 
     Returns:
         a dict of tensor name as key and torch.Tensor values,
@@ -458,7 +479,7 @@ def export_tensors_to_nnef(
     name_to_torch_tensors: T.Dict[str, _Tensor],
     output_dir: Path,
 ) -> T.Dict[str, _Tensor]:
-    """Export any torch.Tensors list to NNEF .dat file
+    """Export any torch.Tensors list to NNEF .dat file.
 
     Args:
         name_to_torch_tensors: dict
@@ -513,7 +534,8 @@ def export_tensors_to_nnef(
                     with quant_filename.open("a", encoding="utf8") as fh:
                         write_tensor_quantization_infos(nnef_tensor, fh)
                 else:
-                    # NOTE: 2024-10-14: no engine support other torch built-in Q dtype
+                    # NOTE: 2024-10-14: no engine support
+                    # other torch built-in Q dtype
                     raise T2NErrorNotImplemented(tensor.dtype)
             filename = f"{tensor_name}.dat"
             write_nnef_tensor(
@@ -568,7 +590,7 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
 
 @contextlib.contextmanager
 def _fixed_backend():
-    """Controled backend in order to limit volatility of kernel selection
+    """Controled backend in order to limit volatility of kernel selection.
 
     Useful in case of checks between PyTorch and targeted inference
     outputs.

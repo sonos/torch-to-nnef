@@ -12,15 +12,17 @@ CUSTOMOP_KIND = "wired_custom::"
 
 
 class _ModuleInfoRegistery(type):
-    """Allow extract in NNEF behavior from specific nn.Module"""
+    """Allow extract in NNEF behavior from specific nn.Module."""
 
     MODULE_CLASS: T.Optional[T.Type[nn.Module]] = None
 
     REGISTRY: T.Dict[T.Type[nn.Module], "_ModuleInfoRegistery"] = {}
 
     def __new__(cls, name, bases, attrs):
-        # instantiate a new type corresponding to the type of class being defined
-        # this is currently RegisterBase but in child classes will be the child class
+        # instantiate a new type corresponding to the type
+        # of class being defined
+        # this is currently RegisterBase but in child classes
+        # will be the child class
         new_cls = type.__new__(cls, name, bases, attrs)
         if new_cls.MODULE_CLASS is not None:
             cls.REGISTRY[new_cls.MODULE_CLASS] = new_cls
@@ -32,10 +34,10 @@ class _ModuleInfoRegistery(type):
 
 
 class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
-    """Class to take manual control of NNEF expansion of a nn.Module
+    """Class to take manual control of NNEF expansion of a nn.Module.
 
     You need to subclass it, and set MODULE_CLASS according to your
-    targeteded module.
+    targeted module.
 
     Then write .convert_to_nnef according to your need.
 
@@ -51,7 +53,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_kind(cls, kind: str):
-        """Get ModuleInfoExtractor by kind in torch_to_nnef internal IR"""
+        """Get ModuleInfoExtractor by kind in torch_to_nnef internal IR."""
         classname = kind.replace(CUSTOMOP_KIND, "")
         extractor_cls = {
             str(k.__name__): v for k, v in cls.get_registry().items()
@@ -62,7 +64,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
     @classmethod
     def get_by_module(cls, module: nn.Module):
-        """Search if the module is one of the MODULE_CLASS registered
+        """Search if the module is one of the MODULE_CLASS registered.
 
         return appropriate ModuleInfoExtractor subclass if found
         """
@@ -72,7 +74,7 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         raise T2NErrorNotFoundModuleExtractor(module.__class__)
 
     def generate_in_torch_graph(self, torch_graph, *args, **kwargs):
-        """Internal method called by torch_to_nnef ir_graph"""
+        """Internal method called by torch_to_nnef ir_graph."""
         # ensure empty at first
         assert torch_graph.inputs == []
         assert torch_graph.data_nodes.is_empty()
@@ -102,9 +104,10 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         return mod(*args)
 
     def ordered_args(self, torch_graph):
-        """
-        sometime torch jit may reorder inputs
-        compared to targetted python ops
+        """Odered args for the module call.
+
+        Sometimes torch jit may reorder inputs.
+        compared to targeted python ops
         in such case ordering need to be re-addressed
         """
         return torch_graph.tracer.args
@@ -126,7 +129,8 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
 
         expanded_results = self._expand_results(results)
         outputs = []
-        # ugly hack in case provided multi output operators with TupleTensors packing
+        # ugly hack in case provided multi output operators
+        # with TupleTensors packing
         if (
             provided_outputs is not None
             and isinstance(
@@ -237,10 +241,14 @@ class ModuleInfoExtractor(metaclass=_ModuleInfoRegistery):
         inference_target,
         **kwargs,
     ):
-        """Control NNEF content to be written for each MODULE_CLASS encountered at serialization
+        """Control NNEF content to be written for each MODULE_CLASS.
+
+        This happen at macro level when converting from
+        internal IR to NNEF IR stage.
 
         This is the Core method to overwrite in subclass.
 
-        It is no different than any op implemented in `torch_to_nnef` in the module
+        It is no different than any op implemented in `torch_to_nnef`
+        in the module
         """
         raise T2NErrorNotImplemented()

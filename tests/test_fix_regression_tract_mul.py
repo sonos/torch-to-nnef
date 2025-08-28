@@ -22,7 +22,7 @@ class MyModule(torch.nn.Module):
     [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version != "0.21.6"],
 )
 def test_issue_tract_mul_export(inference_target):
-    """Test issue mul not behaving as expected
+    """Test issue mul not behaving as expected.
 
     Should work except with tract 0.21.6
 

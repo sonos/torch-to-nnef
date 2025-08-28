@@ -5,7 +5,7 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from torch_to_nnef.llm_tract.config import LlamaSLugs
+from torch_to_nnef.llm_tract.config import LlamaSlugs
 from torch_to_nnef.llm_tract.models.base import BaseCausalWithDynCacheAndTriu
 from torch_to_nnef.utils import torch_version
 
@@ -27,7 +27,7 @@ test_suite = TestSuiteInferenceExactnessBuilder(
 if torch_version() > "1.13.0":
     # working exports
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
+    DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSlugs.DUMMY.value)
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
     striped_model = BaseCausalWithDynCacheAndTriu(causal_llama)

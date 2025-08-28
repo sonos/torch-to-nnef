@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import torch
 from torch import nn
+
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 

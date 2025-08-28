@@ -1,4 +1,4 @@
-"""Abstractions used in torch_to_nnef internal graph data IR
+"""Abstractions used in torch_to_nnef internal graph data IR.
 
 The goal is that these elements are:
 - extracted/parsed from PyTorch graph data structs
@@ -47,7 +47,7 @@ def cleanup_data_name(name: str) -> str:
 
 @dataclass
 class Data(NamedItem):
-    """Base abstract T2N IR data holder"""
+    """Base abstract T2N IR data holder."""
 
     name: str
     data: T.Any
@@ -104,8 +104,10 @@ class TensorVariable(Data):
         return (
             f"{self.export_name}: {self.dtype}@{self.shape}" + ""
             if not self.quant
-            else f"q8(scale={self.quant['scale']}, "
-            f"zerop={self.quant['zero_point']})"
+            else (
+                f"q8(scale={self.quant['scale']}, "
+                f"zerop={self.quant['zero_point']})"
+            )
         )
 
     def cast_float_inplace(self):
@@ -161,7 +163,7 @@ class TensorVariable(Data):
 
     @property
     def tracing_data(self):
-        """Generate data if is not fixed based on tensor information
+        """Generate data if is not fixed based on tensor information.
 
         we use it to produce computation trace
 
@@ -282,11 +284,7 @@ class PythonConstant(Data):
 
 @dataclass
 class BlobTorchScriptObject(Data):
-    """Used only in Quantized Operators
-
-    from our current obervation
-
-    """
+    """Used only in Quantized Operators from our current obervation."""
 
     @property
     def np_dtype(self) -> np.dtype:
@@ -302,7 +300,7 @@ class BlobTorchScriptObject(Data):
 
 @dataclass
 class TupleTensors(Data):
-    """Used as transition object only
+    """Used as transition object only.
 
     None should be remaining once graph is fully expanded
 
@@ -366,7 +364,7 @@ TtupleOrVar = T.Union[TensorVariable, TupleTensors]
 
 @dataclass
 class FixedTensorList(Data):
-    """FixedTensorList is a list that contains tensor constant or not"""
+    """FixedTensorList is a list that contains tensor constant or not."""
 
     data: T.Sequence[T.Union[TensorVariable, PythonConstant]]
 
@@ -400,7 +398,7 @@ class FixedTensorList(Data):
 
 @dataclass
 class DictTensors(Data):
-    """Used as transition object only
+    """Used as transition object only.
 
     None should be remaining once graph is fully expanded
 

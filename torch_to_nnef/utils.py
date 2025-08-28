@@ -22,12 +22,12 @@ C = T.TypeVar("C")
 
 
 def cache(func: T.Callable[..., C]) -> C:
-    """LRU cache helper that avoid pylint complains"""
+    """LRU cache helper that avoid pylint complains."""
     return functools.lru_cache()(func)  # type: ignore
 
 
 def fullname(o) -> str:
-    """Full class name with module path from an object"""
+    """Full class name with module path from an object."""
     klass = o.__class__
     module = klass.__module__
     if module == "builtins":
@@ -37,6 +37,7 @@ def fullname(o) -> str:
 
 @contextlib.contextmanager
 def cd(path):
+    """Context manager for changing the current working directory."""
     old_path = os.getcwd()
     os.chdir(path)
     try:
@@ -48,6 +49,7 @@ def cd(path):
 def flatten_dict(
     d: MutableMapping, parent_key: str = "", sep: str = "."
 ) -> MutableMapping:
+    """Flatten a nested dictionary."""
     items: T.List[T.Tuple[str, T.Any]] = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -59,6 +61,7 @@ def flatten_dict(
 
 
 def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
+    """Remove duplicates from list while preserving order."""
     new_lst = []
     for item in lst:
         if item not in new_lst:
@@ -67,26 +70,25 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
 
 
 def flatten_dict_tuple_or_list(
-    obj,
+    obj: T.Any,
     collected_types: T.Optional[T.List[T.Type]] = None,
     collected_idxes: T.Optional[T.List[int]] = None,
     current_idx: int = 0,
 ) -> T.Tuple[
     T.Tuple[T.Tuple[T.Type, ...], T.Tuple[T.Union[int, str], ...], T.Any], ...
 ]:
-    """Flatten dict/list/tuple recursively, return types, indexes and values
+    """Flatten dict/list/tuple recursively, return types, indexes and values.
 
-    Flatten in depth first search order
+    Flatten happen in depth first search order
 
     Args:
         obj: dict/tuple/list or anything else (structure can be arbitrary deep)
             this contains N number of element non dict/list/tuple
-
         collected_types: do not set
         collected_idxes: do not set
         current_idx: do not set
 
-    Return:
+    Returns:
         tuple of N tuples each containing a tuple of:
             types, indexes and the element
 
@@ -98,15 +100,8 @@ def flatten_dict_tuple_or_list(
                 ((list, dict), (0, "b"), 3),
             )
     """
-    if collected_idxes is None:
-        collected_idxes = []
-    else:
-        collected_idxes = collected_idxes[:]
-
-    if collected_types is None:
-        collected_types = []
-    else:
-        collected_types = collected_types[:]
+    collected_idxes = [] if collected_idxes is None else collected_idxes[:]
+    collected_types = [] if collected_types is None else collected_types[:]
 
     collected_types.append(type(obj))
     if isinstance(obj, (tuple, list)):
@@ -144,32 +139,44 @@ def flatten_dict_tuple_or_list(
 
 
 @contextlib.contextmanager
-def init_empty_weights(include_buffers: T.Optional[bool] = None):
-    """Borrowed from `accelerate`
-    A context manager under which models are initialized with all parameters on the meta device, therefore creating an
-    empty model. Useful when just initializing the model would blow the available RAM.
+def init_empty_weights(
+    include_buffers: T.Optional[bool] = None,
+) -> T.Iterator[None]:
+    """A context manager under which models init with meta device.
+
+    Borrowed from `accelerate`
+
+    A context manager under which models are initialized with all parameters
+    on the meta device, therefore creating an empty model.
+    Useful when just initializing the model would blow the available RAM.
+
 
     Args:
-        include_buffers (`bool`, *optional*):
-            Whether or not to also put all buffers on the meta device while initializing.
+        include_buffers:
+            Whether or not to also put all buffers on the meta device
+            while initializing.
+
+    Returns:
+        (None) Just a context manager
 
     Example:
-
     ```python
     import torch.nn as nn
     from  import init_empty_weights
 
-    # Initialize a model with 100 billions parameters in no time and without using any RAM.
+    # Initialize a model with 100 billions parameters in no time and
+    # without using any RAM.
     with init_empty_weights():
         tst = nn.Sequential(*[nn.Linear(10000, 10000) for _ in range(1000)])
     ```
 
     <Tip warning={true}>
 
-    Any model created under this context manager has no weights. As such you can't do something like
-    `model.to(some_device)` with it. To load weights inside your empty model, see [`load_checkpoint_and_dispatch`].
-    Make sure to overwrite the default device_map param for [`load_checkpoint_and_dispatch`], otherwise dispatch is not
-    called.
+    Any model created under this context manager has no weights.
+    As such you can't do something like `model.to(some_device)` with it.
+    To load weights inside an empty model, see [`load_checkpoint_and_dispatch`].
+    Make sure to overwrite the default device_map param
+    for [`load_checkpoint_and_dispatch`], otherwise dispatch is not called.
 
     </Tip>
     """
@@ -183,18 +190,19 @@ def init_empty_weights(include_buffers: T.Optional[bool] = None):
 @contextlib.contextmanager
 def init_on_device(
     device: torch.device, include_buffers: T.Optional[bool] = None
-):
-    """Borrowed from `accelerate`
-    A context manager under which models are initialized with all parameters on the specified device.
+) -> T.Iterator[None]:
+    """Context manager under which models are init on the specified device.
+
+    Borrowed from `accelerate`
 
     Args:
-        device (`torch.device`):
+        device:
             Device to initialize all parameters on.
-        include_buffers (`bool`, *optional*):
-            Whether or not to also put all buffers on the meta device while initializing.
+        include_buffers:
+            Whether or not to also put all buffers on the meta device
+            while initializing.
 
     Example:
-
     ```python
     import torch.nn as nn
     from accelerate import init_on_device
@@ -248,7 +256,7 @@ def init_on_device(
         torch.nn.Module.register_parameter = register_empty_parameter
         if include_buffers:
             torch.nn.Module.register_buffer = register_empty_buffer
-        for torch_function_name in tensor_constructors_to_patch.keys():
+        for torch_function_name in tensor_constructors_to_patch:
             setattr(
                 torch,
                 torch_function_name,
@@ -268,10 +276,13 @@ def init_on_device(
 
 @total_ordering
 class SemanticVersion:
-    """Helper to check a version is higher than another
+    """Helper to check a version is higher than another.
+
+    Attributes:
+        TAGS: each versions level (should not be modified in most cases)
+            ordering being done from left to right.
 
     Example:
-
         >>> version = SemanticVersion.from_str("1.2.13")
         >>> "1.2.12" < version < "1.2.14"
         True
@@ -284,6 +295,13 @@ class SemanticVersion:
     TAGS = ["major", "minor", "patch"]
 
     def __init__(self, **kwargs):
+        """Init.
+
+        Args: (depends on TAGS but default is:)
+            major: int
+            minor: int
+            patch: int
+        """
         for t in self.TAGS:
             assert isinstance(kwargs[t], int), kwargs[t]
             assert kwargs[t] >= 0, kwargs[t]
@@ -324,7 +342,7 @@ class SemanticVersion:
 
 
 def torch_version() -> SemanticVersion:
-    """Semantic version for torch"""
+    """Semantic version for torch."""
     return SemanticVersion.from_str(torch.__version__.split("+")[0])
 
 
@@ -361,14 +379,14 @@ class NamedItem(ABC):
 
     def register_listener_name_change(self, listener):
         if not hasattr(self, "_name_hooks"):
-            self._name_hooks = set()
+            self._name_hooks = set()  # pylint: disable=attribute-defined-outside-init
         if listener in self._name_hooks:
             raise T2NErrorDataNodeValue("Already registered  listener !")
         self._name_hooks.add(listener)
 
     def detach_listener_name_change(self, listener):
         if not hasattr(self, "_name_hooks"):
-            self._name_hooks = set()
+            self._name_hooks = set()  # pylint: disable=attribute-defined-outside-init
         self._name_hooks.remove(listener)
 
     def __setattr__(self, attr_name, attr_value):
@@ -379,7 +397,7 @@ class NamedItem(ABC):
 
 
 class ReactiveNamedItemDict:
-    """Named items ordered Dict data structure
+    """Named items ordered Dict data structure.
 
     Ensure that 'NO' 2 items are inserted with same 'name' attribute
     and maintains fast name update and with some additive colision
@@ -390,7 +408,6 @@ class ReactiveNamedItemDict:
     Expose a 'list' like interface. (with limited index access)
 
     Example:
-
         >>> from dataclasses import dataclass
         >>> @dataclass
         ... class DummyItem(NamedItem):
@@ -426,7 +443,7 @@ class ReactiveNamedItemDict:
         return cls() + items
 
     def _change_name_hook(self, old_name: str, new_name: str):
-        """maintain sync between data structure and name changes in items"""
+        """Maintain sync between data structure and name changes in items."""
         if old_name in self._protected_names:
             raise T2NErrorDataNodeValue(
                 f"Not allowed to alter protected_name: {old_name}"
@@ -480,7 +497,7 @@ class ReactiveNamedItemDict:
         return name_exists
 
     def append(self, item: NamedItem):
-        """Append item to ordered set
+        """Append item to ordered set.
 
         WARNING: This is crucial that all added items use this
         function as it set the hook to listen to name changes
@@ -538,4 +555,7 @@ class ReactiveNamedItemDict:
         if self._protected_names:
             pnames = ",\n".join(f"\t'{k}'" for k in self._protected_names)
             protected = f"\nprotected_names=[\n{pnames}]\n"
-        return f"<ReactiveNamedItemDict ({len(self._map)}) stored_names=[{names}] {protected}>"
+        return (
+            f"<ReactiveNamedItemDict ({len(self._map)}) "
+            f"stored_names=[{names}] {protected}>"
+        )

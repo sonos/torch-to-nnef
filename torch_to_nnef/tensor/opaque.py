@@ -38,7 +38,7 @@ def maybe_custom_op(f):
 
 
 def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
-    """Allow to fetch back the opaque parameter once passed the jit 'wall'"""
+    """Allow to fetch back the opaque parameter once passed the jit 'wall'."""
     for _ in module.parameters():
         if isinstance(_, OpaqueTensorRef):
             opaque_uuid = id(_.opaque_tensor)
@@ -52,7 +52,7 @@ def find_opaque_ref_by_py_id(module: torch.nn.Module, py_id: int):
 class OpaqueTensor(torch.Tensor):
     @property
     def data(self):
-        """very important to keep access to all special attr of OpaqueTensor"""
+        """Very important to keep access to all special attr of OpaqueTensor."""
         return self
 
     @data.setter
@@ -79,7 +79,7 @@ class OpaqueTensor(torch.Tensor):
         raise T2NErrorNotImplemented()
 
     def to_base_tensor(self):
-        """wrap _to_base_tensor with jit export infos"""
+        """Wrap _to_base_tensor with jit export infos."""
 
         @maybe_custom_op
         def opaque_t2n_expand(py_id: int) -> torch.Tensor:
@@ -90,7 +90,7 @@ class OpaqueTensor(torch.Tensor):
 
 
 class OpaqueTensorRef(torch.Tensor):
-    """Allow to pass through 'tracing'"""
+    """Allow to pass through 'tracing'."""
 
     @staticmethod
     def __new__(
@@ -148,13 +148,13 @@ class OpaqueTensorRef(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
+        """Custom __torch_function__.
+
         This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 
@@ -198,7 +198,7 @@ class OpaqueTensorRef(torch.Tensor):
 def opaque_to_final_tensor(rtensor: torch.Tensor) -> torch.Tensor:
     """Even if OpaqueTensor are composed it exposes fully expanded tensor.
 
-    So by example: an OffloadedTensor that contains a QTensor
+    So for example: an OffloadedTensor that contains a QTensor
     will 'load' then 'decompress' to show final fp tensor.
 
     """
@@ -208,7 +208,7 @@ def opaque_to_final_tensor(rtensor: torch.Tensor) -> torch.Tensor:
 
 
 def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
-    """Transform OpaqueTensor Parameters into OpaqueTensorRef
+    """Transform OpaqueTensor Parameters into OpaqueTensorRef.
 
     This is applied at export time of `torch_to_nnef`
     Just before doing any tracing
@@ -220,12 +220,12 @@ def set_opaque_tensor_in_params_as_ref(model: torch.nn.Module):
     LOGGER.debug(
         "started to apply opaque tensor as reference (IR tracing friendly)"
     )
-    mod_tensor_updater = ModTensorUpdater(model, warn_old_torch=False)
+    mod_tensor_updater = ModTensorUpdater(model)
     for full_name, param in get_named_parameters(model, remove_duplicate=False):
         if not isinstance(param, OpaqueTensor):
             continue
         param.nnef_name = full_name
-        LOGGER.debug(f"apply opaque tensor reference: {full_name}")
+        LOGGER.debug("apply opaque tensor reference: %s", full_name)
         mod_tensor_updater.update_by_ref(
             param,
             OpaqueTensorRef(

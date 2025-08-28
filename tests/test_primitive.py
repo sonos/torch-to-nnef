@@ -16,20 +16,20 @@ from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
 from torch_to_nnef.utils import torch_version
 
-from .wrapper import (
-    Einsum,
-    UnaryPrimitive,
-    BinaryPrimitive,
-    TernaryPrimitive,
-    TensorFnPrimitive,
-    TorchFnPrimitive,
-    ListInputPrim,
-)
 from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     set_seed,
+)
+from .wrapper import (
+    BinaryPrimitive,
+    Einsum,
+    ListInputPrim,
+    TensorFnPrimitive,
+    TernaryPrimitive,
+    TorchFnPrimitive,
+    UnaryPrimitive,
 )
 
 set_seed(int(os.environ.get("SEED", 25)))
@@ -185,7 +185,7 @@ for op in [
         UnaryPrimitive(op),
     )
 
-# ______________________________________________________________________________________
+# ______________________________________________________________________________
 # _binary
 for op in [
     torch.min,
@@ -527,7 +527,7 @@ for qte in [2, 3]:
         torch.arange(qte * 10).reshape(1, qte, 10),
         UnaryPrimitive(lambda x: x[..., 0::2]),
         inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and "0.19.0" <= i.version,
+        and i.version >= "0.19.0",
     )
 
 
@@ -552,7 +552,7 @@ def _eintest_gen(expr: str, tensors):
 
 
 def cond_tract_ge_0_20_0(i):
-    return isinstance(i, TractNNEF) and "0.20.0" <= i.version
+    return isinstance(i, TractNNEF) and i.version >= "0.20.0"
 
 
 inp = torch.arange(9).reshape(3, 3)
@@ -682,7 +682,7 @@ except ImportError as exp:
 
 
 def cond_tract_ge_0_21_4(i):
-    return isinstance(i, TractNNEF) and "0.21.4" <= i.version
+    return isinstance(i, TractNNEF) and i.version >= "0.21.4"
 
 
 test_suite.add(
@@ -780,13 +780,13 @@ test_suite.add(
 
 # MONITORING:
 # bug in PyTorch with respect to .view(dtype) not serializing well
-# E               '0 INTERNAL ASSERT FAILED at "../torch/csrc/jit/ir/alias_analysis.cpp":617,
-#                    ... please report a bug to PyTorch. We don't have an op
-#                    ... for aten::view but it isn't a special case.  Argument types: Tensor, int,
+# E '0 INTERNAL ASSERT FAILED at "../torch/csrc/jit/ir/alias_analysis.cpp":617,
+#   ... please report a bug to PyTorch. We don't have an op
+#   ... for aten::view but it isn't a special case. Argument types: Tensor, int,
 # E
-# E               Candidates:
-# E                       aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)
-# E                       aten::view.dtype(Tensor(a) self, ScalarType dtype) -> Tensor(a)'
+# E Candidates:
+# E         aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)
+# E         aten::view.dtype(Tensor(a) self, ScalarType dtype) -> Tensor(a)'
 # test_suite.add(
 #     (torch.arange(10),),
 #     TensorFnPrimitive("view", args=[torch.int16]),
@@ -798,25 +798,25 @@ def tract_post_0_21_10(i):
     return isinstance(i, TractNNEF) and i.version >= "0.21.10"
 
 
+shape = (1, 2, 5)
+inp = torch.arange(10).reshape(shape)
 for axis in [0, 1, -1]:
-    shape = (1, 2, 5)
-    inp = torch.arange(10).reshape(shape)
     test_suite.add(
         (inp,),
-        TensorFnPrimitive("argsort", {}),
+        TensorFnPrimitive("argsort", {"dim": axis}),
         inference_conditions=tract_post_0_21_10,
     )
     test_suite.add(
         (inp,),
-        TensorFnPrimitive("sort", {}),
+        TensorFnPrimitive("sort", {"dim": axis}),
         inference_conditions=tract_post_0_21_10,
     )
-    for dim, s in enumerate(shape):
-        test_suite.add(
-            (inp,),
-            TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
-            inference_conditions=tract_post_0_21_10,
-        )
+for dim, s in enumerate(shape):
+    test_suite.add(
+        (inp,),
+        TensorFnPrimitive("topk", {"k": s - 1, "dim": dim}),
+        inference_conditions=tract_post_0_21_10,
+    )
 
 
 if torch_version() >= "1.13.0":
@@ -1131,7 +1131,7 @@ def test_should_fail_since_false_output():
     ids=test_suite.ids,
 )
 def test_primitive_export(id, test_input, model, inference_target):
-    """Test simple aten PyTorch core"""
+    """Test simple aten PyTorch core."""
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
     )

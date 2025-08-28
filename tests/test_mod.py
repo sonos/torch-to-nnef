@@ -1,15 +1,16 @@
 from copy import deepcopy
-import pytest
 
-from tests.mod.nemo_featurizer import FilterbankFeatures
+import pytest
 import torch
 
+from tests.mod.nemo_featurizer import FilterbankFeatures
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
 from torch_to_nnef.inference_target import TractNNEF
+from torch_to_nnef.utils import torch_version
 
 test_suite = TestSuiteInferenceExactnessBuilder(
     TRACT_INFERENCES_TO_TESTS_APPROX
@@ -69,7 +70,9 @@ def check_non_concretized_tract_interp(inference_target, export_path):
     ids=test_suite.ids,
 )
 def test_complex_and_fft_export(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
+    if torch_version() < "1.11.0":
+        pytest.skip("Skipping for torch < 1.11")
     custom_extensions = None
     if isinstance(model, FilterbankFeatures):
         symb = set(

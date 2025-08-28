@@ -1,4 +1,4 @@
-"""Compression module mostly used as demonstration purpose
+"""Compression module mostly used as demonstration purpose.
 
 Examplify: how to implement quantization
 """
@@ -30,8 +30,8 @@ def _calib_q40_fn(weight, name, kwargs):
     return q_weight
 
 
-def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
-    """example of quantization function for a model to Q40"""
+def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):  # noqa: N802
+    """Example of quantization function for a model to Q40."""
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -49,12 +49,13 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
 
         for name, mod in model.named_modules():
             if isinstance(mod, to_quantize_module_classes):
-                LOGGER.info(f"quantize layer: {name}")
-                weight_id = id(getattr(mod, "weight"))
+                LOGGER.info("quantize layer: %s", name)
+                weight_id = id(mod.weight)
                 if weight_id in ids_to_qtensor:
                     LOGGER.info(
-                        "detected shared weight between: "
-                        f"'{ids_to_qtensor[weight_id].nnef_name}' and '{name}.weight'"
+                        "detected shared weight between: '%s' and '%s.weight'",
+                        ids_to_qtensor[weight_id].nnef_name,
+                        name,
                     )
                     continue
                 if not all(
@@ -66,8 +67,12 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                         for m in mod_tensor_updater.id_to_modules[weight_id]
                     ]
                     LOGGER.warning(
-                        f"detected shared weight: '{name}' candidate has incompatible layer usage: {clss}, "
-                        f" but requested {to_quantize_module_classes}"
+                        "detected shared weight: '%s' candidate "
+                        "has incompatible layer usage: %s, "
+                        "but requested %s",
+                        name,
+                        clss,
+                        to_quantize_module_classes,
                     )
                     continue
                 try:
@@ -77,11 +82,12 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
                         "q40_min_max",
                     )
                 except T2NErrorImpossibleQuantization as exp:
-                    LOGGER.error(f"quant layer: {name} error: {exp}")
+                    LOGGER.error("quant layer: %s error: %s", name, exp)
                     continue
-                # => needs assignation next cause update_by_ref may create new Parameter object
+                # => needs assignation next cause update_by_ref
+                # may create new Parameter object
                 q_weight = mod_tensor_updater.update_by_ref(
-                    getattr(mod, "weight"), q_weight
+                    mod.weight, q_weight
                 )
                 ids_to_qtensor[id(q_weight)] = q_weight
     return model
@@ -90,7 +96,7 @@ def quantize_weights_min_max_Q4_0(model: nn.Module, **kwargs):
 def offloaded_tensor_qtensor(
     q_fn, tensor: torch.Tensor, suffix_name: str
 ) -> torch.Tensor:
-    """Maintain a QTensor offloaded if original targeted tensor was already offloaded"""
+    """Maintains a QTensor offloaded if original tensor is offloaded."""
     original_tensor = tensor
     if isinstance(original_tensor, OffloadedTensor):
         tensor = original_tensor.to_base_tensor()
@@ -108,7 +114,7 @@ def offloaded_tensor_qtensor(
 
 
 def dynamic_load_registry(compression_registry_full_path: str):
-    """load a registry dynamically based on it's module path + dict name"""
+    """Load a registry dynamically based on it's module path + dict name."""
     module_str, name = compression_registry_full_path.rsplit(".", maxsplit=1)
     mod = __import__(module_str, fromlist=[""])
     registry = getattr(mod, name)
@@ -116,6 +122,7 @@ def dynamic_load_registry(compression_registry_full_path: str):
     return registry
 
 
+DEFAULT_COMPRESSION_REGISTRY = "torch_to_nnef.compress.DEFAULT_COMPRESSION"
 DEFAULT_COMPRESSION = {
     "min_max_q4_0": quantize_weights_min_max_Q4_0,
     "min_max_q4_0_with_embeddings": partial(

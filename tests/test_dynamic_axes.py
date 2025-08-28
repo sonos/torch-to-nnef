@@ -3,7 +3,6 @@
 import os
 from functools import partial
 
-from numpy import test
 import pytest
 import torch
 from torch import nn
@@ -12,7 +11,6 @@ from torchaudio import models as audio_mdl
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.utils import torch_version
 
-from .wrapper import TorchFnPrimitive
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -20,6 +18,7 @@ from .utils import (  # noqa: E402
     check_model_io_test,
     set_seed,
 )
+from .wrapper import TorchFnPrimitive
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -234,12 +233,13 @@ test_suite.add(
     ids=test_suite.ids,
 )
 def test_dynamic_axes_exports(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,
         inference_target=inference_target,
-        # for convenience of tests we assigned custom_extensions to inference target
+        # for convenience of tests we assigned
+        # custom_extensions to inference target
         custom_extensions=(
             inference_target.custom_extensions
             if hasattr(inference_target, "custom_extensions")

@@ -17,7 +17,7 @@ LOGGER = log.getLogger(__name__)
 
 
 class WrapStructIO(nn.Module):
-    """Once traced it should be nop in final graph"""
+    """Once traced it should be nop in final graph."""
 
     def __init__(self, model: nn.Module, input_infos, output_infos) -> None:
         super().__init__()
@@ -58,7 +58,8 @@ class WrapStructIO(nn.Module):
                     )
                 cur_struct = cur_struct[idx]
 
-        # tupleization happen after structure is built because tuples are immutables
+        # tupleization happen after structure is built
+        # because tuples are immutables
         return self._tupleization(inps)
 
     def _tupleization(self, inps):
@@ -109,8 +110,9 @@ def _build_new_names_and_elements(
     elms: T.Iterable,
     default_element_name_tmpl: str,
 ):
-    """
-    Usecase 1:
+    """Build names of elements based on containers parents.
+
+    Usecase 1:.
         provide:
             original_names: ['input', "a"]
             elms: [[tensor, tensor, tensor], {"arm": tensor, "head": tensor}]
@@ -122,7 +124,10 @@ def _build_new_names_and_elements(
             original_names: ['plop']
             elms: [[tensor, tensor, tensor], tensor, tensor]
     Expected output names:
-        ["plop_0", plop_1", "plop_2", default_element_name_tmpl %ix=1, default_element_name_tmpl %ix=2]
+        ["plop_0", plop_1", "plop_2",
+          default_element_name_tmpl %ix=1,
+          default_element_name_tmpl %ix=2
+        ]
 
     Usecase 3: (dict with prefix)
         provide:
@@ -162,8 +167,11 @@ def _build_new_names_and_elements(
             LOGGER.warning(
                 "Can only keep trace dynamic for torch.Tensor inputs/outputs  "
                 "rest is CONSTANTIZED like: "
-                f"'{root_name}' value: {elm} at index: {ix_str} "
-                "(if its a container we assume no torch.Tensor inside)"
+                "'%s' value: %s at index: %s "
+                "(if its a container we assume no torch.Tensor inside)",
+                root_name,
+                elm,
+                ix_str,
             )
             continue
         new_names.append(root_name + str_idxes if str_idxes else root_name)
@@ -187,8 +195,8 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     )
     if new_input_names != input_names:
         LOGGER.warning(
-            "Graph inputs have been flattened "
-            f"so NNEF inputs are: {new_input_names}"
+            "Graph inputs have been flattened so NNEF inputs are: %s",
+            new_input_names,
         )
         input_names = new_input_names
 
@@ -197,8 +205,8 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
     )
     if new_output_names != output_names:
         LOGGER.warning(
-            "Graph outputs have been flattened "
-            f"so NNEF outputs are: {new_output_names}"
+            "Graph outputs have been flattened so NNEF outputs are: %s",
+            new_output_names,
         )
         output_names = new_output_names
 

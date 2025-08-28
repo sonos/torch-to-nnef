@@ -1,11 +1,12 @@
 """Featurizer borrowed from nemo package for testing purpose."""
 
-import random
 import logging
 import math
+import random
 
 import torch
 from torch import nn
+
 from torch_to_nnef.exceptions import (
     T2NErrorMissUse,
     T2NErrorNotImplemented,
@@ -14,8 +15,26 @@ from torch_to_nnef.exceptions import (
 CONSTANT = 1e-5
 
 
+def legacy_support_amp_autocast():
+    """Legacy support for torch.amp.autocast (1.10 was torch.cuda.amp)."""
+    if hasattr(torch, "amp") and hasattr(torch.amp, "autocast"):
+        return torch.amp.autocast
+
+    class DummyContext:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            pass
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    return DummyContext
+
+
 def splice_frames(x, frame_splicing):
-    """Stacks frames together across feature dim
+    """Stacks frames together across feature dim.
 
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames
@@ -43,8 +62,10 @@ def normalize_batch(x, seq_len, normalize_type):
             and torch.any(seq_len == 1).item()
         ):
             raise T2NErrorMissUse(
-                "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
-                "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
+                "normalize_batch with `per_feature` normalize_type received a "
+                "tensor of length 1. "
+                "This will result in torch.std() returning nan. "
+                "Make sure your audio length has enough samples for a single "
                 "feature (ex. at least `hop_length` for Mel Spectrograms)."
             )
         time_steps = (
@@ -97,7 +118,9 @@ def normalize_batch(x, seq_len, normalize_type):
 
 class FilterbankFeatures(nn.Module):
     """Featurizer that converts wavs to Mel Spectrograms.
+
     See AudioToMelSpectrogramPreprocessor for args.
+
     """
 
     def __init__(
@@ -127,20 +150,23 @@ class FilterbankFeatures(nn.Module):
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
         mel_norm="slaney",
-        stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
-        stft_conv=False,  # Deprecated arguments; kept for config compatibility
+        stft_exact_pad=False,  # Deprecated ; kept for config compatibility
+        stft_conv=False,  # Deprecated ; kept for config compatibility
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
             logging.warning(
-                "Using torch_stft is deprecated and has been removed. The values have been forcibly set to False "
-                "for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
-                "as needed."
+                "Using torch_stft is deprecated and has been removed."
+                " The values have been forcibly set to False "
+                "for FilterbankFeatures and AudioToMelSpectrogramPreprocessor."
+                " Please set exact_pad to True as needed."
             )
         if exact_pad and n_window_stride % 2 == 1:
             raise T2NErrorNotImplemented(
-                f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
-                "returned spectrogram would not be of length audio_length // hop_size. Please use an even hop_size."
+                f"{self} received exact_pad == True, but hop_size was odd."
+                " If audio_length % hop_size == 0. Then the "
+                "returned spectrogram would not be of length "
+                "audio_length // hop_size. Please use an even hop_size."
             )
         self.log_zero_guard_value = log_zero_guard_value
         if (
@@ -155,7 +181,7 @@ class FilterbankFeatures(nn.Module):
                 f"{self} got an invalid value for either n_window_size or "
                 f"n_window_stride. Both must be positive ints."
             )
-        logging.info(f"PADDING: {pad_to}")
+        logging.info("PADDING: %s", pad_to)
 
         self.win_length = n_window_size
         self.hop_length = n_window_stride
@@ -174,7 +200,7 @@ class FilterbankFeatures(nn.Module):
             "bartlett": torch.bartlett_window,
             "none": None,
         }
-        window_fn = torch_windows.get(window, None)
+        window_fn = torch_windows.get(window)
         window_tensor = (
             window_fn(self.win_length, periodic=False) if window_fn else None
         )
@@ -243,7 +269,7 @@ class FilterbankFeatures(nn.Module):
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             win_length=self.win_length,
-            center=False if self.exact_pad else True,
+            center=not self.exact_pad,
             window=self.window.to(dtype=torch.float, device=x.device),
             return_complex=True,
         )
@@ -284,7 +310,8 @@ class FilterbankFeatures(nn.Module):
 
     def forward(self, x, seq_len, linear_spec=False):
         seq_len_unfixed = self.get_seq_len(seq_len)
-        # fix for seq_len = 0 for streaming; if size was 0, it is always padded to 1, and normalizer fails
+        # fix for seq_len = 0 for streaming; if size was 0,
+        # it is always padded to 1, and normalizer fails
         seq_len = torch.where(
             seq_len == 0, torch.zeros_like(seq_len_unfixed), seq_len_unfixed
         )
@@ -308,10 +335,11 @@ class FilterbankFeatures(nn.Module):
             )
 
         # disable autocast to get full range of stft values
-        with torch.amp.autocast(x.device.type, enabled=False):
+        with legacy_support_amp_autocast()(x.device.type, enabled=False):
             x = self.stft(x)
 
-        # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude
+        # torch stft returns complex tensor (of shape [B,N,T]);
+        # so convert to magnitude
         # guard is needed for sqrt if grads are passed through
         guard = 0 if not self.use_grads else CONSTANT
         x = torch.view_as_real(x)
@@ -332,7 +360,7 @@ class FilterbankFeatures(nn.Module):
 
         # disable autocast, otherwise it might be automatically casted to fp16
         # on fp16 compatible GPUs and get NaN values for input value of 65520
-        with torch.amp.autocast(x.device.type, enabled=False):
+        with legacy_support_amp_autocast()(x.device.type, enabled=False):
             # dot with filterbank energies
             x = torch.matmul(self.fb.to(x.dtype), x)
         # log features if required
@@ -354,7 +382,8 @@ class FilterbankFeatures(nn.Module):
         if self.normalize:
             x, _, _ = normalize_batch(x, seq_len, normalize_type=self.normalize)
 
-        # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
+        # mask to zero any values beyond seq_len in batch,
+        # pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len, device=x.device)
         mask = mask.repeat(x.size(0), 1) >= seq_len.unsqueeze(1)

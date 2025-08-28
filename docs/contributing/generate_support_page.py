@@ -1,13 +1,14 @@
 import json
+import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Set
-from torch_to_nnef.op.aten import aten_ops_registry
-import requests as rq
-import bs4
-import subprocess
 
+import bs4
+import requests as rq
+
+from torch_to_nnef.op.aten import aten_ops_registry
 
 TORCH_VERSION = "v2.7.1"
 URL_IR = "https://docs.pytorch.org/docs/main/torch.compiler_ir.html"
@@ -15,18 +16,16 @@ ONNX_SUPPORT_URL = "https://docs.pytorch.org/docs/stable/onnx_torchscript_suppor
 
 
 def get_core_ir():
-    resp = rq.get(URL_IR)
+    resp = rq.get(URL_IR, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
     res = soup.find_all("span", {"class": "pre"})
-    official_aten_names = set(
-        [
-            r.text.split(".")[1]
-            for r in res
-            if r.text.startswith("aten")
-            if "backward" not in r.text
-        ]
-    )
+    official_aten_names = {
+        r.text.split(".")[1]
+        for r in res
+        if r.text.startswith("aten")
+        if "backward" not in r.text
+    }
     official_prim_names = sorted(
         [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
     )
@@ -34,23 +33,19 @@ def get_core_ir():
 
 
 def get_onnx_support():
-    resp = rq.get(ONNX_SUPPORT_URL)
+    resp = rq.get(ONNX_SUPPORT_URL, timeout=20)
     assert resp.status_code == 200
     soup = bs4.BeautifulSoup(resp.content, "html.parser")
-    supported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
-    unsupported_ops = set(
-        [
-            _.text.replace("aten::", "")
-            for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
-            if "aten::" in _.text
-        ]
-    )
+    supported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
+    unsupported_ops = {
+        _.text.replace("aten::", "")
+        for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
+        if "aten::" in _.text
+    }
     return supported_ops, unsupported_ops
 
 
@@ -84,7 +79,7 @@ class LinkToTorchDocCache:
                 continue
             if op_name in v and exclusive_pattern:
                 return
-        if rq.get(pattern.format(op_name)).status_code == 200:
+        if rq.get(pattern.format(op_name), timeout=20).status_code == 200:
             self.cache_dic[pattern].add(op_name)
             if op_name in self.cache_dic[self.UNK]:
                 self.cache_dic[self.UNK].remove(op_name)
@@ -95,6 +90,7 @@ class LinkToTorchDocCache:
         for k, v in self.cache_dic.items():
             if op_name in v and k != self.UNK:
                 return k.format(op_name)
+        return None
 
 
 official_aten_names, official_prim_names = get_core_ir()
@@ -104,7 +100,8 @@ onnx_supported, onnx_unsupported = get_onnx_support()
 aten_torch_from_code = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git clone -q git@github.com:pytorch/pytorch.git || git -C 'pytorch' pull; "
+        "git clone -q git@github.com:pytorch/pytorch.git || "
+        "git -C 'pytorch' pull; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
@@ -119,7 +116,8 @@ aten_torch_from_code = [
 aliases = sorted(
     subprocess.check_output(
         "cd /tmp ; "
-        "git -C 'pytorch' pull || git clone -q git@github.com:pytorch/pytorch.git; "
+        "git -C 'pytorch' pull || "
+        "git clone -q git@github.com:pytorch/pytorch.git; "
         "cd /tmp/pytorch ;"
         f"git checkout {TORCH_VERSION}; "
         "cat ./torch/csrc/jit/passes/normalize_ops.cpp",
@@ -128,12 +126,11 @@ aliases = sorted(
     .decode("utf8")
     .split("\n")
 )
-naliases = {
+alias_map = {
     tuple(x.replace("aten::", "") for x in a.strip()[1:-2].split(", "))
     for a in aliases
     if "{" in a and "}" in a and "aten::" in a
 }
-alias_map = {k: v for (k, v) in naliases}
 ref_alias = defaultdict(list)
 for k, v in alias_map.items():
     ref_alias[v].append(k)
@@ -141,7 +138,7 @@ for k, v in alias_map.items():
 support_inplace = set()
 offset = 0
 for ix, a in enumerate(aten_torch_from_code[:]):
-    if (
+    if (  # pylint: disable-next=too-many-boolean-expressions
         a.endswith("_")
         and a[:-1] in aten_torch_from_code
         or a in alias_map
@@ -167,16 +164,13 @@ for a_from_code in aten_torch_from_code:
 
 
 def print_t(text, file):
-    """Print tabbed"""
+    """Print tabbed."""
     if text:
         if "\n" in text:
             lines = text.split("\n")
             new_lines = []
             for line in lines:
-                if line.strip():
-                    new_line = f"    {line}"
-                else:
-                    new_line = line
+                new_line = f"    {line}" if line.strip() else line
                 new_lines.append(new_line)
             text = "\n".join(new_lines)
         else:
@@ -221,7 +215,9 @@ def write_operator_support(
             op_name = f"[{op_name}]({torch_url_doc})"
         rows.append(
             (
-                f"| {op_name} | {alias_str} | {inplace_str} | {is_core_official_str} | {mapped_in_support_str} |",
+                f"| {op_name} | {alias_str} | "
+                f"{inplace_str} | {is_core_official_str} | "
+                f"{mapped_in_support_str} |",
                 is_core,
             )
         )
@@ -232,7 +228,8 @@ def write_operator_support(
     print_t(
         f"Total matched operators in {support_target_msg} compared to:\n\n"
         f"- core PyTorch opset:\n\n"
-        f'[={qte_supported_core}/{qte_core} "{qte_supported_core}/{qte_core}"]\n\n'
+        f"[={qte_supported_core}/{qte_core} "
+        f'"{qte_supported_core}/{qte_core}"]\n\n'
         "-  and support from full `aten::`: \n\n"
         f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
         " (total registered aten "
@@ -260,22 +257,33 @@ with (Path(__file__).parent / "./supported_operators.md").open(
     date = datetime.now().strftime("%d %b %Y")
     print(
         "!!! note\n"
-        f"    This table and page are auto generated from 'a script' that dig into PyTorch."
-        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated the **{date}**.\n\n"
+        "    This table and page are auto generated from 'a script' "
+        "that dig into PyTorch."
+        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated "
+        f"the **{date}**.\n\n"
         "!!! warning\n"
-        "     Take these information with a grain of salt as this is referencing operators that may never appear"
-        " in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some "
-        " uncommon operators are very rare in models, hence support may be lacking. "
-        " **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md)."
+        "     Take these informations with a grain of salt as this is "
+        "referencing operators that may never appear"
+        " in torch IR graph traced by `torch_to_nnef` "
+        "(because remapped to others more generic). "
+        "Also some  uncommon operators are very rare in models, "
+        "hence support may be lacking. "
+        " **SONOS only maintains operators 'per need basis'**, "
+        "but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
-        f"\n 'is core' column refers to this [PyTorch IR documentation page]({URL_IR})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. Also in place operations are merged with memory allocated activations as this is inference implementation detail.",
+        "\n 'is core' column refers to this "
+        f"[PyTorch IR documentation page]({URL_IR})\n\n"
+        "We filter-out from from observed operators 'backward' and 'sym' one's "
+        "which are unwanted in inference engine. "
+        "Also in place operations are merged with memory allocated activations "
+        "as this is inference implementation detail.",
         file=fh,
     )
     write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
     write_operator_support(
         "ONNX",
-        f"builtin PyTorch `ONNX` support based on [this page]({ONNX_SUPPORT_URL})",
+        "builtin PyTorch `ONNX` support based on "
+        f"[this page]({ONNX_SUPPORT_URL})",
         onnx_supported,
     )
 

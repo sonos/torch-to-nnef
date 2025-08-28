@@ -1,20 +1,19 @@
-from pathlib import Path
-from copy import deepcopy
 import subprocess
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from tests.wrapper import TernaryPrimitive, TensorFnPrimitive
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
 )
+from tests.wrapper import TensorFnPrimitive, TernaryPrimitive
 from torch_to_nnef.utils import torch_version
-
 
 FORCE_F32_INFERENCES = deepcopy(TRACT_INFERENCES_TO_TESTS_APPROX)
 for inf in FORCE_F32_INFERENCES:
@@ -109,7 +108,7 @@ def check_contains_f32_upcast_attn(inference_target, path):
     ids=attn_test_suite.ids,
 )
 def test_upcast_f32_attn(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,
@@ -139,7 +138,8 @@ def check_contains_f32_upcast_norm(inference_target, path):
 
 @pytest.mark.skipif(
     condition=torch_version() < "2.2.0",
-    reason="torch older than 2.2.0 lack too much of half operators support on CPU",
+    reason="torch older than 2.2.0 lack too much of "
+    "half operators support on CPU",
 )
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
@@ -147,7 +147,7 @@ def check_contains_f32_upcast_norm(inference_target, path):
     ids=bn_test_suite.ids,
 )
 def test_upcast_f32_bn(id, test_input, model, inference_target):
-    """Test simple models"""
+    """Test simple models."""
     check_model_io_test(
         model=model,
         test_input=test_input,
@@ -157,7 +157,7 @@ def test_upcast_f32_bn(id, test_input, model, inference_target):
 
 
 def test_layer_norm_f16_unsupported_in_torch():
-    """Check no layer norm support for f16"""
+    """Check no layer norm support for f16."""
     if torch_version() <= "2.2.0":
         with pytest.raises(RuntimeError) as excinfo:
             check_model_io_test(

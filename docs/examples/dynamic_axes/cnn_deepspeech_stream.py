@@ -1,8 +1,9 @@
 from pathlib import Path
+
 import torch
 import torchaudio
 
-from torch_to_nnef import export_model_to_nnef, TractNNEF
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 
 class CustomDeepSpeech(torch.nn.Module):
@@ -29,10 +30,10 @@ class CustomDeepSpeech(torch.nn.Module):
 
 file_path_export = Path("custom_deepspeech.nnef.tgz")
 custom_deepspeech = CustomDeepSpeech()
-input = torch.rand(7, 100, 64)
+inp = torch.rand(7, 100, 64)
 export_model_to_nnef(
     model=custom_deepspeech,
-    args=input,
+    args=inp,
     file_path_export=file_path_export,
     inference_target=TractNNEF(
         dynamic_axes={

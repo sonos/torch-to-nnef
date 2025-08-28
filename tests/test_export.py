@@ -1,4 +1,4 @@
-"""E2E Test of the export function"""
+"""E2E Test of the export function."""
 
 import logging as log
 import tempfile
@@ -27,7 +27,6 @@ from torch_to_nnef.inference_target.tract import build_io
 from torch_to_nnef.tensor.quant import (
     fp_to_tract_q4_0_with_min_max_calibration,
 )
-from torch_to_nnef.utils import torch_version
 
 
 class MyDumbNN(nn.Module):

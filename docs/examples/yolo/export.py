@@ -4,25 +4,30 @@ from time import perf_counter
 
 import torch_to_nnef
 from ultralytics import YOLO
-from ultralytics.utils import LOGGER, colorstr
-from ultralytics.utils.patches import arange_patch
+from ultralytics.engine.exporter import Exporter, NMSModel
 from ultralytics.nn.tasks import (
     DetectionModel,
     SegmentationModel,
 )
-from ultralytics.engine.exporter import NMSModel, Exporter
+from ultralytics.utils import LOGGER, colorstr
+from ultralytics.utils.patches import arange_patch
+
+import torch_to_nnef
 
 tract_target = torch_to_nnef.TractNNEF.latest()
 model = YOLO(
     "yolo11n-pose.pt"
 )  # load a pretrained model (recommended for training)
 
+PREFIX_DEFAULT = colorstr("NNEF:")
 
-def global_export_nnef(self, prefix=colorstr("NNEF:")):
+
+def global_export_nnef(self, prefix=PREFIX_DEFAULT):
     """Export YOLO model to NNEF format."""
-
     LOGGER.info(
-        f"\n{prefix} starting export with NNEF: {torch_to_nnef.__version__} targetting tract: {tract_target.version}..."
+        f"\n{prefix} starting export with NNEF: "
+        f"{torch_to_nnef.__version__} targetting "
+        f"tract: {tract_target.version}..."
     )
     f = str(self.file.with_suffix(".nnef.tgz"))
     output_names = (

@@ -1,4 +1,4 @@
-"""Export any huggingface transformers LLM to tract NNEF
+"""Export any huggingface transformers LLM to tract NNEF.
 
 With options to compress it to Q4_0 and use float16
 
@@ -15,7 +15,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.llm_tract.config import (
     DtypeStr,
     ExportDirStruct,
-    LlamaSLugs,
+    LlamaSlugs,
     OpenELMSlugs,
     PHISlugs,
 )
@@ -49,8 +49,8 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
     slug_examples = ", ".join(
         [
             f"'{_.value}'"
-            for slugsEnums in [LlamaSLugs, PHISlugs, OpenELMSlugs]
-            for _ in slugsEnums
+            for slugs_enums in [LlamaSlugs, PHISlugs, OpenELMSlugs]
+            for _ in slugs_enums
         ]
     )
     for parser in [loader_parser, full_parser]:
@@ -67,7 +67,7 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
             "-s",
             "--model-slug",
             help="huggingface slug (web-page 'endpoint') to "
-            f"export by example ({slug_examples})",
+            f"export for example ({slug_examples})",
         )
         parser.add_argument(
             "-dt",
@@ -133,25 +133,39 @@ def parser_cli(  # pylint: disable=too-many-positional-arguments
         )
 
         parser.add_argument(
+            "--reify-sdpa-operator",
+            action="store_true",
+            help="enable conversion of scaled_dot_product_attention "
+            "to tract_transformers_sdpa. This is an experimental feature.",
+        )
+
+        parser.add_argument(
             "--num-logits-to-keep",
             type=int,
             default=1,
-            help="num_logits_to_keep: int number of token to keep (if 0 all are kept) "
+            help="num_logits_to_keep: int number of token to keep "
+            "(if 0 all are kept) "
             "by default for classical inference setting it to 1 is fine, "
             "in case of speculative-decoding it may be more (typically 2 or 3)",
         )
 
         parser.add_argument(
             "--device-map",
-            help="**device_map** as defined by huggingface library 'accelerate'."
-            " This allow to place different parts of a model, on different hardware parts. "
+            help="**device_map** as in huggingface library 'accelerate'."
+            " This allow to place different parts of a model, "
+            "on different hardware parts. "
             " We also have 2 new possible options: "
-            "1. 't2n_offload_disk' that force all parameters to load on disk instead of memory, "
-            "using 'torch_to_nnef.tensor.offload.OffloadedTensor'. "
-            "At each use, it loads on specific device then offload (device target can be changed anytime) "
-            "2. 't2n_auto' & 'auto' dispatch accross all device like accelerate 'auto' except on 'disk' will be "
-            "remapped to 'torch_to_nnef.tensor.offload.OffloadedTensor' instead (need 'accelerate' installed). "
-            " Also we observed memory allocation issue with 3.13.X and 'QTensor' mix, so for now we recommend 3.12 in those case. "
+            "1. 't2n_offload_disk' that force all parameters to load on disk"
+            " instead of memory, using "
+            "'torch_to_nnef.tensor.offload.OffloadedTensor'. "
+            "At each use, it loads on specific device then offload "
+            "(device target can be changed anytime) "
+            "2. 't2n_auto' & 'auto' dispatch accross all device "
+            "like accelerate 'auto' except on 'disk' will be "
+            "remapped to 'torch_to_nnef.tensor.offload.OffloadedTensor' "
+            "instead (need 'accelerate' installed). "
+            " Also we observed memory allocation issue with 3.13.X and "
+            "'QTensor' mix, so for now we recommend 3.12 in those case. "
             "https://huggingface.co/docs/accelerate/en/concept_guides/big_model_inference",
         )
 
@@ -277,9 +291,8 @@ def main():
         log_level = log.DEBUG
     kwargs = vars(args)
     del kwargs["verbose"]
-    if kwargs["device_map"] is not None:
-        if "{" in kwargs["device_map"]:
-            kwargs["device_map"] = json.loads(kwargs["device_map"])
+    if kwargs["device_map"] is not None and "{" in kwargs["device_map"]:
+        kwargs["device_map"] = json.loads(kwargs["device_map"])
     dump_llm(
         **kwargs,
         log_level=log_level,

@@ -1,5 +1,5 @@
-import tract
 import numpy as np
+import tract
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
 

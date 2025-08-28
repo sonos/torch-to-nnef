@@ -4,19 +4,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import torch
 import pytest
-
-MISSING_PEFT = False
-try:
-    from peft import LoraConfig, TaskType, get_peft_model
-except ImportError as exp:
-    MISSING_PEFT = True
-    print("no peft tests")
-
+import torch
 from transformers import AutoModelForCausalLM
 
-from torch_to_nnef.llm_tract.config import LlamaSLugs
+from torch_to_nnef.llm_tract.config import LlamaSlugs
 from torch_to_nnef.peft.cli import (
     NAME_PLACEHOLDER,
     PEFT_MAPPING_FILENAME,
@@ -24,7 +16,15 @@ from torch_to_nnef.peft.cli import (
 )
 from torch_to_nnef.utils import cd
 
-DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSLugs.DUMMY.value)
+MISSING_PEFT = False
+try:
+    from peft import LoraConfig, TaskType, get_peft_model
+except ImportError:
+    MISSING_PEFT = True
+    print("no peft tests")
+
+
+DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSlugs.DUMMY.value)
 
 
 @pytest.mark.skipif(condition=MISSING_PEFT, reason="peft not installed")

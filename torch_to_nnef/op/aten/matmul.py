@@ -19,14 +19,14 @@ OP_REGISTRY = AtenOpRegistry()
 
 
 def _get_padding_same_symetric(
-    L_in: int, stride: int, kernel_size: int, dilation: int
+    l_in: int, stride: int, kernel_size: int, dilation: int
 ) -> T.Tuple[int, int]:
     """This function computes the number of elements to add for zero-padding."""
     if stride > 1:
         raise T2NErrorNotImplemented("stride > 1 not implemented")
     offset = -dilation * (kernel_size - 1) - 1 + 1
-    L_out = L_in + offset
-    qte_pad = L_in - L_out
+    l_out = l_in + offset
+    qte_pad = l_in - l_out
     side_pad = qte_pad // 2
     padding = (side_pad, qte_pad - side_pad)
     return padding
@@ -40,7 +40,7 @@ def _get_padding_same_symetric(
 def _convolution_mode(
     g, node, name_to_tensor, null_ref, inference_target, **kwargs
 ):
-    """Operator mapping PyTorch: 'aten:_convolution_mode', 'aten:convolution', 'aten:conv1d', 'aten:conv2d', 'aten:conv3d' to NNEF"""
+    """Map PyTorch: 'aten:_convolution_mode', 'aten:convolution',... to NNEF."""
     (
         input_node,
         weight_node,
@@ -69,14 +69,15 @@ def _convolution_mode(
         # """
         # tries to pad evenly left and right, but if the amount of columns to
         # be added is odd, it will add the extra column to the right.
-        # (the same logic applies vertically: there may be an extra row of zeros at the bottom).
+        # (the same logic applies vertically: there may be an extra row of
+        # zeros at the bottom).
         # """
         # NOTE: This implementation have little test coverage
         padding = []
         for idx, _ in enumerate(stride):
             padding.append(
                 _get_padding_same_symetric(
-                    L_in=input_node.shape[-(idx + 1)],
+                    l_in=input_node.shape[-(idx + 1)],
                     stride=1,
                     kernel_size=weight_node.shape[2:][idx],
                     dilation=dilation[idx],
@@ -120,7 +121,7 @@ def _convolution_mode(
 
 @OP_REGISTRY.register()
 def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:_convolution' to NNEF"""
+    """Map PyTorch: 'aten:_convolution' to NNEF."""
     (
         input_node,
         weight_node,
@@ -202,7 +203,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:linear' to NNEF"""
+    """Map PyTorch: 'aten:linear' to NNEF."""
     (
         input_node,
         weight_node,
@@ -320,7 +321,7 @@ def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
 
 @OP_REGISTRY.register()
 def einsum(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:einsum' to NNEF"""
+    """Map PyTorch: 'aten:einsum' to NNEF."""
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(
             "einsum operator is not supported by `NNEF` and "
@@ -352,7 +353,7 @@ def einsum(g, node, name_to_tensor, inference_target, **kwargs):
     torch_op_ids=["matmul", "bmm", "mm"]
 )  # since NNEF matmul does not care about rank
 def matmul(g, node, name_to_tensor, **kwargs):
-    """Operator mapping PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF"""
+    """Map PyTorch: 'aten:matmul', 'aten:bmm', 'aten:mm' to NNEF."""
     (
         input_node,
         other_node,
@@ -376,7 +377,7 @@ def matmul(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register(["baddbmm", "addmm"])
 def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
-    """Operator mapping PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF"""
+    """Map PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF."""
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     for ab_node in [alpha_node, beta_node]:
         if isinstance(alpha_node, PythonConstant):

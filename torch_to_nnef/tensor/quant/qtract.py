@@ -24,15 +24,11 @@ from torch_to_nnef.tensor.quant.base import (
 
 
 class QTensorTract(QTensor):
-    """All QTensorTract implementations"""
+    """All QTensorTract implementations."""
 
 
 class QTensorTractScaleOnly(QTensorTract):
-    """
-
-    Tract data format it serialize to: Q4_0
-
-    """
+    """Tract data format it serializes to: Q4_0."""
 
     qscheme: QScalePerGroupF16  # type notation for mypy
 
@@ -53,11 +49,10 @@ class QTensorTractScaleOnly(QTensorTract):
         self.specific_machine = specific_machine
 
     def decompress(self):
-        """tract dequantization depends on hardware
+        """Tract dequantization depends on hardware.
 
-        typically dequantization happen with ops in f16
+        Typically dequantization happen with ops in f16
         on ARM and f32 (scale directly casted) on others
-
         so we overwrite the function to be consistant
         with tract.
 
@@ -88,7 +83,8 @@ class QTensorTractScaleOnly(QTensorTract):
     def _build_binary_dat_content(
         self, post_tract_21_11: bool = False
     ) -> bytes:
-        # NOTE: implementation with multiple call to .tobytes, not tested if bottleneck
+        # NOTE: implementation with multiple call to .tobytes,
+        # not tested if bottleneck
 
         n_bytes_per_group = 18
         tensor_flat = self.decompress_to_u8().clone().flatten()
@@ -116,8 +112,10 @@ class QTensorTractScaleOnly(QTensorTract):
         self,
         dirpath: T.Union[str, Path],
         label: str,
-        inference_target: InferenceTarget = TractNNEF.latest(),
+        inference_target: T.Optional[InferenceTarget] = None,
     ):
+        if inference_target is None:
+            inference_target = TractNNEF.latest()
         path = Path(dirpath) / f"{label}.dat"
         if path.exists():
             # already created a variable dump with that name.
@@ -148,7 +146,7 @@ class QTensorTractScaleOnly(QTensorTract):
 def fp_to_tract_q4_0_with_min_max_calibration(
     fp_tensor, percentile: float = 1.0
 ) -> QTensorTractScaleOnly:
-    """Min-Max method to quantize float tensor to tract supported Q4_0"""
+    """Min-Max method to quantize float tensor to tract supported Q4_0."""
     q4_group_size = 32
     if isinstance(fp_tensor, torch.nn.Parameter):
         fp_tensor = fp_tensor.data

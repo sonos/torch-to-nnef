@@ -1,13 +1,13 @@
-from copy import deepcopy
-import tempfile
-from pathlib import Path
 import subprocess
+import tempfile
+from copy import deepcopy
+from pathlib import Path
 
 import torch
 
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import T2NErrorMissUse
 from torch_to_nnef.utils import cd
-from torch_to_nnef.compress import dynamic_load_registry
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -76,7 +76,7 @@ def test_issue_dup_compress_if_shared_tensor_export():
     registry = dynamic_load_registry(
         "torch_to_nnef.compress.DEFAULT_COMPRESSION"
     )
-    for k, fn in registry.items():
+    for fn in registry.values():
         mod = MyModule()
         mod.lin1.weight = mod.lin2.weight
         # WARNING: if new parameter used it will fail

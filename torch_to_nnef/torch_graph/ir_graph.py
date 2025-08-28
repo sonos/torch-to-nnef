@@ -8,6 +8,7 @@ from torch_to_nnef.console import Console
 from torch_to_nnef.dtypes import dtype_is_whole_number
 from torch_to_nnef.exceptions import (
     T2NError,
+    T2NErrorDataNodeValue,
     T2NErrorNotFoundModuleExtractor,
     T2NErrorNotImplemented,
     T2NErrorTorchCheck,
@@ -34,6 +35,7 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_naming import (
+    DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
     apply_nnef_variable_naming_scheme,
     rename_variable_by_incr,
@@ -55,7 +57,7 @@ def module_tracer_into_ir_graph(
     outputs: T.Optional[T.List[TtupleOrVar]] = None,
     forced_inputs_names: T.Optional[T.List[str]] = None,
     forced_outputs_names: T.Optional[T.List[str]] = None,
-    nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+    nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     **kwargs,
 ):
     ir_graph = TorchModuleIRGraph(torch_module_tracer=module_tracer, **kwargs)
@@ -70,7 +72,7 @@ def module_tracer_into_ir_graph(
 
 
 class TorchModuleIRGraph:
-    """Torch Graph intermediate representation from: jit.trace with recursion
+    """Torch Graph intermediate representation from: jit.trace with recursion.
 
     This is not direct torch._C.Graph but simpler abstraction, with:
 
@@ -128,7 +130,7 @@ class TorchModuleIRGraph:
         )
 
     def _check_container_items_rely_on_data_nodes(self):
-        """container items reference must exists in `data_nodes`"""
+        """Container items reference must exists in `data_nodes`."""
         for dnode in self.data_nodes:
             if dnode.is_container:
                 for subdnode in dnode.iter():
@@ -137,7 +139,7 @@ class TorchModuleIRGraph:
                     )
 
     def _check_io_rely_on_data_nodes(self):
-        """`inputs` or `outputs` reference items must exists in `data_nodes`"""
+        """`inputs` or `outputs` reference items must exists in `data_nodes`."""
         for inode in self.inputs:
             if not self.data_nodes.contains(inode, strict=True):
                 raise T2NErrorTorchCheck(
@@ -154,7 +156,7 @@ class TorchModuleIRGraph:
         return self.data_nodes.get_by_name(node_name)
 
     def remap_node(self, from_node, to_node):
-        """remap a data_node to another."""
+        """Remap a data_node to another."""
         assert isinstance(from_node, Data)
         assert isinstance(to_node, Data)
         self.inputs = [to_node if _ is from_node else _ for _ in self.inputs]
@@ -169,10 +171,7 @@ class TorchModuleIRGraph:
             if dnode.is_container:
                 new_data = []
                 for subdnode in dnode.iter():
-                    if subdnode is from_node:
-                        value = to_node
-                    else:
-                        value = subdnode
+                    value = to_node if subdnode is from_node else subdnode
                     new_data.append(value)
                 dnode.data = new_data
 
@@ -183,8 +182,7 @@ class TorchModuleIRGraph:
     def _parse_inputs(
         self, provided_inputs: T.Optional[T.List[TensorVariable]] = None
     ):
-        """Parse traced graph inputs"""
-
+        """Parse traced graph inputs."""
         graph_inputs = []
         is_start_cls = True
         for torch_ir_inp in self._tracer.torch_graph.inputs():
@@ -201,11 +199,10 @@ class TorchModuleIRGraph:
         for idx, (node_c_value, original_input, arg) in enumerate(
             zip(graph_inputs, provided_inputs, self._tracer.args)
         ):
-            if self._omit_useless_nodes:
-                if (
-                    len(node_c_value.uses()) == 0
-                ):  # number of user of the node_c_value (= number of outputs/ fanout)
-                    continue
+            if self._omit_useless_nodes and len(node_c_value.uses()) == 0:
+                # number of user of the node_c_value
+                # (= number of outputs/ fanout)
+                continue
 
             if node_c_value.type().kind() != CLASSTYPE_KIND:
                 tv = TensorVariable.parse(node_c_value)
@@ -234,7 +231,7 @@ class TorchModuleIRGraph:
                 self.provided_inputs_picked_indexes.append(idx)
 
     def _parse_core(self):
-        """Parse all Operations and collect the scope infos"""
+        """Parse all Operations and collect the scope infos."""
         attr_to_scope: T.Dict[T.Any, str] = {}
 
         to_remap = []
@@ -259,7 +256,8 @@ class TorchModuleIRGraph:
                     )
                 else:
                     attr_to_scope[attr_name] = f"__module.{attr_name}"
-                # We don't need classtype nodes; scope will provide this information
+                # We don't need classtype nodes; scope will provide
+                # this information
                 if node.output().type().kind() != CLASSTYPE_KIND:
                     try:
                         op = TorchOp.parse(
@@ -293,7 +291,7 @@ class TorchModuleIRGraph:
     def _parse_outputs(
         self, provided_outputs: T.Optional[T.List[TensorVariable]] = None
     ):
-        """Parse traced graph outputs"""
+        """Parse traced graph outputs."""
         torch_graph_outputs = self._tracer.torch_graph.outputs()
         outputs = [
             _find_data_node(self.data_nodes, _.debugName())
@@ -325,7 +323,7 @@ class TorchModuleIRGraph:
         self.outputs = outputs
 
     def _update_scope_reference(self):
-        """Update scope in op_nodes with additional infos"""
+        """Update scope in op_nodes with additional infos."""
         alias_to_name = {}
         base_name = _parse_traced_name(self._tracer.traced_module)
         for name, module in self._tracer.traced_module.named_modules(
@@ -398,7 +396,7 @@ class TorchModuleIRGraph:
                 LOGGER.debug(msg)
                 break
 
-    def _merge_subraph(
+    def _merge_subraph(  # noqa: MC0001
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
         # Re-Wire input and output naming => {
@@ -453,16 +451,37 @@ class TorchModuleIRGraph:
 
         for dn in submodule_graph.data_nodes[:]:
             if not self.data_nodes.contains(dn, strict=True):
-                if self.data_nodes.get_by_name(dn.name):
-                    new_name = rename_variable_by_incr(
-                        dn.name, [self.data_nodes, submodule_graph.data_nodes]
-                    )
-                    LOGGER.info(
-                        "potential name collision detected rename"
-                        f"new '{dn.name}' into '{new_name}'"
-                    )
-                    dn.name = new_name
-                self.data_nodes.append(dn)
+                # A failure mode is not fully understood here:
+                # in some edge-cases (only observed in CI)
+                # there is a collision that is detected between
+                # names and append do not work
+                # (which is supposed to not happen thanks to
+                # `rename_variable_by_incr`)
+                # hence this retry logic
+                for start_index in range(1, 4):  # give 3 try
+                    new_name = dn.name
+                    if self.data_nodes.get_by_name(dn.name):
+                        new_name = rename_variable_by_incr(
+                            dn.name,
+                            [self.data_nodes, submodule_graph.data_nodes],
+                            start_index=start_index,
+                        )
+                        LOGGER.info(
+                            "potential name collision detected rename"
+                            "new '%s' into '%s'",
+                            dn.name,
+                            new_name,
+                        )
+                        dn.name = new_name
+                    try:
+                        self.data_nodes.append(dn)
+                        break
+                    except T2NErrorDataNodeValue as exp:
+                        LOGGER.warning(
+                            "tried to append '%s' in data_nodes but failed: %s",
+                            new_name,
+                            exp,
+                        )
         search_and_replace_data_nodes(
             submodule_graph.outputs, callmethod_node.outputs, "outputs"
         )
@@ -472,14 +491,15 @@ class TorchModuleIRGraph:
     def _recursive_call_method(
         self, nnef_variable_naming_scheme: VariableNamingScheme
     ):
-        """In case prim::CallMethod is encountered it tries to trace it
+        """In case prim::CallMethod is encountered it tries to trace it.
 
         It does this by recursive call to parse_module on linked submodule.
 
         Some part of the submodule may not be serializable to JIT
         this is for this very API limitation that we do not use directly
         the method torch.jit._get_trace_graph that is used in
-        ONNX builtin pytorch serialization and instead build on recursive jit.parse.
+        ONNX builtin pytorch serialization and instead build on recursive
+        jit.parse.
 
         If the serialization to jit FAIL you will be able to put a full hook
         on the concerned sub-module with declarative enonciation of what
@@ -500,7 +520,8 @@ class TorchModuleIRGraph:
                 ):
                     raise T2NError(
                         "Bug: Recursive call detected ! "
-                        f"Trying to parse same Pytorch IR sub-module twice: {op}"
+                        "Trying to parse same Pytorch IR sub-module twice: "
+                        f"{op}"
                     )
                 submodule_graph = module_tracer_into_ir_graph(
                     op.op_ref,
@@ -554,7 +575,7 @@ class TorchModuleIRGraph:
         return expanded_data_nodes
 
     def _avoid_reference_to_tuples(self):
-        """Remove all references to tuple by using only unpacked variables"""
+        """Remove all references to tuple by using only unpacked variables."""
         self._filter_tuple_tensor_from_data_nodes()
         self.inputs = self._expand_tuple_in(self.inputs)
         self.outputs = self._expand_tuple_in(self.outputs)
@@ -563,7 +584,7 @@ class TorchModuleIRGraph:
             op.outputs = self._expand_tuple_in(op.outputs)
 
     def _filter_nodes_not_in_trace_between_inputs_and_outputs(self):
-        """remove all unused graph nodes
+        """Remove all unused graph nodes.
 
         Backward propagation from graph output to input to select kept nodes
 
@@ -623,15 +644,15 @@ class TorchModuleIRGraph:
 
     def parse(
         self,
-        nnef_variable_naming_scheme: VariableNamingScheme = VariableNamingScheme.default(),
+        nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,  # noqa: E501
         provided_inputs=None,
         provided_outputs=None,
         forced_inputs_names=None,
         forced_outputs_names=None,
     ):
-        """Core parsing function transforming a pytorch nn.Module into torch_to_nnef IR"""
+        """Core parsing transforming nn.Module into torch_to_nnef IR."""
         LOGGER.debug(
-            f"start parse to IR: {self._tracer.mod.__class__.__name__}"
+            "start parse to IR: %s", self._tracer.mod.__class__.__name__
         )
         try:
             extractor = ModuleInfoExtractor.get_by_module(self._tracer.mod)
@@ -668,7 +689,8 @@ class TorchModuleIRGraph:
                     onode.name = new_name
                     assert onode.name == onode.export_name
             # need to repeat the if's:
-            # in case of input paramater directly in outputs (ie. torchaudio.Conformer)
+            # in case of input paramater directly in outputs
+            # (ie. torchaudio.Conformer)
             if forced_inputs_names:
                 self.data_nodes.protect_item_names(forced_inputs_names)
             if forced_outputs_names:
@@ -681,7 +703,7 @@ class TorchModuleIRGraph:
         if nnef_variable_naming_scheme:
             apply_nnef_variable_naming_scheme(self, nnef_variable_naming_scheme)
 
-        LOGGER.debug(f"parsed to IR: {self._tracer.mod.__class__.__name__}")
+        LOGGER.debug("parsed to IR: %s", self._tracer.mod.__class__.__name__)
         return self
 
     def _cleanup_dangling_data_node_hooks(self):
@@ -698,7 +720,7 @@ class TorchModuleIRGraph:
         raise T2NErrorTorchNotFoundOp("Did not find operation node")
 
     def printall(self):
-        """Display Helper Graph infos in stdout of your tty"""
+        """Display Helper Graph infos in stdout of your tty."""
         console = Console(
             theme={
                 "type": "blue",
@@ -749,7 +771,7 @@ class TorchModuleIRGraph:
             if isinstance(_, FixedTensorList):
                 refs = ", ".join([d.export_name for d in _.data])
                 cprint(
-                    f"\t\t[type]List[/type] "
+                    "\t\t[type]List[/type] "
                     f"[var]{_.export_name}[/var] := ({refs})"
                 )
 
@@ -785,8 +807,8 @@ class TorchModuleIRGraph:
                 ]
             )
             cprint(
-                "\t\t "
-                f"{outputs_str} := [kind]{_.kind}[/kind]{inputs_str}{cls_name}"
+                f"\t\t {outputs_str} := "
+                f"[kind]{_.kind}[/kind]{inputs_str}{cls_name}"
             )
 
         outputs_str = ", ".join(_.slug for _ in self.outputs)

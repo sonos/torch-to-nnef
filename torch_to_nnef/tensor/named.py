@@ -16,7 +16,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class NamedTensor(torch.Tensor):
-    """Tensor enriched with name attribute"""
+    """Tensor enriched with name attribute."""
 
     @staticmethod
     def __new__(
@@ -31,7 +31,6 @@ class NamedTensor(torch.Tensor):
             try:
                 return super().__new__(cls, fp_tensor, *args, **kwargs)
             except TypeError:  # legacy mode
-                # legacy_tensor = torch.Tensor.__new__(cls, dtype=fp_tensor.dtype)
                 legacy_tensor = fp_tensor.as_subclass(cls)
                 legacy_tensor.__dict__["_fp_tensor"] = fp_tensor
                 legacy_tensor.__dict__["nnef_name"] = nnef_name
@@ -53,7 +52,7 @@ class NamedTensor(torch.Tensor):
 
     @property
     def data(self):
-        """very important to keep access to all special attr of NamedTensor"""
+        """Very important to keep access to all special attr of NamedTensor."""
         return self
 
     @data.setter
@@ -83,13 +82,13 @@ class NamedTensor(torch.Tensor):
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """
+        """Custom __torch_function__.
+
         This __torch_function__ implementation wraps subclasses such that
         methods called on subclasses return a subclass instance instead of
         a ``torch.Tensor`` instance.
         we modify it so it's always reference torch.Tensor.
         """
-
         if kwargs is None:
             kwargs = {}
 
@@ -114,7 +113,9 @@ def get_or_add_named_tensor(
     if weight_id in ids_to_ntensor:
         named_tensor = ids_to_ntensor[weight_id]
         LOGGER.info(
-            f"detected shared weight between: '{named_tensor.nnef_name}' and '{full_name}'"
+            "detected shared weight between: '%s' and '%s'",
+            named_tensor.nnef_name,
+            full_name,
         )
     else:
         named_tensor = NamedTensor(data, nnef_name=full_name)
@@ -123,7 +124,7 @@ def get_or_add_named_tensor(
 
 
 def apply_name_to_tensor_in_module(model: torch.nn.Module):
-    """Transform torch.Tensor or Parameters into NamedTensor
+    """Transform torch.Tensor or Parameters into NamedTensor.
 
     This is applied at export time of `torch_to_nnef`
     Just before doing any tracing and allow to keep
@@ -145,7 +146,6 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         model,
         add_buffers=True,
         add_unregistred_tensor=True,
-        warn_old_torch=False,
     )
     LOGGER.debug("started to apply NamedTensor")
     for names in list(mod_tensor_updater.id_to_names.values()):
@@ -154,7 +154,7 @@ def apply_name_to_tensor_in_module(model: torch.nn.Module):
         ref = getattr(ref_mod, local_name)
         if isinstance(ref, skip_tensor_types):
             continue
-        LOGGER.debug(f"apply NamedTensor: {name}")
+        LOGGER.debug("apply NamedTensor: %s", name)
         named_tensor = NamedTensor(ref, nnef_name=name)
         mod_tensor_updater.update_by_ref(ref, named_tensor)
     LOGGER.debug("sucessfull to apply NamedTensor everywhere")

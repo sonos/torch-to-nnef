@@ -1,8 +1,9 @@
-"""
-torch_graph is intended to extract full representation of PyTorch Graph
-into a stable intermediate representation suitable to then apply translation
-operation to NNEF. This means that not all PyTorch orginal graph is translated.
-By example, we ignore part linked to device location informations,
+"""torch_graph is intended to extract full representation of PyTorch Graph.
+
+From PyTorch into a stable intermediate representation suitable to then apply
+translation operation to NNEF. This means that not all PyTorch orginal graph
+is translated.
+For example, we ignore part linked to device location informations,
 memory specific operation or parameters linked to gradients.
 
 This choice which is different compared to torch.onnx module due to the
@@ -12,7 +13,8 @@ be impacted.
 
 Here there is NO notion of dynamic axes all shapes are supposedly defined
 based on provided input example.
-At latter stage in other modules the dynamic shapes need to be introduced if requested by user.
+At latter stage in other modules the dynamic shapes need to be introduced if
+requested by user.
 
 """
 
