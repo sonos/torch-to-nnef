@@ -1,5 +1,7 @@
 from copy import deepcopy
-from ultralytics.data import build
+from pathlib import Path
+from time import perf_counter
+
 import torch_to_nnef
 from ultralytics import YOLO
 from ultralytics.utils import LOGGER, colorstr
@@ -66,6 +68,7 @@ def global_export_nnef(self, prefix=colorstr("NNEF:")):
 def export_nnef(model, im, filepath, input_names, output_names, dynamic):
     inference_target = deepcopy(tract_target)
     inference_target.dynamic_axes = dynamic or {}
+    start_time = perf_counter()
     torch_to_nnef.export_model_to_nnef(
         model=model,
         args=im,
@@ -74,10 +77,25 @@ def export_nnef(model, im, filepath, input_names, output_names, dynamic):
         input_names=input_names,
         output_names=output_names,
     )
+    end_time = perf_counter()
+    LOGGER.info(
+        f"{colorstr('NNEF:')} export success in {end_time - start_time:.3f}s, saved as {filepath}"
+    )
 
 
 # check onnx export works
 model.export(format="onnx")
+
+path = Path("./Grace_Hopper.jpg")
+if path.exists():
+    start_time = perf_counter()
+    res = model.track(path)
+    end_time = perf_counter()
+    LOGGER.info("==================")
+    LOGGER.info(
+        f"Tracking completed in {end_time - start_time:.3f}s (with ultralytics .track for same image)"
+    )
+    LOGGER.info("==================")
 
 Exporter.export_onnx = global_export_nnef
 
