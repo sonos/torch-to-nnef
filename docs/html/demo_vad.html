@@ -52,7 +52,7 @@ let vadDet = Array.from({length}, (v, i) => 0);
 let threshold = 0.85;
 let postProcindowSize = 10;
 let data = getData(currentTimeValue);
-function getData(time_offset, score) {
+const getData = (time_offset, score) => {
     let maxDet = Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0;
     let isDet = vadDet[vadDet.length - 1] === 1 ? maxDet: ((score > threshold) ? 1.0: 0.0);
     let propDet = maxDet;
@@ -63,7 +63,7 @@ function getData(time_offset, score) {
     ];
 }
 const vad_preview_dom = document.getElementById('vad-preview');
-function getSize() {
+const getSize = () => {
     return {
         width: vad_preview_dom.clientWidth - 50,
         height: 150,
@@ -122,7 +122,7 @@ init().then(() => {
     setVisible('page', true);
     setVisible('loading', false);
 })
-function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+const downsampleBuffer = (buffer, sampleRate, outSampleRate) => {
     if (outSampleRate === sampleRate) return buffer;
     const sampleRateRatio = sampleRate / outSampleRate;
     const newLength = Math.round(buffer.length / sampleRateRatio);
@@ -142,7 +142,7 @@ function downsampleBuffer(buffer, sampleRate, outSampleRate) {
     }
     return result;
 }
-document.getElementById('vad-click').addEventListener('click', function(e) {
+document.getElementById('vad-click').addEventListener('click', (e) => {
     console.log("try start VAD demo");
     if (inited) {
         console.log("start VAD demo");
@@ -160,7 +160,7 @@ document.getElementById('vad-click').addEventListener('click', function(e) {
                 source.connect(processor);
                 processor.connect(audioContext.destination);
                 let init_time = performance.now();
-                processor.onaudioprocess = function (e) {
+                processor.onaudioprocess = (e) => {
                     if (performance.now() - init_time < 200) {
                         // delay first mic received signal to avoid pop & burst
                         return;
@@ -209,7 +209,7 @@ setVisible('loading', true);
 // Trigger on load and whenever content changes {
 const sendHeight = () => {
     const height = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: 'resize', height }, '*');
+    window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*');
 };
 window.addEventListener('load', sendHeight);
 new ResizeObserver(sendHeight).observe(document.body);

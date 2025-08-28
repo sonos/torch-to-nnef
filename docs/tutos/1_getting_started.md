@@ -437,12 +437,21 @@ result: Some((9.439479, 652))
     You first exported the network with `torch_to_nnef` and
     ran a successful standalone rust cli command with tract based inference in it.
 
-## <span style="color:#6666aa">**:material-step-forward:  Demo:**</span> :fontawesome-brands-rust: Image classifier
+## <span style="color:#6666aa">**:material-step-forward:  Demo 1:**</span> :fontawesome-brands-rust: Image classifier
 
  Using the knowledge you acquired during this tutorial and a bit of extra for [WASM in rust](https://rustwasm.github.io/book/introduction.html).
  We demo the use a small [`Efficient NET B0`](https://arxiv.org/pdf/1905.11946) image neural network running in your browser (smaller than [ViT](https://arxiv.org/pdf/2010.11929) to ensure a fast download of the asset for you - 22Mo for the model).
 
-<script src="/html/iframe_demo_parent.js"></script>
+<script>
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'resize' && event.data.ref === 'img-classifier') {
+        console.log("image classifier iframe resize: ", event.data.height);
+        document.getElementById(
+            'iframe-demo-0'
+        ).style.height = event.data.height + 'px';
+    }
+});
+</script>
 <iframe
     id="iframe-demo-0"
     class="responsive-iframe"
@@ -454,3 +463,27 @@ result: Some((9.439479, 652))
     this demo is for demonstration purpose.
 
 Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/hml/demo_image_classifier.html).
+
+## <span style="color:#6666aa">**:material-step-forward:  Demo 2:**</span> :fontawesome-brands-rust: Yolo Human Pose Estimator
+
+In the same logic here is a slightly more modern model.
+
+<script>
+window.addEventListener('message', (event) => {
+    console.log(event.data);
+    if (event.data.type === 'resize' && event.data.ref === 'pose-estimator') {
+        console.log("pose-estimator iframe resize", event.data.height);
+        document.getElementById(
+            'iframe-demo-1'
+        ).style.height = (event.data.height + 20) + 'px';
+    }
+});
+</script>
+<iframe
+    id="iframe-demo-1"
+    class="responsive-iframe"
+    src="/html/demo_pose_estimation.html">
+
+</iframe>
+
+Again the [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/yolo) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/hml/demo_pose_estimiation.html).

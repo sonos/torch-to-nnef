@@ -76,7 +76,6 @@
         </style>
         <script type="module">
 /// core llm prompt
-import init, { LLM } from '/html/llm_wasm.js';
 const genMsg = (role, content) => '<|im_start|>' + role + '\n' + content + '<|im_end|>' + '\n';
 let systemPrompt = genMsg(
     "system",
@@ -258,7 +257,7 @@ setVisible('loading', true);
 // Trigger on load and whenever content changes {
 const sendHeight = () => {
     const height = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: 'resize', height }, '*');
+    window.parent.postMessage({ type: 'resize', height, ref: 'poem-generator' }, '*');
 };
 window.addEventListener('load', sendHeight);
 new ResizeObserver(sendHeight).observe(document.body);

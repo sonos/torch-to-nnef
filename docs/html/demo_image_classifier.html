@@ -148,7 +148,7 @@ setVisible('loading', true);
 // Trigger on load and whenever content changes {
 const sendHeight = () => {
     const height = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: 'resize', height }, '*');
+    window.parent.postMessage({ type: 'resize', height, ref: 'img-classifier'}, '*');
 };
 window.addEventListener('load', sendHeight);
 new ResizeObserver(sendHeight).observe(document.body);
