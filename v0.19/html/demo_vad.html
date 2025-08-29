@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <script src="./uPlot.iife.min.js"></script>
+        <link rel="stylesheet" href="./uPlot.min.css">
+        <style>
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+
+        #vad-preview .u-hz {
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        </style>
+        <script type="module">
+import init, { VadClassifier } from './vad_wasm.js';
+
+let vad_classifier = null;
+
+const desiredSampleRate = 16000;
+const realSampleRate = 44100;
+const bufferSize = 1024;
+const hopDuration = 1 / realSampleRate * bufferSize  * 1000; // in ms
+const hz = Math.floor(1000 / hopDuration);
+let length = 500; // n predictions stacked
+let currentTimeValue = 0;
+let timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
+let vadScores = Array.from({length}, (v, i) => 0);
+let vadDet = Array.from({length}, (v, i) => 0);
+let threshold = 0.85;
+let postProcindowSize = 10;
+const getData = (time_offset, score) => {
+    let maxDet = Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0;
+    let isDet = vadDet[vadDet.length - 1] === 1 ? maxDet: ((score > threshold) ? 1.0: 0.0);
+    let propDet = maxDet;
+    return [
+        timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset),
+        vadScores = vadScores.slice(1).concat(score),
+        vadDet = vadDet.slice(1).concat(isDet),
+    ];
+};
+let data = getData(currentTimeValue);
+const vad_preview_dom = document.getElementById('vad-preview');
+const getSize = () => {
+    return {
+        width: vad_preview_dom.clientWidth - 50,
+        height: 150,
+    }
+}
+let sizes = getSize();
+const opts = {
+    title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:`,
+    width: sizes.width,
+    height: sizes.height,
+    pxAlign: false,
+    scales: {
+        x: {
+            time:false,
+        },
+        y: {
+            //	auto: false,
+            range: [0, 1.1],
+        }
+    },
+    axes: [
+        {
+            space: 50,
+            ticks: [
+                1,
+                1000,
+            ],
+            values: (self, val) => {
+                return val.map((v) => (
+                    `${v/ 1000}s`
+                ));
+            },
+        }
+    ],
+    series: [
+        {
+        },
+        {
+            label: "detection score",
+            stroke: "blue",
+            fill: "#0000ff20",
+        },
+        {
+            label: `detection threshold:${threshold}`,
+            stroke: "red",
+            fill: "#ff00ff10",
+        },
+    ],
+};
+let inited = false;
+init().then(() => {
+    console.log("start wasm");
+    vad_classifier = VadClassifier.load();
+    console.log("inited wasm");
+    inited = true;
+    setVisible('page', true);
+    setVisible('loading', false);
+})
+const downsampleBuffer = (buffer, sampleRate, outSampleRate) => {
+    if (outSampleRate === sampleRate) return buffer;
+    const sampleRateRatio = sampleRate / outSampleRate;
+    const newLength = Math.round(buffer.length / sampleRateRatio);
+    const result = new Float32Array(newLength);
+    let offsetResult = 0;
+    let offsetBuffer = 0;
+    while (offsetResult < result.length) {
+        const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+        let accum = 0, count = 0;
+        for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+            accum += buffer[i];
+            count++;
+        }
+        result[offsetResult] = accum / count;
+        offsetResult++;
+        offsetBuffer = nextOffsetBuffer;
+    }
+    return result;
+}
+document.getElementById('vad-click').addEventListener('click', (e) => {
+    console.log("try start VAD demo");
+    if (inited) {
+        console.log("start VAD demo");
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log("request microphone access");
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                document.getElementById('vad-prestart').remove();
+                let u = new uPlot(opts, data, vad_preview_dom);
+                window.addEventListener("resize", e => {
+                    u.setSize(getSize());
+                });
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                let init_time = performance.now();
+                processor.onaudioprocess = (e) => {
+                    if (performance.now() - init_time < 200) {
+                        // delay first mic received signal to avoid pop & burst
+                        return;
+                    }
+                    const inputBuffer = e.inputBuffer;
+                    const numChannels = inputBuffer.numberOfChannels;
+                    let mergedData = new Float32Array(inputBuffer.length);
+                    for (let channel = 0; channel < numChannels; channel++) {
+                        const inputData = inputBuffer.getChannelData(channel);
+                        for (let i = 0; i < inputData.length; i++) {
+                            mergedData[i] += inputData[i] / numChannels;
+                        }
+                    }
+                    const resampledData = downsampleBuffer(mergedData, audioContext.sampleRate, desiredSampleRate);
+                    if (resampledData) {
+                        // You can now save or process this further
+                        let score = vad_classifier.predict_speech_presence(resampledData);
+                        currentTimeValue += hopDuration;
+                        data = getData(currentTimeValue, score);
+                        u.setData(data);
+                    }
+                };
+            })
+            .catch((data) => {
+                setVisible('error-container', true);
+                let msg = (
+                    data +
+                    " If you are on mobile ensure that your browser app " +
+                    "have access to microphone: " +
+                    "<a target='_blank' rel='noopener noreferrer' href='https://support.proof.com/hc/en-us/articles/14237306788503-Enable-camera-and-microphone-for-mobile'>documentation</a>"
+                );
+                document.getElementById("error").innerHTML = msg;
+                console.error(data);
+            });
+    }
+});
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('error-container', false);
+setVisible('page', false);
+setVisible('loading', true);
+// Trigger on load and whenever content changes {
+const sendHeight = () => {
+    const height = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*');
+};
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+//}
+</script>
+    </head>
+    <body>
+        <div class="container" id="page">
+            <div id="vad-preview" class="card">
+                <div id="vad-prestart">
+                    <div class="card-content" style="justify-content: 'center'">
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
+                        <p>You need a microphone on your device and a browser that support WASM.</p>
+                        <div id="error-container" class="card-panel red lighten-4">
+                            <span id="error"></span>
+                        </div>
+                    </div>
+                    <div class="card-action">
+                        <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light">
+                            [ ▸ ] Start VAD stream
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span class="card-title">👀 <span style="color:teal">Live Demo: </span> Voice Activity Detection</span>
+                </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
+            </div>
+        </div>
+    </body>
+</html>

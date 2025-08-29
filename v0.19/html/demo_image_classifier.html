@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" rel="stylesheet"/>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <style>
+        .to-pred-img {
+            max-height: 300px;
+            max-width: 100%;
+            padding: 5px;
+        }
+        #image-preview-container {
+            margin: 20px;
+        }
+        #img-placeholder {
+            color: #888;
+        }
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+        </style>
+        <script type="module">
+import init, { ImageClassifier } from './imageclass_wasm.js';
+document.getElementById("loadstatus").innerHTML = "wasm initing";
+const image_preview = document.getElementById('image-preview');
+let img_classifier = null;
+
+function file_predict(file) {
+    image_preview.innerHTML = "";
+    const img = document.createElement("img");
+    img.classList.add("obj");
+    img.classList.add("z-depth-2");
+    img.classList.add("to-pred-img");
+    img.file = file;
+    image_preview.appendChild(img);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let fileTextContent = e.target.result;
+        img.src = fileTextContent;
+        console.log("requested file process" + file.name);
+        let startTime = performance.now();
+        let res = img_classifier.predict_class(fileTextContent);
+        let endTime = performance.now();
+        let timeDiff = endTime - startTime; //in ms
+        console.log(res);
+        const cp = document.getElementById("class-predicted");
+        cp.innerHTML = res.label;
+        const ci = document.getElementById("class-id");
+        ci.innerHTML =res.class_id;
+        const cs = document.getElementById("class-score");
+        cs.innerHTML = "<g>" + res.score.toFixed(2) + "</g>"
+        const te = document.getElementById("time-elapsed");
+        te.innerHTML = timeDiff + " ms";
+    };
+    reader.readAsDataURL(file);
+}
+init().then(() => {
+    document.getElementById("loadstatus").innerHTML = "model load in tract";
+    img_classifier = ImageClassifier.load();
+    console.log("inited wasm");
+    const predFile = (file) => {
+        const ph = document.getElementById('img-placeholder');
+        ph.setAttribute("placeholder", file.name);
+        ph.value = "";
+        file_predict(file);
+    };
+    document.getElementById('img').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        predFile(file);
+    });
+    const dropHandler = (ev) => {
+        console.log("File(s) dropped");
+        // Prevent default behavior (Prevent file from being opened)
+        ev.stopPropagation();
+        ev.preventDefault();
+
+        if (ev.dataTransfer.items) {
+            // Use DataTransferItemList interface to access the file(s)
+            let noPred = true;
+            [...ev.dataTransfer.items].forEach((item, i) => {
+                // If dropped items aren't files, reject them
+                if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    predFile(file);
+                    noPred = false;
+                }
+            });
+            if (noPred) {
+                var imageUrl = event.dataTransfer.getData('URL');
+                console.log(imageUrl);
+                var fileName = imageUrl.split('/').pop();
+                fetch(imageUrl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                    var file = new File([blob], fileName);
+                    predFile(file);
+                });
+            }
+        } else {
+            // Use DataTransfer interface to access the file(s)
+            [...ev.dataTransfer.files].forEach((file, i) => {
+                predFile(file);
+            });
+        }
+    };
+    document.getElementById("drop_zone_0").addEventListener("drop", dropHandler);
+    document.getElementById("drop_zone_1").addEventListener("drop", dropHandler);
+    document.getElementById("loadstatus").innerHTML = "loading default image";
+    fetch("../img/cat.jpg")
+        .then(response => response.blob())
+        .then(myBlob => {
+            document.getElementById("loadstatus").innerHTML = "classify default image";
+            file_predict(myBlob);
+            document.getElementById("loadstatus").innerHTML = "ready";
+            setVisible('page', true);
+            setVisible('loading', false);
+            console.log("setted visible");
+        })
+})
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('page', false);
+setVisible('loading', true);
+
+// Trigger on load and whenever content changes {
+const sendHeight = () => {
+    const height = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: 'resize', height, ref: 'img-classifier'}, '*');
+};
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+//}
+</script>
+    </head>
+    <body>
+        <div class="container" id="page">
+            <div class="grid cards" >
+                <div class="card">
+                    <div class="card-content" style="justify-content: 'center'"  >
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Image class prediction </span>
+
+                        <p style="padding-top:20px">
+                            It runs a small <a  target="_blank" rel="noopener noreferrer" href="https://arxiv.org/pdf/1905.11946">Efficient NET B0</a> neural network in your browser with tract.
+                            This model predict a class from the <a target="_blank" rel="noopener noreferrer" href="https://www.image-net.org/update-mar-11-2021.php">ImageNET 1K challenge</a> (complete class list <a target="_blank" rel="noopener noreferrer" href="/html/1klabels.html">available here</a>).
+                        </p>
+                        <br />
+                        <p style="padding-bottom:20px">
+                            Since this model fully run on your browser there is no server needed beyond serving the initial
+                            asset, this is private by design (You can use whatever photo), no data is collected,
+                            if you are in doubt just turn off your network and try the playground (without reloading).
+                        </p>
+                        <div class="row card" id="drop_zone_0" ondragover="event.preventDefault();event.stopPropagation();">
+                            <div class="col s12 m6 center-align" >
+                                <div id="image-preview-container">
+                                    <div id="image-preview"></div>
+                                </div>
+                            </div>
+                            <div class="col s12 m6" id="image-result"  class="valign-wrapper">
+                                <ul class="collection">
+                                    <li class="collection-item">
+                                        <span class="title">Class Predicted</span>
+                                        <h3 id="class-predicted" class="blue-text text-darken-2">
+                                            -
+                                        </h3>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Class id</span>
+                                        <p id="class-id" class="blue-text text-darken-2">
+                                            -
+                                        </p>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Class Score (>0)</span>
+                                        <p id="class-score" class="blue-text text-darken-2">
+                                            0.0
+                                        </p>
+                                    </li>
+                                    <li class="collection-item">
+                                        <span class="title">Time to process & predict image</span>
+                                        <p id="time-elapsed" class="blue-text text-darken-2">
+                                            0ms
+                                        </p>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault();event.stopPropagation()">
+                        <label for="avatar">Select a picture:</label>
+                        <form action="#">
+                            <div class="file-field input-field">
+                                <div class="btn blue darken-3 waves-effect waves-light">
+                                    <span>Image File</span>
+                                    <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                                </div>
+                                <div class="file-path-wrapper">
+                                    <input id="img-placeholder" onchange="document.getElementById('img-placeholder').value = '';" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span>👀 <span style="color:teal">Loading Live Demo:</span> Image class prediction </span>
+                </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
+            </div>
+        </div>
+    </body>
+</html>
