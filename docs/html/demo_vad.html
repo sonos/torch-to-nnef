@@ -51,7 +51,6 @@ let vadScores = Array.from({length}, (v, i) => 0);
 let vadDet = Array.from({length}, (v, i) => 0);
 let threshold = 0.85;
 let postProcindowSize = 10;
-let data = getData(currentTimeValue);
 const getData = (time_offset, score) => {
     let maxDet = Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0;
     let isDet = vadDet[vadDet.length - 1] === 1 ? maxDet: ((score > threshold) ? 1.0: 0.0);
@@ -61,7 +60,8 @@ const getData = (time_offset, score) => {
         vadScores = vadScores.slice(1).concat(score),
         vadDet = vadDet.slice(1).concat(isDet),
     ];
-}
+};
+let data = getData(currentTimeValue);
 const vad_preview_dom = document.getElementById('vad-preview');
 const getSize = () => {
     return {
