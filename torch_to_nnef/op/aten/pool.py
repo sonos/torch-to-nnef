@@ -317,7 +317,7 @@ def upsample_nearest2d(node, op_helper, **kwargs):
             inputs=inp,
             attrs={
                 "size": [1, 1] + scales,
-                "stride": scales,
+                "stride": [1, 1] + scales,
                 "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
             },
         )
