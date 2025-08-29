@@ -286,7 +286,8 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         raise T2NErrorNotImplemented(
             f"unable to export scale_factor {scale_factor_node.data}"
         )
-    # NOTE: this implmentation is very suboptimal compared to onnx:resize operator:
+    # NOTE: this implmentation is very suboptimal compared to
+    # onnx:resize operator:
     # it should be reified in tract as a proper 'debox' operator.
     # Also current implementation anoyingly need to pass
     # the channel dim c (by default it's the 2nd dim)
