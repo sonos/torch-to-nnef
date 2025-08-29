@@ -29,14 +29,7 @@ Only pre-compiled PyTorch wheels and dependencies available on [pypi](https://py
 
 ## Install
 
-Today, the project is packaged in the internal SONOS [Artifactory](https://jfrog.com/artifactory/),
-so please ensure it is configured (with `user` and `pass` replaced accordingly):
-
-```ini title="$HOME/.pip/pip.conf"
-extra-index-url=https://{user}:{pass}@redacted.com/artifactory/api/pypi/pypi-local/simple
-```
-
-
+Today, the project is packaged in [PyPi](https://pypi.org/project/torch-to-nnef/).
 Installation can be performed depending on the package manager:
 
 === "pip"
