@@ -126,7 +126,7 @@ if (window.Worker) {
         if (msg.kind === "yoloStatus" && msg.value === "ready") {
             document.getElementById("loadstatus").innerHTML = "model loaded";
             console.log("yolo inited");
-            fetch("/img/Grace_Hopper.jpg")
+            fetch("../img/Grace_Hopper.jpg")
                 .then(response => response.blob())
                 .then(myBlob => {
                     document.getElementById("loadstatus").innerHTML = "classify default image";
