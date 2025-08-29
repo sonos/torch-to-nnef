@@ -292,6 +292,7 @@ def upsample_nearest2d(node, op_helper, **kwargs):
     # Also current implementation anoyingly need to pass
     # the channel dim c (by default it's the 2nd dim)
     # with classical notation: N,Cin,Hin, Win -> N,Cout,Hout,Wout
+
     scales = [int(sf) for sf in scale_factor_node.data]
     kernel_data = torch.ones([1, 1, 1, 1] + scales)
     kernel = TensorVariable(
@@ -304,12 +305,28 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         name=f"{node.outputs[0].export_name}_bias",
         data=0,
     )
-
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if (
+        isinstance(op_helper.inference_target, TractNNEF)
+        and op_helper.inference_target.version > "0.22.0"
+        and op_helper.inference_target.upsample_with_debox
+    ):
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "debox",
+            inputs=inp,
+            attrs={
+                "size": [1, 1] + list(scale_factor_node.data) * 2,
+                "stride": list(scale_factor_node.data) * 2,
+                "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
+            },
+        )
+        return []
     out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "deconv",
         inputs=(
-            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            inp,
             op_helper.get_or_add_tensor_variable_in_nnef(kernel),
             op_helper.get_or_add_tensor_variable_in_nnef(bias),
         ),
@@ -326,3 +343,4 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         attrs={"axes": [0, 1]},
         force_full_output_tensor_name=node.outputs[0].export_name,
     )
+    return []

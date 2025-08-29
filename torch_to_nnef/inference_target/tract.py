@@ -107,6 +107,7 @@ class TractNNEF(InferenceTarget):
         force_linear_accumulation_in_f32: bool = False,
         force_norm_in_f32: bool = False,
         reify_sdpa_operator: bool = False,
+        upsample_with_debox: bool = False,
     ):
         """Init.
 
@@ -158,6 +159,11 @@ class TractNNEF(InferenceTarget):
                 enable the conversion of scaled_dot_product_attention
                 as a tract operator (intead of a NNEF fragment).
                 Experimental feature.
+            upsample_with_debox:
+                use debox upsample operator instead of deconvolution.
+                This should be faster.
+                (if tract version support it).
+                Experimental feature.
         """
         super().__init__(version, check_io)
         if (
@@ -189,6 +195,7 @@ class TractNNEF(InferenceTarget):
         self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         self.force_norm_in_f32 = force_norm_in_f32
         self.reify_sdpa_operator = reify_sdpa_operator
+        self.upsample_with_debox = upsample_with_debox
         self.dump_identity_properties = dump_identity_properties
         if self.feature_flags:
             LOGGER.info("use tract features flags: %s", self.feature_flags)
