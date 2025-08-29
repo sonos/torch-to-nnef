@@ -1,0 +1,341 @@
+<DOCTYPE html>
+<!--
+    A live demo for pose estimation with yolo11n in wasm with tract.
+    It uses a model converted from Ultralytics yolo11n pose estimation model.
+    This is a demo of what is possible, the code is not optimized for performance.
+-->
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" rel="stylesheet"/>
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+        <style>
+        .to-pred-img {
+            max-height: 300px;
+            max-width: 100%;
+            padding: 5px;
+        }
+        .image-preview-container {
+            margin: 20px;
+        }
+        #img-placeholder {
+            color: #888;
+        }
+        .page    { display: none; padding: 0 0.5em; }
+        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
+        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
+
+        #loading {
+            display: flex;
+            position: fixed;
+            z-index: 100;
+            width: 100%;
+            height: 100%;
+            background-color: "#aaa";
+        }
+        .centered {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            text-align: center;
+            transform: translate(-50%, -50%);
+            transform: -webkit-translate(-50%, -50%);
+            transform: -moz-translate(-50%, -50%);
+            transform: -ms-translate(-50%, -50%);
+        }
+        .padmid {
+            padding: 50px;
+        }
+        </style>
+        <script type="module">
+document.getElementById("loadstatus").innerHTML = "wasm initing";
+const image_preview = document.getElementById('image-preview');
+const image_tagged = document.getElementById('image-tagged');
+var yoloWorker = null;
+
+const userHasNewRequest = () => {
+    // disable image buttons while processing
+    document.getElementById('btn-file').disabled = true;
+    document.getElementById('btn-camera').disabled = true;
+    document.getElementById('btn-file').classList.add('disabled');
+    document.getElementById('btn-camera').classList.add('disabled');
+    image_tagged.innerHTML = "";
+    // set in image_tagget a loader
+    image_tagged.innerHTML = "<div class=' padmid'><div class='preloader-wrapper valign-wrapper active'>\n" +
+        "  <div class=\"spinner-layer spinner-blue-only\">\n" +
+        "    <div class=\"circle-clipper left\">\n" +
+        "      <div class=\"circle\"></div>\n" +
+        "    </div><div class=\"gap-patch\">\n" +
+        "      <div class=\"circle\"></div>\n" +
+        "    </div><div class=\"circle-clipper right\">\n" +
+        "      <div class=\"circle\"></div>\n" +
+        "    </div>\n" +
+        "  </div>\n" +
+        "</div></div>";
+};
+
+const userRequestResolved = () => {
+      // re-enable image buttons after processing
+      document.getElementById('btn-file').disabled = false;
+      document.getElementById('btn-camera').disabled = false;
+      document.getElementById('btn-file').classList.remove('disabled');
+      document.getElementById('btn-camera').classList.remove('disabled');
+};
+
+const file_predict = (file) => {
+    userHasNewRequest();
+
+    // set image default preview
+    image_preview.innerHTML = "";
+    const img = document.createElement("img");
+    img.classList.add("obj");
+    img.classList.add("z-depth-2");
+    img.classList.add("to-pred-img");
+    img.file = file;
+    image_preview.appendChild(img);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let fileTextContent = e.target.result;
+        img.src = fileTextContent;
+        console.log("requested file process" + file.name);
+        // console.log(
+        //     "debug pose predicted coordinates:",
+        //     yolo_poser.predict_keypoints(fileTextContent)
+        // );
+
+        yoloWorker.postMessage({
+            kind: "drawKeypoints",
+            fileTextContent: fileTextContent,
+            keypoint_visibility_threshold: 0.3
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+if (window.Worker) {
+    console.log("init worker");
+    yoloWorker = new Worker(
+        new URL("/html/yolo_worker.js", import.meta.url),
+        { type: 'module' }
+    );
+    yoloWorker.postMessage({ kind: "initYolo" });
+    yoloWorker.onmessage = (e) => {
+        const msg = e.data;
+        console.log("worker message", msg);
+        if (msg.kind === "yoloStatus" && msg.value === "ready") {
+            document.getElementById("loadstatus").innerHTML = "model loaded";
+            console.log("yolo inited");
+            fetch("/img/Grace_Hopper.jpg")
+                .then(response => response.blob())
+                .then(myBlob => {
+                    document.getElementById("loadstatus").innerHTML = "classify default image";
+                    file_predict(myBlob);
+                    document.getElementById("loadstatus").innerHTML = "ready";
+                    setVisible('page', true);
+                    setVisible('loading', false);
+                    console.log("setted visible");
+                })
+        } else if (msg.kind === "keypointsDrawn") {
+            image_tagged.innerHTML = "";
+            const imgTagged = document.createElement("img");
+            imgTagged.classList.add("obj");
+            imgTagged.classList.add("z-depth-2");
+            imgTagged.classList.add("to-pred-img");
+            imgTagged.src = msg.value;
+            image_tagged.appendChild(imgTagged);
+            console.log(`pose estimation took ${msg.duration} milliseconds`);
+            userRequestResolved();
+        }
+    };
+    document.getElementById("loadstatus").innerHTML = "model load in tract";
+    console.log("inited wasm");
+    const predFile = (file) => {
+        const ph = document.getElementById('img-placeholder');
+        ph.setAttribute("placeholder", file.name);
+        ph.value = "";
+        file_predict(file);
+    };
+    document.getElementById('img').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        predFile(file);
+    });
+    const dropHandler = (ev) => {
+        console.log("File(s) dropped");
+        // Prevent default behavior (Prevent file from being opened)
+        ev.stopPropagation();
+        ev.preventDefault();
+
+        if (ev.dataTransfer.items) {
+            // Use DataTransferItemList interface to access the file(s)
+            let noPred = true;
+            [...ev.dataTransfer.items].forEach((item, i) => {
+                // If dropped items aren't files, reject them
+                if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    predFile(file);
+                    noPred = false;
+                }
+            });
+            if (noPred) {
+                var imageUrl = event.dataTransfer.getData('URL');
+                console.log(imageUrl);
+                var fileName = imageUrl.split('/').pop();
+                fetch(imageUrl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                    var file = new File([blob], fileName);
+                    predFile(file);
+                });
+            }
+        } else {
+            // Use DataTransfer interface to access the file(s)
+            [...ev.dataTransfer.files].forEach((file, i) => {
+                predFile(file);
+            });
+        }
+    };
+    document.getElementById("drop_zone_0").addEventListener("drop", dropHandler);
+    document.getElementById("drop_zone_1").addEventListener("drop", dropHandler);
+    document.getElementById("loadstatus").innerHTML = "loading default image";
+}
+
+const setVisible = (idName, visible) => {
+  let elm = document.getElementById(idName);
+  elm.style.display = visible ? 'block' : 'none';
+};
+
+setVisible('page', false);
+setVisible('loading', true);
+
+// Camera button is disabled if navigator doesn't support navigator.mediaDevices.getUserMedia
+document.getElementById('btn-camera').style.display = 'none';
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    document.getElementById('btn-camera').style.display = 'inline-block';
+    document.getElementById('btn-camera').addEventListener('click', (e) => {
+        e.preventDefault();
+        const constraints = { video: { width: 640, height: 480 } };
+        const countdownSeconds = 0.2;
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then((stream) => {
+                userHasNewRequest();
+                // Create a video element to capture a frame
+                const video = document.createElement('video');
+                video.style.display = 'none';
+                document.body.appendChild(video);
+                video.srcObject = stream;
+                video.play();
+                video.addEventListener('loadeddata', () => {
+                    // Wait for the video to be ready
+                    // skip image capture until countdown has passed.
+                    let countdown = countdownSeconds;
+                    const countdownInterval = setInterval(() => {
+                        if (countdown > 0) {
+                            console.log(countdown);
+                            countdown--;
+                        } else {
+                            clearInterval(countdownInterval);
+                            captureFrame();
+                        }
+                    }, 50);
+                });
+                const captureFrame = () => {
+                    if (video.readyState < 2) {
+                        return;
+                    }
+                    // Create a canvas to draw the frame
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const context = canvas.getContext('2d');
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        file_predict(new File([blob], 'camera_capture.png', { type: 'image/png' }));
+                    }, 'image/png');
+                    // Stop all video tracks to turn off the camera
+                    stream.getVideoTracks().forEach(track => track.stop());
+                    document.body.removeChild(video);
+                };
+            })
+            .catch((err) => {
+                alert('Error accessing camera: ' + err);
+            });
+    });
+}
+
+// Trigger on load and whenever content changes {
+const sendHeight = () => {
+    const height = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: 'resize', height, ref: 'pose-estimator' }, '*');
+};
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+//}
+</script>
+    </head>
+    <body>
+        <div class="container" id="page">
+            <div class="grid cards" >
+                <div class="card">
+                    <div class="card-content" style="justify-content: 'center'"  >
+                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo:</span> Human Pose Estimation</span>
+
+                        <p style="padding-top:20px">
+                            It runs a small <a  target="_blank" rel="noopener noreferrer" href="https://docs.ultralytics.com/models/yolo11/">Yolo 11 nano</a> neural network in your browser with tract.
+                            This model predict a human pose with 17 Keypoints based on Ultralytics <a  target="_blank" rel="noopener noreferrer" href="https://docs.ultralytics.com/tasks/pose/">pretrained model</a>:
+                            Nose, Left Eye, Right Eye, Left Ear, Right Ear, Left Shoulder, Right Shoulder, Left Elbow, Right Elbow, Left Wrist, Right Wrist, Left Hip, Right Hip, Left Knee, Right Knee, Left Ankle and Right Ankle.
+                        </p>
+                        <br />
+                        <p style="padding-bottom:20px">
+                            Since this model fully run on your browser there is no server needed beyond serving the initial
+                            asset, this is private by design (You can use whatever photo), no data is collected,
+                            if you are in doubt just turn off your network and try the playground (without reloading).
+                        </p>
+                        <div class="row card" id="drop_zone_0" ondragover="event.preventDefault();event.stopPropagation();">
+                            <div class="col s12 m6 center-align" >
+                                <div class="image-preview-container">
+                                    <div id="image-preview"></div>
+                                </div>
+                            </div>
+                            <div class="col s12 m6 center-align" >
+                                <div class="image-preview-container">
+                                    <div id="image-tagged"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-action" id="drop_zone_1" ondragover="event.preventDefault();event.stopPropagation()">
+                        <label for="avatar">Select a picture:</label>
+                        <form action="#">
+                            <div class="file-field input-field">
+                                <div class="btn blue darken-3 waves-effect waves-light" id="btn-camera">
+                                    <i class="large material-icons">camera_alt</i>
+                                </div>
+                                <a class="btn blue darken-3 waves-effect waves-light" id="btn-file">
+                                    <span>Image File</span>
+                                    <input type="file" id="img" name="img" accept="image/png, image/jpeg" />
+                                </a>
+                                <div class="file-path-wrapper">
+                                    <input id="img-placeholder" onchange="document.getElementById('img-placeholder').value = '';" onclick="document.getElementById('img').click()" class="file-path validate" type="text" placeholder="select one file from your device">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="loading">
+            <div class="centered">
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+                <h4>
+                    <span>👀 <span style="color:teal">Loading Live Demo:</span> YOLO11n pose estimations </span>
+                </h4>
+                <h5 id="loadstatus">
+                    downloading model
+                </h5>
+            </div>
+        </div>
+    </body>
+</html>

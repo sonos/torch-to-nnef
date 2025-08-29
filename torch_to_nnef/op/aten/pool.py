@@ -1,13 +1,17 @@
 import typing as T
 
 import nnef
+import torch
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.reducer import reducer_helper
-from torch_to_nnef.op.helper import AtenOpRegistry, get_tract_dyn_axis_size_soc
+from torch_to_nnef.op.helper import (
+    AtenOpRegistry,
+    get_tract_dyn_axis_size_soc,
+)
 from torch_to_nnef.torch_graph import Data
-from torch_to_nnef.torch_graph.ir_data import PythonConstant
+from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -268,3 +272,57 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
     node.outputs = node.outputs[:1]
     # WARNING will liklely only work with full defined shapes in shape
     _adaptive_pool("max_pool", op_helper, node)
+
+
+@OP_REGISTRY.register(["upsample_nearest2d"])
+def upsample_nearest2d(node, op_helper, **kwargs):
+    """Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF."""
+    (input_node, size_node, scale_factor_node) = node.inputs
+    if size_node.data:
+        raise T2NErrorNotImplemented("size in upsampling not defined in NNEF")
+    if scale_factor_node.data is None or not all(
+        isinstance(_, float) for _ in scale_factor_node.data
+    ):
+        raise T2NErrorNotImplemented(
+            f"unable to export scale_factor {scale_factor_node.data}"
+        )
+    # NOTE: this implmentation is very suboptimal compared to
+    # onnx:resize operator:
+    # it should be reified in tract as a proper 'debox' operator.
+    # Also current implementation anoyingly need to pass
+    # the channel dim c (by default it's the 2nd dim)
+    # with classical notation: N,Cin,Hin, Win -> N,Cout,Hout,Wout
+    scales = [int(sf) for sf in scale_factor_node.data]
+    kernel_data = torch.ones([1, 1, 1, 1] + scales)
+    kernel = TensorVariable(
+        name=f"{node.outputs[0].export_name}_kernel",
+        data=kernel_data,
+        shape=kernel_data.shape,
+        dtype=input_node.dtype,
+    )
+    bias = PythonConstant(
+        name=f"{node.outputs[0].export_name}_bias",
+        data=0,
+    )
+
+    out = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "deconv",
+        inputs=(
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(kernel),
+            op_helper.get_or_add_tensor_variable_in_nnef(bias),
+        ),
+        attrs={
+            "stride": [1, 1] + scales,
+            "padding": [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
+        },
+        output_tensor_name_suffix="_deconv",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "squeeze",
+        inputs=out,
+        attrs={"axes": [0, 1]},
+        force_full_output_tensor_name=node.outputs[0].export_name,
+    )

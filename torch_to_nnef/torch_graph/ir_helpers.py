@@ -30,6 +30,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_CONTIGUOUS_KIND,
     ATEN_INT,
     ATEN_RELU,
+    ATEN_SILU,
     ATEN_STARTID,
     CALL_KIND,
     CONSTANT_KIND,
@@ -595,6 +596,8 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
         inputs = inputs[1:]
         if isinstance(op_ref, torch.nn.ReLU):
             kind = ATEN_RELU
+        elif isinstance(op_ref, torch.nn.SiLU):
+            kind = ATEN_SILU
         else:
             raise T2NErrorNotImplemented(op_ref)
     else:

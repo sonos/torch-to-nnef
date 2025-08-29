@@ -724,6 +724,93 @@ def cast_to_if_not_dtype_and_variable(
     return out, ["tract_core"]
 
 
+def _guess_out_dtype_and_shape_tc_shape_of(input_nodes, attrs):
+    return torch.int64, (len(input_nodes[0].shape),)
+
+
+def _guess_out_dtype_and_shape_slice(input_nodes, attrs):
+    if len(attrs["begin"]) != 1:
+        raise T2NErrorNotImplemented("len(begin) != 1 in slicing")
+    if (
+        isinstance(attrs["begin"][0], int)
+        and isinstance(attrs["end"][0], int)
+        and attrs.get("stride", [1])[0] == 1
+    ):
+        size = attrs["end"][0] - attrs["begin"][0]
+        sh = list(input_nodes[0].shape)
+        sh[0] = size
+        return input_nodes[0].dtype, sh
+    raise T2NErrorNotImplemented("complex slicing")
+
+
+def _guess_out_dtype_and_shape_squeeze(input_nodes, attrs):
+    sh = []
+    for dim_idx, dim_value in enumerate(input_nodes[0].shape):
+        if dim_idx in attrs["axes"]:
+            continue
+        sh.append(dim_value)
+    return input_nodes[0].dtype, tuple(sh)
+
+
+def _guess_out_dtype_and_shape_transpose(input_nodes, attrs):
+    sh = list(input_nodes[0].shape)
+    sh = [sh[ax] for ax in attrs["axes"]]
+    return (input_nodes[0].dtype, sh)
+
+
+def _guess_out_dtype_and_shape_unsqueeze(input_nodes, attrs):
+    sh = list(input_nodes[0].shape)
+    for ax in sorted(attrs["axes"]):
+        sh.insert(ax, 1)
+    return (input_nodes[0].dtype, sh)
+
+
+def _guess_out_dtype_and_shape_n_elm_math(input_nodes, attrs):
+    # keep biggest volume input
+    sh = []
+    max_vol = 0
+    for inode in input_nodes:
+        if (
+            isinstance(inode, TensorVariable)
+            and inode.shape
+            and inode.volume
+            and inode.volume > max_vol
+        ):
+            max_vol = inode.volume
+            sh = list(inode.shape)
+    return (input_nodes[0].dtype, sh)
+
+
+def _guess_out_dtype_and_shape_tc_cast(input_nodes, attrs):
+    return (
+        str_to_torch_dtype(attrs["to"]),
+        list(input_nodes[0].shape),
+    )
+
+
+def _guess_out_dtype_and_shape_tc_prod_reduce(input_nodes, attrs):
+    return (torch.int64, tuple())
+
+
+def _guess_out_dtype_and_shape(nnef_op_type: str, input_nodes, attrs):
+    """Guess output dtype and shape from input nodes and attrs."""
+    return {
+        "tract_core_shape_of": _guess_out_dtype_and_shape_tc_shape_of,
+        "slice": _guess_out_dtype_and_shape_slice,
+        "squeeze": _guess_out_dtype_and_shape_squeeze,
+        "tract_core_product_reduce": _guess_out_dtype_and_shape_tc_prod_reduce,
+        "tract_core_cast": _guess_out_dtype_and_shape_tc_cast,
+        "transopose": _guess_out_dtype_and_shape_transpose,
+        "unsqueeze": _guess_out_dtype_and_shape_unsqueeze,
+        "min": _guess_out_dtype_and_shape_n_elm_math,
+        "max": _guess_out_dtype_and_shape_n_elm_math,
+        "sub": _guess_out_dtype_and_shape_n_elm_math,
+        "add": _guess_out_dtype_and_shape_n_elm_math,
+        "div": _guess_out_dtype_and_shape_n_elm_math,
+        "mul": _guess_out_dtype_and_shape_n_elm_math,
+    }[nnef_op_type](input_nodes, attrs)
+
+
 class OpHelper:
     def __init__(self, g, node, name_to_tensor, null_ref, inference_target):
         self.g = g
@@ -750,55 +837,6 @@ class OpHelper:
             )
             for dn in data_nodes
         ]
-
-    def _guess_output_dtype_and_shape(
-        self, nnef_op_type: str, input_nodes, attrs
-    ):
-        if nnef_op_type == "tract_core_shape_of":
-            return torch.int64, (len(input_nodes[0].shape),)
-
-        if nnef_op_type == "slice":
-            if len(attrs["begin"]) != 1:
-                raise T2NErrorNotImplemented("len(begin) != 1 in slicing")
-            if (
-                isinstance(attrs["begin"][0], int)
-                and isinstance(attrs["end"][0], int)
-                and attrs.get("stride", [1])[0] == 1
-            ):
-                size = attrs["end"][0] - attrs["begin"][0]
-                sh = list(input_nodes[0].shape)
-                sh[0] = size
-                return input_nodes[0].dtype, sh
-        if nnef_op_type == "squeeze":
-            sh = []
-            for dim_idx, dim_value in enumerate(input_nodes[0].shape):
-                if dim_idx in attrs["axes"]:
-                    continue
-                sh.append(dim_value)
-            return input_nodes[0].dtype, tuple(sh)
-        if nnef_op_type in "tract_core_product_reduce":
-            return torch.int64, tuple()
-        if nnef_op_type in ["min", "max", "sub", "add", "div", "mul"]:
-            # keep biggest volume input
-            sh = []
-            max_vol = 0
-            for inode in input_nodes:
-                if (
-                    isinstance(inode, TensorVariable)
-                    and inode.shape
-                    and inode.volume
-                    and inode.volume > max_vol
-                ):
-                    max_vol = inode.volume
-                    sh = list(inode.shape)
-            return (input_nodes[0].dtype, sh)
-        if nnef_op_type == "tract_core_cast":
-            return (
-                str_to_torch_dtype(attrs["to"]),
-                list(input_nodes[0].shape),
-            )
-
-        raise T2NErrorNotImplemented(nnef_op_type)
 
     def get_or_add_tensor_variable_in_nnef(self, node, **kwargs):
         return get_or_add_tensor_variable_in_nnef(
@@ -948,7 +986,7 @@ class OpHelper:
 
         Also nnefe
         """
-        dtype, shape = self._guess_output_dtype_and_shape(
+        dtype, shape = _guess_out_dtype_and_shape(
             nnef_op_type, input_nodes, kwargs.get("attrs", {})
         )
         if force_full_output_tensor_name:
