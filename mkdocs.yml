@@ -139,7 +139,3 @@ nav:
   - 'Why NNEF': why_nnef.md
   - Backstory: backstory.md
   - Changelog: CHANGELOG.md
-
-
-extra_javascript:
-  - https://polyfill.io/v3/polyfill.min.js?features=es6

@@ -1,4 +1,4 @@
-import init, { YoloPoser } from '/html/yolo.js';
+import init, { YoloPoser } from './yolo.js';
 
 var yolo_poser = null;
 const keypoint_visibility_threshold = 0.3;
