@@ -58,24 +58,11 @@
             display: "inline" !important;
         }
 
-        .copy-btn{
-            appearance:none;
-            border:1px solid var(--border);
-            background:#d3e0ff;
-            color:var(--text);
-            padding:10px 12px;
-            border-radius:12px;
-            display:inline-flex;
-            align-items:center;
-            gap:8px;
-            cursor:pointer;
-            transition:.2s transform ease, .2s border-color ease, .2s background ease, .2s box-shadow ease;
+        #copyBtn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .copy-btn:hover{ transform: translateY(-1px); border-color:#f3f1f5 }
-        .copy-btn:active {
-            transform: translateY(0) scale(.98)
-        }
-        .copy-btn:focus-visible{ outline:none; box-shadow:0 0 0 4px var(--ring); }
 
         .copy-icon{ width:18px; height:18px; flex:0 0 18px; }
 

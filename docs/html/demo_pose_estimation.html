@@ -116,7 +116,7 @@ const file_predict = (file) => {
 if (window.Worker) {
     console.log("init worker");
     yoloWorker = new Worker(
-        new URL("/html/yolo_worker.js", import.meta.url),
+        new URL("./yolo_worker.js", import.meta.url),
         { type: 'module' }
     );
     yoloWorker.postMessage({ kind: "initYolo" });
