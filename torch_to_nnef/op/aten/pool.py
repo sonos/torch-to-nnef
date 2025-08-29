@@ -1,15 +1,13 @@
 import typing as T
 
-import torch
 import nnef
-from numpy import size
+import torch
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.reducer import reducer_helper
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    SimpleOpChainer,
     get_tract_dyn_axis_size_soc,
 )
 from torch_to_nnef.torch_graph import Data
@@ -278,7 +276,7 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
 
 @OP_REGISTRY.register(["upsample_nearest2d"])
 def upsample_nearest2d(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF"""
+    """Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF."""
     (input_node, size_node, scale_factor_node) = node.inputs
     if size_node.data:
         raise T2NErrorNotImplemented("size in upsampling not defined in NNEF")
