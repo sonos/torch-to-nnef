@@ -316,8 +316,8 @@ def upsample_nearest2d(node, op_helper, **kwargs):
             "debox",
             inputs=inp,
             attrs={
-                "size": [1, 1] + list(scale_factor_node.data) * 2,
-                "stride": list(scale_factor_node.data) * 2,
+                "size": [1, 1] + scales,
+                "stride": scales,
                 "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
             },
         )
