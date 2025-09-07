@@ -224,6 +224,13 @@ class ModTensorUpdater:
         self.id_to_kind[id(new_tensor)] = self.id_to_kind[id(ref)]
         del self.id_to_kind[id(ref)]
         # }
+        #
+
+    def get_by_name(self, name: str) -> torch.Tensor:
+        """Get tensor based on it's  reference name."""
+        mod = self.name_to_parent_module[name]
+        _, p_local_name = self.split_param_name(name)
+        return getattr(mod, p_local_name)
 
     def update_by_ref(
         self,

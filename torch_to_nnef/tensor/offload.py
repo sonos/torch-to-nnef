@@ -41,6 +41,7 @@ from torch.overrides import get_default_nowrap_functions
 
 from torch_to_nnef.exceptions import T2NErrorMissUse
 from torch_to_nnef.tensor.opaque import OpaqueTensor
+from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
 
 AUTO_DEVICE_MAP_KEY = "t2n_auto"
@@ -151,8 +152,29 @@ class OffloadedTensor(OpaqueTensor):
         self.force_gc_collect = force_gc_collect
 
     @property
+    def is_meta(self) -> bool:
+        """Whether the tensor is on the meta device.
+
+        Always False as the tensor is (off|re)loaded from disk.
+        """
+        return False
+
+    @property
     def dtype(self) -> torch.dtype:
         return self.elem.dtype
+
+    @property
+    def shape(self) -> torch.Size:
+        return self.elem.shape
+
+    def __hash__(self):
+        """Hash based on name, shape and dtype.
+
+        This is required torch.Tensor are often items of
+        sets and dicts that use hash (even in torch).
+
+        """
+        return hash((self._name, self.elem.shape, self.elem.dtype))
 
     def numel(self) -> int:
         return self.elem.numel()
@@ -249,9 +271,29 @@ class OffloadedTensor(OpaqueTensor):
 
     @data.setter
     def data(self, new_data):
+        """Update offloaded tensor by new 'new_data' tensor.
+
+        Observed usage in 'transformers' package when calling:
+        - 'resize_token_embeddings' (
+          changing the shape of the embedding,
+          may cast dtype to bfloat16 in some case
+        )
+
+        Args:
+            new_data:
+                The tensor that will replace it on disk
+                assertion are made to ensure same shape, dtype
+                as prior
+        """
+        self.update_values(new_data, strict_shape=False, strict_dtype=False)
         return self
 
-    def update_values(self, values: torch.Tensor):
+    def update_values(
+        self,
+        values: torch.Tensor,
+        strict_shape: bool = True,
+        strict_dtype: bool = True,
+    ):
         """Replace offloaded tensor by new 'values' tensor.
 
         Args:
@@ -259,12 +301,32 @@ class OffloadedTensor(OpaqueTensor):
                 The tensor that will replace it on disk
                 assertion are made to ensure same shape, dtype
                 as prior
+            strict_shape:
+                if True (default) the shape of the new tensor
+                must be the same as the prior one
+            strict_dtype:
+                if True (default) the dtype of the new tensor
+                must be the same as the prior one
         """
-        assert self.elem.dtype == values.dtype
-        assert self.elem.shape == values.shape
-        assert self._offload_path(
-            self.offload_dir, self._name, values.dtype
-        ).exists()
+        if strict_shape:
+            assert self.elem.shape == values.shape
+        if strict_dtype:
+            assert self.elem.dtype == values.dtype, (
+                self.elem.dtype,
+                values.dtype,
+            )
+            assert self._offload_path(
+                self.offload_dir, self._name, values.dtype
+            ).exists()
+        # update elem accordingly to new shape/dtype
+        if (not strict_dtype and self.elem.dtype != values.dtype) or (
+            not strict_shape and self.elem.shape != values.shape
+        ):
+            # we need to remove the prior file
+            self.elem = torch.zeros(
+                values.shape, dtype=values.dtype, device="meta"
+            )
+
         OffloadedTensor._save(values, self.offload_dir, self._name)
         LOGGER.debug("updated values: '%s'", self._name)
 
@@ -617,6 +679,12 @@ def t2n_load_checkpoint_and_dispatch(
     unexpected_keys = set()
     model_keys = set(model.state_dict().keys())
     assert checkpoint_files is not None
+    mod_updater = ModTensorUpdater(
+        model,
+        add_parameter_if_unset=True,
+        add_buffers=True,
+        add_unregistred_tensor=True,
+    )
     for checkpoint_file in checkpoint_files:
         loaded_checkpoint = load_state_dict(
             checkpoint_file,
@@ -649,7 +717,7 @@ def t2n_load_checkpoint_and_dispatch(
                     )
                 param_device = device_map[module_name]
                 set_module_tensor_to_device(
-                    model,
+                    mod_updater,
                     param_name,
                     param_device,
                     value=param,
@@ -675,7 +743,7 @@ def t2n_load_checkpoint_and_dispatch(
 
 
 def set_module_tensor_to_device(
-    module: nn.Module,
+    mod_updater: ModTensorUpdater,
     tensor_name: str,
     device: TDEVICE,
     value: T.Optional[torch.Tensor] = None,
@@ -690,8 +758,8 @@ def set_module_tensor_to_device(
     ).
 
     Args:
-        module (`torch.nn.Module`):
-            The module in which the tensor we want to move lives.
+        mod_updater (`ModTensorUpdater`):
+            The module updater instance that contains the module
         tensor_name (`str`):
             The full name of the parameter/buffer.
         device (`int`, `str` or `torch.device`):
@@ -708,27 +776,8 @@ def set_module_tensor_to_device(
     """
     # Recurse if needed
     original_tensor_name = tensor_name
-    if "." in tensor_name:
-        splits = tensor_name.split(".")
-        for split in splits[:-1]:
-            new_module = getattr(module, split)
-            if new_module is None:
-                raise T2NErrorMissUse(f"{module} has no attribute {split}.")
-            module = new_module
-        tensor_name = splits[-1]
-
-    if (
-        tensor_name not in module._parameters
-        and tensor_name not in module._buffers
-    ):
-        raise T2NErrorMissUse(
-            f"{module} does not have a parameter or "
-            f"a buffer named {tensor_name}."
-        )
-    old_value = getattr(module, tensor_name)
-
-    param = module._parameters.get(tensor_name)
-    param_cls = type(param)
+    old_value = mod_updater.get_by_name(tensor_name)
+    param_cls = type(old_value)
 
     if value is None:
         raise T2NErrorMissUse("Missing value")
@@ -754,4 +803,8 @@ def set_module_tensor_to_device(
     new_value = maybe_load_offload_tensor(
         value, device, original_tensor_name, offload_dir
     )
-    module._parameters[tensor_name] = nn.Parameter(new_value)
+    # since dtype may be diferent
+    # enforce_tensor_consistency=False
+    mod_updater.update_by_name(
+        tensor_name, new_value, enforce_tensor_consistency=False
+    )
