@@ -70,7 +70,11 @@ def ctx_dtype_dyn_cache():
         Same as original update, excepted it forces device alignment.
         this is to avoid issues with 'accelerate' package
         """
-        if TRANSFORMERS_VERSION >= "4.54.0":
+        if TRANSFORMERS_VERSION >= "4.56.0":
+            raise NotImplementedError(
+                "Should not be used with transformers >= 4.56.0"
+            )
+        elif TRANSFORMERS_VERSION >= "4.54.0":
             self.append_new_layers(layer_idx)
             lay = self.layers[layer_idx]
             if lay.keys is not None:
@@ -123,7 +127,8 @@ def ctx_dtype_dyn_cache():
     else:
         new_count = 1
 
-    if new_count == 1:
+    if new_count == 1 and TRANSFORMERS_VERSION < "4.56.0":
+        # only apply on validated transformers version
         cache_utils.DynamicCache.update = force_dtype_dyn_cache_update
 
     setattr(cache_utils, count_attr_name, new_count)
