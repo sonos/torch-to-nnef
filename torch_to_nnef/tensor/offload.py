@@ -837,8 +837,8 @@ def ctx_maybe_load_from_disk_as_offloaded(
 
     offload_dir = Path(offload_dir)
 
+    # pylint: disable-next=import-outside-toplevel
     import safetensors.torch
-    import torch
 
     def custom_safe_load_file(
         *args,
@@ -901,6 +901,7 @@ def ctx_maybe_load_from_disk_as_offloaded(
     torch.original_load = torch.load
     torch.load = custom_torch_load
     try:
+        # pylint: disable-next=import-outside-toplevel
         import peft.utils.save_and_load
 
         peft.utils.save_and_load.original_safe_load_file = (
@@ -917,8 +918,6 @@ def ctx_maybe_load_from_disk_as_offloaded(
         torch.load = torch.original_load
         del torch.original_load
         try:
-            import peft.utils.save_and_load
-
             peft.utils.save_and_load.safe_load_file = (
                 peft.utils.save_and_load.original_safe_load_file
             )
