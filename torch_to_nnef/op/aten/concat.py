@@ -30,7 +30,9 @@ def cat(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
-    axis = pick_axis(input_node.data[0], dim)
+
+    # edge case with zero sized tensors
+    axis = max(pick_axis(inode, dim) for inode in input_node.data)
     add_single_output_op(
         g,
         node,

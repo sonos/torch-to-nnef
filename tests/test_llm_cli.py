@@ -24,7 +24,11 @@ from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
-from .utils import IS_DEBUG, TRACT_INFERENCES_TO_TESTS_APPROX
+from .utils import (
+    IS_DEBUG,
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    transformers_tract_export_test_condition,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +38,7 @@ try:
     from torch_to_nnef.llm_tract.exporter import LLMExporter
 
     LLMExporter.load(LlamaSlugs.DUMMY.value)
+    CAN_RUN_TESTS = transformers_tract_export_test_condition(TractNNEF.latest())
 except ImportError as exp:
     CAN_RUN_TESTS = False
     print("disable test_llm_cli because:", exp)

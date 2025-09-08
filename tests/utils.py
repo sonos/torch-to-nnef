@@ -10,6 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
+from accelerate import inference
 import numpy as np
 import pytest
 import torch as Torch
@@ -26,6 +27,7 @@ from torch_to_nnef.inference_target.tract import (
     TractCli,
     build_io,
 )
+from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
 from torch_to_nnef.log import log
 from torch_to_nnef.tensor.quant.base import (
     QTENSOR_UNSUPPORTED,
@@ -272,3 +274,27 @@ def combine_conditions(conds: T.List[T.Callable[[InferenceTarget], bool]]):
 
     """
     return lambda i: all(cond(i) for cond in conds)
+
+
+def transformers_tract_export_test_condition(
+    inference_target: InferenceTarget,
+) -> bool:
+    """Condition to skip tests based on transformers and tract versions.
+
+    Some versions of transformers change the kv_cache modeling in a way that
+    is not compatible with prior versions of 'tract':
+
+    ie: in transformers 4.56.0, the kv_cache handling was changed and trace
+    export an empty tensor for the past_key_values when past is None. This is
+    not compatible with tract NNEF versions <= 0.22.1 (
+        that assume concat is with real tensors
+    ).
+
+    """
+    return isinstance(inference_target, TractNNEF) and (
+        (
+            inference_target.version > "0.21.5"
+            and TRANSFORMERS_VERSION < "4.56.0"
+        )
+        or inference_target.version >= "0.22.1"
+    )

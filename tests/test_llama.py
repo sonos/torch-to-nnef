@@ -6,7 +6,10 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from torch_to_nnef.llm_tract.config import LlamaSlugs
-from torch_to_nnef.llm_tract.models.base import BaseCausalWithDynCacheAndTriu
+from torch_to_nnef.llm_tract.models.base import (
+    TRANSFORMERS_VERSION,
+    BaseCausalWithDynCacheAndTriu,
+)
 from torch_to_nnef.utils import torch_version
 
 from .utils import (  # noqa: E402
@@ -15,12 +18,17 @@ from .utils import (  # noqa: E402
     change_dynamic_axes,
     check_model_io_test,
     set_seed,
+    transformers_tract_export_test_condition,
 )
 
 set_seed(int(os.environ.get("SEED", 25)))
 
 test_suite = TestSuiteInferenceExactnessBuilder(
-    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.5"]
+    [
+        _
+        for _ in TRACT_INFERENCES_TO_TESTS_APPROX
+        if transformers_tract_export_test_condition(_)
+    ]
 )
 
 

@@ -49,6 +49,68 @@ def build_past_kv_dyn_cache(
     )
 
 
+def _force_dtype_dyn_cache_update_4_54_to_4_56(
+    self,
+    key_states: torch.Tensor,
+    value_states: torch.Tensor,
+    layer_idx: int,
+    cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    self.append_new_layers(layer_idx)
+    lay = self.layers[layer_idx]
+    if lay.keys is not None:
+        key_states = key_states.to(lay.keys.device)
+    if lay.values is not None:
+        value_states = value_states.to(lay.values.device)
+    return lay.update(key_states, value_states, cache_kwargs)
+
+
+def _force_dtype_dyn_cache_update_pre_4_54(
+    self,
+    key_states: torch.Tensor,
+    value_states: torch.Tensor,
+    layer_idx: int,
+    cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    # Update the number of seen tokens
+    if layer_idx == 0:
+        self._seen_tokens += key_states.shape[-2]
+
+    # Update the cache
+    if key_states is not None:
+        if len(self.key_cache) <= layer_idx:
+            # There may be skipped layers, fill them with empty lists
+            for _ in range(len(self.key_cache), layer_idx):
+                self.key_cache.append(torch.tensor([]))
+                self.value_cache.append(torch.tensor([]))
+            self.key_cache.append(key_states)
+            self.value_cache.append(value_states)
+        elif (
+            not self.key_cache[layer_idx].numel()  # prefers not t.numel()
+            # to len(t) == 0 to export the model
+        ):  # fills previously skipped layers;
+            # checking for tensor causes errors
+            self.key_cache[layer_idx] = key_states
+            self.value_cache[layer_idx] = value_states
+        else:
+            self.key_cache[layer_idx] = torch.cat(
+                [
+                    self.key_cache[layer_idx].to(key_states.device),
+                    key_states,
+                ],
+                dim=-2,
+            )
+            self.value_cache[layer_idx] = torch.cat(
+                [
+                    self.value_cache[layer_idx].to(value_states.device),
+                    value_states,
+                ],
+                dim=-2,
+            )
+
+    return self.key_cache[layer_idx], self.value_cache[layer_idx]
+
+
 @contextmanager
 def ctx_dtype_dyn_cache():
     """Context Manager to handle inconsistent device type in KV-cache update.
@@ -74,51 +136,13 @@ def ctx_dtype_dyn_cache():
             raise NotImplementedError(
                 "Should not be used with transformers >= 4.56.0"
             )
-        elif TRANSFORMERS_VERSION >= "4.54.0":
-            self.append_new_layers(layer_idx)
-            lay = self.layers[layer_idx]
-            if lay.keys is not None:
-                key_states = key_states.to(lay.keys.device)
-            if lay.values is not None:
-                value_states = value_states.to(lay.values.device)
-            return lay.update(key_states, value_states, cache_kwargs)
-        # Update the number of seen tokens
-        if layer_idx == 0:
-            self._seen_tokens += key_states.shape[-2]
-
-        # Update the cache
-        if key_states is not None:
-            if len(self.key_cache) <= layer_idx:
-                # There may be skipped layers, fill them with empty lists
-                for _ in range(len(self.key_cache), layer_idx):
-                    self.key_cache.append(torch.tensor([]))
-                    self.value_cache.append(torch.tensor([]))
-                self.key_cache.append(key_states)
-                self.value_cache.append(value_states)
-            elif (
-                not self.key_cache[layer_idx].numel()  # prefers not t.numel()
-                # to len(t) == 0 to export the model
-            ):  # fills previously skipped layers;
-                # checking for tensor causes errors
-                self.key_cache[layer_idx] = key_states
-                self.value_cache[layer_idx] = value_states
-            else:
-                self.key_cache[layer_idx] = torch.cat(
-                    [
-                        self.key_cache[layer_idx].to(key_states.device),
-                        key_states,
-                    ],
-                    dim=-2,
-                )
-                self.value_cache[layer_idx] = torch.cat(
-                    [
-                        self.value_cache[layer_idx].to(value_states.device),
-                        value_states,
-                    ],
-                    dim=-2,
-                )
-
-        return self.key_cache[layer_idx], self.value_cache[layer_idx]
+        if TRANSFORMERS_VERSION >= "4.54.0":
+            return _force_dtype_dyn_cache_update_4_54_to_4_56(
+                self, key_states, value_states, layer_idx, cache_kwargs
+            )
+        return _force_dtype_dyn_cache_update_pre_4_54(
+            self, key_states, value_states, layer_idx, cache_kwargs
+        )
 
     cache_utils._original_dyn_cache_update = cache_utils.DynamicCache.update
     count_attr_name = "_dyn_cache_custom_update_ctx_count"
