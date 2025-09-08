@@ -31,6 +31,7 @@ import os
 import tempfile
 import typing as T
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
@@ -808,3 +809,119 @@ def set_module_tensor_to_device(
     mod_updater.update_by_name(
         tensor_name, new_value, enforce_tensor_consistency=False
     )
+
+
+@contextmanager
+def ctx_maybe_load_from_disk_as_offloaded(
+    offload_dir: T.Optional[T.Union[str, Path]] = None,
+):
+    """Context manager to force safetensors/torch_load to offload to disk.
+
+    Example:
+    ```python
+    with ctx_load_from_disk_as_offloaded():
+        if filename.endswith(".safetensors"):
+            adapters_weights = safe_load_file(filename, device="cpu")
+        else:
+            adapters_weights = torch_load(
+                filename,
+                map_location=torch.device(device)
+            )
+    ```
+    will offload every tensor to disk as soon as possible.
+
+    """
+    if offload_dir is None:
+        yield  # nothing to do
+        return
+
+    offload_dir = Path(offload_dir)
+
+    import safetensors.torch
+    import torch
+
+    def custom_safe_load_file(
+        *args,
+        device: TDEVICE = "cpu",
+        **kwargs,
+    ) -> T.Dict[str, torch.Tensor]:
+        if isinstance(device, str):
+            if not device.startswith("disk"):
+                device = f"disk_{device}"
+        else:
+            raise T2NErrorMissUse(
+                "Only string device are supported in this context"
+            )
+
+        return safe_load_file(
+            *args,
+            device=device,
+            offload_dir=offload_dir,
+            apply_offload=offload_dir is not None,
+            **kwargs,
+        )
+
+    def custom_torch_load(fp, *args, **kwargs):
+        # NOTE: we could do better in the future by
+        # creating dedicated torch Storage for offloaded tensor.
+        # Then applying `torch.serialization.register_package`.
+        # This would avoid to load all tensor in memory during
+        # the unpickling process.
+        loaded = torch.original_load(fp, *args, **kwargs)
+        if fp.resolve().is_relative_to(Path(offload_dir).resolve()):
+            return loaded  # this tensor is already offloaded on disk.
+        if isinstance(loaded, torch.Tensor):
+            tensor_hash = hash(loaded)
+            name = (
+                loaded._name
+                if hasattr(loaded, "_name")
+                else f"unknown_{tensor_hash}"
+            )
+            return maybe_load_offload_tensor(
+                loaded, f"disk_{loaded.device}", name, offload_dir
+            )
+        if isinstance(loaded, dict):
+            tensors = {}
+            for k, v in loaded.items():
+                tensors[k] = maybe_load_offload_tensor(
+                    v, f"disk_{v.device}", k, offload_dir
+                )
+            return tensors
+        LOGGER.warning(
+            "ctx_maybe_load_from_disk_as_offloaded: unsupported type %s"
+            " (not offloaded) ",
+            type(loaded),
+        )
+        return loaded
+
+    safetensors.torch.original_load_file = safetensors.torch.load_file
+    safetensors.torch.load_file = custom_safe_load_file
+    # alter pickle reload in torch.load so that torch.Tensor
+    # are reloaded with OffloadedTensor.
+    torch.original_load = torch.load
+    torch.load = custom_torch_load
+    try:
+        import peft.utils.save_and_load
+
+        peft.utils.save_and_load.original_safe_load_file = (
+            peft.utils.save_and_load.safe_load_file
+        )
+        peft.utils.save_and_load.safe_load_file = custom_safe_load_file
+    except ImportError:
+        pass
+    try:
+        yield
+    finally:
+        safetensors.torch.load_file = safetensors.torch.original_load_file
+        del safetensors.torch.original_load_file
+        torch.load = torch.original_load
+        del torch.original_load
+        try:
+            import peft.utils.save_and_load
+
+            peft.utils.save_and_load.safe_load_file = (
+                peft.utils.save_and_load.original_safe_load_file
+            )
+            del peft.utils.save_and_load.original_safe_load_file
+        except ImportError:
+            pass
