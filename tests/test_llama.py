@@ -7,7 +7,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from torch_to_nnef.llm_tract.config import LlamaSlugs
 from torch_to_nnef.llm_tract.models.base import (
-    TRANSFORMERS_VERSION,
     BaseCausalWithDynCacheAndTriu,
 )
 from torch_to_nnef.utils import torch_version
