@@ -26,7 +26,6 @@ from torch_to_nnef.inference_target.tract import (
     TractCli,
     build_io,
 )
-from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
 from torch_to_nnef.log import log
 from torch_to_nnef.tensor.quant.base import (
     QTENSOR_UNSUPPORTED,
