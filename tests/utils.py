@@ -280,20 +280,8 @@ def transformers_tract_export_test_condition(
 ) -> bool:
     """Condition to skip tests based on transformers and tract versions.
 
-    Some versions of transformers change the kv_cache modeling in a way that
-    is not compatible with prior versions of 'tract':
-
-    ie: in transformers 4.56.0, the kv_cache handling was changed and trace
-    export an empty tensor for the past_key_values when past is None. This is
-    not compatible with tract NNEF versions <= 0.22.1 (
-        that assume concat is with real tensors
-    ).
-
+    Some versions of transformers have ops not supported in old tract versions.
     """
     return isinstance(inference_target, TractNNEF) and (
-        (
-            inference_target.version > "0.21.5"
-            and TRANSFORMERS_VERSION < "4.56.0"
-        )
-        or inference_target.version >= "0.22.1"
+        inference_target.version > "0.21.5"
     )

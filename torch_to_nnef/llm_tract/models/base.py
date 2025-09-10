@@ -49,6 +49,27 @@ def build_past_kv_dyn_cache(
     )
 
 
+def _force_dyn_layer_update_ge4_56(
+    self,
+    key_states: torch.Tensor,
+    value_states: torch.Tensor,
+    cache_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
+) -> T.Tuple[torch.Tensor, torch.Tensor]:
+    """Avoid concat with lazy inited cache of empty 0 dim.
+
+    This is to avoid issues with 'tract' export of such concat.
+
+    """
+    # Lazy initialization
+    if self.keys is None:
+        self.keys = key_states
+        self.values = value_states
+    else:
+        self.keys = torch.cat([self.keys, key_states], dim=-2)
+        self.values = torch.cat([self.values, value_states], dim=-2)
+    return self.keys, self.values
+
+
 def _force_dtype_dyn_cache_update_4_54_to_4_56(
     self,
     key_states: torch.Tensor,
@@ -154,6 +175,8 @@ def ctx_dtype_dyn_cache():
     if new_count == 1 and TRANSFORMERS_VERSION < "4.56.0":
         # only apply on validated transformers version
         cache_utils.DynamicCache.update = force_dtype_dyn_cache_update
+    if new_count == 1 and TRANSFORMERS_VERSION >= "4.56.0":
+        cache_utils.DynamicLayer.update = _force_dyn_layer_update_ge4_56
 
     setattr(cache_utils, count_attr_name, new_count)
     try:
