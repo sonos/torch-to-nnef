@@ -1,12 +1,13 @@
-# Welcome to **Torch to NNEF** Documentation
-
 <figure markdown="span">
     ![torch_to_nnef](./img/torch_to_nnef.png){ align=center }
 </figure>
 
+# Welcome to the documentation
+
+
 ## Goals & Scope
 
-This Python package is used to export any model formulated with vanilla
+`torch_to_nnef` Python package is used to export any model formulated with vanilla
 PyTorch, whatever the internal tensor types (including quantized models), into [NNEF format](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html).
 
 [![tract](./img/tract.png){: style="width: 120px;margin:0;"}](https://github.com/sonos/tract/), the neural network inference engine
