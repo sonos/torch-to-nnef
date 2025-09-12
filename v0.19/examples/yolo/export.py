@@ -2,7 +2,6 @@ from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
 
-import torch_to_nnef
 from ultralytics import YOLO
 from ultralytics.engine.exporter import Exporter, NMSModel
 from ultralytics.nn.tasks import (
@@ -84,7 +83,8 @@ def export_nnef(model, im, filepath, input_names, output_names, dynamic):
     )
     end_time = perf_counter()
     LOGGER.info(
-        f"{colorstr('NNEF:')} export success in {end_time - start_time:.3f}s, saved as {filepath}"
+        f"{colorstr('NNEF:')} export success "
+        f"in {end_time - start_time:.3f}s, saved as {filepath}"
     )
 
 
@@ -98,7 +98,8 @@ if path.exists():
     end_time = perf_counter()
     LOGGER.info("==================")
     LOGGER.info(
-        f"Tracking completed in {end_time - start_time:.3f}s (with ultralytics .track for same image)"
+        f"Tracking completed in {end_time - start_time:.3f}s "
+        "(with ultralytics .track for same image)"
     )
     LOGGER.info("==================")
 
