@@ -17,11 +17,11 @@ jobs:
   # This workflow contains a single job called "release"
   release:
     name: Create Release
-    runs-on: [self-hosted, s2-player-builder-rust]
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        python-versions: [3.8]
+        python-versions: [3.10]
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -75,8 +75,6 @@ jobs:
       - name: publish to SONOS python registry
         shell: bash
         env:
-            REPOSITORY: ${{ secrets.SONOS_PM_URL }}
-            USERNAME: ${{ secrets.SONOS_PM_USER }}
-            PASSWORD: ${{ secrets.SONOS_PM_PASSWORD }}
+            PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
-          uv publish --publish-url "$REPOSITORY" --username "$USERNAME" --password "$PASSWORD"
+          uv publish --token $PYPI_TOKEN
