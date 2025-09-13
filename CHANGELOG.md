@@ -3,7 +3,7 @@
 
 ## Unreleased
 
-## [0.20.0] - 2025-09-13
+## [0.20.1] - 2025-09-13
 
 ### Added
 
@@ -55,6 +55,10 @@
 ### Fixes
 
 - make this package work again for torch version between 1.10 and 2.3.
+
+## [0.20.0] - 2025-09-13
+
+Failed release in CI/CD
 
 ## [0.19.0] - 2025-07-25
 
