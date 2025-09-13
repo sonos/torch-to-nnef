@@ -249,7 +249,7 @@ def test_quantize_with_tract_q4_0_rounding2(inference_target):
 @skipif_unsupported_qtensor
 @pytest.mark.parametrize(
     "inference_target",
-    [_ for _ in TRACT_INFERENCES_TO_TESTS_EXACT if _.version > "0.21.6"],
+    [_ for _ in TRACT_INFERENCES_TO_TESTS_APPROX if _.version > "0.21.6"],
 )
 def test_quantize_with_tract_q4_0_arange(inference_target):
     """Basic quantization values."""
