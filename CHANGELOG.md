@@ -3,6 +3,48 @@
 
 ## Unreleased
 
+## [0.20.0] - 2025-09-13
+
+### Added
+
+- Open-Sourced the project under MIT|Apache2 license
+- Official support for tract `v0.22.0`
+- test coverage of LLM export with various `transformers` lib version (trying to support last 10ish minor versions with CI/CD)
+- Add context manager to force loading with offloaded tensor
+- Added opt-in support for reification of `spda` operator when targeting tract export (thanks to @emricksinisonos contribution) this should help further optimization in tract of attention blocks
+- Added support for `upsample` operator via `deconv` or `debox` depending on tract version
+- Added Licenses file
+- `ModTensorUpdater` is now useful with legacy torch version (bellow 2.0)
+- Add `aten::new`
+- New logo (thanks to @lizavetaobadava-commits)
+
+#### Formatting & style
+
+- All exception now inherit from `T2NError` (allow easier catch)
+- Stricter line length (even in doc)
+- Stricter doc formatting with `ruff`
+- Improved `prospector` strictness
+- `isort` retired in favor of `ruff`
+
+#### Documentation
+
+- Documentation versioning with `mike` (allowing to get older version doc)
+- Documentation: fixed typos, rewording (thanks to @thomasnigoghossiansonos for the review)
+- WASM LLM poetry generator example expose the prompt for clarity
+- Nicer WASM example with more loading state infos
+- Fix WASM VAD example handling more audio context (more robust)
+- Added WASM Yolo example with pose-estimation
+
+### Fixed
+
+- transformers regression since 4.56 around cache handling
+- better support for OffloadedTensor with assignations and some in-place operations
+- pylint tweaks
+
+### Change
+
+- Following open-sourcing of the project, packaging is now targeting PyPI.
+
 ## [0.19.1] - 2025-08-06
 
 ### Added
