@@ -1,0 +1,6 @@
+torch_to_nnef
+numpy
+librosa
+matplotlib
+nemo_toolkit[asr]
+rich
