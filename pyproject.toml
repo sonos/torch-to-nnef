@@ -1,6 +1,6 @@
 [project]
 name = "torch_to_nnef"
-version = "0.20.0"
+version = "0.20.1"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
