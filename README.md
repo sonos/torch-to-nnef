@@ -6,7 +6,7 @@
 Any PyTorch Model or Tensor to NNEF file format.
 
 > [!IMPORTANT]
-> If you encounter any bug please follow [Bug report](https://sonos.github.io/torch-to-nnef/contributing/guidelines/)  section instructions
+> If you encounter any bug please follow [Bug report](https://sonos.github.io/torch-to-nnef/latest/contributing/guidelines/)  section instructions
 
 ## Goals & Scope
 

@@ -6,7 +6,6 @@ authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
 license-files = ["LICENSE"]
 
-# weird regression in 3.13 to address shortly
 requires-python = ">=3.9.0,<4"
 readme = "README.md"
 classifiers = [
