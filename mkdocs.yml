@@ -1,4 +1,4 @@
-site_name: documentation
+site_name: Torch → NNEF documentation
 repo_url: https://github.com/sonos/torch-to-nnef
 extra:
   generator: false
@@ -82,7 +82,6 @@ theme:
   name: material
   custom_dir: docs/overrides
   favicon: img/torch_to_nnef.png
-  logo: img/torch_to_nnef.png
   font:
     text: Roboto
   features:

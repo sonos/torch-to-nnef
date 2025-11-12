@@ -1,5 +1,6 @@
 <figure markdown="span">
-    ![torch_to_nnef](./img/torch_to_nnef.png){ align=center }
+    <img src="./img/torch_to_nnef.png#only-light" style="align:'center';" />
+    <img src="./img/torch_to_nnef_black.png#only-dark"  style="align:'center';" />
 </figure>
 
 # Welcome to the documentation
@@ -10,9 +11,17 @@
 `torch_to_nnef` Python package is used to export any model formulated with vanilla
 PyTorch, whatever the internal tensor types (including quantized models), into [NNEF format](https://registry.khronos.org/NNEF/specs/1.0/nnef-1.0.5.html).
 
-[![tract](./img/tract.png){: style="width: 120px;margin:0;"}](https://github.com/sonos/tract/), the neural network inference engine
-developed openly by [![SONOS](./img/sonos.png){: style="width: 80px;margin:0;"}](https://sonos.com), is the primary supported target,
-and best compatibility with it is ensured. To use it, the [`TractNNEF`](/reference/torch_to_nnef/inference_target/tract/) inference_target must be specified.
+<a href="https://github.com/sonos/tract/">
+    <img src="./img/tract.png#only-light" style="width:120px; margin: 0" alt="tract"/>
+    <img src="./img/tract-horizontal-white.png#only-dark" style="width:120px; margin: 0" alt="tract" />
+</a>, the neural network inference engine
+developed openly by
+<a href="https://sonos.com" alt="SONOS">
+    <img src="./img/sonos.png#only-light" style="width:80px; margin: 0" />
+    <img src="./img/SONOS_dark.png#only-dark" style="width:80px; margin: 0" />
+</a>
+, is the primary supported target,
+and best compatibility with it is ensured. To use it, the [`TractNNEF`](./reference/torch_to_nnef/inference_target/tract/) inference_target must be specified.
 This allows extended NNEF operators and specificities to be expressed:
 
 - Transformer blocks
