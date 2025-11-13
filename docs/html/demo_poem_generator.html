@@ -10,6 +10,8 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
         <script src="./typed.umd.js"></script>
+        <link rel="stylesheet" href="./theme.css">
+        <script src="./sync_receiver_colorscheme.js"></script>
         <style>
         @keyframes blink {
             50% { border-color: #ffffff; }
@@ -81,6 +83,16 @@
         }
         .card-action .actions .spacer {
             flex: 1;
+        }
+        html.theme-dark .lighten-5 {
+            background-color: #2c2c2c !important;
+        }
+
+        html.theme-dark .helper-text {
+            color: #888 !important;
+        }
+        html.theme-dark .modal-footer {
+            background-color: #2c2c2c !important;
         }
         </style>
         <script type="module">
