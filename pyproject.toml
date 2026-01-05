@@ -60,7 +60,7 @@ test = [
     "torchaudio>=0.9.0,<3",
     "torchvision>=0.10.0,<0.25",
     "transformers>=4.35.2,<5",
-    "librosa",
+    "librosa==0.11.0",
     "coverage[toml]",
     "prospector",
 ]
