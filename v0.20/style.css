@@ -69,3 +69,7 @@
   min-height: 250px;
   border: 0 solid #fff;
 }
+
+[data-md-color-scheme="default"] img[src$="#only-dark"] {
+  display: none; /* Hide dark images in light mode */
+}
