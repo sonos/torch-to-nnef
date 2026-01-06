@@ -428,6 +428,15 @@ deps = ["transformers==4.55.0"]
 passenv = ["*"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
+# testing llm_tract cli on recent transformers
+[tool.tox.env.nemo_asr]
+basepython = ["python3.13", "python3.12"]
+extras = ["test"]
+constrain_package_deps = true
+deps = ["nemo_toolkit[asr]==2.0.0", "matplotlib", "ipdb"]
+passenv = ["*"]
+commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
+
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
 extras = ["dev"]
