@@ -16,6 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -139,6 +140,7 @@ select = [
     "D",
 ]
 ignore = [
+    "B905", # support zip without strict check
     # if a docstring then ensure consistency but if it is missing do not raise issue {
     "D100",
     "D101",
@@ -250,7 +252,7 @@ commands = [
     ],
 ]
 [tool.tox.env.torch_1_10]
-basepython = ["python3.10"]
+basepython = ["python3.9"]
 extras = ["test"]
 deps = [
     "torch==1.10.1",
@@ -262,7 +264,7 @@ deps = [
 ]
 
 [tool.tox.env.torch_1_13]
-basepython = ["python3.10"]
+basepython = ["python3.9"]
 extras = ["test"]
 deps = [
     "torch==1.13.1",
