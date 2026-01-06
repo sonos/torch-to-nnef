@@ -16,11 +16,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = [
     "nnef",
@@ -119,7 +119,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 80
-target-version = 'py39'
+target-version = 'py310'
 
 [tool.ruff.lint]
 select = [
@@ -210,7 +210,7 @@ follow_imports_for_stubs = true
 
 [tool.tox]
 isolated_build = true
-envlist = ["py39", "py313", "format", "lint", "build"]
+envlist = ["py310", "py314", "format", "lint", "build"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.coverage.report]
@@ -230,7 +230,7 @@ exclude_lines = [
 extras = ["test", "peft"]
 passenv = ["*"]
 constrain_package_deps = true
-deps = ["torchvision==0.22.1"]
+deps = ["torchvision==0.24.1"]
 commands = [
     [
         "pytest",
@@ -250,7 +250,7 @@ commands = [
     ],
 ]
 [tool.tox.env.torch_1_10]
-basepython = ["python3.9"]
+basepython = ["python3.10"]
 extras = ["test"]
 deps = [
     "torch==1.10.1",
@@ -262,7 +262,7 @@ deps = [
 ]
 
 [tool.tox.env.torch_1_13]
-basepython = ["python3.9"]
+basepython = ["python3.10"]
 extras = ["test"]
 deps = [
     "torch==1.13.1",
@@ -351,7 +351,7 @@ commands = [
 
 # testing llm_tract cli on legacy transformers
 [tool.tox.env.cli_transformers_4_50_0]
-basepython = ["python3.12", "python3.13"]
+basepython = ["python3.14", "python3.13", "python3.12"]
 extras = ["test"]
 deps = ["transformers==4.50.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
@@ -364,10 +364,11 @@ deps = ["transformers==4.52.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing llm_tract cli on recent transformers
-[tool.tox.env.cli_transformers_4_55_0]
-basepython = ["python3.12", "python3.13"]
+[tool.tox.env.cli_transformers_4_57_3]
+basepython = ["python3.14", "python3.13", "python3.12"]
 extras = ["test"]
-deps = ["transformers==4.55.0"]
+deps = ["transformers==4.57.3"]
+passenv = ["*"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing nemo-toolkit
