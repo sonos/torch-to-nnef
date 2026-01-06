@@ -251,6 +251,9 @@ commands = [
         "torch_to_nnef",
     ],
 ]
+[tool.tox.env.py39]
+deps = ["torchvision==0.22.1"]
+
 [tool.tox.env.torch_1_10]
 basepython = ["python3.9"]
 extras = ["test"]
