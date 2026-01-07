@@ -136,6 +136,11 @@ for op in [
 ]:
     test_suite.add(inp, UnaryPrimitive(op))
 
+
+test_suite.add(
+    torch.rand(13), UnaryPrimitive(TensorFnPrimitive("expand", args=(1, -1)))
+)
+
 for op in [
     TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
     TensorFnPrimitive("norm", kwargs=dict(p=1, dim=1, keepdim=True)),

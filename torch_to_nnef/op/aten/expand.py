@@ -285,11 +285,17 @@ def _fill_negone_with_dim_by_rank_order(
         # is equivalent to
         v1.expand([10, 1, 20, 30])
 
+    Things that also need to work:
+    - torch.arange(12).expand(1, -1) # why NVIDIA dev do not use unsqueeze here ?
+    - torch.arange(12).reshape(3, 4).expand(1, 4, -1, 4)
+    will find the shape sequence in expand 'sizes' params
+
     We need to realise those shape at export since NNEF need concret dim value
     here no symbolics are handled
 
     """
     new_shapes = []
+    align_index = len(shapes) - len(input_node.shape)
     for axis, s in enumerate(shapes):
         if isinstance(s, Data) and s.data == -1:
             s = s.data
@@ -309,14 +315,14 @@ def _fill_negone_with_dim_by_rank_order(
                 new_shapes.append(
                     nnef.Identifier(
                         get_tract_dyn_axis_size_soc(
-                            op_helper, input_node, axis
+                            op_helper, input_node, axis - align_index
                         ).output_name
                     )
                 )
             else:
                 raise T2NErrorNotImplemented("unexpected dim value: ", s)
         elif s == -1:
-            new_shapes.append(input_node.shape[axis])
+            new_shapes.append(input_node.shape[axis - align_index])
         elif s > 0:
             new_shapes.append(s)
         else:

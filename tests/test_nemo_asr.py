@@ -111,7 +111,7 @@ def iter_nemo_model_subnets(model, input_example=None):
 def test_nemo_asr_parakeet_v3():
     # nemo_asr.models.ASRModel.list_available_models()
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        # model_name="parakeet-tdt_ctc-110m"  # PARAKEET_V3_SLUG
+        model_name="parakeet-tdt_ctc-110m"  # PARAKEET_V3_SLUG
     )
     asr_model.eval()
     # inps = asr_model.preprocessor.input_example()
