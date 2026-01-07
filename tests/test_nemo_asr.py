@@ -1,8 +1,7 @@
 from contextlib import contextmanager
 import pytest
 import torch
-from torch_to_nnef.inference_target.tract import TractNNEF
-from .utils import check_model_io_test
+from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 try:
     import nemo.collections.asr as nemo_asr  # noqa: F401
@@ -109,7 +108,9 @@ def iter_nemo_model_subnets(model, input_example=None):
 
 
 def test_nemo_asr_parakeet_v3():
+    inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     # nemo_asr.models.ASRModel.list_available_models()
+
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name="parakeet-tdt_ctc-110m"  # PARAKEET_V3_SLUG
     )
@@ -154,7 +155,7 @@ def test_nemo_asr_parakeet_v3():
         check_model_io_test(
             model=subnet,
             test_input=input_example,
-            inference_target=TractNNEF.latest().with_dynamic_axes(dynamic_axis),
+            inference_target=inference_target.with_dynamic_axes(dynamic_axis),
             input_names=subnet.input_names,
             output_names=subnet.output_names,
             custom_extensions=list(custom_extensions),
