@@ -14,6 +14,9 @@ except ImportError as exp:
 
 # https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
 PARAKEET_V3_SLUG = "nvidia/parakeet-tdt-0.6b-v3"
+PARAKEET_110M_SLUG = "parakeet-tdt_ctc-110m"
+# https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b
+NEMOTRON_0_6B = "nvidia/nemotron-speech-streaming-en-0.6b"
 
 
 @contextmanager
@@ -147,21 +150,19 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
     return dynamic_axes, custom_extensions
 
 
-def test_nemo_asr_parakeet_v3():
+def export_generic_nemo_asr_model(model_slug):
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     # nemo_asr.models.ASRModel.list_available_models()
 
-    asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        model_name="parakeet-tdt_ctc-110m"  # PARAKEET_V3_SLUG
-    )
+    asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_slug)
     asr_model.eval()
-    # inps = asr_model.preprocessor.input_example()
+    inps = asr_model.preprocessor.input_example()
     # fail in tract due to const window (likely a bug ...)
-    # check_model_io_test(
-    #     model=asr_model.preprocessor.get_features,
-    #     test_input=inps,
-    #     inference_target=TractNNEF.latest(),
-    # )
+    check_model_io_test(
+        model=asr_model.preprocessor.get_features,
+        test_input=inps,
+        inference_target=TractNNEF.latest(),
+    )
 
     for (
         subnet_name,
@@ -193,3 +194,7 @@ def test_nemo_asr_parakeet_v3():
             allow_same_io_names=True,
         )
         print("exported subnet:", subnet_name, "with success")
+
+
+def test_nemo_asr_parakeet_110m():
+    export_generic_nemo_asr_model(PARAKEET_110M_SLUG)
