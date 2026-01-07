@@ -126,13 +126,37 @@ def test_nemo_asr_parakeet_v3():
         subnet_name,
         subnet,
         input_example,
-        dynamic_axes,
+        nemo_dynamic_axes,
     ) in iter_nemo_model_subnets(asr_model):
         print("start export subnet:", subnet_name)
+        dynamic_axis = {}
+        # Assume each input always start by Batch dimension
+        custom_extensions = set()
+        for iname in subnet.input_names:
+            if iname in nemo_dynamic_axes:
+                if iname == "audio_signal":
+                    assert max(nemo_dynamic_axes[iname]) < 3
+                    symbols = "BFS"  # Batch, Features, Stream
+                elif iname == "length":
+                    assert max(nemo_dynamic_axes[iname]) < 1
+                    symbols = "B"  # Batch
+                else:
+                    raise NotImplementedError(
+                        f"cannot guess dynamic axis symbols for input '{iname}'"
+                    )
+                dynamic_axis[iname] = {}
+                for axis in nemo_dynamic_axes[iname]:
+                    if symbols[axis] in "BS":
+                        custom_extensions.add(
+                            f"tract_assert {symbols[axis]} >= 1"
+                        )
+                    dynamic_axis[iname][axis] = symbols[axis]
         check_model_io_test(
             model=subnet,
             test_input=input_example,
-            inference_target=TractNNEF.latest(),
+            inference_target=TractNNEF.latest().with_dynamic_axes(dynamic_axis),
+            input_names=subnet.input_names,
+            output_names=subnet.output_names,
+            custom_extensions=list(custom_extensions),
         )
         print("exported subnet:", subnet_name, "with success")
-        pass
