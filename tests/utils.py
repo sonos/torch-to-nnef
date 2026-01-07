@@ -143,6 +143,15 @@ def set_seed(seed=0, cudnn=False, torch=True):
     random.seed(seed)
 
 
+class ModelWrapper(Torch.nn.Module):
+    def __init__(self, model: Torch.nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+
 def check_model_io_test(
     model: Torch.nn.Module,
     test_input,
@@ -181,6 +190,9 @@ def check_model_io_test(
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
+
+        if not hasattr(model, "eval"):
+            model = ModelWrapper(model)
 
         model = model.eval()
 
