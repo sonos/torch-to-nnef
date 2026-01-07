@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import pytest
 import torch
+from torch_to_nnef.inference_target.tract import TractNNEF
 from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 try:
@@ -121,7 +122,9 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
     for iname in subnet.input_names:
         if iname in nemo_dynamic_axes:
             symbols = ""
-            if iname == "audio_signal":
+            if iname == "input_signal":
+                symbols = "BA"  # Batch, audio Frames
+            elif iname == "audio_signal":
                 assert max(nemo_dynamic_axes[iname]) < 3
                 symbols = "BFS"  # Batch, Features, Stream
             elif iname == "length":
@@ -144,7 +147,7 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
                 )
             dynamic_axes[iname] = {}
             for axis in nemo_dynamic_axes[iname]:
-                if symbols[axis] in "BS":
+                if symbols[axis] in "BSA":
                     custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
                 dynamic_axes[iname][axis] = symbols[axis]
     return dynamic_axes, custom_extensions
@@ -158,11 +161,24 @@ def export_generic_nemo_asr_model(model_slug):
     asr_model.eval()
     inps = asr_model.preprocessor.input_example()
     # fail in tract due to const window (likely a bug ...)
-    check_model_io_test(
-        model=asr_model.preprocessor.get_features,
-        test_input=inps,
-        inference_target=TractNNEF.latest(),
-    )
+    #
+    with exportable_nemo_net("preprocessor", asr_model.preprocessor, inps) as (
+        input_example,
+        _,
+        nemo_dynamic_axes,
+    ):
+        dynamic_axes, custom_extensions = build_dynamic_axes(
+            asr_model.preprocessor, nemo_dynamic_axes
+        )
+
+        check_model_io_test(
+            model=asr_model.preprocessor,
+            test_input=inps,
+            inference_target=TractNNEF.latest().with_dynamic_axes(dynamic_axes),
+            input_names=asr_model.preprocessor.input_names,
+            output_names=asr_model.preprocessor.output_names,
+            custom_extensions=list(custom_extensions),
+        )
 
     for (
         subnet_name,
