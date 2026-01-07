@@ -85,6 +85,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     NONETYPE_KIND,
     NUMTOTENSOR_KIND,
     TUPLETYPE_KIND,
+    WIRED_CUSTOM_LSTM,
 )
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
@@ -126,10 +127,17 @@ class InputsAlignBetweenAtenAndTorch:
             ATEN_NEW_ZEROS: cls.aten_new_zero,
             ATEN_ZEROS: cls.aten_zero,
             ATEN_ZERO_LIKE: cls.aten_zero,
+            WIRED_CUSTOM_LSTM: cls.wired_custom_lstm,
         }
         to_call = map_align.get(kind)
         if to_call:
             return to_call(args, kwargs)
+        return args, kwargs
+
+    @staticmethod
+    def wired_custom_lstm(args, kwargs):
+        if len(args) > 2:
+            args = (args[0], (args[1], args[2]))
         return args, kwargs
 
     @staticmethod

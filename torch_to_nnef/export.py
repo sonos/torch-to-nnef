@@ -56,6 +56,7 @@ def export_model_to_nnef(
     check_io_names_qte_match: bool = True,
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
+    allow_same_io_names: bool = False,
 ):
     """Main entrypoint of this library.
 
@@ -149,6 +150,14 @@ def export_model_to_nnef(
             those assertion allows to add limitation on dynamic shapes
             that are not expressed in traced graph
             (like for example maximum number of tokens for an LLM)
+        allow_same_io_names: bool
+            by default input and output names must be different
+            to avoid simplification of the graph that would
+            merge those tensors silently.
+            If you really want to have same names for inputs
+            and outputs set this flag to True.
+            Some libs like 'nvidia/nemo' use this pattern.
+            (note that it only make sense if it's a no operation)
 
     Raises:
         torch_to_nnef.exceptions.T2NError
@@ -216,7 +225,7 @@ def export_model_to_nnef(
         and not isinstance(args, torch.Tensor)
     ):
         outs = (outs,)
-    _check_io_names(input_names, output_names)
+    _check_io_names(input_names, output_names, allow_same_io_names)
 
     LOGGER.info(
         "start parse PyTorch model to be exported at %s", file_path_export
@@ -302,7 +311,9 @@ def export_model_to_nnef(
 
 
 def _check_io_names(
-    input_names: T.Optional[T.List[str]], output_names: T.Optional[T.List[str]]
+    input_names: T.Optional[T.List[str]],
+    output_names: T.Optional[T.List[str]],
+    allow_same_io_names: bool = False,
 ):
     if input_names and len(set(input_names)) != len(input_names):
         raise T2NErrorInvalidArgument(
@@ -319,6 +330,7 @@ def _check_io_names(
         and output_names
         and len(set(output_names + input_names))
         != len(input_names + output_names)
+        and not allow_same_io_names
     ):
         raise T2NErrorInvalidArgument(
             "input_names and output_names must be different "

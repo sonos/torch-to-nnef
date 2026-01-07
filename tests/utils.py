@@ -162,6 +162,7 @@ def check_model_io_test(
     custom_extensions=None,
     callback_post_export=None,
     unit_test_naming=None,
+    allow_same_io_names=False,
 ):
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
@@ -214,6 +215,7 @@ def check_model_io_test(
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
+            allow_same_io_names=True,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
         if DUMP_DIRPATH:

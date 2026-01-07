@@ -96,6 +96,9 @@ def iter_nemo_model_subnets(model, input_example=None):
     """
     for subnet_name in model.list_export_subnets():
         subnet = model.get_export_subnet(subnet_name)
+        if subnet_name == "decoder_joint":
+            input_example = None  # reset input example for joint
+            # because need more parameters than encoder output only
         with exportable_nemo_net(subnet_name, subnet, input_example) as (
             input_example,
             out_example,
@@ -105,6 +108,43 @@ def iter_nemo_model_subnets(model, input_example=None):
             # Propagate input example (default scenario, may need to be overriden)
             if input_example is not None:
                 input_example = out_example
+
+
+def build_dynamic_axes(subnet, nemo_dynamic_axes):
+    """Build dynamic axes mapping and custom extensions for nemo subnet."""
+    dynamic_axes = {}
+    # Assume each input always start by Batch dimension
+    custom_extensions = set()
+    for iname in subnet.input_names:
+        if iname in nemo_dynamic_axes:
+            symbols = ""
+            if iname == "audio_signal":
+                assert max(nemo_dynamic_axes[iname]) < 3
+                symbols = "BFS"  # Batch, Features, Stream
+            elif iname == "length":
+                assert max(nemo_dynamic_axes[iname]) < 1
+                symbols = "B"  # Batch
+            elif iname == "encoder_outputs":
+                # example: B,512,(S+7)/8,F32
+                symbols = "BHR"  # Batch, High End Features, ReducedStream
+            elif iname == "targets":
+                symbols = "BT"  # Batch, TargetInfo
+            elif iname == "target_length":
+                symbols = "B"  # Batch
+            elif iname == "input_states_1":
+                symbols = ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"]
+            elif iname == "input_states_2":
+                symbols = ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
+            else:
+                raise NotImplementedError(
+                    f"cannot guess dynamic axis symbols for input '{iname}'"
+                )
+            dynamic_axes[iname] = {}
+            for axis in nemo_dynamic_axes[iname]:
+                if symbols[axis] in "BS":
+                    custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
+                dynamic_axes[iname][axis] = symbols[axis]
+    return dynamic_axes, custom_extensions
 
 
 def test_nemo_asr_parakeet_v3():
@@ -130,34 +170,26 @@ def test_nemo_asr_parakeet_v3():
         nemo_dynamic_axes,
     ) in iter_nemo_model_subnets(asr_model):
         print("start export subnet:", subnet_name)
-        dynamic_axis = {}
-        # Assume each input always start by Batch dimension
-        custom_extensions = set()
-        for iname in subnet.input_names:
-            if iname in nemo_dynamic_axes:
-                if iname == "audio_signal":
-                    assert max(nemo_dynamic_axes[iname]) < 3
-                    symbols = "BFS"  # Batch, Features, Stream
-                elif iname == "length":
-                    assert max(nemo_dynamic_axes[iname]) < 1
-                    symbols = "B"  # Batch
-                else:
-                    raise NotImplementedError(
-                        f"cannot guess dynamic axis symbols for input '{iname}'"
-                    )
-                dynamic_axis[iname] = {}
-                for axis in nemo_dynamic_axes[iname]:
-                    if symbols[axis] in "BS":
-                        custom_extensions.add(
-                            f"tract_assert {symbols[axis]} >= 1"
-                        )
-                    dynamic_axis[iname][axis] = symbols[axis]
+        dynamic_axes, custom_extensions = build_dynamic_axes(
+            subnet, nemo_dynamic_axes
+        )
+        inames = subnet.input_names
+        onames = [
+            # ensure that nop input to output
+            # are not force renamed ...
+            "target_length"
+            if on == "prednet_lengths" and "target_length" in inames
+            else on
+            for on in subnet.output_names
+        ]
+
         check_model_io_test(
             model=subnet,
             test_input=input_example,
-            inference_target=inference_target.with_dynamic_axes(dynamic_axis),
-            input_names=subnet.input_names,
-            output_names=subnet.output_names,
+            inference_target=inference_target.with_dynamic_axes(dynamic_axes),
+            input_names=inames,
+            output_names=onames,
             custom_extensions=list(custom_extensions),
+            allow_same_io_names=True,
         )
         print("exported subnet:", subnet_name, "with success")
