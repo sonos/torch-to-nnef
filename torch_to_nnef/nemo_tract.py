@@ -379,9 +379,16 @@ def main():
     export_dir = Path(args.export_dir)
     assert not export_dir.exists(), f"export_dir '{export_dir}' must not exist"
     export_dir.mkdir(parents=True, exist_ok=False)
-    logging.getLogger().addHandler(
-        logging.FileHandler(export_dir / "nemo_tract_export.log")
+
+    handler = logging.FileHandler(export_dir / "nemo_tract_export.log")
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s,%(msecs)d %(levelname)-8s "
+            "[%(filename)s:%(lineno)d] %(message)s",
+            "%Y-%m-%d:%H:%M:%S",
+        )
     )
+    logging.getLogger().addHandler(handler)
     logging.info("started nemo_tract export with args: %s", args)
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name=args.model_slug
