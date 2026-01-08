@@ -277,11 +277,10 @@ def export_nemo_asr_model(
         asr_model, inference_target
     ):
         logging.info("start subnet export: %s", export_params.name)
-
         export_model_to_nnef(
             model=export_params.model,
             args=export_params.test_input,
-            inference_target=inference_target.with_specific_properties(
+            inference_target=export_params.inference_target.with_specific_properties(
                 export_params.specific_tract_properties
             ),
             input_names=export_params.input_names,
