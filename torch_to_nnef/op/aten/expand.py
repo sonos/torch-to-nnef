@@ -286,7 +286,8 @@ def _fill_negone_with_dim_by_rank_order(
         v1.expand([10, 1, 20, 30])
 
     Things that also need to work:
-    - torch.arange(12).expand(1, -1) # why NVIDIA dev do not use unsqueeze here ?
+    - torch.arange(12).expand(1, -1)
+        # why NVIDIA dev do not use unsqueeze here ?
     - torch.arange(12).reshape(3, 4).expand(1, 4, -1, 4)
     will find the shape sequence in expand 'sizes' params
 

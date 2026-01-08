@@ -15,10 +15,10 @@ import sys
 import tempfile
 import typing as T
 import urllib.request
+from copy import deepcopy
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from copy import deepcopy
 
 import nnef
 import numpy as np
@@ -91,6 +91,13 @@ class TractNNEF(InferenceTarget):
     ) -> "TractNNEF":
         new_instance = deepcopy(self)
         new_instance.dynamic_axes = dynamic_axes
+        return new_instance
+
+    def with_specific_properties(
+        self, specific_properties: T.Dict[str, str]
+    ) -> "TractNNEF":
+        new_instance = deepcopy(self)
+        new_instance.specific_properties = specific_properties
         return new_instance
 
     @classmethod

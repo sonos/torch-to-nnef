@@ -1,0 +1,406 @@
+"""Support for NVIDIA NeMo models export to NNEF (with TractNNEF focus).
+
+Provide utilities to export NeMo models, particularly ASR models,
+to the NNEF format using TractNNEF.
+Includes functions to handle model subnets, dynamic axes, and
+custom extensions required for the export process.
+
+"""
+
+import argparse
+import json
+import logging
+from contextlib import contextmanager
+from pathlib import Path
+from typing import NamedTuple
+
+# additional dependencies enabled with extras='nemo_toolkit'
+import nemo
+import nemo.collections.asr as nemo_asr
+import torch
+from nemo.core.classes import typecheck
+from nemo.core.classes.exportable import Exportable
+from nemo.utils.export_utils import parse_input_example, wrap_forward_method
+from pytorch_lightning.core.module import _jit_is_scripting
+from omegaconf import OmegaConf
+
+from torch_to_nnef.export import export_model_to_nnef
+from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.inference_target.tract import (
+    TractCheckTolerance,
+    TractCli,
+    TractNNEF,
+)
+from torch_to_nnef.log import init_log, set_lib_log_level
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import SemanticVersion
+
+# https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
+PARAKEET_V3_SLUG = "nvidia/parakeet-tdt-0.6b-v3"
+PARAKEET_110M_SLUG = "parakeet-tdt_ctc-110m"
+# https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b
+NEMOTRON_0_6B = "nvidia/nemotron-speech-streaming-en-0.6b"
+
+
+@contextmanager
+def exportable_nemo_net(output_name, model, input_example, use_dynamo=False):
+    """Context manager to follow export way of nemo models.
+
+    see: nemo.core.classes.Exportable._export
+    """
+    my_args = {"use_dynamo": use_dynamo}
+
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad = False
+
+    exportables = []
+    for m in model.modules():
+        if isinstance(m, Exportable):
+            exportables.append(m)
+
+    forward_method = None
+    old_forward_method = None
+    try:
+        # Disable typechecks
+        typecheck.set_typecheck_enabled(enabled=False)
+
+        # Allow user to completely override forward method to export
+        forward_method, old_forward_method = wrap_forward_method(model)
+
+        # Set module mode
+        with (
+            torch.inference_mode(),
+            torch.no_grad(),
+            torch.jit.optimized_execution(True),
+            _jit_is_scripting(),
+        ):
+            if input_example is None:
+                input_example = model.input_module.input_example()
+
+            # Run (posibly overridden) prepare methods before calling forward()
+            for ex in exportables:
+                ex._prepare_for_export(**my_args, noreplace=True)
+            model._prepare_for_export(
+                output=output_name, input_example=input_example, **my_args
+            )
+
+            input_list, input_dict = parse_input_example(input_example)
+            output_example = model.forward(*input_list, **input_dict)
+            if not isinstance(output_example, tuple):
+                output_example = (output_example,)
+
+            # dynamic axis is a mapping from input/output_name
+            # => list of "dynamic" indices
+            dynamic_axes = model.dynamic_shapes_for_export(use_dynamo)
+            yield input_example, output_example, dynamic_axes
+    finally:
+        typecheck.enable_wrapping(enabled=True)
+        typecheck.set_typecheck_enabled(enabled=True)
+        if forward_method:
+            type(model).forward = old_forward_method
+        model._export_teardown()
+
+
+def iter_nemo_model_subnets(model, input_example=None):
+    """Iterator over exportable subnets of a nemo model.
+
+    Yields:
+        subnet_name: name of the subnet
+        subnet: the subnet module
+        input_example: input example for the subnet
+        dynamic_axes: dynamic axes info for the subnet
+
+    see: nemo.core.classes.Exportable.export
+
+    """
+    for subnet_name in model.list_export_subnets():
+        subnet = model.get_export_subnet(subnet_name)
+        if subnet_name == "decoder_joint":
+            input_example = None  # reset input example for joint
+            # because need more parameters than encoder output only
+        with exportable_nemo_net(subnet_name, subnet, input_example) as (
+            input_example,
+            out_example,
+            dynamic_axes,
+        ):
+            yield subnet_name, subnet, input_example, dynamic_axes
+            # Propagate input example
+            # (default scenario, may need to be overriden)
+            if input_example is not None:
+                input_example = out_example
+
+
+def build_dynamic_axes(subnet, nemo_dynamic_axes):
+    """Build dynamic axes mapping and custom extensions for nemo subnet."""
+    dynamic_axes = {}
+    # Assume each input always start by Batch dimension
+    custom_extensions = set()
+    for iname in subnet.input_names:
+        if iname in nemo_dynamic_axes:
+            symbols = ""
+            if iname == "input_signal":
+                symbols = "BA"  # Batch, audio Frames
+            elif iname == "audio_signal":
+                assert max(nemo_dynamic_axes[iname]) < 3
+                symbols = "BFS"  # Batch, Features, Stream
+            elif iname == "length":
+                assert max(nemo_dynamic_axes[iname]) < 1
+                symbols = "B"  # Batch
+            elif iname == "encoder_outputs":
+                # example: B,512,(S+7)/8,F32
+                symbols = "BHR"  # Batch, High End Features, ReducedStream
+            elif iname == "targets":
+                symbols = "BT"  # Batch, TargetInfo
+            elif iname == "target_length":
+                symbols = "B"  # Batch
+            elif iname == "input_states_1":
+                symbols = ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"]
+            elif iname == "input_states_2":
+                symbols = ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
+            else:
+                raise NotImplementedError(
+                    f"cannot guess dynamic axis symbols for input '{iname}'"
+                )
+            dynamic_axes[iname] = {}
+            for axis in nemo_dynamic_axes[iname]:
+                if symbols[axis] in "BSA":
+                    custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
+                dynamic_axes[iname][axis] = symbols[axis]
+    return dynamic_axes, custom_extensions
+
+
+ExportParameters = NamedTuple(
+    "ExportParameters",
+    [
+        ("name", str),
+        ("model", torch.nn.Module),
+        ("test_input", object),
+        ("inference_target", InferenceTarget),
+        ("input_names", list),
+        ("output_names", list),
+        ("custom_extensions", list),
+        ("allow_same_io_names", bool),
+        ("specific_tract_properties", dict),
+    ],
+)
+
+
+def build_custom_subnet_tract_properties(subnet_name, subnet):
+    return {
+        "subnet_name": subnet_name,
+        "n_parameters": sum(_.numel() for _ in subnet.parameters()),
+        "nemo_version": nemo.__version__,
+    }
+
+
+def iter_export_params_for_generic_nemo_asr_model(asr_model, inference_target):
+    """Iterator over export parameters for a generic NeMo ASR model.
+
+    Yields:
+        ExportParameters for each subnet of the ASR model, with the preprocessor
+    """
+    asr_model.eval()
+    inps = asr_model.preprocessor.input_example()
+
+    with exportable_nemo_net("preprocessor", asr_model.preprocessor, inps) as (
+        input_example,
+        _,
+        nemo_dynamic_axes,
+    ):
+        dynamic_axes, custom_extensions = build_dynamic_axes(
+            asr_model.preprocessor, nemo_dynamic_axes
+        )
+
+        subnet_name = "preprocessor"
+        yield ExportParameters(
+            name=subnet_name,
+            model=asr_model.preprocessor,
+            test_input=inps,
+            inference_target=inference_target.with_dynamic_axes(dynamic_axes),
+            input_names=asr_model.preprocessor.input_names,
+            output_names=asr_model.preprocessor.output_names,
+            custom_extensions=list(custom_extensions),
+            allow_same_io_names=False,  # not used for preprocessor export
+            specific_tract_properties=build_custom_subnet_tract_properties(
+                subnet_name, asr_model.preprocessor
+            ),
+        )
+
+    for (
+        subnet_name,
+        subnet,
+        input_example,
+        nemo_dynamic_axes,
+    ) in iter_nemo_model_subnets(asr_model):
+        logging.info("start export subnet: %s", subnet_name)
+        dynamic_axes, custom_extensions = build_dynamic_axes(
+            subnet, nemo_dynamic_axes
+        )
+        inames = subnet.input_names
+        onames = [
+            # ensure that nop input to output
+            # are not force renamed ...
+            "target_length"
+            if on == "prednet_lengths" and "target_length" in inames
+            else on
+            for on in subnet.output_names
+        ]
+
+        yield ExportParameters(
+            name=subnet_name,
+            model=subnet,
+            test_input=input_example,
+            inference_target=inference_target.with_dynamic_axes(dynamic_axes),
+            input_names=inames,
+            output_names=onames,
+            custom_extensions=list(custom_extensions),
+            allow_same_io_names=(subnet_name == "decoder_joint"),
+            specific_tract_properties=build_custom_subnet_tract_properties(
+                subnet_name, subnet
+            ),
+        )
+
+
+def export_nemo_asr_model(
+    asr_model, inference_target, export_dir: Path, **kwargs
+):
+    """Export a generic NeMo ASR model to NNEF format using TractNNEF.
+
+    Args:
+        asr_model: The NeMo ASR model to export.
+        inference_target: The inference target configuration for export.
+        export_dir: Directory where the exported NNEF files will be saved.
+        kwargs: Additional keyword arguments to pass to the export function.
+    """
+    for export_params in iter_export_params_for_generic_nemo_asr_model(
+        asr_model, inference_target
+    ):
+        logging.info("start subnet export: %s", export_params.name)
+
+        export_model_to_nnef(
+            model=export_params.model,
+            args=export_params.test_input,
+            inference_target=inference_target.with_specific_properties(
+                export_params.specific_tract_properties
+            ),
+            input_names=export_params.input_names,
+            output_names=export_params.output_names,
+            file_path_export=export_dir / f"{export_params.name}.nnef.tgz",
+            custom_extensions=export_params.custom_extensions,
+            allow_same_io_names=export_params.allow_same_io_names,
+            **kwargs,
+        )
+        logging.info("exported subnet: %s with success", export_params.name)
+
+
+def parser_cli():
+    parser = argparse.ArgumentParser(
+        description="Export NeMo ASR model to NNEF format using TractNNEF."
+    )
+    parser.add_argument(
+        "-s",
+        "--model-slug",
+        type=str,
+        required=True,
+        help="The model slug for the NeMo ASR model to export.",
+    )
+    parser.add_argument(
+        "-e",
+        "--export-dir",
+        type=Path,
+        required=True,
+        help="Directory to save the exported NNEF files.",
+    )
+    parser.add_argument(
+        "-n",
+        "--naming-scheme",
+        default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
+        choices=[vns.value for vns in VariableNamingScheme],
+        help="display debug information",
+    )
+    parser.add_argument(
+        "--tract-specific-path",
+        required=False,
+        help="tract specific path (instead of latest version)",
+    )
+    parser.add_argument(
+        "--tract-specific-version",
+        required=False,
+        help="tract specific version",
+    )
+    parser.add_argument(
+        "-tt",
+        "--tract-check-io-tolerance",
+        default=TractCheckTolerance.APPROXIMATE.value,
+        choices=[t.value for t in TractCheckTolerance],
+        help="tract check io tolerance level",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="display debug information",
+    )
+
+    return parser.parse_args()
+
+
+def setup_inference_target_from_cli_args(args) -> TractNNEF:
+    if args.tract_specific_version:
+        assert args.tract_specific_path is None, "set either version or path"
+        inference_target = TractNNEF(
+            SemanticVersion.from_str(args.tract_specific_version)
+            if isinstance(args.tract_specific_version, str)
+            else args.tract_specific_version
+        )
+    elif args.tract_specific_path:
+        tract_cli_path = Path(args.tract_specific_path)
+        assert tract_cli_path.exists(), tract_cli_path
+        tract_cli = TractCli(tract_cli_path)
+        inference_target = TractNNEF(
+            tract_cli.version,
+            specific_tract_binary_path=tract_cli_path,
+        )
+    else:
+        inference_target = TractNNEF.latest()
+    inference_target.check_io_tolerance = args.tract_check_io_tolerance
+    return inference_target
+
+
+def main():
+    init_log()
+    args = parser_cli()
+    log_level = logging.INFO
+    if args.verbose:
+        log_level = logging.DEBUG
+    set_lib_log_level(log_level)
+    export_dir = Path(args.export_dir)
+    assert not export_dir.exists(), f"export_dir '{export_dir}' must not exist"
+    export_dir.mkdir(parents=True, exist_ok=False)
+    logging.getLogger().addHandler(
+        logging.FileHandler(export_dir / "nemo_tract_export.log")
+    )
+    logging.info("started nemo_tract export with args: %s", args)
+    asr_model = nemo_asr.models.ASRModel.from_pretrained(
+        model_name=args.model_slug
+    )
+    if isinstance(args.tract_check_io_tolerance, str):
+        args.tract_check_io_tolerance = TractCheckTolerance(
+            args.tract_check_io_tolerance
+        )
+
+    inference_target = setup_inference_target_from_cli_args(args)
+    with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
+        json.dump(OmegaConf.to_container(asr_model.cfg), fh, indent=2)
+    export_nemo_asr_model(
+        asr_model,
+        inference_target,
+        export_dir,
+        nnef_variable_naming_scheme=VariableNamingScheme(args.naming_scheme),
+    )
+
+
+if __name__ == "__main__":
+    main()
