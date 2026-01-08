@@ -233,7 +233,6 @@ def iter_export_params_for_generic_nemo_asr_model(asr_model, inference_target):
         input_example,
         nemo_dynamic_axes,
     ) in iter_nemo_model_subnets(asr_model):
-        logging.info("start export subnet: %s", subnet_name)
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes
         )

@@ -6,7 +6,10 @@ authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
 license-files = ["LICENSE"]
 
-requires-python = ">=3.9.0,<4"
+# too anoying with python version constraints
+# with optional deps (some nemo require > 3.10, etc.)
+#
+# requires-python = ">=3.9.0,<4"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -40,17 +43,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-llm_tract = [
+# recall that _ are not supported in extras names on PyPI
+# and auto converted to - (so better to avoid them)
+llm-tract = [
     "huggingface-hub>0.24",
-    "protobuf>5.27",
+    "protobuf>4",
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
     "transformers>=4.35.2,<5",
 ]
-llm_tract_accelerate = ["accelerate"]
+llm-tract-accelerate = ["accelerate"]
 safetensors = ["safetensors"]
 peft = ["peft"]
-nemo_tract = ["nemo_toolkit[asr]<2.6.0", "matplotlib"]
+nemo-tract = [
+    "nemo_toolkit[asr]>=2.0.0,<2.2.0",
+    "ml-dtypes>0.4.1",
+    "matplotlib",
+]
 test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
@@ -246,7 +255,6 @@ commands = [
 [tool.tox.env.torch_1_10]
 basepython = ["python3.9"]
 extras = ["test"]
-constrain_package_deps = true
 deps = [
     "torch==1.10.1",
     "torchvision==0.11.2",
@@ -255,7 +263,6 @@ deps = [
     "numpy<2.0.0",
     "setuptools>0.70",
 ]
-passenv = ["*"]
 commands = [
     [
         "pytest",
@@ -278,7 +285,6 @@ commands = [
 [tool.tox.env.torch_1_13]
 basepython = ["python3.9"]
 extras = ["test"]
-constrain_package_deps = true
 deps = [
     "torch==1.13.1",
     "torchvision==0.14.1",
@@ -286,7 +292,6 @@ deps = [
     "safetensors<=0.4.2",
     "numpy<2.0.0",
 ]
-passenv = ["*"]
 commands = [
     [
         "pytest",
@@ -310,7 +315,6 @@ commands = [
 [tool.tox.env.torch_2_2]
 basepython = ["python3.12"]
 extras = ["test"]
-constrain_package_deps = true
 deps = [
     "torch==2.2.2",
     "torchvision==0.17.2",
@@ -318,7 +322,6 @@ deps = [
     "numpy<2.0.0",
     "safetensors<=0.4.2",
 ]
-passenv = ["*"]
 commands = [
     [
         "pytest",
@@ -407,36 +410,27 @@ commands = [
 [tool.tox.env.cli_transformers_4_50_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
-constrain_package_deps = true
 deps = ["transformers==4.50.0"]
-passenv = ["*"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing llm_tract cli on 3m old transformers
 [tool.tox.env.cli_transformers_4_52_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
-constrain_package_deps = true
 deps = ["transformers==4.52.0"]
-passenv = ["*"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing llm_tract cli on recent transformers
 [tool.tox.env.cli_transformers_4_55_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
-constrain_package_deps = true
 deps = ["transformers==4.55.0"]
-passenv = ["*"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
-# testing llm_tract cli on recent transformers
+# testing nemo-toolkit
 [tool.tox.env.nemo_tract]
-usedevelop = true
 basepython = ["python3.13", "python3.12"]
-extras = ["nemo_tract", "test"]
-constrain_package_deps = true
-passenv = ["*"]
+extras = ["test", "nemo-tract"]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.build]
