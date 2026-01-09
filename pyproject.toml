@@ -47,7 +47,7 @@ dependencies = [
 # and auto converted to - (so better to avoid them)
 llm-tract = [
     "huggingface-hub>0.24",
-    "protobuf>4",
+    "protobuf>5",
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
     "transformers>=4.35.2,<5",
@@ -55,11 +55,7 @@ llm-tract = [
 llm-tract-accelerate = ["accelerate"]
 safetensors = ["safetensors"]
 peft = ["peft"]
-nemo-tract = [
-    "nemo_toolkit[asr]>=2.0.0,<2.2.0",
-    "ml-dtypes>0.4.1",
-    "matplotlib",
-]
+nemo-tract = ["nemo_toolkit[asr]>=2.0.0,<2.7.0"]
 test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
@@ -428,9 +424,17 @@ deps = ["transformers==4.55.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 # testing nemo-toolkit
-[tool.tox.env.nemo_tract]
+[tool.tox.env.nemo_tract_2_0_0]
 basepython = ["python3.13", "python3.12"]
 extras = ["test", "nemo-tract"]
+deps = ["nemo_toolkit[asr]==2.0.0", "matplotlib"]
+commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
+
+[tool.tox.env.nemo_tract_2_5_3]
+# some 'nemo-toolkit' deps not well packaged for "python3.13" (2026-01-09)
+basepython = ["python3.12"]
+extras = ["test", "nemo-tract"]
+deps = ["nemo_toolkit[asr]==2.5.3"]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.build]
