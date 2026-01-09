@@ -17,12 +17,12 @@ except ImportError as exp:
     )
 
 
-def check_export_asr_model(model_slug):
+def check_export_asr_model(model_slug, skip_preprocessor=False):
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_slug)
 
     for export_params in iter_export_params_for_generic_nemo_asr_model(
-        asr_model, inference_target
+        asr_model, inference_target, skip_preprocessor=skip_preprocessor
     ):
         print(f"testing export of: {model_slug}: {export_params.name}")
         check_model_io_test(

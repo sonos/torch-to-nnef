@@ -194,7 +194,9 @@ def build_custom_subnet_tract_properties(subnet_name, subnet):
     }
 
 
-def iter_export_params_for_generic_nemo_asr_model(asr_model, inference_target):
+def iter_export_params_for_generic_nemo_asr_model(
+    asr_model, inference_target, skip_preprocessor: bool = False
+):
     """Iterator over export parameters for a generic NeMo ASR model.
 
     Yields:
@@ -203,29 +205,34 @@ def iter_export_params_for_generic_nemo_asr_model(asr_model, inference_target):
     asr_model.eval()
     inps = asr_model.preprocessor.input_example()
 
-    with exportable_nemo_net("preprocessor", asr_model.preprocessor, inps) as (
-        input_example,
-        _,
-        nemo_dynamic_axes,
-    ):
-        dynamic_axes, custom_extensions = build_dynamic_axes(
-            asr_model.preprocessor, nemo_dynamic_axes
-        )
+    if not skip_preprocessor:
+        with exportable_nemo_net(
+            "preprocessor", asr_model.preprocessor, inps
+        ) as (
+            input_example,
+            _,
+            nemo_dynamic_axes,
+        ):
+            dynamic_axes, custom_extensions = build_dynamic_axes(
+                asr_model.preprocessor, nemo_dynamic_axes
+            )
 
-        subnet_name = "preprocessor"
-        yield ExportParameters(
-            name=subnet_name,
-            model=asr_model.preprocessor,
-            test_input=inps,
-            inference_target=inference_target.with_dynamic_axes(dynamic_axes),
-            input_names=asr_model.preprocessor.input_names,
-            output_names=asr_model.preprocessor.output_names,
-            custom_extensions=list(custom_extensions),
-            allow_same_io_names=False,  # not used for preprocessor export
-            specific_tract_properties=build_custom_subnet_tract_properties(
-                subnet_name, asr_model.preprocessor
-            ),
-        )
+            subnet_name = "preprocessor"
+            yield ExportParameters(
+                name=subnet_name,
+                model=asr_model.preprocessor,
+                test_input=inps,
+                inference_target=inference_target.with_dynamic_axes(
+                    dynamic_axes
+                ),
+                input_names=asr_model.preprocessor.input_names,
+                output_names=asr_model.preprocessor.output_names,
+                custom_extensions=list(custom_extensions),
+                allow_same_io_names=False,  # not used for preprocessor export
+                specific_tract_properties=build_custom_subnet_tract_properties(
+                    subnet_name, asr_model.preprocessor
+                ),
+            )
 
     for (
         subnet_name,
@@ -262,7 +269,11 @@ def iter_export_params_for_generic_nemo_asr_model(asr_model, inference_target):
 
 
 def export_nemo_asr_model(
-    asr_model, inference_target, export_dir: Path, **kwargs
+    asr_model,
+    inference_target,
+    export_dir: Path,
+    skip_preprocessor: bool = False,
+    **kwargs,
 ):
     """Export a generic NeMo ASR model to NNEF format using TractNNEF.
 
@@ -270,10 +281,11 @@ def export_nemo_asr_model(
         asr_model: The NeMo ASR model to export.
         inference_target: The inference target configuration for export.
         export_dir: Directory where the exported NNEF files will be saved.
+        skip_preprocessor: If True, skip exporting the preprocessor subnet.
         kwargs: Additional keyword arguments to pass to the export function.
     """
     for export_params in iter_export_params_for_generic_nemo_asr_model(
-        asr_model, inference_target
+        asr_model, inference_target, skip_preprocessor=skip_preprocessor
     ):
         logging.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
@@ -309,6 +321,11 @@ def parser_cli():
         type=Path,
         required=True,
         help="Directory to save the exported NNEF files.",
+    )
+    parser.add_argument(
+        "--skip-preprocessor",
+        action="store_true",
+        help="Skip exporting the preprocessor subnet.",
     )
     parser.add_argument(
         "-n",
@@ -404,6 +421,7 @@ def main():
         inference_target,
         export_dir,
         nnef_variable_naming_scheme=VariableNamingScheme(args.naming_scheme),
+        skip_preprocessor=args.skip_preprocessor,
     )
 
 
