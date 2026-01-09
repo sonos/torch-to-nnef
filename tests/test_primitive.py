@@ -1079,6 +1079,14 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+inp = torch.tensor([float("nan"), 1.0, -1.0, float("inf"), -float("inf")])
+for fn_name in ["isnan", "isinf", "isposinf", "isneginf"]:
+    test_suite.add(
+        inp,
+        UnaryPrimitive(TensorFnPrimitive(fn_name)),
+        inference_conditions=skip_khronos_interpreter,
+    )
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
