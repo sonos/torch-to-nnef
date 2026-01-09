@@ -124,6 +124,13 @@ def iter_nemo_model_subnets(model, input_example=None):
             out_example,
             dynamic_axes,
         ):
+            if len(input_example) > len(subnet.input_names):
+                # if < that means some inputs are optional
+                raise RuntimeError(
+                    "declared input names:",
+                    subnet.input_names,
+                    f"but expected {len(input_example)} inputs",
+                )
             yield subnet_name, subnet, input_example, dynamic_axes
             # Propagate input example
             # (default scenario, may need to be overriden)
@@ -225,7 +232,7 @@ def iter_export_params_for_generic_nemo_asr_model(
                 inference_target=inference_target.with_dynamic_axes(
                     dynamic_axes
                 ),
-                input_names=asr_model.preprocessor.input_names,
+                input_names=asr_model.preprocessor.input_names[: len(inps)],
                 output_names=asr_model.preprocessor.output_names,
                 custom_extensions=list(custom_extensions),
                 allow_same_io_names=False,  # not used for preprocessor export
@@ -243,7 +250,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes
         )
-        inames = subnet.input_names
+        inames = subnet.input_names[: len(input_example)]
         onames = [
             # ensure that nop input to output
             # are not force renamed ...
