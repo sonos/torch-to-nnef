@@ -20,6 +20,8 @@ from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
+    combine_conditions,
+    cond_tract_gt_0_22_0,
     set_seed,
 )
 from .wrapper import (
@@ -1084,7 +1086,9 @@ for fn_name in ["isnan", "isinf", "isposinf", "isneginf"]:
     test_suite.add(
         inp,
         UnaryPrimitive(TensorFnPrimitive(fn_name)),
-        inference_conditions=skip_khronos_interpreter,
+        inference_conditions=combine_conditions(
+            [skip_khronos_interpreter, cond_tract_gt_0_22_0]
+        ),
     )
 
 

@@ -1,9 +1,15 @@
 import pytest
+from torch_to_nnef.utils import SemanticVersion
 
 
-from .utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
+from .utils import (
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    check_model_io_test,
+    cond_tract_gt_0_22_0,
+)
 
 try:
+    import nemo
     import nemo.collections.asr as nemo_asr  # noqa: F401
     from torch_to_nnef.nemo_tract import (
         PARAKEET_V3_SLUG,
@@ -19,6 +25,14 @@ except ImportError as exp:
 
 def check_export_asr_model(model_slug, skip_preprocessor=False):
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
+    if (
+        not cond_tract_gt_0_22_0(inference_target)
+        and SemanticVersion.from_str(nemo.__version__) > "2.1.0"
+    ):
+        pytest.skip(
+            "skip test for tract>0.22.0 && nemo>2.1"
+            "since tract needs fix & features"
+        )
     asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_slug)
 
     for export_params in iter_export_params_for_generic_nemo_asr_model(

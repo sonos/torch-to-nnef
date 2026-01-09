@@ -10,11 +10,13 @@ of the coverage level of `torch_to_nnef` regarding PyTorch operators.
 
 import argparse
 import json
+import re
 import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
+import warnings
 
 import rich.progress
 import bs4
@@ -401,9 +403,11 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    assert args.torch_version.find_all(".") == 1, (
-        "expect X.Y format for torch version"
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        assert len(re.findall("\.", args.torch_version)) == 1, (
+            "expect X.Y format for torch version"
+        )
     assert args.torch_version.replace(".", "").isdigit(), (
         "expect X.Y format for torch version"
     )
