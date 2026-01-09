@@ -4123,12 +4123,7 @@ llm-tract-accelerate = [
     { name = "accelerate" },
 ]
 nemo-tract = [
-    { name = "matplotlib" },
-    { name = "ml-dtypes" },
     { name = "nemo-toolkit", extra = ["asr"] },
-    { name = "numba" },
-    { name = "onnx" },
-    { name = "pyarrow" },
 ]
 peft = [
     { name = "peft" },
@@ -4177,19 +4172,14 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'llm-tract'", specifier = ">0.24" },
     { name = "librosa", marker = "extra == 'test'", specifier = "==0.11.0" },
     { name = "mako", specifier = ">=1.0.0,<2.0" },
-    { name = "matplotlib", marker = "extra == 'nemo-tract'" },
-    { name = "ml-dtypes", marker = "extra == 'nemo-tract'", specifier = ">0.4.1" },
     { name = "mypy", marker = "extra == 'test'", specifier = "~=1.13" },
-    { name = "nemo-toolkit", extras = ["asr"], marker = "extra == 'nemo-tract'", specifier = ">=2.0.0,<2.6.0" },
+    { name = "nemo-toolkit", extras = ["asr"], marker = "extra == 'nemo-tract'", specifier = ">=2.0.0,<2.7.0" },
     { name = "nnef", specifier = ">=1.0.7,<2" },
     { name = "nnef-tools", specifier = ">=1.0.7,<2" },
-    { name = "numba", marker = "extra == 'nemo-tract'", specifier = ">0.58" },
     { name = "numpy", specifier = ">=1.26.0,<3" },
-    { name = "onnx", marker = "extra == 'nemo-tract'", specifier = ">=1.20.0" },
     { name = "peft", marker = "extra == 'peft'" },
     { name = "prospector", marker = "extra == 'test'" },
     { name = "protobuf", marker = "extra == 'llm-tract'", specifier = ">5" },
-    { name = "pyarrow", marker = "extra == 'nemo-tract'", specifier = "<21.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3,<9" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7" },
     { name = "ruff", marker = "extra == 'test'", specifier = "<1.0" },
