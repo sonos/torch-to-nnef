@@ -45,7 +45,7 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
             f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
         )
 
-    if dtype_node.data not in [6, None, 4]:  # accept float, int64
+    if dtype_node.data not in [6, None, 4, 3]:  # accept float, int64, int
         # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
         raise T2NErrorNotImplemented(
             f"dtype {dtype_node} not implemented for arange"
