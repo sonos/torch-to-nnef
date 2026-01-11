@@ -8,8 +8,10 @@ custom extensions required for the export process.
 """
 
 import argparse
+from functools import partial
 import json
 import logging
+import typing as T
 from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
@@ -24,6 +26,10 @@ from nemo.utils.export_utils import parse_input_example, wrap_forward_method
 from pytorch_lightning.core.module import _jit_is_scripting
 from omegaconf import OmegaConf
 
+from torch_to_nnef.compress import (
+    DEFAULT_COMPRESSION_REGISTRY,
+    dynamic_load_registry,
+)
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import (
@@ -40,6 +46,9 @@ PARAKEET_V3_SLUG = "nvidia/parakeet-tdt-0.6b-v3"
 PARAKEET_110M_SLUG = "parakeet-tdt_ctc-110m"
 # https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b
 NEMOTRON_0_6B = "nvidia/nemotron-speech-streaming-en-0.6b"
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -203,7 +212,7 @@ def build_custom_subnet_tract_properties(subnet_name, subnet):
 
 def iter_export_params_for_generic_nemo_asr_model(
     asr_model, inference_target, skip_preprocessor: bool = False
-):
+) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model.
 
     Yields:
@@ -279,6 +288,8 @@ def export_nemo_asr_model(
     asr_model,
     inference_target,
     export_dir: Path,
+    compress_registry: str,
+    compress_method: T.Optional[str] = None,
     skip_preprocessor: bool = False,
     **kwargs,
 ):
@@ -289,12 +300,24 @@ def export_nemo_asr_model(
         inference_target: The inference target configuration for export.
         export_dir: Directory where the exported NNEF files will be saved.
         skip_preprocessor: If True, skip exporting the preprocessor subnet.
+        compress_registry: Compression registry for the exported NNEF subnets.
+        compress_method: Compression method for the exported NNEF subnets.
+            if None, no compression is applied.
         kwargs: Additional keyword arguments to pass to the export function.
     """
+    if compress_method:
+        LOGGER.info("use compresssion: %s", compress_method)
+        registry = dynamic_load_registry(compress_registry)
+        asr_model = registry[compress_method](
+            asr_model,
+            export_dirpath=export_dir,
+        )
+        LOGGER.info("successfully applied compression: %s", compress_method)
+
     for export_params in iter_export_params_for_generic_nemo_asr_model(
         asr_model, inference_target, skip_preprocessor=skip_preprocessor
     ):
-        logging.info("start subnet export: %s", export_params.name)
+        LOGGER.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
             model=export_params.model,
             args=export_params.test_input,
@@ -308,7 +331,7 @@ def export_nemo_asr_model(
             allow_same_io_names=export_params.allow_same_io_names,
             **kwargs,
         )
-        logging.info("exported subnet: %s with success", export_params.name)
+        LOGGER.info("exported subnet: %s with success", export_params.name)
 
 
 def parser_cli():
@@ -357,6 +380,20 @@ def parser_cli():
         default=TractCheckTolerance.APPROXIMATE.value,
         choices=[t.value for t in TractCheckTolerance],
         help="tract check io tolerance level",
+    )
+
+    parser.add_argument(
+        "--compress-registry",
+        type=str,
+        default=DEFAULT_COMPRESSION_REGISTRY,
+        help="compression registry for the exported nnef subnets",
+    )
+
+    parser.add_argument(
+        "--compress-method",
+        type=str,
+        default=None,
+        help="compression method for the exported nnef subnets",
     )
 
     parser.add_argument(
@@ -411,7 +448,7 @@ def main():
         )
     )
     logging.getLogger().addHandler(handler)
-    logging.info("started nemo_tract export with args: %s", args)
+    LOGGER.info("started nemo_tract export with args: %s", args)
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name=args.model_slug
     )
@@ -428,6 +465,8 @@ def main():
         inference_target,
         export_dir,
         nnef_variable_naming_scheme=VariableNamingScheme(args.naming_scheme),
+        compress_registry=args.compress_registry,
+        compress_method=args.compress_method,
         skip_preprocessor=args.skip_preprocessor,
     )
 
