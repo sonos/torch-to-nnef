@@ -1091,6 +1091,26 @@ for fn_name in ["isnan", "isinf", "isposinf", "isneginf"]:
         ),
     )
 
+test_suite.reset()
+# test mixed type binary ops
+inp0 = torch.tensor([55.0, 1.0, -1.0, float("inf")])
+inp1 = torch.tensor([False, True, False, True])
+for fn_name in [
+    "ge",
+    "le",
+    "gt",
+    "lt",
+    "logical_and",
+    "logical_or",
+    "max",
+    "min",
+]:
+    test_suite.add(
+        (inp0, inp1),
+        BinaryPrimitive(getattr(torch, fn_name)),
+        inference_conditions=skip_khronos_interpreter,
+    )
+
 
 def test_should_fail_since_no_input():
     inference_target = TractNNEF.latest()
