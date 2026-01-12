@@ -407,10 +407,10 @@ def isnan(node, inference_target, op_helper, **kwargs):
     val_node = node.inputs[0]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "tract_extra_is_nan",
+        "tract_core_is_nan",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
     )
-    return ["tract_extra"]
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -422,10 +422,10 @@ def isinf(node, inference_target, op_helper, **kwargs):
     val_node = node.inputs[0]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "tract_extra_is_inf",
+        "tract_core_is_inf",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
     )
-    return ["tract_extra"]
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -437,11 +437,11 @@ def isposinf(node, inference_target, op_helper, **kwargs):
     val_node = node.inputs[0]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "tract_extra_is_inf",
+        "tract_core_is_inf",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={"detect_negative": False},
     )
-    return ["tract_extra"]
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -453,8 +453,8 @@ def isneginf(node, inference_target, op_helper, **kwargs):
     val_node = node.inputs[0]
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "tract_extra_is_inf",
+        "tract_core_is_inf",
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
         attrs={"detect_positive": False},
     )
-    return ["tract_extra"]
+    return ["tract_core"]
