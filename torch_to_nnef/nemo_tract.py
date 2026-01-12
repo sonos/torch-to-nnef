@@ -291,6 +291,7 @@ def export_nemo_asr_model(
     compress_registry: str,
     compress_method: T.Optional[str] = None,
     skip_preprocessor: bool = False,
+    extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
     **kwargs,
 ):
     """Export a generic NeMo ASR model to NNEF format using TractNNEF.
@@ -303,8 +304,15 @@ def export_nemo_asr_model(
         compress_registry: Compression registry for the exported NNEF subnets.
         compress_method: Compression method for the exported NNEF subnets.
             if None, no compression is applied.
+        extra_cfg: Additional configuration to save alongside the model.
         kwargs: Additional keyword arguments to pass to the export function.
     """
+
+    with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
+        cfg = OmegaConf.to_container(asr_model.cfg)
+        if extra_cfg is not None:
+            cfg.update(extra_cfg)
+        json.dump(cfg, fh, indent=2)
     if compress_method:
         LOGGER.info("use compresssion: %s", compress_method)
         registry = dynamic_load_registry(compress_registry)
@@ -458,8 +466,6 @@ def main():
         )
 
     inference_target = setup_inference_target_from_cli_args(args)
-    with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
-        json.dump(OmegaConf.to_container(asr_model.cfg), fh, indent=2)
     export_nemo_asr_model(
         asr_model,
         inference_target,
@@ -468,6 +474,7 @@ def main():
         compress_registry=args.compress_registry,
         compress_method=args.compress_method,
         skip_preprocessor=args.skip_preprocessor,
+        extra_cfg={"pretrained_name": args.model_slug},
     )
 
 
