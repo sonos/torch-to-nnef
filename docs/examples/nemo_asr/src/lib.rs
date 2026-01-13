@@ -1,15 +1,17 @@
-use anyhow::Context;
-use serde::Deserialize;
 /// NEMO ASR model inference using tract-nnef
 /// Only use full audio inference for now
 /// streaming/pulsed inference may be added later
+///
+/// code adapted from: nemo/collections/asr/parts/submodules/rnnt_greedy_decoding.py
+/// class ONNXGreedyBatchedRNNTInfer
+use anyhow::Context;
+use serde::Deserialize;
 use std::path::PathBuf;
+use tract_core::plan::SimpleState;
 use tract_nnef::prelude::*;
 use tract_nnef::tract_ndarray::Axis;
-use wasm_bindgen::prelude::*;
 
-/// 100ms
-// const AUDIO_BUFFER_SIZE: usize = (160.0 * 10.0) as usize;
+use wasm_bindgen::prelude::*;
 
 /// Decoder config struct
 #[derive(Debug, Clone, Deserialize)]
@@ -52,6 +54,7 @@ pub struct NemoAsrModel {
     encoder_model: TypedRunnableModel<TypedModel>,
     decoder_joint_model: TypedRunnableModel<TypedModel>,
     config: NemoAsrConfig,
+    max_symbols_per_step: Option<usize>,
 }
 
 impl NemoAsrModel {
@@ -87,6 +90,7 @@ impl NemoAsrModel {
             encoder_model,
             decoder_joint_model,
             config,
+            max_symbols_per_step: Some(100),
         })
     }
 
@@ -152,36 +156,100 @@ impl NemoAsrModel {
         self.decode_logits(encoder_output)
     }
 
+    fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<TVec<TValue>> {
+        let mdl: &TypedModel = self.decoder_joint_model.model();
+
+        mdl.input_outlets()?
+            .iter()
+            .map(|ioutlet| &mdl.nodes()[ioutlet.node])
+            .filter(|node| node.name.contains("states")) // only decoder states
+            .map(|node| {
+                // mdl.with_input_outlets
+                let shape = node.outputs[0]
+                    .fact
+                    .shape
+                    .eval_to_usize(&SymbolValues::default().with(
+                        &mdl.symbols.get("B").unwrap(),
+                        batch_size as i64,
+                    ))
+                    .context("Failed to get concrete shape for decoder state")?
+                    .to_vec();
+
+                let shape: [usize; 3] = shape.try_into().expect("shape must be 3D");
+                if shape.contains(&0) {
+                    anyhow::bail!(
+                        "Decoder state has zero dimension in shape {:?}, cannot create initial state",
+                        shape
+                    );
+                }
+                dbg!("Creating initial decoder state: {} with shape {:?}", &node.name, shape);
+                let state_tensor: Tensor = tract_ndarray::Array3::<f32>::zeros(shape).into();
+                Ok(state_tensor.into_tvalue())
+            })
+            .collect()
+    }
+
     fn decode_logits(&self, encoder_output: TVec<TValue>) -> TractResult<String> {
         // Copy of part in ../example.py in rust (post encoder)
-        let T = *encoder_output[1]
-            .to_array_view::<i64>()?
-            .first()
-            .context("Failed to convert encoder output to tensor")? as usize;
         let mut t: usize = 0;
-        let mut p: usize = 0;
-        let mut j: usize = 0;
-        let max_output_length: usize = 6 * T + 10;
+        let max_output_length = encoder_output[1]
+            .to_array_view::<i32>()?
+            .iter()
+            .max()
+            .copied()
+            .unwrap();
         let mut hyp: Vec<usize> = vec![];
 
         let vocab = &self.config.labels;
         let vocab_len = vocab.len();
         let blank_index = self.config.get_blank_index();
 
-        // self.decoder_model.state().reset();
-        while t < T && hyp.len() < max_output_length {
+        let mut state = SimpleState::new(self.decoder_joint_model.clone())?;
+
+        // given encoder of Parakeet v3 return:
+        //   outputs ━━━ B,1024,(S+7)/8,F32
+        //   encoded_lengths ━━━ B,I32
+        //
+        //   l1275
+        let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
+        let mut input_states = self.get_initial_decoder_states(batch_size)?;
+
+        // target_lengths = torch.ones(batchsize, dtype = torch.int32);
+        let target_lengths: Tensor = tract_ndarray::Array1::from_elem(batch_size, 1i32).into();
+
+        let mut last_label: Tensor =
+            tract_ndarray::Array2::from_elem((batch_size, 1), blank_index as i64).into();
+
+        let mut blank_mask: Tensor = tract_ndarray::Array1::from_elem(batch_size, true).into();
+
+        for time_ix in 0..max_output_length {
             // Get logits for time step t
             let enc_frame = encoder_output[0]
                 .to_array_view::<f32>()?
-                .index_axis(Axis(0), t);
+                .index_axis(Axis(2), t)
+                .to_owned();
+            let mut not_blank = false;
+            let mut symbols_added = 0;
 
-            unimplemented!();
-            // TODO: clarify the input to decoder
-            // let joint_logit = self.decoder_model.run(tvec!(
-            //     enc_frame.into_tvalue(),
-            // ))?;
+            while not_blank && self.max_symbols_per_step.is_none_or(|m| m > symbols_added) {
+                // TODO: understand why g is needed
+                // if time_ix == 0 && symbols_added == 0 {
+                //     hyp.push(blank_index); // initial blank
+                // }
+
+                // joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
+                let mut inps = tvec!(
+                    enc_frame.into_tvalue(),
+                    last_label.clone().into_tvalue(),
+                    target_lengths.clone().into_tvalue(),
+                );
+                inps.extend(input_states.clone());
+                let outs = state.run(inps)?;
+                // outs → (outputs, target_length, output_states_1, output_states_2)
+                dbg!("Decoder joint outputs len: {}", outs.len());
+                break; // placeholder to avoid infinite loop
+            }
         }
-
         Ok("decoded transcription".to_string())
     }
 }
