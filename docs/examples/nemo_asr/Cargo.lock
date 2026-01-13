@@ -486,6 +486,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "tract-core",
  "tract-nnef",
  "wasm-bindgen",
  "web-sys",
