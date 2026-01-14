@@ -235,6 +235,7 @@ impl NemoAsrModel {
         // tracking current_frames per batch item (avoid looping)
         let mut current_frames: Vec<usize> = vec![0; batch_size];
         let mut blank_mask: Vec<bool> = vec![true; batch_size];
+        let mut finished: Vec<bool> = vec![false; batch_size];
 
         // TODO: drop each sample in batch that exceed max length
         // currently we continue to slice last frame
@@ -262,15 +263,12 @@ impl NemoAsrModel {
             // Update blank mask with time mask
             // Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
             // Forcibly mask with "blank" tokens, for all sample where current time step time_ix > seq_len
-            blank_mask
-                .iter_mut()
-                .zip(&current_frames)
-                .zip(&out_len)
-                .for_each(|((blank, current_frame), sample_max_len)| {
-                    *blank = *current_frame as i64 >= *sample_max_len;
-                });
+            for b in 0..finished.len() {
+                finished[b] = current_frames[b] as i64 >= out_len[b];
+                blank_mask[b] = finished[b];
+            }
 
-            if blank_mask.iter().all(|b| *b) {
+            if finished.iter().all(|f| *f) {
                 break;
             }
 
@@ -305,8 +303,8 @@ impl NemoAsrModel {
                         .context("Failed to get max logprob")?;
 
                     // print!("{}", vocab.get(max_ix).unwrap_or(&"<blank>".to_string()));
-                    if max_ix == blank_index {
-                        blank_mask[b] = true;
+                    blank_mask[b] = max_ix == blank_index;
+                    if blank_mask[b] {
                         // use token index from previous turn if blank is max
                         if logp_b.len() > total_n_labels {
                             // get how many turn to skip next
@@ -325,7 +323,7 @@ impl NemoAsrModel {
                     }
                 }
 
-                if blank_mask.iter().all(|b| *b) {
+                if blank_mask.iter().zip(&finished).all(|(b, f)| *b || *f) {
                     break;
                 }
 
