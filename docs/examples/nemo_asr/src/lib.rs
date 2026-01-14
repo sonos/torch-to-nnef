@@ -6,7 +6,7 @@ use crate::tract_ndarray::s;
 /// code adapted from: nemo/collections/asr/parts/submodules/rnnt_greedy_decoding.py
 /// class ONNXGreedyBatchedRNNTInfer
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tract_core::plan::SimpleState;
 use tract_core::tract_data::itertools::Itertools;
@@ -30,21 +30,8 @@ pub struct NemoAsrConfig {
 }
 
 impl NemoAsrConfig {
-    pub fn is_blank_as_pad(&self) -> bool {
-        self.decoder.blank_as_pad
-    }
-
     pub fn get_blank_index(&self) -> usize {
-        let blank_tok = if self.is_blank_as_pad() {
-            "<pad>"
-        } else {
-            "<blank>"
-        };
-
-        self.labels
-            .iter()
-            .position(|x| x == blank_tok)
-            .unwrap_or(self.labels.len())
+        return self.labels.len();
     }
 }
 
@@ -57,6 +44,18 @@ pub struct NemoAsrModel {
     decoder_joint_model: TypedRunnableModel<TypedModel>,
     config: NemoAsrConfig,
     max_symbols_per_step: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TranscriptItem {
+    pub token: String,
+    pub timestep: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Transcription {
+    pub text: String,
+    pub items: Vec<TranscriptItem>,
 }
 
 impl NemoAsrModel {
@@ -92,7 +91,7 @@ impl NemoAsrModel {
             encoder_model,
             decoder_joint_model,
             config,
-            max_symbols_per_step: Some(100),
+            max_symbols_per_step: None,
         })
     }
 
@@ -118,7 +117,8 @@ impl NemoAsrModel {
         )
     }
 
-    fn wav_path_to_tensor(&self, wav_path: PathBuf) -> TractResult<Tensor> {
+    /// Convert a single wav file path to a single input tensor
+    fn wav_path_to_tensor(&self, wav_path: &PathBuf) -> TractResult<Tensor> {
         let mut reader = hound::WavReader::open(wav_path).expect("Failed to open WAV file");
         let spec = reader.spec();
         assert_eq!(
@@ -135,17 +135,38 @@ impl NemoAsrModel {
     }
 
     /// Infer from a wav file path all at once
-    pub fn infer_from_wav_path(&self, wav_path: PathBuf) -> TractResult<String> {
-        let input_tensor = self.wav_path_to_tensor(wav_path)?;
-        let text = self.infer_from_tensor(input_tensor)?;
-        Ok(text)
+    pub fn infer_from_wav_paths(&self, wav_paths: &[PathBuf]) -> TractResult<Vec<Transcription>> {
+        let input_tensor_vec = wav_paths
+            .iter()
+            .map(|wp| self.wav_path_to_tensor(wp).unwrap())
+            .collect::<Vec<Tensor>>();
+
+        let lengths: Tensor = tract_ndarray::Array1::<i64>::from_shape_vec(
+            (wav_paths.len(),),
+            input_tensor_vec
+                .iter()
+                .map(|t| t.shape()[1] as i64)
+                .collect::<Vec<i64>>(),
+        )?
+        .into_tensor();
+
+        let input_tensor = tract_ndarray::concatenate(
+            Axis(0),
+            &input_tensor_vec
+                .iter()
+                .map(|t| t.to_array_view::<f32>().unwrap())
+                .collect::<Vec<_>>(),
+        )?
+        .into_tensor();
+        let transcripts = self.infer_from_tensor(input_tensor, lengths)?;
+        Ok(transcripts)
     }
 
-    fn infer_from_tensor(&self, input_tensor: Tensor) -> TractResult<String> {
-        /// No batch Support here
-        let length = input_tensor.shape()[1];
-        let length_tensor: Tensor = tract_ndarray::arr1(&[length as i64]).into();
-
+    fn infer_from_tensor(
+        &self,
+        input_tensor: Tensor,
+        length_tensor: Tensor,
+    ) -> TractResult<Vec<Transcription>> {
         // Preprocessor inference
         let preprocessor_output = self.preprocessor_model.run(tvec!(
             input_tensor.into_tvalue(),
@@ -185,97 +206,123 @@ impl NemoAsrModel {
                         shape
                     );
                 }
-                println!("Creating initial decoder state: {} with shape {:?}", &node.name, shape);
                 let state_tensor: Tensor = tract_ndarray::Array3::<f32>::zeros(shape).into();
                 Ok(state_tensor.into_tvalue())
             })
             .collect()
     }
 
-    fn decode_logits(&self, encoder_output: TVec<TValue>) -> TractResult<String> {
+    fn decode_logits(&self, encoder_output: TVec<TValue>) -> TractResult<Vec<Transcription>> {
         // Copy of part in ../example.py in rust (post encoder)
-        let out_len = encoder_output[1].to_array_view::<i64>()?;
-        let max_output_length = out_len.iter().max().copied().unwrap();
-
-        let mut hyp: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
-        let mut timesteps: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
         let vocab = &self.config.labels;
-        // let vocab_len = vocab.len();
-
-        let blank_index = self.config.get_blank_index();
-
-        let mut state = SimpleState::new(self.decoder_joint_model.clone())?;
-
-        // given encoder of Parakeet v3 return:
-        //   outputs ━━━ B,1024,(S+7)/8,F32
-        //   encoded_lengths ━━━ B,I32
-        //
-        //   l1275
         let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
-        let mut input_states = self.get_initial_decoder_states(batch_size)?;
+        let blank_index = self.config.get_blank_index();
+        let out_len = encoder_output[1].to_array_view::<i64>()?;
 
-        // target_lengths = torch.ones(batchsize, dtype = torch.int32);
+        // heuristic: max
+        // output length is 2x max encoder output length
+        let max_output_length = out_len.iter().max().copied().unwrap() * 2;
+
+        let total_n_labels = vocab.len() + 1; // +1 for blank
         let target_lengths: Tensor =
             tract_ndarray::Array1::<i32>::from_elem(batch_size, 1i32).into();
 
-        let mut last_label: Tensor =
-            tract_ndarray::Array2::from_elem((batch_size, 1), blank_index as i32).into();
-
+        let mut hyp: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
+        let mut input_states = self.get_initial_decoder_states(batch_size)?;
+        let mut state = SimpleState::new(self.decoder_joint_model.clone())?;
+        let mut timesteps: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
+        let mut last_turn_token_ixes: Vec<usize> = vec![blank_index; batch_size];
+        // tracking current_frames per batch item (avoid looping)
+        let mut current_frames: Vec<usize> = vec![0; batch_size];
         let mut blank_mask: Vec<bool> = vec![true; batch_size];
 
-        for time_ix in 0..max_output_length {
-            // Get logits for time step t
-            let _time_step = time_ix as usize;
-            let enc_frame = encoder_output[0]
-                .to_array_view::<f32>()?
-                .slice(s![.., .., _time_step.._time_step + 1])
-                .to_owned();
+        // TODO: drop each sample in batch that exceed max length
+        // currently we continue to slice last frame
+        // if exceed max length for the related samples
+
+        for _ in 0..max_output_length {
+            // use current_frame for each sample in batch
+            // instead of slicing full batch at 1 time step
+            let encoder_output_view = encoder_output[0].to_array_view::<f32>()?;
+            let enc_frame_vec: Vec<tract_ndarray::ArrayView2<f32>> = (0..batch_size)
+                .zip(current_frames.iter())
+                .map(|(b, current_frame)| {
+                    let c_frame = if *current_frame > out_len[b] as usize - 1 {
+                        // if exceed max length, just slice the last frame
+                        out_len[b] as usize - 1
+                    } else {
+                        *current_frame
+                    };
+                    encoder_output_view.slice(s![b, .., c_frame..c_frame + 1])
+                })
+                .collect();
+            let enc_frame = tract_ndarray::stack(Axis(0), &enc_frame_vec)?;
             let mut symbols_added = 0;
 
             // Update blank mask with time mask
             // Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
-            // Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-            blank_mask.iter_mut().zip(&out_len).for_each(|(a, b)| {
-                if time_ix >= *b {
-                    *a = false;
-                }
-            });
+            // Forcibly mask with "blank" tokens, for all sample where current time step time_ix > seq_len
+            blank_mask
+                .iter_mut()
+                .zip(&current_frames)
+                .zip(&out_len)
+                .for_each(|((blank, current_frame), sample_max_len)| {
+                    *blank = *current_frame as i64 >= *sample_max_len;
+                });
+
+            if blank_mask.iter().all(|b| *b) {
+                break;
+            }
 
             while self.max_symbols_per_step.is_none_or(|m| m > symbols_added) {
-                // joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
+                let last_label_tensor = tract_ndarray::Array2::<i32>::from_shape_vec(
+                    (batch_size, 1),
+                    last_turn_token_ixes
+                        .iter()
+                        .map(|&x| x as i32)
+                        .collect::<Vec<i32>>(),
+                )?
+                .into_tensor();
                 let mut inps = tvec!(
                     enc_frame.clone().into_tvalue(),
-                    last_label.clone().into_tvalue(),
+                    last_label_tensor.into_tvalue(),
                     target_lengths.clone().into_tvalue(),
                 );
                 inps.extend(input_states.clone());
                 let outs = state.run(inps)?;
                 // outs → (outputs, target_length, output_states_1, output_states_2)
-                //
+
                 // get max logprob for all samples in batch
                 let logp = &outs[0]; // logprobs
                 let logp_arr = logp.to_array_view::<f32>()?;
-                // dbg!("logp_arr shape: {:?}", logp_arr.shape());
-                let mut turn_max_token_ixes: Vec<usize> = vec![];
                 for b in 0..batch_size {
                     let logp_b = logp_arr.index_axis(Axis(0), b);
-                    let (mut max_ix, _max_val) = logp_b
+                    let (max_ix, _max_val) = logp_b
                         .iter()
+                        .take(total_n_labels)
                         .enumerate()
                         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                        .unwrap();
+                        .context("Failed to get max logprob")?;
+
+                    // print!("{}", vocab.get(max_ix).unwrap_or(&"<blank>".to_string()));
                     if max_ix == blank_index {
                         blank_mask[b] = true;
-                        // force token index from previous turn if blank is max
-                        max_ix = last_label
-                            .to_array_view::<i32>()?
-                            .index_axis(Axis(0), b)
-                            .iter()
-                            .next()
-                            .copied()
-                            .unwrap() as usize;
+                        // use token index from previous turn if blank is max
+                        if logp_b.len() > total_n_labels {
+                            // get how many turn to skip next
+                            let (max_ix, _max_val) = logp_b
+                                .iter()
+                                .skip(total_n_labels)
+                                .enumerate()
+                                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                                .context("Failed to get max next turn ix")?;
+                            current_frames[b] += max_ix;
+                        } else {
+                            current_frames[b] += 1;
+                        }
+                    } else {
+                        last_turn_token_ixes[b] = max_ix;
                     }
-                    turn_max_token_ixes.push(max_ix);
                 }
 
                 if blank_mask.iter().all(|b| *b) {
@@ -283,10 +330,11 @@ impl NemoAsrModel {
                 }
 
                 // set next step states
+                // follow ONNX python implementation where states are maintained to prior state if blank state
+                // so far it was observed to have no difference in output with/without this reassignment
                 input_states = TVec::from_vec(
                     outs[2..]
                         .iter()
-                        .cloned()
                         .map(|t| {
                             // force back the states where blank was selected
                             let mut t_arr = t.to_array_view::<f32>().unwrap().to_owned();
@@ -304,38 +352,36 @@ impl NemoAsrModel {
                         .collect(),
                 );
 
-                // update last_label with top token indexes
-                last_label = tract_ndarray::Array2::<i32>::from_shape_vec(
-                    (batch_size, 1),
-                    turn_max_token_ixes
-                        .iter()
-                        .map(|&x| x as i32)
-                        .collect::<Vec<i32>>(),
-                )?
-                .into_tensor();
-
                 // collect hypothesis
-                for (b, &tok_ix) in turn_max_token_ixes.iter().enumerate() {
+                for (b, &tok_ix) in last_turn_token_ixes.iter().enumerate() {
                     if !blank_mask[b] {
                         hyp[b].push(tok_ix);
-                        timesteps[b].push(time_ix as usize);
+                        timesteps[b].push(current_frames[b] as usize);
                     }
                 }
                 symbols_added += 1;
             }
         }
-        let result = hyp
+
+        let transcripts: Vec<Transcription> = hyp
             .iter()
-            .map(|tix| {
-                tix.iter()
-                    .map(|&ix| vocab.get(ix).unwrap().as_str())
-                    .join("")
+            .zip(timesteps.iter())
+            .map(|(tokens, times)| Transcription {
+                text: tokens
+                    .iter()
+                    .map(|&ix| vocab.get(ix).unwrap().as_str().replace("▁", " "))
+                    .join(""),
+                items: tokens
+                    .iter()
+                    .zip(times.iter())
+                    .map(|(&ix, &t)| TranscriptItem {
+                        token: vocab.get(ix).unwrap().to_string(),
+                        timestep: t,
+                    })
+                    .collect(),
             })
-            .collect::<Vec<String>>()
-            .first()
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("No transcription found"))?;
-        Ok(result)
+            .collect();
+        Ok(transcripts)
     }
 }
 
@@ -347,8 +393,11 @@ mod test {
     fn test_load_and_decode_audio() -> TractResult<()> {
         let asr = NemoAsrModel::load_from_path(PathBuf::from("./model"))?;
         println!("Loaded ASR model successfully");
-        let text = asr.infer_from_wav_path(PathBuf::from("./2086-149220-0033.wav"))?;
-        println!("Transcription: '{}'", &text);
+        // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
+        // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
+        let transcripts = asr.infer_from_wav_paths(&[PathBuf::from("./2086-149220-0033.wav")])?;
+        println!("Transcription: '{}'", &transcripts[0].text);
+        println!("ITEMS: '{:?}'", &transcripts[0].items);
         Ok(())
     }
 }
