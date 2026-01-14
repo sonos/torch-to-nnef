@@ -1,4 +1,3 @@
-use crate::tract_ndarray::s;
 /// NEMO ASR model inference using tract-nnef
 /// Only use full audio inference for now
 /// streaming/pulsed inference may be added later
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tract_core::plan::SimpleState;
 use tract_core::tract_data::itertools::Itertools;
+use tract_ndarray::s;
 use tract_nnef::prelude::*;
 use tract_nnef::tract_ndarray::Axis;
 
@@ -335,19 +335,21 @@ impl NemoAsrModel {
                 input_states = TVec::from_vec(
                     outs[2..]
                         .iter()
-                        .map(|t| {
+                        .enumerate()
+                        .map(|(state_id, t)| {
                             // force back the states where blank was selected
-                            let mut t_arr = t.to_array_view::<f32>().unwrap().to_owned();
+                            let mut new_arr = t.to_array_view::<f32>().unwrap().to_owned();
+                            let prev_arr = input_states[state_id].to_array_view::<f32>().unwrap();
+
                             for b in 0..batch_size {
                                 if blank_mask[b] {
-                                    let last_state =
-                                        input_states[b].to_array_view::<f32>().unwrap();
-                                    t_arr
+                                    new_arr
                                         .index_axis_mut(Axis(0), b)
-                                        .assign(&last_state.index_axis(Axis(0), b));
+                                        .assign(&prev_arr.index_axis(Axis(0), b));
                                 }
                             }
-                            t_arr.into_tensor().into_tvalue()
+
+                            new_arr.into_tensor().into_tvalue()
                         })
                         .collect(),
                 );
