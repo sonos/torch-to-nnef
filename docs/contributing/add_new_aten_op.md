@@ -167,7 +167,7 @@ def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
 2. The complete signature of the function is evolving but as of now is: `g: nnef.Graph`, `node: torch_to_nnef.torch_graph.TorchOp`, `name_to_tensor: T.Dict[str, nnef.tensor]`, `null_ref: nnef.tensor`, `torch_graph: torch_to_nnef.torch_graph.TorchModuleIRGraph`, `inference_target: torch_to_nnef.inference_target.base.InferenceTarget`, `aten_op_id: str`, `op_helper: torch_to_nnef.op.helper.OpHelper` obviously a lot of those parameters are often unneeded hence the `**kwargs`. Basically our goal is always to translate what is in `node` the best we can in `g` while keeping `name_to_tensor` up-to-date. `OpHelper` is a 'newly' introduced builder to simplify creation of classic translation pattern.
 3. Often you may want to support only for specific `inference_target` Type or Version this is an concrete example of how this can look like
 4. Here we use the helper to declare a new operator that will have a single output from a single input named in NNEF graph `tract_core_bitor`
-5. By default translation function can return None or empty array but if an array of string is provided, it will automatically try to load the associated fragment in [`torch_to_nnef.op.fragment`](/reference/torch_to_nnef/op/fragment/#torch_to_nnef.op.fragment.Fragment)
+5. By default translation function can return None or empty array but if an array of string is provided, it will automatically try to load the associated fragment in [`torch_to_nnef.op.fragment`](../../reference/torch_to_nnef/op/fragment/#torch_to_nnef.op.fragment.Fragment)
 
 Here we added tooltips on each part to explains the best we could.
 

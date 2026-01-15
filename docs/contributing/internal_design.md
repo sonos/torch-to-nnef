@@ -24,11 +24,11 @@ Each of those steps have specific aims and goals.
 
 !!! note
     These steps only apply to `torch_to_nnef.export_model_to_nnef` export function that exports the graph + the tensors.
-    To observe those: setting log level to info for this lib is helpful, a proposed default logger is available in [`torch_to_nnef.log.init_log`](/reference/torch_to_nnef/log/)
+    To observe those: setting log level to info for this lib is helpful, a proposed default logger is available in [`torch_to_nnef.log.init_log`](../../reference/torch_to_nnef/log/)
 
 ## 1. Auto wrapper
 
-The auto wrapper is available at [`torch_to_nnef.model_wrapper`](/reference/torch_to_nnef/model_wrapper). In essence,
+The auto wrapper is available at [`torch_to_nnef.model_wrapper`](../../reference/torch_to_nnef/model_wrapper). In essence,
 this step tries hard to make sense of the input and output provided by the
 user as input parameters by 'flattening' and extracting from complex data-structures a proper
 list of tensor to be passed. Some example can be seen in [our multi inputs/outputs tutorial](/tutos/3_multi_inputs_outputs/).
@@ -37,7 +37,7 @@ Also raw objects passed in `forward` function are not supported yet (uncertainty
 
 ## 2. Tensor naming
 
-This replaces each tensor in the graph (code can be found in [`torch_to_nnef.tensor.named`](/reference/torch_to_nnef/tensor/named))
+This replaces each tensor in the graph (code can be found in [`torch_to_nnef.tensor.named`](../../reference/torch_to_nnef/tensor/named))
 by a named tensor holding the name it will have in the different intermediate representations.
 This is helpful to keep consistent tensor naming between the PyTorch parameters/buffers name
 and NNEF archive we build. Allowing confident reference between the 2 worlds. In practice this
@@ -47,7 +47,7 @@ if you want to name tensors.
 ## 3. Internal IR representation
 
 While tracing the graph recursively you may debug its parsed representation as follows:
-let's imagine you set a breakpoint in [`torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse`](/reference/torch_to_nnef/torch_graph/ir_graph/#torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph) method you could call `self.tracer.torch_graph` to observe the
+let's imagine you set a breakpoint in [`torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse`](../../reference/torch_to_nnef/torch_graph/ir_graph/#torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph) method you could call `self.tracer.torch_graph` to observe the
 PyTorch representation:
 
 ```python
@@ -96,7 +96,7 @@ ________________________________________________________________________________
 Since the process is recursive you can see this representation evolve as each submodule gets parsed.
 
 Also if you want to learn more the representation data structure we use you can look at the
-[`torch_to_nnef.torch_graph.ir_data`](/reference/torch_to_nnef/torch_graph/ir_data/) and [`torch_to_nnef.torch_graph.ir_op`](/reference/torch_to_nnef/torch_graph/ir_op/).
+[`torch_to_nnef.torch_graph.ir_data`](../../reference/torch_to_nnef/torch_graph/ir_data/) and [`torch_to_nnef.torch_graph.ir_op`](../../reference/torch_to_nnef/torch_graph/ir_op/).
 
 This step is crucial in order to get an accurate representation of the Graph.
 A lot of thing can go wrong and this interface with some internal part of `PyTorch` which aren't guarantied as
@@ -118,4 +118,4 @@ proposing to reify the operation in the targeted inference engine.
 
 This step is rather simple. It uses a modernized version of the dump logic proposed by Khronos group
 in their package [`nnef_tools`](https://github.com/KhronosGroup/NNEF-Tools), with few extensions around
-custom `.dat` format serialization (code is available [here](/reference/torch_to_nnef/custom_nnef_writer)).
+custom `.dat` format serialization (code is available [here](../../reference/torch_to_nnef/custom_nnef_writer)).

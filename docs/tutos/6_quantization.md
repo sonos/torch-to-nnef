@@ -248,7 +248,7 @@ EXAMPLE_REGISTRY = {
 }
 ```
 
-Note here the use of [`ModTensorUpdater`](/reference/torch_to_nnef/tensor/updater/) this module updater allows to avoid breaking shared reference to a common tensor inside your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
+Note here the use of [`ModTensorUpdater`](../../reference/torch_to_nnef/tensor/updater/) this module updater allows to avoid breaking shared reference to a common tensor inside your network (by example embedding layer shared between input and output of a LLM) while updating the weights.
 
 We now just need to fill the `fp_to_tract_q4_0_with_grid_mse_calibration` function and we are done. Also note that I could have done a calibration stage with external data before end at the beginning (some quantization method need to minimize quantization error for activations). In this case we opt for simplicity:
 

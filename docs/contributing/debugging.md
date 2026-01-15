@@ -7,17 +7,17 @@
 ## <span style="color:#6666aa">**:material-math-log:**</span> Logging
 
 Setting the log level to debug in `torch_to_nnef` may help you figure out where
-things broke in the first place. There is a [`torch_to_nnef.log`](/reference/torch_to_nnef/log/) exactly for that.
+things broke in the first place. There is a [`torch_to_nnef.log`](../../reference/torch_to_nnef/log/) exactly for that.
 
 ## <span style="color:#6666aa">**:material-bug:**</span> Errors
 
-In `torch_to_nnef` we try to derive all possible errors from [`torch_to_nnef.exceptions.T2NError`](/reference/torch_to_nnef/exceptions),
+In `torch_to_nnef` we try to derive all possible errors from [`torch_to_nnef.exceptions.T2NError`](../../reference/torch_to_nnef/exceptions),
 so it should help to interpret why issue arise, but also control it on upper level control flow.
 
 ## <span style="color:#6666aa">**:material-graph:**</span> Graph Display
 
 If you end up debugging the internal IR construction it is very helpful to display the representation
-that are built as they may involve a lot of parameters and operators, be sure to read about [this section](/contributing/internal_design/#3-internal-ir-representation),
+that are built as they may involve a lot of parameters and operators, be sure to read about [this section](../internal_design/#3-internal-ir-representation),
 that may help you a lot.
 
 ## <span style="color:#6666aa">**:material-code-json:**</span> .NNEF Display

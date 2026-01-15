@@ -19,7 +19,7 @@ It may happen because you want to use specific custom operator on inference targ
 basic primitives, or simply because you need to map to something that is not traceable,
 like for example (but not limited to) a physics engine.
 
-To this purpose with `torch_to_nnef`, you can create a subclass of [`torch_to_nnef.op.custom_extractors.ModuleInfoExtractor`](/reference/torch_to_nnef/op/custom_extractors/base/)
+To this purpose with `torch_to_nnef`, you can create a subclass of [`torch_to_nnef.op.custom_extractors.ModuleInfoExtractor`](../../reference/torch_to_nnef/op/custom_extractors/base/)
 that is defined as such:
 
 <div class="grid cards" markdown>
@@ -61,4 +61,4 @@ You can take inspiration from our own management of RNN layers like:
 </div>
 
 But ultimately this is just a chain of op's that needs to be written,
-inside the `g` graph, like we do when [adding new aten operator](/contributing/add_new_aten_op)
+inside the `g` graph, like we do when [adding new aten operator](../../contributing/add_new_aten_op)
