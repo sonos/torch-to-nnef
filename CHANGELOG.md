@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+## [0.20.2] - 2026-01-15
+
+### Fixes
+
+- Fix issue with empty tensor concatenation in tract
+- logo in mkdocs is now displayed only once on mobile
+- some broken links in doc fixed
+- fix related unitest using librosa
+
+
 ## [0.20.1] - 2025-09-13
 
 ### Added
