@@ -208,6 +208,7 @@ def add_tensor_variable_node_as_nnef_tensor(
         else:
             nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
+            # pylint: disable-next=too-many-boolean-expressions
             if not prevent_variable and (
                 node.data.numel() == 0
                 or node.data.numel() > 1
