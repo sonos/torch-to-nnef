@@ -3027,17 +3027,17 @@ are mostly segmented in 6 steps as shown bellow:</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>These steps only apply to <code>torch_to_nnef.export_model_to_nnef</code> export function that exports the graph + the tensors.
-To observe those: setting log level to info for this lib is helpful, a proposed default logger is available in <a href="/reference/torch_to_nnef/log/"><code>torch_to_nnef.log.init_log</code></a></p>
+To observe those: setting log level to info for this lib is helpful, a proposed default logger is available in <a href="../../reference/torch_to_nnef/log/"><code>torch_to_nnef.log.init_log</code></a></p>
 </div>
 <h2 id="1-auto-wrapper">1. Auto wrapper</h2>
-<p>The auto wrapper is available at <a href="/reference/torch_to_nnef/model_wrapper"><code>torch_to_nnef.model_wrapper</code></a>. In essence,
+<p>The auto wrapper is available at <a href="../../reference/torch_to_nnef/model_wrapper"><code>torch_to_nnef.model_wrapper</code></a>. In essence,
 this step tries hard to make sense of the input and output provided by the
 user as input parameters by 'flattening' and extracting from complex data-structures a proper
 list of tensor to be passed. Some example can be seen in <a href="/tutos/3_multi_inputs_outputs/">our multi inputs/outputs tutorial</a>.
 Still note that as of today the graph is traced statically with Python primitive constantized.
 Also raw objects passed in <code>forward</code> function are not supported yet (uncertainty about the order in which tensors found in it should be passed).</p>
 <h2 id="2-tensor-naming">2. Tensor naming</h2>
-<p>This replaces each tensor in the graph (code can be found in <a href="/reference/torch_to_nnef/tensor/named"><code>torch_to_nnef.tensor.named</code></a>)
+<p>This replaces each tensor in the graph (code can be found in <a href="../../reference/torch_to_nnef/tensor/named"><code>torch_to_nnef.tensor.named</code></a>)
 by a named tensor holding the name it will have in the different intermediate representations.
 This is helpful to keep consistent tensor naming between the PyTorch parameters/buffers name
 and NNEF archive we build. Allowing confident reference between the 2 worlds. In practice this
@@ -3045,7 +3045,7 @@ tensor acts just like a classical <code>torch.Tensor</code> so it can even be us
 if you want to name tensors.</p>
 <h2 id="3-internal-ir-representation">3. Internal IR representation</h2>
 <p>While tracing the graph recursively you may debug its parsed representation as follows:
-let's imagine you set a breakpoint in <a href="/reference/torch_to_nnef/torch_graph/ir_graph/#torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph"><code>torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse</code></a> method you could call <code>self.tracer.torch_graph</code> to observe the
+let's imagine you set a breakpoint in <a href="../../reference/torch_to_nnef/torch_graph/ir_graph/#torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph"><code>torch_to_nnef.torch_graph.ir_graph.TorchModuleIRGraph.parse</code></a> method you could call <code>self.tracer.torch_graph</code> to observe the
 PyTorch representation:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">graph</span><span class="p">(</span><span class="o">%</span><span class="bp">self</span><span class="mf">.1</span> <span class="p">:</span> <span class="n">__torch__</span><span class="o">.</span><span class="n">torchvision</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">alexnet</span><span class="o">.</span><span class="n">___torch_mangle_39</span><span class="o">.</span><span class="n">AlexNet</span><span class="p">,</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>      <span class="o">%</span><span class="n">x</span><span class="mf">.1</span> <span class="p">:</span> <span class="n">Float</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">224</span><span class="p">,</span> <span class="mi">224</span><span class="p">,</span> <span class="n">strides</span><span class="o">=</span><span class="p">[</span><span class="mi">150528</span><span class="p">,</span> <span class="mi">50176</span><span class="p">,</span> <span class="mi">224</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">requires_grad</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">cpu</span><span class="p">)):</span>
@@ -3087,7 +3087,7 @@ PyTorch representation:</p>
 </span></code></pre></div>
 <p>Since the process is recursive you can see this representation evolve as each submodule gets parsed.</p>
 <p>Also if you want to learn more the representation data structure we use you can look at the
-<a href="/reference/torch_to_nnef/torch_graph/ir_data/"><code>torch_to_nnef.torch_graph.ir_data</code></a> and <a href="/reference/torch_to_nnef/torch_graph/ir_op/"><code>torch_to_nnef.torch_graph.ir_op</code></a>.</p>
+<a href="../../reference/torch_to_nnef/torch_graph/ir_data/"><code>torch_to_nnef.torch_graph.ir_data</code></a> and <a href="../../reference/torch_to_nnef/torch_graph/ir_op/"><code>torch_to_nnef.torch_graph.ir_op</code></a>.</p>
 <p>This step is crucial in order to get an accurate representation of the Graph.
 A lot of thing can go wrong and this interface with some internal part of <code>PyTorch</code> which aren't guarantied as
 stable. This is one of the reason we have a dedicated IR in <code>torch_to_nnef</code>. When code breaks
@@ -3104,7 +3104,7 @@ proposing to reify the operation in the targeted inference engine.</p>
 <h2 id="5-nnef-dump">5. NNEF dump</h2>
 <p>This step is rather simple. It uses a modernized version of the dump logic proposed by Khronos group
 in their package <a href="https://github.com/KhronosGroup/NNEF-Tools"><code>nnef_tools</code></a>, with few extensions around
-custom <code>.dat</code> format serialization (code is available <a href="/reference/torch_to_nnef/custom_nnef_writer">here</a>).</p>
+custom <code>.dat</code> format serialization (code is available <a href="../../reference/torch_to_nnef/custom_nnef_writer">here</a>).</p>
 
 
 
@@ -3127,7 +3127,7 @@ custom <code>.dat</code> format serialization (code is available <a href="/refer
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 19, 2025 13:40:38 UTC">August 19, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 15, 2026 09:58:40 UTC">January 15, 2026</span>
   </span>
 
     
