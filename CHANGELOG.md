@@ -1045,7 +1045,7 @@ Failed release in CI/CD
 
 ### Fix
 
-- LogSofmax with negative value [#9](https://github.com/sonos/torch-to-nnef/issues/9)
+- LogSofmax with negative value [#9](https://github.com/sonos/torch-to-nnef/issues/)
 - switch-on cast test
 
 ### Added

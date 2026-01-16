@@ -97,7 +97,7 @@ so the tract registry called `tract_core` is needed. In tract there are various 
 `tract_core` (all classical operators in tract), `tract_transformers` that holds some operators specific to transformers,
 `tract_onnx` (operators very specific happening in ONNX), `tract_extra` that is specific to peculiar operators such as `exponential unit norm`,
 `tract_resource` to load custom variables inside your graph...
-Those are added automatically by `torch_to_nnef` except if you use [custom operators](../8_custom_operator.md).
+Those are added automatically by `torch_to_nnef` except if you use [custom operators](../8_custom_operator).
 
 After that we see a set of `fragment`s you can think of those as [pure functions](https://en.wikipedia.org/wiki/Pure_function), for
 most of them (there are few exceptions like if there is `scan` operator but that is a good
@@ -135,4 +135,4 @@ including support for q8 quantization.
 We also leverage the flexibility left to define new formats, for example:
 `Q4_0` .dat files in a format that is close to isolated [GGML_TYPE_Q4_0](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md),
 and can be exported to tract with our package seamlessly as explained
-in the [quantization tutorial](../6_quantization.md).
+in the [quantization tutorial](../6_quantization).

@@ -31,7 +31,7 @@ Each of those steps have specific aims and goals.
 The auto wrapper is available at [`torch_to_nnef.model_wrapper`](../../reference/torch_to_nnef/model_wrapper). In essence,
 this step tries hard to make sense of the input and output provided by the
 user as input parameters by 'flattening' and extracting from complex data-structures a proper
-list of tensor to be passed. Some example can be seen in [our multi inputs/outputs tutorial](/tutos/3_multi_inputs_outputs/).
+list of tensor to be passed. Some example can be seen in [our multi inputs/outputs tutorial](../../tutos/3_multi_inputs_outputs/).
 Still note that as of today the graph is traced statically with Python primitive constantized.
 Also raw objects passed in `forward` function are not supported yet (uncertainty about the order in which tensors found in it should be passed).
 
@@ -118,4 +118,4 @@ proposing to reify the operation in the targeted inference engine.
 
 This step is rather simple. It uses a modernized version of the dump logic proposed by Khronos group
 in their package [`nnef_tools`](https://github.com/KhronosGroup/NNEF-Tools), with few extensions around
-custom `.dat` format serialization (code is available [here](../../reference/torch_to_nnef/custom_nnef_writer)).
+custom `.dat` format serialization (code is available [here](https://github.com/sonos/torch-to-nnef/blob/main/torch_to_nnef/nnef_io/writer.py)).

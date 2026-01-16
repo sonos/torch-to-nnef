@@ -27,7 +27,7 @@ In order to make those techniques efficient, the inference engine that runs the
 neural network needs to have in most cases, specific kernels to support the
 quantization scheme selected.
 
-`torch_to_nnef` primary support today being [`tract`](github.com/sonos/tract), the quantization
+`torch_to_nnef` primary support today being [`tract`](https://github.com/sonos/tract), the quantization
 presented here are all targeting this inference engine.
 
 To date tract support 2 kind of quantization:

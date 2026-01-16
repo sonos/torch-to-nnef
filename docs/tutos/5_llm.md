@@ -212,4 +212,4 @@ regard to [`dynamic axes`](./4_dynamic_axes.md) and [basic api](./1_getting_star
     This model is not trained by SONOS so generation accuracy is responsibility of original [HuggingFace]() authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient,
     this demo is for demonstration purpose.
 
-Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/llm_wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/hml/demo_poem_generator.html).
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/llm_wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_poem_generator.html).

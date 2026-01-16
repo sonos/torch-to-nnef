@@ -171,7 +171,7 @@ def bitwise_or(node, op_helper, inference_target, **kwargs): # (2)!
 
 Here we added tooltips on each part to explains the best we could.
 
-**3.** `nn.Module` that are are too complex (explode is too much IR components) or not tracable easily in this case you can use [custom operators](/tutos/8_custom_operator) (If you want to introduce one in core library please contact us before)
+**3.** `nn.Module` that are are too complex (explode is too much IR components) or not tracable easily in this case you can use [custom operators](../../tutos/8_custom_operator) (If you want to introduce one in core library please contact us before)
 
 ## <span style="color:#6666aa">**:material-step-forward: Step 4.**</span> Test suite pass
 
