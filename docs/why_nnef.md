@@ -31,7 +31,7 @@ Beyond the specification itself, Khronos also provides several reference tools t
 
 ## :brain: NNEF Inference Support
 
-As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is [tract](github.com/sonos/tract) — the open-source neural inference engine developed by Sonos.
+As of today, the only inference engine (excluding full training frameworks) that natively supports NNEF as a first-class format is [tract](https://github.com/sonos/tract) — the open-source neural inference engine developed by Sonos.
 
 ---
 

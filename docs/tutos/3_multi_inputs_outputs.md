@@ -83,7 +83,7 @@ export_model_to_nnef(
 
 !!! warning "Warning"
 
-    This export is for demonstration of multi inputs outputs only ! The [dynamic dimensions](../4_streaming_dimension) specification is missing which creates a
+    This export is for demonstration of multi inputs outputs only ! The [dynamic dimensions](../4_dynamic_axes) specification is missing which creates a
     limited sub-optimal exported NNEF model.
 
 If you run this script you should get a model very close to the
