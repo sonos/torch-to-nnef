@@ -144,24 +144,31 @@ impl NemoAsrModel {
             .collect::<Vec<Tensor>>();
         log::info!("wav loaded correctly, starting inference");
 
-        let lengths: Tensor = tract_ndarray::Array1::<i64>::from_shape_vec(
-            (wav_paths.len(),),
-            input_tensor_vec
-                .iter()
-                .map(|t| t.shape()[1] as i64)
-                .collect::<Vec<i64>>(),
-        )?
+        let lengths = input_tensor_vec
+            .iter()
+            .map(|t| t.shape()[1] as i64)
+            .collect::<Vec<i64>>();
+
+        // Build input tensor batch {
+        let mut input_tensor = tract_ndarray::Array2::<f32>::zeros((
+            input_tensor_vec.len(),
+            lengths.iter().max().copied().unwrap() as usize,
+        ))
         .into_tensor();
 
-        let input_tensor = tract_ndarray::concatenate(
-            Axis(0),
-            &input_tensor_vec
-                .iter()
-                .map(|t| t.to_array_view::<f32>().unwrap())
-                .collect::<Vec<_>>(),
-        )?
-        .into_tensor();
-        let transcripts = self.infer_from_tensor(input_tensor, lengths)?;
+        for (ix, itensor) in input_tensor_vec.iter().enumerate() {
+            let sample_len = itensor.shape()[1];
+            input_tensor
+                .to_array_view_mut()?
+                .slice_mut(s![ix, 0..sample_len])
+                .assign(&itensor.to_array_view::<f32>()?.index_axis(Axis(0), 0));
+        }
+        // }
+
+        let lengths_tensor: Tensor =
+            tract_ndarray::Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?
+                .into_tensor();
+        let transcripts = self.infer_from_tensor(input_tensor, lengths_tensor)?;
         Ok(transcripts)
     }
 

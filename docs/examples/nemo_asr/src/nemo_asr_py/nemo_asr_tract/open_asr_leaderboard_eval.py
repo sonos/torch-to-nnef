@@ -13,6 +13,7 @@ Features:
 
 """
 
+import logging
 import argparse
 import io
 import os
@@ -79,7 +80,8 @@ def setup_device(device_id: int):
     if device_id >= 0:
         if not torch.cuda.is_available() and torch.backends.mps.is_available():
             print(
-                "CUDA is not available; using Apple Silicon GPU via MPS backend."
+                "CUDA is not available; using Apple Silicon GPU via MPS backend"
+                "(if the runner support it, else fallback to CPU)."
             )
             return torch.device("mps"), torch.float32
         return torch.device(f"cuda:{device_id}"), torch.bfloat16
@@ -287,7 +289,7 @@ def normalize_predictions(transcriptions):
 
 
 def write_results(all_data, predictions, cfg: EvalConfig, avg_time: float):
-    model_id = cfg.exported_dir
+    model_id = load_config_from_dir(cfg.exported_dir).pretrained_name
     if not cfg.use_original_model:
         model_id += "_exported_rust_inference"
     return data_utils.write_manifest(
@@ -349,6 +351,11 @@ def run_asr_evaluation(cfg: EvalConfig) -> EvalResult:
 
     wer, rtfx, audio_seconds = compute_metrics(
         all_data, predictions, total_time
+    )
+
+    logging.info(
+        f"Evaluation on {cfg.dataset}({cfg.split}) completed: "
+        f"WER={wer} %, RTFx={rtfx}"
     )
 
     return EvalResult(

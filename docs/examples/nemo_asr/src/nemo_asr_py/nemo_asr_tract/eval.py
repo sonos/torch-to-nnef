@@ -166,7 +166,7 @@ def main():
         if dataset in args.skip_dataset:
             print(f"\n=== Skipping {dataset}:{split} ===")
             continue
-        for use_original_model in (True, False):
+        for use_original_model in (False, True):
             run_eval(
                 model_id=conf.pretrained_name,
                 exported_dir=args.exported_dir,
