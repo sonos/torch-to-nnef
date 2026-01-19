@@ -1,0 +1,20 @@
+[project]
+version = "0.1.0"
+name = "nemo_asr_tract"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["stringcase>=1.2,<2", "pydantic>=2,<3"]
+authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+
+
+[build-system]
+requires = ["setuptools>=64", "setuptools_rust>=1.10"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["nemo_asr_tract"]
+
+[[tool.setuptools-rust.ext-modules]]
+target = "nemo_asr_tract.dylib.libnemo_asr"
+path = "../nemo_asr_ffi/Cargo.toml"
+binding = "NoBinding"

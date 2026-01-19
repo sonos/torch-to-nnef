@@ -29,7 +29,7 @@ pub struct NemoAsrConfig {
 
 impl NemoAsrConfig {
     pub fn get_blank_index(&self) -> usize {
-        return self.labels.len();
+        self.labels.len()
     }
 }
 
