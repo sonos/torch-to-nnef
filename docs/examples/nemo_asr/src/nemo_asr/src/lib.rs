@@ -63,6 +63,7 @@ impl NemoAsrModel {
         enc_model_bytes: &[u8],
         dec_model_bytes: &[u8],
     ) -> TractResult<NemoAsrModel> {
+        log::info!("start loading nemo asr model from bytes");
         let config = serde_json::from_slice::<NemoAsrConfig>(config_bytes)?;
         let mut pre_read = std::io::Cursor::new(pre_model_bytes);
         let preprocessor_model = tract_nnef::nnef()
@@ -84,6 +85,7 @@ impl NemoAsrModel {
             .model_for_read(&mut dec_read)?
             .into_optimized()?
             .into_runnable()?;
+        log::info!("all model subparts loaded successfully in tract");
         Ok(NemoAsrModel {
             preprocessor_model,
             encoder_model,
@@ -99,6 +101,7 @@ impl NemoAsrModel {
         let enc_model_path = path.join("encoder.nnef.tgz");
         let dec_model_path = path.join("decoder_joint.nnef.tgz");
 
+        log::info!("start loading nemo asr model from dir: {:?}", path);
         let config_bytes = std::fs::read(config_path).expect("Failed to read model config file");
         let pre_model_bytes =
             std::fs::read(pre_model_path).expect("Failed to read preprocessor model file");
@@ -134,10 +137,12 @@ impl NemoAsrModel {
 
     /// Infer from a wav file path all at once
     pub fn infer_from_wav_paths(&self, wav_paths: &[PathBuf]) -> TractResult<Vec<Transcription>> {
+        log::info!("Loading wav file from path: {:?}", wav_paths);
         let input_tensor_vec = wav_paths
             .iter()
             .map(|wp| self.wav_path_to_tensor(wp).unwrap())
             .collect::<Vec<Tensor>>();
+        log::info!("wav loaded correctly, starting inference");
 
         let lengths: Tensor = tract_ndarray::Array1::<i64>::from_shape_vec(
             (wav_paths.len(),),
@@ -165,17 +170,24 @@ impl NemoAsrModel {
         input_tensor: Tensor,
         length_tensor: Tensor,
     ) -> TractResult<Vec<Transcription>> {
+        log::info!("start inference preprocessor");
         // Preprocessor inference
         let preprocessor_output = self.preprocessor_model.run(tvec!(
             input_tensor.into_tvalue(),
             length_tensor.into_tvalue()
         ))?;
+        log::info!("successfully ran preprocessor");
 
         // Encoder inference
+        log::info!("start inference encoder");
         let encoder_output = self.encoder_model.run(preprocessor_output)?;
+        log::info!("successfully ran encoder");
 
         // Decoder inference
-        self.decode_logits(encoder_output)
+        log::info!("start decoder and joint");
+        let t = self.decode_transcripts_from_encoder_output(encoder_output);
+        log::info!("successfully ran decoder and joint");
+        t
     }
 
     fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<TVec<TValue>> {
@@ -210,7 +222,10 @@ impl NemoAsrModel {
             .collect()
     }
 
-    fn decode_logits(&self, encoder_output: TVec<TValue>) -> TractResult<Vec<Transcription>> {
+    fn decode_transcripts_from_encoder_output(
+        &self,
+        encoder_output: TVec<TValue>,
+    ) -> TractResult<Vec<Transcription>> {
         // Copy of part in ../example.py in rust (post encoder)
         let vocab = &self.config.labels;
         let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
