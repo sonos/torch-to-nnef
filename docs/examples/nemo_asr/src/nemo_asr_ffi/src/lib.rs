@@ -1,8 +1,8 @@
-#[allow(clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc)]
 
 use nemo_asr::NemoAsrModel;
 
-use anyhow::{Context, anyhow, ensure,Error, Result};
+use anyhow::{Error, Result};
 use libc::c_char;
 use ffi_convert::{AsRust, RawBorrow, RawPointerConverter, CReprOf};
 use log::LevelFilter;

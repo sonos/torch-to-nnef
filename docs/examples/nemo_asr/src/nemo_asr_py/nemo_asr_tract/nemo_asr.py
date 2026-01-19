@@ -19,6 +19,14 @@ class Transcripts(RootModel):
     root: List[Transcript]
 
 
+class NemoAsrConfig(PydanticModel):
+    pretrained_name: str
+    nemo_version: str
+    target: str
+    sample_rate: int
+    labels: List[str]
+
+
 class NemoAsrModel:
     """Class encapsulating Rust NemoAsrModel.
 
@@ -27,10 +35,11 @@ class NemoAsrModel:
             Pointer to Rust NemoAsrModel instance.
     """
 
-    def __init__(self, rs_asr_model):
+    def __init__(self, rs_asr_model, path: Union[str, Path]):
         if not isinstance(rs_asr_model, type(c_void_p())):
             raise TypeError("Expected a rs_asr_model as argument to __init__. ")
         self.ptr = rs_asr_model
+        self.path = Path(path)
 
     @classmethod
     def from_dir(cls, path: Union[str, Path]):
@@ -42,9 +51,9 @@ class NemoAsrModel:
             ),
             "Error while creating NemoAsrModel",
         )
-        return cls(ptr)
+        return cls(ptr, path)
 
-    def infer_from_wav_paths(self, wavs: List[Path]) -> str:
+    def infer_from_wav_paths(self, wavs: List[Union[str, Path]]) -> str:
         ptr = c_char_p()
 
         def clean_ptr():
@@ -83,8 +92,22 @@ class NemoAsrModel:
         clean_ptr()
         return loading_config
 
+    @property
+    def config(self) -> NemoAsrConfig:
+        return load_config_from_dir(self.path)
+
     def __del__(self):
         check_ffi_error(
             lib.nemo_asr_model_destroy(self.ptr),
             "Error while destroying NemoAsrModel",
         )
+
+
+def load_config_from_dir(path: Union[str, Path]) -> NemoAsrConfig:
+    """Loads the Nemo ASR model config from a given directory."""
+    with (
+        Path(path)
+        .joinpath("model_config.json")
+        .open("r", encoding="utf-8") as f
+    ):
+        return NemoAsrConfig.model_validate_json(f.read())
