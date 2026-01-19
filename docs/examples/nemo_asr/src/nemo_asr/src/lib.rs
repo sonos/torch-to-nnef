@@ -13,8 +13,6 @@ use tract_ndarray::s;
 use tract_nnef::prelude::*;
 use tract_nnef::tract_ndarray::Axis;
 
-use wasm_bindgen::prelude::*;
-
 /// Decoder config struct
 #[derive(Debug, Clone, Deserialize)]
 pub struct DecoderConfig {
@@ -59,7 +57,7 @@ pub struct Transcription {
 }
 
 impl NemoAsrModel {
-    fn load_from_bytes(
+    fn from_bytes(
         config_bytes: &[u8],
         pre_model_bytes: &[u8],
         enc_model_bytes: &[u8],
@@ -95,7 +93,7 @@ impl NemoAsrModel {
         })
     }
 
-    pub fn load_from_path(path: PathBuf) -> TractResult<NemoAsrModel> {
+    pub fn from_dir(path: PathBuf) -> TractResult<NemoAsrModel> {
         let config_path = path.join("model_config.json");
         let pre_model_path = path.join("preprocessor.nnef.tgz");
         let enc_model_path = path.join("encoder.nnef.tgz");
@@ -109,7 +107,7 @@ impl NemoAsrModel {
         let dec_model_bytes =
             std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
-        NemoAsrModel::load_from_bytes(
+        NemoAsrModel::from_bytes(
             config_bytes.as_slice(),
             pre_model_bytes.as_slice(),
             enc_model_bytes.as_slice(),
@@ -391,7 +389,7 @@ mod test {
 
     #[test]
     fn test_load_and_decode_audio() -> TractResult<()> {
-        let asr = NemoAsrModel::load_from_path(PathBuf::from("./model"))?;
+        let asr = NemoAsrModel::from_dir(PathBuf::from("./model"))?;
         println!("Loaded ASR model successfully");
         // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
         // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
