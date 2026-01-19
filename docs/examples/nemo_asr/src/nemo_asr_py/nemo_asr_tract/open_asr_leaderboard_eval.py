@@ -77,6 +77,11 @@ class EvalResult:
 
 def setup_device(device_id: int):
     if device_id >= 0:
+        if not torch.cuda.is_available() and torch.backends.mps.is_available():
+            print(
+                "CUDA is not available; using Apple Silicon GPU via MPS backend."
+            )
+            return torch.device("mps"), torch.float32
         return torch.device(f"cuda:{device_id}"), torch.bfloat16
     return torch.device("cpu"), torch.float32
 
@@ -405,7 +410,7 @@ def parse_args() -> EvalConfig:
         type=int,
         default=-1,
         help=(
-            "CUDA device index to use for evaluation. "
+            "CUDA/MPS device index to use for evaluation. "
             "Use -1 to run on CPU, or a non-negative integer for a specific GPU."
         ),
     )
