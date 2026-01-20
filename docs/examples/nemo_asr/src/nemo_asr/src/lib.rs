@@ -28,6 +28,12 @@ pub struct NemoAsrConfig {
     pub decoder: DecoderConfig,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct RuntimeConfig {
+    max_symbols_per_step: Option<usize>,
+    force_cpu: bool,
+}
+
 impl NemoAsrConfig {
     pub fn get_blank_index(&self) -> usize {
         self.labels.len()
@@ -41,8 +47,8 @@ pub struct NemoAsrModel {
     preprocessor_model: TypedRunnableModel<TypedModel>,
     encoder_model: TypedRunnableModel<TypedModel>,
     decoder_joint_model: TypedRunnableModel<TypedModel>,
-    config: NemoAsrConfig,
-    max_symbols_per_step: Option<usize>,
+    model_config: NemoAsrConfig,
+    runtime_config: RuntimeConfig,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,7 +80,10 @@ impl Transcription {
 }
 
 impl NemoAsrModel {
-    fn from_bytes_submodel(model_bytes: &[u8]) -> TractResult<TypedRunnableModel<TypedModel>> {
+    fn from_bytes_submodel(
+        runtime_config: &RuntimeConfig,
+        model_bytes: &[u8],
+    ) -> TractResult<TypedRunnableModel<TypedModel>> {
         let mut model_read = std::io::Cursor::new(model_bytes);
         let nnef = tract_nnef::nnef().with_tract_transformers();
 
@@ -83,19 +92,22 @@ impl NemoAsrModel {
             .context("transformers-detect-all not found")?;
 
         let mut nn = nnef.model_for_read(&mut model_read)?;
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
-        {
-            use crate::tract_core::transform::ModelTransform;
-            use std::str::FromStr;
-            nn.properties.insert("GPU".into(), rctensor0(true));
-            tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-        {
-            use tract_core::transform::ModelTransform;
-            if tract_cuda::utils::are_culibs_present() {
+
+        if !runtime_config.force_cpu {
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            {
+                use crate::tract_core::transform::ModelTransform;
+                use std::str::FromStr;
                 nn.properties.insert("GPU".into(), rctensor0(true));
-                tract_cuda::CudaTransform.transform(&mut nn)?;
+                tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+            {
+                use tract_core::transform::ModelTransform;
+                if tract_cuda::utils::are_culibs_present() {
+                    nn.properties.insert("GPU".into(), rctensor0(true));
+                    tract_cuda::CudaTransform.transform(&mut nn)?;
+                }
             }
         }
 
@@ -107,35 +119,49 @@ impl NemoAsrModel {
     }
 
     fn from_bytes(
-        config_bytes: &[u8],
+        model_config_bytes: &[u8],
+        runtime_config_bytes: Option<&[u8]>,
         pre_model_bytes: &[u8],
         enc_model_bytes: &[u8],
         dec_model_bytes: &[u8],
     ) -> TractResult<NemoAsrModel> {
         log::info!("start loading nemo asr model from bytes");
-        let config = serde_json::from_slice::<NemoAsrConfig>(config_bytes)?;
-        let preprocessor_model = NemoAsrModel::from_bytes_submodel(pre_model_bytes)?;
-        let encoder_model = NemoAsrModel::from_bytes_submodel(enc_model_bytes)?;
-        let decoder_joint_model = NemoAsrModel::from_bytes_submodel(dec_model_bytes)?;
+        let model_config = serde_json::from_slice::<NemoAsrConfig>(model_config_bytes)?;
+        let runtime_config = if let Some(rt_conf) = runtime_config_bytes {
+            serde_json::from_slice::<RuntimeConfig>(rt_conf)?
+        } else {
+            RuntimeConfig::default()
+        };
+
+        let preprocessor_model =
+            NemoAsrModel::from_bytes_submodel(&runtime_config, pre_model_bytes)?;
+        let encoder_model = NemoAsrModel::from_bytes_submodel(&runtime_config, enc_model_bytes)?;
+        let decoder_joint_model =
+            NemoAsrModel::from_bytes_submodel(&runtime_config, dec_model_bytes)?;
 
         log::info!("all model subparts loaded successfully in tract");
         Ok(NemoAsrModel {
             preprocessor_model,
             encoder_model,
             decoder_joint_model,
-            config,
-            max_symbols_per_step: Some(5),
+            model_config,
+            runtime_config,
         })
     }
 
     pub fn from_dir(path: PathBuf) -> TractResult<NemoAsrModel> {
-        let config_path = path.join("model_config.json");
+        let runtime_config_path = path.join("runtime_config.json");
+        let model_config_path = path.join("model_config.json");
         let pre_model_path = path.join("preprocessor.nnef.tgz");
         let enc_model_path = path.join("encoder.nnef.tgz");
         let dec_model_path = path.join("decoder_joint.nnef.tgz");
 
         log::info!("start loading nemo asr model from dir: {:?}", path);
-        let config_bytes = std::fs::read(config_path).expect("Failed to read model config file");
+
+        let runtime_config_bytes = std::fs::read(runtime_config_path).ok();
+
+        let model_config_bytes =
+            std::fs::read(model_config_path).expect("Failed to read model config file");
         let pre_model_bytes =
             std::fs::read(pre_model_path).expect("Failed to read preprocessor model file");
         let enc_model_bytes =
@@ -144,7 +170,8 @@ impl NemoAsrModel {
             std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
         NemoAsrModel::from_bytes(
-            config_bytes.as_slice(),
+            model_config_bytes.as_slice(),
+            runtime_config_bytes.as_deref(),
             pre_model_bytes.as_slice(),
             enc_model_bytes.as_slice(),
             dec_model_bytes.as_slice(),
@@ -156,7 +183,7 @@ impl NemoAsrModel {
         let mut reader = hound::WavReader::open(wav_path).expect("Failed to open WAV file");
         let spec = reader.spec();
         assert_eq!(
-            spec.sample_rate, self.config.sample_rate as u32,
+            spec.sample_rate, self.model_config.sample_rate as u32,
             "Only 16kHz sample rate is supported"
         );
         let samples: Vec<f32> = reader
@@ -269,9 +296,9 @@ impl NemoAsrModel {
         encoder_output: TVec<TValue>,
     ) -> TractResult<Vec<Transcription>> {
         // Copy of part in ../example.py in rust (post encoder)
-        let vocab = &self.config.labels;
+        let vocab = &self.model_config.labels;
         let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
-        let blank_index = self.config.get_blank_index();
+        let blank_index = self.model_config.get_blank_index();
         let out_len = encoder_output[1].to_array_view::<i64>()?;
 
         // heuristic: max
@@ -325,7 +352,11 @@ impl NemoAsrModel {
                 break;
             }
 
-            while self.max_symbols_per_step.is_none_or(|m| m > symbols_added) {
+            while self
+                .runtime_config
+                .max_symbols_per_step
+                .is_none_or(|m| m > symbols_added)
+            {
                 let last_label_tensor = tract_ndarray::Array2::<i32>::from_shape_vec(
                     (batch_size, 1),
                     last_turn_token_ixes
