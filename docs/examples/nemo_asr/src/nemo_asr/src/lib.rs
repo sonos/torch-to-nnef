@@ -12,6 +12,7 @@ use tract_core::tract_data::itertools::Itertools;
 use tract_ndarray::s;
 use tract_nnef::prelude::*;
 use tract_nnef::tract_ndarray::Axis;
+use tract_transformers::WithTractTransformers;
 
 /// Decoder config struct
 #[derive(Debug, Clone, Deserialize)]
@@ -73,6 +74,38 @@ impl Transcription {
 }
 
 impl NemoAsrModel {
+    fn from_bytes_submodel(model_bytes: &[u8]) -> TractResult<TypedRunnableModel<TypedModel>> {
+        let mut model_read = std::io::Cursor::new(model_bytes);
+        let nnef = tract_nnef::nnef().with_tract_transformers();
+
+        let transform = nnef
+            .get_transform("transformers-detect-all")?
+            .context("transformers-detect-all not found")?;
+
+        let mut nn = nnef.model_for_read(&mut model_read)?;
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        {
+            use crate::tract_core::transform::ModelTransform;
+            use std::str::FromStr;
+            nn.properties.insert("GPU".into(), rctensor0(true));
+            tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        {
+            use tract_core::transform::ModelTransform;
+            if tract_cuda::utils::are_culibs_present() {
+                nn.properties.insert("GPU".into(), rctensor0(true));
+                tract_cuda::CudaTransform.transform(&mut nn)?;
+            }
+        }
+
+        let mut nn = nn.into_decluttered()?;
+        nn.transform(&*transform)?;
+
+        let model = nn.into_optimized()?.into_runnable()?;
+        Ok(model)
+    }
+
     fn from_bytes(
         config_bytes: &[u8],
         pre_model_bytes: &[u8],
@@ -81,26 +114,10 @@ impl NemoAsrModel {
     ) -> TractResult<NemoAsrModel> {
         log::info!("start loading nemo asr model from bytes");
         let config = serde_json::from_slice::<NemoAsrConfig>(config_bytes)?;
-        let mut pre_read = std::io::Cursor::new(pre_model_bytes);
-        let preprocessor_model = tract_nnef::nnef()
-            .with_tract_core()
-            .model_for_read(&mut pre_read)?
-            .into_optimized()?
-            .into_runnable()?;
+        let preprocessor_model = NemoAsrModel::from_bytes_submodel(pre_model_bytes)?;
+        let encoder_model = NemoAsrModel::from_bytes_submodel(enc_model_bytes)?;
+        let decoder_joint_model = NemoAsrModel::from_bytes_submodel(dec_model_bytes)?;
 
-        let mut enc_read = std::io::Cursor::new(enc_model_bytes);
-        let encoder_model = tract_nnef::nnef()
-            .with_tract_core()
-            .model_for_read(&mut enc_read)?
-            .into_optimized()?
-            .into_runnable()?;
-
-        let mut dec_read = std::io::Cursor::new(dec_model_bytes);
-        let decoder_joint_model = tract_nnef::nnef()
-            .with_tract_core()
-            .model_for_read(&mut dec_read)?
-            .into_optimized()?
-            .into_runnable()?;
         log::info!("all model subparts loaded successfully in tract");
         Ok(NemoAsrModel {
             preprocessor_model,
