@@ -380,7 +380,7 @@ impl NemoAsrModel {
                 let logp_arr = logp.to_array_view::<f32>()?;
                 for b in 0..batch_size {
                     let logp_b = logp_arr.index_axis(Axis(0), b);
-                    let (max_ix, _max_val) = logp_b
+                    let (selected_token_ix, _max_val) = logp_b
                         .iter()
                         .take(total_n_labels)
                         .enumerate()
@@ -388,23 +388,31 @@ impl NemoAsrModel {
                         .context("Failed to get max logprob")?;
 
                     // print!("{}", vocab.get(max_ix).unwrap_or(&"<blank>".to_string()));
-                    blank_mask[b] = max_ix == blank_index;
+                    blank_mask[b] = selected_token_ix == blank_index;
                     if blank_mask[b] {
                         // use token index from previous turn if blank is max
                         if logp_b.len() > total_n_labels {
                             // get how many turn to skip next
-                            let (max_ix, _max_val) = logp_b
+                            let (selected_jump_ix, _max_val) = logp_b
                                 .iter()
                                 .skip(total_n_labels)
                                 .enumerate()
                                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                                 .context("Failed to get max next turn ix")?;
-                            current_frames[b] += max_ix;
+                            current_frames[b] += selected_jump_ix;
                         } else {
                             current_frames[b] += 1;
                         }
                     } else {
-                        last_turn_token_ixes[b] = max_ix;
+                        last_turn_token_ixes[b] = selected_token_ix;
+                        if !finished[b] {
+                            // collect hypothesis
+                            transcript_items[b].push(TranscriptItem {
+                                token: vocab.get(selected_token_ix).unwrap().to_string(),
+                                emitted_at_encoder_timestep: current_frames[b] as usize,
+                                emitted_at_encoder_timestep_iteration: symbols_added,
+                            })
+                        }
                     }
                 }
 
@@ -436,17 +444,6 @@ impl NemoAsrModel {
                         })
                         .collect(),
                 );
-
-                // collect hypothesis
-                for (b, &tok_ix) in last_turn_token_ixes.iter().enumerate() {
-                    if !blank_mask[b] {
-                        transcript_items[b].push(TranscriptItem {
-                            token: vocab.get(tok_ix).unwrap().to_string(),
-                            emitted_at_encoder_timestep: current_frames[b] as usize,
-                            emitted_at_encoder_timestep_iteration: symbols_added,
-                        });
-                    }
-                }
                 symbols_added += 1;
             }
             log::debug!("completed decoding of encoder step {}", ix);
