@@ -31,3 +31,4 @@ packages = ["nemo_asr_tract"]
 target = "nemo_asr_tract.dylib.libnemo_asr"
 path = "../nemo_asr_ffi/Cargo.toml"
 binding = "NoBinding"
+debug = false

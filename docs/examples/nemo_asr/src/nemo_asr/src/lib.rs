@@ -47,13 +47,29 @@ pub struct NemoAsrModel {
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptItem {
     pub token: String,
-    pub timestep: usize,
+    pub emitted_at_encoder_timestep: usize,
+    pub emitted_at_encoder_timestep_iteration: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Transcription {
     pub text: String,
     pub items: Vec<TranscriptItem>,
+}
+
+impl Transcription {
+    pub fn from_transcript_items(items: Vec<TranscriptItem>) -> Transcription {
+        Transcription {
+            text: items
+                .iter()
+                .map(|ti| ti.token.as_str())
+                .join("")
+                .replace("▁", " ")
+                .trim()
+                .to_string(),
+            items,
+        }
+    }
 }
 
 impl NemoAsrModel {
@@ -144,6 +160,7 @@ impl NemoAsrModel {
             .collect::<Vec<Tensor>>();
         log::info!("wav loaded correctly, starting inference");
 
+        log::debug!("prepare input tensor batch");
         let lengths = input_tensor_vec
             .iter()
             .map(|t| t.shape()[1] as i64)
@@ -168,6 +185,7 @@ impl NemoAsrModel {
         let lengths_tensor: Tensor =
             tract_ndarray::Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?
                 .into_tensor();
+        log::debug!("ready input tensor batch");
         let transcripts = self.infer_from_tensor(input_tensor, lengths_tensor)?;
         Ok(transcripts)
     }
@@ -246,11 +264,9 @@ impl NemoAsrModel {
         let total_n_labels = vocab.len() + 1; // +1 for blank
         let target_lengths: Tensor =
             tract_ndarray::Array1::<i32>::from_elem(batch_size, 1i32).into();
-
-        let mut hyp: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
+        let mut transcript_items: Vec<Vec<TranscriptItem>> = vec![Vec::new(); out_len.len()];
         let mut input_states = self.get_initial_decoder_states(batch_size)?;
         let mut state = SimpleState::new(self.decoder_joint_model.clone())?;
-        let mut timesteps: Vec<Vec<usize>> = vec![Vec::new(); out_len.len()];
         let mut last_turn_token_ixes: Vec<usize> = vec![blank_index; batch_size];
         // tracking current_frames per batch item (avoid looping)
         let mut current_frames: Vec<usize> = vec![0; batch_size];
@@ -362,8 +378,8 @@ impl NemoAsrModel {
                             for b in 0..batch_size {
                                 if blank_mask[b] {
                                     new_arr
-                                        .index_axis_mut(Axis(0), b)
-                                        .assign(&prev_arr.index_axis(Axis(0), b));
+                                        .index_axis_mut(Axis(1), b)
+                                        .assign(&prev_arr.index_axis(Axis(1), b));
                                 }
                             }
 
@@ -375,31 +391,20 @@ impl NemoAsrModel {
                 // collect hypothesis
                 for (b, &tok_ix) in last_turn_token_ixes.iter().enumerate() {
                     if !blank_mask[b] {
-                        hyp[b].push(tok_ix);
-                        timesteps[b].push(current_frames[b] as usize);
+                        transcript_items[b].push(TranscriptItem {
+                            token: vocab.get(tok_ix).unwrap().to_string(),
+                            emitted_at_encoder_timestep: current_frames[b] as usize,
+                            emitted_at_encoder_timestep_iteration: symbols_added,
+                        });
                     }
                 }
                 symbols_added += 1;
             }
         }
 
-        let transcripts: Vec<Transcription> = hyp
-            .iter()
-            .zip(timesteps.iter())
-            .map(|(tokens, times)| Transcription {
-                text: tokens
-                    .iter()
-                    .map(|&ix| vocab.get(ix).unwrap().as_str().replace("▁", " "))
-                    .join(""),
-                items: tokens
-                    .iter()
-                    .zip(times.iter())
-                    .map(|(&ix, &t)| TranscriptItem {
-                        token: vocab.get(ix).unwrap().to_string(),
-                        timestep: t,
-                    })
-                    .collect(),
-            })
+        let transcripts: Vec<Transcription> = transcript_items
+            .into_iter()
+            .map(Transcription::from_transcript_items)
             .collect();
         Ok(transcripts)
     }
@@ -408,16 +413,50 @@ impl NemoAsrModel {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::path::Path;
+
+    fn workspace_root() -> PathBuf {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+        for dir in manifest_dir.ancestors() {
+            let cargo_toml = dir.join("Cargo.toml");
+            if cargo_toml.exists() && is_workspace_root(&cargo_toml) {
+                return dir.to_path_buf();
+            }
+        }
+
+        panic!("Workspace root not found");
+    }
+
+    fn is_workspace_root(cargo_toml: &Path) -> bool {
+        // Minimal heuristic: workspace root has a [workspace] table
+        std::fs::read_to_string(cargo_toml)
+            .map(|s| s.contains("[workspace]"))
+            .unwrap_or(false)
+    }
+
+    fn assets_dir() -> PathBuf {
+        workspace_root().join("assets")
+    }
 
     #[test]
     fn test_load_and_decode_audio() -> TractResult<()> {
-        let asr = NemoAsrModel::from_dir(PathBuf::from("./model"))?;
+        println!("Assets dir: {:?}\n", assets_dir());
+        let asr = NemoAsrModel::from_dir(assets_dir().join("model"))?;
         println!("Loaded ASR model successfully");
         // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
         // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
-        let transcripts = asr.infer_from_wav_paths(&[PathBuf::from("./2086-149220-0033.wav")])?;
-        println!("Transcription: '{}'", &transcripts[0].text);
-        println!("ITEMS: '{:?}'", &transcripts[0].items);
+        let transcripts = asr.infer_from_wav_paths(&[
+            assets_dir().join("2086-149220-0033.wav"),
+            assets_dir().join("data_smoke_test_LDC93S1.wav"),
+        ])?;
+        println!("Transcription[0]: '{}'", &transcripts[0].text);
+        println!("ITEMS[0]: '{:?}'", &transcripts[0].items);
+
+        // GT: She had your dark suit in greasy wash water all year.
+        // OBSERVED: She had suit and greasy washwater all year.
+        println!("Transcription[1]: '{}'", &transcripts[1].text);
+        println!("ITEMS[1]: '{:?}'", &transcripts[1].items);
         Ok(())
     }
 }
