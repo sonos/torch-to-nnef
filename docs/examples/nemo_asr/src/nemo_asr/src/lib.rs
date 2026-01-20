@@ -299,7 +299,13 @@ impl NemoAsrModel {
         let vocab = &self.model_config.labels;
         let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
         let blank_index = self.model_config.get_blank_index();
-        let out_len = encoder_output[1].to_array_view::<i64>()?;
+
+        // out_len as vec of usize from encoder output[1] i64
+        let out_len = encoder_output[1]
+            .to_array_view::<i64>()?
+            .iter()
+            .map(|&x| x as usize)
+            .collect::<Vec<usize>>();
 
         // heuristic: max
         // output length is 2x max encoder output length
@@ -324,12 +330,13 @@ impl NemoAsrModel {
             // use current_frame for each sample in batch
             // instead of slicing full batch at 1 time step
             let encoder_output_view = encoder_output[0].to_array_view::<f32>()?;
-            let enc_frame_vec: Vec<tract_ndarray::ArrayView2<f32>> = (0..batch_size)
-                .zip(current_frames.iter())
+            let enc_frame_vec: Vec<tract_ndarray::ArrayView2<f32>> = current_frames
+                .iter()
+                .enumerate()
                 .map(|(b, current_frame)| {
-                    let c_frame = if *current_frame > out_len[b] as usize - 1 {
+                    let c_frame = if *current_frame >= out_len[b] {
                         // if exceed max length, just slice the last frame
-                        out_len[b] as usize - 1
+                        out_len[b] - 1
                     } else {
                         *current_frame
                     };
@@ -343,7 +350,7 @@ impl NemoAsrModel {
             // Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
             // Forcibly mask with "blank" tokens, for all sample where current time step time_ix > seq_len
             for b in 0..finished.len() {
-                finished[b] = current_frames[b] as i64 >= out_len[b];
+                finished[b] = current_frames[b] >= out_len[b];
                 blank_mask[b] = finished[b];
             }
 
@@ -387,7 +394,6 @@ impl NemoAsrModel {
                         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                         .context("Failed to get max logprob")?;
 
-                    // print!("{}", vocab.get(max_ix).unwrap_or(&"<blank>".to_string()));
                     blank_mask[b] = selected_token_ix == blank_index;
                     if blank_mask[b] {
                         // use token index from previous turn if blank is max
@@ -409,7 +415,7 @@ impl NemoAsrModel {
                             // collect hypothesis
                             transcript_items[b].push(TranscriptItem {
                                 token: vocab.get(selected_token_ix).unwrap().to_string(),
-                                emitted_at_encoder_timestep: current_frames[b] as usize,
+                                emitted_at_encoder_timestep: current_frames[b],
                                 emitted_at_encoder_timestep_iteration: symbols_added,
                             })
                         }
@@ -548,13 +554,8 @@ mod test {
                 &truncate_with_ellipsis(&t.text, max_chars)
             );
         }
-        // 1st wav:
-        // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
-        // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
-        //
-        // 2nd wav:
-        // GT: She had your dark suit in greasy wash water all year.
-        // OBSERVED: She had suit and greasy washwater all year.
+        // This code works if only 1 sample in batch
+        // but output garbage text when multiple samples in batch
         Ok(())
     }
 }
