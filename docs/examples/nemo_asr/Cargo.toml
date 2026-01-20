@@ -12,6 +12,7 @@ ffi-convert = "0.6"
 hound = "3.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+test-log = "0.2.19"
 tract-core = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
 tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
 

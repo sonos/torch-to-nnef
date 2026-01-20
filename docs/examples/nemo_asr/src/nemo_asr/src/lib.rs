@@ -107,7 +107,7 @@ impl NemoAsrModel {
             encoder_model,
             decoder_joint_model,
             config,
-            max_symbols_per_step: None,
+            max_symbols_per_step: Some(5),
         })
     }
 
@@ -277,7 +277,7 @@ impl NemoAsrModel {
         // currently we continue to slice last frame
         // if exceed max length for the related samples
 
-        for _ in 0..max_output_length {
+        for ix in 0..max_output_length {
             // use current_frame for each sample in batch
             // instead of slicing full batch at 1 time step
             let encoder_output_view = encoder_output[0].to_array_view::<f32>()?;
@@ -323,7 +323,9 @@ impl NemoAsrModel {
                     target_lengths.clone().into_tvalue(),
                 );
                 inps.extend(input_states.clone());
+                log::debug!("run nn decoding_joint step {}", ix);
                 let outs = state.run(inps)?;
+                log::debug!("finished nn decoding_joint step {}", ix);
                 // outs → (outputs, target_length, output_states_1, output_states_2)
 
                 // get max logprob for all samples in batch
@@ -400,6 +402,7 @@ impl NemoAsrModel {
                 }
                 symbols_added += 1;
             }
+            log::debug!("completed decoding of encoder step {}", ix);
         }
 
         let transcripts: Vec<Transcription> = transcript_items
@@ -414,6 +417,7 @@ impl NemoAsrModel {
 mod test {
     use super::*;
     use std::path::Path;
+    use test_log::test;
 
     fn workspace_root() -> PathBuf {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
