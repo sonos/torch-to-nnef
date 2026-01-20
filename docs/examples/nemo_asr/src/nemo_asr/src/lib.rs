@@ -310,7 +310,6 @@ impl NemoAsrModel {
             tract_ndarray::Array1::<i32>::from_elem(batch_size, 1i32).into();
         let mut transcript_items: Vec<Vec<TranscriptItem>> = vec![Vec::new(); out_len.len()];
         let mut input_states = self.get_initial_decoder_states(batch_size)?;
-        let mut state = SimpleState::new(self.decoder_joint_model.clone())?;
         let mut last_turn_token_ixes: Vec<usize> = vec![blank_index; batch_size];
         // tracking current_frames per batch item (avoid looping)
         let mut current_frames: Vec<usize> = vec![0; batch_size];
@@ -372,7 +371,7 @@ impl NemoAsrModel {
                 );
                 inps.extend(input_states.clone());
                 log::debug!("run nn decoding_joint step {}", ix);
-                let outs = state.run(inps)?;
+                let outs = self.decoder_joint_model.run(inps)?;
                 log::debug!("finished nn decoding_joint step {}", ix);
                 // outs → (outputs, target_length, output_states_1, output_states_2)
 
@@ -491,24 +490,74 @@ mod test {
         workspace_root().join("assets")
     }
 
+    fn truncate_with_ellipsis(s: &str, max_chars: usize) -> String {
+        let mut chars = s.chars();
+
+        let truncated: String = chars.by_ref().take(max_chars).collect();
+
+        if chars.next().is_some() {
+            format!("{truncated}...")
+        } else {
+            truncated
+        }
+    }
+
     #[test]
     fn test_load_and_decode_audio() -> TractResult<()> {
         println!("Assets dir: {:?}\n", assets_dir());
         let asr = NemoAsrModel::from_dir(assets_dir().join("model"))?;
         println!("Loaded ASR model successfully");
-        // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
-        // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
         let transcripts = asr.infer_from_wav_paths(&[
             assets_dir().join("2086-149220-0033.wav"),
-            assets_dir().join("data_smoke_test_LDC93S1.wav"),
+            // assets_dir().join("data_smoke_test_LDC93S1.wav"),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002b_H00_FEO070_0042617_0044950.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H02_MEE014_0089550_0091768.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0073867_0076040.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009d_H00_FIE088_0019852_0022001.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H01_FEE013_0082509_0084553.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H01_FIO087_0173696_0175737.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H00_MEO015_0070826_0072814.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009c_H02_FIO084_0090140_0092106.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0037334_0039212.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002b_H00_FEO070_0027547_0029410.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0030387_0032173.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002c_H01_FEO072_0095852_0097625.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009d_H02_FIO084_0036376_0038147.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H01_FIO087_0192775_0194536.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_TS3003b_H01_MTD011UID_0059215_0060963.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002d_H01_FEO072_0044186_0045922.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0079506_0081211.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0077721_0079412.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0138917_0140603.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0140693_0142376.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H00_FIE088_0163714_0165367.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0067027_0068629.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H01_FEE013_0014472_0016044.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H00_FIE088_0188477_0190040.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H00_FIE088_0194549_0196111.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009d_H03_FIO089_0077358_0078888.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H01_FEE013_0167575_0169104.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004d_H02_MEE014_0018731_0020259.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_TS3003b_H00_MTD009PM_0007726_0009245.wav").into()
         ])?;
-        println!("Transcription[0]: '{}'", &transcripts[0].text);
-        println!("ITEMS[0]: '{:?}'", &transcripts[0].items);
-
+        let max_chars = 200;
+        for (i, t) in transcripts.iter().enumerate() {
+            println!(
+                "Transcription[{}]: '{}'",
+                i,
+                &truncate_with_ellipsis(&t.text, max_chars)
+            );
+        }
+        // 1st wav:
+        // EXPECTED in py: ,▁I▁don't▁wish▁to▁see▁it▁any▁more,▁observed▁Phoebe,▁turning▁away▁her▁eyes.▁It▁is▁certainly▁very▁like▁the▁old▁portrait.
+        // OBSERVED in rs: , I don't wish to see it any more, observed Phoe, turning away her eyes.. It is certainly very like the oldrait.
+        //
+        // 2nd wav:
         // GT: She had your dark suit in greasy wash water all year.
         // OBSERVED: She had suit and greasy washwater all year.
-        println!("Transcription[1]: '{}'", &transcripts[1].text);
-        println!("ITEMS[1]: '{:?}'", &transcripts[1].items);
         Ok(())
     }
 }
