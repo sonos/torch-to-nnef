@@ -27,10 +27,19 @@ pub struct NemoAsrConfig {
     pub decoder: DecoderConfig,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
     max_n_tokens_per_step: Option<usize>,
     force_cpu: bool,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        RuntimeConfig {
+            max_n_tokens_per_step: Some(10),
+            force_cpu: false,
+        }
+    }
 }
 
 impl NemoAsrConfig {
@@ -140,8 +149,10 @@ impl NemoAsrModel {
         log::info!("start loading nemo asr model from bytes");
         let model_config = serde_json::from_slice::<NemoAsrConfig>(model_config_bytes)?;
         let runtime_config = if let Some(rt_conf) = runtime_config_bytes {
+            log::info!("found runtime config bytes, loading it");
             serde_json::from_slice::<RuntimeConfig>(rt_conf)?
         } else {
+            log::info!("NO runtime config found, using default");
             RuntimeConfig::default()
         };
 
@@ -390,7 +401,20 @@ impl NemoAsrModel {
             let mut inputs = tvec!(enc_frames, labels, target_lens);
             inputs.extend(packed_states);
 
+            log::debug!("Decoding step with {} active lanes", active.len());
+            log::debug!(
+                "lanes steps: {:?}",
+                lanes.iter().map(|l| l.current_frame).collect::<Vec<_>>()
+            );
+            log::debug!(
+                "lanes n_tokens_added_in_frame: {:?}",
+                lanes
+                    .iter()
+                    .map(|l| l.n_tokens_added_in_frame)
+                    .collect::<Vec<_>>()
+            );
             let outs = self.decoder_joint_model.run(inputs)?;
+            log::debug!("Decoder joint step done");
 
             let logp = outs[0].to_array_view::<f32>()?;
 
@@ -514,10 +538,10 @@ mod test {
         let asr = NemoAsrModel::from_dir(assets_dir().join("model"))?;
         println!("Loaded ASR model successfully");
         let transcripts = asr.infer_from_wav_paths(&[
-            assets_dir().join("data_smoke_test_LDC93S1.wav"),
             assets_dir().join("2086-149220-0033.wav"),
-            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
-            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
+            assets_dir().join("data_smoke_test_LDC93S1.wav"),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002b_H00_FEO070_0042617_0044950.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H02_MEE014_0089550_0091768.wav").into(),
