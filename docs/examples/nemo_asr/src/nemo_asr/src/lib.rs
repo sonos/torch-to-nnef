@@ -78,6 +78,16 @@ impl Transcription {
     }
 }
 
+/// Per-sample decoding lane
+#[derive(Debug)]
+struct Lane {
+    encoder_len: usize,
+    current_frame: usize,
+    last_token: usize,
+    states: TVec<TValue>, // each state is [2,1,640]
+    transcript: Vec<TranscriptItem>,
+}
+
 impl NemoAsrModel {
     fn from_bytes_submodel(
         runtime_config: &RuntimeConfig,
@@ -292,310 +302,144 @@ impl NemoAsrModel {
             .collect()
     }
 
-    fn decode_transcripts_from_encoder_output(
+    pub fn decode_transcripts_from_encoder_output(
         &self,
-        encoder_output: TVec<TValue>,
+        encoder_out: TVec<TValue>,
     ) -> TractResult<Vec<Transcription>> {
-        let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
+        let feats = encoder_out[0].to_array_view::<f32>()?;
+        let lens = encoder_out[1].to_array_view::<i64>()?;
+        let bsz = feats.shape()[0];
 
-        if batch_size == 1 {
-            return Ok(vec![self.decode_one(encoder_output)?]);
-        }
-
-        let enc = encoder_output[0].to_array_view::<f32>()?;
-        let len = encoder_output[1].to_array_view::<i64>()?;
-
-        let mut out = Vec::with_capacity(batch_size);
-        for b in 0..batch_size {
-            let enc_b = enc
-                .slice(s![b..b + 1, .., ..])
-                .to_owned()
-                .into_tensor()
-                .into_tvalue();
-            let len_b = len
-                .slice(s![b..b + 1])
-                .to_owned()
-                .into_tensor()
-                .into_tvalue();
-
-            out.push(self.decode_one(tvec!(enc_b, len_b))?);
-        }
-        Ok(out)
-    }
-
-    fn decode_one(&self, encoder_output: TVec<TValue>) -> TractResult<Transcription> {
-        debug_assert_eq!(
-            encoder_output[0].to_array_view::<f32>()?.shape()[0],
-            1,
-            "decode_one assumes batch size = 1"
-        );
-
+        let blank = self.model_config.get_blank_index();
         let vocab = &self.model_config.labels;
-        let blank_index = self.model_config.get_blank_index();
-        let total_n_labels = vocab.len() + 1;
 
-        let out_len = *encoder_output[1]
-            .to_array_view::<i64>()?
-            .iter()
-            .next()
-            .unwrap() as usize;
-
-        let max_output_length = out_len * 2;
-
-        let target_lengths: Tensor = tract_ndarray::Array1::<i32>::from_elem(1, 1).into();
-
-        let encoder_feats = encoder_output[0].to_array_view::<f32>()?;
-
-        let mut transcript_items: Vec<TranscriptItem> = Vec::new();
-        let mut input_states = self.get_initial_decoder_states(1)?;
-        let mut last_turn_token_ix: usize = blank_index;
-        let mut current_frame: usize = 0;
-
-        for _step in 0..max_output_length {
-            if current_frame >= out_len {
-                break;
-            }
-
-            let enc_frame = encoder_feats
-                .slice(s![0..1, .., current_frame..current_frame + 1])
-                .to_owned()
-                .into_tensor()
-                .into_tvalue();
-
-            let mut symbols_added = 0usize;
-
-            while self
-                .runtime_config
-                .max_symbols_per_step
-                .is_none_or(|m| m > symbols_added)
-            {
-                let last_label_tensor = tract_ndarray::Array2::<i32>::from_shape_vec(
-                    (1, 1),
-                    vec![last_turn_token_ix as i32],
-                )?
-                .into_tensor()
-                .into_tvalue();
-
-                let mut inps = tvec!(
-                    enc_frame.clone(),
-                    last_label_tensor,
-                    target_lengths.clone().into_tvalue(),
-                );
-                inps.extend(input_states.clone());
-
-                let outs = self.decoder_joint_model.run(inps)?;
-
-                let logp = outs[0].to_array_view::<f32>()?;
-                let logp0 = logp.index_axis(Axis(0), 0);
-
-                let (selected_token_ix, _) = logp0
+        // Initialize lanes
+        let mut lanes: Vec<Lane> = (0..bsz)
+            .map(|b| {
+                let states = self
+                    .decoder_joint_model
+                    .model()
+                    .inputs
                     .iter()
-                    .take(total_n_labels)
-                    .enumerate()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                    .context("Failed to select max logprob")?;
+                    .skip(3)
+                    .map(|_| {
+                        let z = tract_ndarray::Array3::<f32>::zeros((2, 1, 640));
+                        Ok(z.into_tensor().into_tvalue())
+                    })
+                    .collect::<TractResult<_>>()?;
 
-                if selected_token_ix == blank_index {
-                    // optional jump-head
-                    if logp0.len() > total_n_labels {
-                        let (jump_ix, _) = logp0
-                            .iter()
-                            .skip(total_n_labels)
-                            .enumerate()
-                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                            .context("Failed to select jump")?;
-                        current_frame += jump_ix;
-                    } else {
-                        current_frame += 1;
-                    }
-                    break;
-                } else {
-                    last_turn_token_ix = selected_token_ix;
+                Ok(Lane {
+                    encoder_len: lens[b] as usize,
+                    current_frame: 0,
+                    last_token: blank,
+                    states,
+                    transcript: Vec::new(),
+                })
+            })
+            .collect::<TractResult<_>>()?;
 
-                    transcript_items.push(TranscriptItem {
-                        token: vocab[selected_token_ix].to_string(),
-                        emitted_at_encoder_timestep: current_frame,
-                        emitted_at_encoder_timestep_iteration: symbols_added,
-                    });
-
-                    input_states = outs[2..].iter().cloned().collect();
-                    symbols_added += 1;
-                }
-            }
-        }
-
-        Ok(Transcription::from_transcript_items(transcript_items))
-    }
-    /// Does not work since joint decoder model output is not realy supporting batch properly
-    /// Need to implement own greedy decoding from encoder output per sample in batch
-    #[allow(dead_code)]
-    fn legacy_decode_transcripts_from_encoder_output(
-        &self,
-        encoder_output: TVec<TValue>,
-    ) -> TractResult<Vec<Transcription>> {
-        // Copy of part in ../example.py in rust (post encoder)
-        let vocab = &self.model_config.labels;
-        let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
-        let blank_index = self.model_config.get_blank_index();
-
-        // out_len as vec of usize from encoder output[1] i64
-        let out_len = encoder_output[1]
-            .to_array_view::<i64>()?
-            .iter()
-            .map(|&x| x as usize)
-            .collect::<Vec<usize>>();
-
-        // heuristic: max
-        // output length is 2x max encoder output length
-        let max_output_length = out_len.iter().max().copied().unwrap() * 2;
-
-        let total_n_labels = vocab.len() + 1; // +1 for blank
-        let target_lengths: Tensor =
-            tract_ndarray::Array1::<i32>::from_elem(batch_size, 1i32).into();
-        let mut transcript_items: Vec<Vec<TranscriptItem>> = vec![Vec::new(); out_len.len()];
-        let mut input_states = self.get_initial_decoder_states(batch_size)?;
-        let mut last_turn_token_ixes: Vec<usize> = vec![blank_index; batch_size];
-        // tracking current_frames per batch item (avoid looping)
-        let mut current_frames: Vec<usize> = vec![0; batch_size];
-        let mut blank_mask: Vec<bool> = vec![true; batch_size];
-        let mut finished: Vec<bool> = vec![false; batch_size];
-
-        // TODO: drop each sample in batch that exceed max length
-        // currently we continue to slice last frame
-        // if exceed max length for the related samples
-
-        for ix in 0..max_output_length {
-            // use current_frame for each sample in batch
-            // instead of slicing full batch at 1 time step
-            let encoder_output_view = encoder_output[0].to_array_view::<f32>()?;
-            let enc_frame_vec: Vec<tract_ndarray::ArrayView2<f32>> = current_frames
+        loop {
+            let active: Vec<usize> = lanes
                 .iter()
                 .enumerate()
-                .map(|(b, current_frame)| {
-                    let c_frame = if *current_frame >= out_len[b] {
-                        // if exceed max length, just slice the last frame
-                        out_len[b] - 1
-                    } else {
-                        *current_frame
-                    };
-                    encoder_output_view.slice(s![b, .., c_frame..c_frame + 1])
-                })
+                .filter(|(_, l)| l.current_frame < l.encoder_len)
+                .map(|(i, _)| i)
                 .collect();
-            let enc_frame = tract_ndarray::stack(Axis(0), &enc_frame_vec)?;
-            let mut symbols_added = 0;
 
-            // Update blank mask with time mask
-            // Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
-            // Forcibly mask with "blank" tokens, for all sample where current time step time_ix > seq_len
-            for b in 0..finished.len() {
-                finished[b] = current_frames[b] >= out_len[b];
-                blank_mask[b] = finished[b];
-            }
-
-            if finished.iter().all(|f| *f) {
+            if active.is_empty() {
                 break;
             }
 
-            while self
-                .runtime_config
-                .max_symbols_per_step
-                .is_none_or(|m| m > symbols_added)
-            {
-                let last_label_tensor = tract_ndarray::Array2::<i32>::from_shape_vec(
-                    (batch_size, 1),
-                    last_turn_token_ixes
-                        .iter()
-                        .map(|&x| x as i32)
-                        .collect::<Vec<i32>>(),
-                )?
-                .into_tensor();
-                let mut inps = tvec!(
-                    enc_frame.clone().into_tvalue(),
-                    last_label_tensor.into_tvalue(),
-                    target_lengths.clone().into_tvalue(),
-                );
-                inps.extend(input_states.clone());
-                log::debug!("run nn decoding_joint step {}", ix);
-                let outs = self.decoder_joint_model.run(inps)?;
-                log::debug!("finished nn decoding_joint step {}", ix);
-                // outs → (outputs, target_length, output_states_1, output_states_2)
+            let enc_frames = tract_ndarray::concatenate(
+                Axis(0),
+                &active
+                    .iter()
+                    .map(|&i| {
+                        feats.slice(s![
+                            i..i + 1,
+                            ..,
+                            lanes[i].current_frame..lanes[i].current_frame + 1
+                        ])
+                    })
+                    .collect::<Vec<_>>(),
+            )?
+            .into_tensor()
+            .into_tvalue();
 
-                // get max logprob for all samples in batch
-                let logp = &outs[0]; // logprobs
-                let logp_arr = logp.to_array_view::<f32>()?;
-                for b in 0..batch_size {
-                    let logp_b = logp_arr.index_axis(Axis(0), b);
-                    let (selected_token_ix, _max_val) = logp_b
-                        .iter()
-                        .take(total_n_labels)
-                        .enumerate()
-                        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                        .context("Failed to get max logprob")?;
+            let labels = tract_ndarray::Array2::<i32>::from_shape_vec(
+                (active.len(), 1),
+                active.iter().map(|&i| lanes[i].last_token as i32).collect(),
+            )?
+            .into_tensor()
+            .into_tvalue();
 
-                    blank_mask[b] = selected_token_ix == blank_index;
-                    if blank_mask[b] {
-                        // use token index from previous turn if blank is max
-                        if logp_b.len() > total_n_labels {
-                            // get how many turn to skip next
-                            let (selected_jump_ix, _max_val) = logp_b
-                                .iter()
-                                .skip(total_n_labels)
-                                .enumerate()
-                                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                                .context("Failed to get max next turn ix")?;
-                            current_frames[b] += selected_jump_ix;
-                        } else {
-                            current_frames[b] += 1;
-                        }
-                    } else {
-                        last_turn_token_ixes[b] = selected_token_ix;
-                        // collect hypothesis
-                        transcript_items[b].push(TranscriptItem {
-                            token: vocab.get(selected_token_ix).unwrap().to_string(),
-                            emitted_at_encoder_timestep: current_frames[b],
-                            emitted_at_encoder_timestep_iteration: symbols_added,
-                        })
+            let target_lens = tract_ndarray::Array1::<i32>::from_elem(active.len(), 1)
+                .into_tensor()
+                .into_tvalue();
+
+            let packed_states = Self::state_pack_lanes(&lanes, &active)?;
+
+            let mut inputs = tvec!(enc_frames, labels, target_lens);
+            inputs.extend(packed_states);
+
+            let outs = self.decoder_joint_model.run(inputs)?;
+
+            let logp = outs[0].to_array_view::<f32>()?;
+
+            for (k, &lane_ix) in active.iter().enumerate() {
+                let row = logp.index_axis(Axis(0), k);
+                let (tok, _) = row
+                    .iter()
+                    .take(vocab.len() + 1)
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .unwrap();
+
+                let lane = &mut lanes[lane_ix];
+                if tok == blank {
+                    lane.current_frame += 1;
+                } else {
+                    lane.last_token = tok;
+                    lane.transcript.push(TranscriptItem {
+                        token: vocab[tok].clone(),
+                        emitted_at_encoder_timestep: lane.current_frame,
+                        emitted_at_encoder_timestep_iteration: 0,
+                    });
+
+                    for (sid, st) in outs[2..].iter().enumerate() {
+                        lane.states[sid] = Self::state_take_lane(st, k)?;
                     }
                 }
-
-                if blank_mask.iter().zip(&finished).all(|(b, f)| *b || *f) {
-                    break;
-                }
-
-                // set next step states
-                // follow ONNX python implementation where states are maintained to prior state if blank state
-                // so far it was observed to have no difference in output with/without this reassignment
-                input_states = TVec::from_vec(
-                    outs[2..]
-                        .iter()
-                        .enumerate()
-                        .map(|(state_id, t)| {
-                            // force back the states where blank was selected
-                            let mut new_arr = t.to_array_view::<f32>().unwrap().to_owned();
-                            let prev_arr = input_states[state_id].to_array_view::<f32>().unwrap();
-
-                            for (bix, is_blank) in blank_mask.iter().enumerate() {
-                                if *is_blank {
-                                    new_arr
-                                        .index_axis_mut(Axis(1), bix)
-                                        .assign(&prev_arr.index_axis(Axis(1), bix));
-                                }
-                            }
-
-                            new_arr.into_tensor().into_tvalue()
-                        })
-                        .collect(),
-                );
-                symbols_added += 1;
             }
-            log::debug!("completed decoding of encoder step {}", ix);
         }
 
-        let transcripts: Vec<Transcription> = transcript_items
+        Ok(lanes
             .into_iter()
-            .map(Transcription::from_transcript_items)
-            .collect();
-        Ok(transcripts)
+            .map(|l| Transcription::from_transcript_items(l.transcript))
+            .collect())
+    }
+
+    fn state_take_lane(state: &TValue, b: usize) -> TractResult<TValue> {
+        let v = state.to_array_view::<f32>()?;
+        Ok(v.index_axis(Axis(1), b)
+            .insert_axis(Axis(1))
+            .to_owned()
+            .into_tensor()
+            .into_tvalue())
+    }
+
+    fn state_pack_lanes(lanes: &[Lane], active: &[usize]) -> TractResult<TVec<TValue>> {
+        let n_states = lanes[active[0]].states.len();
+        let mut packed = tvec!();
+        for sid in 0..n_states {
+            let views: Vec<_> = active
+                .iter()
+                .map(|&lx| lanes[lx].states[sid].to_array_view::<f32>())
+                .collect::<TractResult<_>>()?;
+            let cat = tract_ndarray::concatenate(Axis(1), &views)?;
+            packed.push(cat.into_tensor().into_tvalue());
+        }
+        Ok(packed)
     }
 }
 
@@ -647,11 +491,11 @@ mod test {
         let asr = NemoAsrModel::from_dir(assets_dir().join("model"))?;
         println!("Loaded ASR model successfully");
         let transcripts = asr.infer_from_wav_paths(&[
+            assets_dir().join("data_smoke_test_LDC93S1.wav"),
             assets_dir().join("2086-149220-0033.wav"),
-            // assets_dir().join("data_smoke_test_LDC93S1.wav"),
-            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
-            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
-            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
+            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
+            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
+            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002b_H00_FEO070_0042617_0044950.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H02_MEE014_0089550_0091768.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0073867_0076040.wav").into(),
