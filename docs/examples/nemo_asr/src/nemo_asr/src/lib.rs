@@ -99,6 +99,7 @@ impl NemoAsrModel {
                 use std::str::FromStr;
                 nn.properties.insert("GPU".into(), rctensor0(true));
                 tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
+                log::info!("Using Metal GPU acceleration for model inference");
             }
             #[cfg(not(any(target_os = "macos", target_os = "ios")))]
             {
@@ -106,6 +107,7 @@ impl NemoAsrModel {
                 if tract_cuda::utils::are_culibs_present() {
                     nn.properties.insert("GPU".into(), rctensor0(true));
                     tract_cuda::CudaTransform.transform(&mut nn)?;
+                    log::info!("Using CUDA GPU acceleration for model inference");
                 }
             }
         }
@@ -291,6 +293,143 @@ impl NemoAsrModel {
     }
 
     fn decode_transcripts_from_encoder_output(
+        &self,
+        encoder_output: TVec<TValue>,
+    ) -> TractResult<Vec<Transcription>> {
+        let batch_size = encoder_output[0].to_array_view::<f32>()?.shape()[0];
+
+        if batch_size == 1 {
+            return Ok(vec![self.decode_one(encoder_output)?]);
+        }
+
+        let enc = encoder_output[0].to_array_view::<f32>()?;
+        let len = encoder_output[1].to_array_view::<i64>()?;
+
+        let mut out = Vec::with_capacity(batch_size);
+        for b in 0..batch_size {
+            let enc_b = enc
+                .slice(s![b..b + 1, .., ..])
+                .to_owned()
+                .into_tensor()
+                .into_tvalue();
+            let len_b = len
+                .slice(s![b..b + 1])
+                .to_owned()
+                .into_tensor()
+                .into_tvalue();
+
+            out.push(self.decode_one(tvec!(enc_b, len_b))?);
+        }
+        Ok(out)
+    }
+
+    fn decode_one(&self, encoder_output: TVec<TValue>) -> TractResult<Transcription> {
+        debug_assert_eq!(
+            encoder_output[0].to_array_view::<f32>()?.shape()[0],
+            1,
+            "decode_one assumes batch size = 1"
+        );
+
+        let vocab = &self.model_config.labels;
+        let blank_index = self.model_config.get_blank_index();
+        let total_n_labels = vocab.len() + 1;
+
+        let out_len = *encoder_output[1]
+            .to_array_view::<i64>()?
+            .iter()
+            .next()
+            .unwrap() as usize;
+
+        let max_output_length = out_len * 2;
+
+        let target_lengths: Tensor = tract_ndarray::Array1::<i32>::from_elem(1, 1).into();
+
+        let encoder_feats = encoder_output[0].to_array_view::<f32>()?;
+
+        let mut transcript_items: Vec<TranscriptItem> = Vec::new();
+        let mut input_states = self.get_initial_decoder_states(1)?;
+        let mut last_turn_token_ix: usize = blank_index;
+        let mut current_frame: usize = 0;
+
+        for _step in 0..max_output_length {
+            if current_frame >= out_len {
+                break;
+            }
+
+            let enc_frame = encoder_feats
+                .slice(s![0..1, .., current_frame..current_frame + 1])
+                .to_owned()
+                .into_tensor()
+                .into_tvalue();
+
+            let mut symbols_added = 0usize;
+
+            while self
+                .runtime_config
+                .max_symbols_per_step
+                .is_none_or(|m| m > symbols_added)
+            {
+                let last_label_tensor = tract_ndarray::Array2::<i32>::from_shape_vec(
+                    (1, 1),
+                    vec![last_turn_token_ix as i32],
+                )?
+                .into_tensor()
+                .into_tvalue();
+
+                let mut inps = tvec!(
+                    enc_frame.clone(),
+                    last_label_tensor,
+                    target_lengths.clone().into_tvalue(),
+                );
+                inps.extend(input_states.clone());
+
+                let outs = self.decoder_joint_model.run(inps)?;
+
+                let logp = outs[0].to_array_view::<f32>()?;
+                let logp0 = logp.index_axis(Axis(0), 0);
+
+                let (selected_token_ix, _) = logp0
+                    .iter()
+                    .take(total_n_labels)
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .context("Failed to select max logprob")?;
+
+                if selected_token_ix == blank_index {
+                    // optional jump-head
+                    if logp0.len() > total_n_labels {
+                        let (jump_ix, _) = logp0
+                            .iter()
+                            .skip(total_n_labels)
+                            .enumerate()
+                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                            .context("Failed to select jump")?;
+                        current_frame += jump_ix;
+                    } else {
+                        current_frame += 1;
+                    }
+                    break;
+                } else {
+                    last_turn_token_ix = selected_token_ix;
+
+                    transcript_items.push(TranscriptItem {
+                        token: vocab[selected_token_ix].to_string(),
+                        emitted_at_encoder_timestep: current_frame,
+                        emitted_at_encoder_timestep_iteration: symbols_added,
+                    });
+
+                    input_states = outs[2..].iter().cloned().collect();
+                    symbols_added += 1;
+                }
+            }
+        }
+
+        Ok(Transcription::from_transcript_items(transcript_items))
+    }
+    /// Does not work since joint decoder model output is not realy supporting batch properly
+    /// Need to implement own greedy decoding from encoder output per sample in batch
+    #[allow(dead_code)]
+    fn legacy_decode_transcripts_from_encoder_output(
         &self,
         encoder_output: TVec<TValue>,
     ) -> TractResult<Vec<Transcription>> {
