@@ -62,7 +62,7 @@ pub struct NemoAsrModel {
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptItem {
     pub token: String,
-    pub confidence: f32,
+    pub logit: f32,
     pub emitted_at_encoder_timestep: usize,
     pub emitted_at_encoder_timestep_iteration: usize,
 }
@@ -454,7 +454,7 @@ impl NemoAsrModel {
                         token: vocab[tok].clone(),
                         emitted_at_encoder_timestep: lane.current_frame,
                         emitted_at_encoder_timestep_iteration: 0,
-                        confidence: *tok_prob,
+                        logit: *tok_prob,
                     });
 
                     for (sid, st) in outs[2..].iter().enumerate() {
@@ -565,6 +565,9 @@ mod test {
                 i,
                 &truncate_with_ellipsis(&t.text, max_chars)
             );
+            if i == 0 {
+                println!("Full items: {:#?}", t.items);
+            }
         }
         // This code works if only 1 sample in batch
         // but output garbage text when multiple samples in batch
