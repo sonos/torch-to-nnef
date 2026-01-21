@@ -141,7 +141,8 @@ def score_results(directory: str, model_id: str = None):
     if len(result_files) == 0:
         raise ValueError(f"No result files found in {directory}")
 
-    # Utility function to parse the file path and extract model id, dataset path, dataset name and split
+    # Utility function to parse the file path and extract model id, dataset path,
+    # dataset name and split
     def parse_filepath(fp: str):
         model_index = fp.find("MODEL_")
         fp = fp[model_index:]
