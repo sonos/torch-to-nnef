@@ -62,6 +62,7 @@ pub struct NemoAsrModel {
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptItem {
     pub token: String,
+    pub confidence: f32,
     pub emitted_at_encoder_timestep: usize,
     pub emitted_at_encoder_timestep_iteration: usize,
 }
@@ -424,7 +425,7 @@ impl NemoAsrModel {
 
             for (k, &lane_ix) in active.iter().enumerate() {
                 let row = logp.index_axis(Axis(0), k);
-                let (tok, _) = row
+                let (tok, tok_prob) = row
                     .iter()
                     .take(vocab.len() + 1)
                     .enumerate()
@@ -433,7 +434,18 @@ impl NemoAsrModel {
 
                 let lane = &mut lanes[lane_ix];
                 if tok == blank {
-                    lane.current_frame += 1;
+                    // if row len> vocab len +1, means next tokens
+                    // are for steps to skip
+                    let (n_skip_steps, _) = if row.len() > vocab.len() + 1 {
+                        row.iter()
+                            .skip(vocab.len() + 1)
+                            .enumerate()
+                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                            .unwrap()
+                    } else {
+                        (1, &0f32)
+                    };
+                    lane.current_frame += n_skip_steps;
                     lane.n_tokens_added_in_frame = 0;
                 } else {
                     lane.last_token = tok;
@@ -442,6 +454,7 @@ impl NemoAsrModel {
                         token: vocab[tok].clone(),
                         emitted_at_encoder_timestep: lane.current_frame,
                         emitted_at_encoder_timestep_iteration: 0,
+                        confidence: *tok_prob,
                     });
 
                     for (sid, st) in outs[2..].iter().enumerate() {
