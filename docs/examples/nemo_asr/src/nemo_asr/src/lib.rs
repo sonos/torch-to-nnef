@@ -100,6 +100,7 @@ struct Lane {
 
 impl NemoAsrModel {
     fn from_bytes_submodel(
+        name: &str,
         runtime_config: &RuntimeConfig,
         model_bytes: &[u8],
     ) -> TractResult<TypedRunnableModel<TypedModel>> {
@@ -112,6 +113,7 @@ impl NemoAsrModel {
 
         let mut nn = nnef.model_for_read(&mut model_read)?;
 
+        let mut device = "CPU";
         if !runtime_config.force_cpu {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             {
@@ -119,7 +121,7 @@ impl NemoAsrModel {
                 use std::str::FromStr;
                 nn.properties.insert("GPU".into(), rctensor0(true));
                 tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
-                log::info!("Using Metal GPU acceleration for model inference");
+                device = "Metal GPU acceleration ";
             }
             #[cfg(not(any(target_os = "macos", target_os = "ios")))]
             {
@@ -127,10 +129,11 @@ impl NemoAsrModel {
                 if tract_cuda::utils::are_culibs_present() {
                     nn.properties.insert("GPU".into(), rctensor0(true));
                     tract_cuda::CudaTransform.transform(&mut nn)?;
-                    log::info!("Using CUDA GPU acceleration for model inference");
+                    device = "CUDA GPU acceleration ";
                 }
             }
         }
+        log::info!("Using {} for model part: {} inference", device, name);
 
         let mut nn = nn.into_decluttered()?;
         nn.transform(&*transform)?;
@@ -157,10 +160,11 @@ impl NemoAsrModel {
         };
 
         let preprocessor_model =
-            NemoAsrModel::from_bytes_submodel(&runtime_config, pre_model_bytes)?;
-        let encoder_model = NemoAsrModel::from_bytes_submodel(&runtime_config, enc_model_bytes)?;
+            NemoAsrModel::from_bytes_submodel("preprocessor", &runtime_config, pre_model_bytes)?;
+        let encoder_model =
+            NemoAsrModel::from_bytes_submodel("encoder", &runtime_config, enc_model_bytes)?;
         let decoder_joint_model =
-            NemoAsrModel::from_bytes_submodel(&runtime_config, dec_model_bytes)?;
+            NemoAsrModel::from_bytes_submodel("decoder_joint", &runtime_config, dec_model_bytes)?;
 
         log::info!("all model subparts loaded successfully in tract");
         Ok(NemoAsrModel {
