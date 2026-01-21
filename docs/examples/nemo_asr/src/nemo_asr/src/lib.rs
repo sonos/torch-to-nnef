@@ -7,7 +7,6 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tract_core::plan::SimpleState;
 use tract_core::tract_data::itertools::Itertools;
 use tract_ndarray::s;
 use tract_nnef::prelude::*;
@@ -411,14 +410,12 @@ impl NemoAsrModel {
                         }
                     } else {
                         last_turn_token_ixes[b] = selected_token_ix;
-                        if !finished[b] {
-                            // collect hypothesis
-                            transcript_items[b].push(TranscriptItem {
-                                token: vocab.get(selected_token_ix).unwrap().to_string(),
-                                emitted_at_encoder_timestep: current_frames[b],
-                                emitted_at_encoder_timestep_iteration: symbols_added,
-                            })
-                        }
+                        // collect hypothesis
+                        transcript_items[b].push(TranscriptItem {
+                            token: vocab.get(selected_token_ix).unwrap().to_string(),
+                            emitted_at_encoder_timestep: current_frames[b],
+                            emitted_at_encoder_timestep_iteration: symbols_added,
+                        })
                     }
                 }
 
@@ -438,11 +435,11 @@ impl NemoAsrModel {
                             let mut new_arr = t.to_array_view::<f32>().unwrap().to_owned();
                             let prev_arr = input_states[state_id].to_array_view::<f32>().unwrap();
 
-                            for b in 0..batch_size {
-                                if blank_mask[b] {
+                            for (bix, is_blank) in blank_mask.iter().enumerate() {
+                                if *is_blank {
                                     new_arr
-                                        .index_axis_mut(Axis(1), b)
-                                        .assign(&prev_arr.index_axis(Axis(1), b));
+                                        .index_axis_mut(Axis(1), bix)
+                                        .assign(&prev_arr.index_axis(Axis(1), bix));
                                 }
                             }
 
