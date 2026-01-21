@@ -29,7 +29,7 @@ pub struct NemoAsrConfig {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct RuntimeConfig {
-    max_symbols_per_step: Option<usize>,
+    max_n_tokens_per_step: Option<usize>,
     force_cpu: bool,
 }
 
@@ -84,8 +84,9 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    states: TVec<TValue>, // each state is [2,1,640]
+    states: TVec<TValue>, // each state is [2,1,640] in parakeet
     transcript: Vec<TranscriptItem>,
+    n_tokens_added_in_frame: usize,
 }
 
 impl NemoAsrModel {
@@ -270,7 +271,7 @@ impl NemoAsrModel {
         t
     }
 
-    fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<TVec<TValue>> {
+    fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<Vec<[usize; 3]>> {
         let mdl: &TypedModel = self.decoder_joint_model.model();
 
         mdl.input_outlets()?
@@ -296,8 +297,7 @@ impl NemoAsrModel {
                         shape
                     );
                 }
-                let state_tensor: Tensor = tract_ndarray::Array3::<f32>::zeros(shape).into();
-                Ok(state_tensor.into_tvalue())
+                Ok(shape)
             })
             .collect()
     }
@@ -322,8 +322,9 @@ impl NemoAsrModel {
                     .inputs
                     .iter()
                     .skip(3)
-                    .map(|_| {
-                        let z = tract_ndarray::Array3::<f32>::zeros((2, 1, 640));
+                    .zip(self.get_initial_decoder_states(1)?)
+                    .map(|(_, shape)| {
+                        let z = tract_ndarray::Array3::<f32>::zeros(shape);
                         Ok(z.into_tensor().into_tvalue())
                     })
                     .collect::<TractResult<_>>()?;
@@ -334,6 +335,7 @@ impl NemoAsrModel {
                     last_token: blank,
                     states,
                     transcript: Vec::new(),
+                    n_tokens_added_in_frame: 0,
                 })
             })
             .collect::<TractResult<_>>()?;
@@ -342,7 +344,13 @@ impl NemoAsrModel {
             let active: Vec<usize> = lanes
                 .iter()
                 .enumerate()
-                .filter(|(_, l)| l.current_frame < l.encoder_len)
+                .filter(|(_, l)| {
+                    l.current_frame < l.encoder_len
+                        && self
+                            .runtime_config
+                            .max_n_tokens_per_step
+                            .is_none_or(|m| l.n_tokens_added_in_frame < m)
+                })
                 .map(|(i, _)| i)
                 .collect();
 
@@ -398,8 +406,10 @@ impl NemoAsrModel {
                 let lane = &mut lanes[lane_ix];
                 if tok == blank {
                     lane.current_frame += 1;
+                    lane.n_tokens_added_in_frame = 0;
                 } else {
                     lane.last_token = tok;
+                    lane.n_tokens_added_in_frame += 1;
                     lane.transcript.push(TranscriptItem {
                         token: vocab[tok].clone(),
                         emitted_at_encoder_timestep: lane.current_frame,
@@ -408,6 +418,19 @@ impl NemoAsrModel {
 
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
+                    }
+                }
+            }
+            if let Some(max_n_tok) = self.runtime_config.max_n_tokens_per_step {
+                for lane in lanes.iter_mut() {
+                    if lane.n_tokens_added_in_frame >= max_n_tok {
+                        lane.current_frame += 1;
+                        lane.n_tokens_added_in_frame = 0;
+                        log::debug!(
+                            "Lane reached max tokens per step {}, advancing frame to {}",
+                            max_n_tok,
+                            lane.current_frame
+                        );
                     }
                 }
             }
@@ -495,7 +518,7 @@ mod test {
             assets_dir().join("2086-149220-0033.wav"),
             Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H03_FIO089_0023485_0026102.wav").into(),
             Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004b_H02_MEE014_0177063_0179451.wav").into(),
-            Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
+            // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0063941_0066293.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_EN2002b_H00_FEO070_0042617_0044950.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_ES2004c_H02_MEE014_0089550_0091768.wav").into(),
             // Path::new("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/ami/test/AMI_IS1009b_H02_FIO084_0073867_0076040.wav").into(),
