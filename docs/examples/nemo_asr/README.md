@@ -27,6 +27,10 @@ t2n_export_nemo \
 After running the above command, you will find the exported NNEF model files in the specified export directory (`./dump_parakeet_v3_06B` in this case),
 along side the `model_config.json` file.
 
+# About audio preprocessing
+
+Model expects 16kHz mono audio input.
+
 
 # Run the exported model in Rust
 
