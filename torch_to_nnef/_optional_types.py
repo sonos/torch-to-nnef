@@ -5,6 +5,7 @@ Help with dependency injection.
 """
 
 from typing import TYPE_CHECKING, Any, Protocol, Union
+
 from typing_extensions import TypeAlias
 
 from torch_to_nnef.utils import Injected
