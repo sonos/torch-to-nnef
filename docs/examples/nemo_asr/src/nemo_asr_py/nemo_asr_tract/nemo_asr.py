@@ -7,7 +7,9 @@ from pydantic import BaseModel as PydanticModel, RootModel
 
 class TranscriptItem(PydanticModel):
     token: str
-    timestep: int
+    logit: float
+    emitted_at_encoder_timestep: int
+    emitted_at_encoder_timestep_iteration: int
 
 
 class Transcript(PydanticModel):
