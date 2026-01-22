@@ -22,8 +22,10 @@ def get_text(sample):
         return sample["transcription"]
     else:
         raise ValueError(
-            f"Expected transcript column of either 'text', 'sentence', 'normalized_text' or 'transcript'. Got sample of "
-            ".join{sample.keys()}. Ensure a text column name is present in the dataset."
+            "Expected transcript column of either 'text', 'sentence', "
+            "'normalized_text' or 'transcript'. Got sample of "
+            f".join{sample.keys()}. Ensure a text column name "
+            "is present in the dataset."
         )
 
 
