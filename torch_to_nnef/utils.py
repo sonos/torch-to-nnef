@@ -609,7 +609,7 @@ def require_extra_decorator(
     *,
     extra: T2NExtra,
     module: str,
-    kw: str | None = None,
+    kw: T.Union[str, None] = None,
 ) -> T.Callable[[F], F]:
     inject_name = kw or module.split(".", 1)[0]
 

@@ -4,7 +4,7 @@ Help with dependency injection.
 
 """
 
-from typing import TYPE_CHECKING, Any, TypeAlias, Protocol
+from typing import TYPE_CHECKING, Any, TypeAlias, Protocol, Union
 from torch_to_nnef.utils import Injected
 
 
@@ -51,13 +51,15 @@ OmegaConfModule: TypeAlias = omegaconf
 LightningModule: TypeAlias = pytorch_lightning
 
 
-InjectedTransformersModule: TypeAlias = TransformersModule | Injected
-InjectedTransformersUtilsModule: TypeAlias = TransformersUtilsModule | Injected
-InjectedTransformersCacheUtilsModule: TypeAlias = (
-    TransformersCacheUtils | Injected
-)
-InjectedHuggingFaceHubModule: TypeAlias = HuggingFaceHubModule | Injected
-InjectedPeftModule: TypeAlias = PeftModule | Injected
-InjectedNemoModule: TypeAlias = NemoModule | Injected
-InjectedOmegaConfModule: TypeAlias = OmegaConfModule | Injected
-InjectedLightningModule: TypeAlias = LightningModule | Injected
+InjectedTransformersModule: TypeAlias = Union[TransformersModule, Injected]
+InjectedTransformersUtilsModule: TypeAlias = Union[
+    TransformersUtilsModule, Injected
+]
+InjectedTransformersCacheUtilsModule: TypeAlias = Union[
+    TransformersCacheUtils, Injected
+]
+InjectedHuggingFaceHubModule: TypeAlias = Union[HuggingFaceHubModule, Injected]
+InjectedPeftModule: TypeAlias = Union[PeftModule, Injected]
+InjectedNemoModule: TypeAlias = Union[NemoModule, Injected]
+InjectedOmegaConfModule: TypeAlias = Union[OmegaConfModule, Injected]
+InjectedLightningModule: TypeAlias = Union[LightningModule, Injected]
