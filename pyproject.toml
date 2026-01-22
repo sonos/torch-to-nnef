@@ -40,6 +40,7 @@ dependencies = [
     "nnef_tools>=1.0.7,<2",
     "numpy>=1.26.0,<3",
     "torch>=1.8.0,<3",
+    "typing-extensions>=4.0.0",
 ]
 
 [project.optional-dependencies]

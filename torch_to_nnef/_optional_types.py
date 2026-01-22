@@ -4,7 +4,9 @@ Help with dependency injection.
 
 """
 
-from typing import TYPE_CHECKING, Any, TypeAlias, Protocol, Union
+from typing import TYPE_CHECKING, Any, Protocol, Union
+from typing_extensions import TypeAlias
+
 from torch_to_nnef.utils import Injected
 
 
@@ -22,14 +24,14 @@ class _TransformersProto(Protocol):
 
 
 if TYPE_CHECKING:
-    import transformers
-    import transformers.utils as transformers_utils
-    import transformers.cache_utils as transformers_cache_utils
     import huggingface_hub
-    import peft
-    import omegaconf
-    import pytorch_lightning
     import nemo
+    import omegaconf
+    import peft
+    import pytorch_lightning
+    import transformers
+    import transformers.cache_utils as transformers_cache_utils
+    import transformers.utils as transformers_utils
 else:
     transformers = _TransformersProto
     transformers_utils = Any

@@ -42,7 +42,11 @@ from torch_to_nnef.llm_tract.config import (
     ExportDirStruct,
     HFConfigHelper,
 )
-from torch_to_nnef.llm_tract.models.base import use_dtype_dyn_cache
+from torch_to_nnef.llm_tract.models.base import (
+    build_past_kv_dyn_cache,
+    build_past_kv_list,
+    use_dtype_dyn_cache,
+)
 from torch_to_nnef.tensor.offload import (
     AUTO_DEVICE_MAP_KEY,
     ON_DISK_DEVICE_MAP_KEY,
@@ -56,10 +60,6 @@ from torch_to_nnef.utils import (
     init_empty_weights,
     require_extra_decorator,
     torch_version,
-)
-from torch_to_nnef.llm_tract.models.base import (
-    build_past_kv_dyn_cache,
-    build_past_kv_list,
 )
 
 LOGGER = logging.getLogger(__name__)

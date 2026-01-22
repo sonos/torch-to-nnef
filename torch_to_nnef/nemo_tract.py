@@ -328,6 +328,7 @@ def export_nemo_asr_model(
         compress_method: Compression method for the exported NNEF subnets.
             if None, no compression is applied.
         extra_cfg: Additional configuration to save alongside the model.
+        omegaconf: Injected OmegaConf module.
         kwargs: Additional keyword arguments to pass to the export function.
     """
     with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:

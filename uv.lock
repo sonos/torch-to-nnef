@@ -4109,6 +4109,7 @@ dependencies = [
     { name = "nnef-tools" },
     { name = "numpy" },
     { name = "torch" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -4193,6 +4194,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'test'", specifier = ">=0.10.0,<0.25" },
     { name = "transformers", marker = "extra == 'llm-tract'", specifier = ">=4.35.2,<5" },
     { name = "transformers", marker = "extra == 'test'", specifier = ">=4.35.2,<5" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
 provides-extras = ["llm-tract", "llm-tract-accelerate", "safetensors", "peft", "nemo-tract", "test"]
 

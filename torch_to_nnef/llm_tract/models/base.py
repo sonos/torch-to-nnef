@@ -20,7 +20,6 @@ from torch_to_nnef.utils import (
     require_extra_decorator,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 
 
