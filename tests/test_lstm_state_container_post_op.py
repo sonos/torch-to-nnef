@@ -1,14 +1,12 @@
 import torch
 from torch import nn
 
-from torch_to_nnef import TractNNEF
 from tests.utils import check_model_io_test
+from torch_to_nnef import TractNNEF
 
 
 class LSTMWithState(nn.Module):
-    """
-    LSTM wrapper that accepts hidden state as a list or tuple.
-    """
+    """LSTM wrapper that accepts hidden state as a list or tuple."""
 
     def __init__(self, input_size, hidden_size):
         super().__init__()
@@ -20,8 +18,8 @@ class LSTMWithState(nn.Module):
 
 
 class LSTMStatePostOpModel(nn.Module):
-    """
-    Non-regression model:
+    """Non-regression model.
+
     - LSTM state passed as list [h, c]
     - LSTM output consumed by another module
     """
@@ -39,8 +37,7 @@ class LSTMStatePostOpModel(nn.Module):
 
 
 def test_lstm_state_list_with_post_op_non_regression():
-    """
-    Non-regression test for LSTM state handling during tracing.
+    """Non-regression test for LSTM state handling during tracing.
 
     Ensures that passing LSTM state as a list [h, c] works correctly
     even when the LSTM output is consumed by another module.
