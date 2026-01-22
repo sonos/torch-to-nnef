@@ -13,7 +13,6 @@ import logging
 import typing as T
 from contextlib import contextmanager
 from pathlib import Path
-from typing import NamedTuple
 
 import torch
 
@@ -202,7 +201,7 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
     return dynamic_axes, custom_extensions
 
 
-ExportParameters = NamedTuple(
+ExportParameters = T.NamedTuple(
     "ExportParameters",
     [
         ("name", str),
