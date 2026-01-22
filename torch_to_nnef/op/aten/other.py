@@ -396,3 +396,65 @@ def _to_copy(node, inference_target, op_helper, **kwargs):
         },
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def isnan(node, inference_target, op_helper, **kwargs):
+    """Map PyTorch: 'aten:isnan' to NNEF."""
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented("need special NNEF operator")
+    assert len(node.inputs) == 1
+    val_node = node.inputs[0]
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_is_nan",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def isinf(node, inference_target, op_helper, **kwargs):
+    """Map PyTorch: 'aten:isinf' to NNEF."""
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented("need special NNEF operator")
+    assert len(node.inputs) == 1
+    val_node = node.inputs[0]
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_is_inf",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def isposinf(node, inference_target, op_helper, **kwargs):
+    """Map PyTorch: 'aten:isposinf' to NNEF."""
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented("need special NNEF operator")
+    assert len(node.inputs) == 1
+    val_node = node.inputs[0]
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_is_inf",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
+        attrs={"detect_negative": False},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def isneginf(node, inference_target, op_helper, **kwargs):
+    """Map PyTorch: 'aten:isneginf' to NNEF."""
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented("need special NNEF operator")
+    assert len(node.inputs) == 1
+    val_node = node.inputs[0]
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_is_inf",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(val_node),
+        attrs={"detect_positive": False},
+    )
+    return ["tract_core"]

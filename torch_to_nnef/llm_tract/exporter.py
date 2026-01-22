@@ -10,13 +10,20 @@ import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef._optional_types import (
+    InjectedHuggingFaceHubModule,
+    InjectedPeftModule,
+    InjectedTransformersModule,
+    InjectedTransformersUtilsModule,
+    TransformersModule,
+)
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
 )
 from torch_to_nnef.exceptions import (
     T2NErrorConsistency,
-    T2NErrorMissUse,
+    T2NErrorMisuse,
     T2NErrorNotFoundFile,
     T2NErrorNotImplemented,
     T2NErrorRuntime,
@@ -35,7 +42,11 @@ from torch_to_nnef.llm_tract.config import (
     ExportDirStruct,
     HFConfigHelper,
 )
-from torch_to_nnef.llm_tract.models.base import use_dtype_dyn_cache
+from torch_to_nnef.llm_tract.models.base import (
+    build_past_kv_dyn_cache,
+    build_past_kv_list,
+    use_dtype_dyn_cache,
+)
 from torch_to_nnef.tensor.offload import (
     AUTO_DEVICE_MAP_KEY,
     ON_DISK_DEVICE_MAP_KEY,
@@ -43,28 +54,13 @@ from torch_to_nnef.tensor.offload import (
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import (
+    INJECTED,
     SemanticVersion,
+    T2NExtra,
     init_empty_weights,
+    require_extra_decorator,
     torch_version,
 )
-
-try:
-    import huggingface_hub
-    from transformers import (
-        AutoModelForCausalLM,
-        AutoTokenizer,
-        GenerationConfig,
-    )
-    from transformers.utils import CONFIG_NAME
-
-    from torch_to_nnef.llm_tract.models.base import (
-        build_past_kv_dyn_cache,
-        build_past_kv_list,
-    )
-except (ModuleNotFoundError, ImportError) as exp:
-    raise T2NErrorMissUse(
-        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
-    ) from exp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -166,7 +162,7 @@ class LLMExporter:
     def __init__(
         self,
         hf_model_causal: nn.Module,
-        tokenizer: AutoTokenizer,
+        tokenizer: TransformersModule.AutoTokenizer,
         local_dir: T.Optional[Path] = None,
         force_module_dtype: T.Optional[DtypeStr] = None,
         force_inputs_dtype: T.Optional[DtypeStr] = None,
@@ -277,9 +273,12 @@ class LLMExporter:
         return sum(_.numel() for _ in self.hf_model_causal.parameters())
 
     @staticmethod
+    @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
     def load(
         model_slug: T.Optional[str] = None,
         local_dir: T.Optional[Path] = None,
+        *,
+        huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
         **kwargs,
     ):
         """Load from either huggingface model slug hub or local_dir."""
@@ -465,9 +464,15 @@ class LLMExporter:
             text_gen_npz_filepath,
         ]
 
-    def generate_test_text(self, prompt: str = "Alan Turing was"):
+    @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+    def generate_test_text(
+        self,
+        prompt: str = "Alan Turing was",
+        *,
+        transformers: InjectedTransformersModule = INJECTED,
+    ):
         LOGGER.info("start to generate testing text from loaded model:")
-        generation_config = GenerationConfig(
+        generation_config = transformers.GenerationConfig(
             max_new_tokens=50,
             do_sample=False,
             num_beams=1,
@@ -552,6 +557,11 @@ class LLMExporter:
                 self.check_wrapper_io()
 
     @use_dtype_dyn_cache
+    @require_extra_decorator(
+        extra=T2NExtra.LLM_TRACT,
+        module="transformers.utils",
+        kw="transformers_utils",
+    )
     def export_model(
         self,
         export_dirpath: Path,
@@ -564,6 +574,8 @@ class LLMExporter:
         ignore_already_exist_dir: bool = False,
         export_dir_struct: ExportDirStruct = ExportDirStruct.DEEP,
         debug_bundle_path: T.Optional[Path] = None,
+        *,
+        transformers_utils: InjectedTransformersUtilsModule = INJECTED,
     ):
         """Export model has is currently in self.hf_model_causal.
 
@@ -623,7 +635,7 @@ class LLMExporter:
             if dump_with_tokenizer_and_conf:
                 # export_dir_struct
                 self.hf_model_causal.config.to_json_file(
-                    model_dir / CONFIG_NAME, use_diff=False
+                    model_dir / transformers_utils.CONFIG_NAME, use_diff=False
                 )
                 self.tokenizer.save_pretrained(tok_dir)
 
@@ -793,15 +805,10 @@ class LLMExporter:
                 self.hf_model_causal.config._name_or_path
             )
         if hasattr(self.hf_model_causal, "peft_config"):
-            try:
-                # pylint: disable-next=import-outside-toplevel
-                from peft import PeftModel
-
-                tract_specific_properties["peft_merged"] = (
-                    "0" if isinstance(self.hf_model_causal, PeftModel) else "1"
-                )
-            except ImportError:
-                pass
+            # PEFT model need peft dependency to be in env
+            tract_specific_properties["peft_merged"] = (
+                "0" if self.is_peft_model(self.hf_model_causal) else "1"
+            )
             for k, _conf in self.hf_model_causal.peft_config.items():
                 tract_specific_properties[f"peft_{k}_type"] = (
                     self.hf_model_causal.peft_config[k].peft_type.value
@@ -810,6 +817,12 @@ class LLMExporter:
                     ",".join(self.hf_model_causal.peft_config[k].target_modules)
                 )
         return tract_specific_properties
+
+    @staticmethod
+    @require_extra_decorator(extra=T2NExtra.PEFT, module="peft")
+    def is_peft_model(model, *, peft: InjectedPeftModule = INJECTED) -> bool:
+        """Check if the model is a PEFT model."""
+        return isinstance(model, peft.PeftModel)
 
     def dump_with_inference_target(
         self,
@@ -842,7 +855,7 @@ class LLMExporter:
             )
             test_display_token_gens = False
         if export_dirpath.exists() and not ignore_already_exist_dir:
-            raise T2NErrorMissUse(
+            raise T2NErrorMisuse(
                 "'export_dirpath' should not exist but found: "
                 f"'{export_dirpath}'"
             )
@@ -885,10 +898,13 @@ def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
     return found_dirs.pop()
 
 
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def load_tokenizer(
     config,
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
+    *,
+    transformers: InjectedTransformersModule = INJECTED,
 ):
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     tokenizer_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
@@ -898,19 +914,25 @@ def load_tokenizer(
         assert local_dir is not None
     if local_dir is not None:
         local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
-    return AutoTokenizer.from_pretrained(
+    return transformers.AutoTokenizer.from_pretrained(
         local_dir or tokenizer_slug, trust_remote_code=True
     )
 
 
-def _try_load_peft(dir_path, kwargs, exp):
-    # pylint: disable-next=import-outside-toplevel
-    from peft import PeftModel
-
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+@require_extra_decorator(extra=T2NExtra.PEFT, module="peft")
+def _try_load_peft(
+    dir_path,
+    kwargs,
+    exp,
+    *,
+    transformers: InjectedTransformersModule = INJECTED,
+    peft: InjectedPeftModule = INJECTED,
+):
     # likely an embedding issue with added tokens
     with (dir_path / "adapter_config.json").open("r", encoding="utf8") as fh:
         dic = json.load(fh)
-    hf_model_causal = AutoModelForCausalLM.from_pretrained(
+    hf_model_causal = transformers.AutoModelForCausalLM.from_pretrained(
         dic["base_model_name_or_path"], **kwargs
     )
     msg = "Error(s) in loading state_dict for"
@@ -919,7 +941,7 @@ def _try_load_peft(dir_path, kwargs, exp):
         hf_model_causal.resize_token_embeddings(new_tokenizer_len)
         print("new_tokenizer_len:", new_tokenizer_len)
 
-    hf_model_causal = PeftModel.from_pretrained(hf_model_causal, dir_path)
+    hf_model_causal = peft.PeftModel.from_pretrained(hf_model_causal, dir_path)
     LOGGER.info("loaded a PEFT model with resized token embeddings")
     return hf_model_causal
 
@@ -931,7 +953,13 @@ def assert_model_safetensors_exists(dir_path):
     ), dir_path
 
 
-def load_peft_model(local_dir, kwargs):
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+def load_peft_model(
+    local_dir,
+    kwargs,
+    *,
+    transformers: InjectedTransformersModule = INJECTED,
+):
     """Load PEFT adapted models.
 
     Try to avoid direct reference to tokenizer object/config
@@ -946,14 +974,14 @@ def load_peft_model(local_dir, kwargs):
 
     while True:
         try:
-            hf_model_causal = AutoModelForCausalLM.from_pretrained(
+            hf_model_causal = transformers.AutoModelForCausalLM.from_pretrained(
                 dir_path, **kwargs
             )
         except ValueError as exp:
             msg = "Should have a `model_type` key in its config.json,"
             if msg in exp.args[0]:
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMissUse(msg) from exp
+            raise T2NErrorMisuse(msg) from exp
         except RuntimeError as exp:
             msg = "Error(s) in loading state_dict for"
             if (
@@ -961,7 +989,7 @@ def load_peft_model(local_dir, kwargs):
                 and "size mismatch for" in exp.args[0]
             ):
                 return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMissUse(msg) from exp
+            raise T2NErrorMisuse(msg) from exp
         except TypeError as exp:
             msg = "__init__() got an unexpected keyword argument '"
             if exp.args[0].startswith(msg):
@@ -976,11 +1004,19 @@ def load_peft_model(local_dir, kwargs):
                 ) as fh:
                     json.dump(dic, fh, indent=2)
                 continue
-            raise T2NErrorMissUse(msg) from exp
+            raise T2NErrorMisuse(msg) from exp
         return hf_model_causal
 
 
-def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+def _from_pretrained(
+    slug_or_dir: T.Union[str, Path],
+    *,
+    huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
+    transformers: InjectedTransformersModule = INJECTED,
+    **kwargs,
+):
     if "device_map" in kwargs and kwargs["device_map"] is not None:
         device_map = kwargs.pop("device_map")
         if Path(slug_or_dir).exists():
@@ -996,7 +1032,9 @@ def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
         # use 'local' init_empty_weights to init weights devices
         # to avoid 'accelerate' deps if un-needed
         with init_empty_weights():
-            model = AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
+            model = transformers.AutoModelForCausalLM.from_pretrained(
+                slug_or_dir, **kwargs
+            )
 
         if device_map == "auto":
             # pylint: disable-next=import-outside-toplevel
@@ -1028,26 +1066,34 @@ def _from_pretrained(slug_or_dir: T.Union[str, Path], **kwargs):
                 offload_folder=tempfile.mkdtemp(suffix="offload_accelerate"),
             )
         return model
-    return AutoModelForCausalLM.from_pretrained(slug_or_dir, **kwargs)
+    return transformers.AutoModelForCausalLM.from_pretrained(
+        slug_or_dir, **kwargs
+    )
 
 
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def load_model(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
     force_module_dtype: T.Optional[DtypeStr] = None,
     merge_peft: T.Optional[bool] = None,
     device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
+    *,
+    transformers: InjectedTransformersModule = INJECTED,
 ):
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if force_module_dtype is not None:
-        kwargs["torch_dtype"] = DtypeStr(force_module_dtype).torch_dtype
+        key = "torch_dtype"
+        if SemanticVersion.from_str(transformers.__version__) >= "4.57.0":
+            key = "dtype"
+        kwargs[key] = DtypeStr(force_module_dtype).torch_dtype
 
     if device_map is not None:
         kwargs["device_map"] = device_map
 
     custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
     if custom_config is not None:
-        hf_model_causal = AutoModelForCausalLM.from_config(
+        hf_model_causal = transformers.AutoModelForCausalLM.from_config(
             custom_config, **kwargs
         )
         LOGGER.info(

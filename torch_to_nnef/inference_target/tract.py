@@ -15,6 +15,7 @@ import sys
 import tempfile
 import typing as T
 import urllib.request
+from copy import deepcopy
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
@@ -84,6 +85,20 @@ class TractNNEF(InferenceTarget):
             "0.21.13",
         ]
     ]
+
+    def with_dynamic_axes(
+        self, dynamic_axes: T.Dict[str, T.Dict[int, str]]
+    ) -> "TractNNEF":
+        new_instance = deepcopy(self)
+        new_instance.dynamic_axes = dynamic_axes
+        return new_instance
+
+    def with_specific_properties(
+        self, specific_properties: T.Dict[str, str]
+    ) -> "TractNNEF":
+        new_instance = deepcopy(self)
+        new_instance.specific_properties = specific_properties
+        return new_instance
 
     @classmethod
     def latest_version(cls) -> "SemanticVersion":
@@ -708,6 +723,7 @@ def build_io(
             val = val.detach().numpy()
             return val
 
+        # TODO: issues with tract
         kwargs = {
             key: cast(input_arg)
             for key, input_arg in zip(input_names, tup_inputs)

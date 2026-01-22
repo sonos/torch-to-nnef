@@ -20,6 +20,8 @@ from .utils import (  # noqa: E402
     INFERENCE_TARGETS_TO_TESTS,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
+    combine_conditions,
+    cond_tract_gt_0_22_0,
     set_seed,
 )
 from .wrapper import (
@@ -135,6 +137,11 @@ for op in [
     TensorFnPrimitive("expand", args=(2, 13, 10, 1)),
 ]:
     test_suite.add(inp, UnaryPrimitive(op))
+
+
+test_suite.add(
+    torch.rand(13), UnaryPrimitive(TensorFnPrimitive("expand", args=(1, -1)))
+)
 
 for op in [
     TensorFnPrimitive("norm", kwargs=dict(p=2, dim=1, keepdim=True)),
@@ -1073,6 +1080,36 @@ test_suite.add(
     UnaryPrimitive(torch.nn.UpsamplingNearest2d(scale_factor=2)),
     inference_conditions=skip_khronos_interpreter,
 )
+
+inp = torch.tensor([float("nan"), 1.0, -1.0, float("inf"), -float("inf")])
+for fn_name in ["isnan", "isinf", "isposinf", "isneginf"]:
+    test_suite.add(
+        inp,
+        UnaryPrimitive(TensorFnPrimitive(fn_name)),
+        inference_conditions=combine_conditions(
+            [skip_khronos_interpreter, cond_tract_gt_0_22_0]
+        ),
+    )
+
+test_suite.reset()
+# test mixed type binary ops
+inp0 = torch.tensor([55.0, 1.0, -1.0, float("inf")])
+inp1 = torch.tensor([False, True, False, True])
+for fn_name in [
+    "ge",
+    "le",
+    "gt",
+    "lt",
+    "logical_and",
+    "logical_or",
+    "max",
+    "min",
+]:
+    test_suite.add(
+        (inp0, inp1),
+        BinaryPrimitive(getattr(torch, fn_name)),
+        inference_conditions=skip_khronos_interpreter,
+    )
 
 
 def test_should_fail_since_no_input():

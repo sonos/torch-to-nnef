@@ -34,7 +34,7 @@ class T2NErrorNotImplemented(NotImplementedError, T2NError):
     pass
 
 
-class T2NErrorMissUse(ValueError, T2NError):
+class T2NErrorMisuse(ValueError, T2NError):
     pass
 
 

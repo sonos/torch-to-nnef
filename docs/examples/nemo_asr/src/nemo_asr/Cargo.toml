@@ -1,0 +1,22 @@
+[package]
+name = "nemo_asr"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nemo_asr"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+
+anyhow = { workspace = true }
+hound = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tract-core = { workspace = true }
+tract-nnef = { workspace = true }
+tract-metal = { workspace = true }
+tract-cuda = { workspace = true }
+tract-transformers = { workspace = true }
+test-log = { workspace = true }

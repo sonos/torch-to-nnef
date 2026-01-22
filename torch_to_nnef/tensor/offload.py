@@ -40,7 +40,7 @@ from torch._tensor import _convert
 from torch.jit import TracerWarning
 from torch.overrides import get_default_nowrap_functions
 
-from torch_to_nnef.exceptions import T2NErrorMissUse
+from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.tensor.opaque import OpaqueTensor
 from torch_to_nnef.tensor.updater import ModTensorUpdater
 from torch_to_nnef.utils import select_ctx_disable_torch_fn, torch_version
@@ -524,13 +524,13 @@ def load_state_dict(
         metadata = {"format": "pt"}
 
     if metadata.get("format") not in ["pt", "tf", "flax"]:
-        raise T2NErrorMissUse(
+        raise T2NErrorMisuse(
             f"The safetensors archive passed at {checkpoint_file} does not "
             "contain the valid metadata. "
             "Make sure you save your model with the `save_pretrained` method."
         )
     if metadata["format"] != "pt":
-        raise T2NErrorMissUse(
+        raise T2NErrorMisuse(
             f"The checkpoint passed was saved with {metadata['format']}, "
             "we need a the pt format."
         )
@@ -651,18 +651,18 @@ def t2n_load_checkpoint_and_dispatch(
                 if f.name.endswith(".index.json")
             ]
             if len(potential_index) == 0:
-                raise T2NErrorMissUse(
+                raise T2NErrorMisuse(
                     f"{checkpoint} is not a folder containing a `.index.json`"
                     f" file or a {WEIGHTS_NAME} or a {SAFE_WEIGHTS_NAME} file"
                 )
             if len(potential_index) != 1:
-                raise T2NErrorMissUse(
+                raise T2NErrorMisuse(
                     f"{checkpoint} containing more than one `.index.json` file,"
                     " delete the irrelevant ones."
                 )
             index_filename = checkpoint / potential_index[0]
     else:
-        raise T2NErrorMissUse(
+        raise T2NErrorMisuse(
             "`checkpoint` should be the path to a file containing "
             "a whole state dict, or the index of a sharded "
             "checkpoint, or a folder containing a sharded checkpoint or "
@@ -713,7 +713,7 @@ def t2n_load_checkpoint_and_dispatch(
                 while len(module_name) > 0 and module_name not in device_map:
                     module_name = ".".join(module_name.split(".")[:-1])
                 if module_name == "" and "" not in device_map:
-                    raise T2NErrorMissUse(
+                    raise T2NErrorMisuse(
                         f"{param_name} doesn't have any device set."
                     )
                 param_device = device_map[module_name]
@@ -781,13 +781,13 @@ def set_module_tensor_to_device(
     param_cls = type(old_value)
 
     if value is None:
-        raise T2NErrorMissUse("Missing value")
+        raise T2NErrorMisuse("Missing value")
     # We can expect mismatches when using bnb 4bit since Params4bit will reshape
     # and pack the weights.
     # In other cases, we want to make sure we're not loading checkpoints
     # that do not match the config.
     if old_value.shape != value.shape and param_cls.__name__ != "Params4bit":
-        raise T2NErrorMissUse(
+        raise T2NErrorMisuse(
             f'Trying to set a tensor of shape {value.shape} in "{tensor_name}" '
             f"(which has shape {old_value.shape}), this looks incorrect."
         )
@@ -849,7 +849,7 @@ def ctx_maybe_load_from_disk_as_offloaded(
             if not device.startswith("disk"):
                 device = f"disk_{device}"
         else:
-            raise T2NErrorMissUse(
+            raise T2NErrorMisuse(
                 "Only string device are supported in this context"
             )
 

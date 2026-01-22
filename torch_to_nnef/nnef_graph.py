@@ -258,6 +258,8 @@ class TorchToNGraphExtractor:
             for onode, new_name in zip(
                 self.g.outputs, self._forced_outputs_names
             ):
+                if onode.name == new_name:
+                    continue
                 if onode.name in self._forced_inputs_names:
                     raise T2NError(
                         f"input tensor named: '{onode.name}' tryied to "

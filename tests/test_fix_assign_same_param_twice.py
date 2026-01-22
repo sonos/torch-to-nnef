@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from torch_to_nnef.compress import dynamic_load_registry
-from torch_to_nnef.exceptions import T2NErrorMissUse
+from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.utils import cd
 
 from .utils import (
@@ -44,7 +44,7 @@ def check_no_dup_dat(inference_target, path):
             dats = [_ for _ in td.iterdir() if ".dat" in _.suffixes]
             if len(dats) != 2:
                 names = [_.name for _ in dats]
-                raise T2NErrorMissUse(f"too much .dat produced: {names}")
+                raise T2NErrorMisuse(f"too much .dat produced: {names}")
 
 
 @skipif_unsupported_tensor_updater

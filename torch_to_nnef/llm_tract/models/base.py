@@ -7,21 +7,27 @@ from functools import partial, wraps
 
 import torch
 
-from torch_to_nnef.exceptions import T2NErrorImport
-from torch_to_nnef.utils import SemanticVersion
-
-try:
-    import transformers
-    from transformers import AutoModelForCausalLM, cache_utils
-
-    TRANSFORMERS_VERSION = SemanticVersion.from_str(transformers.__version__)
-except ImportError as exp:
-    raise T2NErrorImport(
-        "Should be used with 'torch_to_nnef[llm_tract]' enabled"
-    ) from exp
-
+from torch_to_nnef._optional_types import (
+    InjectedTransformersCacheUtilsModule,
+    InjectedTransformersModule,
+    TransformersCacheUtils,
+    TransformersModule,
+)
+from torch_to_nnef.utils import (
+    INJECTED,
+    SemanticVersion,
+    T2NExtra,
+    require_extra_decorator,
+)
 
 LOGGER = logging.getLogger(__name__)
+
+
+@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
+def get_transformers_version(
+    *, transformers: InjectedTransformersModule = INJECTED
+) -> SemanticVersion:
+    return SemanticVersion.from_str(transformers.__version__)
 
 
 def build_past_kv_list(
@@ -41,12 +47,15 @@ def build_past_kv_list(
     return past_key_values  # type: ignore
 
 
+@require_extra_decorator(
+    extra=T2NExtra.LLM_TRACT, module="transformers.cache_utils", kw="cu"
+)
 def build_past_kv_dyn_cache(
     args: T.Iterable[torch.Tensor],
-) -> cache_utils.DynamicCache:
-    return cache_utils.DynamicCache.from_legacy_cache(
-        tuple(build_past_kv_list(args))
-    )
+    *,
+    cu: InjectedTransformersCacheUtilsModule = INJECTED,
+) -> TransformersCacheUtils.DynamicCache:
+    return cu.DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
 
 
 def _force_dyn_layer_update_ge4_56(
@@ -133,13 +142,21 @@ def _force_dtype_dyn_cache_update_pre_4_54(
 
 
 @contextmanager
-def ctx_dtype_dyn_cache():
+@require_extra_decorator(
+    extra=T2NExtra.LLM_TRACT,
+    module="transformers.cache_utils",
+    kw="cache_utils",
+)
+def ctx_dtype_dyn_cache(
+    *, cache_utils: InjectedTransformersCacheUtilsModule = INJECTED
+):
     """Context Manager to handle inconsistent device type in KV-cache update.
 
     This may be due for example to the use of accelerate 'meta' tensors device.
 
     This manager is stackable in such case only largest context will be applied.
     """
+    transformers_version = get_transformers_version()
 
     def force_dtype_dyn_cache_update(
         self,
@@ -153,11 +170,11 @@ def ctx_dtype_dyn_cache():
         Same as original update, excepted it forces device alignment.
         this is to avoid issues with 'accelerate' package
         """
-        if TRANSFORMERS_VERSION >= "4.56.0":
+        if transformers_version >= "4.56.0":
             raise NotImplementedError(
                 "Should not be used with transformers >= 4.56.0"
             )
-        if TRANSFORMERS_VERSION >= "4.54.0":
+        if transformers_version >= "4.54.0":
             return _force_dtype_dyn_cache_update_4_54_to_4_56(
                 self, key_states, value_states, layer_idx, cache_kwargs
             )
@@ -172,10 +189,10 @@ def ctx_dtype_dyn_cache():
     else:
         new_count = 1
 
-    if new_count == 1 and TRANSFORMERS_VERSION < "4.56.0":
+    if new_count == 1 and transformers_version < "4.56.0":
         # only apply on validated transformers version
         cache_utils.DynamicCache.update = force_dtype_dyn_cache_update
-    if new_count == 1 and TRANSFORMERS_VERSION >= "4.56.0":
+    if new_count == 1 and transformers_version >= "4.56.0":
         cache_utils.DynamicLayer.update = _force_dyn_layer_update_ge4_56
 
     setattr(cache_utils, count_attr_name, new_count)
@@ -263,7 +280,9 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     with_dyn_cache: bool = True
 
     def __init__(
-        self, model: AutoModelForCausalLM, num_logits_to_keep: int = 1
+        self,
+        model: TransformersModule.AutoModelForCausalLM,
+        num_logits_to_keep: int = 1,
     ):
         super().__init__()
         self.model = model
@@ -393,7 +412,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
                 )
 
         if force_causal_mask is None:
-            force_causal_mask = TRANSFORMERS_VERSION > "4.52.4"
+            force_causal_mask = get_transformers_version() > "4.52.4"
 
         self.force_causal_mask = force_causal_mask
         self.forward_kwargs = fkwargs

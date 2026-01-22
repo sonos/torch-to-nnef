@@ -1,0 +1,34 @@
+[project]
+version = "0.1.0"
+name = "nemo_asr_tract"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["stringcase>=1.2,<2", "pydantic>=2,<3"]
+authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+
+[project.optional-dependencies]
+eval = [
+    "jiwer>=4.0.0",
+    "evaluate>=0.4.6",
+    "transformers>=4.35.2,<5",
+    "onnx>=1.20.0",                    # failing dep in osx
+    "nemo_toolkit[asr]>=2.0.0,<2.7.0", # to test against original nemo models
+    "torchcodec",
+]
+
+[project.scripts]
+nemo_tract_eval = "nemo_asr_tract.eval:main"
+nemo_tract_eval_single = "nemo_asr_tract.open_asr_leaderboard_eval:main"
+
+[build-system]
+requires = ["setuptools>=64", "setuptools_rust>=1.10"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["nemo_asr_tract"]
+
+[[tool.setuptools-rust.ext-modules]]
+target = "nemo_asr_tract.dylib.libnemo_asr"
+path = "../nemo_asr_ffi/Cargo.toml"
+binding = "NoBinding"
+debug = false

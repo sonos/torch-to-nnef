@@ -9,7 +9,7 @@ from tests.wrapper import TorchFnPrimitive
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
     DTYPES_EXPECTED_IMPLICIT_CAST_ORDER,
-    IMPLICIT_CAST_SUPPORTED_OPS,
+    OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE,
 )
 
 from .utils import (  # noqa: E402
@@ -42,7 +42,7 @@ test_suite = TestSuiteInferenceExactnessBuilder(
 
 _base_tensor = torch.arange(6).reshape(2, 3)
 base_tensor = _base_tensor[:]
-for op in IMPLICIT_CAST_SUPPORTED_OPS:
+for op in OPS_IMPLICIT_CAST_BY_OUTPUT_DTYPE:
     if op in ["rsub", "pow"]:
         continue
     for idx, dtype in enumerate(DTYPES_EXPECTED_IMPLICIT_CAST_ORDER):

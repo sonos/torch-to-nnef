@@ -1,0 +1,13 @@
+*.nnef.tgz
+*.onnx
+**/targets/
+**/build/
+**/dist/
+**/.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.json
+*.txt
+*.wav

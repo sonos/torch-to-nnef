@@ -143,6 +143,15 @@ def set_seed(seed=0, cudnn=False, torch=True):
     random.seed(seed)
 
 
+class ModelWrapper(Torch.nn.Module):
+    def __init__(self, model: Torch.nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
+
 def check_model_io_test(
     model: Torch.nn.Module,
     test_input,
@@ -153,6 +162,7 @@ def check_model_io_test(
     custom_extensions=None,
     callback_post_export=None,
     unit_test_naming=None,
+    allow_same_io_names=False,
 ):
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
@@ -182,6 +192,9 @@ def check_model_io_test(
         export_path = Path(tmpdir) / "model.nnef"
         io_npz_path = Path(tmpdir) / "io.npz"
 
+        if not hasattr(model, "eval"):
+            model = ModelWrapper(model)
+
         model = model.eval()
 
         input_names, output_names = build_io(
@@ -202,6 +215,7 @@ def check_model_io_test(
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
+            allow_same_io_names=True,
         )
         export_path = export_path.with_suffix(".nnef.tgz")
         if DUMP_DIRPATH:
@@ -283,4 +297,11 @@ def transformers_tract_export_test_condition(
     """
     return isinstance(inference_target, TractNNEF) and (
         inference_target.version > "0.21.5"
+    )
+
+
+def cond_tract_gt_0_22_0(inference_target: InferenceTarget) -> bool:
+    """Condition to enable tests only for tract versions > 0.22.0."""
+    return isinstance(inference_target, TractNNEF) and (
+        inference_target.version >= "0.22.0"
     )
