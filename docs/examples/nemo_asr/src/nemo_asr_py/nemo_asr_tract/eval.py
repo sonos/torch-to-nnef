@@ -102,6 +102,7 @@ def init_log(verbosity: int):
 
         _stream_log = RichHandler()
     except ImportError:
+        # If rich is not installed, fall back to the default stream handler.
         pass
 
     if verbosity > 2:
