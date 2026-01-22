@@ -1,18 +1,21 @@
+from abc import ABC
+from collections.abc import MutableMapping
+from enum import Enum
+from functools import lru_cache, total_ordering, wraps
 import contextlib
 import functools
+import importlib
+import inspect
 import logging
 import os
 import typing as T
-from abc import ABC
-from collections.abc import MutableMapping
-from functools import lru_cache, total_ordering
 
 import torch
 from torch import _C
 
 from torch_to_nnef.exceptions import (
     T2NErrorDataNodeValue,
-    T2NErrorMissUse,
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
 
@@ -521,7 +524,7 @@ class ReactiveNamedItemDict:
     def __getitem__(self, index: T.Any):
         if index == -1:
             if self._last_inserted_item is None:
-                raise T2NErrorMissUse("No last value found")
+                raise T2NErrorMisuse("No last value found")
             return self._last_inserted_item
         if isinstance(index, (slice, int)):
             return list(self._map.values())[index]
@@ -559,3 +562,103 @@ class ReactiveNamedItemDict:
             f"<ReactiveNamedItemDict ({len(self._map)}) "
             f"stored_names=[{names}] {protected}>"
         )
+
+
+class T2NExtra(str, Enum):
+    """Special extra names used in T2N framework."""
+
+    LLM_TRACT = "llm-tract"
+    LLM_TRACT_ACCELERATE = "llm-tract-accelerate"
+    SAFETENSORS = "safetensors"
+    PEFT = "peft"
+    NEMO_TRACT = "nemo-tract"
+
+
+@lru_cache(maxsize=None)
+def _import_module_cached(module: str) -> T.Any:
+    return importlib.import_module(module)
+
+
+def require_extra(*, extra: T2NExtra, module: str) -> T.Any:
+    """Lazily import an optional dependency and raise a error if missing."""
+    extra = T2NExtra(extra)
+    try:
+        return _import_module_cached(module)
+    except ImportError as exp:
+        raise T2NErrorMisuse(
+            f"This feature requires torch_to_nnef[{extra.value}] extra "
+            f"(missing optional dependency '{module}')"
+        ) from exp
+
+
+F = T.TypeVar("F", bound=T.Callable[..., T.Any])
+
+
+class _Injected:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<InjectedDependency>"
+
+
+INJECTED = _Injected()
+Injected = type(INJECTED)
+
+
+def require_extra_decorator(
+    *,
+    extra: T2NExtra,
+    module: str,
+    kw: str | None = None,
+) -> T.Callable[[F], F]:
+    inject_name = kw or module.split(".", 1)[0]
+
+    def decorator(fn: F) -> F:
+        sig = inspect.signature(fn)
+        param = sig.parameters.get(inject_name)
+
+        # ---- Decoration-time validation ----
+        if param is None:
+            raise TypeError(
+                f"{fn.__qualname__} must declare keyword-only parameter "
+                f"'{inject_name}' to receive injected dependency"
+            )
+
+        if param.kind is not inspect.Parameter.KEYWORD_ONLY:
+            raise TypeError(
+                f"Injected parameter '{inject_name}' in {fn.__qualname__} "
+                f"must be keyword-only"
+            )
+
+        if param.default is inspect.Parameter.empty:
+            raise TypeError(
+                f"Injected parameter '{inject_name}' in {fn.__qualname__} "
+                f"must default to INJECTED"
+            )
+
+        if param.default is not INJECTED:
+            raise TypeError(
+                f"Injected parameter '{inject_name}' in {fn.__qualname__} "
+                f"must default to INJECTED (not {param.default!r})"
+            )
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            # ---- Call-time validation ----
+            value = kwargs.get(inject_name, INJECTED)
+
+            if value is not INJECTED:
+                raise TypeError(
+                    f"Argument '{inject_name}' is injected by @requires_extra "
+                    "and must not be provided by the caller"
+                )
+
+            kwargs[inject_name] = require_extra(
+                extra=extra,
+                module=module,
+            )
+            return fn(*args, **kwargs)
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator

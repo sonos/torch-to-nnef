@@ -245,7 +245,6 @@ commands = [
     [
         "pytest",
         "--doctest-modules",
-        "--doctest-ignore-import-errors", # nemo_tract module
         "torch_to_nnef",
     ],
 ]

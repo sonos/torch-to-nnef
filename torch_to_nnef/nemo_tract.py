@@ -15,16 +15,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
-# additional dependencies enabled with extras='nemo_toolkit'
-import nemo
-import nemo.collections.asr as nemo_asr
 import torch
-from nemo.core.classes import typecheck
-from nemo.core.classes.exportable import Exportable
-from nemo.utils.export_utils import parse_input_example, wrap_forward_method
-from omegaconf import OmegaConf
-from pytorch_lightning.core.module import _jit_is_scripting
 
+from torch_to_nnef._optional_types import (
+    InjectedLightningModule,
+    InjectedNemoModule,
+    InjectedOmegaConfModule,
+)
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
@@ -38,7 +35,12 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import (
+    INJECTED,
+    SemanticVersion,
+    T2NExtra,
+    require_extra_decorator,
+)
 
 # https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
 PARAKEET_V3_SLUG = "nvidia/parakeet-tdt-0.6b-v3"
@@ -51,11 +53,25 @@ LOGGER = logging.getLogger(__name__)
 
 
 @contextmanager
-def exportable_nemo_net(output_name, model, input_example, use_dynamo=False):
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="pytorch_lightning")
+def exportable_nemo_net(
+    output_name,
+    model,
+    input_example,
+    use_dynamo=False,
+    *,
+    nemo: InjectedNemoModule = INJECTED,
+    pytorch_lightning: InjectedLightningModule = INJECTED,
+):
     """Context manager to follow export way of nemo models.
 
     see: nemo.core.classes.Exportable._export
     """
+    typecheck = nemo.core.classes.typecheck
+    exportable_class = nemo.core.classes.exportable.Exportable
+    parse_input_example = nemo.utils.export_utils.parse_input_example
+    wrap_forward_method = nemo.utils.export_utils.wrap_forward_method
     my_args = {"use_dynamo": use_dynamo}
 
     model.eval()
@@ -64,7 +80,7 @@ def exportable_nemo_net(output_name, model, input_example, use_dynamo=False):
 
     exportables = []
     for m in model.modules():
-        if isinstance(m, Exportable):
+        if isinstance(m, exportable_class):
             exportables.append(m)
 
     forward_method = None
@@ -81,7 +97,7 @@ def exportable_nemo_net(output_name, model, input_example, use_dynamo=False):
             torch.inference_mode(),
             torch.no_grad(),
             torch.jit.optimized_execution(True),
-            _jit_is_scripting(),
+            pytorch_lightning.core.module._jit_is_scripting(),
         ):
             if input_example is None:
                 input_example = model.input_module.input_example()
@@ -202,7 +218,11 @@ ExportParameters = NamedTuple(
 )
 
 
-def build_custom_subnet_tract_properties(subnet_name, subnet):
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+def build_custom_subnet_tract_properties(
+    subnet_name, subnet, *, nemo: InjectedNemoModule = INJECTED
+):
+    """Build custom tract properties for nemo subnet."""
     return {
         "subnet_name": subnet_name,
         "n_parameters": sum(_.numel() for _ in subnet.parameters()),
@@ -284,6 +304,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         )
 
 
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="omegaconf")
 def export_nemo_asr_model(
     asr_model,
     inference_target,
@@ -292,6 +313,8 @@ def export_nemo_asr_model(
     compress_method: T.Optional[str] = None,
     skip_preprocessor: bool = False,
     extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
+    *,
+    omegaconf: InjectedOmegaConfModule = INJECTED,
     **kwargs,
 ):
     """Export a generic NeMo ASR model to NNEF format using TractNNEF.
@@ -308,7 +331,7 @@ def export_nemo_asr_model(
         kwargs: Additional keyword arguments to pass to the export function.
     """
     with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
-        cfg = OmegaConf.to_container(asr_model.cfg)
+        cfg = omegaconf.OmegaConf.to_container(asr_model.cfg)
         if extra_cfg is not None:
             cfg.update(extra_cfg)
         json.dump(cfg, fh, indent=2)
@@ -435,7 +458,10 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
     return inference_target
 
 
-def main():
+@require_extra_decorator(
+    extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
+)
+def main(*, nemo_asr: InjectedNemoModule = INJECTED):
     init_log()
     args = parser_cli()
     log_level = logging.INFO

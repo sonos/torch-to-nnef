@@ -20,7 +20,7 @@ from torch_to_nnef.llm_tract.config import (
     register_raw_model_from_slug,
 )
 from torch_to_nnef.llm_tract.exporter import dump_llm
-from torch_to_nnef.llm_tract.models.base import TRANSFORMERS_VERSION
+from torch_to_nnef.llm_tract.models.base import get_transformers_version
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import torch_version
 
@@ -133,7 +133,7 @@ def init_test_spec():
                 "disabled test of: '%s' likely because of "
                 "transformers version: %s, error: %s",
                 slug,
-                TRANSFORMERS_VERSION.to_str(),
+                get_transformers_version().to_str(),
                 exp,
             )
 

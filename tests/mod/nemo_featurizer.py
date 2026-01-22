@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import (
-    T2NErrorMissUse,
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
 )
 
@@ -61,7 +61,7 @@ def normalize_batch(x, seq_len, normalize_type):
             and not torch.cuda.is_current_stream_capturing()
             and torch.any(seq_len == 1).item()
         ):
-            raise T2NErrorMissUse(
+            raise T2NErrorMisuse(
                 "normalize_batch with `per_feature` normalize_type received a "
                 "tensor of length 1. "
                 "This will result in torch.std() returning nan. "
@@ -177,7 +177,7 @@ class FilterbankFeatures(nn.Module):
             or n_window_size <= 0
             or n_window_stride <= 0
         ):
-            raise T2NErrorMissUse(
+            raise T2NErrorMisuse(
                 f"{self} got an invalid value for either n_window_size or "
                 f"n_window_stride. Both must be positive ints."
             )
@@ -242,7 +242,7 @@ class FilterbankFeatures(nn.Module):
         # We want to avoid taking the log of zero
         # There are two options: either adding or clamping to a small value
         if log_zero_guard_type not in ["add", "clamp"]:
-            raise T2NErrorMissUse(
+            raise T2NErrorMisuse(
                 f"{self} received {log_zero_guard_type} for the "
                 f"log_zero_guard_type parameter. It must be either 'add' or "
                 f"'clamp'."
@@ -281,7 +281,7 @@ class FilterbankFeatures(nn.Module):
             elif self.log_zero_guard_value == "eps":
                 return torch.finfo(x.dtype).eps
             else:
-                raise T2NErrorMissUse(
+                raise T2NErrorMisuse(
                     f"{self} received {self.log_zero_guard_value} for the "
                     f"log_zero_guard_type parameter. It must be either a "
                     f"number, 'tiny', or 'eps'"
@@ -372,7 +372,7 @@ class FilterbankFeatures(nn.Module):
                     torch.clamp(x, min=self.log_zero_guard_value_fn(x))
                 )
             else:
-                raise T2NErrorMissUse("log_zero_guard_type was not understood")
+                raise T2NErrorMisuse("log_zero_guard_type was not understood")
 
         # frame splicing if required
         if self.frame_splicing > 1:
