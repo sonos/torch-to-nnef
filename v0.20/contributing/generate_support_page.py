@@ -1,52 +1,28 @@
+"""Generate supported operators markdown page.
+
+Allow to compare supported operators in `torch_to_nnef` and `ONNX` builtin
+support against core PyTorch operators as per PyTorch IR documentation.
+
+Disclaimer: this is a best effort script that may not reflect 100% reality
+of operator support in all cases. It is meant to give a general idea
+of the coverage level of `torch_to_nnef` regarding PyTorch operators.
+"""
+
+import argparse
 import json
+import re
 import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Set
+from typing import List, Optional, Set
+import warnings
 
+import rich.progress
 import bs4
 import requests as rq
 
 from torch_to_nnef.op.aten import aten_ops_registry
-
-TORCH_VERSION = "v2.7.1"
-URL_IR = "https://docs.pytorch.org/docs/main/torch.compiler_ir.html"
-ONNX_SUPPORT_URL = "https://docs.pytorch.org/docs/stable/onnx_torchscript_supported_aten_ops.html"
-
-
-def get_core_ir():
-    resp = rq.get(URL_IR, timeout=20)
-    assert resp.status_code == 200
-    soup = bs4.BeautifulSoup(resp.content, "html.parser")
-    res = soup.find_all("span", {"class": "pre"})
-    official_aten_names = {
-        r.text.split(".")[1]
-        for r in res
-        if r.text.startswith("aten")
-        if "backward" not in r.text
-    }
-    official_prim_names = sorted(
-        [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
-    )
-    return (official_aten_names, official_prim_names)
-
-
-def get_onnx_support():
-    resp = rq.get(ONNX_SUPPORT_URL, timeout=20)
-    assert resp.status_code == 200
-    soup = bs4.BeautifulSoup(resp.content, "html.parser")
-    supported_ops = {
-        _.text.replace("aten::", "")
-        for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
-        if "aten::" in _.text
-    }
-    unsupported_ops = {
-        _.text.replace("aten::", "")
-        for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
-        if "aten::" in _.text
-    }
-    return supported_ops, unsupported_ops
 
 
 class LinkToTorchDocCache:
@@ -93,74 +69,136 @@ class LinkToTorchDocCache:
         return None
 
 
-official_aten_names, official_prim_names = get_core_ir()
-t2n_aten = set(list(aten_ops_registry._registry.keys()))
-onnx_supported, onnx_unsupported = get_onnx_support()
+class AliasManager:
+    def __init__(self, alias_tups: Set[tuple[str, ...]]):
+        self._alias_tups = alias_tups
+        self._aliases = set([_[0] for _ in alias_tups])
+        self.ref_alias = defaultdict(list)
+        for k, v in self._alias_tups:
+            self.ref_alias[v].append(k)
 
-aten_torch_from_code = sorted(
-    subprocess.check_output(
-        "cd /tmp ; "
-        "git clone -q git@github.com:pytorch/pytorch.git || "
-        "git -C 'pytorch' pull; "
-        "cd /tmp/pytorch ;"
-        f"git checkout {TORCH_VERSION}; "
-        'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
-        shell=True,
-    )
-    .decode("utf8")
-    .split("\n")
-)
-aten_torch_from_code = [
-    _ for _ in aten_torch_from_code if not _.startswith("_")
-]
-aliases = sorted(
-    subprocess.check_output(
-        "cd /tmp ; "
-        "git -C 'pytorch' pull || "
-        "git clone -q git@github.com:pytorch/pytorch.git; "
-        "cd /tmp/pytorch ;"
-        f"git checkout {TORCH_VERSION}; "
-        "cat ./torch/csrc/jit/passes/normalize_ops.cpp",
-        shell=True,
-    )
-    .decode("utf8")
-    .split("\n")
-)
-alias_map = {
-    tuple(x.replace("aten::", "") for x in a.strip()[1:-2].split(", "))
-    for a in aliases
-    if "{" in a and "}" in a and "aten::" in a
-}
-ref_alias = defaultdict(list)
-for k, v in alias_map.items():
-    ref_alias[v].append(k)
+        # sorted aliases for consistent output
+        for k, v in self.ref_alias.items():
+            self.ref_alias[k] = sorted(v)
 
-support_inplace = set()
-offset = 0
-for ix, a in enumerate(aten_torch_from_code[:]):
-    if (  # pylint: disable-next=too-many-boolean-expressions
-        a.endswith("_")
-        and a[:-1] in aten_torch_from_code
-        or a in alias_map
-        or a.strip() == ""
-        or (len(a) and a[0].isupper())
-        or "backward" in a
-        or a.startswith("sym_")
-    ):
-        del aten_torch_from_code[ix - offset]
-        offset += 1
-        support_inplace.add(a[:-1])
+    def is_alias(self, op_name: str) -> bool:
+        return op_name in self._aliases
 
-cache_url = LinkToTorchDocCache(Path(__file__).parent / "torch_doc_urls.json")
-for a_from_code in aten_torch_from_code:
-    cache_url.add(
-        "https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.{}.html",
-        a_from_code,
-    )
-    cache_url.add(
-        "https://docs.pytorch.org/docs/stable/generated/torch.{}.html",
-        a_from_code,
-    )
+    def get_aliases(self, op_name: str) -> List[str]:
+        return self.ref_alias.get(op_name, [])
+
+
+class FetchFromTorchVersion:
+    def __init__(self, torch_version: str):
+        self.torch_version = torch_version
+
+    @property
+    def url_ir(self) -> str:
+        return f"https://docs.pytorch.org/docs/{self.torch_version}/torch.compiler_ir.html"
+
+    @property
+    def onnx_support_url(self) -> str:
+        return (
+            f"https://docs.pytorch.org/docs/{self.torch_version}/"
+            "onnx_torchscript_supported_aten_ops.html"
+        )
+
+    def get_core_ir(self) -> tuple[Set[str], List[str]]:
+        resp = rq.get(self.url_ir, timeout=20)
+        assert resp.status_code == 200
+        soup = bs4.BeautifulSoup(resp.content, "html.parser")
+        res = soup.find_all("span", {"class": "pre"})
+        official_aten_names = {
+            r.text.split(".")[1]
+            for r in res
+            if r.text.startswith("aten")
+            if "backward" not in r.text
+        }
+        official_prim_names = sorted(
+            [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
+        )
+        return (official_aten_names, official_prim_names)
+
+    def get_onnx_support(self) -> tuple[Set[str], Set[str]]:
+        resp = rq.get(self.onnx_support_url, timeout=20)
+        assert resp.status_code == 200
+        soup = bs4.BeautifulSoup(resp.content, "html.parser")
+        supported_ops = {
+            _.text.replace("aten::", "")
+            for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
+            if "aten::" in _.text
+        }
+        unsupported_ops = {
+            _.text.replace("aten::", "")
+            for _ in soup.find(id="id2").find_all("span", {"class": "pre"})
+            if "aten::" in _.text
+        }
+        return supported_ops, unsupported_ops
+
+    def get_aten_torch_from_code(self) -> List[str]:
+        aten_torch_from_code = sorted(
+            subprocess.check_output(
+                "cd /tmp ; "
+                "git clone -q git@github.com:pytorch/pytorch.git || "
+                "git -C 'pytorch' pull; "
+                "cd /tmp/pytorch ;"
+                f"git checkout v{self.torch_version}.0; "
+                'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
+                shell=True,
+            )
+            .decode("utf8")
+            .split("\n")
+        )
+        return [_ for _ in aten_torch_from_code if not _.startswith("_")]
+
+    def get_aliases_from_code(self) -> AliasManager:
+        aliases = sorted(
+            subprocess.check_output(
+                "cd /tmp ; "
+                "git -C 'pytorch' pull || "
+                "git clone -q git@github.com:pytorch/pytorch.git; "
+                "cd /tmp/pytorch ;"
+                f"git checkout v{self.torch_version}.0; "
+                "cat ./torch/csrc/jit/passes/normalize_ops.cpp",
+                shell=True,
+            )
+            .decode("utf8")
+            .split("\n")
+        )
+        return AliasManager(
+            {
+                tuple(
+                    x.replace("aten::", "") for x in a.strip()[1:-2].split(", ")
+                )
+                for a in aliases
+                if "{" in a and "}" in a and "aten::" in a
+            }
+        )
+
+    def get_cache_url(
+        self,
+        aten_torch_from_code: List[str],
+    ) -> LinkToTorchDocCache:
+        cache_path = (
+            Path(__file__).parent / f"torch_{self.torch_version}_doc_urls.json"
+        )
+        cache_url = LinkToTorchDocCache(cache_path)
+        for a_from_code in rich.progress.track(
+            aten_torch_from_code,
+            total=len(aten_torch_from_code),
+            description=f"Caching torch doc links in '{cache_path.name}'",
+        ):
+            cache_url.add(
+                f"https://docs.pytorch.org/docs/{self.torch_version}"
+                "/generated/torch.nn.functional.{}.html",
+                a_from_code,
+            )
+            cache_url.add(
+                f"https://docs.pytorch.org/docs/{self.torch_version}"
+                "/generated/torch.{}.html",
+                a_from_code,
+            )
+        return cache_url
 
 
 def print_t(text, file):
@@ -181,7 +219,15 @@ def print_t(text, file):
 
 
 def write_operator_support(
-    support_target_name: str, support_target_msg: str, supported_opset: Set[str]
+    support_target_name: str,
+    support_target_msg: str,
+    aten_torch_from_code: List[str],
+    supported_opset: Set[str],
+    alias_manager: AliasManager,
+    official_aten_names: Set[str],
+    fh,
+    cache_url: LinkToTorchDocCache,
+    support_inplace: Set[str],
 ):
     rows = []
     qte_core = 0
@@ -190,8 +236,12 @@ def write_operator_support(
 
     print(f'=== "{support_target_name}"', file=fh)
     print("", file=fh)
-    for a_from_code in aten_torch_from_code:
-        if a_from_code in alias_map:
+    for a_from_code in rich.progress.track(
+        aten_torch_from_code,
+        total=len(aten_torch_from_code),
+        description="Generating support table",
+    ):
+        if alias_manager.is_alias(a_from_code):
             continue
         is_core = a_from_code in official_aten_names
         is_core_official_str = "✅" if is_core else "-"
@@ -208,7 +258,7 @@ def write_operator_support(
             matched_qte += 1
 
         inplace_str = "✅" if a_from_code in support_inplace else "❌"
-        alias_str = ", ".join(sorted(ref_alias[a_from_code]))
+        alias_str = ", ".join(alias_manager.get_aliases(a_from_code))
         op_name = a_from_code
         torch_url_doc = cache_url.get_url(op_name)
         if torch_url_doc:
@@ -251,15 +301,13 @@ def write_operator_support(
     print_t("", file=fh)
 
 
-with (Path(__file__).parent / "./supported_operators.md").open(
-    "w", encoding="utf8"
-) as fh:
+def build_markdown_header(fetcher) -> str:
     date = datetime.now().strftime("%d %b %Y")
-    print(
+    return (
         "!!! note\n"
         "    This table and page are auto generated from 'a script' "
         "that dig into PyTorch."
-        f" Version targetted is:  **'{TORCH_VERSION}'**. file was generated "
+        f" Version targetted is:  **'{fetcher.torch_version}'**. file was generated "
         f"the **{date}**.\n\n"
         "!!! warning\n"
         "     Take these informations with a grain of salt as this is "
@@ -272,19 +320,95 @@ with (Path(__file__).parent / "./supported_operators.md").open(
         "but contributions are always wecome [see how](./add_new_aten_op.md)."
         "\n\n"
         "\n 'is core' column refers to this "
-        f"[PyTorch IR documentation page]({URL_IR})\n\n"
+        f"[PyTorch IR documentation page]({fetcher.url_ir})\n\n"
         "We filter-out from from observed operators 'backward' and 'sym' one's "
         "which are unwanted in inference engine. "
         "Also in place operations are merged with memory allocated activations "
-        "as this is inference implementation detail.",
-        file=fh,
-    )
-    write_operator_support("TractNNEF", "`torch_to_nnef`", t2n_aten)
-    write_operator_support(
-        "ONNX",
-        "builtin PyTorch `ONNX` support based on "
-        f"[this page]({ONNX_SUPPORT_URL})",
-        onnx_supported,
+        "as this is inference implementation detail."
     )
 
-cache_url.save()
+
+def build_markdown_page(torch_version: str):
+    """Build supported operators markdown page."""
+    fetcher = FetchFromTorchVersion(torch_version)
+    official_aten_names, official_prim_names = fetcher.get_core_ir()
+    t2n_aten = set(list(aten_ops_registry._registry.keys()))
+    onnx_supported, onnx_unsupported = fetcher.get_onnx_support()
+    aten_torch_from_code = fetcher.get_aten_torch_from_code()
+
+    aliases_manager = fetcher.get_aliases_from_code()
+
+    support_inplace = set()
+    offset = 0
+    for ix, a in enumerate(aten_torch_from_code[:]):
+        if (  # pylint: disable-next=too-many-boolean-expressions
+            a.endswith("_")
+            and a[:-1] in aten_torch_from_code
+            or aliases_manager.is_alias(a)
+            or a.strip() == ""
+            or (len(a) and a[0].isupper())
+            or "backward" in a
+            or a.startswith("sym_")
+        ):
+            del aten_torch_from_code[ix - offset]
+            offset += 1
+            support_inplace.add(a[:-1])
+
+    cache_url = fetcher.get_cache_url(aten_torch_from_code)
+    with (Path(__file__).parent / "./supported_operators.md").open(
+        "w", encoding="utf8"
+    ) as fh:
+        print(
+            build_markdown_header(fetcher),
+            file=fh,
+        )
+        write_operator_support(
+            "TractNNEF",
+            "`torch_to_nnef`",
+            aten_torch_from_code,
+            t2n_aten,
+            official_aten_names=official_aten_names,
+            alias_manager=aliases_manager,
+            fh=fh,
+            cache_url=cache_url,
+            support_inplace=support_inplace,
+        )
+        write_operator_support(
+            "ONNX",
+            "builtin PyTorch `ONNX` support based on "
+            f"[this page]({fetcher.onnx_support_url})",
+            aten_torch_from_code,
+            onnx_supported,
+            official_aten_names=official_aten_names,
+            alias_manager=aliases_manager,
+            fh=fh,
+            cache_url=cache_url,
+            support_inplace=support_inplace,
+        )
+    cache_url.save()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Generate supported operators markdown page."
+    )
+    parser.add_argument(
+        "--torch-version",
+        type=str,
+        required=True,
+        help="Target PyTorch version to generate the report for.",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        assert len(re.findall("\.", args.torch_version)) == 1, (
+            "expect X.Y format for torch version"
+        )
+    assert args.torch_version.replace(".", "").isdigit(), (
+        "expect X.Y format for torch version"
+    )
+    build_markdown_page(torch_version=args.torch_version)

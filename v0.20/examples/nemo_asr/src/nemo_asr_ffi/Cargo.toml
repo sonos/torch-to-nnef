@@ -1,0 +1,18 @@
+[package]
+name = "nemo_asr_ffi"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nemo_asr_ffi"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+anyhow = { workspace = true }
+env_logger = { workspace = true }
+ffi-convert = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
+nemo_asr = { path = "../nemo_asr" }
+serde = { workspace = true }
+serde_json = { workspace = true }

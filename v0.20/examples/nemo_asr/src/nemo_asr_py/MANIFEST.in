@@ -1,0 +1,2 @@
+recursive-include svc_llm/dylib/ *
+global-exclude __pycache__ *.py[cod]
