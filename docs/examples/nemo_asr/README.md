@@ -86,12 +86,12 @@ pip install -e ./src/nemo_asr_py/
 
 Then you can use the following Python code to load the exported model and run inference:
 ```python
-import tract_nemo
+import nemo_asr_tract
 
 def main():
     # Load the exported Nemo ASR model
     model_path = "./dump_parakeet_v3_06B"
-    asr_model = tract_nemo.nemo_asr.NemoAsrModel.load(model_path)
+    asr_model = nemo_asr_tract.nemo_asr.NemoAsrModel.load(model_path)
 
     input_wavs = [
         "path/to/your/input1.wav",

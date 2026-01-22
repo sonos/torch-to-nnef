@@ -333,6 +333,7 @@ commands = [
     [
         "pytest",
         "--doctest-modules",
+        " --doctest-ignore-import-errors", # nemo_tract module
         "torch_to_nnef",
     ],
 ]
@@ -389,16 +390,16 @@ commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
 [tool.tox.env.static_check]
 deps = ["prospector[with_dodgy]", "pyroma"]
 commands = [
-    [
-        "prospector",
-        "--no-autodetect",
-        "-X",
-    ],
+    ["prospector", "--no-autodetect", "-X"],
     [
         "pyroma",
         ".",
         "-n",
-        "10",
+        # minimum score:
+        "8",
+        # requires-python is disabled for now
+        # to avoid deps conflict with 'nemo-toolkit'
+        # from feature 'nemo-tract'
     ],
 ]
 

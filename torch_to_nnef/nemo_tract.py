@@ -8,7 +8,6 @@ custom extensions required for the export process.
 """
 
 import argparse
-from functools import partial
 import json
 import logging
 import typing as T
@@ -23,8 +22,8 @@ import torch
 from nemo.core.classes import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.utils.export_utils import parse_input_example, wrap_forward_method
-from pytorch_lightning.core.module import _jit_is_scripting
 from omegaconf import OmegaConf
+from pytorch_lightning.core.module import _jit_is_scripting
 
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
@@ -129,6 +128,7 @@ def iter_nemo_model_subnets(model, input_example=None):
             input_example = None  # reset input example for joint
             # because need more parameters than encoder output only
         with exportable_nemo_net(subnet_name, subnet, input_example) as (
+            #  pylint: disable-next=redefined-argument-from-local
             input_example,
             out_example,
             dynamic_axes,
@@ -307,7 +307,6 @@ def export_nemo_asr_model(
         extra_cfg: Additional configuration to save alongside the model.
         kwargs: Additional keyword arguments to pass to the export function.
     """
-
     with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
         cfg = OmegaConf.to_container(asr_model.cfg)
         if extra_cfg is not None:

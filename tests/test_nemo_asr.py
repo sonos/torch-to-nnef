@@ -1,6 +1,6 @@
 import pytest
-from torch_to_nnef.utils import SemanticVersion
 
+from torch_to_nnef.utils import SemanticVersion
 
 from .utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
@@ -11,6 +11,7 @@ from .utils import (
 try:
     import nemo
     import nemo.collections.asr as nemo_asr  # noqa: F401
+
     from torch_to_nnef.nemo_tract import (
         PARAKEET_V3_SLUG,
         iter_export_params_for_generic_nemo_asr_model,
