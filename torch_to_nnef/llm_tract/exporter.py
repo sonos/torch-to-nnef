@@ -1084,7 +1084,7 @@ def load_model(
     kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
     if force_module_dtype is not None:
         key = "torch_dtype"
-        if SemanticVersion.from_str(transformers.__version__) >= "4.40.0":
+        if SemanticVersion.from_str(transformers.__version__) >= "4.57.0":
             key = "dtype"
         kwargs[key] = DtypeStr(force_module_dtype).torch_dtype
 
