@@ -245,6 +245,7 @@ commands = [
     [
         "pytest",
         "--doctest-modules",
+        "--doctest-ignore-import-errors", # nemo_tract module
         "torch_to_nnef",
     ],
 ]
@@ -259,24 +260,6 @@ deps = [
     "numpy<2.0.0",
     "setuptools>0.70",
 ]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-s",
-        "--cov=torch_to_nnef",
-        "--cov-branch",
-        "--cov-report=xml",
-        "--cov-report=term-missing",
-        "tests",
-    ],
-    [
-        "pytest",
-        "--doctest-modules",
-        "torch_to_nnef",
-    ],
-]
 
 [tool.tox.env.torch_1_13]
 basepython = ["python3.9"]
@@ -287,24 +270,6 @@ deps = [
     "torchaudio==0.13.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
-]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-s",
-        "--cov=torch_to_nnef",
-        "--cov-branch",
-        "--cov-report=xml",
-        "--cov-report=term-missing",
-        "tests",
-    ],
-    [
-        "pytest",
-        "--doctest-modules",
-        "torch_to_nnef",
-    ],
 ]
 
 
@@ -317,25 +282,6 @@ deps = [
     "torchaudio==2.2.2",
     "numpy<2.0.0",
     "safetensors<=0.4.2",
-]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-s",
-        "--cov=torch_to_nnef",
-        "--cov-branch",
-        "--cov-report=xml",
-        "--cov-report=term-missing",
-        "{posargs:tests}",
-    ],
-    [
-        "pytest",
-        "--doctest-modules",
-        " --doctest-ignore-import-errors", # nemo_tract module
-        "torch_to_nnef",
-    ],
 ]
 
 [[tool.tox.env_run_base.setenv]]
