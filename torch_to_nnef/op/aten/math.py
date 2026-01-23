@@ -305,7 +305,7 @@ def rsub(node, op_helper, torch_graph, **kwargs):
         )
         return []
     if isinstance(alpha_node, PythonConstant):
-        alpha_node.data.set_data(float(alpha_node.data))
+        alpha_node.set_data(float(alpha_node.data))
     inputs = [
         op_helper.get_or_add_tensor_variable_in_nnef(_)
         for _ in [input_node, other_node]
