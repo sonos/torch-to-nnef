@@ -122,7 +122,7 @@ class TensorVariable(Data):
     quant: T.Optional[T.Dict[str, T.Any]] = None
     _traced_data: T.Optional[torch.Tensor] = None
 
-    def set_data(
+    def set_data(  # pylint: disable=arguments-differ
         self, data, *args, force_shape=False, force_dtype=False, **kwargs
     ):
         if force_shape and self.shape is not None:
@@ -178,7 +178,7 @@ class TensorVariable(Data):
         data_shape = list(self.data.shape)
         if self.shape is None:
             self.shape = data_shape
-        elif list(self.shape) != data_shape:
+        if list(self.shape) != data_shape:
             raise T2NErrorIRDataConsistency(
                 f"shape mismatch: declared {self.shape}, "
                 f"but data has shape {data_shape}"
