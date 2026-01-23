@@ -248,7 +248,7 @@ def tract_pre_0_21_7_slice(
 
 def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
     decision = inputs[0]
-    if decision.dtype != np.bool:
+    if decision.dtype != np.bool_:
         decision = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             nnef_op_type="tract_core_cast",
