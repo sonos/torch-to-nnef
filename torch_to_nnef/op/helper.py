@@ -109,7 +109,8 @@ class OpRegistry:
             return self._registry[name]
         except KeyError as exp:
             raise T2NErrorNotImplemented(
-                f"'{name}' operator as not yet been translated to NNEF or registred"
+                f"'{name}' operator as not yet "
+                "been translated to NNEF or registred"
             ) from exp
 
     def __add__(self, other: "OpRegistry"):
@@ -723,7 +724,8 @@ def cast_to_if_not_dtype_and_variable(
     """
     if torch_version() < "1.13.0" and cast_to == np.uint64:
         logging.warning(
-            "discarded force casting to dtype=%s since obverved bug prior 1.13.0",
+            "discarded force casting to dtype=%s "
+            "since obverved bug prior 1.13.0",
             cast_to,
         )
         cast_to = nnef_tensor.dtype

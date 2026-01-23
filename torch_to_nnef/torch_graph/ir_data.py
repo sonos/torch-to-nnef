@@ -147,13 +147,10 @@ class TensorVariable(Data):
                 or len(value.shape) == 1
                 and len(self.shape) == 0
                 and value.shape[0] == 1
-            ):
-                # allow scalar tensor to match shape [1]
-
-                if list(value.shape) != self.shape:
-                    raise T2NErrorIRDataConsistency(
-                        f"{self.name}: shape mismatch {value.shape} != {self.shape}"
-                    )
+            ) and list(value.shape) != self.shape:
+                raise T2NErrorIRDataConsistency(
+                    f"{self.name}: shape mismatch {value.shape} != {self.shape}"
+                )
             if value.dtype != self.dtype:
                 raise T2NErrorIRDataConsistency(
                     f"{self.name}: dtype mismatch {value.dtype} != {self.dtype}"
