@@ -334,6 +334,9 @@ class CanonicalMask(torch.nn.Module):
 
 
 def test_canonical_mask_bool():
+    if not hasattr(F, "_canonical_mask"):
+        pytest.skip("_canonical_mask not available in this PyTorch version")
+        return
     mask = torch.tensor([[False, True, False], [False, False, True]])
     target_type = torch.float32
     model = CanonicalMask(target_type=target_type)
@@ -346,6 +349,9 @@ def test_canonical_mask_bool():
 
 
 def test_canonical_mask_float():
+    if not hasattr(F, "_canonical_mask"):
+        pytest.skip("_canonical_mask not available in this PyTorch version")
+        return
     mask = torch.tensor([[0.0, 1.0, 0.0], [0.0, float("inf"), 1.0]])
     target_type = torch.float32
     model = CanonicalMask(target_type=target_type)
