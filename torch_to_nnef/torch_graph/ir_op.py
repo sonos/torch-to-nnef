@@ -22,6 +22,7 @@ from torch_to_nnef.dtypes import (
     str_to_torch_dtype,
 )
 from torch_to_nnef.exceptions import (
+    T2NErrorIRDataConsistency,
     T2NErrorNotImplemented,
     T2NErrorRuntime,
     T2NErrorTorchCheck,
@@ -403,7 +404,7 @@ class TorchOp:
                     subargs[0] = _reconstruct_view_dims(
                         tensor.shape, subargs[0]
                     )
-                    self.inputs[1].data = subargs[0]
+                    self.inputs[1].data.set_data(subargs[0])
                     subargs = tuple(subargs)
                 return getattr(tensor, self.kind.replace(ATEN_STARTID, ""))(
                     *subargs
@@ -505,11 +506,23 @@ class TorchOp:
             )
         for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
-                data_node.data = result
+                try:
+                    data_node.set_data(result)
+                except T2NErrorIRDataConsistency:
+                    logging.warning(
+                        "Conflicting TensorVariable specification "
+                        "data for %s with result %s, "
+                        " trusting result from realise_output_type_and_size",
+                        data_node,
+                        result,
+                    )
+                    data_node.dtype = result.dtype
+                    data_node.shape = list(result.shape)
+                    data_node.set_data(result)
             if isinstance(data_node, TensorVariable) and result is not None:
                 if self.kind == ATEN_SIZE_KIND:
                     # note this is a special case where we fix variable value
-                    data_node.data = result
+                    data_node.set_data(result)
                 if isinstance(result, torch.Tensor):
                     data_node.dtype = result.dtype
                     data_node.shape = list(result.shape)

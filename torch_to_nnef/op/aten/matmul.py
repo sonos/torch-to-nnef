@@ -1,3 +1,4 @@
+from inspect import findsource
 import typing as T
 
 import torch
@@ -148,7 +149,7 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     # since these params can now be dynamic
     # >> all following code need to happen in the graph
     # >> TODAY THIS IS THE CASE for all OPS of THIS KIND
-    if transposed:
+    if transposed and isinstance(inference_target, TractNNEF):
         if groups is not None:
             # torch weight shape:
             # (in_channels, out_channels/ groups, kernel_size[0],kernel_size[1])
@@ -161,12 +162,13 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                 int(i / groups),
                 int(o * groups),
             ] + remaining_shape
-            weight_node.data = (
+            weight_node.set_data(
                 weight_node.data.reshape(expose_group_shape)
                 .transpose(0, 1)
-                .reshape(final_expected_shape)
+                .reshape(final_expected_shape),
+                force_shape=True,
             )
-        weight_node.data = weight_node.data.transpose(1, 0)
+        weight_node.set_data(weight_node.data.transpose(1, 0), force_shape=True)
 
     weight_ref, bias_ref, output_tensor = weight_bias_and_output_tensor(
         g,
@@ -381,7 +383,7 @@ def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
     input_node, batch1_node, batch2_node, beta_node, alpha_node = node.inputs
     for ab_node in [alpha_node, beta_node]:
         if isinstance(alpha_node, PythonConstant):
-            ab_node.data = float(ab_node.data)
+            ab_node.set_data(float(ab_node.data))
         else:
             raise T2NErrorNotImplemented()
     inputs = [

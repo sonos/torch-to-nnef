@@ -425,9 +425,9 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         abstracted_inputs = abstracted_inputs[:-3]
 
         # cast to torch dtype
-        # abstracted_inputs[-1].data = SCALAR_TYPE_TO_PYTORCH_TYPE[
+        # abstracted_inputs[-1].set_data(SCALAR_TYPE_TO_PYTORCH_TYPE[
         # abstracted_inputs[-1].data
-        # ]
+        # ])
 
         n_inputs = len(abstracted_inputs)
         if n_inputs < 2 or n_inputs > 4:
@@ -530,7 +530,7 @@ def _rerouted_parsing(
                 dnode.name = o_node_c_value.debugName()
                 dnode.shape = shape
                 dnode.dtype = dtype
-                dnode.data = o_node_c_value.toIValue()
+                dnode.set_data(o_node_c_value.toIValue())
             raise T2NErrorTorchOpTranslatedDifferently("Tuple unpacked")
         if kind == TUPLECONSTRUCT_KIND:
             data_nodes.append(
@@ -661,10 +661,7 @@ def _extract_op_infos(
         if isinstance(inp, Data):
             abstracted_inputs.append(inp)
         else:
-            try:
-                dn = _find_data_node(data_nodes, inp.debugName())
-                abstracted_inputs.append(dn)
-            except T2NErrorTorchNotFoundDataNode:
-                pass
+            dn = _find_data_node(data_nodes, inp.debugName())
+            abstracted_inputs.append(dn)
 
     return (kind, call_name, module_getter_ref, op_ref, abstracted_inputs)

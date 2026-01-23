@@ -131,7 +131,7 @@ class TorchToNGraphExtractor:
             """Forward clean in all child nodes."""
             # LOGGER.debug(f"remove concrete values from {op_node.outputs}")
             for onode in op_node.outputs:
-                onode.data = None
+                onode.set_data(None)
             for data_node_to_clean in op_node.outputs:
                 try:
                     for user_op_node in input_data_to_ops_node.get(

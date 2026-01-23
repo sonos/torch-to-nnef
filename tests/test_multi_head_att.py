@@ -17,6 +17,7 @@ from torch_to_nnef.utils import torch_version
 
 from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
+    TRACT_INFERENCES_TO_TESTS_EXACT,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
     combine_conditions,
@@ -310,4 +311,80 @@ def test_attn_layers_export(
 
     check_model_io_test(
         model=model, test_input=test_input, inference_target=inference_target
+    )
+
+
+class CanonicalMask(torch.nn.Module):
+    def __init__(self, target_type=torch.float32):
+        super().__init__()
+        self.target_type = target_type
+
+    def forward(self, attn_mask):
+        return (
+            F._canonical_mask(
+                mask=attn_mask,
+                mask_name="attn_mask",
+                other_type=None,
+                other_name="",
+                target_type=self.target_type,
+                check_other=False,
+            )
+            + 1.0
+        )
+
+
+def test_canonical_mask_bool():
+    mask = torch.tensor([[False, True, False], [False, False, True]])
+    target_type = torch.float32
+    model = CanonicalMask(target_type=target_type)
+
+    check_model_io_test(
+        model=model,
+        test_input=mask,
+        inference_target=TRACT_INFERENCES_TO_TESTS_EXACT[0],
+    )
+
+
+def test_canonical_mask_float():
+    mask = torch.tensor([[0.0, 1.0, 0.0], [0.0, float("inf"), 1.0]])
+    target_type = torch.float32
+    model = CanonicalMask(target_type=target_type)
+
+    check_model_io_test(
+        model=model,
+        test_input=mask,
+        inference_target=TRACT_INFERENCES_TO_TESTS_EXACT[0],
+    )
+
+
+class BoolZerosLikeMaskedFill(torch.nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        t = x.shape[-1]
+
+        # Step 1: boolean causal mask
+        mask = torch.triu(
+            torch.ones((t, t), device=x.device, dtype=torch.bool),
+            diagonal=1,
+        )
+
+        # Step 2: zeros_like preserves dtype -> BOOL tensor
+        bias = torch.zeros_like(mask)
+
+        # Step 3: masked_fill with -inf
+        # In eager: result is float with -inf
+        bias.masked_fill(mask, float("-inf"))
+
+        return bias
+
+
+def test_bool_zeros_like_masked_fill_is_float():
+    model = BoolZerosLikeMaskedFill().eval()
+
+    x = torch.randn(1, 4, dtype=torch.float32)
+
+    # Non-regression:
+    # - output must be float
+    # - values above diagonal must be -inf
+    check_model_io_test(
+        model, (x,), inference_target=TRACT_INFERENCES_TO_TESTS_EXACT[0]
     )
