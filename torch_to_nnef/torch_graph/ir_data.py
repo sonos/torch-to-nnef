@@ -122,16 +122,18 @@ class TensorVariable(Data):
     quant: T.Optional[T.Dict[str, T.Any]] = None
     _traced_data: T.Optional[torch.Tensor] = None
 
-    def set_data(self, value, force_shape=False, force_dtype=False):
+    def set_data(
+        self, data, *args, force_shape=False, force_dtype=False, **kwargs
+    ):
         if force_shape and self.shape is not None:
-            self.shape = list(value.shape)
+            self.shape = list(data.shape)
 
         if force_dtype and self.dtype is not None:
-            self.dtype = value.dtype
+            self.dtype = data.dtype
 
         # Explicit mutation path
-        self._validate_data(value)
-        object.__setattr__(self, "_data", value)
+        self._validate_data(data)
+        object.__setattr__(self, "_data", data)
 
     def _validate_data(self, value):
         if value is None:
@@ -166,7 +168,7 @@ class TensorVariable(Data):
                 "dtype and shape must be specified when data is provided"
             )
 
-        elif self.dtype != self.data.dtype:
+        if self.dtype != self.data.dtype:
             raise T2NErrorIRDataConsistency(
                 f"dtype mismatch: declared {self.dtype}, "
                 f"but data has dtype {self.data.dtype}"
