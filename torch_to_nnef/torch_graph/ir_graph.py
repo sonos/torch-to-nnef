@@ -173,7 +173,7 @@ class TorchModuleIRGraph:
                 for subdnode in dnode.iter():
                     value = to_node if subdnode is from_node else subdnode
                     new_data.append(value)
-                dnode.data = new_data
+                dnode.set_data(new_data)
 
         # add if not exists in graph
         if not self.data_nodes.contains(to_node):

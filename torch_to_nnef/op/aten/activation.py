@@ -23,7 +23,7 @@ def softmax(**kwargs):
         del node.inputs[2]
 
     # enforce use of positive rank
-    node.inputs[1].data = pick_axis(node.inputs[0], node.inputs[1].data)
+    node.inputs[1].set_data(pick_axis(node.inputs[0], node.inputs[1].data))
     return unary_input_output_op_with_constant("softmax", **kwargs)
 
 
@@ -182,7 +182,7 @@ def hardtanh(**kwargs):
     node.inputs = node.inputs[:3]  # remove inplace param
     for inode in node.inputs[1:]:
         if isinstance(inode, PythonConstant):
-            inode.data = float(inode.data)
+            inode.set_data(float(inode.data))
     unary_input_output_op_with_constant("hard_tanh", **kwargs)
     return ["hard_tanh"]
 
@@ -194,7 +194,7 @@ def log_softmax(inference_target, **kwargs):
     if node.inputs[2]:
         del node.inputs[2]
     input_node, axis_node = node.inputs
-    axis_node.data = pick_axis(input_node, axis_node.data)
+    axis_node.set_data(pick_axis(input_node, axis_node.data))
     assert isinstance(axis_node.data, int)
     if (
         isinstance(inference_target, TractNNEF)

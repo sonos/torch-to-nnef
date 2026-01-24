@@ -57,11 +57,11 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
                 raise T2NErrorNotImplemented(
                     "should write unsqueeze within NNEF graph"
                 )
-            param_node.data = param_node.data.unsqueeze(0)
-            param_node.shape = list(param_node.data.shape)
+            param_node.set_data(param_node.data.unsqueeze(0), force_shape=True)
             for _ in range(input_node.rank - param_node.rank):
-                param_node.data = param_node.data.unsqueeze(-1)
-                param_node.shape = list(param_node.data.shape)
+                param_node.set_data(
+                    param_node.data.unsqueeze(-1), force_shape=True
+                )
     # }
 
     upcast_f32 = (
@@ -70,8 +70,12 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         and inference_target.force_norm_in_f32
     )
     if upcast_f32:
-        running_mean_node.data = running_mean_node.data.float()
-        running_var_node.data = running_var_node.data.float()
+        running_mean_node.set_data(
+            running_mean_node.data.float(), force_dtype=True
+        )
+        running_var_node.set_data(
+            running_var_node.data.float(), force_dtype=True
+        )
         # output_tensor.dtype is based on weight_node
     weight_ref, bias_ref, output_ref = weight_bias_and_output_tensor(
         g,
@@ -153,7 +157,7 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
     else:
         input_node, p_node, axes_node, keep_dim_node = node.inputs
     if p_node.data is None:
-        p_node.data = 2
+        p_node.set_data(2)
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
@@ -301,8 +305,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
                 raise T2NErrorNotImplemented(
                     "should write unsqueeze within NNEF graph"
                 )
-            nd.data = nd.data.unsqueeze(-1)
-        nd.shape = list(nd.data.shape)
+            nd.set_data(nd.data.unsqueeze(-1), force_shape=True)
 
     upcast_f32 = (
         isinstance(inference_target, TractNNEF)
@@ -310,8 +313,8 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         and inference_target.force_norm_in_f32
     )
     if upcast_f32:
-        offset_node.data = offset_node.data.float()
-        scale_node.data = scale_node.data.float()
+        offset_node.set_data(offset_node.data.float(), force_dtype=True)
+        scale_node.set_data(scale_node.data.float(), force_dtype=True)
 
     offset_ref = add_tensor_variable_node_as_nnef_tensor(
         name_suffix="offset",
@@ -399,7 +402,7 @@ def _weight_norm(g, node, name_to_tensor, inference_target, **kwargs):
     custom_fragments = ["weight_norm"]
     inp_ref = get_or_add_tensor_variable_in_nnef(g, vin_node, name_to_tensor)
     if upcast_f32:
-        gin_node.data = gin_node.data.float()
+        gin_node.set_data(gin_node.data.float(), force_dtype=True)
         inp_ref = add_single_output_op(
             g,
             node,

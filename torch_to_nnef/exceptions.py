@@ -146,3 +146,7 @@ class T2NErrorTractOnnxToNNEF(RuntimeError, T2NErrorTract):
 
 class T2NErrorIOPytorchTractNotISO(ValueError, T2NErrorTract):
     pass
+
+
+class T2NErrorIRDataConsistency(Exception):
+    pass

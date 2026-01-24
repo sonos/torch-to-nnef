@@ -91,8 +91,8 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
             "Dynamic arange not handled in strict NNEF For now"
         )
 
-    node.outputs[0].data = torch.arange(
-        start_node.data, end_node.data, step=step_node.data
+    node.outputs[0].data.set_data(
+        torch.arange(start_node.data, end_node.data, step=step_node.data)
     )
     add_tensor_variable_node_as_nnef_tensor(
         g,
@@ -135,7 +135,10 @@ def _generic_auto_tensor_expansion(
             fixed_dim.append(dim_any)
 
     base_tensor_node = node.outputs[0]
-    node.outputs[0].data = tensor_build_fn(fixed_dim, dtype=dtype)
+    new_output_tensor = tensor_build_fn(fixed_dim, dtype=dtype)
+    node.outputs[0].set_data(
+        new_output_tensor, force_dtype=True, force_shape=True
+    )
     if to_expand_dim and has_dynamic_axes:
         LOGGER.debug(
             "the aten::ones replaced by constant traced values"
@@ -173,8 +176,9 @@ def _generic_auto_tensor_expansion(
                 "late 'dtype' miss-alignment catched in "
                 "_generic_auto_tensor_expansion"
             )
-            base_tensor_node.data = base_tensor_node.data.to(
-                base_tensor_node.dtype
+            base_tensor_node.set_data(
+                base_tensor_node.data.to(base_tensor_node.dtype),
+                force_dtype=True,
             )
         add_tensor_variable_node_as_nnef_tensor(
             g,
@@ -218,13 +222,11 @@ def _x_like(
     **kwargs,
 ):
     (input_node, *_) = node.inputs
-    dtype = torch.float32
+    dtype = input_node.dtype
     if len(_) > 0:
         dtype_node = _[0]
         if dtype_node.data:
             dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
-        else:
-            dtype = input_node.dtype
 
     shape_node = input_node.shape
     if (

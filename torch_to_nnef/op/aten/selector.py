@@ -247,7 +247,16 @@ def tract_pre_0_21_7_slice(
 
 
 def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
-    casted_inputs = [inputs[0]]
+    decision = inputs[0]
+    if decision.dtype != np.bool_:
+        decision = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_type="tract_core_cast",
+            inputs=decision,
+            attrs={"to": "bool"},
+            force_full_output_tensor_name=f"{decision.name}_cast_bool",
+        )
+    casted_inputs = [decision]
     expected_dtype = TORCH_TO_NUMPY_DTYPE[target_torch_dtype]
     expected_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]
     for inp in inputs[1:]:
@@ -284,7 +293,7 @@ def where(node, op_helper, **kwargs):
             op_helper,
             node,
             inputs,
-            node.outputs[0].dtype,
+            target_torch_dtype=node.outputs[0].dtype,
         ),
     )
 
@@ -567,7 +576,11 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
     # value is always a float according to torch spec
     true_value_node = value_node.into_tensor_variable()
     if true_value_node.data is not None:
-        true_value_node.data = true_value_node.data.to(false_value_node.dtype)
+        node.outputs[0].dtype = false_value_node.dtype  # TODO: understand
+        target_dtype = node.inputs[0].dtype
+        true_value_node.set_data(
+            true_value_node.data.to(target_dtype), force_dtype=True
+        )
     if inference_target.has_dynamic_axes:
         if not isinstance(inference_target, TractNNEF):
             raise T2NErrorNotImplemented(inference_target)
@@ -581,8 +594,9 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
         )
 
         # force rank to be the same
-        true_value_node.data = true_value_node.data.repeat(
-            *([1] * false_value_node.rank)
+        true_value_node.set_data(
+            true_value_node.data.repeat(*([1] * false_value_node.rank)),
+            force_shape=True,
         )
         inp = op_helper.get_or_add_tensor_variable_in_nnef(
             true_value_node, name_suffix="true_scalar"
@@ -605,8 +619,10 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
         )
     else:
         # Static expansion
-        true_value_node.data = true_value_node.data.repeat(
-            false_value_node.shape
+        true_value_node.shape = false_value_node.shape
+        true_value_node.set_data(
+            true_value_node.data.repeat(false_value_node.shape),
+            force_shape=True,
         )
         true_value_node.dtype = false_value_node.dtype
         true_nnef_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
@@ -614,10 +630,15 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
         )
 
     # tract need float where ?
-    # mask_node.data = mask_node.data.float()
+    # mask_node.set_data(mask_node.data.float())
     # mask_node.dtype = mask_node.data.dtype
     condition_node = mask_node
 
+    decision = op_helper.get_or_add_tensor_variable_in_nnef(condition_node)
+    assert true_nnef_tensor.dtype == false_nnef_tensor.dtype, (
+        f"masked_fill true and false branch must have the same dtype, got "
+        f"{true_nnef_tensor.dtype} and {false_nnef_tensor.dtype}"
+    )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         nnef_op_type="select",
@@ -625,11 +646,11 @@ def masked_fill(node, op_helper, inference_target, **kwargs):
             op_helper,
             node,
             [
-                op_helper.get_or_add_tensor_variable_in_nnef(condition_node),
+                decision,
                 true_nnef_tensor,
                 false_nnef_tensor,
             ],
-            node.outputs[0].dtype,
+            target_torch_dtype=node.outputs[0].dtype,
         ),
     )
 

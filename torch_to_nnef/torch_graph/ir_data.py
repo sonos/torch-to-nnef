@@ -22,6 +22,7 @@ from torch_to_nnef.dtypes import (
 from torch_to_nnef.exceptions import (
     T2NError,
     T2NErrorConsistency,
+    T2NErrorIRDataConsistency,
     T2NErrorNotImplemented,
     T2NErrorTorchNotFoundDataNode,
     T2NErrorTorchUnableToTraceData,
@@ -52,6 +53,9 @@ class Data(NamedItem):
     name: str
     data: T.Any
 
+    def set_data(self, data: T.Any, *args, **kwargs):
+        self.data = data
+
     def __post_init__(self):
         self.debug_name = self.name
         self.name = cleanup_data_name(self.name)
@@ -66,11 +70,11 @@ class Data(NamedItem):
 
     @property
     def shaped(self) -> bool:
-        return True
+        return False
 
     @property
-    def typed(self):
-        return True
+    def typed(self) -> bool:
+        return False
 
     @property
     def shaped_and_typed(self) -> bool:
@@ -88,16 +92,97 @@ class Data(NamedItem):
         return hash(self.name)
 
 
+class TensorDataSlot:
+    """Prevent uncontrolled assignation of tensor data in Data nodes."""
+
+    def __init__(self):
+        self.private = "_data"
+
+    def __get__(self, obj, objtype=None):
+        return getattr(obj, self.private, None)
+
+    def __set__(self, obj, value):
+        # Allow first assignment only
+        if hasattr(obj, self.private):
+            raise RuntimeError(
+                f"{obj.name}: direct reassignment of .data is forbidden; "
+                f"use set_data(...) instead"
+            )
+        setattr(obj, self.private, value)
+
+
 @dataclass
 class TensorVariable(Data):
     shape: T.Optional[T.List[int]]
     dtype: T.Optional[torch.dtype]
 
     # used as reference in case of Op outputs
-    data: T.Optional[torch.Tensor]
+    data = TensorDataSlot()
 
     quant: T.Optional[T.Dict[str, T.Any]] = None
     _traced_data: T.Optional[torch.Tensor] = None
+
+    def set_data(  # pylint: disable=arguments-differ
+        self, data, *args, force_shape=False, force_dtype=False, **kwargs
+    ):
+        if force_shape and self.shape is not None:
+            self.shape = list(data.shape)
+
+        if force_dtype and self.dtype is not None:
+            self.dtype = data.dtype
+
+        # Explicit mutation path
+        self._validate_data(data)
+        object.__setattr__(self, "_data", data)
+
+    def _validate_data(self, value):
+        if value is None:
+            return
+
+        if isinstance(value, torch.Tensor):
+            if (
+                not (
+                    len(value.shape) == 0
+                    and len(self.shape) == 1
+                    and self.shape[0] == 1
+                )
+                or len(value.shape) == 1
+                and len(self.shape) == 0
+                and value.shape[0] == 1
+            ) and list(value.shape) != self.shape:
+                raise T2NErrorIRDataConsistency(
+                    f"{self.name}: shape mismatch {value.shape} != {self.shape}"
+                )
+            if value.dtype != self.dtype:
+                raise T2NErrorIRDataConsistency(
+                    f"{self.name}: dtype mismatch {value.dtype} != {self.dtype}"
+                )
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.data is None:
+            return
+
+        if self.dtype is None or self.shape is None:
+            raise T2NErrorIRDataConsistency(
+                "dtype and shape must be specified when data is provided"
+            )
+
+        if self.dtype != self.data.dtype:
+            raise T2NErrorIRDataConsistency(
+                f"dtype mismatch: declared {self.dtype}, "
+                f"but data has dtype {self.data.dtype}"
+            )
+
+        # shape validation / inference
+        data_shape = list(self.data.shape)
+        if self.shape is None:
+            self.shape = data_shape
+        if list(self.shape) != data_shape:
+            raise T2NErrorIRDataConsistency(
+                f"shape mismatch: declared {self.shape}, "
+                f"but data has shape {data_shape}"
+            )
 
     @property
     def slug(self) -> str:
@@ -112,8 +197,7 @@ class TensorVariable(Data):
 
     def cast_float_inplace(self):
         if self.data is not None:
-            self.data = self.data.float()
-            self.dtype = self.data.dtype
+            self.set_data(self.data.float(), force_dtype=True)
 
     @property
     def np_dtype(self):
@@ -258,6 +342,14 @@ class PythonConstant(Data):
         raise T2NErrorNotImplemented()
 
     @property
+    def shaped(self) -> bool:
+        return True
+
+    @property
+    def typed(self) -> bool:
+        return True
+
+    @property
     def tracable(self) -> bool:
         return True
 
@@ -291,6 +383,10 @@ class BlobTorchScriptObject(Data):
         raise T2NErrorNotImplemented()
 
     @property
+    def tracable(self) -> bool:
+        return True
+
+    @property
     def tracing_data(self):
         return self.data
 
@@ -316,6 +412,14 @@ class TupleTensors(Data):
     @property
     def dtype(self):
         return None
+
+    @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data)
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data)
 
     @property
     def is_constant(self) -> bool:
@@ -378,6 +482,14 @@ class FixedTensorList(Data):
         return all(data.is_constant for data in self.data)
 
     @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data)
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data)
+
+    @property
     def tracing_data(self) -> T.List[torch.Tensor]:
         return [d.tracing_data for d in self.data]
 
@@ -414,6 +526,14 @@ class DictTensors(Data):
     @property
     def dtype(self):
         return None
+
+    @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data.values())
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data.values())
 
     @property
     def is_constant(self) -> bool:

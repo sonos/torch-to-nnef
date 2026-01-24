@@ -109,8 +109,8 @@ class OpRegistry:
             return self._registry[name]
         except KeyError as exp:
             raise T2NErrorNotImplemented(
-                f"'{name}' operator as not yet been translated "
-                "to NNEF or registred"
+                f"'{name}' operator as not yet "
+                "been translated to NNEF or registred"
             ) from exp
 
     def __add__(self, other: "OpRegistry"):
@@ -201,7 +201,7 @@ def add_tensor_variable_node_as_nnef_tensor(
     nnef_tensor_ref = nnef_tensor_from_tv(g, name, node=node)
     if node.data is not None:
         if isinstance(node.data, OpaqueTensorRef):
-            node.data = node.data.opaque_tensor
+            node.set_data(node.data.opaque_tensor)
 
         if isinstance(node.data, QTensor) or (
             isinstance(node.data, OffloadedTensor)
@@ -223,9 +223,11 @@ def add_tensor_variable_node_as_nnef_tensor(
         else:
             nnef_tensor_ref.data = node.data
             nnef_tensor_ref.shape = tuple(node.data.shape)
+
             # pylint: disable-next=too-many-boolean-expressions
             if not prevent_variable and (
-                node.data.numel() == 0
+                len(node.data.shape) > 1
+                or node.data.numel() == 0
                 or node.data.numel() > 1
                 or (
                     nnef_tensor_ref.data.numel() == 1
@@ -690,7 +692,7 @@ def get_list_of_int(
                     producer = torch_graph.find_data_node_producer(ax_data)
                     producer.realise_output_type_and_size()
                     if ax_data.data is not None:
-                        ax_data.data = ax_data.data.tolist()
+                        ax_data.data.set_data(ax_data.data.tolist())
             int_list = [cast_element(_, accepted_none) for _ in data_node.data]
             if len([_ for _ in int_list if _ is None]) > 1:
                 raise T2NErrorNotImplemented(

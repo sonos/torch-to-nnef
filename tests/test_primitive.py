@@ -1091,7 +1091,6 @@ for fn_name in ["isnan", "isinf", "isposinf", "isneginf"]:
         ),
     )
 
-test_suite.reset()
 # test mixed type binary ops
 inp0 = torch.tensor([55.0, 1.0, -1.0, float("inf")])
 inp1 = torch.tensor([False, True, False, True])
@@ -1110,6 +1109,14 @@ for fn_name in [
         BinaryPrimitive(getattr(torch, fn_name)),
         inference_conditions=skip_khronos_interpreter,
     )
+
+
+inp1 = torch.tensor([False, True, False, True])
+test_suite.add(
+    inp1,
+    UnaryPrimitive(torch.zeros_like),
+    inference_conditions=skip_khronos_interpreter,
+)  # should output bool tensor of FALSE
 
 
 def test_should_fail_since_no_input():

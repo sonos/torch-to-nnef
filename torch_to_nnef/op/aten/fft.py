@@ -72,7 +72,7 @@ def _fft(
     if inverse and norm_node.data is None:
         # backward by default means 1/n
         suffix = "need_norm"
-        norm_node.data = "backward"
+        norm_node.set_data("backward")
 
     output_tensor = add_single_output_op(
         g,
@@ -164,7 +164,7 @@ def stft(
     assert isinstance(win_length_node.data, int) or win_length_node.data is None
     assert window_node.dtype == torch.float32
     if win_length_node.data is None:
-        win_length_node.data = n_fft_node.data
+        win_length_node.set_data(n_fft_node.data, force_shape=True)
     nnef_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
@@ -205,7 +205,7 @@ def stft(
     dim = pick_axis(input_node, -1)
 
     if window_node.data is None:
-        window_node.data = torch.ones(win_length_node.data)
+        window_node.set_data(torch.ones(win_length_node.data), force_shape=True)
 
     window_tensor = get_or_add_tensor_variable_in_nnef(
         g, window_node, name_to_tensor
