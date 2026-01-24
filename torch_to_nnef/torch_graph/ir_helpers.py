@@ -661,7 +661,13 @@ def _extract_op_infos(
         if isinstance(inp, Data):
             abstracted_inputs.append(inp)
         else:
-            dn = _find_data_node(data_nodes, inp.debugName())
-            abstracted_inputs.append(dn)
+            try:
+                dn = _find_data_node(data_nodes, inp.debugName())
+                abstracted_inputs.append(dn)
+            except T2NErrorTorchNotFoundDataNode:
+                logging.debug(
+                    "Data node %s not found, trying to parse node_c_value",
+                    inp.debugName(),
+                )
 
     return (kind, call_name, module_getter_ref, op_ref, abstracted_inputs)

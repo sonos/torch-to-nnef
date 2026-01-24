@@ -537,7 +537,7 @@ class TorchOp:
                 try:
                     data_node.set_data(result)
                 except T2NErrorIRDataConsistency:
-                    logging.warning(
+                    logging.debug(
                         "Conflicting TensorVariable specification "
                         "data for %s with result %s, "
                         " trusting result from realise_output_type_and_size",
