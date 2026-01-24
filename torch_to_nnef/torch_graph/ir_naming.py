@@ -103,7 +103,9 @@ def rename_natural_verbose(torch_ir_graph, lower: bool = True) -> None:
                     suffix="",
                 )
 
-        if dn.name != new_name:
+        if dn.name != new_name and not torch_ir_graph.data_nodes.get_by_name(
+            new_name
+        ):
             dn.name = new_name
     if torch_ir_graph.is_root_module:
         remove_useless_digits_from_module_names(torch_ir_graph, lower=lower)
