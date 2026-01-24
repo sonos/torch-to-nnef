@@ -383,6 +383,10 @@ class BlobTorchScriptObject(Data):
         raise T2NErrorNotImplemented()
 
     @property
+    def tracable(self) -> bool:
+        return True
+
+    @property
     def tracing_data(self):
         return self.data
 
