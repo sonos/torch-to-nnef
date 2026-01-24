@@ -434,6 +434,15 @@ class TorchOp:
         return tuple(_.tracing_data for _ in self.inputs)
 
     def _infer_trace_result(self, approx: bool = True):
+        """Infer empty tensor of correct shape and dtype as output.
+
+        This is a best-effort inference based on input shapes and dtypes,
+        and operator semantics.
+
+        This allows to have a trace of the output tensor without
+        executing the actual operation, which speed-up significantly
+        the tracing process.
+        """
         if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
             results = self.args[0]
         elif self.kind == ATEN_EMBEDDING and approx:
@@ -446,21 +455,40 @@ class TorchOp:
             and {ar.dtype for ar in self.args}
             and approx
         ):
-            ax = list(self.args[0].shape)
-            bx = list(self.args[1].shape)
-            bx = ([1] * (len(ax) - len(bx))) + bx
-            cx = bx[:]
-            cx[-2] = ax[-2]
-            results = torch.empty(cx, dtype=self.args[0].dtype)
+            a = self.args[0]
+            b = self.args[1]
+            ax = list(a.shape)
+            bx = list(b.shape)
+            # Basic rank check (matmul requires at least 2D tensors here)
+            assert len(ax) >= 2 and len(bx) >= 2, (
+                "Expected tensors with rank >= 2"
+            )
+            # Inner dimension compatibility: (..., M, K) @ (..., K, N)
+            assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
+            # Explicit batch broadcasting resolution
+            batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
+            # Output shape: (..., M, N)
+            cx = list(batch_shape) + [ax[-2], bx[-1]]
+            # Simulated output tensor
+            results = torch.empty(cx, dtype=a.dtype)
         elif (
             self.kind == ATEN_LINEAR
             and {ar.dtype for ar in self.args if ar is not None}
             and approx
         ):
-            ax = list(self.args[0].shape)
-            bx = list(self.args[1].shape)
-            cx = ax[:-2] + [ax[-2], bx[-2]]
-            results = torch.empty(cx, dtype=self.args[0].dtype)
+            x = self.args[0]  # input
+            w = self.args[1]  # weight
+            ax = list(x.shape)
+            wx = list(w.shape)
+            # input: (*batch, in_features)
+            # weight: (out_features, in_features)
+            assert len(ax) >= 1, "linear expects input rank >= 1"
+            assert len(wx) == 2, "linear weight must be 2D"
+            assert ax[-1] == wx[-1], "in_features mismatch"
+            # output: (*batch, out_features)
+            cx = ax[:-1] + [wx[0]]
+            results = torch.empty(cx, dtype=x.dtype)
+
         else:
             results = self.call_op()
         return results

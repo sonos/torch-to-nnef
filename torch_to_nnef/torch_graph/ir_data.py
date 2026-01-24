@@ -70,11 +70,11 @@ class Data(NamedItem):
 
     @property
     def shaped(self) -> bool:
-        return True
+        return False
 
     @property
-    def typed(self):
-        return True
+    def typed(self) -> bool:
+        return False
 
     @property
     def shaped_and_typed(self) -> bool:
@@ -342,6 +342,14 @@ class PythonConstant(Data):
         raise T2NErrorNotImplemented()
 
     @property
+    def shaped(self) -> bool:
+        return True
+
+    @property
+    def typed(self) -> bool:
+        return True
+
+    @property
     def tracable(self) -> bool:
         return True
 
@@ -400,6 +408,14 @@ class TupleTensors(Data):
     @property
     def dtype(self):
         return None
+
+    @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data)
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data)
 
     @property
     def is_constant(self) -> bool:
@@ -462,6 +478,14 @@ class FixedTensorList(Data):
         return all(data.is_constant for data in self.data)
 
     @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data)
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data)
+
+    @property
     def tracing_data(self) -> T.List[torch.Tensor]:
         return [d.tracing_data for d in self.data]
 
@@ -498,6 +522,14 @@ class DictTensors(Data):
     @property
     def dtype(self):
         return None
+
+    @property
+    def shaped(self) -> bool:
+        return all(_.shaped for _ in self.data.values())
+
+    @property
+    def typed(self) -> bool:
+        return all(_.typed for _ in self.data.values())
 
     @property
     def is_constant(self) -> bool:
