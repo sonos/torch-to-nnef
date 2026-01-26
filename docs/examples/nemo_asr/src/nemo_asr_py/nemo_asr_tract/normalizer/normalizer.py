@@ -17,10 +17,10 @@ import re
 import unicodedata
 from fractions import Fraction
 from typing import Iterator, List, Match, Optional, Union
-from .english_abbreviations import english_spelling_normalizer
 
 import regex
 
+from .english_abbreviations import english_spelling_normalizer
 
 # non-ASCII letters that are not separated by "NFKD" normalization
 ADDITIONAL_DIACRITICS = {
@@ -44,9 +44,9 @@ ADDITIONAL_DIACRITICS = {
 
 
 def remove_symbols_and_diacritics(s: str, keep=""):
-    """
-    Replace any other markers, symbols, and punctuations with a space, and drop any diacritics (category 'Mn' and some
-    manual mappings)
+    """Replace any other markers, symbols, and punctuations with a space.
+
+    Also drop any diacritics (category 'Mn' and some manual mappings)
     """
 
     def replace_character(char):
@@ -63,19 +63,31 @@ def remove_symbols_and_diacritics(s: str, keep=""):
 
         return char
 
-    return "".join(replace_character(c) for c in unicodedata.normalize("NFKD", s))
+    return "".join(
+        replace_character(c) for c in unicodedata.normalize("NFKD", s)
+    )
 
 
 def remove_symbols(s: str):
+    """Replace any other markers, symbols, punctuations with a space.
+
+    keeping diacritics
     """
-    Replace any other markers, symbols, punctuations with a space, keeping diacritics
-    """
-    return "".join(" " if unicodedata.category(c)[0] in "MSP" else c for c in unicodedata.normalize("NFKC", s))
+    return "".join(
+        " " if unicodedata.category(c)[0] in "MSP" else c
+        for c in unicodedata.normalize("NFKC", s)
+    )
 
 
 class BasicTextNormalizer:
-    def __init__(self, remove_diacritics: bool = False, split_letters: bool = False):
-        self.clean = remove_symbols_and_diacritics if remove_diacritics else remove_symbols
+    def __init__(
+        self, remove_diacritics: bool = False, split_letters: bool = False
+    ):
+        self.clean = (
+            remove_symbols_and_diacritics
+            if remove_diacritics
+            else remove_symbols
+        )
         self.split_letters = split_letters
 
     def __call__(self, s: str):
@@ -87,14 +99,20 @@ class BasicTextNormalizer:
         if self.split_letters:
             s = " ".join(regex.findall(r"\X", s, regex.U))
 
-        s = re.sub(r"\s+", " ", s)  # replace any successive whitespace characters with a space
+        s = re.sub(
+            r"\s+", " ", s
+        )  # replace any successive whitespace characters with a space
 
         return s
 
 
 class BasicMultilingualTextNormalizer:
     def __init__(self, remove_diacritics: bool = True):
-        self.clean = remove_symbols_and_diacritics if remove_diacritics else remove_symbols
+        self.clean = (
+            remove_symbols_and_diacritics
+            if remove_diacritics
+            else remove_symbols
+        )
 
     def __call__(self, s: str):
         s = s.lower()
@@ -110,15 +128,39 @@ class BasicMultilingualTextNormalizer:
 
 
 class EnglishNumberNormalizer:
-    """
-    Convert any spelled-out numbers into arabic numbers, while handling:
+    """Convert any spelled-out numbers into arabic numbers.
 
+    while handling:
     - remove any commas
     - keep the suffixes such as: `1960s`, `274th`, `32nd`, etc.
-    - spell out currency symbols after the number. e.g. `$20 million` -> `20000000 dollars`
+    - spell out currency symbols after the number.
+        e.g. `$20 million` -> `20000000 dollars`
     - spell out `one` and `ones`
-    - interpret successive single-digit numbers as nominal: `one oh one` -> `101`
+    - interpret successive single-digit numbers as nominal:
+        `one oh one` -> `101`
     """
+
+    EN_ONES = [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+    ]
 
     def __init__(self):
         super().__init__()
@@ -128,13 +170,14 @@ class EnglishNumberNormalizer:
         self.ones = {
             name: i
             for i, name in enumerate(
-                ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"],
+                self.EN_ONES,
                 start=1,
             )
         }
         # fmt: on
         self.ones_plural = {
-            "sixes" if name == "six" else name + "s": (value, "s") for name, value in self.ones.items()
+            "sixes" if name == "six" else name + "s": (value, "s")
+            for name, value in self.ones.items()
         }
         self.ones_ordinal = {
             "zeroth": (0, "th"),
@@ -161,8 +204,14 @@ class EnglishNumberNormalizer:
             "eighty": 80,
             "ninety": 90,
         }
-        self.tens_plural = {name.replace("y", "ies"): (value, "s") for name, value in self.tens.items()}
-        self.tens_ordinal = {name.replace("y", "ieth"): (value, "th") for name, value in self.tens.items()}
+        self.tens_plural = {
+            name.replace("y", "ies"): (value, "s")
+            for name, value in self.tens.items()
+        }
+        self.tens_ordinal = {
+            name.replace("y", "ieth"): (value, "th")
+            for name, value in self.tens.items()
+        }
         self.tens_suffixed = {**self.tens_plural, **self.tens_ordinal}
 
         self.multipliers = {
@@ -179,9 +228,17 @@ class EnglishNumberNormalizer:
             "nonillion": 1_000_000_000_000_000_000_000_000_000_000,
             "decillion": 1_000_000_000_000_000_000_000_000_000_000_000,
         }
-        self.multipliers_plural = {name + "s": (value, "s") for name, value in self.multipliers.items()}
-        self.multipliers_ordinal = {name + "th": (value, "th") for name, value in self.multipliers.items()}
-        self.multipliers_suffixed = {**self.multipliers_plural, **self.multipliers_ordinal}
+        self.multipliers_plural = {
+            name + "s": (value, "s") for name, value in self.multipliers.items()
+        }
+        self.multipliers_ordinal = {
+            name + "th": (value, "th")
+            for name, value in self.multipliers.items()
+        }
+        self.multipliers_suffixed = {
+            **self.multipliers_plural,
+            **self.multipliers_ordinal,
+        }
         self.decimals = {*self.ones, *self.tens, *self.zeros}
 
         self.preceding_prefixers = {
@@ -200,7 +257,10 @@ class EnglishNumberNormalizer:
             "cent": "¢",
             "cents": "¢",
         }
-        self.prefixes = set(list(self.preceding_prefixers.values()) + list(self.following_prefixers.values()))
+        self.prefixes = set(
+            list(self.preceding_prefixers.values())
+            + list(self.following_prefixers.values())
+        )
         self.suffixers = {
             "per": {"cent": "%"},
             "percent": "%",
@@ -256,7 +316,9 @@ class EnglishNumberNormalizer:
                 skip = False
                 continue
 
-            next_is_numeric = next is not None and re.match(r"^\d+(\.\d+)?$", next)
+            next_is_numeric = next is not None and re.match(
+                r"^\d+(\.\d+)?$", next
+            )
             has_prefix = current[0] in self.prefixes
             current_without_prefix = current[1:] if has_prefix else current
             if re.match(r"^\d+(\.\d+)?$", current_without_prefix):
@@ -291,7 +353,9 @@ class EnglishNumberNormalizer:
                 if value is None:
                     value = ones
                 elif isinstance(value, str) or prev in self.ones:
-                    if prev in self.tens and ones < 10:  # replace the last zero with the digit
+                    if (
+                        prev in self.tens and ones < 10
+                    ):  # replace the last zero with the digit
                         value = value[:-1] + str(ones)
                     else:
                         value = str(value) + str(ones)
@@ -416,7 +480,8 @@ class EnglishNumberNormalizer:
                     yield output(current)
             elif current in self.specials:
                 if next not in self.words and not next_is_numeric:
-                    # apply special handling only if the next word can be numeric
+                    # apply special handling only if the next word can
+                    # be numeric
                     if value is not None:
                         yield output(value)
                     yield output(current)
@@ -495,7 +560,9 @@ class EnglishNumberNormalizer:
                 return m.string
 
         # apply currency postprocessing; "$2 and ¢7" -> "$2.07"
-        s = re.sub(r"([€£$])([0-9]+) (?:and )?¢([0-9]{1,2})\b", combine_cents, s)
+        s = re.sub(
+            r"([€£$])([0-9]+) (?:and )?¢([0-9]{1,2})\b", combine_cents, s
+        )
         s = re.sub(r"[€£$]0.([0-9]{1,2})\b", extract_cents, s)
 
         # write "one(s)" instead of "1(s)", just for the readability
@@ -505,15 +572,16 @@ class EnglishNumberNormalizer:
 
     def __call__(self, s: str):
         s = self.preprocess(s)
-        s = " ".join(word for word in self.process_words(s.split()) if word is not None)
+        s = " ".join(
+            word for word in self.process_words(s.split()) if word is not None
+        )
         s = self.postprocess(s)
 
         return s
 
 
 class EnglishSpellingNormalizer:
-    """
-    Applies British-American spelling mappings as listed in [1].
+    """Applies British-American spelling mappings as listed in [1].
 
     [1] https://www.tysto.com/uk-us-spelling-list.html
     """
@@ -566,7 +634,8 @@ class EnglishTextNormalizer:
             r"\bjr\b": "junior ",
             r"\bsr\b": "senior ",
             r"\besq\b": "esquire ",
-            # prefect tenses, ideally it should be any past participles, but it's harder..
+            # prefect tenses, ideally it should be any past participles,
+            # but it's harder..
             r"'d been\b": " had been",
             r"'s been\b": " has been",
             r"'d gone\b": " had gone",
@@ -584,7 +653,9 @@ class EnglishTextNormalizer:
             r"'m\b": " am",
         }
         self.standardize_numbers = EnglishNumberNormalizer()
-        self.standardize_spellings = EnglishSpellingNormalizer(english_spelling_mapping)
+        self.standardize_spellings = EnglishSpellingNormalizer(
+            english_spelling_mapping
+        )
 
     def __call__(self, s: str):
         s = s.lower()
@@ -592,22 +663,31 @@ class EnglishTextNormalizer:
         s = re.sub(r"[<\[][^>\]]*[>\]]", "", s)  # remove words between brackets
         s = re.sub(r"\(([^)]+?)\)", "", s)  # remove words between parenthesis
         s = re.sub(self.ignore_patterns, "", s)
-        s = re.sub(r"\s+'", "'", s)  # standardize when there's a space before an apostrophe
+        s = re.sub(
+            r"\s+'", "'", s
+        )  # standardize when there's a space before an apostrophe
 
         for pattern, replacement in self.replacers.items():
             s = re.sub(pattern, replacement, s)
 
         s = re.sub(r"(\d),(\d)", r"\1\2", s)  # remove commas between digits
-        s = re.sub(r"\.([^0-9]|$)", r" \1", s)  # remove periods not followed by numbers
-        s = remove_symbols_and_diacritics(s, keep=".%$¢€£")  # keep some symbols for numerics
+        s = re.sub(
+            r"\.([^0-9]|$)", r" \1", s
+        )  # remove periods not followed by numbers
+        s = remove_symbols_and_diacritics(
+            s, keep=".%$¢€£"
+        )  # keep some symbols for numerics
 
         s = self.standardize_numbers(s)
         s = self.standardize_spellings(s)
 
-        # now remove prefix/suffix symbols that are not preceded/followed by numbers
+        # now remove prefix/suffix symbols that are not preceded/followed
+        # by numbers
         s = re.sub(r"[.$¢€£]([^0-9])", r" \1", s)
         s = re.sub(r"([^0-9])%", r"\1 ", s)
 
-        s = re.sub(r"\s+", " ", s)  # replace any successive whitespace characters with a space
+        s = re.sub(
+            r"\s+", " ", s
+        )  # replace any successive whitespace characters with a space
 
         return s
