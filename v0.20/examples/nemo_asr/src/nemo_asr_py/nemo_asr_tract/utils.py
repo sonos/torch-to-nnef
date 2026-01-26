@@ -1,11 +1,10 @@
 import logging
 import platform
+from _ctypes import POINTER, Structure, byref
 from contextlib import contextmanager
 from ctypes import c_char_p, c_float, c_int32, c_uint, cdll, string_at
 from pathlib import Path
 from typing import Optional
-
-from _ctypes import POINTER, Structure, byref
 
 python_version = "".join(platform.python_version_tuple()[:2])
 dylib_dir = Path(__file__).parent / "dylib"

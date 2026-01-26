@@ -1,13 +1,16 @@
-from .utils import lib, check_ffi_error
+from ctypes import c_size_t
+
 from .nemo_asr import (
-    load_config_from_dir,
     NemoAsrConfig,
     NemoAsrModel,
     Transcript,
     TranscriptItem,
     Transcripts,
+    load_config_from_dir,
 )
-from ctypes import c_size_t
+from .utils import check_ffi_error, lib
+
+__version__ = "0.1.0"
 
 
 def init_env_logger(verbosity: int = 0):

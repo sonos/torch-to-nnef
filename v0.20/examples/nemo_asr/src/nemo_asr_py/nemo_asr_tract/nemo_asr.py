@@ -1,8 +1,11 @@
 from ctypes import byref, c_char_p, c_size_t, c_void_p
 from pathlib import Path
-from typing import Union, List
+from typing import List, Union
+
+from pydantic import BaseModel as PydanticModel
+from pydantic import RootModel
+
 from .utils import check_ffi_error, lib
-from pydantic import BaseModel as PydanticModel, RootModel
 
 
 class TranscriptItem(PydanticModel):
