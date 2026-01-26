@@ -3,18 +3,18 @@
 https://github.com/huggingface/open_asr_leaderboard/blob/main/normalizer/eval_utils.py
 """
 
-import os
 import glob
 import json
+import os
+from collections import defaultdict
+from pathlib import Path
+from typing import Union
 
 import evaluate
-from collections import defaultdict
 
 
 def read_manifest(manifest_path: str):
-    """
-    Reads a manifest file (jsonl format) and returns a list of dictionaries containing samples.
-    """
+    """Reads a manifest file (jsonl format) returns a list of dict samples."""
     data = []
     with open(manifest_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -33,9 +33,9 @@ def write_manifest(
     split: str,
     audio_length: list = None,
     transcription_time: list = None,
+    basedir: Union[str, Path] = "./results_manifests",
 ):
-    """
-    Writes a manifest file (jsonl format) and returns the path to the file.
+    """Writes a manifest file (jsonl format) and returns the path to the file.
 
     Args:
         references: Ground truth reference texts.
@@ -46,6 +46,7 @@ def write_manifest(
         split: Dataset split name.
         audio_length: Length of each audio sample in seconds.
         transcription_time: Transcription time of each sample in seconds.
+        basedir: Base directory to save the manifest file.
 
     Returns:
         Path to the manifest file.
@@ -69,7 +70,8 @@ def write_manifest(
         references
     ):
         raise ValueError(
-            f"The number of samples in `transcription_time` ({len(transcription_time)}) "
+            "The number of samples in `transcription_time` "
+            f"({len(transcription_time)}) "
             f"must match `references` ({len(references)})."
         )
 
@@ -82,28 +84,28 @@ def write_manifest(
         else len(references) * [None]
     )
 
-    basedir = "./results/"
-    if not os.path.exists(basedir):
+    basedir = Path(basedir)
+    if not basedir.exists():
         os.makedirs(basedir)
 
-    manifest_path = os.path.join(
-        basedir,
-        f"MODEL_{model_id}_DATASET_{dataset_path}_{dataset_name}_{split}.jsonl",
+    manifest_path = basedir / (
+        f"MODEL_{model_id}_DATASET_{dataset_path}_{dataset_name}_{split}.jsonl"
     )
 
     with open(manifest_path, "w", encoding="utf-8") as f:
         for idx, (
             text,
             transcript,
-            audio_length,
-            transcription_time,
+            audio_length_item,
+            transcription_time_item,
         ) in enumerate(
             zip(references, transcriptions, audio_length, transcription_time)
         ):
             datum = {
-                "audio_filepath": f"sample_{idx}",  # dummy value for Speech Data Processor
-                "duration": audio_length,
-                "time": transcription_time,
+                # dummy value for Speech Data Processor
+                "audio_filepath": f"sample_{idx}",
+                "duration": audio_length_item,
+                "time": transcription_time_item,
                 "text": text,
                 "pred_text": transcript,
             }
@@ -112,17 +114,20 @@ def write_manifest(
 
 
 def score_results(directory: str, model_id: str = None):
-    """
-    Scores all result files in a directory and returns a composite score over all evaluated datasets.
+    """Scores all result files in a directory and returns a composite score.
+
+    over all evaluated datasets
 
     Args:
-        directory: Path to the result directory, containing one or more jsonl files.
-        model_id: Optional, model name to filter out result files based on model name.
+        directory: Path to the result directory,
+            containing one or more jsonl files.
+        model_id: Optional, model name to filter out
+            result files based on model name.
 
     Returns:
-        Composite score over all evaluated datasets and a dictionary of all results.
+        Composite score over all evaluated datasets and
+        a dictionary of all results.
     """
-
     # Strip trailing slash
     if directory.endswith(os.pathsep):
         directory = directory[:-1]
@@ -141,8 +146,8 @@ def score_results(directory: str, model_id: str = None):
     if len(result_files) == 0:
         raise ValueError(f"No result files found in {directory}")
 
-    # Utility function to parse the file path and extract model id, dataset path,
-    # dataset name and split
+    # Utility function to parse the file path and extract model id
+    # , dataset path, dataset name and split
     def parse_filepath(fp: str):
         model_index = fp.find("MODEL_")
         fp = fp[model_index:]

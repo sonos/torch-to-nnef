@@ -7,21 +7,19 @@ Programmatic ESB evaluation runner.
 - Calls eval_utils.score_results directly
 """
 
-from pathlib import Path
-from typing import List, Tuple
 import argparse
 import logging as log
-
+from pathlib import Path
+from typing import List, Tuple
 
 from nemo_asr_tract import init_env_logger
-from nemo_asr_tract.nemo_asr import load_config_from_dir
-from nemo_asr_tract.open_asr_leaderboard_eval import (
+from nemo_asr_tract.eval.base import (
     EvalConfig,
+    load_runner_from_config,
     run_asr_evaluation,
 )
-
+from nemo_asr_tract.nemo_asr import load_config_from_dir
 from nemo_asr_tract.normalizer import eval_utils
-
 
 # =============================================================================
 # Dataset matrix (faithful to the original shell script)
@@ -48,6 +46,7 @@ ESB_DATASETS: List[Tuple[str, str]] = [
 def run_eval(
     *,
     model_id: str,
+    model_runner_class: str,
     exported_dir: str,
     dataset_path: str,
     dataset: str,
@@ -55,15 +54,10 @@ def run_eval(
     device_id: int,
     batch_size: int,
     results_dir: Path,
-    use_original_model: bool,
 ):
-    tag = "original" if use_original_model else "exported"
-    out_dir = results_dir / tag / dataset / split
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     cfg = EvalConfig(
-        exported_dir=exported_dir,
-        use_original_model=use_original_model,
+        model_dir=exported_dir,
+        model_runner_class=model_runner_class,
         dataset_path=dataset_path,
         dataset=dataset,
         split=split,
@@ -72,17 +66,22 @@ def run_eval(
         max_eval_samples=None,
         streaming=True,
         warmup=0,
+        output_dir=results_dir,
     )
+    runner = load_runner_from_config(cfg)
+    tag = runner.name()
+    out_dir = results_dir / dataset / split / tag
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n=== {tag.upper()} | {dataset}:{split} ===", flush=True)
+    print(f"\n=== {tag} | {dataset}:{split} ===", flush=True)
 
-    result = run_asr_evaluation(cfg)
+    result = run_asr_evaluation(cfg, runner=runner)
 
     # Persist a small summary (debug / CI friendly)
     summary_path = out_dir / "summary.txt"
     with summary_path.open("w") as f:
         f.write(f"model_id: {model_id}\n")
-        f.write(f"variant: {tag}\n")
+        f.write(f"runner_name: {tag}\n")
         f.write(f"dataset: {dataset}\n")
         f.write(f"split: {split}\n")
         f.write(f"WER: {result.wer}\n")
@@ -134,15 +133,25 @@ def main():
 
     parser.add_argument("-e", "--exported_dir", required=True)
     parser.add_argument(
-        "-s",
-        "--skip_dataset",
-        nargs="+",
-        default=[],
-        help="Datasets to skip during evaluation.",
+        "-d",
+        "--dataset",
+        default="*",
+        help="Datasets to evaluate if '*' all open Leaderboard used.",
     )
     parser.add_argument("--device", type=int, default=-1)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("-r", "--results_dir", required=True)
+    parser.add_argument(
+        "-c",
+        "--runner_class_paths",
+        required=False,
+        default=[
+            "nemo_asr_tract.eval.runner.NemoRunner",
+            "nemo_asr_tract.eval.runner.ExportedNemoRunner",
+        ],
+        nargs="+",
+        help="Model runner classes to use (you can implement your own).",
+    )
     parser.add_argument(
         "-v",
         "--verbosity",
@@ -164,12 +173,13 @@ def main():
     # -------------------------------------------------------------------------
 
     for dataset, split in ESB_DATASETS:
-        if dataset in args.skip_dataset:
+        if args.dataset != "*" and dataset not in args.dataset:
             print(f"\n=== Skipping {dataset}:{split} ===")
             continue
-        for use_original_model in (False, True):
+        for model_runner_class in args.runner_class_paths:
             run_eval(
                 model_id=conf.pretrained_name,
+                model_runner_class=model_runner_class,
                 exported_dir=args.exported_dir,
                 dataset_path=HF_ESB_SLUG,
                 dataset=dataset,
@@ -177,7 +187,6 @@ def main():
                 device_id=args.device,
                 batch_size=args.batch_size,
                 results_dir=results_dir,
-                use_original_model=use_original_model,
             )
 
     # -------------------------------------------------------------------------

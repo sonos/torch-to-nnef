@@ -21,7 +21,7 @@ t2n_export_nemo \
     --tract-specific-path $HOME/SONOS/src/tract/target/release/tract \ # path to tract binary (optional)
     -tt very # tolerance of check between nemo and tract for each sub-model
 
-# --compress-method min_max_q4_0_all  # can be used to cmporess the model
+# --compress-method min_max_q4_0_all  # can be used to compress the model
 ```
 
 After running the above command, you will find the exported NNEF model files in the specified export directory (`./dump_parakeet_v3_06B` in this case),
@@ -125,3 +125,39 @@ You can evaluate the quality of the ASR model ran in tract with the python packa
 nemo_tract_eval -e ./dump_parakeet_v3_06B -r ~/SONOS/data/test_asr_export_parakeet --device 0
 ```
 This run an evaluation following the same protocol as the `ASR Open Leaderboard` evaluation from HuggingFace.
+
+This allows better extensibily than the original eval scripts:
+You can define your own evaluation dataset (from huggingface hub) and runner/model.
+
+To add new Runner or Model, you just need to inherit from the base class and implement the required methods.:
+```python
+
+from nemo_asr_tract.eval.runner import AsRRunner
+
+class MyCustomRunner(AsRRunner):
+    def __init__(self, model: str, device: int = 0):
+        super().__init__(model, device)
+
+    def name(self) -> str:
+        # TODO:
+        my_super_model_and_runner_name = "dummy"
+        return clean_name(my_super_model_and_runner_name)
+
+    @classmethod
+    def load_from_path(
+        cls,
+        *,
+        cfg: EvalConfig,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> "AsrRunner":
+        """Load the ASR runner from a model directory."""
+        # TODO:
+        return cls(model, batch_size=cfg.batch_size)
+
+    def transcribe_from_wav_paths(self, wav_paths: List[str]):
+        # TODO:
+        return []
+
+```
+Then you can reference it directly with the `--runner-class` argument in the evaluation script.

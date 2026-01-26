@@ -1,5 +1,6 @@
-from datasets import load_dataset, Audio
-from . import EnglishTextNormalizer, BasicMultilingualTextNormalizer
+from datasets import Audio, load_dataset
+
+from . import BasicMultilingualTextNormalizer, EnglishTextNormalizer
 
 
 def is_target_text_in_range(ref):
