@@ -143,7 +143,7 @@ def main():
     parser.add_argument("-r", "--results_dir", required=True)
     parser.add_argument(
         "-c",
-        "--runner_class_paths",
+        "--model_runner_class",
         required=False,
         default=[
             "nemo_asr_tract.eval.runner.NemoRunner",
@@ -176,7 +176,7 @@ def main():
         if args.dataset != "*" and dataset not in args.dataset:
             print(f"\n=== Skipping {dataset}:{split} ===")
             continue
-        for model_runner_class in args.runner_class_paths:
+        for model_runner_class in args.model_runner_class:
             run_eval(
                 model_id=conf.pretrained_name,
                 model_runner_class=model_runner_class,

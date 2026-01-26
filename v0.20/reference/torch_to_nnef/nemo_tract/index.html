@@ -577,12 +577,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/10_nemo/" class="md-nav__link">
+      <a href="../../../tutos/10_nemo_asr.md" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    10. nemo export & eval
+    10. Nemo ASR export & eval
     
   </span>
   
@@ -3169,7 +3169,7 @@ custom extensions required for the export process.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">compress_registry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">compress_method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">extra_cfg</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">omegaconf</span><span class="p">:</span> <span class="n">InjectedOmegaConfModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">compress_registry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">compress_method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">extra_cfg</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">omegaconf</span><span class="p">:</span> <span class="n">InjectedOmegaConfModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3236,6 +3236,20 @@ custom extensions required for the export process.</p>
             <td>
               <div class="doc-md-description">
                 <p>If True, skip exporting the preprocessor subnet.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>split_joint_decoder</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to split the joint&amp;decoder subnets export.</p>
               </div>
             </td>
             <td>
@@ -3347,12 +3361,81 @@ if None, no compression is applied.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_export_params_for_generic_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExportParameters</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_export_params_for_generic_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExportParameters</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Iterator over export parameters for a generic NeMo ASR model.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>asr_model</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The NeMo ASR model to export.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>inference_target</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The target inference type.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>skip_preprocessor</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to skip exporting the preprocessor subnet.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>split_joint_decoder</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to split the joint and decoder subnets exported.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     <p><span class="doc-section-title">Yields:</span></p>
