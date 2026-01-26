@@ -3,12 +3,12 @@
 use nemo_asr::NemoAsrModel;
 
 use anyhow::{Error, Result};
+use ffi_convert::{AsRust, CReprOf, RawBorrow, RawPointerConverter};
 use libc::c_char;
-use ffi_convert::{AsRust, RawBorrow, RawPointerConverter, CReprOf};
 use log::LevelFilter;
 use std::cell::RefCell;
-use std::path::PathBuf;
 use std::ffi::{CStr, CString};
+use std::path::PathBuf;
 use std::sync::Once;
 
 static INIT_LOGGER: Once = Once::new();
@@ -88,7 +88,6 @@ pub unsafe extern "C" fn nemo_asr_destroy_string(string: *mut c_char) -> NEMO_AS
     wrap(|| unsafe { CString::drop_raw_pointer(string) }.map_err(Error::from))
 }
 
-
 /// Setup logger on Rust side
 ///
 /// # Arguments
@@ -137,7 +136,6 @@ fn init_env_logger(verbosity: usize) -> Result<()> {
     Ok(())
 }
 
-
 #[derive(RawPointerConverter)]
 pub struct FFINemoAsrModel(NemoAsrModel);
 
@@ -152,7 +150,7 @@ pub struct FFINemoAsrModel(NemoAsrModel);
 /// Returns `ASR_FFI_RESULT_OK` if the function has run successfully.
 ///
 /// If `SVC_LLM_FFI_RESULT_KO` is returned, you can get more information on the error using the
-/// `svc_llm_get_last_error` function.
+/// `nemo_asr_get_last_error` function.
 ///
 /// # Safety
 /// Make sure that the passed in pointer is safe to be dereferenced.
@@ -168,7 +166,6 @@ pub unsafe extern "C" fn nemo_asr_from_dir(
         Ok(())
     })
 }
-
 
 /// Get answer from ASR batch of input wavs.
 ///
@@ -187,7 +184,7 @@ pub unsafe extern "C" fn infer_from_wav_paths(
     ptr: *mut *const c_char,
 ) -> NEMO_ASR_FFI_RESULT {
     crate::wrap(|| {
-        let model = unsafe {&FFINemoAsrModel::raw_borrow(model)?.0 };
+        let model = unsafe { &FFINemoAsrModel::raw_borrow(model)?.0 };
         let wav_pathbuf = (0..wav_paths_len)
             .map(|i| {
                 let cstr = unsafe { CStr::raw_borrow(*wav_paths.add(i)) }?;
@@ -203,7 +200,6 @@ pub unsafe extern "C" fn infer_from_wav_paths(
         Ok(())
     })
 }
-
 
 /// Destroys a FFINemoAsrModel.
 ///

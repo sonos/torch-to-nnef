@@ -9,7 +9,7 @@ The model used in this example is a pre-trained ASR model from NVIDIA's Nemo too
 
 # Export a Nemo model
 
-To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to ONNX format.
+To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.
 
 Install torch_to_nnef if you haven't already with feature `nemo-tarct`,
 this will enable the `t2n_export_nemo` command.:
@@ -39,7 +39,12 @@ You need to reference the crate `tract-nemo` in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tract-nemo = { path = "./src/nemo_asr" }
+tract-nemo = {
+  git = "https://github.com/sonos/torch-to-nnef.git",
+  branch = "main",
+  subdir = "docs/examples/nemo_asr/"
+}
+
 ```
 
 Then, you can use the following Rust code to load the exported model and run inference:
@@ -119,3 +124,4 @@ You can evaluate the quality of the ASR model ran in tract with the python packa
 ```bash
 nemo_tract_eval -e ./dump_parakeet_v3_06B -r ~/SONOS/data/test_asr_export_parakeet --device 0
 ```
+This run an evaluation following the same protocol as the `ASR Open Leaderboard` evaluation from HuggingFace.
