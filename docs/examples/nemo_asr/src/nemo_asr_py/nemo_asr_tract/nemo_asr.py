@@ -95,7 +95,7 @@ class NemoAsrModel:
             ptr.value.decode("utf-8")
         )
         clean_ptr()
-        return loading_config
+        return loading_config.root
 
     @property
     def config(self) -> NemoAsrConfig:

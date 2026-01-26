@@ -1,17 +1,22 @@
-# Example using tract to run a simple Nemo ASR model
+# 10. Nemo ASR support
 
-This example demonstrates how to use the `tract` library to run a simple Nemo ASR (Automatic Speech Recognition) model.
-The model used in this example is a pre-trained ASR model from NVIDIA's Nemo toolkit.
+!!! abstract "Goals"
 
-## Prerequisites
-- Rust programming language installed (https://www.rust-lang.org/tools/install)
-- Python installed (for evaluation and instrumentation)
+    At the end of this tutorial you will know:
+    1. :material-toolbox: The basic commands to export your NemoASR model to tract
+    2. :fontawesome-brands-rust: How to create a minimal rust binary that perform wav inference
+    3. :fontawesome-brands-python: How to perform inference with tract from python
+    4. :fontawesome-brands-python: How to evaluate the exported model with WER on standard datasets
 
-# Export a Nemo model
+!!! example "Prerequisite"
+  - [ ] Python basics
+  - [ ] Rust basic knowledge (for the Bonus)
+  - [ ] 15 min to read this page
+
 
 To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.
 
-Install torch_to_nnef if you haven't already with feature `nemo-tarct`,
+Install torch_to_nnef if you haven't already with feature `nemo-tract`,
 this will enable the `t2n_export_nemo` command.:
 
 ```bash
@@ -27,9 +32,16 @@ t2n_export_nemo \
 After running the above command, you will find the exported NNEF model files in the specified export directory (`./dump_parakeet_v3_06B` in this case),
 along side the `model_config.json` file.
 
+# Example using tract to run a simple Nemo ASR model
+
+[This example directory](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/nemo_asr) demonstrates how to use the `tract` library to run a simple Nemo ASR (Automatic Speech Recognition) model.
+The model used in this example is a pre-trained ASR model from NVIDIA's Nemo toolkit.
+
+
+
 # About audio preprocessing
 
-Model expects 16kHz mono audio input.
+All models expects 16kHz mono wav audio input.
 
 
 # Run the exported model in Rust
@@ -125,6 +137,7 @@ You can evaluate the quality of the ASR model ran in tract with the python packa
 nemo_tract_eval -e ./dump_parakeet_v3_06B -r ~/SONOS/data/test_asr_export_parakeet --device 0
 ```
 This run an evaluation following the same protocol as the `ASR Open Leaderboard` evaluation from HuggingFace.
+(you can look at the `--help` to display all the options)
 
 This allows better extensibily than the original eval scripts:
 You can define your own evaluation dataset (from huggingface hub) and runner/model.
@@ -160,4 +173,4 @@ class MyCustomRunner(AsRRunner):
         return []
 
 ```
-Then you can reference it directly with the `--runner-class` argument in the evaluation script.
+Then you can reference it directly with the `--model_runner_class` argument in the evaluation script.

@@ -230,9 +230,18 @@ def build_custom_subnet_tract_properties(
 
 
 def iter_export_params_for_generic_nemo_asr_model(
-    asr_model, inference_target, skip_preprocessor: bool = False
+    asr_model,
+    inference_target,
+    skip_preprocessor: bool = False,
+    split_joiner_decoder: bool = False,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model.
+
+    Args:
+        asr_model: The NeMo ASR model to export.
+        inference_target: The target inference type.
+        skip_preprocessor: Whether to skip exporting the preprocessor subnet.
+        split_joiner_decoder: Whether to split the joiner and decoder subnets exported.
 
     Yields:
         ExportParameters for each subnet of the ASR model, with the preprocessor
@@ -287,6 +296,57 @@ def iter_export_params_for_generic_nemo_asr_model(
             else on
             for on in subnet.output_names
         ]
+        if split_joiner_decoder and subnet_name == "decoder_joint":
+            # split into decoder and joiner
+            # assume last two inputs are encoder_outputs and encoder_output_length
+            decoder_input_example = input_example[:-2]
+            joiner_input_example = input_example[-2:]
+
+            decoder_inames = inames[:-2]
+            joiner_inames = inames[-2:]
+
+            # decoder part
+            yield ExportParameters(
+                name="decoder",
+                model=asr_model.decoder,
+                test_input=decoder_input_example,
+                inference_target=inference_target.with_dynamic_axes(
+                    {
+                        k: v
+                        for k, v in dynamic_axes.items()
+                        if k not in ("encoder_outputs", "encoder_output_length")
+                    }
+                ),
+                input_names=decoder_inames,
+                output_names=onames,
+                custom_extensions=list(custom_extensions),
+                allow_same_io_names=True,
+                specific_tract_properties=build_custom_subnet_tract_properties(
+                    "decoder", asr_model.decoder
+                ),
+            )
+
+            # joiner part
+            yield ExportParameters(
+                name="joiner",
+                model=asr_model.joiner,
+                test_input=joiner_input_example,
+                inference_target=inference_target.with_dynamic_axes(
+                    {
+                        k: v
+                        for k, v in dynamic_axes.items()
+                        if k in ("encoder_outputs", "encoder_output_length")
+                    }
+                ),
+                input_names=joiner_inames,
+                output_names=onames,
+                custom_extensions=list(custom_extensions),
+                allow_same_io_names=True,
+                specific_tract_properties=build_custom_subnet_tract_properties(
+                    "joiner", asr_model.joiner
+                ),
+            )
+            continue
 
         yield ExportParameters(
             name=subnet_name,
@@ -311,6 +371,7 @@ def export_nemo_asr_model(
     compress_registry: str,
     compress_method: T.Optional[str] = None,
     skip_preprocessor: bool = False,
+    split_joiner_decoder: bool = False,
     extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
@@ -345,7 +406,10 @@ def export_nemo_asr_model(
         LOGGER.info("successfully applied compression: %s", compress_method)
 
     for export_params in iter_export_params_for_generic_nemo_asr_model(
-        asr_model, inference_target, skip_preprocessor=skip_preprocessor
+        asr_model,
+        inference_target,
+        skip_preprocessor=skip_preprocessor,
+        split_joiner_decoder=split_joiner_decoder,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
@@ -386,6 +450,11 @@ def parser_cli():
         "--skip-preprocessor",
         action="store_true",
         help="Skip exporting the preprocessor subnet.",
+    )
+    parser.add_argument(
+        "--split-joiner-decoder",
+        action="store_true",
+        help="Split the joiner and decoder subnets during export.",
     )
     parser.add_argument(
         "-n",
@@ -499,6 +568,7 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
         compress_registry=args.compress_registry,
         compress_method=args.compress_method,
         skip_preprocessor=args.skip_preprocessor,
+        split_joiner_decoder=args.split_joiner_decoder,
         extra_cfg={"pretrained_name": args.model_slug},
     )
 

@@ -64,7 +64,7 @@ class AsrRunner(ABC):
 
     @classmethod
     @abstractmethod
-    def load_from_path(
+    def load_from_eval_config(
         cls,
         *,
         cfg: EvalConfig,
@@ -112,7 +112,7 @@ class ExportedNemoRunner(AsrRunner):
         )
 
     @classmethod
-    def load_from_path(
+    def load_from_eval_config(
         cls,
         *,
         cfg: EvalConfig,
@@ -164,7 +164,7 @@ class NemoRunner(AsrRunner):
         return clean_name(f"nemo_v{nemo_version}_{self.pretrained_name}")
 
     @classmethod
-    def load_from_path(
+    def load_from_eval_config(
         cls,
         *,
         cfg: EvalConfig,
@@ -246,7 +246,7 @@ def load_runner_from_config(cfg: EvalConfig) -> AsrRunner:
         "is not a subclass of AsrRunner"
     )
     device, dtype = setup_device(cfg.device_id)
-    return RunnerCls.load_from_path(
+    return RunnerCls.load_from_eval_config(
         cfg=cfg,
         device=device,
         dtype=dtype,
