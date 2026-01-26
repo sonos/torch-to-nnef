@@ -12,15 +12,15 @@ import argparse
 import json
 import re
 import subprocess
+import warnings
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
-import warnings
 
-import rich.progress
 import bs4
 import requests as rq
+import rich.progress
 
 from torch_to_nnef.op.aten import aten_ops_registry
 
@@ -143,7 +143,8 @@ class FetchFromTorchVersion:
                 "git -C 'pytorch' pull; "
                 "cd /tmp/pytorch ;"
                 f"git checkout v{self.torch_version}.0; "
-                'rg "aten::" | sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
+                'rg "aten::" | '
+                'sed "s|.*aten::\\([a-zA-Z0-9_]*\\).*|\\1|g"|sort|uniq',
                 shell=True,
             )
             .decode("utf8")
@@ -307,8 +308,8 @@ def build_markdown_header(fetcher) -> str:
         "!!! note\n"
         "    This table and page are auto generated from 'a script' "
         "that dig into PyTorch."
-        f" Version targetted is:  **'{fetcher.torch_version}'**. file was generated "
-        f"the **{date}**.\n\n"
+        f" Version targetted is:  **'{fetcher.torch_version}'**. file "
+        f"was generated the **{date}**.\n\n"
         "!!! warning\n"
         "     Take these informations with a grain of salt as this is "
         "referencing operators that may never appear"

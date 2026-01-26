@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## [0.20.3] - 2026-01-26
+
+### Added
+
+- Initial support for nemo-toolkit ASR export (including example & evaluation system).
+
+### Fixes
+
+- to matmul/linear operation tracing with more than 2d inputs
+- masked_fill operation was casted to bool incorrectly in some edge cases
+- renaming_scheme was failing with `natural_verbose` on some models edge cases
+- edge case with lstm states being reused in subsequent layers
+- numerous deadlinks in documentation fixed
+
+
 ## [0.20.2] - 2026-01-15
 
 ### Fixes

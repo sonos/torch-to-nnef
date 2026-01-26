@@ -162,13 +162,26 @@ def iter_nemo_model_subnets(model, input_example=None):
                 input_example = out_example
 
 
-def build_dynamic_axes(subnet, nemo_dynamic_axes):
+def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
     """Build dynamic axes mapping and custom extensions for nemo subnet."""
     dynamic_axes = {}
     # Assume each input always start by Batch dimension
     custom_extensions = set()
+
+    def build_partial_dynamic_axes(
+        iname: str, symbols: T.Union[str, T.List[str]], suffix: str = ""
+    ):
+        siname = iname + suffix
+        dynamic_axes[siname] = {}
+        for axis in nemo_dynamic_axes[iname]:
+            if symbols[axis] in "BSA":
+                custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
+            dynamic_axes[siname][axis] = symbols[axis]
+
     for iname in subnet.input_names:
         if iname in nemo_dynamic_axes:
+            if not nemo_dynamic_axes[iname]:
+                continue
             symbols = ""
             if iname == "input_signal":
                 symbols = "BA"  # Batch, audio Frames
@@ -189,15 +202,26 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
                 symbols = ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"]
             elif iname == "input_states_2":
                 symbols = ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
+            elif iname == "states":
+                build_partial_dynamic_axes(
+                    iname,
+                    ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"],
+                    suffix="_0",
+                )
+                build_partial_dynamic_axes(
+                    iname,
+                    ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"],
+                    suffix="_1",
+                )
+                continue
+            elif iname == "decoder_outputs":
+                # Batch, output decoder, Unknown, Time dimension decoder
+                symbols = "BOUT"
             else:
                 raise NotImplementedError(
                     f"cannot guess dynamic axis symbols for input '{iname}'"
                 )
-            dynamic_axes[iname] = {}
-            for axis in nemo_dynamic_axes[iname]:
-                if symbols[axis] in "BSA":
-                    custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
-                dynamic_axes[iname][axis] = symbols[axis]
+            build_partial_dynamic_axes(iname, symbols)
     return dynamic_axes, custom_extensions
 
 
@@ -230,9 +254,19 @@ def build_custom_subnet_tract_properties(
 
 
 def iter_export_params_for_generic_nemo_asr_model(
-    asr_model, inference_target, skip_preprocessor: bool = False
+    asr_model,
+    inference_target,
+    skip_preprocessor: bool = False,
+    split_joint_decoder: bool = False,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model.
+
+    Args:
+        asr_model: The NeMo ASR model to export.
+        inference_target: The target inference type.
+        skip_preprocessor: Whether to skip exporting the preprocessor subnet.
+        split_joint_decoder:
+            Whether to split the joint and decoder subnets exported.
 
     Yields:
         ExportParameters for each subnet of the ASR model, with the preprocessor
@@ -287,6 +321,71 @@ def iter_export_params_for_generic_nemo_asr_model(
             else on
             for on in subnet.output_names
         ]
+        if split_joint_decoder and subnet_name == "decoder_joint":
+            # split into decoder and joint
+            # assume last two inputs are encoder_outputs
+            # and encoder_output_length
+            decoder_input_example = asr_model.decoder.input_example()
+            joint_input_example = asr_model.joint.input_example()
+
+            decoder_inames = asr_model.decoder.input_names[
+                : len(decoder_input_example)
+            ]
+
+            joint_inames = asr_model.joint.input_names[
+                : len(joint_input_example)
+            ]
+            use_dynamo = False
+            dynamic_axes, custom_extensions = build_dynamic_axes(
+                asr_model.decoder,
+                asr_model.decoder.dynamic_shapes_for_export(use_dynamo),
+            )
+            # decoder part
+            yield ExportParameters(
+                name="decoder",
+                model=asr_model.decoder,
+                test_input=decoder_input_example,
+                inference_target=inference_target.with_dynamic_axes(
+                    {
+                        k: v
+                        for k, v in dynamic_axes.items()
+                        if k not in ("encoder_outputs", "encoder_output_length")
+                    }
+                ),
+                input_names=decoder_inames,
+                output_names=onames,
+                custom_extensions=list(custom_extensions),
+                allow_same_io_names=True,
+                specific_tract_properties=build_custom_subnet_tract_properties(
+                    "decoder", asr_model.decoder
+                ),
+            )
+
+            dynamic_axes, custom_extensions = build_dynamic_axes(
+                asr_model.joint,
+                asr_model.joint.dynamic_shapes_for_export(use_dynamo),
+            )
+            # joint part
+            yield ExportParameters(
+                name="joint",
+                model=asr_model.joint,
+                test_input=joint_input_example,
+                inference_target=inference_target.with_dynamic_axes(
+                    {
+                        k: v
+                        for k, v in dynamic_axes.items()
+                        if k in ("encoder_outputs", "encoder_output_length")
+                    }
+                ),
+                input_names=joint_inames,
+                output_names=onames,
+                custom_extensions=list(custom_extensions),
+                allow_same_io_names=True,
+                specific_tract_properties=build_custom_subnet_tract_properties(
+                    "joint", asr_model.joint
+                ),
+            )
+            continue
 
         yield ExportParameters(
             name=subnet_name,
@@ -311,6 +410,7 @@ def export_nemo_asr_model(
     compress_registry: str,
     compress_method: T.Optional[str] = None,
     skip_preprocessor: bool = False,
+    split_joint_decoder: bool = False,
     extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
@@ -323,6 +423,7 @@ def export_nemo_asr_model(
         inference_target: The inference target configuration for export.
         export_dir: Directory where the exported NNEF files will be saved.
         skip_preprocessor: If True, skip exporting the preprocessor subnet.
+        split_joint_decoder: Whether to split the joint&decoder subnets export.
         compress_registry: Compression registry for the exported NNEF subnets.
         compress_method: Compression method for the exported NNEF subnets.
             if None, no compression is applied.
@@ -345,7 +446,10 @@ def export_nemo_asr_model(
         LOGGER.info("successfully applied compression: %s", compress_method)
 
     for export_params in iter_export_params_for_generic_nemo_asr_model(
-        asr_model, inference_target, skip_preprocessor=skip_preprocessor
+        asr_model,
+        inference_target,
+        skip_preprocessor=skip_preprocessor,
+        split_joint_decoder=split_joint_decoder,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
@@ -386,6 +490,11 @@ def parser_cli():
         "--skip-preprocessor",
         action="store_true",
         help="Skip exporting the preprocessor subnet.",
+    )
+    parser.add_argument(
+        "--split-joint-decoder",
+        action="store_true",
+        help="Split the joint and decoder subnets during export.",
     )
     parser.add_argument(
         "-n",
@@ -499,6 +608,7 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
         compress_registry=args.compress_registry,
         compress_method=args.compress_method,
         skip_preprocessor=args.skip_preprocessor,
+        split_joint_decoder=args.split_joint_decoder,
         extra_cfg={"pretrained_name": args.model_slug},
     )
 
