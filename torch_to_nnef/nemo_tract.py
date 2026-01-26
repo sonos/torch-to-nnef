@@ -162,7 +162,7 @@ def iter_nemo_model_subnets(model, input_example=None):
                 input_example = out_example
 
 
-def build_dynamic_axes(subnet, nemo_dynamic_axes):
+def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
     """Build dynamic axes mapping and custom extensions for nemo subnet."""
     dynamic_axes = {}
     # Assume each input always start by Batch dimension
