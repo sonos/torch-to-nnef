@@ -134,7 +134,7 @@ impl NemoAsrModel {
                 }
             }
         }
-        log::info!("Using {} for model part: {} inference", device, name);
+        log::debug!("Using {} for model part: {} inference", device, name);
 
         let mut nn = nn.into_decluttered()?;
         nn.transform(&*transform)?;
@@ -225,12 +225,12 @@ impl NemoAsrModel {
 
     /// Infer from a wav file path all at once
     pub fn infer_from_wav_paths(&self, wav_paths: &[PathBuf]) -> TractResult<Vec<Transcription>> {
-        log::info!("Loading wav file from path: {:?}", wav_paths);
+        log::debug!("Loading wav file from path: {:?}", wav_paths);
         let input_tensor_vec = wav_paths
             .iter()
             .map(|wp| self.wav_path_to_tensor(wp).unwrap())
             .collect::<Vec<Tensor>>();
-        log::info!("wav loaded correctly, starting inference");
+        log::debug!("wav loaded correctly, starting inference");
 
         log::debug!("prepare input tensor batch");
         let lengths = input_tensor_vec
@@ -267,23 +267,23 @@ impl NemoAsrModel {
         input_tensor: Tensor,
         length_tensor: Tensor,
     ) -> TractResult<Vec<Transcription>> {
-        log::info!("start inference preprocessor");
+        log::debug!("start inference preprocessor");
         // Preprocessor inference
         let preprocessor_output = self.preprocessor_model.run(tvec!(
             input_tensor.into_tvalue(),
             length_tensor.into_tvalue()
         ))?;
-        log::info!("successfully ran preprocessor");
+        log::debug!("successfully ran preprocessor");
 
         // Encoder inference
-        log::info!("start inference encoder");
+        log::debug!("start inference encoder");
         let encoder_output = self.encoder_model.run(preprocessor_output)?;
-        log::info!("successfully ran encoder");
+        log::debug!("successfully ran encoder");
 
         // Decoder inference
-        log::info!("start decoder and joint");
+        log::debug!("start decoder and joint");
         let t = self.decode_transcripts_from_encoder_output(encoder_output);
-        log::info!("successfully ran decoder and joint");
+        log::debug!("successfully ran decoder and joint");
         t
     }
 
@@ -446,7 +446,11 @@ impl NemoAsrModel {
                         (1, &0f32)
                     };
                     lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = 0;
+                    lane.n_tokens_added_in_frame = if n_skip_steps > 0 {
+                        0
+                    } else {
+                        lane.n_tokens_added_in_frame + 1
+                    }
                 } else {
                     lane.last_token = tok;
                     lane.n_tokens_added_in_frame += 1;

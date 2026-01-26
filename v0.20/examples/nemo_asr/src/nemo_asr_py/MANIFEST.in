@@ -1,2 +1,2 @@
-recursive-include svc_llm/dylib/ *
+recursive-include nemo_asr_tract/dylib/ *
 global-exclude __pycache__ *.py[cod]

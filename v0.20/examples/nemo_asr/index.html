@@ -2907,7 +2907,7 @@ The model used in this example is a pre-trained ASR model from NVIDIA's Nemo too
 <li>Python installed (for evaluation and instrumentation)</li>
 </ul>
 <h1 id="export-a-nemo-model">Export a Nemo model</h1>
-<p>To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to ONNX format.</p>
+<p>To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.</p>
 <p>Install torch_to_nnef if you haven't already with feature <code>nemo-tarct</code>,
 this will enable the <code>t2n_export_nemo</code> command.:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>t2n_export_nemo<span class="w"> </span><span class="se">\</span>
@@ -2926,7 +2926,11 @@ along side the <code>model_config.json</code> file.</p>
 <p>Using the crate in this directory, you can run the exported Nemo ASR model in Rust as follows:
 You need to reference the crate <code>tract-nemo</code> in your <code>Cargo.toml</code>:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">[dependencies]</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">tract-nemo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;./src/nemo_asr&quot;</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">tract-nemo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="n">git</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://github.com/sonos/torch-to-nnef.git&quot;</span><span class="err">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="n">branch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;main&quot;</span><span class="err">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="n">subdir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;docs/examples/nemo_asr/&quot;</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="err">}</span>
 </span></code></pre></div>
 <p>Then, you can use the following Rust code to load the exported model and run inference:</p>
 <p><div class="language-rust highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">use</span><span class="w"> </span><span class="n">tract_nemo</span><span class="p">::</span><span class="n">nemo_asr</span><span class="p">::</span><span class="n">NemoAsrModel</span><span class="p">;</span>
@@ -2989,8 +2993,9 @@ First ensure to install the <code>tract-nemo</code> package:
 <p>This code snippet demonstrates how to load the exported Nemo ASR model and run inference on a list of input WAV file paths in Python.</p>
 <h1 id="evaluation">Evaluation</h1>
 <p>You can evaluate the quality of the ASR model ran in tract with the python package as follows (once package installed):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nemo_tract_eval<span class="w"> </span>-e<span class="w"> </span>./dump_parakeet_v3_06B<span class="w"> </span>-r<span class="w"> </span>~/SONOS/data/test_asr_export_parakeet<span class="w"> </span>--device<span class="w"> </span><span class="m">0</span>
+<p><div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nemo_tract_eval<span class="w"> </span>-e<span class="w"> </span>./dump_parakeet_v3_06B<span class="w"> </span>-r<span class="w"> </span>~/SONOS/data/test_asr_export_parakeet<span class="w"> </span>--device<span class="w"> </span><span class="m">0</span>
 </span></code></pre></div>
+This run an evaluation following the same protocol as the <code>ASR Open Leaderboard</code> evaluation from HuggingFace.</p>
 
 
 
@@ -3013,7 +3018,7 @@ First ensure to install the <code>tract-nemo</code> package:
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 22, 2026 09:05:19 UTC">January 22, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 26, 2026 09:36:13 UTC">January 26, 2026</span>
   </span>
 
     

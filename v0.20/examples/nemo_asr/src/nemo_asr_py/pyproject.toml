@@ -27,6 +27,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["nemo_asr_tract"]
 
+
+[tool.setuptools-rust]
+force = true
+
 [[tool.setuptools-rust.ext-modules]]
 target = "nemo_asr_tract.dylib.libnemo_asr"
 path = "../nemo_asr_ffi/Cargo.toml"
