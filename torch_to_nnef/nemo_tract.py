@@ -169,13 +169,14 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
     custom_extensions = set()
 
     def build_partial_dynamic_axes(
-        iname: str, symbols: T.Union[str, T.List[str]]
+        iname: str, symbols: T.Union[str, T.List[str]], suffix: str = ""
     ):
-        dynamic_axes[iname] = {}
+        siname = iname + suffix
+        dynamic_axes[siname] = {}
         for axis in nemo_dynamic_axes[iname]:
             if symbols[axis] in "BSA":
                 custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
-            dynamic_axes[iname][axis] = symbols[axis]
+            dynamic_axes[siname][axis] = symbols[axis]
 
     for iname in subnet.input_names:
         if iname in nemo_dynamic_axes:
@@ -203,12 +204,19 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):
                 symbols = ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
             elif iname == "states":
                 build_partial_dynamic_axes(
-                    iname + "_0", ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"]
+                    iname,
+                    ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"],
+                    suffix="_0",
                 )
                 build_partial_dynamic_axes(
-                    iname + "_1", ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
+                    iname,
+                    ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"],
+                    suffix="_1",
                 )
                 continue
+            elif iname == "decoder_outputs":
+                # Batch, output decoder, Unknown, Time dimension decoder
+                symbols = "BOUT"
             else:
                 raise NotImplementedError(
                     f"cannot guess dynamic axis symbols for input '{iname}'"
@@ -257,7 +265,8 @@ def iter_export_params_for_generic_nemo_asr_model(
         asr_model: The NeMo ASR model to export.
         inference_target: The target inference type.
         skip_preprocessor: Whether to skip exporting the preprocessor subnet.
-        split_joint_decoder: Whether to split the joint and decoder subnets exported.
+        split_joint_decoder:
+            Whether to split the joint and decoder subnets exported.
 
     Yields:
         ExportParameters for each subnet of the ASR model, with the preprocessor
@@ -314,7 +323,8 @@ def iter_export_params_for_generic_nemo_asr_model(
         ]
         if split_joint_decoder and subnet_name == "decoder_joint":
             # split into decoder and joint
-            # assume last two inputs are encoder_outputs and encoder_output_length
+            # assume last two inputs are encoder_outputs
+            # and encoder_output_length
             decoder_input_example = asr_model.decoder.input_example()
             joint_input_example = asr_model.joint.input_example()
 
@@ -413,6 +423,7 @@ def export_nemo_asr_model(
         inference_target: The inference target configuration for export.
         export_dir: Directory where the exported NNEF files will be saved.
         skip_preprocessor: If True, skip exporting the preprocessor subnet.
+        split_joint_decoder: Whether to split the joint&decoder subnets export.
         compress_registry: Compression registry for the exported NNEF subnets.
         compress_method: Compression method for the exported NNEF subnets.
             if None, no compression is applied.
@@ -440,8 +451,6 @@ def export_nemo_asr_model(
         skip_preprocessor=skip_preprocessor,
         split_joint_decoder=split_joint_decoder,
     ):
-        if export_params.name != "decoder":
-            continue
         LOGGER.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
             model=export_params.model,
