@@ -13,7 +13,7 @@ import torch
 from nemo import __version__ as nemo_version
 from nemo.collections.asr.models import ASRModel
 from nemo_asr_tract import __version__ as nemo_asr_tract_version
-from nemo_asr_tract.eval.conf import EvalConfig
+from nemo_asr_tract.eval.conf import DecodingStragegy, EvalConfig
 from nemo_asr_tract.nemo_asr import NemoAsrModel, load_config_from_dir
 
 # =============================================================================
@@ -127,6 +127,11 @@ class ExportedNemoRunner(AsrRunner):
                 "control for dtype; ignoring dtype=%s",
                 dtype,
             )
+        if cfg.decoding_stragegy != DecodingStragegy.GREEDY:
+            raise NotImplementedError(
+                "Nemo-Tract exported models currently only "
+                "support greedy decoding."
+            )
         return cls(model, batch_size=cfg.batch_size)
 
     def transcribe_from_wav_paths(self, wav_paths: List[str]):
@@ -182,9 +187,17 @@ class NemoRunner(AsrRunner):
         model.to(dtype)
         model.eval()
 
-        if model.cfg.decoding.strategy != "beam":
-            model.cfg.decoding.strategy = "greedy_batch"
-            model.change_decoding_strategy(model.cfg.decoding)
+        if cfg.decoding_stragegy == DecodingStragegy.GREEDY:
+            model.cfg.decoding.beam.beam_size = 1
+            # https://github.com/NVIDIA-NeMo/NeMo/blob/main/examples/asr/conf/fastconformer/hybrid_transducer_ctc/fastconformer_hybrid_transducer_ctc_bpe.yaml#L158C16-L158C28
+            # can be greedy, greedy_batch, beam, tsd, alsd.
+            model.cfg.decoding.strategy = "greedy"
+            model.cfg.decoding.greedy.max_symbols = 10
+        else:
+            raise NotImplementedError(
+                f"Decoding strategy {cfg.decoding_stragegy} not supported yet."
+            )
+        model.change_decoding_strategy(model.cfg.decoding)
 
         kwargs = dict(
             batch_size=cfg.batch_size,
