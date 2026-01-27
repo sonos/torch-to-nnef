@@ -56,7 +56,7 @@ llm-tract = [
 llm-tract-accelerate = ["accelerate"]
 safetensors = ["safetensors"]
 peft = ["peft"]
-nemo-tract = ["nemo_toolkit[asr]>=2.0.0,<2.7.0"]
+nemo-tract = ["nemo_toolkit[asr]>=2.0.0,<2.7.0", "questionary"]
 test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",

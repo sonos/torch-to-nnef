@@ -10,6 +10,7 @@ custom extensions required for the export process.
 import argparse
 import json
 import logging
+import sys
 import typing as T
 from contextlib import contextmanager
 from pathlib import Path
@@ -17,9 +18,11 @@ from pathlib import Path
 import torch
 
 from torch_to_nnef._optional_types import (
+    InjectedHuggingFaceHubModule,
     InjectedLightningModule,
     InjectedNemoModule,
     InjectedOmegaConfModule,
+    InjectedQuestionaryModule,
 )
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
@@ -528,10 +531,10 @@ def parser_cli():
         help="Split the joint and decoder subnets during export.",
     )
     parser.add_argument(
-        "--skip-force-sdpa-pytorch",
+        "--force-sdpa-pytorch",
         action="store_true",
-        help="Skip forcing SDPA to use PyTorch implementation."
-        " (Useful for debugging, likely less efficent.)",
+        help="Forcing sdpa to use PyTorch implementation."
+        " (likely more efficent, once stable tract side)",
     )
     parser.add_argument(
         "-dt",
@@ -644,10 +647,10 @@ class WrapPreprocessorCast(torch.nn.Module):
         return tuple([x[0].to(self.dtype)] + list(x)[1:])
 
 
-def use_pytorch_spda(model: torch.nn.Module):
-    """Modify the model to use PyTorch SPDA implementations where applicable.
+def use_pytorch_sdpa(model: torch.nn.Module):
+    """Modify the model to use PyTorch sdpa implementations where applicable.
 
-    This leverage attention modules set in NeMo with specific use_pytorch_spda flag.
+    This leverage attention modules set in NeMo with specific use_pytorch_sdpa flag.
     """
     # pylint: disable=import-outside-toplevel
     from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -659,10 +662,74 @@ def use_pytorch_spda(model: torch.nn.Module):
             module.use_pytorch_sdpa = True
 
 
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="questionary")
+def ask_model_selector(
+    pretrained_model_info_list,
+    *,
+    questionary: InjectedQuestionaryModule = INJECTED,
+    **kwargs,
+):
+    # create the question object
+    question = questionary.select(
+        "What model do you want to export  (Not all included) ?",
+        qmark="😃",
+        choices=[
+            questionary.Choice(
+                title=pretrained_model_info.pretrained_model_name,
+                description=pretrained_model_info.description,
+            )
+            for pretrained_model_info in pretrained_model_info_list
+        ],
+        use_jk_keys=False,
+        use_search_filter=True,
+        **kwargs,
+    )
+
+    # prompt the user for an answer
+    return question.ask()
+
+
 @require_extra_decorator(
     extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
 )
-def main(*, nemo_asr: InjectedNemoModule = INJECTED):
+def load_asr_model_from_nemo_slug(
+    model_slug: str,
+    *,
+    nemo_asr: InjectedNemoModule = INJECTED,
+    huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
+):
+    """Load a NeMo ASR model from a given model slug."""
+    from huggingface_hub import errors
+
+    try:
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(
+            model_name=model_slug, map_location=torch.device("cpu")
+        )
+    except errors.RepositoryNotFoundError:
+        LOGGER.error("Could not find model with slug: %s", model_slug)
+        while True:
+            resp = (
+                input("Do you want to list available models? (y/n): ")
+                .strip()
+                .lower()
+            )
+            if resp in ("y", "n"):
+                break
+        if resp == "n":
+            LOGGER.info("User chose not to list available models. Exiting.")
+            sys.exit(1)
+        model_slug = ask_model_selector(
+            nemo_asr.models.ASRModel.list_available_models()
+        )
+        LOGGER.info("selected model slug: %s", model_slug)
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(
+            model_name=model_slug,
+            map_location=torch.device("cpu"),
+        )
+    return asr_model
+
+
+def main():
     init_log()
     args = parser_cli()
     log_level = logging.INFO
@@ -684,11 +751,10 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
     logging.getLogger().addHandler(handler)
     LOGGER.info("started nemo_tract export with args: %s", args)
     # ensure that the model is loaded on CPU
-    asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        model_name=args.model_slug, map_location=torch.device("cpu")
-    )
-    if not args.skip_force_sdpa_pytorch:
-        use_pytorch_spda(asr_model)
+    asr_model = load_asr_model_from_nemo_slug(args.model_slug)
+
+    if args.force_sdpa_pytorch:
+        use_pytorch_sdpa(asr_model)
     asr_model.eval()
 
     if args.data_type == "float16":
