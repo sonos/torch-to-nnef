@@ -528,6 +528,12 @@ def parser_cli():
         help="Split the joint and decoder subnets during export.",
     )
     parser.add_argument(
+        "--skip-force-sdpa-pytorch",
+        action="store_true",
+        help="Skip forcing SDPA to use PyTorch implementation."
+        " (Useful for debugging, likely less efficent.)",
+    )
+    parser.add_argument(
         "-dt",
         "--data-type",
         type=str,
@@ -550,7 +556,6 @@ def parser_cli():
         required=False,
         help="tract specific version",
     )
-
     parser.add_argument(
         "-tt",
         "--tract-check-io-tolerance",
@@ -639,6 +644,21 @@ class WrapPreprocessorCast(torch.nn.Module):
         return tuple([x[0].to(self.dtype)] + list(x)[1:])
 
 
+def use_pytorch_spda(model: torch.nn.Module):
+    """Modify the model to use PyTorch SPDA implementations where applicable.
+
+    This leverage attention modules set in NeMo with specific use_pytorch_spda flag.
+    """
+    # pylint: disable=import-outside-toplevel
+    from nemo.collections.asr.parts.submodules.multi_head_attention import (
+        MultiHeadAttention,
+    )
+
+    for module in model.modules():
+        if isinstance(module, MultiHeadAttention):
+            module.use_pytorch_sdpa = True
+
+
 @require_extra_decorator(
     extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
 )
@@ -667,6 +687,8 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name=args.model_slug, map_location=torch.device("cpu")
     )
+    if not args.skip_force_sdpa_pytorch:
+        use_pytorch_spda(asr_model)
     asr_model.eval()
 
     if args.data_type == "float16":
