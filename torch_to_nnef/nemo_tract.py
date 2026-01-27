@@ -591,9 +591,11 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
     )
     logging.getLogger().addHandler(handler)
     LOGGER.info("started nemo_tract export with args: %s", args)
+    # ensure that the model is loaded on CPU
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        model_name=args.model_slug
+        model_name=args.model_slug, map_location=torch.device("cpu")
     )
+    asr_model.eval()
     if isinstance(args.tract_check_io_tolerance, str):
         args.tract_check_io_tolerance = TractCheckTolerance(
             args.tract_check_io_tolerance
