@@ -577,7 +577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/10_nemo_asr.md" class="md-nav__link">
+      <a href="../../../tutos/10_nemo/" class="md-nav__link">
         
   
   
@@ -1388,6 +1388,24 @@
   <a href="#torch_to_nnef.nemo_tract.iter_nemo_model_subnets" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_nemo_model_subnets
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.load_asr_model_from_nemo_slug" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;load_asr_model_from_nemo_slug
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.use_pytorch_sdpa" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;use_pytorch_sdpa
     </span>
   </a>
   
@@ -3070,6 +3088,24 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.load_asr_model_from_nemo_slug" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;load_asr_model_from_nemo_slug
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.use_pytorch_sdpa" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;use_pytorch_sdpa
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3169,7 +3205,7 @@ custom extensions required for the export process.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">compress_registry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">compress_method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">extra_cfg</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">omegaconf</span><span class="p">:</span> <span class="n">InjectedOmegaConfModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">compress_registry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">compress_method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">extra_cfg</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">float_dtype</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">omegaconf</span><span class="p">:</span> <span class="n">InjectedOmegaConfModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3300,6 +3336,20 @@ if None, no compression is applied.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
+            <td><code>float_dtype</code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="torch.dtype">dtype</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional float dtype to use for export.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
             <td><code>omegaconf</code></td>
             <td>
                   <code><span title="torch_to_nnef._optional_types.InjectedOmegaConfModule">InjectedOmegaConfModule</span></code>
@@ -3341,7 +3391,7 @@ if None, no compression is applied.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">exportable_nemo_net</span><span class="p">(</span><span class="n">output_name</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">input_example</span><span class="p">,</span> <span class="n">use_dynamo</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">nemo</span><span class="p">:</span> <span class="n">InjectedNemoModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="n">pytorch_lightning</span><span class="p">:</span> <span class="n">InjectedLightningModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">exportable_nemo_net</span><span class="p">(</span><span class="n">output_name</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">input_example</span><span class="p">,</span> <span class="n">use_dynamo</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">float_dtype</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">nemo</span><span class="p">:</span> <span class="n">InjectedNemoModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="n">pytorch_lightning</span><span class="p">:</span> <span class="n">InjectedLightningModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3361,7 +3411,7 @@ if None, no compression is applied.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_export_params_for_generic_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExportParameters</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_export_params_for_generic_nemo_asr_model</span><span class="p">(</span><span class="n">asr_model</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">float_dtype</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">ExportParameters</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3434,6 +3484,20 @@ if None, no compression is applied.</p>
                   <code>False</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td><code>float_dtype</code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="torch.dtype">dtype</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional float dtype to use for export.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -3472,12 +3536,66 @@ if None, no compression is applied.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_nemo_model_subnets</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">input_example</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_nemo_model_subnets</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">input_example</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">float_dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Iterator over exportable subnets of a nemo model.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>model</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>NeMo model to iterate over.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>input_example</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional input example to use for export.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>float_dtype</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional float dtype to use for export.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     <p><span class="doc-section-title">Yields:</span></p>
@@ -3528,6 +3646,46 @@ if None, no compression is applied.</p>
       </tbody>
     </table>
         <p>see: nemo.core.classes.Exportable.export</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.load_asr_model_from_nemo_slug" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">load_asr_model_from_nemo_slug</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">load_asr_model_from_nemo_slug</span><span class="p">(</span><span class="n">model_slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">nemo_asr</span><span class="p">:</span> <span class="n">InjectedNemoModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">,</span> <span class="n">huggingface_hub</span><span class="p">:</span> <span class="n">InjectedHuggingFaceHubModule</span> <span class="o">=</span> <span class="n">INJECTED</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Load a NeMo ASR model from a given model slug.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.use_pytorch_sdpa" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">use_pytorch_sdpa</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">use_pytorch_sdpa</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Modify the model to use PyTorch sdpa implementations where applicable.</p>
+<p>This leverage attention modules set in NeMo with
+specific use_pytorch_sdpa flag.</p>
 
     </div>
 

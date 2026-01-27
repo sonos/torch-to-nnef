@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from nemo_asr_tract import init_env_logger
+from nemo_asr_tract.dataset import DatasetConfig
 from nemo_asr_tract.eval.base import (
     EvalConfig,
     load_runner_from_config,
@@ -48,7 +49,7 @@ def run_eval(
     model_id: str,
     model_runner_class: str,
     exported_dir: str,
-    dataset_path: str,
+    hg_path: str,
     dataset: str,
     split: str,
     device_id: int,
@@ -58,13 +59,15 @@ def run_eval(
     cfg = EvalConfig(
         model_dir=exported_dir,
         model_runner_class=model_runner_class,
-        dataset_path=dataset_path,
-        dataset=dataset,
-        split=split,
+        dataset=DatasetConfig(
+            hg_path=hg_path,
+            name=dataset,
+            split=split,
+            batch_size=batch_size,
+            max_eval_samples=None,
+            streaming=True,
+        ),
         device_id=device_id,
-        batch_size=batch_size,
-        max_eval_samples=None,
-        streaming=True,
         warmup=0,
         output_dir=results_dir,
     )
@@ -181,7 +184,7 @@ def main():
                 model_id=conf.pretrained_name,
                 model_runner_class=model_runner_class,
                 exported_dir=args.exported_dir,
-                dataset_path=HF_ESB_SLUG,
+                hg_path=HF_ESB_SLUG,
                 dataset=dataset,
                 split=split,
                 device_id=args.device,
