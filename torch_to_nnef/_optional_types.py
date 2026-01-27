@@ -26,14 +26,14 @@ class _TransformersProto(Protocol):
 
 if TYPE_CHECKING:
     import huggingface_hub
+    import nemo
+    import omegaconf
+    import peft
+    import pytorch_lightning
+    import questionary
     import transformers
     import transformers.cache_utils as transformers_cache_utils
     import transformers.utils as transformers_utils
-    import peft
-    import pytorch_lightning
-    import omegaconf
-    import nemo
-    import questionary
 else:
     transformers = _TransformersProto
     transformers_utils = Any

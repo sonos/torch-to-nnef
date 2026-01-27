@@ -510,8 +510,9 @@ def parser_cli():
         "-s",
         "--model-slug",
         type=str,
-        required=True,
-        help="The model slug for the NeMo ASR model to export.",
+        default="*",
+        help="The model slug for the NeMo ASR model to export."
+        "if you don't know just live it blank (select box will be proposed)",
     )
     parser.add_argument(
         "-e",
@@ -541,6 +542,7 @@ def parser_cli():
         "--data-type",
         type=str,
         choices=["float32", "float16", "mixed"],
+        help="Data of most weights for export (experimental).",
     )
     parser.add_argument(
         "-n",
@@ -650,7 +652,8 @@ class WrapPreprocessorCast(torch.nn.Module):
 def use_pytorch_sdpa(model: torch.nn.Module):
     """Modify the model to use PyTorch sdpa implementations where applicable.
 
-    This leverage attention modules set in NeMo with specific use_pytorch_sdpa flag.
+    This leverage attention modules set in NeMo with
+    specific use_pytorch_sdpa flag.
     """
     # pylint: disable=import-outside-toplevel
     from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -671,7 +674,7 @@ def ask_model_selector(
 ):
     # create the question object
     question = questionary.select(
-        "What model do you want to export  (Not all included) ?",
+        "What model do you want to export  (HuggingFace Hub not included) ?",
         qmark="😃",
         choices=[
             questionary.Choice(
@@ -705,19 +708,20 @@ def load_asr_model_from_nemo_slug(
         asr_model = nemo_asr.models.ASRModel.from_pretrained(
             model_name=model_slug, map_location=torch.device("cpu")
         )
-    except errors.RepositoryNotFoundError:
+    except (errors.RepositoryNotFoundError, FileNotFoundError):
         LOGGER.error("Could not find model with slug: %s", model_slug)
-        while True:
-            resp = (
-                input("Do you want to list available models? (y/n): ")
-                .strip()
-                .lower()
-            )
-            if resp in ("y", "n"):
-                break
-        if resp == "n":
-            LOGGER.info("User chose not to list available models. Exiting.")
-            sys.exit(1)
+        if model_slug != "*":
+            while True:
+                resp = (
+                    input("Do you want to list available models? (y/n): ")
+                    .strip()
+                    .lower()
+                )
+                if resp in ("y", "n"):
+                    break
+            if resp == "n":
+                LOGGER.info("User chose not to list available models. Exiting.")
+                sys.exit(1)
         model_slug = ask_model_selector(
             nemo_asr.models.ASRModel.list_available_models()
         )
