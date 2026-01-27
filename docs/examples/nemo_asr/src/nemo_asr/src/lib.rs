@@ -7,13 +7,7 @@
 use anyhow::ensure;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::path::{Path, PathBuf};
-// use tract_core::tract_data::itertools::Itertools;
-// use tract_ndarray::s;
-// use tract_nnef::prelude::*;
-// use tract_nnef::tract_ndarray::Axis;
-// use tract_transformers::WithTractTransformers;
+use std::path::PathBuf;
 use tract_rs::prelude::tract_ndarray::prelude::*;
 use tract_rs::{prelude::*, runtime_for_name};
 
@@ -142,99 +136,21 @@ fn normalize_transcript_text(s: &str) -> String {
 }
 
 impl NemoAsrModel {
-    // fn from_bytes_submodel(
-    //     name: &str,
-    //     runtime_config: &RuntimeConfig,
-    //     model_bytes: &[u8],
-    // ) -> Res<Runnable> {
-    //     let mut model_read = std::io::Cursor::new(model_bytes);
-    //     let nnef = tract_rs::nnef()?.with_tract_transformers();
-
-    //     let transform = nnef
-    //         .get_transform("transformers-detect-all")?
-    //         .context("transformers-detect-all not found")?;
-
-    //     let mut nn = nnef.load(&mut model_read)?;
-
-    //     let mut device = "CPU";
-    //     if !runtime_config.force_cpu {
-    //         #[cfg(any(target_os = "macos", target_os = "ios"))]
-    //         {
-    //             use crate::tract_core::transform::ModelTransform;
-    //             use std::str::FromStr;
-    //             nn.properties.insert("GPU".into(), rctensor0(true));
-    //             tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
-    //             device = "Metal GPU acceleration ";
-    //         }
-    //         #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-    //         {
-    //             use tract_core::transform::ModelTransform;
-    //             if tract_cuda::utils::are_culibs_present() {
-    //                 nn.properties.insert("GPU".into(), rctensor0(true));
-    //                 tract_cuda::CudaTransform.transform(&mut nn)?;
-    //                 device = "CUDA GPU acceleration ";
-    //             }
-    //         }
-    //     }
-    //     log::debug!("Using {} for model part: {} inference", device, name);
-
-    //     let mut nn = nn.into_decluttered()?;
-    //     nn.transform(&*transform)?;
-
-    //     let model = nn.into_optimized()?.into_runnable()?;
-    //     Ok(model)
-    // }
-
-    fn load_submodel(path: impl AsRef<Path>) -> Res<Model> {
+    fn load_submodel(bytes: &[u8]) -> Res<Model> {
         let nnef = tract_rs::nnef()?.with_tract_transformers()?;
-        let mut nn = nnef.load(path.as_ref())?;
+        let mut nn = nnef.load_buffer(bytes)?;
         nn.transform("transformers-detect-all")?;
         Ok(nn)
     }
 
-    // fn from_bytes(
-    //     model_config_bytes: &[u8],
-    //     runtime_config_bytes: Option<&[u8]>,
-    //     pre_model_bytes: &[u8],
-    //     enc_model_bytes: &[u8],
-    //     dec_model_bytes: &[u8],
-    // ) -> TractResult<NemoAsrModel> {
-    //     log::info!("start loading nemo asr model from bytes");
-    //     let model_config = serde_json::from_slice::<NemoAsrConfig>(model_config_bytes)?;
-    //     let runtime_config = if let Some(rt_conf) = runtime_config_bytes {
-    //         log::info!("found runtime config bytes, loading it");
-    //         serde_json::from_slice::<RuntimeConfig>(rt_conf)?
-    //     } else {
-    //         log::info!("NO runtime config found, using default");
-    //         RuntimeConfig::default()
-    //     };
-
-    //     let preprocessor_model =
-    //         NemoAsrModel::from_bytes_submodel("preprocessor", &runtime_config, pre_model_bytes)?;
-    //     let encoder_model =
-    //         NemoAsrModel::from_bytes_submodel("encoder", &runtime_config, enc_model_bytes)?;
-    //     let decoder_joint_model =
-    //         NemoAsrModel::from_bytes_submodel("decoder_joint", &runtime_config, dec_model_bytes)?;
-
-    //     log::info!("all model subparts loaded successfully in tract");
-    //     Ok(NemoAsrModel {
-    //         preprocessor_model,
-    //         encoder_model,
-    //         decoder_joint_model,
-    //         model_config,
-    //         runtime_config,
-    //     })
-    // }
-
-    pub fn from_dir(path: PathBuf) -> Res<NemoAsrModel> {
-        let runtime_config_path = path.join("runtime_config.json");
-        let model_config_path = path.join("model_config.json");
-        let pre_model_path = path.join("preprocessor.nnef.tgz");
-        let enc_model_path = path.join("encoder.nnef.tgz");
-        let dec_model_path = path.join("decoder_joint.nnef.tgz");
-
-        log::info!("start loading nemo asr model from dir: {:?}", path);
-        let runtime_config: RuntimeConfig = if let Ok(rt_conf) = File::open(runtime_config_path) {
+    fn from_bytes(
+        model_config_bytes: &[u8],
+        runtime_config_bytes: Option<&[u8]>,
+        pre_model_bytes: &[u8],
+        enc_model_bytes: &[u8],
+        dec_model_bytes: &[u8],
+    ) -> Res<NemoAsrModel> {
+        let runtime_config: RuntimeConfig = if let Some(rt_conf) = runtime_config_bytes {
             log::info!("found runtime config bytes, loading it");
             serde_json::from_reader(rt_conf)?
         } else {
@@ -242,9 +158,9 @@ impl NemoAsrModel {
             RuntimeConfig::default()
         };
 
-        let model_config: NemoAsrConfig = serde_json::from_reader(File::open(model_config_path)?)?;
+        let model_config: NemoAsrConfig = serde_json::from_reader(model_config_bytes)?;
 
-        let decoder_joint_model = Self::load_submodel(dec_model_path)?;
+        let decoder_joint_model = Self::load_submodel(dec_model_bytes)?;
         let mut decoder_state_inputs_facts = vec![];
         for ix in 0..decoder_joint_model.input_count()? {
             if decoder_joint_model.input_name(ix)?.contains("states") {
@@ -254,15 +170,40 @@ impl NemoAsrModel {
             }
         }
 
-        let rt = runtime_for_name("default")?;
+        let mut rt = runtime_for_name("default")?;
+        if !runtime_config.force_cpu {
+            if let Ok(r) = runtime_for_name("cuda") {
+                rt = r;
+            }
+            if let Ok(r) = runtime_for_name("metal") {
+                rt = r;
+            }
+        }
+
         Ok(NemoAsrModel {
             model_config,
             runtime_config,
-            preprocessor_model: rt.prepare(Self::load_submodel(pre_model_path)?)?,
-            encoder_model: rt.prepare(Self::load_submodel(enc_model_path)?)?,
+            preprocessor_model: rt.prepare(Self::load_submodel(pre_model_bytes)?)?,
+            encoder_model: rt.prepare(Self::load_submodel(enc_model_bytes)?)?,
             decoder_joint_model: rt.prepare(decoder_joint_model)?,
             decoder_state_inputs_facts,
         })
+    }
+
+    pub fn from_dir(path: PathBuf) -> Res<NemoAsrModel> {
+        let model_config_bytes = std::fs::read(path.join("model_config.json"))?;
+        let runtime_config_bytes = std::fs::read(path.join("runtime_config.json")).ok();
+        let pre_model_bytes = std::fs::read(path.join("preprocessor.nnef.tgz"))?;
+        let enc_model_bytes = std::fs::read(path.join("encoder.nnef.tgz"))?;
+        let dec_model_bytes = std::fs::read(path.join("decoder_joint.nnef.tgz"))?;
+
+        Self::from_bytes(
+            &model_config_bytes,
+            runtime_config_bytes.as_deref(),
+            &pre_model_bytes,
+            &enc_model_bytes,
+            &dec_model_bytes,
+        )
     }
 
     /// Convert a single wav file path to a single input tensor
