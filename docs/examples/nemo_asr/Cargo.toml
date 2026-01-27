@@ -22,7 +22,7 @@ test-log = "0.2.19"
 
 # tract-rs = { git = "https://github.com/sonos/tract.git", branch = "api-cleanup" }
 # tract-rs = { path = "../../../../tract/api/rs/" }
-tract-rs = { git = "https://github.com/sonos/tract.git", rev = "d8189eb10" }
+tract-rs = { git = "https://github.com/sonos/tract.git", rev = "cbe856950" }
 
 [profile.release]
 debug = true
