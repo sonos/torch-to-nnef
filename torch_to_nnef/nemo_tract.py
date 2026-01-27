@@ -702,6 +702,7 @@ def load_asr_model_from_nemo_slug(
     huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
 ):
     """Load a NeMo ASR model from a given model slug."""
+    # pylint: disable=import-outside-toplevel
     from huggingface_hub import errors
 
     try:
