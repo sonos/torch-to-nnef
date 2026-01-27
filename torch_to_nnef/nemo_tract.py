@@ -708,7 +708,8 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
 
             LOGGER.info("exporting with mixed precision using autocast")
             LOGGER.warning(
-                "mixed precision export is experimental, and not supported tract side now"
+                "mixed precision export is experimental "
+                "(not supported by tract)"
             )
             with autocast(device_type="cpu", dtype=torch.float16):
                 call_export(float_dtype=torch.float16)
