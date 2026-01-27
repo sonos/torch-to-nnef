@@ -1,16 +1,43 @@
-"""Dataset / audio for evaluation."""
+"""Dataset / audio for evaluation/calib.
+
+This is not generic enough to support all datasets in HG.
+It's tailored to work with ESB datasets.
+
+"""
 
 import io
 import os
+from dataclasses import dataclass
 
 import numpy as np
 import soundfile
 from datasets.features._torchcodec import AudioDecoder
-from nemo_asr_tract.eval.conf import EvalConfig
-from nemo_asr_tract.normalizer import data_utils
 from tqdm import tqdm
 
+from nemo_asr_tract.normalizer import data_utils
+
 DATA_CACHE_DIR = os.path.join(os.getcwd(), "audio_cache")
+
+AUDIO_FILEPATHS_KEY = "audio_filepaths"
+REFERENCES_KEY = "references"
+DURATION_KEY = "durations"
+
+
+@dataclass(frozen=True)
+class DatasetConfig:
+    """Configuration for evaluation/calibration dataset."""
+
+    hg_path: str
+    name: str
+    split: str = "test"
+    max_eval_samples: int | None = None
+    batch_size: int = 32
+    streaming: bool = True
+    remap: dict[str, str] | None = None
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.name}:{self.split}"
 
 
 def ensure_cache_dir(dataset: str, split: str) -> str:
@@ -52,15 +79,15 @@ def download_audio_files_factory(cache_dir: str):
             audio_paths.append(audio_path)
             durations.append(len(audio) / sr)
 
-        batch["audio_filepaths"] = audio_paths
-        batch["durations"] = durations
-        batch["references"] = batch["norm_text"]
+        batch[AUDIO_FILEPATHS_KEY] = audio_paths
+        batch[DURATION_KEY] = durations
+        batch[REFERENCES_KEY] = batch["norm_text"]
         return batch
 
     return fn
 
 
-def prepare_dataset(cfg: EvalConfig, cache_dir: str):
+def prepare_dataset(cfg: DatasetConfig, cache_dir: str):
     ds = data_utils.load_data(cfg)
 
     if cfg.max_eval_samples:
@@ -76,20 +103,23 @@ def prepare_dataset(cfg: EvalConfig, cache_dir: str):
     )
 
 
-def collect_dataset(dataset):
-    all_data = {"audio_filepaths": [], "durations": [], "references": []}
+def collect_dataset(dataset, remap_keys: dict | None = None):
+    all_data = {AUDIO_FILEPATHS_KEY: [], DURATION_KEY: [], REFERENCES_KEY: []}
 
     for sample in tqdm(iter(dataset), desc="Preparing samples"):
         for k in all_data:
-            all_data[k].append(sample[k])
+            if remap_keys is None:
+                all_data[k].append(sample[k])
+            else:
+                all_data[k].append(sample[remap_keys.get(k, k)])
 
     return all_data
 
 
 def sort_by_duration(all_data):
     order = sorted(
-        range(len(all_data["durations"])),
-        key=lambda i: all_data["durations"][i],
+        range(len(all_data[DURATION_KEY])),
+        key=lambda i: all_data[DURATION_KEY][i],
         reverse=True,
     )
 

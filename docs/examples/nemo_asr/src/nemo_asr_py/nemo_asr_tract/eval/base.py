@@ -21,13 +21,17 @@ from pathlib import Path
 from typing import Optional
 
 import evaluate
-from nemo_asr_tract.eval.conf import EvalConfig, EvalResult
-from nemo_asr_tract.eval.dataset import (
+from nemo_asr_tract.dataset import (
+    AUDIO_FILEPATHS_KEY,
+    DURATION_KEY,
+    REFERENCES_KEY,
+    DatasetConfig,
     collect_dataset,
     ensure_cache_dir,
     prepare_dataset,
     sort_by_duration,
 )
+from nemo_asr_tract.eval.conf import EvalConfig, EvalResult
 from nemo_asr_tract.eval.runner import (
     AsrRunner,
     load_runner_from_config,
@@ -36,6 +40,7 @@ from nemo_asr_tract.eval.runner import (
 from nemo_asr_tract.normalizer import data_utils, eval_utils
 
 __all__ = ["run_asr_evaluation"]
+
 
 WER_METRIC = evaluate.load("wer")
 
@@ -49,16 +54,18 @@ def normalize_predictions(transcriptions):
 def write_results(
     all_data, predictions, cfg: EvalConfig, model_id: str, avg_time: float
 ):
-    out_dir = Path(cfg.output_dir) / cfg.dataset / cfg.split / model_id
+    out_dir = (
+        Path(cfg.output_dir) / cfg.dataset.name / cfg.dataset.split / model_id
+    )
 
     return eval_utils.write_manifest(
-        references=all_data["references"],
+        references=all_data[REFERENCES_KEY],
         transcriptions=predictions,
         model_id=model_id,
-        dataset_path=cfg.dataset_path,
-        dataset_name=cfg.dataset,
-        split=cfg.split,
-        audio_length=all_data["durations"],
+        dataset_path=cfg.dataset.hg_path,
+        dataset_name=cfg.dataset.name,
+        split=cfg.dataset.split,
+        audio_length=all_data[DURATION_KEY],
         transcription_time=[avg_time] * len(predictions),
         basedir=out_dir,
     )
@@ -66,11 +73,11 @@ def write_results(
 
 def compute_metrics(all_data, predictions, total_time: float):
     wer = 100 * WER_METRIC.compute(
-        references=all_data["references"],
+        references=all_data[REFERENCES_KEY],
         predictions=predictions,
     )
 
-    audio_seconds = sum(all_data["durations"])
+    audio_seconds = sum(all_data[DURATION_KEY])
     rtfx = audio_seconds / total_time
 
     return round(wer, 2), round(rtfx, 2), audio_seconds
@@ -84,23 +91,23 @@ def compute_metrics(all_data, predictions, total_time: float):
 def run_asr_evaluation(
     cfg: EvalConfig, runner: Optional[AsrRunner] = None
 ) -> EvalResult:
-    cache_dir = ensure_cache_dir(cfg.dataset, cfg.split)
-    runner = runner or load_runner_from_config(cfg)
-
-    dataset = prepare_dataset(cfg, cache_dir)
+    cache_dir = ensure_cache_dir(cfg.dataset.name, cfg.dataset.split)
+    dataset = prepare_dataset(cfg.dataset, cache_dir)
     all_data = sort_by_duration(collect_dataset(dataset))
+
+    runner = runner or load_runner_from_config(cfg)
 
     logging.info(
         "Transcribing %d audio files of '%s'",
-        len(all_data["audio_filepaths"]),
-        f"{cfg.dataset}:{cfg.split}",
+        len(all_data[AUDIO_FILEPATHS_KEY]),
+        cfg.dataset.full_name,
     )
     total_time, transcriptions = measure_transcription_time(
         runner,
-        all_data["audio_filepaths"],
+        all_data[AUDIO_FILEPATHS_KEY],
         cfg,
     )
-    logging.info("Transcribed all '%s'", f"{cfg.dataset}:{cfg.split}")
+    logging.info("Transcribed all '%s'", cfg.dataset.full_name)
 
     predictions = normalize_predictions(transcriptions)
     avg_time = total_time / len(predictions)
@@ -114,9 +121,8 @@ def run_asr_evaluation(
     )
 
     logging.info(
-        "Evaluation on %s(%s) completed: WER=%s %%, RTFx=%s",
-        cfg.dataset,
-        cfg.split,
+        "Evaluation on %s completed: WER=%s %%, RTFx=%s",
+        cfg.dataset.full_name,
         wer,
         rtfx,
     )
@@ -156,7 +162,7 @@ def parse_args() -> EvalConfig:
     )
 
     p.add_argument(
-        "--dataset_path",
+        "--hg_path",
         default="esb/datasets",
         help=(
             "Root path or Hugging Face namespace containing the ESB datasets "
@@ -250,13 +256,15 @@ def parse_args() -> EvalConfig:
     return EvalConfig(
         model_dir=a.exported_dir,
         model_runner_class=a.model_runner_class,
-        dataset_path=a.dataset_path,
-        dataset=a.dataset,
-        split=a.split,
+        dataset=DatasetConfig(
+            hg_path=a.hg_path,
+            name=a.dataset,
+            split=a.split,
+            batch_size=a.batch_size,
+            max_eval_samples=a.max_eval_samples,
+            streaming=a.streaming,
+        ),
         device_id=a.device,
-        batch_size=a.batch_size,
-        max_eval_samples=a.max_eval_samples,
-        streaming=a.streaming,
         warmup=a.warmup,
         output_dir=a.output_dir,
     )

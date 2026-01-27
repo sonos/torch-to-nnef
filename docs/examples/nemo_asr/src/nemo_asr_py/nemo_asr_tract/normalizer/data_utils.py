@@ -43,8 +43,8 @@ def normalize(batch):
 
 def load_data(args):
     dataset = load_dataset(
-        args.dataset_path,
-        args.dataset,
+        args.hg_path,
+        args.name,
         split=args.split,
         streaming=args.streaming,
         token=True,

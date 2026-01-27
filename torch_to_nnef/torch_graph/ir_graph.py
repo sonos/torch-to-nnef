@@ -194,7 +194,11 @@ class TorchModuleIRGraph:
         if provided_inputs is None:
             provided_inputs = [None] * len(graph_inputs)  # type: ignore
 
-        assert len(graph_inputs) == len(provided_inputs)
+        assert len(graph_inputs) == len(provided_inputs), (
+            f"Provided inputs length {len(provided_inputs)} does not match "
+            f"traced graph inputs length {len(graph_inputs)}: "
+            f" graph: {graph_inputs} and provided: {provided_inputs}"
+        )
 
         for idx, (node_c_value, original_input, arg) in enumerate(
             zip(graph_inputs, provided_inputs, self._tracer.args)
