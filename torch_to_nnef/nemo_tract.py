@@ -497,6 +497,12 @@ def parser_cli():
         help="Split the joint and decoder subnets during export.",
     )
     parser.add_argument(
+        "-dt",
+        "--data-type",
+        type=str,
+        choices=["float32", "float16"],
+    )
+    parser.add_argument(
         "-n",
         "--naming-scheme",
         default=VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value,
@@ -513,6 +519,7 @@ def parser_cli():
         required=False,
         help="tract specific version",
     )
+
     parser.add_argument(
         "-tt",
         "--tract-check-io-tolerance",
@@ -596,6 +603,10 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
         model_name=args.model_slug, map_location=torch.device("cpu")
     )
     asr_model.eval()
+
+    if args.data_type == "float16":
+        asr_model = asr_model.half()
+
     if isinstance(args.tract_check_io_tolerance, str):
         args.tract_check_io_tolerance = TractCheckTolerance(
             args.tract_check_io_tolerance
