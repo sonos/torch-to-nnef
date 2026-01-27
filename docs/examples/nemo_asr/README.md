@@ -3,15 +3,17 @@
 !!! abstract "Goals"
 
     At the end of this tutorial you will know:
+
     1. :material-toolbox: The basic commands to export your NemoASR model to tract
     2. :fontawesome-brands-rust: How to create a minimal rust binary that perform wav inference
     3. :fontawesome-brands-python: How to perform inference with tract from python
     4. :fontawesome-brands-python: How to evaluate the exported model with WER on standard datasets
 
 !!! example "Prerequisite"
-  - [ ] Python basics
-  - [ ] Rust basic knowledge (for the Bonus)
-  - [ ] 15 min to read this page
+
+    - [ ] Python basics
+    - [ ] Rust basic knowledge (for the Bonus)
+    - [ ] 15 min to read this page
 
 
 To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.
@@ -26,11 +28,14 @@ t2n_export_nemo \
     --tract-specific-path $HOME/SONOS/src/tract/target/release/tract \ # path to tract binary (optional)
     -tt very # tolerance of check between nemo and tract for each sub-model
 
-# --compress-method min_max_q4_0_all  # can be used to compress the model
+# --compress-method min_max_q4_0_all  # can be used to compress the model
 ```
 
 After running the above command, you will find the exported NNEF model files in the specified export directory (`./dump_parakeet_v3_06B` in this case),
-along side the `model_config.json` file.
+along side the `model_config.json` file. There is a lot of options available for the export, you can check them with `t2n_export_nemo --help`. It has been
+tested against few of the model catalog, some preprocessor modeling do not
+yet run fully in tract so option like `--skip-preprocessor` can be used to avoid
+exporting it.
 
 # Example using tract to run a simple Nemo ASR model
 
@@ -134,7 +139,10 @@ This code snippet demonstrates how to load the exported Nemo ASR model and run i
 You can evaluate the quality of the ASR model ran in tract with the python package as follows (once package installed):
 
 ```bash
-nemo_tract_eval -e ./dump_parakeet_v3_06B -r ~/SONOS/data/test_asr_export_parakeet --device 0
+nemo_tract_eval \
+    -e ./dump_parakeet_v3_06B \
+    -r ~/SONOS/data/test_asr_export_parakeet \
+    --device 0
 ```
 This run an evaluation following the same protocol as the `ASR Open Leaderboard` evaluation from HuggingFace.
 (you can look at the `--help` to display all the options)
