@@ -99,7 +99,10 @@ def exportable_nemo_net(
             pytorch_lightning.core.module._jit_is_scripting(),
         ):
             if input_example is None:
-                fdtype = next(model.input_module.parameters()).dtype
+                try:
+                    fdtype = next(model.input_module.parameters()).dtype
+                except StopIteration:
+                    fdtype = torch.float32
                 input_example = model.input_module.input_example()
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
