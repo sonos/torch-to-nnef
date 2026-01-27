@@ -59,6 +59,7 @@ def exportable_nemo_net(
     model,
     input_example,
     use_dynamo=False,
+    float_dtype: T.Optional[torch.dtype] = None,
     *,
     nemo: InjectedNemoModule = INJECTED,
     pytorch_lightning: InjectedLightningModule = INJECTED,
@@ -99,10 +100,14 @@ def exportable_nemo_net(
             pytorch_lightning.core.module._jit_is_scripting(),
         ):
             if input_example is None:
-                try:
-                    fdtype = next(model.input_module.parameters()).dtype
-                except StopIteration:
-                    fdtype = torch.float32
+                if float_dtype is None:
+                    try:
+                        fdtype = next(model.input_module.parameters()).dtype
+                    except StopIteration:
+                        fdtype = torch.float32
+                else:
+                    fdtype = float_dtype
+                print("Generating dummy input...", float_dtype)
                 input_example = model.input_module.input_example()
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
@@ -138,14 +143,20 @@ def exportable_nemo_net(
         model._export_teardown()
 
 
-def iter_nemo_model_subnets(model, input_example=None):
+def iter_nemo_model_subnets(model, input_example=None, float_dtype=None):
     """Iterator over exportable subnets of a nemo model.
+
+    Args:
+        model: NeMo model to iterate over.
+        input_example: Optional input example to use for export.
+        float_dtype: Optional float dtype to use for export.
 
     Yields:
         subnet_name: name of the subnet
         subnet: the subnet module
         input_example: input example for the subnet
         dynamic_axes: dynamic axes info for the subnet
+
 
     see: nemo.core.classes.Exportable.export
 
@@ -155,7 +166,9 @@ def iter_nemo_model_subnets(model, input_example=None):
         if subnet_name == "decoder_joint":
             input_example = None  # reset input example for joint
             # because need more parameters than encoder output only
-        with exportable_nemo_net(subnet_name, subnet, input_example) as (
+        with exportable_nemo_net(
+            subnet_name, subnet, input_example, float_dtype=float_dtype
+        ) as (
             #  pylint: disable-next=redefined-argument-from-local
             input_example,
             out_example,
@@ -271,6 +284,7 @@ def iter_export_params_for_generic_nemo_asr_model(
     inference_target,
     skip_preprocessor: bool = False,
     split_joint_decoder: bool = False,
+    float_dtype: T.Optional[torch.dtype] = None,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model.
 
@@ -280,6 +294,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         skip_preprocessor: Whether to skip exporting the preprocessor subnet.
         split_joint_decoder:
             Whether to split the joint and decoder subnets exported.
+        float_dtype: Optional float dtype to use for export.
 
     Yields:
         ExportParameters for each subnet of the ASR model, with the preprocessor
@@ -321,7 +336,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         subnet,
         input_example,
         nemo_dynamic_axes,
-    ) in iter_nemo_model_subnets(asr_model):
+    ) in iter_nemo_model_subnets(asr_model, float_dtype=float_dtype):
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes
         )
@@ -425,6 +440,7 @@ def export_nemo_asr_model(
     skip_preprocessor: bool = False,
     split_joint_decoder: bool = False,
     extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
+    float_dtype: T.Optional[torch.dtype] = None,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
     **kwargs,
@@ -441,6 +457,7 @@ def export_nemo_asr_model(
         compress_method: Compression method for the exported NNEF subnets.
             if None, no compression is applied.
         extra_cfg: Additional configuration to save alongside the model.
+        float_dtype: Optional float dtype to use for export.
         omegaconf: Injected OmegaConf module.
         kwargs: Additional keyword arguments to pass to the export function.
     """
@@ -463,6 +480,7 @@ def export_nemo_asr_model(
         inference_target,
         skip_preprocessor=skip_preprocessor,
         split_joint_decoder=split_joint_decoder,
+        float_dtype=float_dtype,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         export_model_to_nnef(
@@ -513,7 +531,7 @@ def parser_cli():
         "-dt",
         "--data-type",
         type=str,
-        choices=["float32", "float16"],
+        choices=["float32", "float16", "mixed"],
     )
     parser.add_argument(
         "-n",
@@ -537,7 +555,7 @@ def parser_cli():
         "-tt",
         "--tract-check-io-tolerance",
         default=TractCheckTolerance.APPROXIMATE.value,
-        choices=[t.value for t in TractCheckTolerance],
+        choices=[t.value for t in TractCheckTolerance] + ["skip"],
         help="tract check io tolerance level",
     )
 
@@ -583,7 +601,10 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
         )
     else:
         inference_target = TractNNEF.latest()
-    inference_target.check_io_tolerance = args.tract_check_io_tolerance
+    if args.tract_check_io_tolerance == "skip":
+        inference_target.check_io = False
+    else:
+        inference_target.check_io_tolerance = args.tract_check_io_tolerance
     return inference_target
 
 
@@ -651,6 +672,8 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
     if args.data_type == "float16":
         asr_model = asr_model.half()
         asr_model.preprocessor.to(dtype=torch.float32)
+
+    if args.data_type in ["float16", "mixed"]:
         asr_model.preprocessor = WrapPreprocessorCast(
             asr_model.preprocessor, dtype=torch.float16
         )
@@ -661,17 +684,44 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
         )
 
     inference_target = setup_inference_target_from_cli_args(args)
-    export_nemo_asr_model(
-        asr_model,
-        inference_target,
-        export_dir,
-        nnef_variable_naming_scheme=VariableNamingScheme(args.naming_scheme),
-        compress_registry=args.compress_registry,
-        compress_method=args.compress_method,
-        skip_preprocessor=args.skip_preprocessor,
-        split_joint_decoder=args.split_joint_decoder,
-        extra_cfg={"pretrained_name": args.model_slug},
-    )
+
+    def call_export(float_dtype=torch.float32):
+        export_nemo_asr_model(
+            asr_model,
+            inference_target,
+            export_dir,
+            nnef_variable_naming_scheme=VariableNamingScheme(
+                args.naming_scheme
+            ),
+            compress_registry=args.compress_registry,
+            compress_method=args.compress_method,
+            skip_preprocessor=args.skip_preprocessor,
+            split_joint_decoder=args.split_joint_decoder,
+            extra_cfg={"pretrained_name": args.model_slug},
+            float_dtype=float_dtype,
+        )
+
+    if args.data_type == "mixed":
+        try:
+            # pylint: disable=import-outside-toplevel
+            from torch import autocast
+
+            LOGGER.info("exporting with mixed precision using autocast")
+            LOGGER.warning(
+                "mixed precision export is experimental, and not supported tract side now"
+            )
+            with autocast(device_type="cpu", dtype=torch.float16):
+                call_export(float_dtype=torch.float16)
+        except ImportError as ie:
+            raise ImportError(
+                "To use mixed precision export please install recent torch"
+            ) from ie
+    else:
+        call_export(
+            float_dtype=torch.float16
+            if args.data_type == "float16"
+            else torch.float32
+        )
 
 
 if __name__ == "__main__":
