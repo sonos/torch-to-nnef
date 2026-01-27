@@ -99,7 +99,17 @@ def exportable_nemo_net(
             pytorch_lightning.core.module._jit_is_scripting(),
         ):
             if input_example is None:
+                fdtype = next(model.input_module.parameters()).dtype
                 input_example = model.input_module.input_example()
+                # Cast to correct dtype (usualy float16 if not float16)
+                if fdtype != torch.float32:
+                    input_example = [
+                        ie.to(fdtype)
+                        if isinstance(ie, torch.Tensor)
+                        and ie.dtype == torch.float32
+                        else ie
+                        for ie in input_example
+                    ]
 
             # Run (posibly overridden) prepare methods before calling forward()
             for ex in exportables:
@@ -574,6 +584,37 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
     return inference_target
 
 
+class WrapPreprocessorCast(torch.nn.Module):
+    def __init__(self, preprocessor: torch.nn.Module, dtype: torch.dtype):
+        super().__init__()
+        self.preprocessor = preprocessor
+        self.dtype = dtype
+
+    def input_example(self):
+        return self.preprocessor.input_example()
+
+    def _export_teardown(self):
+        self.preprocessor._export_teardown()
+
+    def _prepare_for_export(self, *args, **kwargs):
+        self.preprocessor._prepare_for_export(*args, **kwargs)
+
+    def dynamic_shapes_for_export(self, *args, **kwargs):
+        return self.preprocessor.dynamic_shapes_for_export(*args, **kwargs)
+
+    @property
+    def input_names(self):
+        return self.preprocessor.input_names
+
+    @property
+    def output_names(self):
+        return self.preprocessor.output_names
+
+    def forward(self, *args, **kwargs):
+        x = self.preprocessor(*args, **kwargs)
+        return tuple([x[0].to(self.dtype)] + list(x)[1:])
+
+
 @require_extra_decorator(
     extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
 )
@@ -606,6 +647,10 @@ def main(*, nemo_asr: InjectedNemoModule = INJECTED):
 
     if args.data_type == "float16":
         asr_model = asr_model.half()
+        asr_model.preprocessor.to(dtype=torch.float32)
+        asr_model.preprocessor = WrapPreprocessorCast(
+            asr_model.preprocessor, dtype=torch.float16
+        )
 
     if isinstance(args.tract_check_io_tolerance, str):
         args.tract_check_io_tolerance = TractCheckTolerance(

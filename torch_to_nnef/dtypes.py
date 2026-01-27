@@ -175,7 +175,13 @@ def is_quantized_dtype(dtype: T.Optional[torch.dtype]):
     return dtype in [torch.quint8, torch.qint8, torch.qint32]
 
 
-def dtype_is_whole_number(dtype):
+def dtype_is_whole_number(dtype) -> bool:
     if "numpy" in str(dtype):
         dtype = NUMPY_TO_TORCH_DTYPE[dtype]
     return dtype in WHOLE_NUMBER_DTYPES
+
+
+def dtype_is_floating_point(dtype) -> bool:
+    if "numpy" in str(dtype):
+        dtype = NUMPY_TO_TORCH_DTYPE[dtype]
+    return dtype in [torch.float16, torch.float32, torch.float64]
