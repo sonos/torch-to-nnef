@@ -777,6 +777,9 @@ def main():
 
     inference_target = setup_inference_target_from_cli_args(args)
 
+    with (export_dir / "export_config.json").open("w", encoding="utf8") as fh:
+        json.dump({k: str(v) for k, v in vars(args).items()}, fh, indent=2)
+
     def call_export(float_dtype=torch.float32):
         export_nemo_asr_model(
             asr_model,

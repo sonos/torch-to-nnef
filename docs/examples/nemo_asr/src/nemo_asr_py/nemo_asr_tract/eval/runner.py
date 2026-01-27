@@ -131,7 +131,7 @@ class ExportedNemoRunner(AsrRunner):
                 "Nemo-Tract exported models currently only "
                 "support greedy decoding."
             )
-        return cls(model, batch_size=cfg.batch_size)
+        return cls(model, batch_size=cfg.dataset.batch_size)
 
     def transcribe_from_wav_paths(self, wav_paths: List[str]):
         transcripts = []
@@ -199,7 +199,7 @@ class NemoRunner(AsrRunner):
         model.change_decoding_strategy(model.cfg.decoding)
 
         kwargs = dict(
-            batch_size=cfg.batch_size,
+            batch_size=cfg.dataset.batch_size,
             verbose=False,
             num_workers=0,
         )
@@ -236,7 +236,7 @@ def measure_transcription_time(
 
     for i in range(cfg.warmup + 1):
         files = (
-            audio_files[: cfg.batch_size * 4]
+            audio_files[: cfg.dataset.batch_size * 4]
             if i == 0 and cfg.warmup > 0
             else audio_files
         )
