@@ -127,7 +127,7 @@ nav:
     - '7. Offloaded tensors': "tutos/7_offloaded_tensor.md"
     - '8. Custom operators': "tutos/8_custom_operator.md"
     - '9. Tensors only export': "tutos/9_peft.md"
-    - '10. Nemo ASR export & eval': "tutos/10_nemo_asr.md"
+    - '10. Nemo ASR export & eval': "tutos/10_nemo.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:
