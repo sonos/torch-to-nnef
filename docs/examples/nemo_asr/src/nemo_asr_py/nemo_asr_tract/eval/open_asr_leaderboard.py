@@ -149,8 +149,8 @@ def main():
         "--model_runner_class",
         required=False,
         default=[
-            "nemo_asr_tract.eval.runner.NemoRunner",
             "nemo_asr_tract.eval.runner.ExportedNemoRunner",
+            "nemo_asr_tract.eval.runner.NemoRunner",
         ],
         nargs="+",
         help="Model runner classes to use (you can implement your own).",

@@ -52,8 +52,10 @@ def reducer_helper(aten_op_name: str, node, op_helper, output_idx: int = 0):
             axes = [pick_axis(input_node, _) for _ in axis_node.data]
     #  }
     tensor_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    if input_node.dtype == torch.bool and isinstance(
-        op_helper.inference_target, TractNNEF
+    if (
+        input_node.dtype == torch.bool
+        and isinstance(op_helper.inference_target, TractNNEF)
+        and aten_op_name in ["sum_reduce", "mean_reduce"]
     ):
         dtype_str = TORCH_DTYPE_TO_TRACT_STR[torch.int64]
         tensor_ref = op_helper.add_single_output_op_from_nnef_tensors(

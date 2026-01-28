@@ -101,10 +101,6 @@ struct Lane {
     n_tokens_added_in_frame: usize,
 }
 
-fn should_emit_token(tok: usize, last_emitted: usize, blank: usize) -> bool {
-    tok != blank && tok != last_emitted
-}
-
 fn normalize_transcript_text(s: &str) -> String {
     // Very conservative cleanup:
     // - remove [] debug-style brackets
@@ -466,37 +462,56 @@ impl NemoAsrModel {
 
                 let lane = &mut lanes[lane_ix];
                 if tok == blank {
-                    let (n_skip_steps, _) = if row.len() > vocab.len() + 1 {
-                        row.iter()
+                    // If the joint emits additional logits after vocab+1, those logits
+                    // encode how many frames to skip/advance. We take the argmax index
+                    // and ensure we advance at least 1 frame (guard against 0).
+                    let computed_skip = if row.len() > vocab.len() + 1 {
+                        let (idx, _val) = row
+                            .iter()
                             .skip(vocab.len() + 1)
                             .enumerate()
                             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                            .unwrap()
+                            .unwrap();
+                        // `idx` is 0-based within the skip logits; interpret conservatively:
+                        // require at least 1 frame advance.
+                        std::cmp::max(1usize, idx)
                     } else {
-                        (1, &0f32)
+                        1usize
                     };
+
+                    // defensive: clamp to remaining encoder length to avoid overshoot
+                    let n_skip_steps = std::cmp::min(
+                        computed_skip,
+                        lane.encoder_len.saturating_sub(lane.current_frame),
+                    );
+
+                    if log::log_enabled!(log::Level::Debug) {
+                        log::debug!(
+                            "lane {} blank -> computed_skip={}, applied_skip={}, row_len={}, vocab+1={}",
+                            lane_ix,
+                            computed_skip,
+                            n_skip_steps,
+                            row.len(),
+                            vocab.len() + 1
+                        );
+                    }
 
                     lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = if n_skip_steps > 0 {
-                        0
-                    } else {
-                        lane.n_tokens_added_in_frame + 1
-                    };
+                    lane.n_tokens_added_in_frame = 0;
 
-                    // Reset last_token on blank, exactly like NeMo RNNT
+                    // Reset last_token on blank
                     lane.last_emitted_token = blank;
                 } else {
-                    if should_emit_token(tok, lane.last_emitted_token, blank) {
+                    if tok != lane.last_emitted_token {
                         lane.transcript.push(TranscriptItem {
                             token: vocab[tok].clone(),
                             emitted_at_encoder_timestep: lane.current_frame,
                             emitted_at_encoder_timestep_iteration: 0,
                             logit: *tok_prob,
                         });
-                        lane.n_tokens_added_in_frame += 1;
-
                         lane.last_emitted_token = tok;
                     }
+                    lane.n_tokens_added_in_frame += 1;
 
                     // Predictor input label should track the last predicted non-blank label
                     lane.last_token = tok;
