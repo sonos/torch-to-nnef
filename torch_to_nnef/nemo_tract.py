@@ -8,13 +8,13 @@ custom extensions required for the export process.
 """
 
 import argparse
-from dataclasses import dataclass
 import datetime
 import json
 import logging
 import sys
 import typing as T
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -677,8 +677,9 @@ def ask_model_selector(
 ):
     # create the question object
     question = questionary.select(
-        "What model do you want to export ? (those starting with nvidia/ are from 🤗Hub)",
-        qmark="😃",
+        " ∵ What model do you want to export ? "
+        "(those starting with nvidia/ are from 🤗Hub)",
+        qmark="",
         choices=[
             questionary.Choice(
                 title=pretrained_model_info.pretrained_model_name,
@@ -714,7 +715,8 @@ def nemo_asr_hg_list(huggingface_hub: HuggingFaceHubModule):
 
         tags = set(m.tags or [])
 
-        # Heuristic: ensure this is an ASR *model*, not speech translation / TTS / etc.
+        # Heuristic: ensure this is an ASR *model*,
+        # not speech translation / TTS / etc.
         if "automatic-speech-recognition" not in tags:
             continue
 
