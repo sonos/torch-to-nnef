@@ -66,6 +66,8 @@ class NemoAsrModel:
         return cls(ptr, path)
 
     def infer_from_wav_paths(self, wavs: List[Union[str, Path]]) -> str:
+        for in_wav in wavs:
+            assert Path(in_wav).is_file(), f"Expected file path, got: {in_wav}"
         ptr = c_char_p()
 
         def clean_ptr():
