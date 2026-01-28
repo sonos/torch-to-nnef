@@ -43,4 +43,3 @@ LIBRISPEECH_CLEAN_1024_TRAIN_CONFIG = DatasetConfig(
     streaming=True,
     remap={"audio": AUDIO_FILEPATHS_KEY, "text": REFERENCES_KEY},
 )
-

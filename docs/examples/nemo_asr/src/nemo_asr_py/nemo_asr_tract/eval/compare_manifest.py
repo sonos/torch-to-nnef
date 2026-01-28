@@ -13,13 +13,12 @@ def wer_alignment(
     ref_tokens: List[str],
     hyp_tokens: List[str],
 ) -> List[Tuple[str, str | None, str | None]]:
-    """
-    Returns a list of edit operations:
+    """Returns a list of edit operations.
+
     (op, ref_token, hyp_token)
 
     op ∈ {"ok", "sub", "del", "ins"}
     """
-
     n, m = len(ref_tokens), len(hyp_tokens)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
     back = [[None] * (m + 1) for _ in range(n + 1)]
@@ -69,7 +68,7 @@ def wer_alignment(
 
 
 def utterance_key(row: dict, fallback_index: int):
-    """Build a unique utterance identifier including audio path when available."""
+    """Build a unique utterance identifier w/ audio path when available."""
     uid = row.get("id", fallback_index)
     audio = (
         row.get("audio")
@@ -208,7 +207,8 @@ def compute_ranked_diffs(
 
 def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Rank prediction discrepancies across runners by absolute WER gap"
+        description="Rank prediction discrepancies across runners "
+        "by absolute WER gap"
     )
 
     parser.add_argument(

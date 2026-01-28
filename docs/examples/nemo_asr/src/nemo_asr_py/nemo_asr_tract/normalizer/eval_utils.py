@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Union
 
 import evaluate
+
 from nemo_asr_tract.utils import clean_name
 
 
@@ -79,7 +80,8 @@ def write_manifest(
         )
     if len(audio_filepaths) != len(references):
         raise ValueError(
-            f"The number of samples in `audio_filepaths` ({len(audio_filepaths)}) "
+            "The number of samples in `audio_filepaths` "
+            f"({len(audio_filepaths)}) "
             f"must match `references` ({len(references)})."
         )
 
