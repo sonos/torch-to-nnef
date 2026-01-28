@@ -68,6 +68,21 @@ def wer_alignment(
     return aligned[::-1]
 
 
+def utterance_key(row: dict, fallback_index: int):
+    """Build a unique utterance identifier including audio path when available."""
+    uid = row.get("id", fallback_index)
+    audio = (
+        row.get("audio")
+        or row.get("audio_filepath")
+        or row.get("wav")
+        or row.get("path")
+    )
+
+    if audio:
+        return f"{uid} | {audio}"
+    return str(uid)
+
+
 def render_alignment(ref: str, hyp: str) -> Text:
     ref_toks = ref.split()
     hyp_toks = hyp.split()
@@ -155,7 +170,7 @@ def compute_ranked_diffs(
 
         for model_id, manifest in models.items():
             for idx, row in enumerate(manifest):
-                uid = row.get("id", idx)
+                uid = utterance_key(row, idx)
                 aligned.setdefault(uid, {})["ref"] = row["text"]
                 aligned[uid][model_id] = row["pred_text"]
 

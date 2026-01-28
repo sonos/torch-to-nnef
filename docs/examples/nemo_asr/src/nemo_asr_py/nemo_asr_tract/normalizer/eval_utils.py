@@ -26,6 +26,7 @@ def read_manifest(manifest_path: str):
 
 
 def write_manifest(
+    audio_filepaths: list,
     references: list,
     transcriptions: list,
     model_id: str,
@@ -39,6 +40,7 @@ def write_manifest(
     """Writes a manifest file (jsonl format) and returns the path to the file.
 
     Args:
+        audio_filepaths: List of audio file paths.
         references: Ground truth reference texts.
         transcriptions: Model predicted transcriptions.
         model_id: String identifier for the model.
@@ -75,6 +77,11 @@ def write_manifest(
             f"({len(transcription_time)}) "
             f"must match `references` ({len(references)})."
         )
+    if len(audio_filepaths) != len(references):
+        raise ValueError(
+            f"The number of samples in `audio_filepaths` ({len(audio_filepaths)}) "
+            f"must match `references` ({len(references)})."
+        )
 
     audio_length = (
         audio_length if audio_length is not None else len(references) * [None]
@@ -95,16 +102,24 @@ def write_manifest(
 
     with open(manifest_path, "w", encoding="utf-8") as f:
         for idx, (
+            audio_filepath,
             text,
             transcript,
             audio_length_item,
             transcription_time_item,
         ) in enumerate(
-            zip(references, transcriptions, audio_length, transcription_time)
+            zip(
+                audio_filepaths,
+                references,
+                transcriptions,
+                audio_length,
+                transcription_time,
+            )
         ):
             datum = {
                 # dummy value for Speech Data Processor
-                "audio_filepath": f"sample_{idx}",
+                "id": idx,
+                "audio_filepath": Path(audio_filepath).name,
                 "duration": audio_length_item,
                 "time": transcription_time_item,
                 "text": text,
