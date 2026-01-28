@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Union
 
 import evaluate
+from nemo_asr_tract.utils import clean_name
 
 
 def read_manifest(manifest_path: str):
@@ -139,7 +140,7 @@ def score_results(directory: str, model_id: str = None):
     # Filter files belonging to a specific model id
     if model_id is not None and model_id != "":
         print("Filtering models by id:", model_id)
-        model_id = model_id.replace("/", "-")
+        model_id = clean_name(model_id)
         result_files = [fp for fp in result_files if model_id in fp]
 
     # Check if any result files were found

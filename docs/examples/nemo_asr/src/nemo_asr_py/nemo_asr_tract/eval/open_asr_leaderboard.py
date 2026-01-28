@@ -199,7 +199,7 @@ def main():
     print("\n=== Scoring results ===", flush=True)
     eval_utils.score_results(
         str(results_dir),
-        args.model_id,
+        conf.pretrained_name,
     )
 
 

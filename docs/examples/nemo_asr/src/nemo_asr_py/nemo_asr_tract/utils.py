@@ -82,3 +82,19 @@ def init_logfile(filepath: Path, verbose: bool = False) -> int:
     )
     logger.addHandler(handler)
     return log_level
+
+
+def clean_name(name: str) -> str:
+    """Cleans a name string to be identifier friendly (Models/Runner)."""
+    return (
+        name.replace(".", "_")
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace("/", "_")
+    )
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
