@@ -14,11 +14,13 @@ eval = [
     "onnx>=1.20.0",                    # failing dep in osx
     "nemo_toolkit[asr]>=2.0.0,<2.7.0", # to test against original nemo models
     "torchcodec",
+    "rich",
 ]
 
 [project.scripts]
 nemo_tract_eval = "nemo_asr_tract.eval.open_asr_leaderboard:main"
 nemo_tract_eval_single = "nemo_asr_tract.eval.base:main"
+nemo_tract_eval_compare_manifest = "nemo_asr_tract.eval.compare_manifest:main"
 
 [build-system]
 requires = ["setuptools>=64", "setuptools_rust>=1.10"]
