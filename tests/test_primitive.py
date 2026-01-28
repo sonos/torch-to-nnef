@@ -181,17 +181,6 @@ for op in [
         inference_conditions=skip_khronos_interpreter,
     )
 
-for op in [
-    # TensorFnPrimitive("any", {"dim": 1}),
-    # TensorFnPrimitive("all", {"dim": 1}),
-]:
-    test_suite.add(
-        torch.tensor(
-            [[True, False, True], [True, True, True], [False, False, False]]
-        ),
-        UnaryPrimitive(op),
-    )
-
 # ______________________________________________________________________________
 # _binary
 for op in [
@@ -1117,6 +1106,22 @@ test_suite.add(
     UnaryPrimitive(torch.zeros_like),
     inference_conditions=skip_khronos_interpreter,
 )  # should output bool tensor of FALSE
+
+
+test_suite.reset()
+for op in [
+    TensorFnPrimitive("any", {"dim": 1}),
+    TensorFnPrimitive("all", {"dim": 1}),
+]:
+    test_suite.add(
+        torch.tensor(
+            [[True, False, True], [True, True, True], [False, False, False]]
+        ),
+        UnaryPrimitive(op),
+        inference_conditions=combine_conditions(
+            [skip_khronos_interpreter, cond_tract_gt_0_22_0]
+        ),
+    )
 
 
 def test_should_fail_since_no_input():

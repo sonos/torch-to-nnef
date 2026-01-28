@@ -11,8 +11,10 @@ import torch
 from nemo import __version__ as nemo_version
 from nemo.collections.asr.models import ASRModel
 from nemo_asr_tract import __version__ as nemo_asr_tract_version
+from nemo_asr_tract.calib import chunks
 from nemo_asr_tract.eval.conf import DecodingStragegy, EvalConfig
 from nemo_asr_tract.nemo_asr import NemoAsrModel, load_config_from_dir
+from nemo_asr_tract.utils import clean_name
 from tqdm import tqdm
 
 # =============================================================================
@@ -76,21 +78,6 @@ class AsrRunner(ABC):
     @abstractmethod
     def transcribe_from_wav_paths(self, wav_paths: List[str]) -> List:
         raise NotImplementedError
-
-
-def chunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
-
-
-def clean_name(name: str) -> str:
-    return (
-        name.replace(".", "_")
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace("/", "_")
-    )
 
 
 class ExportedNemoRunner(AsrRunner):

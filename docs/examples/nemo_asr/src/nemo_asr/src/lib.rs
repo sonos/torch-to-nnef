@@ -76,13 +76,14 @@ pub struct Transcription {
 impl Transcription {
     pub fn from_transcript_items(items: Vec<TranscriptItem>) -> Transcription {
         Transcription {
-            text: items
-                .iter()
-                .map(|ti| ti.token.as_str())
-                .join("")
-                .replace("▁", " ")
-                .trim()
-                .to_string(),
+            text: normalize_transcript_text(
+                items
+                    .iter()
+                    .map(|ti| ti.token.as_str())
+                    .join("")
+                    .replace("▁", " ")
+                    .trim(),
+            ),
             items,
         }
     }
@@ -94,9 +95,35 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    states: TVec<TValue>, // each state is [2,1,640] in parakeet
+    last_emitted_token: usize, // for transcript de-dup only
+    states: TVec<TValue>,      // each state is [2,1,640] in parakeet
     transcript: Vec<TranscriptItem>,
     n_tokens_added_in_frame: usize,
+}
+
+fn normalize_transcript_text(s: &str) -> String {
+    // Very conservative cleanup:
+    // - remove [] debug-style brackets
+    // - collapse excessive whitespace
+    let mut out = String::with_capacity(s.len());
+    let mut last_space = false;
+
+    for c in s.chars() {
+        if c == '[' || c == ']' {
+            continue;
+        }
+        if c.is_whitespace() {
+            if !last_space {
+                out.push(' ');
+            }
+            last_space = true;
+        } else {
+            last_space = false;
+            out.push(c);
+        }
+    }
+
+    out.trim().to_string()
 }
 
 impl NemoAsrModel {
@@ -349,6 +376,7 @@ impl NemoAsrModel {
                     encoder_len: lens[b] as usize,
                     current_frame: 0,
                     last_token: blank,
+                    last_emitted_token: blank,
                     states,
                     transcript: Vec::new(),
                     n_tokens_added_in_frame: 0,
@@ -434,32 +462,59 @@ impl NemoAsrModel {
 
                 let lane = &mut lanes[lane_ix];
                 if tok == blank {
-                    // if row len> vocab len +1, means next tokens
-                    // are for steps to skip
-                    let (n_skip_steps, _) = if row.len() > vocab.len() + 1 {
-                        row.iter()
+                    // If the joint emits additional logits after vocab+1, those logits
+                    // encode how many frames to skip/advance. We take the argmax index
+                    // and ensure we advance at least 1 frame (guard against 0).
+                    let computed_skip = if row.len() > vocab.len() + 1 {
+                        let (idx, _val) = row
+                            .iter()
                             .skip(vocab.len() + 1)
                             .enumerate()
                             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                            .unwrap()
+                            .unwrap();
+                        // `idx` is 0-based within the skip logits; interpret conservatively:
+                        // require at least 1 frame advance.
+                        std::cmp::max(1usize, idx)
                     } else {
-                        (1, &0f32)
+                        1usize
                     };
-                    lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = if n_skip_steps > 0 {
-                        0
-                    } else {
-                        lane.n_tokens_added_in_frame + 1
+
+                    // defensive: clamp to remaining encoder length to avoid overshoot
+                    let n_skip_steps = std::cmp::min(
+                        computed_skip,
+                        lane.encoder_len.saturating_sub(lane.current_frame),
+                    );
+
+                    if log::log_enabled!(log::Level::Debug) {
+                        log::debug!(
+                            "lane {} blank -> computed_skip={}, applied_skip={}, row_len={}, vocab+1={}",
+                            lane_ix,
+                            computed_skip,
+                            n_skip_steps,
+                            row.len(),
+                            vocab.len() + 1
+                        );
                     }
+
+                    lane.current_frame += n_skip_steps;
+                    lane.n_tokens_added_in_frame = 0;
+
+                    // Reset last_token on blank
+                    lane.last_emitted_token = blank;
                 } else {
-                    lane.last_token = tok;
+                    if tok != lane.last_emitted_token {
+                        lane.transcript.push(TranscriptItem {
+                            token: vocab[tok].clone(),
+                            emitted_at_encoder_timestep: lane.current_frame,
+                            emitted_at_encoder_timestep_iteration: 0,
+                            logit: *tok_prob,
+                        });
+                        lane.last_emitted_token = tok;
+                    }
                     lane.n_tokens_added_in_frame += 1;
-                    lane.transcript.push(TranscriptItem {
-                        token: vocab[tok].clone(),
-                        emitted_at_encoder_timestep: lane.current_frame,
-                        emitted_at_encoder_timestep_iteration: 0,
-                        logit: *tok_prob,
-                    });
+
+                    // Predictor input label should track the last predicted non-blank label
+                    lane.last_token = tok;
 
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;

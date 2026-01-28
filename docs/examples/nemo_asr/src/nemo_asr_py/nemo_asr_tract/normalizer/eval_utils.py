@@ -12,6 +12,8 @@ from typing import Union
 
 import evaluate
 
+from nemo_asr_tract.utils import clean_name
+
 
 def read_manifest(manifest_path: str):
     """Reads a manifest file (jsonl format) returns a list of dict samples."""
@@ -25,6 +27,7 @@ def read_manifest(manifest_path: str):
 
 
 def write_manifest(
+    audio_filepaths: list,
     references: list,
     transcriptions: list,
     model_id: str,
@@ -38,6 +41,7 @@ def write_manifest(
     """Writes a manifest file (jsonl format) and returns the path to the file.
 
     Args:
+        audio_filepaths: List of audio file paths.
         references: Ground truth reference texts.
         transcriptions: Model predicted transcriptions.
         model_id: String identifier for the model.
@@ -74,6 +78,12 @@ def write_manifest(
             f"({len(transcription_time)}) "
             f"must match `references` ({len(references)})."
         )
+    if len(audio_filepaths) != len(references):
+        raise ValueError(
+            "The number of samples in `audio_filepaths` "
+            f"({len(audio_filepaths)}) "
+            f"must match `references` ({len(references)})."
+        )
 
     audio_length = (
         audio_length if audio_length is not None else len(references) * [None]
@@ -94,16 +104,24 @@ def write_manifest(
 
     with open(manifest_path, "w", encoding="utf-8") as f:
         for idx, (
+            audio_filepath,
             text,
             transcript,
             audio_length_item,
             transcription_time_item,
         ) in enumerate(
-            zip(references, transcriptions, audio_length, transcription_time)
+            zip(
+                audio_filepaths,
+                references,
+                transcriptions,
+                audio_length,
+                transcription_time,
+            )
         ):
             datum = {
                 # dummy value for Speech Data Processor
-                "audio_filepath": f"sample_{idx}",
+                "id": idx,
+                "audio_filepath": Path(audio_filepath).name,
                 "duration": audio_length_item,
                 "time": transcription_time_item,
                 "text": text,
@@ -139,7 +157,7 @@ def score_results(directory: str, model_id: str = None):
     # Filter files belonging to a specific model id
     if model_id is not None and model_id != "":
         print("Filtering models by id:", model_id)
-        model_id = model_id.replace("/", "-")
+        model_id = clean_name(model_id)
         result_files = [fp for fp in result_files if model_id in fp]
 
     # Check if any result files were found

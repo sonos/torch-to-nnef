@@ -12,8 +12,8 @@
 !!! example "Prerequisite"
 
     - [ ] Python basics
-    - [ ] Rust basic knowledge (for the Bonus)
-    - [ ] 15 min to read this page
+    - [ ] Rust basics
+    - [ ] 10 min to read this page
 
 
 To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.

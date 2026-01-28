@@ -11,12 +11,7 @@ from nemo_asr_tract.dataset import (
     prepare_dataset,
     sort_by_duration,
 )
-
-
-def chunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
+from nemo_asr_tract.utils import chunks
 
 
 def iter_calibration_data(cfg: DatasetConfig) -> Iterable[List[str]]:
@@ -28,6 +23,16 @@ def iter_calibration_data(cfg: DatasetConfig) -> Iterable[List[str]]:
     for batch in chunks(all_data[AUDIO_FILEPATHS_KEY], cfg.batch_size):
         yield batch
 
+
+LIBRISPEECH_CLEAN_16_TRAIN_CONFIG = DatasetConfig(
+    name="clean",
+    split="train.100",
+    hg_path="openslr/librispeech_asr",
+    batch_size=8,
+    max_eval_samples=16,
+    streaming=True,
+    remap={"audio": AUDIO_FILEPATHS_KEY, "text": REFERENCES_KEY},
+)
 
 LIBRISPEECH_CLEAN_512_TRAIN_CONFIG = DatasetConfig(
     name="clean",

@@ -59,6 +59,7 @@ def write_results(
     )
 
     return eval_utils.write_manifest(
+        audio_filepaths=all_data[AUDIO_FILEPATHS_KEY],
         references=all_data[REFERENCES_KEY],
         transcriptions=predictions,
         model_id=model_id,
