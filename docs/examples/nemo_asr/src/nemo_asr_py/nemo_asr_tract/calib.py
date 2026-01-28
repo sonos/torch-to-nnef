@@ -24,6 +24,16 @@ def iter_calibration_data(cfg: DatasetConfig) -> Iterable[List[str]]:
         yield batch
 
 
+LIBRISPEECH_CLEAN_16_TRAIN_CONFIG = DatasetConfig(
+    name="clean",
+    split="train.100",
+    hg_path="openslr/librispeech_asr",
+    batch_size=8,
+    max_eval_samples=16,
+    streaming=True,
+    remap={"audio": AUDIO_FILEPATHS_KEY, "text": REFERENCES_KEY},
+)
+
 LIBRISPEECH_CLEAN_512_TRAIN_CONFIG = DatasetConfig(
     name="clean",
     split="train.100",
