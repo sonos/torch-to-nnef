@@ -23,11 +23,12 @@ this will enable the `t2n_export_nemo` command.:
 
 ```bash
 t2n_export_nemo \
-    -s nvidia/parakeet-tdt-0.6b-v3 \ # nemo pretrained model name
     -e ./dump_parakeet_v3_06B \ # export directory name
     --tract-specific-path $HOME/SONOS/src/tract/target/release/tract \ # path to tract binary (optional)
     -tt very # tolerance of check between nemo and tract for each sub-model
 
+#-s nvidia/parakeet-tdt-0.6b-v3 \ # if you already know the exact model slug
+# else it will display a selection menu
 # --compress-method min_max_q4_0_all  # can be used to compress the model
 ```
 
