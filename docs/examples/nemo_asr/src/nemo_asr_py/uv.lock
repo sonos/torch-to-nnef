@@ -2090,21 +2090,27 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version < '3.13'" },
     { name = "numpy", version = "2.1.3", source = { registry = "https://pypi.org/simple/" }, marker = "python_full_version >= '3.13'" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/29/18/dad9eb84512a517f3c810f5fa47959303b3b33b100fca93d6f5796a7251f/lilcom-1.8.2.tar.gz", hash = "sha256:674dc1bef8c7d403d2e8f274705a4e3e1c1f1e430d4e94e209356b57c1619aca", size = 46683, upload-time = "2026-01-20T00:25:41.872Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/a0/8df96b9c184574bcd4ec8ed2dd95aee123d06ceb60843f51229af72350b9/lilcom-1.8.2-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3f4a225c645f033c9bec75e3c10d2711613533e2cdecd07fd0ff5171d16de20c", size = 117519, upload-time = "2026-01-15T01:55:48.76Z" },
     { url = "https://files.pythonhosted.org/packages/8a/48/1a7b1fc2a1abf5b20c2f14fafa54cccccd25027e946be43ec0d2b6ab0577/lilcom-1.8.2-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:c34a2fc511c2de382c1e414f58388f0bca62e19d689efbc6459fb036ef6e4e6f", size = 86593, upload-time = "2026-01-15T01:49:09.802Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/7a/447e4b8d98976dbe946cf2c59b09147c0bd70370bba608b786f16c8af054/lilcom-1.8.2-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:a6b1f8cbb2100a6342749af389f707053a4eb78a778c1159680ddec60d5c7c42", size = 92336, upload-time = "2026-01-20T00:25:48.216Z" },
     { url = "https://files.pythonhosted.org/packages/5c/7a/d80515faf9e45d122bf39395dc028133f6ade04e86d1a6c97716a4a630c6/lilcom-1.8.2-cp310-cp310-win_amd64.whl", hash = "sha256:63b9dad9873cc03a9a99efd7951079461b94d3f1d510e92378ba89dc1f7a5b1c", size = 68523, upload-time = "2026-01-15T01:48:43.389Z" },
     { url = "https://files.pythonhosted.org/packages/f7/2c/9b4fd5cf5efeb3a7e76e46d465baf5cf808c18233d9c127cc2dfec050af0/lilcom-1.8.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:845c1365b6f16377a5846b27e8be56e64740d29913e8534a9206cf73c8d5afd0", size = 119986, upload-time = "2026-01-15T01:49:48.125Z" },
     { url = "https://files.pythonhosted.org/packages/37/12/26f37710806001a933fde08c92337e12fb0f2fb9380650b6a075d0b077be/lilcom-1.8.2-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:324d9251d2690586868ce88ad557a43e5e408f592260d877f24ac15b0a0b582a", size = 88440, upload-time = "2026-01-15T01:50:55.064Z" },
+    { url = "https://files.pythonhosted.org/packages/14/7c/cd8374371c2fe5cfb9364f67601d18ec158e7f0290a57a7e58a5f71c8b93/lilcom-1.8.2-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7a4b78053567e0b39f0479b159bf98c45dba8dcc4a7c7fa03b9ae4900d6bf419", size = 94254, upload-time = "2026-01-20T00:28:40.618Z" },
     { url = "https://files.pythonhosted.org/packages/e5/66/9cf625f791d4707ab264a27142105b13d6141885096e49ee17b0eeb63db2/lilcom-1.8.2-cp311-cp311-win_amd64.whl", hash = "sha256:3b33d0171df9f2b26daf5c03dceaffdd708231058a8d73430c5870fe97a4c1b7", size = 69185, upload-time = "2026-01-15T01:49:12.555Z" },
     { url = "https://files.pythonhosted.org/packages/ab/a5/e3d9b6a0177a7c78c2adf30ebdcfe550b2801f10c95efea39de5d4d2e481/lilcom-1.8.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:9c2d0e7522554b6c13f9f7e54db3c2c917a4fd41e1ac29afd9fa7973f935315a", size = 118495, upload-time = "2026-01-15T01:51:33.422Z" },
     { url = "https://files.pythonhosted.org/packages/ce/4d/de0f5d220bc52f4140f5a09239c795575d1ca0fc84c4ec2ac98015071cfc/lilcom-1.8.2-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f28a68165b7dbf55613fbe463f2e322165de4f54a8744ef653f5b112eca4ca24", size = 86841, upload-time = "2026-01-15T01:50:43.642Z" },
+    { url = "https://files.pythonhosted.org/packages/52/43/f1f585d1a05d7774e2a678c2a73b4f771011a33c7ae04eb42cbc9d68752e/lilcom-1.8.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7a32895134ae754ca889ef456dfb1e8d90355c33367ec1f1943211001df480c1", size = 92959, upload-time = "2026-01-20T00:28:35.536Z" },
     { url = "https://files.pythonhosted.org/packages/fb/2b/49b0fd9d58afa3dcd128ed892c51ff162a63abdbb8754114c1f0060128b0/lilcom-1.8.2-cp312-cp312-win_amd64.whl", hash = "sha256:0bdee08cb1582532b090eb07aeaed116343e861b945a89d068dc8c27c156afb2", size = 69719, upload-time = "2026-01-15T01:48:42.092Z" },
     { url = "https://files.pythonhosted.org/packages/56/06/e7e81d70ff5b2c8434fe2ad870659b5e5c1e6ba948d9bae5eb14459c4c1f/lilcom-1.8.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:d80427c0bd2e9d7d3d0cceb45ca3c3e65330274085055efed3079da71029f322", size = 118542, upload-time = "2026-01-15T01:53:08.184Z" },
     { url = "https://files.pythonhosted.org/packages/b0/8e/66dc6509608f2e23ab6fa0e260eb4c37d840a091ba1502e670208042b4df/lilcom-1.8.2-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:35012978dcd94b27b878ca5566c4c0d713c89544673aa41a971ac0e09fe38245", size = 86849, upload-time = "2026-01-15T01:51:12.155Z" },
+    { url = "https://files.pythonhosted.org/packages/43/08/ed28f4a048229029a07b6808cdbdc26de0c0be889ca29454e07677cc303b/lilcom-1.8.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:988538da5b7e819443f2e10f800d79299fe8055ec3a91db8b1ed661dab3223bc", size = 93485, upload-time = "2026-01-20T00:28:43.271Z" },
     { url = "https://files.pythonhosted.org/packages/a3/07/4febd60c0571f838a33a5342e7235a997369c0cac5ab71ea3fea04b65585/lilcom-1.8.2-cp313-cp313-win_amd64.whl", hash = "sha256:13d387472a9860909dbead72af29ceaa4f92be27d694df388a1b4a299c42d6a0", size = 69719, upload-time = "2026-01-15T01:48:42.389Z" },
     { url = "https://files.pythonhosted.org/packages/a1/f1/6f3ff00fd3011276490ca6fbe14713a6062397fb06d397eb23a0f12bfa79/lilcom-1.8.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:86c68bef3e5ef443eec092384606ece2b94babde83650437079f63afe1aef1c4", size = 118880, upload-time = "2026-01-15T01:52:22.281Z" },
     { url = "https://files.pythonhosted.org/packages/23/76/781fa0a40cc74cf255b2be0be72d7562e3a4a8c9dc6e95b2b428217aa78c/lilcom-1.8.2-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:738e10878b86a59ddb706fd55206dd186c5ff1b1d8640e79ceac2d3e25d65537", size = 87055, upload-time = "2026-01-15T01:51:36.692Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/2a/6705814902bb8c236a7c1d46dcb4331288d39b877c6d819f93495cac8688/lilcom-1.8.2-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:150ee54632ae366f0c41f8136dede1d3f55286f7b7137b2c4de45d52db16a333", size = 93529, upload-time = "2026-01-20T00:28:42.97Z" },
     { url = "https://files.pythonhosted.org/packages/09/cc/14073ccde224da3a4f4284f38d0220b47b09a059d1181af576ac7cb69157/lilcom-1.8.2-cp314-cp314-win_amd64.whl", hash = "sha256:174a284e973b6b57b9432c55978413c9b8a3112833e7cc890f5f5209a8a665c9", size = 71614, upload-time = "2026-01-15T01:49:04.606Z" },
 ]
 
@@ -2694,6 +2700,7 @@ eval = [
     { name = "jiwer" },
     { name = "nemo-toolkit", extra = ["asr"] },
     { name = "onnx" },
+    { name = "rich" },
     { name = "torchcodec" },
     { name = "transformers" },
 ]
@@ -2705,6 +2712,7 @@ requires-dist = [
     { name = "nemo-toolkit", extras = ["asr"], marker = "extra == 'eval'", specifier = ">=2.0.0,<2.7.0" },
     { name = "onnx", marker = "extra == 'eval'", specifier = ">=1.20.0" },
     { name = "pydantic", specifier = ">=2,<3" },
+    { name = "rich", marker = "extra == 'eval'" },
     { name = "stringcase", specifier = ">=1.2,<2" },
     { name = "torchcodec", marker = "extra == 'eval'" },
     { name = "transformers", marker = "extra == 'eval'", specifier = ">=4.35.2,<5" },
