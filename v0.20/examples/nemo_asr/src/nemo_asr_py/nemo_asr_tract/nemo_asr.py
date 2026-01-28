@@ -32,6 +32,9 @@ class NemoAsrConfig(PydanticModel):
     labels: List[str]
 
 
+MODEL_CONFIG_FILENAME = "model_config.json"
+
+
 class NemoAsrModel:
     """Class encapsulating Rust NemoAsrModel.
 
@@ -48,6 +51,10 @@ class NemoAsrModel:
 
     @classmethod
     def from_dir(cls, path: Union[str, Path]):
+        assert Path(path).is_dir(), f"Expected directory path, got: {path}"
+        assert (Path(path) / MODEL_CONFIG_FILENAME).is_file(), (
+            f"Expected '{MODEL_CONFIG_FILENAME}' file in directory: {path}"
+        )
         ptr = c_void_p()
         check_ffi_error(
             lib.nemo_asr_from_dir(
@@ -59,6 +66,8 @@ class NemoAsrModel:
         return cls(ptr, path)
 
     def infer_from_wav_paths(self, wavs: List[Union[str, Path]]) -> str:
+        for in_wav in wavs:
+            assert Path(in_wav).is_file(), f"Expected file path, got: {in_wav}"
         ptr = c_char_p()
 
         def clean_ptr():
@@ -112,7 +121,7 @@ def load_config_from_dir(path: Union[str, Path]) -> NemoAsrConfig:
     """Loads the Nemo ASR model config from a given directory."""
     with (
         Path(path)
-        .joinpath("model_config.json")
+        .joinpath(MODEL_CONFIG_FILENAME)
         .open("r", encoding="utf-8") as f
     ):
         return NemoAsrConfig.model_validate_json(f.read())
