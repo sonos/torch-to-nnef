@@ -36,7 +36,7 @@ pub struct RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
-            max_n_tokens_per_step: Some(10),
+            max_n_tokens_per_step: Some(50),
             force_cpu: false,
         }
     }
@@ -465,7 +465,7 @@ impl NemoAsrModel {
                     // If the joint emits additional logits after vocab+1, those logits
                     // encode how many frames to skip/advance. We take the argmax index
                     // and ensure we advance at least 1 frame (guard against 0).
-                    let computed_skip = if row.len() > vocab.len() + 1 {
+                    let n_skip_steps = if row.len() > vocab.len() + 1 {
                         let (idx, _val) = row
                             .iter()
                             .skip(vocab.len() + 1)
@@ -474,22 +474,15 @@ impl NemoAsrModel {
                             .unwrap();
                         // `idx` is 0-based within the skip logits; interpret conservatively:
                         // require at least 1 frame advance.
-                        std::cmp::max(1usize, idx)
+                        idx
                     } else {
                         1usize
                     };
 
-                    // defensive: clamp to remaining encoder length to avoid overshoot
-                    let n_skip_steps = std::cmp::min(
-                        computed_skip,
-                        lane.encoder_len.saturating_sub(lane.current_frame),
-                    );
-
                     if log::log_enabled!(log::Level::Debug) {
                         log::debug!(
-                            "lane {} blank -> computed_skip={}, applied_skip={}, row_len={}, vocab+1={}",
+                            "lane {} blank -> applied_skip={}, row_len={}, vocab+1={}",
                             lane_ix,
-                            computed_skip,
                             n_skip_steps,
                             row.len(),
                             vocab.len() + 1
