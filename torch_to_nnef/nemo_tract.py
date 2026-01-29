@@ -37,6 +37,7 @@ from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
     TractCli,
     TractNNEF,
+    build_io,
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
@@ -113,8 +114,8 @@ def exportable_nemo_net(
                         fdtype = torch.float32
                 else:
                     fdtype = float_dtype
-                print("Generating dummy input...", float_dtype)
-                input_example = model.input_module.input_example()
+                LOGGER.debug("Generating dummy input...", float_dtype)
+                input_example = model.input_example()
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
                     input_example = [
@@ -149,13 +150,20 @@ def exportable_nemo_net(
         model._export_teardown()
 
 
-def iter_nemo_model_subnets(model, input_example=None, float_dtype=None):
+def iter_nemo_model_subnets(
+    model,
+    input_example=None,
+    float_dtype=None,
+    apply_sequential_examples: bool = False,
+):
     """Iterator over exportable subnets of a nemo model.
 
     Args:
         model: NeMo model to iterate over.
         input_example: Optional input example to use for export.
         float_dtype: Optional float dtype to use for export.
+        apply_sequential_examples: If True, use sequential input examples
+            for each subnet.
 
     Yields:
         subnet_name: name of the subnet
@@ -190,8 +198,10 @@ def iter_nemo_model_subnets(model, input_example=None, float_dtype=None):
             yield subnet_name, subnet, input_example, dynamic_axes
             # Propagate input example
             # (default scenario, may need to be overriden)
-            if input_example is not None:
+            if input_example is not None and apply_sequential_examples:
                 input_example = out_example
+            else:
+                input_example = None
 
 
 def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
@@ -447,6 +457,7 @@ def export_nemo_asr_model(
     split_joint_decoder: bool = False,
     extra_cfg: T.Optional[T.Dict[str, T.Any]] = None,
     float_dtype: T.Optional[torch.dtype] = None,
+    dump_checked_io: bool = False,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
     **kwargs,
@@ -464,6 +475,7 @@ def export_nemo_asr_model(
             if None, no compression is applied.
         extra_cfg: Additional configuration to save alongside the model.
         float_dtype: Optional float dtype to use for export.
+        dump_checked_io: Whether to dump checked input/output examples.
         omegaconf: Injected OmegaConf module.
         kwargs: Additional keyword arguments to pass to the export function.
     """
@@ -489,6 +501,16 @@ def export_nemo_asr_model(
         float_dtype=float_dtype,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
+        if dump_checked_io:
+            test_dir = export_dir / "test"
+            test_dir.mkdir(parents=True, exist_ok=True)
+            build_io(
+                export_params.model,
+                export_params.test_input,
+                io_npz_path=test_dir / f"{export_params.name}_checked_io.npz",
+                input_names=export_params.input_names,
+                output_names=export_params.output_names,
+            )
         export_model_to_nnef(
             model=export_params.model,
             args=export_params.test_input,
@@ -584,6 +606,14 @@ def parser_cli():
         type=str,
         default=None,
         help="compression method for the exported nnef subnets",
+    )
+
+    parser.add_argument(
+        "--dump-checked-io",
+        required=False,
+        default=False,
+        action="store_true",
+        help="dump tested io to the given path for checking purpose",
     )
 
     parser.add_argument(
@@ -855,7 +885,14 @@ def main():
     inference_target = setup_inference_target_from_cli_args(args)
 
     with (export_dir / "export_config.json").open("w", encoding="utf8") as fh:
-        json.dump({k: str(v) for k, v in vars(args).items()}, fh, indent=2)
+        json.dump(
+            {
+                k: str(v) if isinstance(v, Path) else v
+                for k, v in vars(args).items()
+            },
+            fh,
+            indent=2,
+        )
 
     def call_export(float_dtype=torch.float32):
         export_nemo_asr_model(
@@ -871,6 +908,7 @@ def main():
             split_joint_decoder=args.split_joint_decoder,
             extra_cfg={"pretrained_name": args.model_slug},
             float_dtype=float_dtype,
+            dump_checked_io=args.dump_checked_io,
         )
 
     if args.data_type == "mixed":

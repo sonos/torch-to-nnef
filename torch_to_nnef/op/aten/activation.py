@@ -132,6 +132,7 @@ def gelu(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
         )
         return ["gelu_fast_approx"]
     if isinstance(inference_target, TractNNEF):
+        node.inputs = node.inputs[:1]
         unary_output_op_without_attr(
             "tract_gelu",
             g=g,
