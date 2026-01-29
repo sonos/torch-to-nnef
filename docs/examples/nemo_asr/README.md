@@ -53,7 +53,7 @@ t2n_export_nemo --help
 ```
 
 
-Some NeMo preprocessing components are not yet fully supported by tract. In such cases, options such as --skip-preprocessor can be used to exclude those stages from the export.
+Some NeMo preprocessing components are not yet fully supported by tract. In such cases, options such as `--skip-preprocessor` can be used to exclude those stages from the export.
 
 ## Audio preprocessing requirements
 
