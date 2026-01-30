@@ -298,9 +298,9 @@ impl NemoAsrModel {
     }
 
     fn run_encoder(&self, preprocessor_output: TVec<TValue>) -> TractResult<TVec<TValue>> {
-        if self.runtime_config.encoder_per_batch {
+        let encoder_output = if self.runtime_config.encoder_per_batch {
             log::debug!("running encoder in full batch mode");
-            let encoder_output = self.encoder_model.run(preprocessor_output)?;
+            self.encoder_model.run(preprocessor_output)?
         } else {
             log::debug!("running encoder in batch mode");
             let features = preprocessor_output[0].to_array_view::<f32>()?;
@@ -322,7 +322,7 @@ impl NemoAsrModel {
                 encoder_len.push(encoder_output_sample[1].to_array_view::<i64>()?.to_owned());
             }
 
-            let encoder_output = tvec!(
+            tvec!(
                 tract_ndarray::concatenate(
                     Axis(0),
                     &encoder_out.iter().map(|a| a.view()).collect::<Vec<_>>(),
@@ -335,8 +335,8 @@ impl NemoAsrModel {
                 )?
                 .into_tensor()
                 .into_tvalue(),
-            );
-        }
+            )
+        };
         log::debug!("successfully ran encoder");
         Ok(encoder_output)
     }
@@ -357,8 +357,7 @@ impl NemoAsrModel {
 
         // Encoder inference
         log::debug!("start inference encoder");
-        // let encoder_output = self.encoder_model.run(preprocessor_output)?;
-        //     transcripts.push(transcription);
+        let encoder_output = self.run_encoder(preprocessor_output)?;
         log::debug!("successfully ran encoder");
 
         log::debug!("start running decoder and joint");
