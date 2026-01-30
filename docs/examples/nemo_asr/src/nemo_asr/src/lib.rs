@@ -20,11 +20,17 @@ pub struct DecoderConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct DecodingConfig {
+    pub durations: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct NemoAsrConfig {
     pub sample_rate: usize,
     pub labels: Vec<String>,
     pub pretrained_name: Option<String>,
     pub decoder: DecoderConfig,
+    pub decoding: DecodingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,9 +101,10 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    states: TVec<TValue>, // each state is [2,1,640] in parakeet
+    states: Vec<TValue>,
     transcript: Vec<TranscriptItem>,
-    n_tokens_added_in_frame: usize,
+    symbols_added: usize,
+    need_loop: bool,
 }
 
 fn normalize_transcript_text(s: &str) -> String {
@@ -354,6 +361,7 @@ impl NemoAsrModel {
 
         let blank = self.model_config.get_blank_index();
         let vocab = &self.model_config.labels;
+        let durations = &self.model_config.decoding.durations;
 
         // Initialize lanes
         let mut lanes: Vec<Lane> = (0..bsz)
@@ -377,21 +385,27 @@ impl NemoAsrModel {
                     last_token: blank,
                     states,
                     transcript: Vec::new(),
-                    n_tokens_added_in_frame: 0,
+                    symbols_added: 0,
+                    need_loop: true,
                 })
             })
             .collect::<TractResult<_>>()?;
 
+        let vocab_sz = vocab.len() + 1;
+        let dur_sz = durations.len();
+
+        // --- Main decoding loop ---
         loop {
             let active: Vec<usize> = lanes
                 .iter()
                 .enumerate()
                 .filter(|(_, l)| {
                     l.current_frame < l.encoder_len
-                        && self
-                            .runtime_config
-                            .max_n_tokens_per_step
-                            .is_none_or(|m| l.n_tokens_added_in_frame < m)
+                        && (l.need_loop
+                            || self
+                                .runtime_config
+                                .max_n_tokens_per_step
+                                .is_none_or(|m| l.symbols_added < m))
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -400,6 +414,7 @@ impl NemoAsrModel {
                 break;
             }
 
+            // Encoder frames [B, C, 1]
             let enc_frames = tract_ndarray::concatenate(
                 Axis(0),
                 &active
@@ -416,6 +431,7 @@ impl NemoAsrModel {
             .into_tensor()
             .into_tvalue();
 
+            // Predictor labels
             let labels = tract_ndarray::Array2::<i32>::from_shape_vec(
                 (active.len(), 1),
                 active.iter().map(|&i| lanes[i].last_token as i32).collect(),
@@ -432,88 +448,66 @@ impl NemoAsrModel {
             let mut inputs = tvec!(enc_frames, labels, target_lens);
             inputs.extend(packed_states);
 
-            log::debug!("Decoding step with {} active lanes", active.len());
-            log::debug!(
-                "lanes steps: {:?}",
-                lanes.iter().map(|l| l.current_frame).collect::<Vec<_>>()
-            );
-            log::debug!(
-                "lanes n_tokens_added_in_frame: {:?}",
-                lanes
-                    .iter()
-                    .map(|l| l.n_tokens_added_in_frame)
-                    .collect::<Vec<_>>()
-            );
             let outs = self.decoder_joint_model.run(inputs)?;
-            log::debug!("Decoder joint step done");
-
-            let logp = outs[0].to_array_view::<f32>()?;
+            let logits = outs[0].to_array_view::<f32>()?;
 
             for (k, &lane_ix) in active.iter().enumerate() {
-                let row = logp.index_axis(Axis(0), k);
-                let (tok, tok_prob) = row
+                let row = logits.index_axis(Axis(0), k);
+
+                // --- Token ---
+                let (tok, tok_logp) = row
                     .iter()
-                    .take(vocab.len() + 1)
+                    .take(vocab_sz)
                     .enumerate()
                     .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                     .unwrap();
 
+                // --- Duration ---
+                let (dur_idx, _) = row
+                    .iter()
+                    .skip(vocab_sz)
+                    .take(dur_sz)
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .unwrap();
+
+                let skip = durations[dur_idx];
                 let lane = &mut lanes[lane_ix];
-                if tok == blank {
-                    // If the joint emits additional logits after vocab+1, those logits
-                    // encode how many frames to skip/advance. We take the argmax index
-                    // and ensure we advance at least 1 frame (guard against 0).
-                    let n_skip_steps = if row.len() > vocab.len() + 1 {
-                        let (idx, _val) = row
-                            .iter()
-                            .skip(vocab.len() + 1)
-                            .enumerate()
-                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                            .unwrap();
-                        // `idx` is 0-based within the skip logits; interpret conservatively:
-                        // require at least 1 frame advance.
-                        idx
-                    } else {
-                        1usize
-                    };
 
-                    if log::log_enabled!(log::Level::Debug) {
-                        log::debug!(
-                            "lane {} blank -> applied_skip={}, row_len={}, vocab+1={}",
-                            lane_ix,
-                            n_skip_steps,
-                            row.len(),
-                            vocab.len() + 1
-                        );
-                    }
+                lane.need_loop = skip == 0;
+                lane.symbols_added += 1;
 
-                    lane.current_frame += n_skip_steps;
-                } else {
+                // Emit token
+                if tok != blank {
                     lane.transcript.push(TranscriptItem {
                         token: vocab[tok].clone(),
                         emitted_at_encoder_timestep: lane.current_frame,
-                        emitted_at_encoder_timestep_iteration: 0,
-                        logit: *tok_prob,
+                        emitted_at_encoder_timestep_iteration: lane.symbols_added - 1,
+                        logit: *tok_logp,
                     });
 
                     lane.last_token = tok;
-                    // Predictor input label should track the last predicted non-blank label
+
+                    // Update predictor states
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
                     }
                 }
-                lane.n_tokens_added_in_frame += 1;
+
+                if skip > 0 {
+                    lane.current_frame += skip;
+                    lane.symbols_added = 0;
+                }
+                lane.need_loop = true;
             }
-            if let Some(max_n_tok) = self.runtime_config.max_n_tokens_per_step {
+
+            // max_symbols guard
+            if let Some(max_symbols) = self.runtime_config.max_n_tokens_per_step {
                 for lane in lanes.iter_mut() {
-                    if lane.n_tokens_added_in_frame >= max_n_tok {
-                        lane.current_frame += 1;
-                        lane.n_tokens_added_in_frame = 0;
-                        log::debug!(
-                            "Lane reached max tokens per step {}, advancing frame to {}",
-                            max_n_tok,
-                            lane.current_frame
-                        );
+                    if lane.symbols_added >= max_symbols {
+                        lane.current_frame += 1; // force advance by 1 frame
+                        lane.symbols_added = 0;
+                        lane.need_loop = true;
                     }
                 }
             }
