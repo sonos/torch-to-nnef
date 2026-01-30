@@ -37,6 +37,7 @@ pub struct NemoAsrConfig {
 pub struct RuntimeConfig {
     max_n_tokens_per_step: Option<usize>,
     force_cpu: bool,
+    encoder_per_batch: bool,
 }
 
 impl Default for RuntimeConfig {
@@ -44,6 +45,7 @@ impl Default for RuntimeConfig {
         RuntimeConfig {
             max_n_tokens_per_step: Some(50),
             force_cpu: false,
+            encoder_per_batch: false,
         }
     }
 }
@@ -295,12 +297,57 @@ impl NemoAsrModel {
         Ok(transcripts)
     }
 
+    fn run_encoder(&self, preprocessor_output: TVec<TValue>) -> TractResult<TVec<TValue>> {
+        if self.runtime_config.encoder_per_batch {
+            log::debug!("running encoder in full batch mode");
+            let encoder_output = self.encoder_model.run(preprocessor_output)?;
+        } else {
+            log::debug!("running encoder in batch mode");
+            let features = preprocessor_output[0].to_array_view::<f32>()?;
+            let lengths = preprocessor_output[1].to_array_view::<i64>()?;
+            let batch_size = features.shape()[0];
+            let mut encoder_out = vec![];
+            let mut encoder_len = vec![];
+            for b in 0..batch_size {
+                // Slice one sample
+                let feat_b = features.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+
+                let len_b = lengths.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+                // Run encoder for a single sample
+                let encoder_output_sample = self.encoder_model.run(tvec![
+                    feat_b.into_tensor().into_tvalue(),
+                    len_b.into_tensor().into_tvalue(),
+                ])?;
+                encoder_out.push(encoder_output_sample[0].to_array_view::<f32>()?.to_owned());
+                encoder_len.push(encoder_output_sample[1].to_array_view::<i64>()?.to_owned());
+            }
+
+            let encoder_output = tvec!(
+                tract_ndarray::concatenate(
+                    Axis(0),
+                    &encoder_out.iter().map(|a| a.view()).collect::<Vec<_>>(),
+                )?
+                .into_tensor()
+                .into_tvalue(),
+                tract_ndarray::concatenate(
+                    Axis(0),
+                    &encoder_len.iter().map(|a| a.view()).collect::<Vec<_>>(),
+                )?
+                .into_tensor()
+                .into_tvalue(),
+            );
+        }
+        log::debug!("successfully ran encoder");
+        Ok(encoder_output)
+    }
+
     fn infer_from_tensor(
         &self,
         input_tensor: Tensor,
         length_tensor: Tensor,
     ) -> TractResult<Vec<Transcription>> {
         log::debug!("start inference preprocessor");
+
         // Preprocessor inference
         let preprocessor_output = self.preprocessor_model.run(tvec!(
             input_tensor.into_tvalue(),
@@ -310,16 +357,16 @@ impl NemoAsrModel {
 
         // Encoder inference
         log::debug!("start inference encoder");
-        let encoder_output = self.encoder_model.run(preprocessor_output)?;
+        // let encoder_output = self.encoder_model.run(preprocessor_output)?;
+        //     transcripts.push(transcription);
         log::debug!("successfully ran encoder");
 
-        // Decoder inference
-        log::debug!("start decoder and joint");
-        let t = self.decode_transcripts_from_encoder_output(encoder_output);
-        log::debug!("successfully ran decoder and joint");
-        t
-    }
+        log::debug!("start running decoder and joint");
+        let transcripts = self.decode_transcripts_from_encoder_output(encoder_output)?;
 
+        log::debug!("successfully ran decoder and joint");
+        Ok(transcripts)
+    }
     fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<Vec<[usize; 3]>> {
         let mdl: &TypedModel = self.decoder_joint_model.model();
 

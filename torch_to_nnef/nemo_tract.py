@@ -114,7 +114,7 @@ def exportable_nemo_net(
                         fdtype = torch.float32
                 else:
                     fdtype = float_dtype
-                LOGGER.debug("Generating dummy input...", float_dtype)
+                LOGGER.debug("Generating dummy input... %s", float_dtype)
                 input_example = model.input_example()
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
