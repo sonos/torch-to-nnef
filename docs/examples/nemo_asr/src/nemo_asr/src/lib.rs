@@ -490,7 +490,15 @@ impl NemoAsrModel {
                     }
 
                     lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = 0;
+                    lane.n_tokens_added_in_frame = if n_skip_steps > 0 {
+                        // Predictor input label should track the last predicted non-blank label
+                        for (sid, st) in outs[2..].iter().enumerate() {
+                            lane.states[sid] = Self::state_take_lane(st, k)?;
+                        }
+                        0
+                    } else {
+                        lane.n_tokens_added_in_frame
+                    };
 
                     // Reset last_token on blank
                     lane.last_emitted_token = blank;
@@ -506,9 +514,9 @@ impl NemoAsrModel {
                     }
                     lane.n_tokens_added_in_frame += 1;
 
-                    // Predictor input label should track the last predicted non-blank label
                     lane.last_token = tok;
 
+                    // Predictor input label should track the last predicted non-blank label
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
                     }

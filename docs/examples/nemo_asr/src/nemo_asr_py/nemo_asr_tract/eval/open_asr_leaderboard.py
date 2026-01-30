@@ -65,7 +65,7 @@ def run_eval(
             split=split,
             batch_size=batch_size,
             max_eval_samples=None,
-            streaming=True,
+            streaming=False,
         ),
         device_id=device_id,
         warmup=0,
