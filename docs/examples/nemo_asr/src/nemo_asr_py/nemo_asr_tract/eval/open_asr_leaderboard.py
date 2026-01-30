@@ -4,7 +4,7 @@ Programmatic ESB evaluation runner.
 
 - Reproduces Open ASR Leaderboard evals
 - Compares original NeMo vs exported model
-- Calls eval_utils.score_results directly
+- Calls manifest.score_results directly
 """
 
 import argparse
@@ -19,8 +19,8 @@ from nemo_asr_tract.eval.base import (
     load_runner_from_config,
     run_asr_evaluation,
 )
+from nemo_asr_tract.eval.manifest import score_results
 from nemo_asr_tract.nemo_asr import load_config_from_dir
-from nemo_asr_tract.normalizer import eval_utils
 
 # =============================================================================
 # Dataset matrix (faithful to the original shell script)
@@ -65,7 +65,7 @@ def run_eval(
             split=split,
             batch_size=batch_size,
             max_eval_samples=None,
-            streaming=True,
+            streaming=False,
         ),
         device_id=device_id,
         warmup=0,
@@ -197,7 +197,7 @@ def main():
     # -------------------------------------------------------------------------
 
     print("\n=== Scoring results ===", flush=True)
-    eval_utils.score_results(
+    score_results(
         str(results_dir),
         conf.pretrained_name,
     )

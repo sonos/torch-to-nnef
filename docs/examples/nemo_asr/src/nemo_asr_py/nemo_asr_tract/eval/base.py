@@ -32,12 +32,13 @@ from nemo_asr_tract.dataset import (
     sort_by_duration,
 )
 from nemo_asr_tract.eval.conf import EvalConfig, EvalResult
+from nemo_asr_tract.eval.manifest import write_manifest
 from nemo_asr_tract.eval.runner import (
     AsrRunner,
     load_runner_from_config,
     measure_transcription_time,
 )
-from nemo_asr_tract.normalizer import data_utils, eval_utils
+from nemo_asr_tract.normalizer import data_utils
 
 __all__ = ["run_asr_evaluation"]
 
@@ -58,7 +59,7 @@ def write_results(
         Path(cfg.output_dir) / cfg.dataset.name / cfg.dataset.split / model_id
     )
 
-    return eval_utils.write_manifest(
+    return write_manifest(
         audio_filepaths=all_data[AUDIO_FILEPATHS_KEY],
         references=all_data[REFERENCES_KEY],
         transcriptions=predictions,

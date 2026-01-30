@@ -2,58 +2,89 @@
 
 !!! abstract "Goals"
 
-    At the end of this tutorial you will know:
+    By the end of this guide, you will know how to:
 
-    1. :material-toolbox: The basic commands to export your NemoASR model to tract
-    2. :fontawesome-brands-rust: How to create a minimal rust binary that perform wav inference
-    3. :fontawesome-brands-python: How to perform inference with tract from python
-    4. :fontawesome-brands-python: How to evaluate the exported model with WER on standard datasets
+    1. :material-toolbox: Export a NeMo ASR model to NNEF using `t2n_export_nemo`
+    2. :fontawesome-brands-rust: Run WAV inference from a minimal Rust binary
+    3. :fontawesome-brands-python: Run inference from Python using `tract`
+    4. :material-toolbox: Evaluate the exported model using Word Error Rate (WER)
 
 !!! example "Prerequisite"
 
-    - [ ] Python basics
-    - [ ] Rust basics
-    - [ ] 10 min to read this page
+    - [ ] Basic Python knowledge
+    - [ ] Basic Rust knowledge
+    - [ ] Approximately 10 minutes to read this page
+
+## Overview
+
+This page documents the end-to-end workflow for exporting an [NVIDIA NeMo Automatic Speech Recognition](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/intro.html) (ASR) model to **NNEF** using `torch-to-nnef`, running inference with [**tract**](https://github.com/sonos/tract), and evaluating the exported model against standard ASR benchmarks.
 
 
-To export a Nemo ASR model, you can use the following Python code snippet. This code loads a pre-trained ASR model from the Nemo toolkit and exports it to NNEF format.
 
-Install torch_to_nnef if you haven't already with feature `nemo-tract`,
-this will enable the `t2n_export_nemo` command.:
+## Export a NeMo ASR model
+
+The `t2n_export_nemo` command loads a pre-trained ASR model from the NeMo toolkit and exports it to the NNEF format.
+
+If not already installed, install `torch_to_nnef` with the `nemo-tract` extra. This enables the NeMo-specific export command:
 
 ```bash
 t2n_export_nemo \
-    -e ./dump_parakeet_v3_06B \ # export directory name
-    --tract-specific-path $HOME/SONOS/src/tract/target/release/tract \ # path to tract binary (optional)
-    -tt very # tolerance of check between nemo and tract for each sub-model
+    -e ./dump_parakeet_v3_06B \ # export directory
+    --tract-specific-path $HOME/SONOS/src/tract/target/release/tract \ # optional path to tract binary
+    -tt very # numerical tolerance for NeMo vs tract checks
 
-#-s nvidia/parakeet-tdt-0.6b-v3 \ # if you already know the exact model slug
-# else it will display a selection menu
-# --compress-method min_max_q4_0_all  # can be used to compress the model
+# -s nvidia/parakeet-tdt-0.6b-v3 \ # optional explicit model slug
+# --compress-method min_max_q4_0_all # optional model compression
 ```
 
-After running the above command, you will find the exported NNEF model files in the specified export directory (`./dump_parakeet_v3_06B` in this case),
-along side the `model_config.json` file. There is a lot of options available for the export, you can check them with `t2n_export_nemo --help`. It has been
-tested against few of the model catalog, some preprocessor modeling do not
-yet run fully in tract so option like `--skip-preprocessor` can be used to avoid
-exporting it.
+Since in this example no `-s` argument is provided, the command defaults to listing the known 'nemo' compatible models on HuggingFace Hub and Nemo registeries (we mostly tested parakeet and nemotron).
 
-# Example using tract to run a simple Nemo ASR model
+After the command completes, the export directory (e.g. ./dump_parakeet_v3_06B) will contain:
 
-[This example directory](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/nemo_asr) demonstrates how to use the `tract` library to run a simple Nemo ASR (Automatic Speech Recognition) model.
-The model used in this example is a pre-trained ASR model from NVIDIA's Nemo toolkit.
+- The exported NNEF model files
+- A model_config.json file describing the exported pipeline
+- A export_config.json with all export options used
+- A .log file with export details
 
+Additional export options are available via:
 
-
-# About audio preprocessing
-
-All models expects 16kHz mono wav audio input.
+```bash
+t2n_export_nemo --help
+```
 
 
-# Run the exported model in Rust
+Some NeMo preprocessing components are not yet fully supported by tract. In such cases, options such as `--skip-preprocessor` can be used to exclude those stages from the export.
 
-Using the crate in this directory, you can run the exported Nemo ASR model in Rust as follows:
-You need to reference the crate `tract-nemo` in your `Cargo.toml`:
+## Audio preprocessing requirements
+
+All supported NeMo ASR models expect audio input with the following characteristics:
+
+- 16 kHz sample rate
+- Mono channel
+- WAV format
+
+Ensure that all input audio conforms to these requirements before running inference.
+
+---
+
+!!! warning "next sections are limited to RNNT and TDT models."
+
+    Due to limited time and resources, the following sections focus on RNNT and TDT models.
+    Others are not guaranteed to work as is, but contributions are welcome!
+
+---
+
+## Example: Running a NeMo ASR model with tract
+
+
+[in this example directory](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/nemo_asr)
+The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perform inference using the exported NNEF artifacts.
+
+
+
+## Run the exported model in Rust
+
+To run the exported NeMo ASR model from Rust, add the tract-nemo crate to your Cargo.toml:
 
 ```toml
 [dependencies]
@@ -62,57 +93,56 @@ tract-nemo = {
   branch = "main",
   subdir = "docs/examples/nemo_asr/"
 }
-
 ```
 
-Then, you can use the following Rust code to load the exported model and run inference:
-
+Rust inference example
 ```rust
 use tract_nemo::nemo_asr::NemoAsrModel;
 
 fn main() -> tract_nemo::TractResult<()> {
-    // Load the exported Nemo ASR model
+    // Load the exported NeMo ASR model
     let model_path = "./dump_parakeet_v3_06B";
     let mut asr_model = NemoAsrModel::load(model_path)?;
 
-    let input_wavs = vec![/* your input wav paths here */];
+    let input_wavs = vec![
+        // paths to input WAV files
+    ];
 
     // Run inference
-    let transcriptions = asr_model.infer_from_wav_paths(&input_wavs)?;
+    let transcripts = asr_model.infer_from_wav_paths(&input_wavs)?;
 
-    // Print the transcriptions result
+    // Display results
     for (i, t) in transcripts.iter().enumerate() {
-        println!(
-            "Transcription[{}]: '{}'",
-            i,
-            &t.text
-        );
-        // transcripts also contain list of items with:
-        // token
-        // logit
-        // emitted_at_encoder_timestep
-        // emitted_at_encoder_timestep_iteration
+        println!("Transcription[{}]: '{}'", i, t.text);
+
+        // Each transcript also contains detailed items:
+        // - token
+        // - logit
+        // - emitted_at_encoder_timestep
+        // - emitted_at_encoder_timestep_iteration
     }
+
     Ok(())
 }
 ```
-This code snippet demonstrates how to load the exported Nemo ASR model and run inference on a list of input WAV file paths.
 
 
-# Run the exported model in Python
+## Run the exported model in Python
 
-You can also run the exported Nemo ASR model in Python using the `tract` library. Here's an example:
-First ensure to install the `tract-nemo` package:
+The exported NeMo ASR model can also be executed from Python using the tract-nemo Python bindings.
+
+First, install the Python package:
+
 ```bash
-pip install -e ./src/nemo_asr_py/
+pip install git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py
 ```
 
-Then you can use the following Python code to load the exported model and run inference:
+Python inference example
 ```python
 import nemo_asr_tract
 
 def main():
-    # Load the exported Nemo ASR model
+    # Load the exported NeMo ASR model
     model_path = "./dump_parakeet_v3_06B"
     asr_model = nemo_asr_tract.nemo_asr.NemoAsrModel.load(model_path)
 
@@ -122,9 +152,10 @@ def main():
     ]
 
     # Run inference
-    transcriptions = asr_model.infer_from_wav_paths(input_wavs)
-    # Print the transcriptions result
-    for i, t in enumerate(transcriptions):
+    transcripts = asr_model.infer_from_wav_paths(input_wavs)
+
+    # Display results
+    for i, t in enumerate(transcripts):
         print(f"Transcription[{i}]: '{t.text}'")
         print(f"Items[{i}]: {t.items}")
 
@@ -132,12 +163,18 @@ if __name__ == "__main__":
     main()
 ```
 
-This code snippet demonstrates how to load the exported Nemo ASR model and run inference on a list of input WAV file paths in Python.
+## Evaluation
 
+If not already installed you need to setup the same python package, as the one for running tract model, with the `eval` extra for evaluation:
 
-# Evaluation
+```bash
+pip install git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py
 
-You can evaluate the quality of the ASR model ran in tract with the python package as follows (once package installed):
+```
+
+The Python tooling also supports evaluation of the exported model using standard ASR benchmarks and WER metrics.
+
+### Run an ASR Open Leaderboard evaluation
 
 ```bash
 nemo_tract_eval \
@@ -145,15 +182,43 @@ nemo_tract_eval \
     -r ~/SONOS/data/test_asr_export_parakeet \
     --device 0
 ```
-This run an evaluation following the same protocol as the `ASR Open Leaderboard` evaluation from HuggingFace.
-(you can look at the `--help` to display all the options)
 
-This allows better extensibily than the original eval scripts:
-You can define your own evaluation dataset (from huggingface hub) and runner/model.
 
-To add new Runner or Model, you just need to inherit from the base class and implement the required methods.:
+This command runs an evaluation following the same protocol as the [Hugging Face ASR Open Leaderboard](https://huggingface.co/spaces/hf-audio/open_asr_leaderboard).
+
+It produces, for each dataset:
+
+- `.jsonl` manifest files containing predictions and references
+- Per-dataset WER scores
+- Aggregated summary metrics
+
+Use `--help` to inspect all available evaluation options.
+
+### Display sample-level differences between runners
+
+```bash
+nemo_tract_eval_compare_manifest \
+    --results-dir ./../my-results-dir/ \
+    --max-items 5
+```
+
+This command displays side-by-side comparisons (by default, NeMo vs tract) for a subset of samples, sorted by absolute WER difference.
+
+### Recompute scores and display a summary table
+
+```bash
+nemo_tract_eval_score_manifest ./../my-results-dir/
+```
+
+This recomputes WER scores from the generated manifest files and prints a summary table. This is useful when experimenting with alternative scoring logic.
+
+### Custom runner support
+
+For more advanced use cases, the evaluation framework supports custom runners and datasets.
+
+To define a new runner or model, inherit from the base class and implement the required methods:
+
 ```python
-
 from nemo_asr_tract.eval.runner import AsRRunner
 
 class MyCustomRunner(AsRRunner):
@@ -161,7 +226,6 @@ class MyCustomRunner(AsRRunner):
         super().__init__(model, device)
 
     def name(self) -> str:
-        # TODO:
         my_super_model_and_runner_name = "dummy"
         return clean_name(my_super_model_and_runner_name)
 
@@ -174,12 +238,11 @@ class MyCustomRunner(AsRRunner):
         dtype: torch.dtype,
     ) -> "AsrRunner":
         """Load the ASR runner from a model directory."""
-        # TODO:
         return cls(model, batch_size=cfg.batch_size)
 
     def transcribe_from_wav_paths(self, wav_paths: List[str]):
-        # TODO:
         return []
 
 ```
-Then you can reference it directly with the `--model_runner_class` argument in the evaluation script.
+
+The custom runner can then be selected via the `--model_runner_class` argument in the evaluation CLI.

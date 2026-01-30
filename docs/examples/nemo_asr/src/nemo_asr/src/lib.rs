@@ -20,24 +20,32 @@ pub struct DecoderConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct DecodingConfig {
+    pub durations: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct NemoAsrConfig {
     pub sample_rate: usize,
     pub labels: Vec<String>,
     pub pretrained_name: Option<String>,
     pub decoder: DecoderConfig,
+    pub decoding: DecodingConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
     max_n_tokens_per_step: Option<usize>,
     force_cpu: bool,
+    encoder_per_batch: bool,
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         RuntimeConfig {
-            max_n_tokens_per_step: Some(10),
+            max_n_tokens_per_step: Some(50),
             force_cpu: false,
+            encoder_per_batch: false,
         }
     }
 }
@@ -95,10 +103,10 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    last_emitted_token: usize, // for transcript de-dup only
-    states: TVec<TValue>,      // each state is [2,1,640] in parakeet
+    states: Vec<TValue>,
     transcript: Vec<TranscriptItem>,
-    n_tokens_added_in_frame: usize,
+    symbols_added: usize,
+    need_loop: bool,
 }
 
 fn normalize_transcript_text(s: &str) -> String {
@@ -289,12 +297,57 @@ impl NemoAsrModel {
         Ok(transcripts)
     }
 
+    fn run_encoder(&self, preprocessor_output: TVec<TValue>) -> TractResult<TVec<TValue>> {
+        let encoder_output = if self.runtime_config.encoder_per_batch {
+            log::debug!("running encoder in full batch mode");
+            self.encoder_model.run(preprocessor_output)?
+        } else {
+            log::debug!("running encoder in batch mode");
+            let features = preprocessor_output[0].to_array_view::<f32>()?;
+            let lengths = preprocessor_output[1].to_array_view::<i64>()?;
+            let batch_size = features.shape()[0];
+            let mut encoder_out = vec![];
+            let mut encoder_len = vec![];
+            for b in 0..batch_size {
+                // Slice one sample
+                let feat_b = features.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+
+                let len_b = lengths.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+                // Run encoder for a single sample
+                let encoder_output_sample = self.encoder_model.run(tvec![
+                    feat_b.into_tensor().into_tvalue(),
+                    len_b.into_tensor().into_tvalue(),
+                ])?;
+                encoder_out.push(encoder_output_sample[0].to_array_view::<f32>()?.to_owned());
+                encoder_len.push(encoder_output_sample[1].to_array_view::<i64>()?.to_owned());
+            }
+
+            tvec!(
+                tract_ndarray::concatenate(
+                    Axis(0),
+                    &encoder_out.iter().map(|a| a.view()).collect::<Vec<_>>(),
+                )?
+                .into_tensor()
+                .into_tvalue(),
+                tract_ndarray::concatenate(
+                    Axis(0),
+                    &encoder_len.iter().map(|a| a.view()).collect::<Vec<_>>(),
+                )?
+                .into_tensor()
+                .into_tvalue(),
+            )
+        };
+        log::debug!("successfully ran encoder");
+        Ok(encoder_output)
+    }
+
     fn infer_from_tensor(
         &self,
         input_tensor: Tensor,
         length_tensor: Tensor,
     ) -> TractResult<Vec<Transcription>> {
         log::debug!("start inference preprocessor");
+
         // Preprocessor inference
         let preprocessor_output = self.preprocessor_model.run(tvec!(
             input_tensor.into_tvalue(),
@@ -304,16 +357,15 @@ impl NemoAsrModel {
 
         // Encoder inference
         log::debug!("start inference encoder");
-        let encoder_output = self.encoder_model.run(preprocessor_output)?;
+        let encoder_output = self.run_encoder(preprocessor_output)?;
         log::debug!("successfully ran encoder");
 
-        // Decoder inference
-        log::debug!("start decoder and joint");
-        let t = self.decode_transcripts_from_encoder_output(encoder_output);
-        log::debug!("successfully ran decoder and joint");
-        t
-    }
+        log::debug!("start running decoder and joint");
+        let transcripts = self.decode_transcripts_from_encoder_output(encoder_output)?;
 
+        log::debug!("successfully ran decoder and joint");
+        Ok(transcripts)
+    }
     fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<Vec<[usize; 3]>> {
         let mdl: &TypedModel = self.decoder_joint_model.model();
 
@@ -355,6 +407,7 @@ impl NemoAsrModel {
 
         let blank = self.model_config.get_blank_index();
         let vocab = &self.model_config.labels;
+        let durations = &self.model_config.decoding.durations;
 
         // Initialize lanes
         let mut lanes: Vec<Lane> = (0..bsz)
@@ -376,24 +429,29 @@ impl NemoAsrModel {
                     encoder_len: lens[b] as usize,
                     current_frame: 0,
                     last_token: blank,
-                    last_emitted_token: blank,
                     states,
                     transcript: Vec::new(),
-                    n_tokens_added_in_frame: 0,
+                    symbols_added: 0,
+                    need_loop: true,
                 })
             })
             .collect::<TractResult<_>>()?;
 
+        let vocab_sz = vocab.len() + 1;
+        let dur_sz = durations.len();
+
+        // --- Main decoding loop ---
         loop {
             let active: Vec<usize> = lanes
                 .iter()
                 .enumerate()
                 .filter(|(_, l)| {
                     l.current_frame < l.encoder_len
-                        && self
-                            .runtime_config
-                            .max_n_tokens_per_step
-                            .is_none_or(|m| l.n_tokens_added_in_frame < m)
+                        && (l.need_loop
+                            || self
+                                .runtime_config
+                                .max_n_tokens_per_step
+                                .is_none_or(|m| l.symbols_added < m))
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -402,6 +460,7 @@ impl NemoAsrModel {
                 break;
             }
 
+            // Encoder frames [B, C, 1]
             let enc_frames = tract_ndarray::concatenate(
                 Axis(0),
                 &active
@@ -418,6 +477,7 @@ impl NemoAsrModel {
             .into_tensor()
             .into_tvalue();
 
+            // Predictor labels
             let labels = tract_ndarray::Array2::<i32>::from_shape_vec(
                 (active.len(), 1),
                 active.iter().map(|&i| lanes[i].last_token as i32).collect(),
@@ -434,103 +494,66 @@ impl NemoAsrModel {
             let mut inputs = tvec!(enc_frames, labels, target_lens);
             inputs.extend(packed_states);
 
-            log::debug!("Decoding step with {} active lanes", active.len());
-            log::debug!(
-                "lanes steps: {:?}",
-                lanes.iter().map(|l| l.current_frame).collect::<Vec<_>>()
-            );
-            log::debug!(
-                "lanes n_tokens_added_in_frame: {:?}",
-                lanes
-                    .iter()
-                    .map(|l| l.n_tokens_added_in_frame)
-                    .collect::<Vec<_>>()
-            );
             let outs = self.decoder_joint_model.run(inputs)?;
-            log::debug!("Decoder joint step done");
-
-            let logp = outs[0].to_array_view::<f32>()?;
+            let logits = outs[0].to_array_view::<f32>()?;
 
             for (k, &lane_ix) in active.iter().enumerate() {
-                let row = logp.index_axis(Axis(0), k);
-                let (tok, tok_prob) = row
+                let row = logits.index_axis(Axis(0), k);
+
+                // --- Token ---
+                let (tok, tok_logp) = row
                     .iter()
-                    .take(vocab.len() + 1)
+                    .take(vocab_sz)
                     .enumerate()
                     .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                     .unwrap();
 
+                // --- Duration ---
+                let (dur_idx, _) = row
+                    .iter()
+                    .skip(vocab_sz)
+                    .take(dur_sz)
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .unwrap();
+
+                let skip = durations[dur_idx];
                 let lane = &mut lanes[lane_ix];
-                if tok == blank {
-                    // If the joint emits additional logits after vocab+1, those logits
-                    // encode how many frames to skip/advance. We take the argmax index
-                    // and ensure we advance at least 1 frame (guard against 0).
-                    let computed_skip = if row.len() > vocab.len() + 1 {
-                        let (idx, _val) = row
-                            .iter()
-                            .skip(vocab.len() + 1)
-                            .enumerate()
-                            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                            .unwrap();
-                        // `idx` is 0-based within the skip logits; interpret conservatively:
-                        // require at least 1 frame advance.
-                        std::cmp::max(1usize, idx)
-                    } else {
-                        1usize
-                    };
 
-                    // defensive: clamp to remaining encoder length to avoid overshoot
-                    let n_skip_steps = std::cmp::min(
-                        computed_skip,
-                        lane.encoder_len.saturating_sub(lane.current_frame),
-                    );
+                lane.need_loop = skip == 0;
+                lane.symbols_added += 1;
 
-                    if log::log_enabled!(log::Level::Debug) {
-                        log::debug!(
-                            "lane {} blank -> computed_skip={}, applied_skip={}, row_len={}, vocab+1={}",
-                            lane_ix,
-                            computed_skip,
-                            n_skip_steps,
-                            row.len(),
-                            vocab.len() + 1
-                        );
-                    }
+                // Emit token
+                if tok != blank {
+                    lane.transcript.push(TranscriptItem {
+                        token: vocab[tok].clone(),
+                        emitted_at_encoder_timestep: lane.current_frame,
+                        emitted_at_encoder_timestep_iteration: lane.symbols_added - 1,
+                        logit: *tok_logp,
+                    });
 
-                    lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = 0;
-
-                    // Reset last_token on blank
-                    lane.last_emitted_token = blank;
-                } else {
-                    if tok != lane.last_emitted_token {
-                        lane.transcript.push(TranscriptItem {
-                            token: vocab[tok].clone(),
-                            emitted_at_encoder_timestep: lane.current_frame,
-                            emitted_at_encoder_timestep_iteration: 0,
-                            logit: *tok_prob,
-                        });
-                        lane.last_emitted_token = tok;
-                    }
-                    lane.n_tokens_added_in_frame += 1;
-
-                    // Predictor input label should track the last predicted non-blank label
                     lane.last_token = tok;
 
+                    // Update predictor states
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
                     }
                 }
+
+                if skip > 0 {
+                    lane.current_frame += skip;
+                    lane.symbols_added = 0;
+                }
+                lane.need_loop = true;
             }
-            if let Some(max_n_tok) = self.runtime_config.max_n_tokens_per_step {
+
+            // max_symbols guard
+            if let Some(max_symbols) = self.runtime_config.max_n_tokens_per_step {
                 for lane in lanes.iter_mut() {
-                    if lane.n_tokens_added_in_frame >= max_n_tok {
-                        lane.current_frame += 1;
-                        lane.n_tokens_added_in_frame = 0;
-                        log::debug!(
-                            "Lane reached max tokens per step {}, advancing frame to {}",
-                            max_n_tok,
-                            lane.current_frame
-                        );
+                    if lane.symbols_added >= max_symbols {
+                        lane.current_frame += 1; // force advance by 1 frame
+                        lane.symbols_added = 0;
+                        lane.need_loop = true;
                     }
                 }
             }
@@ -616,17 +639,21 @@ mod test {
         let transcripts = asr.infer_from_wav_paths(&[
             assets_dir().join("2086-149220-0033.wav"),
             assets_dir().join("data_smoke_test_LDC93S1.wav"),
+            workspace_root()
+                .join("src/nemo_asr_py/audio_cache/librispeech/test.clean/1188-133604-0009.wav"),
+            //PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/4970-29093-0005.wav"),
+            // PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/7127-75946-0019.wav")
         ])?;
-        let max_chars = 200;
+        let max_chars = 500;
         for (i, t) in transcripts.iter().enumerate() {
             println!(
                 "Transcription[{}]: '{}'",
                 i,
                 &truncate_with_ellipsis(&t.text, max_chars)
             );
-            if i == 0 {
-                println!("Full items: {:#?}", t.items);
-            }
+            // if i == 0 {
+            //     println!("Full items: {:#?}", t.items);
+            // }
         }
         // This code works if only 1 sample in batch
         // but output garbage text when multiple samples in batch
