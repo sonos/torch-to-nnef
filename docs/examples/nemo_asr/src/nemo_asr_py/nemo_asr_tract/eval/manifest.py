@@ -4,16 +4,15 @@ based on:
 https://github.com/huggingface/open_asr_leaderboard/blob/main/normalizer/eval_utils.py
 """
 
+import argparse
 import glob
 import json
 import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Union
-import argparse
 
 import evaluate
-
 from nemo_asr_tract.utils import clean_name
 
 
@@ -381,13 +380,15 @@ def parser_args():
     parser.add_argument(
         "directory",
         type=str,
-        help="Path to the result directory, containing one or more jsonl files.",
+        help="Path to the result directory, containing one or more "
+        "jsonl files.",
     )
     parser.add_argument(
         "--model_id",
         type=str,
         default=None,
-        help="Optional, model name to filter out result files based on model name.",
+        help="Optional, model name to filter out result files "
+        "based on model name.",
     )
 
     return parser.parse_args()

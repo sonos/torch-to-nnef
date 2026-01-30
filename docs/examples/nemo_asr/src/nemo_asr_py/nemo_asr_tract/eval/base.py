@@ -31,14 +31,13 @@ from nemo_asr_tract.dataset import (
     prepare_dataset,
     sort_by_duration,
 )
-from nemo_asr_tract.eval.manifest import write_manifest
 from nemo_asr_tract.eval.conf import EvalConfig, EvalResult
+from nemo_asr_tract.eval.manifest import write_manifest
 from nemo_asr_tract.eval.runner import (
     AsrRunner,
     load_runner_from_config,
     measure_transcription_time,
 )
-
 from nemo_asr_tract.normalizer import data_utils
 
 __all__ = ["run_asr_evaluation"]
