@@ -1,8 +1,10 @@
-"""Utility functions for reading/writing manifest files and scoring ASR results.
+"""Reading/writing manifest files and scoring ASR from them.
 
+based on:
 https://github.com/huggingface/open_asr_leaderboard/blob/main/normalizer/eval_utils.py
 """
 
+import argparse
 import glob
 import json
 import os
@@ -11,7 +13,6 @@ from pathlib import Path
 from typing import Union
 
 import evaluate
-
 from nemo_asr_tract.utils import clean_name
 
 
@@ -131,6 +132,135 @@ def write_manifest(
     return manifest_path
 
 
+def _try_import_rich():
+    try:
+        from rich.console import Console
+        from rich.table import Table
+
+        return Console(), Table
+    except Exception:
+        return None, None
+
+
+def trim_model_id(model_id: str) -> str:
+    """Trim model id to fit in table display."""
+    if "/" in model_id:
+        model_id = model_id.split("/")[-1]
+    return model_id
+
+
+def trim_dataset_id(dataset_id: str) -> str:
+    """Trim dataset id to fit in table display."""
+    rm_dataset_id = "hf-audio-esb-datasets-test-only-sorted_"
+    return dataset_id.replace(rm_dataset_id, "esb/")
+
+
+def display_results_plain(results: dict):
+    print("*" * 80)
+    print("Results per dataset:")
+    print("*" * 80)
+
+    for k, v in results.items():
+        metrics = f"{trim_dataset_id(k)}: WER = {v['wer']:0.2f} %"
+        if v["rtfx"] is not None:
+            metrics += f", RTFx = {v['rtfx']:0.2f}"
+        print(metrics)
+
+
+def display_composite_plain(
+    composite_wer,
+    composite_audio_length,
+    composite_inference_time,
+    count_entries,
+):
+    print()
+    print("*" * 80)
+    print("Composite Results:")
+    print("*" * 80)
+
+    for k, v in composite_wer.items():
+        wer = v / count_entries[k]
+        print(f"{trim_model_id(k)}: WER = {wer:0.2f} %")
+
+    for k in composite_audio_length:
+        if composite_audio_length[k] is not None:
+            rtfx = composite_audio_length[k] / composite_inference_time[k]
+            print(f"{trim_model_id(k)}: RTFx = {rtfx:0.2f}")
+
+    print("*" * 80)
+
+
+def display_results_rich(results: dict, console, Table):
+    table = Table(title="Results per Dataset", show_lines=True)
+    table.add_column("Model", style="bold")
+    table.add_column("Dataset")
+    table.add_column("WER (%)", justify="right")
+    table.add_column("RTFx", justify="right")
+
+    for k, v in results.items():
+        model, dataset = [x.strip() for x in k.split("|", 1)]
+        table.add_row(
+            trim_model_id(model),
+            trim_dataset_id(dataset),
+            f"{v['wer']:.2f}",
+            f"{v['rtfx']:.2f}" if v["rtfx"] is not None else "—",
+        )
+
+    console.print(table)
+
+
+def display_composite_rich(
+    composite_wer,
+    composite_audio_length,
+    composite_inference_time,
+    count_entries,
+    console,
+    Table,
+):
+    table = Table(title="Composite Results", show_lines=True)
+    table.add_column("Model", style="bold")
+    table.add_column("WER (%)", justify="right")
+    table.add_column("RTFx", justify="right")
+
+    for k, v in composite_wer.items():
+        wer = v / count_entries[k]
+        if composite_audio_length[k] is not None:
+            rtfx = composite_audio_length[k] / composite_inference_time[k]
+            rtfx_str = f"{rtfx:.2f}"
+        else:
+            rtfx_str = "—"
+
+        table.add_row(trim_model_id(k), f"{wer:.2f}", rtfx_str)
+
+    console.print(table)
+
+
+def compute_composite(results: dict):
+    composite_wer = defaultdict(float)
+    composite_audio_length = defaultdict(float)
+    composite_inference_time = defaultdict(float)
+    count_entries = defaultdict(int)
+
+    for k, v in results.items():
+        key = k.split("|")[0].strip()
+        composite_wer[key] += v["wer"]
+
+        if v["rtfx"] is not None:
+            composite_audio_length[key] += v["audio_length"]
+            composite_inference_time[key] += v["inference_time"]
+        else:
+            composite_audio_length[key] = composite_inference_time[key] = None
+
+        count_entries[key] += 1
+
+    return (
+        composite_wer,
+        composite_audio_length,
+        composite_inference_time,
+        count_entries,
+    )
+
+
 def score_results(directory: str, model_id: str = None):
     """Scores all result files in a directory and returns a composite score.
 
@@ -150,22 +280,18 @@ def score_results(directory: str, model_id: str = None):
     if directory.endswith(os.pathsep):
         directory = directory[:-1]
 
-    # Find all result files in the directory
-    result_files = list(glob.glob(f"{directory}/**/*.jsonl", recursive=True))
-    result_files = list(sorted(result_files))
+    result_files = list(
+        sorted(glob.glob(f"{directory}/**/*.jsonl", recursive=True))
+    )
 
-    # Filter files belonging to a specific model id
-    if model_id is not None and model_id != "":
+    if model_id:
         print("Filtering models by id:", model_id)
         model_id = clean_name(model_id)
         result_files = [fp for fp in result_files if model_id in fp]
 
-    # Check if any result files were found
-    if len(result_files) == 0:
+    if not result_files:
         raise ValueError(f"No result files found in {directory}")
 
-    # Utility function to parse the file path and extract model id
-    # , dataset path, dataset name and split
     def parse_filepath(fp: str):
         model_index = fp.find("MODEL_")
         fp = fp[model_index:]
@@ -173,12 +299,9 @@ def score_results(directory: str, model_id: str = None):
         model_id = fp[:ds_index].replace("MODEL_", "").rstrip("_")
         author_index = model_id.find("-")
         model_id = model_id[:author_index] + "/" + model_id[author_index + 1 :]
-
-        ds_fp = fp[ds_index:]
-        dataset_id = ds_fp.replace("DATASET_", "").rstrip(".jsonl")
+        dataset_id = fp[ds_index:].replace("DATASET_", "").rstrip(".jsonl")
         return model_id, dataset_id
 
-    # Compute WER results per dataset, and RTFx over all datasets
     results = {}
     wer_metric = evaluate.load("wer")
 
@@ -186,67 +309,95 @@ def score_results(directory: str, model_id: str = None):
         manifest = read_manifest(result_file)
         model_id_of_file, dataset_id = parse_filepath(result_file)
 
-        references = [datum["text"] for datum in manifest]
-        predictions = [datum["pred_text"] for datum in manifest]
+        references = [d["text"] for d in manifest]
+        predictions = [d["pred_text"] for d in manifest]
 
-        time = [datum["time"] for datum in manifest]
-        duration = [datum["duration"] for datum in manifest]
+        time = [d["time"] for d in manifest]
+        duration = [d["duration"] for d in manifest]
         compute_rtfx = all(time) and all(duration)
 
-        wer = wer_metric.compute(references=references, predictions=predictions)
-        wer = round(100 * wer, 2)
+        wer = round(
+            100
+            * wer_metric.compute(
+                references=references,
+                predictions=predictions,
+            ),
+            2,
+        )
 
         if compute_rtfx:
             audio_length = sum(duration)
             inference_time = sum(time)
-            rtfx = round(sum(duration) / sum(time), 4)
+            rtfx = round(audio_length / inference_time, 4)
         else:
             audio_length = inference_time = rtfx = None
 
-        result_key = f"{model_id_of_file} | {dataset_id}"
-        results[result_key] = {
+        results[f"{model_id_of_file} | {dataset_id}"] = {
             "wer": wer,
             "audio_length": audio_length,
             "inference_time": inference_time,
             "rtfx": rtfx,
         }
 
-    print("*" * 80)
-    print("Results per dataset:")
-    print("*" * 80)
+    console, Table = _try_import_rich()
 
-    for k, v in results.items():
-        metrics = f"{k}: WER = {v['wer']:0.2f} %"
-        if v["rtfx"] is not None:
-            metrics += f", RTFx = {v['rtfx']:0.2f}"
-        print(metrics)
+    if console:
+        display_results_rich(results, console, Table)
+    else:
+        display_results_plain(results)
 
-    # composite WER should be computed over all datasets and with the same key
-    composite_wer = defaultdict(float)
-    composite_audio_length = defaultdict(float)
-    composite_inference_time = defaultdict(float)
-    count_entries = defaultdict(int)
-    for k, v in results.items():
-        key = k.split("|")[0].strip()
-        composite_wer[key] += v["wer"]
-        if v["rtfx"] is not None:
-            composite_audio_length[key] += v["audio_length"]
-            composite_inference_time[key] += v["inference_time"]
-        else:
-            composite_audio_length[key] = composite_inference_time[key] = None
-        count_entries[key] += 1
+    (
+        composite_wer,
+        composite_audio_length,
+        composite_inference_time,
+        count_entries,
+    ) = compute_composite(results)
 
-    # normalize scores & print
-    print()
-    print("*" * 80)
-    print("Composite Results:")
-    print("*" * 80)
-    for k, v in composite_wer.items():
-        wer = v / count_entries[k]
-        print(f"{k}: WER = {wer:0.2f} %")
-    for k in composite_audio_length:
-        if composite_audio_length[k] is not None:
-            rtfx = composite_audio_length[k] / composite_inference_time[k]
-            print(f"{k}: RTFx = {rtfx:0.2f}")
-    print("*" * 80)
+    if console:
+        display_composite_rich(
+            composite_wer,
+            composite_audio_length,
+            composite_inference_time,
+            count_entries,
+            console,
+            Table,
+        )
+    else:
+        display_composite_plain(
+            composite_wer,
+            composite_audio_length,
+            composite_inference_time,
+            count_entries,
+        )
+
     return composite_wer, results
+
+
+def parser_args():
+    parser = argparse.ArgumentParser(
+        description="Score ASR results stored in JSONL manifest files."
+    )
+    parser.add_argument(
+        "directory",
+        type=str,
+        help="Path to the result directory, containing one or more "
+        "jsonl files.",
+    )
+    parser.add_argument(
+        "--model_id",
+        type=str,
+        default=None,
+        help="Optional, model name to filter out result files "
+        "based on model name.",
+    )
+
+    return parser.parse_args()
+
+
+def main():
+    args = parser_args()
+    score_results(args.directory, args.model_id)
+
+
+if __name__ == "__main__":
+    main()
