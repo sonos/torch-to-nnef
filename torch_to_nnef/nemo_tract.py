@@ -316,9 +316,23 @@ def iter_export_params_for_generic_nemo_asr_model(
         ExportParameters for each subnet of the ASR model, with the preprocessor
     """
     asr_model.eval()
-    inps = asr_model.preprocessor.input_example()
 
     if not skip_preprocessor:
+        inps = asr_model.preprocessor.input_example()
+        if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
+            asr_model.preprocessor.featurizer, "dither"
+        ):
+            # disable dither for export
+            if asr_model.preprocessor.featurizer.dither != 0.0:
+                LOGGER.info("disabling dither for preprocessor export")
+            asr_model.preprocessor.featurizer.dither = 0.0
+        if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
+            asr_model.preprocessor.featurizer, "pad_to"
+        ):
+            if asr_model.preprocessor.featurizer.pad_to != 0.0:
+                LOGGER.info("disabling pad_to for preprocessor export")
+            asr_model.preprocessor.featurizer.pad_to = 0
+
         with exportable_nemo_net(
             "preprocessor", asr_model.preprocessor, inps
         ) as (

@@ -95,8 +95,7 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    last_emitted_token: usize, // for transcript de-dup only
-    states: TVec<TValue>,      // each state is [2,1,640] in parakeet
+    states: TVec<TValue>, // each state is [2,1,640] in parakeet
     transcript: Vec<TranscriptItem>,
     n_tokens_added_in_frame: usize,
 }
@@ -376,7 +375,6 @@ impl NemoAsrModel {
                     encoder_len: lens[b] as usize,
                     current_frame: 0,
                     last_token: blank,
-                    last_emitted_token: blank,
                     states,
                     transcript: Vec::new(),
                     n_tokens_added_in_frame: 0,
@@ -490,37 +488,21 @@ impl NemoAsrModel {
                     }
 
                     lane.current_frame += n_skip_steps;
-                    lane.n_tokens_added_in_frame = if n_skip_steps > 0 {
-                        // Predictor input label should track the last predicted non-blank label
-                        for (sid, st) in outs[2..].iter().enumerate() {
-                            lane.states[sid] = Self::state_take_lane(st, k)?;
-                        }
-                        0
-                    } else {
-                        lane.n_tokens_added_in_frame
-                    };
-
-                    // Reset last_token on blank
-                    lane.last_emitted_token = blank;
                 } else {
-                    if tok != lane.last_emitted_token {
-                        lane.transcript.push(TranscriptItem {
-                            token: vocab[tok].clone(),
-                            emitted_at_encoder_timestep: lane.current_frame,
-                            emitted_at_encoder_timestep_iteration: 0,
-                            logit: *tok_prob,
-                        });
-                        lane.last_emitted_token = tok;
-                    }
-                    lane.n_tokens_added_in_frame += 1;
+                    lane.transcript.push(TranscriptItem {
+                        token: vocab[tok].clone(),
+                        emitted_at_encoder_timestep: lane.current_frame,
+                        emitted_at_encoder_timestep_iteration: 0,
+                        logit: *tok_prob,
+                    });
 
                     lane.last_token = tok;
-
                     // Predictor input label should track the last predicted non-blank label
                     for (sid, st) in outs[2..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
                     }
                 }
+                lane.n_tokens_added_in_frame += 1;
             }
             if let Some(max_n_tok) = self.runtime_config.max_n_tokens_per_step {
                 for lane in lanes.iter_mut() {
@@ -617,17 +599,21 @@ mod test {
         let transcripts = asr.infer_from_wav_paths(&[
             assets_dir().join("2086-149220-0033.wav"),
             assets_dir().join("data_smoke_test_LDC93S1.wav"),
+            workspace_root()
+                .join("src/nemo_asr_py/audio_cache/librispeech/test.clean/1188-133604-0009.wav"),
+            //PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/4970-29093-0005.wav"),
+            // PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/7127-75946-0019.wav")
         ])?;
-        let max_chars = 200;
+        let max_chars = 500;
         for (i, t) in transcripts.iter().enumerate() {
             println!(
                 "Transcription[{}]: '{}'",
                 i,
                 &truncate_with_ellipsis(&t.text, max_chars)
             );
-            if i == 0 {
-                println!("Full items: {:#?}", t.items);
-            }
+            // if i == 0 {
+            //     println!("Full items: {:#?}", t.items);
+            // }
         }
         // This code works if only 1 sample in batch
         // but output garbage text when multiple samples in batch
