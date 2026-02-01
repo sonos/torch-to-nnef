@@ -627,7 +627,11 @@ class TorchOp:
         for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
                 try:
-                    data_node.set_data(result)
+                    if data_node.data is None or not (
+                        data_node.data.shape == result.shape
+                        and data_node.data.dtype == result.dtype
+                    ):
+                        data_node.set_data(result)
                 except T2NErrorIRDataConsistency:
                     logging.debug(
                         "Conflicting TensorVariable specification "
