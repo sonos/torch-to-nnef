@@ -278,6 +278,105 @@ class InputsAlignBetweenAtenAndTorch:
         return args, kwargs
 
 
+def _infer_shape_embedding_output(a, b) -> torch.Size:
+    """Infer output tensor shape of embedding without executing it."""
+    ax = list(a.shape)
+    bx = list(b.shape)
+    return torch.Size(bx + ax[1:])
+
+
+def _infer_trace_result_matmul(a, b) -> torch.Size:
+    """Infer output tensor shape of matmul without executing it."""
+    ax = list(a.shape)
+    bx = list(b.shape)
+    # Basic rank check (matmul requires at least 2D tensors here)
+    assert len(ax) >= 2 and len(bx) >= 2, "Expected tensors with rank >= 2"
+    # Inner dimension compatibility: (..., M, K) @ (..., K, N)
+    assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
+    # Explicit batch broadcasting resolution
+    batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
+    # Output shape: (..., M, N)
+    cx = list(batch_shape) + [ax[-2], bx[-1]]
+    # Simulated output tensor
+    return torch.Size(cx)
+
+
+def _infer_shape_linear_output(x, w) -> torch.Size:
+    """Infer output tensor shape of linear without executing it."""
+    ax = list(x.shape)
+    wx = list(w.shape)
+    # input: (*batch, in_features)
+    # weight: (out_features, in_features)
+    assert len(ax) >= 1, "linear expects input rank >= 1"
+    assert len(wx) == 2, "linear weight must be 2D"
+    assert ax[-1] == wx[-1], "in_features mismatch"
+    # output: (*batch, out_features)
+    return torch.Size(ax[:-1] + [wx[0]])
+
+
+def _infer_shape_convolution_output(*args) -> torch.Size:
+    """Infer output tensor shape of convolution without executing it."""
+    (
+        input_node,
+        weight_node,
+        _,
+        stride_node,
+        padding_node,
+        dilation_node,
+    ) = args
+
+    x = input_node
+    w = weight_node
+
+    # Input shape: (N, Cin, *spatial)
+    # Weight shape: (Cout, Cin/groups, *kernel)
+    x_shape = list(x.shape)
+    w_shape = list(w.shape)
+
+    assert len(x_shape) >= 3, "convolution expects input rank >= 3"
+    assert len(w_shape) >= 3, "convolution weight rank mismatch"
+
+    n = x_shape[0]
+    cout = w_shape[0]
+
+    spatial_rank = len(x_shape) - 2
+    kernel_shape = w_shape[2:]
+
+    def _normalize(v, dim):
+        if isinstance(v, int):
+            return [v] * dim
+        return list(v)
+
+    stride = _normalize(stride_node, spatial_rank)
+    padding = _normalize(padding_node, spatial_rank)
+    dilation = _normalize(dilation_node, spatial_rank)
+
+    out_spatial = []
+    for i in range(spatial_rank):
+        in_size = x_shape[2 + i]
+        k = kernel_shape[i]
+        s = stride[i]
+        p = padding[i]
+        d = dilation[i]
+
+        # PyTorch formula:
+        # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
+        out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
+
+        assert out_dim > 0, "invalid convolution output size"
+        out_spatial.append(out_dim)
+
+    return torch.Size([n, cout, *out_spatial])
+
+
+def _build_empty_tensor_from_infer_trace(
+    fn_infer_trace: T.Callable, inputs, qte_inputs_to_use: int
+) -> torch.Tensor:
+    """Utility to build zero tensor of given dtype and shape."""
+    infered_shape = fn_infer_trace(*inputs[:qte_inputs_to_use])
+    return torch.empty(infered_shape, dtype=inputs[0].dtype)
+
+
 @dataclass
 class TorchOp:
     kind: str
@@ -446,49 +545,42 @@ class TorchOp:
         if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
             results = self.args[0]
         elif self.kind == ATEN_EMBEDDING and approx:
-            ax = list(self.args[0].shape)
-            bx = list(self.args[1].shape)
-            shape = bx + ax[1:]
-            results = torch.empty(shape, dtype=self.args[0].dtype)
+            results = _build_empty_tensor_from_infer_trace(
+                _infer_shape_embedding_output, self.args, 2
+            )
         elif (
             self.kind == ATEN_MATMUL
             and {ar.dtype for ar in self.args}
             and approx
         ):
-            a = self.args[0]
-            b = self.args[1]
-            ax = list(a.shape)
-            bx = list(b.shape)
-            # Basic rank check (matmul requires at least 2D tensors here)
-            assert len(ax) >= 2 and len(bx) >= 2, (
-                "Expected tensors with rank >= 2"
+            results = _build_empty_tensor_from_infer_trace(
+                _infer_trace_result_matmul, self.args, 2
             )
-            # Inner dimension compatibility: (..., M, K) @ (..., K, N)
-            assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-            # Explicit batch broadcasting resolution
-            batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
-            # Output shape: (..., M, N)
-            cx = list(batch_shape) + [ax[-2], bx[-1]]
-            # Simulated output tensor
-            results = torch.empty(cx, dtype=a.dtype)
         elif (
             self.kind == ATEN_LINEAR
             and {ar.dtype for ar in self.args if ar is not None}
             and approx
         ):
-            x = self.args[0]  # input
-            w = self.args[1]  # weight
-            ax = list(x.shape)
-            wx = list(w.shape)
-            # input: (*batch, in_features)
-            # weight: (out_features, in_features)
-            assert len(ax) >= 1, "linear expects input rank >= 1"
-            assert len(wx) == 2, "linear weight must be 2D"
-            assert ax[-1] == wx[-1], "in_features mismatch"
-            # output: (*batch, out_features)
-            cx = ax[:-1] + [wx[0]]
-            results = torch.empty(cx, dtype=x.dtype)
-
+            results = _build_empty_tensor_from_infer_trace(
+                _infer_shape_linear_output, self.args, 2
+            )
+        elif (
+            self.kind
+            in [
+                "aten::_convolution_mode",
+                "aten::_convolution",
+                "aten::convolution",
+                "aten::conv1d",
+                "aten::conv2d",
+                "aten::conv3d",
+            ]
+            and approx
+        ):
+            results = _build_empty_tensor_from_infer_trace(
+                _infer_shape_convolution_output, self.args, 6
+            )
+            # ref = self.call_op()
+            # assert results.shape == ref.shape and results.dtype == ref.dtype
         else:
             results = self.call_op()
         return results
