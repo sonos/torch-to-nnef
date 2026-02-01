@@ -11,6 +11,21 @@
     - [ ] PyTorch and Python basics
     - [ ] 10 min to read this page
 
+## Who is this for?
+
+This guide is for contributors who want to add support for a missing PyTorch aten operator.
+
+You do not need:
+
+- prior knowledge of NNEF
+- compiler experience
+- deep PyTorch internals knowledge
+
+Most operator implementations are 50–150 lines of Python and can be completed in 1–2 evenings.
+
+## Introduction
+
+
 PyTorch internal representation (IR) contains more than 10^3^ operators (and less than 10^4^).
 [Aten](https://docs.pytorch.org/executorch/stable/ir-ops-set-definition.html) is the name of the underling *C++* namespace in which most of the PyTorch computational operators are specified.
 [Looking at the **core list**](https://docs.pytorch.org/docs/main/torch.compiler_ir.html) in the PyTorch IR, it may seems at first there is only: <200 main ops to support (not accounting quantized & prims namespaces). Sadly these external documentations are partial, in order to keep an exhaustive track of what is supported we maintain a [generated compatibility list](./supported_operators.md).
