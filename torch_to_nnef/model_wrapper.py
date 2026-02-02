@@ -4,9 +4,12 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 """
 
+from dataclasses import dataclass
 import logging as log
+from pathlib import Path
 import typing as T
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -187,7 +190,63 @@ def has_non_tensor_elements(flat_elms):
     return any(not isinstance(e, torch.Tensor) for _, _, e in flat_elms)
 
 
-def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
+@dataclass()
+class UnfoldModelInfo:
+    """Hold model input/output structure information."""
+
+    model: nn.Module
+    original_inputs: T.Tuple[torch.Tensor]
+    original_outputs: T.List[torch.Tensor]
+    # what will be exported as io for the final NNEF graph,
+    # since container are not supported {
+    flat_inputs: T.Tuple[torch.Tensor]
+    flat_outputs: T.Tuple[torch.Tensor]
+    input_names: T.List[str]
+    output_names: T.List[str]
+
+    # }
+
+    def validate(self):
+        assert len(self.input_names) == len(self.flat_inputs), (
+            f"input names length mismatch:{len(self.input_names)} != {len(self.flat_inputs)}"
+        )
+        assert len(self.output_names) == len(self.flat_outputs), (
+            f"output names length mismatch:{len(self.output_names)} != {len(self.flat_outputs)}. "
+            f"with output names: {self.output_names}"
+        )
+
+    def write_io_npz(self, filepath: Path, tract_compat: bool = False):
+        def cast(val):
+            if val.dtype in [torch.float16, torch.bfloat16]:
+                val = val.to(torch.float32)  # tract --allow-float-casts
+            val = val.detach().numpy()
+            return val
+
+        kwargs = {
+            key: cast(input_arg) if tract_compat else input_arg
+            for key, input_arg in zip(self.input_names, self.flat_inputs)
+        }
+        kwargs.update(
+            {
+                key: cast(output_arg)
+                for key, output_arg in zip(self.output_names, self.flat_outputs)
+            }
+        )
+        np.savez(filepath, **kwargs)
+
+
+def unfold_model_io(model, args, outs, input_names, output_names):
+    if isinstance(model, WrapStructIO):
+        raise T2NErrorNotImplemented(
+            "Model is already wrapped with 'WrapStructIO', "
+            "double wrapping is not supported."
+        )
+    if not isinstance(model, nn.Module):
+        raise T2NErrorNotImplemented(
+            "Only 'nn.Module' model type is supported for unfolding, "
+            f"got '{type(model)}'."
+        )
+
     flat_args = []
     flat_outs = []
     new_input_names, args, flat_args = _build_new_names_and_elements(
@@ -217,4 +276,12 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
         or has_non_tensor_elements(flat_outs)
     ):
         model = WrapStructIO(model, flat_args, flat_outs)
-    return model, tuple(args), input_names, output_names
+    return UnfoldModelInfo(
+        model=model,
+        original_inputs=tuple(args),
+        original_outputs=outs,
+        flat_inputs=tuple(_[2] for _ in flat_args),
+        flat_outputs=tuple(_[2] for _ in flat_outs),
+        input_names=input_names,
+        output_names=output_names,
+    )

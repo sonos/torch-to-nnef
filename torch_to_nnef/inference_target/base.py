@@ -5,6 +5,7 @@ from pathlib import Path
 from nnef_tools.model import Graph as NGraph
 from torch import nn
 
+from torch_to_nnef.model_wrapper import UnfoldModelInfo
 from torch_to_nnef.utils import SemanticVersion
 
 LOGGER = logging.getLogger(__name__)
@@ -85,9 +86,8 @@ class InferenceTarget:
 
     def post_export(
         self,
-        model: nn.Module,
+        model_info: UnfoldModelInfo,
         nnef_graph: NGraph,
-        args: T.List[T.Any],
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
