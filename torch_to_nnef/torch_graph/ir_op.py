@@ -278,14 +278,16 @@ class InputsAlignBetweenAtenAndTorch:
         return args, kwargs
 
 
-def _infer_shape_embedding_output(a, b) -> torch.Size:
+def _infer_shape_embedding_output(
+    a: torch.Tensor, b: torch.Tensor
+) -> torch.Size:
     """Infer output tensor shape of embedding without executing it."""
     ax = list(a.shape)
     bx = list(b.shape)
     return torch.Size(bx + ax[1:])
 
 
-def _infer_trace_result_matmul(a, b) -> torch.Size:
+def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
     """Infer output tensor shape of matmul without executing it."""
     ax = list(a.shape)
     bx = list(b.shape)
@@ -317,16 +319,16 @@ def _infer_shape_linear_output(x, w) -> torch.Size:
 def _infer_shape_convolution_output(*args) -> torch.Size:
     """Infer output tensor shape of convolution without executing it."""
     (
-        input_node,
-        weight_node,
+        input,
+        weight,
         _,
-        stride_node,
-        padding_node,
-        dilation_node,
+        stride,
+        padding,
+        dilation,
     ) = args
 
-    x = input_node
-    w = weight_node
+    x = input
+    w = weight
 
     # Input shape: (N, Cin, *spatial)
     # Weight shape: (Cout, Cin/groups, *kernel)
@@ -347,9 +349,9 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
             return [v] * dim
         return list(v)
 
-    stride = _normalize(stride_node, spatial_rank)
-    padding = _normalize(padding_node, spatial_rank)
-    dilation = _normalize(dilation_node, spatial_rank)
+    stride = _normalize(stride, spatial_rank)
+    padding = _normalize(padding, spatial_rank)
+    dilation = _normalize(dilation, spatial_rank)
 
     out_spatial = []
     for i in range(spatial_rank):
@@ -375,6 +377,30 @@ def _build_empty_tensor_from_infer_trace(
     """Utility to build zero tensor of given dtype and shape."""
     infered_shape = fn_infer_trace(*inputs[:qte_inputs_to_use])
     return torch.empty(infered_shape, dtype=inputs[0].dtype)
+
+
+@dataclass(frozen=True)
+class InferRule:
+    fn: T.Optional[T.Callable[T.Any, torch.Size]]
+    arity: int
+    require_dtype: bool = True
+    identity: bool = False
+
+
+INFER_RULES = {
+    NUMTOTENSOR_KIND: InferRule(None, 1, identity=True),
+    ATEN_CLONE: InferRule(None, 1, identity=True),
+    ATEN_ALIAS: InferRule(None, 1, identity=True),
+    ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
+    ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
+    ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
+    "aten::_convolution_mode": InferRule(_infer_shape_convolution_output, 6),
+    "aten::_convolution": InferRule(_infer_shape_convolution_output, 6),
+    "aten::convolution": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv1d": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv2d": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv3d": InferRule(_infer_shape_convolution_output, 6),
+}
 
 
 @dataclass
@@ -542,48 +568,28 @@ class TorchOp:
         executing the actual operation, which speed-up significantly
         the tracing process.
         """
-        if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
-            results = self.args[0]
-        elif self.kind == ATEN_EMBEDDING and approx:
-            results = _build_empty_tensor_from_infer_trace(
-                _infer_shape_embedding_output, self.args, 2
-            )
-        elif (
-            self.kind == ATEN_MATMUL
-            and {ar.dtype for ar in self.args}
-            and approx
-        ):
-            results = _build_empty_tensor_from_infer_trace(
-                _infer_trace_result_matmul, self.args, 2
-            )
-        elif (
-            self.kind == ATEN_LINEAR
-            and {ar.dtype for ar in self.args if ar is not None}
-            and approx
-        ):
-            results = _build_empty_tensor_from_infer_trace(
-                _infer_shape_linear_output, self.args, 2
-            )
-        elif (
-            self.kind
-            in [
-                "aten::_convolution_mode",
-                "aten::_convolution",
-                "aten::convolution",
-                "aten::conv1d",
-                "aten::conv2d",
-                "aten::conv3d",
-            ]
-            and approx
-        ):
-            results = _build_empty_tensor_from_infer_trace(
-                _infer_shape_convolution_output, self.args, 6
-            )
-            # ref = self.call_op()
-            # assert results.shape == ref.shape and results.dtype == ref.dtype
-        else:
-            results = self.call_op()
-        return results
+        if not approx:
+            return self.call_op()
+
+        rule = INFER_RULES.get(self.kind)
+        if rule is None:
+            return self.call_op()
+
+        if rule.identity:
+            return self.args[0]
+
+        if rule.require_dtype:
+            for arg in self.args[: rule.arity]:
+                if (
+                    arg is not None
+                    and isinstance(arg, TensorVariable)
+                    and not hasattr(arg, "dtype")
+                ):
+                    return self.call_op()
+
+        return _build_empty_tensor_from_infer_trace(
+            rule.fn, self.args, rule.arity
+        )
 
     # pylint: disable-next=too-many-branches
     def realise_output_type_and_size(self, approx: bool = True) -> bool:

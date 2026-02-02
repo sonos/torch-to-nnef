@@ -1,11 +1,10 @@
 """Test inference shape exactness for IR tracing."""
 
 import typing as T
-import pytest
 
+import pytest
 import torch
 
-from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 from torch_to_nnef.torch_graph.ir_graph import module_tracer_into_ir_graph
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_op import TorchOp
