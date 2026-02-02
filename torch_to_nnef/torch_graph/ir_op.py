@@ -319,16 +319,13 @@ def _infer_shape_linear_output(x, w) -> torch.Size:
 def _infer_shape_convolution_output(*args) -> torch.Size:
     """Infer output tensor shape of convolution without executing it."""
     (
-        input,
-        weight,
+        x,
+        w,
         _,
         stride,
         padding,
         dilation,
     ) = args
-
-    x = input
-    w = weight
 
     # Input shape: (N, Cin, *spatial)
     # Weight shape: (Cout, Cin/groups, *kernel)
