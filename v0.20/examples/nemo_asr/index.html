@@ -3120,7 +3120,7 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
 <h2 id="run-the-exported-model-in-python">Run the exported model in Python</h2>
 <p>The exported NeMo ASR model can also be executed from Python using the tract-nemo Python bindings.</p>
 <p>First, install the Python package:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/sonos/torch-to-nnef.git@main#egg<span class="o">=</span>nemo-asr-tract<span class="p">&amp;</span><span class="nv">subdirectory</span><span class="o">=</span>docs/examples/nemo_asr/src/nemo_asr_py
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&amp;subdirectory=docs/examples/nemo_asr/src/nemo_asr_py&quot;</span>
 </span></code></pre></div>
 <p>Python inference example
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">nemo_asr_tract</span>
@@ -3147,8 +3147,8 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
 </span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>    <span class="n">main</span><span class="p">()</span>
 </span></code></pre></div></p>
 <h2 id="evaluation">Evaluation</h2>
-<p>If not already installed you need to setup the same python package, as the one for running tract model, with the <code>eval</code> extra for evaluation:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/sonos/torch-to-nnef.git@main#egg<span class="o">=</span>nemo-asr-tract<span class="o">[</span>eval<span class="o">]</span><span class="p">&amp;</span><span class="nv">subdirectory</span><span class="o">=</span>docs/examples/nemo_asr/src/nemo_asr_py
+<p>If not already installed you need to setup the same python package, as the one for running tract model, <strong>with the <code>eval</code> extra</strong> for evaluation:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&amp;subdirectory=docs/examples/nemo_asr/src/nemo_asr_py&quot;</span>
 </span></code></pre></div>
 <p>The Python tooling also supports evaluation of the exported model using standard ASR benchmarks and WER metrics.</p>
 <h3 id="run-an-asr-open-leaderboard-evaluation">Run an ASR Open Leaderboard evaluation</h3>
@@ -3225,7 +3225,7 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 29, 2026 10:26:36 UTC">January 29, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 2, 2026 10:52:25 UTC">February 2, 2026</span>
   </span>
 
     

@@ -2811,6 +2811,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#who-is-this-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      Who is this for?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Introduction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#checklist" class="md-nav__link">
     <span class="md-ellipsis">
       Checklist
@@ -3014,6 +3032,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#who-is-this-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      Who is this for?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Introduction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#checklist" class="md-nav__link">
     <span class="md-ellipsis">
       Checklist
@@ -3119,6 +3155,16 @@
 <li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 10 min to read this page</li>
 </ul>
 </div>
+<h2 id="who-is-this-for">Who is this for?</h2>
+<p>This guide is for contributors who want to add support for a missing PyTorch aten operator.</p>
+<p>You do not need:</p>
+<ul>
+<li>prior knowledge of NNEF</li>
+<li>compiler experience</li>
+<li>deep PyTorch internals knowledge</li>
+</ul>
+<p>Most operator implementations are 50–150 lines of Python and can be completed in 1–2 evenings.</p>
+<h2 id="introduction">Introduction</h2>
 <p>PyTorch internal representation (IR) contains more than 10<sup>3</sup> operators (and less than 10<sup>4</sup>).
 <a href="https://docs.pytorch.org/executorch/stable/ir-ops-set-definition.html">Aten</a> is the name of the underling <em>C++</em> namespace in which most of the PyTorch computational operators are specified.
 <a href="https://docs.pytorch.org/docs/main/torch.compiler_ir.html">Looking at the <strong>core list</strong></a> in the PyTorch IR, it may seems at first there is only: &lt;200 main ops to support (not accounting quantized &amp; prims namespaces). Sadly these external documentations are partial, in order to keep an exhaustive track of what is supported we maintain a <a href="../supported_operators/">generated compatibility list</a>.</p>
@@ -3289,7 +3335,7 @@ Congratulation and thank you so much for your contribution</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 16, 2026 15:03:36 UTC">January 16, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 1, 2026 20:52:59 UTC">February 1, 2026</span>
   </span>
 
     
