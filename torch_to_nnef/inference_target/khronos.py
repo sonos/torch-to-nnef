@@ -73,7 +73,9 @@ class KhronosNNEF(InferenceTarget):
                         "unable to instanciate NNEFModule"
                     ) from exp
                 interpreter_outs = nnef_mod(*model_info.original_inputs)
-                reference_outs = model_info.model(*model_info.original_inputs)
+                reference_outs = model_info.original_model(
+                    *model_info.original_inputs
+                )
                 if not isinstance(reference_outs, tuple):
                     reference_outs = (reference_outs,)
                 for idx, (ref, obs) in enumerate(

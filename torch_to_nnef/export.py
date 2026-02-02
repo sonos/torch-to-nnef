@@ -246,14 +246,12 @@ def export_model_to_nnef(
         )
         input_names = model_info.input_names
         output_names = model_info.output_names
-        args = model_info.original_inputs
-        model = model_info.model
         # }
         inference_target.pre_trace(model, input_names, output_names)
 
         graph_extractor = TorchToNGraphExtractor(
-            model,
-            args,
+            model_info.model,
+            model_info.flat_inputs,
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             check_io_names_qte_match=check_io_names_qte_match,

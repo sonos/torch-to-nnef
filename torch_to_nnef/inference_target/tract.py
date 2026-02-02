@@ -680,8 +680,12 @@ class TractBinaryDownloader:
 def build_io(
     model, test_input, io_npz_path=None, input_names=None, output_names=None
 ):
+    if isinstance(test_input, torch.Tensor):
+        test_input = (test_input,)
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         test_outputs = model(*test_input)
+    if isinstance(test_outputs, torch.Tensor):
+        test_outputs = (test_outputs,)
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names
     )

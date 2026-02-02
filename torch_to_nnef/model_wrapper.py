@@ -206,6 +206,12 @@ class UnfoldModelInfo:
 
     # }
 
+    @property
+    def original_model(self) -> nn.Module:
+        if isinstance(self.model, WrapStructIO):
+            return self.model.model
+        return self.model
+
     def validate(self):
         assert len(self.input_names) == len(self.flat_inputs), (
             f"input names length mismatch:{len(self.input_names)} != {len(self.flat_inputs)}"
@@ -235,6 +241,12 @@ class UnfoldModelInfo:
         np.savez(filepath, **kwargs)
 
 
+def cast_tensor_if_int(inp: T.Any) -> torch.Tensor:
+    if isinstance(inp, int):
+        return torch.tensor(inp)
+    return inp
+
+
 def unfold_model_io(model, args, outs, input_names, output_names):
     if isinstance(model, WrapStructIO):
         raise T2NErrorNotImplemented(
@@ -246,6 +258,9 @@ def unfold_model_io(model, args, outs, input_names, output_names):
             "Only 'nn.Module' model type is supported for unfolding, "
             f"got '{type(model)}'."
         )
+
+    if isinstance(outs, torch.Tensor):
+        outs = (outs,)
 
     flat_args = []
     flat_outs = []
@@ -280,8 +295,8 @@ def unfold_model_io(model, args, outs, input_names, output_names):
         model=model,
         original_inputs=tuple(args),
         original_outputs=outs,
-        flat_inputs=tuple(_[2] for _ in flat_args),
-        flat_outputs=tuple(_[2] for _ in flat_outs),
+        flat_inputs=tuple(cast_tensor_if_int(_[2]) for _ in flat_args),
+        flat_outputs=tuple(cast_tensor_if_int(_[2]) for _ in flat_outs),
         input_names=input_names,
         output_names=output_names,
     )
