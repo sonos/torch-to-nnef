@@ -134,7 +134,7 @@ The exported NeMo ASR model can also be executed from Python using the tract-nem
 First, install the Python package:
 
 ```bash
-pip install git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py
+pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py"
 ```
 
 Python inference example
@@ -165,10 +165,10 @@ if __name__ == "__main__":
 
 ## Evaluation
 
-If not already installed you need to setup the same python package, as the one for running tract model, with the `eval` extra for evaluation:
+If not already installed you need to setup the same python package, as the one for running tract model, **with the `eval` extra** for evaluation:
 
 ```bash
-pip install git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py
+pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py"
 
 ```
 

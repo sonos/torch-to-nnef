@@ -263,11 +263,11 @@ class TensorVariable(Data):
         else:
             return self._traced_data
 
-        data = torch.rand(
+        data = torch.empty(
             [
                 UNKNOWN_TRACE_SHAPE_VALUE if x is None else x
                 for x in (self.shape or [])
-            ]
+            ],
         )
         if is_quantized_dtype(self.dtype):
             return torch.quantize_per_tensor(

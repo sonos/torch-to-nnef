@@ -10,12 +10,13 @@ from typing import Callable, List
 import torch
 from nemo import __version__ as nemo_version
 from nemo.collections.asr.models import ASRModel
+from tqdm import tqdm
+
 from nemo_asr_tract import __version__ as nemo_asr_tract_version
 from nemo_asr_tract.calib import chunks
 from nemo_asr_tract.eval.conf import DecodingStragegy, EvalConfig
 from nemo_asr_tract.nemo_asr import NemoAsrModel, load_config_from_dir
 from nemo_asr_tract.utils import clean_name
-from tqdm import tqdm
 
 # =============================================================================
 # Device / model

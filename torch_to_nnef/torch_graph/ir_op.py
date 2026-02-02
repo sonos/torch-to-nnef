@@ -278,6 +278,128 @@ class InputsAlignBetweenAtenAndTorch:
         return args, kwargs
 
 
+def _infer_shape_embedding_output(
+    a: torch.Tensor, b: torch.Tensor
+) -> torch.Size:
+    """Infer output tensor shape of embedding without executing it."""
+    ax = list(a.shape)
+    bx = list(b.shape)
+    return torch.Size(bx + ax[1:])
+
+
+def _infer_trace_result_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Size:
+    """Infer output tensor shape of matmul without executing it."""
+    ax = list(a.shape)
+    bx = list(b.shape)
+    # Basic rank check (matmul requires at least 2D tensors here)
+    assert len(ax) >= 2 and len(bx) >= 2, "Expected tensors with rank >= 2"
+    # Inner dimension compatibility: (..., M, K) @ (..., K, N)
+    assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
+    # Explicit batch broadcasting resolution
+    batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
+    # Output shape: (..., M, N)
+    cx = list(batch_shape) + [ax[-2], bx[-1]]
+    # Simulated output tensor
+    return torch.Size(cx)
+
+
+def _infer_shape_linear_output(x, w) -> torch.Size:
+    """Infer output tensor shape of linear without executing it."""
+    ax = list(x.shape)
+    wx = list(w.shape)
+    # input: (*batch, in_features)
+    # weight: (out_features, in_features)
+    assert len(ax) >= 1, "linear expects input rank >= 1"
+    assert len(wx) == 2, "linear weight must be 2D"
+    assert ax[-1] == wx[-1], "in_features mismatch"
+    # output: (*batch, out_features)
+    return torch.Size(ax[:-1] + [wx[0]])
+
+
+def _infer_shape_convolution_output(*args) -> torch.Size:
+    """Infer output tensor shape of convolution without executing it."""
+    (
+        x,
+        w,
+        _,
+        stride,
+        padding,
+        dilation,
+    ) = args
+
+    # Input shape: (N, Cin, *spatial)
+    # Weight shape: (Cout, Cin/groups, *kernel)
+    x_shape = list(x.shape)
+    w_shape = list(w.shape)
+
+    assert len(x_shape) >= 3, "convolution expects input rank >= 3"
+    assert len(w_shape) >= 3, "convolution weight rank mismatch"
+
+    n = x_shape[0]
+    cout = w_shape[0]
+
+    spatial_rank = len(x_shape) - 2
+    kernel_shape = w_shape[2:]
+
+    def _normalize(v, dim):
+        if isinstance(v, int):
+            return [v] * dim
+        return list(v)
+
+    stride = _normalize(stride, spatial_rank)
+    padding = _normalize(padding, spatial_rank)
+    dilation = _normalize(dilation, spatial_rank)
+
+    out_spatial = []
+    for i in range(spatial_rank):
+        in_size = x_shape[2 + i]
+        k = kernel_shape[i]
+        s = stride[i]
+        p = padding[i]
+        d = dilation[i]
+
+        # PyTorch formula:
+        # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
+        out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
+
+        assert out_dim > 0, "invalid convolution output size"
+        out_spatial.append(out_dim)
+
+    return torch.Size([n, cout, *out_spatial])
+
+
+def _build_empty_tensor_from_infer_trace(
+    fn_infer_trace: T.Callable, inputs, qte_inputs_to_use: int
+) -> torch.Tensor:
+    """Utility to build zero tensor of given dtype and shape."""
+    infered_shape = fn_infer_trace(*inputs[:qte_inputs_to_use])
+    return torch.empty(infered_shape, dtype=inputs[0].dtype)
+
+
+@dataclass(frozen=True)
+class InferRule:
+    fn: T.Optional[T.Callable[T.Any, torch.Size]]
+    arity: int
+    require_dtype: bool = True
+    identity: bool = False
+
+
+INFER_RULES = {
+    NUMTOTENSOR_KIND: InferRule(None, 1, identity=True),
+    ATEN_CLONE: InferRule(None, 1, identity=True),
+    ATEN_ALIAS: InferRule(None, 1, identity=True),
+    ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
+    ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
+    ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
+    "aten::_convolution_mode": InferRule(_infer_shape_convolution_output, 6),
+    "aten::_convolution": InferRule(_infer_shape_convolution_output, 6),
+    "aten::convolution": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv1d": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv2d": InferRule(_infer_shape_convolution_output, 6),
+    "aten::conv3d": InferRule(_infer_shape_convolution_output, 6),
+}
+
+
 @dataclass
 class TorchOp:
     kind: str
@@ -443,55 +565,28 @@ class TorchOp:
         executing the actual operation, which speed-up significantly
         the tracing process.
         """
-        if self.kind in [NUMTOTENSOR_KIND, ATEN_CLONE, ATEN_ALIAS]:
-            results = self.args[0]
-        elif self.kind == ATEN_EMBEDDING and approx:
-            ax = list(self.args[0].shape)
-            bx = list(self.args[1].shape)
-            shape = bx + ax[1:]
-            results = torch.empty(shape, dtype=self.args[0].dtype)
-        elif (
-            self.kind == ATEN_MATMUL
-            and {ar.dtype for ar in self.args}
-            and approx
-        ):
-            a = self.args[0]
-            b = self.args[1]
-            ax = list(a.shape)
-            bx = list(b.shape)
-            # Basic rank check (matmul requires at least 2D tensors here)
-            assert len(ax) >= 2 and len(bx) >= 2, (
-                "Expected tensors with rank >= 2"
-            )
-            # Inner dimension compatibility: (..., M, K) @ (..., K, N)
-            assert ax[-1] == bx[-2], "Incompatible matmul inner dimensions"
-            # Explicit batch broadcasting resolution
-            batch_shape = torch.broadcast_shapes(ax[:-2], bx[:-2])
-            # Output shape: (..., M, N)
-            cx = list(batch_shape) + [ax[-2], bx[-1]]
-            # Simulated output tensor
-            results = torch.empty(cx, dtype=a.dtype)
-        elif (
-            self.kind == ATEN_LINEAR
-            and {ar.dtype for ar in self.args if ar is not None}
-            and approx
-        ):
-            x = self.args[0]  # input
-            w = self.args[1]  # weight
-            ax = list(x.shape)
-            wx = list(w.shape)
-            # input: (*batch, in_features)
-            # weight: (out_features, in_features)
-            assert len(ax) >= 1, "linear expects input rank >= 1"
-            assert len(wx) == 2, "linear weight must be 2D"
-            assert ax[-1] == wx[-1], "in_features mismatch"
-            # output: (*batch, out_features)
-            cx = ax[:-1] + [wx[0]]
-            results = torch.empty(cx, dtype=x.dtype)
+        if not approx:
+            return self.call_op()
 
-        else:
-            results = self.call_op()
-        return results
+        rule = INFER_RULES.get(self.kind)
+        if rule is None:
+            return self.call_op()
+
+        if rule.identity:
+            return self.args[0]
+
+        if rule.require_dtype:
+            for arg in self.args[: rule.arity]:
+                if (
+                    arg is not None
+                    and isinstance(arg, TensorVariable)
+                    and not hasattr(arg, "dtype")
+                ):
+                    return self.call_op()
+
+        return _build_empty_tensor_from_infer_trace(
+            rule.fn, self.args, rule.arity
+        )
 
     # pylint: disable-next=too-many-branches
     def realise_output_type_and_size(self, approx: bool = True) -> bool:
@@ -535,7 +630,11 @@ class TorchOp:
         for data_node, result in zip(output_nodes, output_values):
             if self.has_constant_inputs:
                 try:
-                    data_node.set_data(result)
+                    if data_node.data is None or not (
+                        data_node.data.shape == result.shape
+                        and data_node.data.dtype == result.dtype
+                    ):
+                        data_node.set_data(result)
                 except T2NErrorIRDataConsistency:
                     logging.debug(
                         "Conflicting TensorVariable specification "

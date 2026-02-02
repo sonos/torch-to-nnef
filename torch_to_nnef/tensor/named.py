@@ -74,6 +74,14 @@ class NamedTensor(torch.Tensor):
     def __repr__(self) -> str:
         return f"{super().__repr__()[:-1]}, nnef_name='{self.nnef_name}')"
 
+    @property
+    def dtype(self) -> torch.dtype:
+        return self._fp_tensor.dtype
+
+    @property
+    def shape(self) -> torch.Size:
+        return self._fp_tensor.shape
+
     def clone(self, *args, **kwargs):
         return self.__class__(
             torch.Tensor.clone(self, *args, **kwargs),

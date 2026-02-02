@@ -116,3 +116,8 @@ ENV/
 # mkdocs build dir
 site/
 .tract
+*.wav
+*.npz
+*.nnef.tgz
+graph.nnef
+*.dat
