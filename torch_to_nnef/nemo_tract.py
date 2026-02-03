@@ -189,7 +189,10 @@ def iter_nemo_model_subnets(
             subnet_name,
             subnet,
             input_example,
-            batch_size=3,
+            # NOTE: Investigate
+            # set this to 3 it highlight issue wih batch dim
+            # being wrongly concretized in 'encoder'
+            batch_size=1,
             float_dtype=float_dtype,
         ) as (
             #  pylint: disable-next=redefined-argument-from-local

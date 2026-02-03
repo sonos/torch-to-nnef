@@ -417,7 +417,7 @@ impl NemoAsrModel {
                     .model()
                     .inputs
                     .iter()
-                    .skip(3)
+                    .skip(2)
                     .zip(self.get_initial_decoder_states(1)?)
                     .map(|(_, shape)| {
                         let z = tract_ndarray::Array3::<f32>::zeros(shape);
@@ -485,13 +485,9 @@ impl NemoAsrModel {
             .into_tensor()
             .into_tvalue();
 
-            let target_lens = tract_ndarray::Array1::<i32>::from_elem(active.len(), 1)
-                .into_tensor()
-                .into_tvalue();
-
             let packed_states = Self::state_pack_lanes(&lanes, &active)?;
 
-            let mut inputs = tvec!(enc_frames, labels, target_lens);
+            let mut inputs = tvec!(enc_frames, labels);
             inputs.extend(packed_states);
 
             let outs = self.decoder_joint_model.run(inputs)?;
@@ -535,7 +531,7 @@ impl NemoAsrModel {
                     lane.last_token = tok;
 
                     // Update predictor states
-                    for (sid, st) in outs[2..].iter().enumerate() {
+                    for (sid, st) in outs[1..].iter().enumerate() {
                         lane.states[sid] = Self::state_take_lane(st, k)?;
                     }
                 }
