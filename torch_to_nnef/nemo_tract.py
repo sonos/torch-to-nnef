@@ -416,23 +416,15 @@ def iter_export_params_for_generic_nemo_asr_model(
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes
         )
-        onames = [
-            # ensure that nop input to output
-            # are not force renamed ...
-            "target_length"
-            if on == "prednet_lengths" and "target_length" in subnet.input_names
-            else on
-            for on in subnet.output_names
-        ]
         yield ExportParameters(
             name=subnet_name,
             model=subnet,
             test_input=input_example,
             inference_target=inference_target.with_dynamic_axes(dynamic_axes),
             input_names=subnet.input_names[: len(input_example)],
-            output_names=onames,
+            output_names=subnet.output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=(subnet_name in ["decoder_joint", "decoder"]),
+            allow_same_io_names=False,
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, subnet
             ),
@@ -741,13 +733,28 @@ class DecoderWithoutTargetLength(torch.nn.Module):
 
     @property
     def input_names(self):
-        return [
-            _ for _ in self.decoder.input_names if _ != self.FILTER_ARGUMENT
-        ]
+        if self.active_fitering:
+            return [
+                name
+                for name in self.decoder.input_names
+                if name != self.FILTER_ARGUMENT
+            ]
+        return self.decoder.input_names
 
     @property
     def output_names(self):
-        return [_ for _ in self.decoder.output_names if _ != self.FILTER_OUTPUT]
+        def rename_state(name: str) -> str:
+            if name == "states":
+                return "out_states"
+            return name
+
+        if self.active_fitering:
+            return [
+                rename_state(_)
+                for _ in self.decoder.output_names
+                if _ != self.FILTER_OUTPUT
+            ]
+        return self.decoder.output_names
 
     @property
     def index_arg_to_remove(self) -> int:
@@ -770,6 +777,8 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         )
 
     def input_example(self):
+        if not self.active_fitering:
+            return self.decoder.input_example()
         return self.filter_original_input_example(self.decoder.input_example())
 
     def filter_original_input_example(
