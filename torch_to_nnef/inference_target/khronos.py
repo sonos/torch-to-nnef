@@ -9,13 +9,13 @@ from pathlib import Path
 import torch
 from nnef_tools.interpreter.pytorch import NNEFModule
 from nnef_tools.model import Graph as NGraph
-from torch import nn
 
 from torch_to_nnef.exceptions import (
     T2NErrorKhronosInterpreterDiffValue,
     T2NErrorKhronosNNEFModuleLoad,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.model_wrapper import UnfoldModelInfo
 from torch_to_nnef.utils import SemanticVersion, cd
 
 LOGGER = log.getLogger(__name__)
@@ -48,9 +48,8 @@ class KhronosNNEF(InferenceTarget):
 
     def post_export(
         self,
-        model: nn.Module,
+        model_info: UnfoldModelInfo,
         nnef_graph: NGraph,
-        args: T.List[T.Any],
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
@@ -72,8 +71,10 @@ class KhronosNNEF(InferenceTarget):
                     raise T2NErrorKhronosNNEFModuleLoad(
                         "unable to instanciate NNEFModule"
                     ) from exp
-                interpreter_outs = nnef_mod(*args)
-                reference_outs = model(*args)
+                interpreter_outs = nnef_mod(*model_info.original_inputs)
+                reference_outs = model_info.original_model(
+                    *model_info.original_inputs
+                )
                 if not isinstance(reference_outs, tuple):
                     reference_outs = (reference_outs,)
                 for idx, (ref, obs) in enumerate(

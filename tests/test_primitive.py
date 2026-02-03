@@ -1108,7 +1108,6 @@ test_suite.add(
 )  # should output bool tensor of FALSE
 
 
-test_suite.reset()
 for op in [
     TensorFnPrimitive("any", {"dim": 1}),
     TensorFnPrimitive("all", {"dim": 1}),

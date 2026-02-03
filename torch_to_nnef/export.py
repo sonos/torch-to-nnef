@@ -18,7 +18,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.inference_target import InferenceTarget
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.log import set_lib_log_level
-from torch_to_nnef.model_wrapper import may_wrap_model_to_flatten_io
+from torch_to_nnef.model_wrapper import unfold_model_io
 from torch_to_nnef.nnef_graph import TorchToNGraphExtractor
 from torch_to_nnef.nnef_io.writer import Writer as NNEFWriter
 from torch_to_nnef.nnef_io.writer import (
@@ -240,14 +240,18 @@ def export_model_to_nnef(
         select_model_mode_for_export(model, TrainingMode.EVAL),
     ):
         set_opaque_tensor_in_params_as_ref(model)
-        model, args, input_names, output_names = may_wrap_model_to_flatten_io(
+        # may unfold io structures {
+        model_info = unfold_model_io(
             model, args, outs, input_names, output_names
         )
+        input_names = model_info.input_names
+        output_names = model_info.output_names
+        # }
         inference_target.pre_trace(model, input_names, output_names)
 
         graph_extractor = TorchToNGraphExtractor(
-            model,
-            args,
+            model_info.model,
+            model_info.flat_inputs,
             inference_target=inference_target,
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             check_io_names_qte_match=check_io_names_qte_match,
@@ -301,9 +305,8 @@ def export_model_to_nnef(
         )
         with _fixed_backend():
             inference_target.post_export(
-                model,
+                model_info,
                 nnef_graph,
-                args,
                 exported_filepath,
                 debug_bundle_path=debug_bundle_path,
             )

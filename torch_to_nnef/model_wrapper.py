@@ -1,17 +1,21 @@
 """Wrap model to bypass limitation of torch_to_nnef internals.
 
-ie: Cases where inputs or outputs of a model contains tuples
+ie: Cases where inputs or outputs of a model contains:
+    tuples, list, dicts, Object.
 
 """
 
 import logging as log
 import typing as T
+from dataclasses import dataclass
+from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
-from torch_to_nnef.utils import flatten_dict_tuple_or_list
+from torch_to_nnef.utils import blank_from_init, flatten_dict_tuple_or_list
 
 LOGGER = log.getLogger(__name__)
 
@@ -52,9 +56,15 @@ class WrapStructIO(nn.Module):
                     cur_struct[idx] = None
                 if next_typ is tuple:
                     next_typ = list
+                if isinstance(idx, str) and hasattr(cur_struct, idx):
+                    setattr(cur_struct, idx, arg)
+                    cur_struct = getattr(cur_struct, idx)
+                    continue
                 if cur_struct[idx] is None:
                     cur_struct[idx] = (
-                        next_typ() if next_typ is not None else arg
+                        blank_from_init(next_typ)
+                        if next_typ is not None
+                        else arg
                     )
                 cur_struct = cur_struct[idx]
 
@@ -147,6 +157,7 @@ def _build_new_names_and_elements(
     flat_elms = flatten_dict_tuple_or_list(elms)
     new_names = []
     new_elms = []
+    new_flat_elms = []
     for _, idxes, elm in flat_elms:
         root_idx, *rest_idxes = idxes
         if not isinstance(root_idx, int):
@@ -176,7 +187,8 @@ def _build_new_names_and_elements(
             continue
         new_names.append(root_name + str_idxes if str_idxes else root_name)
         new_elms.append(elm)
-    return new_names, new_elms, flat_elms
+        new_flat_elms.append((_, idxes, elm))
+    return new_names, new_elms, flat_elms, new_flat_elms
 
 
 def has_sub_containers(flat_elms):
@@ -187,11 +199,84 @@ def has_non_tensor_elements(flat_elms):
     return any(not isinstance(e, torch.Tensor) for _, _, e in flat_elms)
 
 
-def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
-    flat_args = []
-    flat_outs = []
-    new_input_names, args, flat_args = _build_new_names_and_elements(
-        input_names, args, default_element_name_tmpl="input_{}"
+@dataclass()
+class UnfoldModelInfo:
+    """Hold model input/output structure information."""
+
+    model: nn.Module
+    original_inputs: T.Tuple[torch.Tensor]
+    original_outputs: T.List[torch.Tensor]
+    # what will be exported as io for the final NNEF graph,
+    # since container are not supported {
+    flat_inputs: T.Tuple[torch.Tensor]
+    flat_outputs: T.Tuple[torch.Tensor]
+    input_names: T.List[str]
+    output_names: T.List[str]
+
+    # }
+
+    @property
+    def original_model(self) -> nn.Module:
+        if isinstance(self.model, WrapStructIO):
+            return self.model.model
+        return self.model
+
+    def validate(self):
+        assert len(self.input_names) == len(self.flat_inputs), (
+            "input names length mismatch:"
+            f"{len(self.input_names)} != {len(self.flat_inputs)}"
+        )
+        assert len(self.output_names) == len(self.flat_outputs), (
+            "output names length mismatch:"
+            f"{len(self.output_names)} != {len(self.flat_outputs)}. "
+            f"with output names: {self.output_names}"
+        )
+
+    def write_io_npz(self, filepath: Path, tract_compat: bool = False):
+        def cast(val):
+            if val.dtype in [torch.float16, torch.bfloat16]:
+                val = val.to(torch.float32)  # tract --allow-float-casts
+            val = val.detach().numpy()
+            return val
+
+        kwargs = {
+            key: cast(input_arg) if tract_compat else input_arg
+            for key, input_arg in zip(self.input_names, self.flat_inputs)
+        }
+        kwargs.update(
+            {
+                key: cast(output_arg)
+                for key, output_arg in zip(self.output_names, self.flat_outputs)
+            }
+        )
+        np.savez(filepath, **kwargs)
+
+
+def cast_tensor_if_int(inp: T.Any) -> torch.Tensor:
+    if isinstance(inp, int):
+        return torch.tensor(inp)
+    return inp
+
+
+def unfold_model_io(model, args, outs, input_names, output_names):
+    if isinstance(model, WrapStructIO):
+        raise T2NErrorNotImplemented(
+            "Model is already wrapped with 'WrapStructIO', "
+            "double wrapping is not supported."
+        )
+    if not isinstance(model, nn.Module):
+        raise T2NErrorNotImplemented(
+            "Only 'nn.Module' model type is supported for unfolding, "
+            f"got '{type(model)}'."
+        )
+
+    if isinstance(outs, torch.Tensor):
+        outs = (outs,)
+
+    new_input_names, args, flat_args, new_flat_args = (
+        _build_new_names_and_elements(
+            input_names, args, default_element_name_tmpl="input_{}"
+        )
     )
     if new_input_names != input_names:
         LOGGER.warning(
@@ -200,8 +285,10 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
         )
         input_names = new_input_names
 
-    new_output_names, _, flat_outs = _build_new_names_and_elements(
-        output_names, outs, default_element_name_tmpl="output_{}"
+    new_output_names, _, flat_outs, new_flat_outs = (
+        _build_new_names_and_elements(
+            output_names, outs, default_element_name_tmpl="output_{}"
+        )
     )
     if new_output_names != output_names:
         LOGGER.warning(
@@ -217,4 +304,13 @@ def may_wrap_model_to_flatten_io(model, args, outs, input_names, output_names):
         or has_non_tensor_elements(flat_outs)
     ):
         model = WrapStructIO(model, flat_args, flat_outs)
-    return model, tuple(args), input_names, output_names
+        model.eval()
+    return UnfoldModelInfo(
+        model=model,
+        original_inputs=tuple(args),
+        original_outputs=outs,
+        flat_inputs=tuple(cast_tensor_if_int(_[2]) for _ in new_flat_args),
+        flat_outputs=tuple(cast_tensor_if_int(_[2]) for _ in new_flat_outs),
+        input_names=input_names,
+        output_names=output_names,
+    )

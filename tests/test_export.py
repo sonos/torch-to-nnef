@@ -1,6 +1,7 @@
 """E2E Test of the export function."""
 
 import logging as log
+import tarfile
 import tempfile
 import typing as T
 from dataclasses import dataclass
@@ -218,6 +219,57 @@ def test_multi_deep_obj_inputs():
             output_names=["b"],
             log_level=log.INFO,
             inference_target=INFERENCE_TARGETS_TO_TESTS[0],
+        )
+
+
+class DeepObjTensorInputs(nn.Module):
+    def forward(self, x, y):
+        res = x * 2 * y["a"].b
+        return res
+
+
+class FakeTensorHolder:
+    def __init__(self, b: torch.Tensor):
+        self.b = b
+
+
+def graph_contains_line(tar_path, content):
+    with tarfile.open(tar_path, "r:*") as tf:
+        try:
+            member = tf.getmember("graph.nnef")
+        except KeyError:
+            return False
+
+        f = tf.extractfile(member)
+        if f is None:
+            return False
+
+        for raw_line in f:
+            if content in raw_line.decode("utf-8").rstrip("\n"):
+                return True
+
+    return False
+
+
+def test_deep_obj_tensor_inputs():
+    test_input = torch.rand(1, 2)
+    model = DeepObjTensorInputs()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path = Path(tmpdir) / "model.nnef.tgz"
+        model = model.eval()
+        export_model_to_nnef(
+            model=model,
+            args=(test_input, {"a": FakeTensorHolder(torch.rand(1, 2))}),
+            file_path_export=export_path,
+            input_names=["a", "dic"],
+            output_names=["b"],
+            log_level=log.INFO,
+            inference_target=INFERENCE_TARGETS_TO_TESTS[0],
+        )
+        assert graph_contains_line(
+            export_path,
+            "dic_a_b = tract_core_external"
+            "(shape = [1, 2], datum_type = 'f32');",
         )
 
 

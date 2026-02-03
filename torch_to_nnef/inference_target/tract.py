@@ -5,7 +5,6 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Windows
 """
 
 import enum
-import gc
 import logging
 import os
 import platform
@@ -48,6 +47,7 @@ from torch_to_nnef.exceptions import (
     T2NErrorTractOnnxToNNEF,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
+from torch_to_nnef.model_wrapper import UnfoldModelInfo, unfold_model_io
 from torch_to_nnef.utils import SemanticVersion, cd, dedup_list, torch_version
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
@@ -121,7 +121,7 @@ class TractNNEF(InferenceTarget):
         force_attention_inner_in_f32: bool = False,
         force_linear_accumulation_in_f32: bool = False,
         force_norm_in_f32: bool = False,
-        reify_sdpa_operator: bool = False,
+        reify_sdpa_operator: T.Optional[bool] = None,
         upsample_with_debox: bool = False,
     ):
         """Init.
@@ -171,8 +171,9 @@ class TractNNEF(InferenceTarget):
                 ensure that all normalization layers are in f32
                 whatever the original PyTorch modeling.
             reify_sdpa_operator:
-                enable the conversion of scaled_dot_product_attention
-                as a tract operator (intead of a NNEF fragment).
+                (Optional) enable the conversion of scaled_dot_product_attention
+                as a tract operator (intead of a NNEF fragment), default false
+                until tract v0.22.0 included then true, except if specified.
                 Experimental feature.
             upsample_with_debox:
                 use debox upsample operator instead of deconvolution.
@@ -209,6 +210,8 @@ class TractNNEF(InferenceTarget):
         self.force_attention_inner_in_f32 = force_attention_inner_in_f32
         self.force_linear_accumulation_in_f32 = force_linear_accumulation_in_f32
         self.force_norm_in_f32 = force_norm_in_f32
+        if reify_sdpa_operator is None:
+            reify_sdpa_operator = self.version > "0.22.0"
         self.reify_sdpa_operator = reify_sdpa_operator
         self.upsample_with_debox = upsample_with_debox
         self.dump_identity_properties = dump_identity_properties
@@ -314,9 +317,8 @@ class TractNNEF(InferenceTarget):
 
     def post_export(
         self,
-        model: nn.Module,
+        model_info: UnfoldModelInfo,
         nnef_graph: NGraph,
-        args: T.List[T.Any],
         exported_filepath: Path,
         debug_bundle_path: T.Optional[Path] = None,
     ):
@@ -334,27 +336,25 @@ class TractNNEF(InferenceTarget):
                     "any transform: "
                     f"outputs={_output_names} inputs={_input_names}"
                 )
-            if debug_bundle_path is None:
-                assert_io(
-                    model,
-                    args,
-                    exported_filepath,
-                    input_names=input_names,
-                    output_names=output_names,
-                    tract_cli=self.tract_cli,
-                    check_tolerance=self.check_io_tolerance,
-                )
-            else:
-                assert_io_and_debug_bundle(
-                    model,
-                    args,
-                    exported_filepath,
-                    debug_bundle_path=debug_bundle_path,
-                    input_names=input_names,
-                    output_names=output_names,
-                    tract_cli=self.tract_cli,
-                    check_tolerance=self.check_io_tolerance,
-                )
+            with tempfile.TemporaryDirectory() as tmpdir:
+                io_npz_path = Path(tmpdir) / "test_io.npz"
+                model_info.write_io_npz(io_npz_path, tract_compat=True)
+                if debug_bundle_path is None:
+                    assert_io(
+                        nnef_file_path=exported_filepath,
+                        tract_cli=self.tract_cli,
+                        io_npz_path=io_npz_path,
+                        check_tolerance=self.check_io_tolerance,
+                    )
+                else:
+                    assert_io_and_debug_bundle(
+                        model_info,
+                        exported_filepath,
+                        debug_bundle_path=debug_bundle_path,
+                        tract_cli=self.tract_cli,
+                        io_npz_path=io_npz_path,
+                        check_tolerance=self.check_io_tolerance,
+                    )
 
 
 def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
@@ -678,69 +678,26 @@ class TractBinaryDownloader:
             archive_gz_path.unlink()
 
 
-def _unfold_outputs(test_outputs):
-    if isinstance(test_outputs, (torch.Tensor, int)):
-        test_outputs = [test_outputs]
-    test_outputs = list(test_outputs)
-
-    unfolded_outputs = []
-    for out in test_outputs:
-        if isinstance(out, torch.Tensor):
-            unfolded_outputs.append(out)
-        elif isinstance(out, (list, tuple)):
-            for sub_out in out:
-                unfolded_outputs.append(sub_out)
-        elif isinstance(out, int):
-            unfolded_outputs.append(torch.tensor(out))
-        else:
-            raise T2NErrorNotImplemented(type(out))
-    return unfolded_outputs
-
-
 def build_io(
     model, test_input, io_npz_path=None, input_names=None, output_names=None
 ):
-    tup_inputs = test_input if isinstance(test_input, tuple) else (test_input,)
-    if input_names is None:
-        input_names = [f"input_{idx}" for idx, _ in enumerate(tup_inputs)]
-
+    if isinstance(test_input, torch.Tensor):
+        test_input = (test_input,)
     with select_model_mode_for_export(model, TrainingMode.EVAL):
-        test_outputs = _unfold_outputs(model(*tup_inputs))
-
-    if output_names is None:
-        output_names = [f"output_{idx}" for idx, _ in enumerate(test_outputs)]
-
-    assert len(input_names) == len(tup_inputs), (
-        f"{len(input_names)} != {len(tup_inputs)}"
+        test_outputs = model(*test_input)
+    model_info = unfold_model_io(
+        model, test_input, test_outputs, input_names, output_names
     )
-    assert len(output_names) == len(test_outputs)
+
+    model_info.validate()
 
     if io_npz_path is not None:
-
-        def cast(val):
-            if val.dtype in [torch.float16, torch.bfloat16]:
-                val = val.to(torch.float32)  # tract --allow-float-casts
-            val = val.detach().numpy()
-            return val
-
-        # TODO: issues with tract
-        kwargs = {
-            key: cast(input_arg)
-            for key, input_arg in zip(input_names, tup_inputs)
-        }
-        kwargs.update(
-            {
-                key: cast(output_arg)
-                for key, output_arg in zip(output_names, test_outputs)
-            }
-        )
-        np.savez(io_npz_path, **kwargs)
-    return input_names, output_names
+        model_info.write_io_npz(filepath=io_npz_path, tract_compat=True)
+    return model_info.input_names, model_info.output_names
 
 
 def pytorch_to_onnx_to_tract_to_nnef(
-    model: nn.Module,
-    test_input,
+    model_info,
     nnef_path,
     tract_cli: TractCli,
     onnx_path=None,
@@ -750,14 +707,13 @@ def pytorch_to_onnx_to_tract_to_nnef(
     with tempfile.TemporaryDirectory() as tmpdir:
         onnx_path = onnx_path or (Path(tmpdir) / "model.onnx")
         io_npz_path = io_npz_path or (Path(tmpdir) / "io.npz")
-        input_names, output_names = build_io(model, test_input, io_npz_path)
         try:
             torch.onnx.export(
-                model,
-                test_input,
+                model_info.model,
+                model_info.flat_inputs,
                 str(onnx_path),
-                input_names=input_names,
-                output_names=output_names,
+                input_names=model_info.input_names,
+                output_names=model_info.output_names,
                 opset_version=17,
             )
         # parametrized failure exception emission
@@ -787,8 +743,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
 
 
 def debug_dumper_pytorch_to_onnx_to_nnef(
-    model: nn.Module,
-    test_input,
+    model_info: UnfoldModelInfo,
     target_folder: Path,
     tract_cli: TractCli,
     raise_export_error: bool = True,
@@ -804,8 +759,7 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
     nnef_path = target_folder / "onnx_converted_by_tract_model.nnef.tgz"
     io_npz_path = target_folder / "io.npz"
     sucessfull_export, error_msg = pytorch_to_onnx_to_tract_to_nnef(
-        model,
-        test_input,
+        model_info,
         nnef_path,
         onnx_path=onnx_path,
         io_npz_path=io_npz_path,
@@ -833,13 +787,9 @@ def all_close_map_weights(weight_map_file_paths: T.Dict[Path, Path]):
 
 
 def assert_io(
-    model: nn.Module,
-    test_input,
     nnef_file_path: Path,
     tract_cli: TractCli,
-    io_npz_path: T.Optional[Path] = None,
-    input_names: T.Optional[T.List[str]] = None,
-    output_names: T.Optional[T.List[str]] = None,
+    io_npz_path: Path,
     check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
 ):
     """Simple assertion without debug bundle.
@@ -847,158 +797,125 @@ def assert_io(
     With addition of gc of model once output is generated.
 
     """
-    with tempfile.TemporaryDirectory() as tmpdir:
-        if io_npz_path is None:
-            io_npz_path = Path(tmpdir) / "io.npz"
-            build_io(
-                model,
-                test_input,
-                io_npz_path=io_npz_path,
-                input_names=input_names,
-                output_names=output_names,
-            )
+    assert nnef_file_path.exists(), nnef_file_path
+    assert io_npz_path.exists()
+    LOGGER.info("Start checking IO is ISO between tract and PyTorch")
+    raise_exception = bool(int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1)))
+    if tract_cli.assert_io(
+        nnef_file_path,
+        io_npz_path,
+        raise_exception=raise_exception,
+        check_tolerance=check_tolerance,
+    ):
+        LOGGER.info(
+            "IO bit match between tract and PyTorch for %s", nnef_file_path
+        )
 
-        del model
-        del test_input
-        gc.collect()
 
-        assert nnef_file_path.exists(), nnef_file_path
-        assert io_npz_path.exists()
+def assert_io_and_debug_bundle(
+    model_info: UnfoldModelInfo,
+    nnef_file_path: Path,
+    tract_cli: TractCli,
+    io_npz_path: Path,
+    debug_bundle_path: T.Optional[Path] = None,
+    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
+):
+    """Core check to ensure tract give same output as PyTorch within bounds."""
+    assert nnef_file_path.exists(), nnef_file_path
+    assert io_npz_path.exists()
+    try:
         LOGGER.info("Start checking IO is ISO between tract and PyTorch")
         raise_exception = bool(
             int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
         )
-        if tract_cli.assert_io(
+        tract_cli.assert_io(
             nnef_file_path,
             io_npz_path,
             raise_exception=raise_exception,
             check_tolerance=check_tolerance,
-        ):
-            LOGGER.info(
-                "IO bit match between tract and PyTorch for %s", nnef_file_path
-            )
+        )
+        LOGGER.info(
+            "IO bit match between tract and PyTorch for %s", nnef_file_path
+        )
+    except (T2NErrorIOPytorchTractNotISO, T2NErrorTract) as exp:
+        if debug_bundle_path is None:
+            raise exp
+        nnef_file_path = nnef_file_path.absolute()
+        no_suffix_debug_bundle_path = debug_bundle_path.with_suffix(
+            ""
+        ).absolute()
 
-
-def assert_io_and_debug_bundle(
-    model: nn.Module,
-    test_input,
-    nnef_file_path: Path,
-    tract_cli: TractCli,
-    io_npz_path: T.Optional[Path] = None,
-    debug_bundle_path: T.Optional[Path] = None,
-    input_names: T.Optional[T.List[str]] = None,
-    output_names: T.Optional[T.List[str]] = None,
-    check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
-):
-    """Core check to ensure tract give same output as PyTorch within bounds."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        try:
-            if io_npz_path is None:
-                io_npz_path = Path(tmpdir) / "io.npz"
-                build_io(
-                    model,
-                    test_input,
-                    io_npz_path=io_npz_path,
-                    input_names=input_names,
-                    output_names=output_names,
+        idx = 0
+        free_debug_bundle_path = no_suffix_debug_bundle_path
+        while True:
+            try:
+                free_debug_bundle_path.mkdir(parents=True)
+                no_suffix_debug_bundle_path = free_debug_bundle_path
+                break
+            except FileExistsError:
+                free_debug_bundle_path = free_debug_bundle_path.parent / (
+                    no_suffix_debug_bundle_path.name + "_" + str(idx)
                 )
-
-            assert nnef_file_path.exists(), nnef_file_path
-            assert io_npz_path.exists()
-            LOGGER.info("Start checking IO is ISO between tract and PyTorch")
-            raise_exception = bool(
-                int(os.environ.get(T2N_CHECK_IO_RAISE_EXCEPTION, 1))
-            )
-            tract_cli.assert_io(
+                idx += 1
+        no_suffix_debug_bundle_torch_to_nnef_path = (
+            no_suffix_debug_bundle_path / "torch_to_nnef"
+        )
+        no_suffix_debug_bundle_torch_to_nnef_path.mkdir(parents=True)
+        with (
+            no_suffix_debug_bundle_torch_to_nnef_path / "io_iso_error.log"
+        ).open("w", encoding="utf8") as fh:
+            fh.write(exp.args[0])
+        with cd(no_suffix_debug_bundle_torch_to_nnef_path):
+            shutil.copy(
                 nnef_file_path,
-                io_npz_path,
-                raise_exception=raise_exception,
+                no_suffix_debug_bundle_torch_to_nnef_path / "model.nnef.tgz",
+            )
+            subprocess.check_output(["tar", "-xzf", str(nnef_file_path)])
+            if io_npz_path:
+                shutil.copy(
+                    io_npz_path,
+                    no_suffix_debug_bundle_torch_to_nnef_path / "io.npz",
+                )
+        dump_environment_versions(
+            no_suffix_debug_bundle_path, tract_cli.tract_path
+        )
+
+        debug_dumper_pytorch_to_onnx_to_nnef(
+            model_info,
+            target_folder=no_suffix_debug_bundle_path
+            / "tract_onnx_converted_model",
+            raise_export_error=False,
+            tract_cli=tract_cli,
+        )
+        run_sh_path = no_suffix_debug_bundle_torch_to_nnef_path / "run.sh"
+        with run_sh_path.open("w") as fh:
+            cmd = tract_cli.assert_io_cmd_str(
+                nnef_path=Path("./model.nnef.tgz"),
+                io_npz_path=Path("./io.npz"),
                 check_tolerance=check_tolerance,
             )
-            LOGGER.info(
-                "IO bit match between tract and PyTorch for %s", nnef_file_path
-            )
-        except (T2NErrorIOPytorchTractNotISO, T2NErrorTract) as exp:
-            if debug_bundle_path is None:
-                raise exp
-            nnef_file_path = nnef_file_path.absolute()
-            no_suffix_debug_bundle_path = debug_bundle_path.with_suffix(
-                ""
-            ).absolute()
-
-            idx = 0
-            free_debug_bundle_path = no_suffix_debug_bundle_path
-            while True:
-                try:
-                    free_debug_bundle_path.mkdir(parents=True)
-                    no_suffix_debug_bundle_path = free_debug_bundle_path
-                    break
-                except FileExistsError:
-                    free_debug_bundle_path = free_debug_bundle_path.parent / (
-                        no_suffix_debug_bundle_path.name + "_" + str(idx)
-                    )
-                    idx += 1
-            no_suffix_debug_bundle_torch_to_nnef_path = (
-                no_suffix_debug_bundle_path / "torch_to_nnef"
-            )
-            no_suffix_debug_bundle_torch_to_nnef_path.mkdir(parents=True)
-            with (
-                no_suffix_debug_bundle_torch_to_nnef_path / "io_iso_error.log"
-            ).open("w", encoding="utf8") as fh:
-                fh.write(exp.args[0])
-            with cd(no_suffix_debug_bundle_torch_to_nnef_path):
-                shutil.copy(
-                    nnef_file_path,
-                    no_suffix_debug_bundle_torch_to_nnef_path
-                    / "model.nnef.tgz",
+            fh.write("${1:-%s} " % cmd[0])
+            fh.write(" ".join(cmd[1:]))
+        subprocess.check_call(["chmod", "+x", run_sh_path])
+        if any(
+            extension in debug_bundle_path.suffix
+            for extension in ["tgz", "tar.gz"]
+        ):
+            with cd(no_suffix_debug_bundle_path.parent):
+                subprocess.check_output(
+                    [
+                        "tar",
+                        "-cvf",
+                        str(debug_bundle_path.absolute()),
+                        str(no_suffix_debug_bundle_path.name),
+                    ]
                 )
-                subprocess.check_output(["tar", "-xzf", str(nnef_file_path)])
-                if io_npz_path:
-                    shutil.copy(
-                        io_npz_path,
-                        no_suffix_debug_bundle_torch_to_nnef_path / "io.npz",
-                    )
-            dump_environment_versions(
-                no_suffix_debug_bundle_path, tract_cli.tract_path
-            )
+            # rm acceptable since dir created ensured empty before use
+            shutil.rmtree(no_suffix_debug_bundle_path)
+        LOGGER.info("debug bundle built at %s", debug_bundle_path)
 
-            debug_dumper_pytorch_to_onnx_to_nnef(
-                model,
-                test_input,
-                target_folder=no_suffix_debug_bundle_path
-                / "tract_onnx_converted_model",
-                raise_export_error=False,
-                tract_cli=tract_cli,
-            )
-            run_sh_path = no_suffix_debug_bundle_torch_to_nnef_path / "run.sh"
-            with run_sh_path.open("w") as fh:
-                cmd = tract_cli.assert_io_cmd_str(
-                    nnef_path=Path("./model.nnef.tgz"),
-                    io_npz_path=Path("./io.npz"),
-                    check_tolerance=check_tolerance,
-                )
-                fh.write("${1:-%s} " % cmd[0])
-                fh.write(" ".join(cmd[1:]))
-            subprocess.check_call(["chmod", "+x", run_sh_path])
-            if any(
-                extension in debug_bundle_path.suffix
-                for extension in ["tgz", "tar.gz"]
-            ):
-                with cd(no_suffix_debug_bundle_path.parent):
-                    subprocess.check_output(
-                        [
-                            "tar",
-                            "-cvf",
-                            str(debug_bundle_path.absolute()),
-                            str(no_suffix_debug_bundle_path.name),
-                        ]
-                    )
-                # rm acceptable since dir created ensured empty before use
-                shutil.rmtree(no_suffix_debug_bundle_path)
-            LOGGER.info("debug bundle built at %s", debug_bundle_path)
-
-            exp.args = tuple(
-                [f"test with model: {model}\n" + exp.args[0]]
-                + list(exp.args)[1:]
-            )
-            raise exp
+        exp.args = tuple(
+            [f"test with model: {model_info.model}\n" + exp.args[0]]
+            + list(exp.args)[1:]
+        )
+        raise exp
