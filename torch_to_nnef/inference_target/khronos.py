@@ -9,7 +9,6 @@ from pathlib import Path
 import torch
 from nnef_tools.interpreter.pytorch import NNEFModule
 from nnef_tools.model import Graph as NGraph
-from torch import nn
 
 from torch_to_nnef.exceptions import (
     T2NErrorKhronosInterpreterDiffValue,

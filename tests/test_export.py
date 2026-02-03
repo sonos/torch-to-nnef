@@ -1,11 +1,11 @@
 """E2E Test of the export function."""
 
 import logging as log
+import tarfile
 import tempfile
 import typing as T
 from dataclasses import dataclass
 from pathlib import Path
-import tarfile
 
 import nnef
 import numpy as np

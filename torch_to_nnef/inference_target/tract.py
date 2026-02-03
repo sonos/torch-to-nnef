@@ -5,7 +5,6 @@ NOTE: interaction are done with *Nix tty system in mind, no support for Windows
 """
 
 import enum
-import gc
 import logging
 import os
 import platform

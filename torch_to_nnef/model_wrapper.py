@@ -4,11 +4,10 @@ ie: Cases where inputs or outputs of a model contains tuples
 
 """
 
-from dataclasses import dataclass
 import logging as log
-from pathlib import Path
 import typing as T
-import inspect
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -223,10 +222,12 @@ class UnfoldModelInfo:
 
     def validate(self):
         assert len(self.input_names) == len(self.flat_inputs), (
-            f"input names length mismatch:{len(self.input_names)} != {len(self.flat_inputs)}"
+            "input names length mismatch:"
+            f"{len(self.input_names)} != {len(self.flat_inputs)}"
         )
         assert len(self.output_names) == len(self.flat_outputs), (
-            f"output names length mismatch:{len(self.output_names)} != {len(self.flat_outputs)}. "
+            "output names length mismatch:"
+            f"{len(self.output_names)} != {len(self.flat_outputs)}. "
             f"with output names: {self.output_names}"
         )
 
