@@ -14,15 +14,7 @@ hound = "3.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 test-log = "0.2.19"
-# tract-core = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-# tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-# tract-transformers = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-# tract-metal = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-# tract-cuda = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-
-# tract-rs = { git = "https://github.com/sonos/tract.git", branch = "api-cleanup" }
-# tract-rs = { path = "../../../../tract/api/rs/" }
-tract-rs = { git = "https://github.com/sonos/tract.git", rev = "7bb1f04ec" }
+tract-rs = { git = "https://github.com/sonos/tract.git", rev = "b232cfca6" }
 
 [profile.release]
 debug = true
