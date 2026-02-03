@@ -17,7 +17,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from numpy import isin
 import torch
 
 from torch_to_nnef._optional_types import (
@@ -867,7 +866,6 @@ def ask_model_selector(
 
 def nemo_asr_hg_list(huggingface_hub: HuggingFaceHubModule):
     """Return the list of available NeMo ASR models from HuggingFace."""
-
     hugging_face_hub_model_list = []
 
     # Query HF for NVIDIA ASR models that declare NeMo compatibility

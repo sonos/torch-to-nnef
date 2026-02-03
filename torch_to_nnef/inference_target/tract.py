@@ -172,8 +172,8 @@ class TractNNEF(InferenceTarget):
                 whatever the original PyTorch modeling.
             reify_sdpa_operator:
                 (Optional) enable the conversion of scaled_dot_product_attention
-                as a tract operator (intead of a NNEF fragment), default false until
-                tract v0.22.0 included then true, except if specified.
+                as a tract operator (intead of a NNEF fragment), default false
+                until tract v0.22.0 included then true, except if specified.
                 Experimental feature.
             upsample_with_debox:
                 use debox upsample operator instead of deconvolution.

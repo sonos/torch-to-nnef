@@ -1,6 +1,7 @@
 """Wrap model to bypass limitation of torch_to_nnef internals.
 
-ie: Cases where inputs or outputs of a model contains tuples, list, dicts, Object.
+ie: Cases where inputs or outputs of a model contains:
+    tuples, list, dicts, Object.
 
 """
 
