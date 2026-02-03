@@ -304,6 +304,7 @@ def unfold_model_io(model, args, outs, input_names, output_names):
         or has_non_tensor_elements(flat_outs)
     ):
         model = WrapStructIO(model, flat_args, flat_outs)
+        model.eval()
     return UnfoldModelInfo(
         model=model,
         original_inputs=tuple(args),
