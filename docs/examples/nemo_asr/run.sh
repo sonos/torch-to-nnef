@@ -1,14 +1,14 @@
 #!/bin/bash
 
-set -e
+set -ex
 
-python3 -m venv .venv
+[ -e .venv ] || python3 -m venv .venv
 source .venv/bin/activate
 mkdir -p assets
 (
     cd assets
-    wget -qnc https://dldata-public.s3.us-east-2.amazonaws.com/2086-149220-0033.wav
-    wget -qnc https://raw.githubusercontent.com/mozilla/DeepSpeech/master/data/smoke_test/LDC93S1.wav -O data_smoke_test_LDC93S1.wav
+    wget -qN https://dldata-public.s3.us-east-2.amazonaws.com/2086-149220-0033.wav
+    wget -qN https://raw.githubusercontent.com/mozilla/DeepSpeech/master/data/smoke_test/LDC93S1.wav -O data_smoke_test_LDC93S1.wav
 )
 rm -rf assets/model
 pip install -e ../../../[nemo-tract]
