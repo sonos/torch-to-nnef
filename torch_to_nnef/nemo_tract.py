@@ -66,6 +66,7 @@ def exportable_nemo_net(
     model,
     input_example,
     use_dynamo=False,
+    batch_size: int = 1,
     float_dtype: T.Optional[torch.dtype] = None,
     *,
     nemo: InjectedNemoModule = INJECTED,
@@ -115,7 +116,7 @@ def exportable_nemo_net(
                 else:
                     fdtype = float_dtype
                 LOGGER.debug("Generating dummy input... %s", float_dtype)
-                input_example = model.input_example()
+                input_example = model.input_example(max_batch=batch_size)
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
                     input_example = [
@@ -185,7 +186,11 @@ def iter_nemo_model_subnets(
             input_example = None  # reset input example for joint
             # because need more parameters than encoder output only
         with exportable_nemo_net(
-            subnet_name, subnet, input_example, float_dtype=float_dtype
+            subnet_name,
+            subnet,
+            input_example,
+            batch_size=3,
+            float_dtype=float_dtype,
         ) as (
             #  pylint: disable-next=redefined-argument-from-local
             input_example,
