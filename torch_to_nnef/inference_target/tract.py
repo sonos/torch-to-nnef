@@ -336,7 +336,7 @@ class TractNNEF(InferenceTarget):
                 )
             with tempfile.TemporaryDirectory() as tmpdir:
                 io_npz_path = Path(tmpdir) / "test_io.npz"
-                model_info.write_io_npz(io_npz_path)
+                model_info.write_io_npz(io_npz_path, tract_compat=True)
                 if debug_bundle_path is None:
                     assert_io(
                         nnef_file_path=exported_filepath,
@@ -346,8 +346,7 @@ class TractNNEF(InferenceTarget):
                     )
                 else:
                     assert_io_and_debug_bundle(
-                        model_info.model,
-                        model_info.flat_inputs,
+                        model_info,
                         exported_filepath,
                         debug_bundle_path=debug_bundle_path,
                         tract_cli=self.tract_cli,
@@ -684,8 +683,6 @@ def build_io(
         test_input = (test_input,)
     with select_model_mode_for_export(model, TrainingMode.EVAL):
         test_outputs = model(*test_input)
-    if isinstance(test_outputs, torch.Tensor):
-        test_outputs = (test_outputs,)
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names
     )
