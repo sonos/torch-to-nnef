@@ -106,13 +106,24 @@ def flatten_dict_tuple_or_list(
     collected_idxes = [] if collected_idxes is None else collected_idxes[:]
     collected_types = [] if collected_types is None else collected_types[:]
 
+    def is_flattenable_obj(obj):
+        return not isinstance(obj, torch.Tensor) and (
+            hasattr(obj, "__getitem__") or hasattr(obj, "__dict__")
+        )
+
+    def is_supported_container(obj):
+        return isinstance(obj, (tuple, list, dict))
+
+    def is_flattenable(obj):
+        return is_flattenable_obj(obj) or is_supported_container(obj)
+
     collected_types.append(type(obj))
     if isinstance(obj, (tuple, list)):
         collected_idxes.append(current_idx)
         current_idx += 1
         if not obj:
             return ()
-        if isinstance(obj[0], (tuple, list, dict)):
+        if is_flattenable(obj[0]):
             return flatten_dict_tuple_or_list(
                 obj[0], collected_types, collected_idxes, 0
             ) + flatten_dict_tuple_or_list(
@@ -126,10 +137,12 @@ def flatten_dict_tuple_or_list(
         ) + flatten_dict_tuple_or_list(
             obj[1:], collected_types[:-1], collected_idxes[:-1], current_idx
         )
-    if hasattr(obj, "__getitem__") and not isinstance(obj, torch.Tensor):
+    if is_flattenable_obj(obj):
+        if hasattr(obj, "__dict__"):
+            obj = obj.__dict__
         res = []  # type: ignore
         for k, v in obj.items():
-            if hasattr(v, "__getitem__") and not isinstance(v, torch.Tensor):
+            if is_flattenable(v):
                 res += flatten_dict_tuple_or_list(
                     v, collected_types, collected_idxes + [k], 0
                 )
@@ -662,3 +675,26 @@ def require_extra_decorator(
         return wrapper  # type: ignore[return-value]
 
     return decorator
+
+
+def blank_from_init(cls):
+    """Create a blank instance of cls by bypassing __init__."""
+    # Bypass __init__
+    obj = cls.__new__(cls)
+
+    sig = inspect.signature(cls.__init__)
+
+    for name, param in sig.parameters.items():
+        if name == "self":
+            continue
+
+        # Skip *args and **kwargs (no attribute name to bind)
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
+        setattr(obj, name, None)
+
+    return obj

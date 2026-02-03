@@ -8,13 +8,14 @@ from dataclasses import dataclass
 import logging as log
 from pathlib import Path
 import typing as T
+import inspect
 
 import numpy as np
 import torch
 from torch import nn
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
-from torch_to_nnef.utils import flatten_dict_tuple_or_list
+from torch_to_nnef.utils import blank_from_init, flatten_dict_tuple_or_list
 
 LOGGER = log.getLogger(__name__)
 
@@ -55,9 +56,15 @@ class WrapStructIO(nn.Module):
                     cur_struct[idx] = None
                 if next_typ is tuple:
                     next_typ = list
+                if isinstance(idx, str) and hasattr(cur_struct, idx):
+                    setattr(cur_struct, idx, arg)
+                    cur_struct = getattr(cur_struct, idx)
+                    continue
                 if cur_struct[idx] is None:
                     cur_struct[idx] = (
-                        next_typ() if next_typ is not None else arg
+                        blank_from_init(next_typ)
+                        if next_typ is not None
+                        else arg
                     )
                 cur_struct = cur_struct[idx]
 
@@ -150,6 +157,7 @@ def _build_new_names_and_elements(
     flat_elms = flatten_dict_tuple_or_list(elms)
     new_names = []
     new_elms = []
+    new_flat_elms = []
     for _, idxes, elm in flat_elms:
         root_idx, *rest_idxes = idxes
         if not isinstance(root_idx, int):
@@ -179,7 +187,8 @@ def _build_new_names_and_elements(
             continue
         new_names.append(root_name + str_idxes if str_idxes else root_name)
         new_elms.append(elm)
-    return new_names, new_elms, flat_elms
+        new_flat_elms.append((_, idxes, elm))
+    return new_names, new_elms, flat_elms, new_flat_elms
 
 
 def has_sub_containers(flat_elms):
@@ -262,10 +271,10 @@ def unfold_model_io(model, args, outs, input_names, output_names):
     if isinstance(outs, torch.Tensor):
         outs = (outs,)
 
-    flat_args = []
-    flat_outs = []
-    new_input_names, args, flat_args = _build_new_names_and_elements(
-        input_names, args, default_element_name_tmpl="input_{}"
+    new_input_names, args, flat_args, new_flat_args = (
+        _build_new_names_and_elements(
+            input_names, args, default_element_name_tmpl="input_{}"
+        )
     )
     if new_input_names != input_names:
         LOGGER.warning(
@@ -274,8 +283,10 @@ def unfold_model_io(model, args, outs, input_names, output_names):
         )
         input_names = new_input_names
 
-    new_output_names, _, flat_outs = _build_new_names_and_elements(
-        output_names, outs, default_element_name_tmpl="output_{}"
+    new_output_names, _, flat_outs, new_flat_outs = (
+        _build_new_names_and_elements(
+            output_names, outs, default_element_name_tmpl="output_{}"
+        )
     )
     if new_output_names != output_names:
         LOGGER.warning(
@@ -295,8 +306,8 @@ def unfold_model_io(model, args, outs, input_names, output_names):
         model=model,
         original_inputs=tuple(args),
         original_outputs=outs,
-        flat_inputs=tuple(cast_tensor_if_int(_[2]) for _ in flat_args),
-        flat_outputs=tuple(cast_tensor_if_int(_[2]) for _ in flat_outs),
+        flat_inputs=tuple(cast_tensor_if_int(_[2]) for _ in new_flat_args),
+        flat_outputs=tuple(cast_tensor_if_int(_[2]) for _ in new_flat_outs),
         input_names=input_names,
         output_names=output_names,
     )

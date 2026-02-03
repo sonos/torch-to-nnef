@@ -26,8 +26,8 @@ except ImportError as exp:
 
 def check_export_asr_model(model_slug, skip_preprocessor=False):
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
-    if (
-        not cond_tract_gt_0_22_0(inference_target)
+    if not (
+        cond_tract_gt_0_22_0(inference_target)
         and SemanticVersion.from_str(nemo.__version__) > "2.1.0"
     ):
         pytest.skip(
