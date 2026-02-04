@@ -683,7 +683,11 @@ def build_io(
 ):
     if isinstance(test_input, torch.Tensor):
         test_input = (test_input,)
-    with select_model_mode_for_export(model, TrainingMode.EVAL):
+    with (
+        select_model_mode_for_export(model, TrainingMode.EVAL),
+        torch.no_grad(),
+        torch.inference_mode(),
+    ):
         test_outputs = model(*test_input)
     model_info = unfold_model_io(
         model, test_input, test_outputs, input_names, output_names

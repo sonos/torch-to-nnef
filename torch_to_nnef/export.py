@@ -217,7 +217,13 @@ def export_model_to_nnef(
         and not isinstance(args, torch.Tensor)
     ):
         args = (args,)
-    outs = model(*args)
+
+    with (
+        select_model_mode_for_export(model, TrainingMode.EVAL),
+        torch.no_grad(),
+        torch.inference_mode(),
+    ):
+        outs = model(*args)
     apply_name_to_tensor_in_module(model)
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)) or (
         hasattr(args, "__getitem__")

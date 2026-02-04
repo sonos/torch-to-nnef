@@ -187,8 +187,9 @@ def causal_mask_dyn_inference_modifier(inference_target):
 test_suite.add(
     (torch.rand(2, 10), torch.rand(1, 4, 5, 3)),
     LambdaOp(trace_tdim_through_arange_fail),
-    inference_conditions=lambda i: isinstance(i, TractNNEF)
-    and i.version >= "0.21.8",
+    inference_conditions=lambda i: (
+        isinstance(i, TractNNEF) and i.version >= "0.21.8"
+    ),
     inference_modifier=causal_mask_dyn_inference_modifier,
 )
 
