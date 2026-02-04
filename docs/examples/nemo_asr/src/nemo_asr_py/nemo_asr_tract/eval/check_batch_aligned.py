@@ -106,7 +106,7 @@ def _to_numpy(x: T.Any):
 
 
 class ModuleNpyDumper:
-    """Attach pre/post forward to a nn.Module to dump io as np arrays."""
+    """Attach post forward to a nn.Module to dump io as np arrays."""
 
     def __init__(
         self,
@@ -129,12 +129,15 @@ class ModuleNpyDumper:
 
         os.makedirs(out_dir, exist_ok=True)
 
-        self._post_handle = module.register_forward_hook(self._post_hook)
+        self._post_handle = module.register_forward_hook(
+            self._post_hook, with_kwargs=True
+        )
 
     def _post_hook(
         self,
         module: torch.nn.Module,
-        inputs: T.Tuple[T.Any, ...],
+        args: T.Tuple[T.Any, ...],
+        kwargs: T.Dict[str, T.Any],
         outputs: T.Tuple[T.Any, ...],
     ):
         if not self._enabled:
@@ -143,10 +146,12 @@ class ModuleNpyDumper:
         prefix = f"{self.name}_step_{self.step}"
 
         if self.dump_inputs:
-            self._dump_tensors(inputs, f"{prefix}_input")
+            self._dump_tensors(args, f"{prefix}_input")
+            for k, v in kwargs.items():
+                self._dump_tensors(v, f"{prefix}_input_{k}")
 
         if self.dump_outputs:
-            self._dump_tensors(outputs, prefix + "_output")
+            self._dump_tensors(outputs, f"{prefix}_output")
 
         self.step += 1
 
@@ -180,7 +185,6 @@ class ModuleNpyDumper:
         self._enabled = False
 
     def remove(self):
-        self._pre_handle.remove()
         self._post_handle.remove()
 
 
