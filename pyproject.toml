@@ -390,6 +390,9 @@ extras = ["test", "nemo-tract"]
 deps = ["nemo_toolkit[asr]==2.5.3"]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
+[tool.tox.env.py314]
+basepython = ["python3.14"]
+
 [tool.tox.env.build]
 allowlist_externals = ["uv"]
 extras = ["dev"]
