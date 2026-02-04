@@ -536,7 +536,8 @@ class TorchOp:
             args, kwargs = self.update_call_op_arg_kwargs(self.args)
 
             try:
-                return self.op_ref(*args, **kwargs)
+                with torch.no_grad(), torch.inference_mode():
+                    return self.op_ref(*args, **kwargs)
             except RuntimeError as exp:
                 raise T2NErrorRuntime(
                     f"running {self.op_ref}(args={args}, kwargs={kwargs})"
