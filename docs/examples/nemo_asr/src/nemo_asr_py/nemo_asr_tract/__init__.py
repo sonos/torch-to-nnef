@@ -6,6 +6,7 @@ from .nemo_asr import (
     Transcript,
     TranscriptItem,
     Transcripts,
+    RuntimeConfig,
     load_config_from_dir,
 )
 from .utils import check_ffi_error, lib
@@ -28,4 +29,5 @@ __all__ = [
     "TranscriptItem",
     "Transcripts",
     "load_config_from_dir",
+    "RuntimeConfig",
 ]
