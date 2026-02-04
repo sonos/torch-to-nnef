@@ -3,13 +3,15 @@
 import contextlib
 import os
 import platform
+import warnings
 from copy import deepcopy
 
 import pytest
 import torch
 import torchaudio
+import torchvision
+from torch.jit._trace import TracerWarning
 from torchaudio import models as audio_mdl
-from torchvision import models as vision_mdl
 from transformers import AlbertModel, AlbertTokenizer
 
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
@@ -36,31 +38,73 @@ test_suite = TestSuiteInferenceExactnessBuilder(
     TRACT_INFERENCES_TO_TESTS_APPROX
 )
 
-test_suite.add(
-    torch.rand(1, 3, 224, 224),
-    vision_mdl.alexnet(pretrained=True, progress=False),
-    test_name="alexnet",
-)
 
-test_suite.add(
-    torch.rand(1, 3, 256, 256),
-    vision_mdl.resnet50(pretrained=True, progress=False),
-    test_name="resnet50",
-)
+def get_vision_model(vision_model_name, pretrained=True, progress=False):
+    """Handle torchvison API evolution."""
+    class_name = vision_model_name.lower()
+    if not hasattr(torchvision.models, class_name):
+        return
+    mdl_cls = getattr(torchvision.models, class_name)
+    if torchvision.__version__ < "0.13.0":
+        model = mdl_cls(pretrained=pretrained, progress=progress)
+    else:
+        weights_enum = getattr(
+            torchvision.models,
+            f"{vision_model_name}_Weights",
+        )
+        model = mdl_cls(
+            weights=weights_enum.DEFAULT if pretrained else None,
+            progress=progress,
+        )
+    return model
 
-test_suite.add(
-    torch.rand(1, 3, 256, 256),
-    vision_mdl.mnasnet1_0(pretrained=True, progress=False),
-    test_name="mnasnet1_0",
-)
-if hasattr(vision_mdl, "efficientnet_b0"):
+
+def add_vision_model_test_suite(input_size, name):
+    inps = torch.rand(1, 3, input_size, input_size)
+    mdl = get_vision_model(name)
+    base_name = name.lower()
+    if mdl is None:
+        print(
+            f"missing '{base_name}' in vision "
+            f"package: {torchvision.__version__}"
+        )
+        return
     test_suite.add(
-        torch.rand(1, 3, 256, 256),
-        vision_mdl.efficientnet_b0(pretrained=True, progress=False),
-        test_name="efficientnet_b0",
+        (inps,),
+        mdl,
+        test_name=base_name,
     )
-else:
-    print("missing efficientnet_b0 in vision package")
+
+
+add_vision_model_test_suite(224, "AlexNet")
+add_vision_model_test_suite(256, "ResNet50")
+add_vision_model_test_suite(256, "MNASNet1_0")
+add_vision_model_test_suite(256, "EfficientNet_B0")
+add_vision_model_test_suite(224, "ViT_B_16")
+# swin_transformer {
+# need slice with stride
+if hasattr(torchvision.models, "swin_transformer"):
+    torchvision.models.swin_transformer.ShiftedWindowAttention = (
+        ExportableShiftedWindowAttention
+    )
+    torchvision.models.swin_transformer.SwinTransformerBlock = (
+        ExportableSwinTransformerBlock
+    )
+    data = torch.rand(1, 3, 224, 224)
+    mdl = torchvision.models.swin_t()  # pretrained=False
+    mdl.eval()
+    mdl(data)  # precompute attn mask and few shapes
+    test_suite.add(
+        data,
+        mdl,
+        test_name="swin_transformer",
+        inference_conditions=lambda i: (
+            isinstance(i, TractNNEF) and i.version > "0.19.0"
+        ),
+    )
+
+# }
+
 
 test_suite.add(
     torch.rand(1, 1, 100, 64),
@@ -141,39 +185,6 @@ test_suite.add(
 # ) # 1: eval() called on a Dummy op. This is a bug.
 
 # export pretrained work but multi_head might give different values
-if hasattr(vision_mdl, "vit_b_16"):
-    test_suite.add(
-        torch.rand(1, 3, 224, 224),
-        vision_mdl.vit_b_16(pretrained=False),
-        test_name="vit_b_16",
-    )
-else:
-    print("missing vit_b_16 in vision package")
-
-
-# swin_transformer {
-# need slice with stride
-if hasattr(vision_mdl, "swin_transformer"):
-    vision_mdl.swin_transformer.ShiftedWindowAttention = (
-        ExportableShiftedWindowAttention
-    )
-    vision_mdl.swin_transformer.SwinTransformerBlock = (
-        ExportableSwinTransformerBlock
-    )
-    data = torch.rand(1, 3, 224, 224)
-    mdl = vision_mdl.swin_t()  # pretrained=False
-    mdl.eval()
-    mdl(data)  # precompute attn mask and few shapes
-    test_suite.add(
-        data,
-        mdl,
-        test_name="swin_transformer",
-        inference_conditions=lambda i: (
-            isinstance(i, TractNNEF) and i.version > "0.19.0"
-        ),
-    )
-
-# }
 
 
 # albert {
@@ -232,6 +243,10 @@ except ImportError:
 )
 def test_model_export(id, test_input, model, inference_target):
     """Test simple models."""
-    check_model_io_test(
-        model=model, test_input=test_input, inference_target=inference_target
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=TracerWarning)
+        check_model_io_test(
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target,
+        )

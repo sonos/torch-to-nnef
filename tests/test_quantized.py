@@ -8,7 +8,6 @@ import pytest
 import torch
 import torch.nn.quantized as nnq
 from torch import nn
-from torch.quantization import quantize_fx
 
 from torch_to_nnef.inference_target import InferenceTarget, TractNNEF
 
@@ -57,6 +56,23 @@ class WithQuantDeQuant(torch.quantization.QuantWrapper):
     ):
         model = cls(model)
         if use_ao_quant:
+            # import set here to avoid early import that
+            # may fail in python3.14 with pytorch 2.9.1
+            # ../torch/ao/quantization/quantizer/quantizer.py:85: in <module>
+            # EdgeOrNode.__module__ = "..."
+            # ^^^^^^^^^^^^^^^^^^^^^
+            # E   AttributeError: 'typing.Union' object has no
+            # attribute '__module__' and no __dict__ for setting new attributes.
+            # Did you mean: '__reduce__'?
+            try:
+                from torch.quantization import quantize_fx
+            except ImportError as e:
+                pytest.skip(
+                    f"Python: {sys.version} with PyTorch: {torch.__version__}"
+                    f": do fail to import quantize_fx: {e}",
+                    allow_module_level=True,
+                )
+
             if use_static:
                 model_qprep = quantize_fx.prepare_fx(
                     model.eval(),
