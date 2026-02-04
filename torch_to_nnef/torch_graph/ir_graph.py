@@ -640,9 +640,11 @@ class TorchModuleIRGraph:
         self.data_nodes = ReactiveNamedItemDict(
             sorted(
                 list(used_data_nodes),
-                key=lambda _: ordered_data_nodes_hashs[hash(_)]
-                if _ in ordered_data_nodes_hashs
-                else -1,
+                key=lambda _: (
+                    ordered_data_nodes_hashs[hash(_)]
+                    if _ in ordered_data_nodes_hashs
+                    else -1
+                ),
             )
         )
 

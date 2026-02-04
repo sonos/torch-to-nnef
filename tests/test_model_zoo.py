@@ -99,8 +99,9 @@ if hasattr(audio_mdl, "Conformer"):
             )
         ),
         test_name="conformer",
-        inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and i.version >= "0.21.2",
+        inference_conditions=lambda i: (
+            isinstance(i, TractNNEF) and i.version >= "0.21.2"
+        ),
     )
 
 if hasattr(audio_mdl, "ConvTasNet"):
@@ -167,8 +168,9 @@ if hasattr(vision_mdl, "swin_transformer"):
         data,
         mdl,
         test_name="swin_transformer",
-        inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and i.version > "0.19.0",
+        inference_conditions=lambda i: (
+            isinstance(i, TractNNEF) and i.version > "0.19.0"
+        ),
     )
 
 # }

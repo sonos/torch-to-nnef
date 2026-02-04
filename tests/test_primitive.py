@@ -522,8 +522,9 @@ for qte in [2, 3]:
         # N x L x  H
         torch.arange(qte * 10).reshape(1, qte, 10),
         UnaryPrimitive(lambda x: x[..., 0::2]),
-        inference_conditions=lambda i: isinstance(i, TractNNEF)
-        and i.version >= "0.19.0",
+        inference_conditions=lambda i: (
+            isinstance(i, TractNNEF) and i.version >= "0.19.0"
+        ),
     )
 
 
