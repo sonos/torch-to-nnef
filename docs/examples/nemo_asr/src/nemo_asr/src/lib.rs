@@ -38,6 +38,7 @@ pub struct RuntimeConfig {
     max_n_tokens_per_step: Option<usize>,
     force_cpu: bool,
     encoder_per_batch: bool,
+    dump_intermediate_io_path: Option<PathBuf>,
 }
 
 impl Default for RuntimeConfig {
@@ -46,6 +47,8 @@ impl Default for RuntimeConfig {
             max_n_tokens_per_step: Some(50),
             force_cpu: false,
             encoder_per_batch: false,
+            // if set to Some(path), will dump encoder inputs/outputs
+            dump_intermediate_io_path: None,
         }
     }
 }
@@ -135,6 +138,40 @@ fn normalize_transcript_text(s: &str) -> String {
     out.trim().to_string()
 }
 
+/// dump tensor to a npy file
+fn dump_value_vec_to_file(values: &[Value], dir_path: PathBuf) -> anyhow::Result<()> {
+    std::fs::create_dir_all(&dir_path)?;
+
+    for (i, value) in values.iter().enumerate() {
+        // Find the first available filename
+        let mut idx = 0;
+        let file_path = loop {
+            let path = dir_path.join(format!("tensor_{}_{}.npy", i, idx));
+            if !path.exists() {
+                break path;
+            }
+
+            idx += 1;
+        };
+
+        match value.datum_type()? {
+            DatumType::TRACT_DATUM_TYPE_F32 => {
+                let view = value.view::<f32>()?;
+                ndarray_npy::write_npy(&file_path, &view.to_owned())?;
+            }
+            DatumType::TRACT_DATUM_TYPE_I64 => {
+                let view = value.view::<i64>()?;
+                ndarray_npy::write_npy(&file_path, &view.to_owned())?;
+            }
+            other => {
+                anyhow::bail!("Unsupported dtype for npy dump: {:?}", other);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl NemoAsrModel {
     fn load_submodel(bytes: &[u8]) -> Res<Model> {
         let nnef = tract_rs::nnef()?.with_tract_transformers()?;
@@ -191,11 +228,29 @@ impl NemoAsrModel {
     }
 
     pub fn from_dir(path: PathBuf) -> Res<NemoAsrModel> {
-        let model_config_bytes = std::fs::read(path.join("model_config.json"))?;
-        let runtime_config_bytes = std::fs::read(path.join("runtime_config.json")).ok();
-        let pre_model_bytes = std::fs::read(path.join("preprocessor.nnef.tgz"))?;
-        let enc_model_bytes = std::fs::read(path.join("encoder.nnef.tgz"))?;
-        let dec_model_bytes = std::fs::read(path.join("decoder_joint.nnef.tgz"))?;
+        Self::from_dir_with_runtime_config(path, None)
+    }
+
+    pub fn from_dir_with_runtime_config(
+        path: PathBuf,
+        runtime_config_as_u8: Option<Vec<u8>>,
+    ) -> Res<NemoAsrModel> {
+        let runtime_config_path = path.join("runtime_config.json");
+        let model_config_path = path.join("model_config.json");
+        let pre_model_path = path.join("preprocessor.nnef.tgz");
+        let enc_model_path = path.join("encoder.nnef.tgz");
+        let dec_model_path = path.join("decoder_joint.nnef.tgz");
+        log::info!("start loading nemo asr model from dir: {:?}", path);
+
+        let runtime_config_bytes = runtime_config_as_u8.or(std::fs::read(runtime_config_path).ok());
+        let model_config_bytes =
+            std::fs::read(model_config_path).expect("Failed to read model config file");
+        let pre_model_bytes =
+            std::fs::read(pre_model_path).expect("Failed to read preprocessor model file");
+        let enc_model_bytes =
+            std::fs::read(enc_model_path).expect("Failed to read encoder model file");
+        let dec_model_bytes =
+            std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
         Self::from_bytes(
             &model_config_bytes,
@@ -259,6 +314,13 @@ impl NemoAsrModel {
     }
 
     fn run_encoder(&self, preprocessor_output: Vec<Value>) -> Res<Vec<Value>> {
+        if let Some(dump_dir) = &self.runtime_config.dump_intermediate_io_path {
+            dump_value_vec_to_file(
+                &preprocessor_output.to_vec(),
+                dump_dir.join("encoder_inputs"),
+            )?;
+        }
+
         let encoder_output = if self.runtime_config.encoder_per_batch {
             log::debug!("running encoder in full batch mode");
             self.encoder_model.run(preprocessor_output)?
@@ -293,6 +355,9 @@ impl NemoAsrModel {
                 .try_into()?,
             ]
         };
+        if let Some(dump_dir) = &self.runtime_config.dump_intermediate_io_path {
+            dump_value_vec_to_file(&encoder_output.to_vec(), dump_dir.join("encoder_outputs"))?;
+        }
         log::debug!("successfully ran encoder");
         Ok(encoder_output)
     }
