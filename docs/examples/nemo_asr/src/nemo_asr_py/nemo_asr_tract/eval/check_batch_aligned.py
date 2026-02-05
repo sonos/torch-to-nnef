@@ -6,8 +6,9 @@ Only work on Open ASR Leaderboard datasets for now.
 from pathlib import Path
 import typing as T
 import os
-import numpy as np
+import inspect
 
+import numpy as np
 import torch
 import evaluate
 from nemo.collections.asr.models import ASRModel
@@ -71,7 +72,7 @@ class ErrorCase(PydanticModel):
         console.print()
 
         def str_cond(cond) -> str:
-            return "[green]OK[/]" if cond else "[red]ERROR[/]"
+            return "[green]ALIGNED[/]" if cond else "[red]MISALIGNED[/]"
 
         batched_ok = str_cond(self.wer_different_batched() == 0)
         unbatched_ok = str_cond(self.wer_different_unbatched() == 0)
@@ -143,15 +144,19 @@ class ModuleNpyDumper:
         if not self._enabled:
             return
 
-        prefix = f"{self.name}_step_{self.step}"
-
         if self.dump_inputs:
-            self._dump_tensors(args, f"{prefix}_input")
+            self._dump_tensors(args, f"{self.name}_input/tensor")
+            sig = inspect.signature(module.forward).bind(*args, **kwargs)
+
             for k, v in kwargs.items():
-                self._dump_tensors(v, f"{prefix}_input_{k}")
+                # get index of the argument in forward signature
+                ix = list(sig.arguments.keys()).index(k)
+                self._dump_tensors(
+                    v, f"{self.name}_inputs/tensor_{ix}_{self.step}"
+                )
 
         if self.dump_outputs:
-            self._dump_tensors(outputs, f"{prefix}_output")
+            self._dump_tensors(outputs, f"{self.name}_outputs/tensor")
 
         self.step += 1
 
@@ -160,24 +165,34 @@ class ModuleNpyDumper:
 
     def _dump_tensors(self, outputs: T.Any, prefix: str):
         if isinstance(outputs, torch.Tensor):
+            path = os.path.join(self.out_dir, f"{prefix}.npy")
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
             np.save(
-                os.path.join(self.out_dir, f"{prefix}.npy"),
+                path,
                 outputs.detach().cpu().numpy(),
             )
         elif isinstance(outputs, (tuple, list)):
             for i, out in enumerate(outputs):
                 arr = _to_numpy(out)
                 if arr is not None:
+                    path = os.path.join(
+                        self.out_dir,
+                        f"{prefix}_{i}_{self.step}.npy",
+                    )
+                    Path(path).parent.mkdir(parents=True, exist_ok=True)
                     np.save(
-                        os.path.join(self.out_dir, f"{prefix}_{i}.npy"),
+                        path,
                         arr,
                     )
         elif isinstance(outputs, dict):
             for k, out in outputs.items():
                 arr = _to_numpy(out)
                 if arr is not None:
+                    # TODO: align notation with dirs of other types
                     np.save(
-                        os.path.join(self.out_dir, f"{prefix}_{k}.npy"),
+                        os.path.join(
+                            self.out_dir, f"{prefix}_{k}_{self.step}.npy"
+                        ),
                         arr,
                     )
 
@@ -216,7 +231,7 @@ class BatchBugReproducer:
         if dump_io_path is not None:
             self._nemo_encoder_dumper = ModuleNpyDumper(
                 original_model.encoder,
-                "nemo_encoder",
+                "encoder",
                 Path(dump_io_path) / "nemo",
             )
         self.original_model = original_model
@@ -251,7 +266,13 @@ class BatchBugReproducer:
         fail_transcriptions = self.model_w_batch.infer_from_wav_paths(batch)
         if generate_big_batch:
             _ = self.model_w_batch.infer_from_wav_paths(
+                batch + [batch[0]] * (batch_size // 2)
+            )
+            _ = self.model_w_batch.infer_from_wav_paths(
                 batch + [batch[0]] * batch_size
+            )
+            _ = self.model_w_batch.infer_from_wav_paths(
+                batch + [batch[0]] * batch_size * 2
             )
 
         for (
@@ -320,6 +341,7 @@ def analyze_npy_dumps(
     console.print("[bold underline]Encoder inputs (batched vs unbatched)[/]")
     ub_in_dir = dump_dir / "unbatched" / "encoder_inputs"
     b_in_dir = dump_dir / "batched" / "encoder_inputs"
+    nemo_in_dir = dump_dir / "nemo" / "encoder_inputs"
 
     for ub_file in sorted(ub_in_dir.glob("*.npy")):
         b_file = b_in_dir / ub_file.name
@@ -335,6 +357,7 @@ def analyze_npy_dumps(
     console.print("\n[bold underline]Encoder outputs (batched vs unbatched)[/]")
     ub_out_dir = dump_dir / "unbatched" / "encoder_outputs"
     b_out_dir = dump_dir / "batched" / "encoder_outputs"
+    nemo_out_dir = dump_dir / "nemo" / "encoder_outputs"
 
     for ub_file in sorted(ub_out_dir.glob("*.npy")):
         b_file = b_out_dir / ub_file.name
@@ -352,11 +375,22 @@ def analyze_npy_dumps(
         console.print(
             "\n[bold underline]NeMo encoder vs exported (unbatched)[/]"
         )
+        for ub_file in sorted(ub_in_dir.glob("*.npy")):
+            # convention: nemo_encoder_step_0_output_{i}.npy
+            idx = ub_file.stem.split("_", maxsplit=1)[-1]
+            nemo_file = nemo_in_dir / ub_file.name
+
+            if not nemo_file.exists():
+                continue
+
+            nemo = load_npy(nemo_file)
+            ub = load_npy(ub_file)
+            compare_tensors(f"nemo_vs_unbatched/input_{idx}", nemo, ub)
 
         for ub_file in sorted(ub_out_dir.glob("*.npy")):
             # convention: nemo_encoder_step_0_output_{i}.npy
-            idx = ub_file.stem.split("_")[-1]
-            nemo_file = nemo_dir / f"nemo_encoder_step_0_output_{idx}.npy"
+            idx = ub_file.stem.split("_", maxsplit=1)[-1]
+            nemo_file = nemo_out_dir / ub_file.name
 
             if not nemo_file.exists():
                 continue
@@ -371,36 +405,43 @@ def analyze_npy_dumps(
             "\n[bold underline]Big batch analysis (batch-size sensitivity)[/]"
         )
         console.print(
-            "Comparing normal batch (*_0.npy) vs big batch (*_1.npy) "
+            "Comparing normal batch (*_0.npy) vs big batch (*_n.npy) "
             "after slicing big batch to original batch size"
         )
 
         for base_file in sorted(b_out_dir.glob("*_0.npy")):
-            big_file = b_out_dir / base_file.name.replace("_0.npy", "_1.npy")
-            if not big_file.exists():
-                continue
-
-            base = load_npy(base_file)
-            big = load_npy(big_file)
-
-            if base.ndim == 0 or big.ndim == 0:
-                continue
-
-            if big.shape[0] < base.shape[0]:
-                console.print(
-                    "[yellow]Big batch smaller than base batch for[/] "
-                    f"{base_file.name}"
-                )
-                continue
-
-            # Slice big batch to match original batch size
-            big_sliced = big[: base.shape[0]]
-
-            compare_tensors(
-                f"big_batch_vs_base/{base_file.name}",
-                base,
-                big_sliced,
+            big_ix = 1
+            big_file = b_out_dir / base_file.name.replace(
+                "_0.npy", f"_{big_ix}.npy"
             )
+            while big_file.exists():
+                base = load_npy(base_file)
+                big = load_npy(big_file)
+
+                if base.ndim == 0 or big.ndim == 0:
+                    continue
+
+                if big.shape[0] < base.shape[0]:
+                    console.print(
+                        "[yellow]Big batch smaller than base batch for[/] "
+                        f"{base_file.name}"
+                    )
+                    continue
+
+                # Slice big batch to match original batch size
+                base_batch_size = base.shape[0]
+                big_batch_size = big.shape[0]
+                big_sliced = big[:base_batch_size]
+
+                compare_tensors(
+                    f"big_batch_{big_batch_size}_vs_base_{base_batch_size}/{base_file.name}",
+                    base,
+                    big_sliced,
+                )
+                big_ix += 1
+                big_file = b_out_dir / base_file.name.replace(
+                    "_0.npy", f"_{big_ix}.npy"
+                )
 
     console.print("\n[green]Analysis complete.[/]")
 
