@@ -233,6 +233,7 @@ class BatchBugReproducer:
         self,
         dataset_config: DatasetConfig,
         wav_ix: int,
+        generate_big_batch: bool = False,
     ) -> T.List[ErrorCase]:
         all_wav_paths, refs = self.get_data(dataset_config)
         batch_size = dataset_config.batch_size
@@ -248,6 +249,10 @@ class BatchBugReproducer:
         )
         safe_transcriptions = self.model_wo_batch.infer_from_wav_paths(batch)
         fail_transcriptions = self.model_w_batch.infer_from_wav_paths(batch)
+        if generate_big_batch:
+            _ = self.model_w_batch.infer_from_wav_paths(
+                batch + [batch[0]] * batch_size
+            )
 
         for (
             ix,
@@ -274,6 +279,130 @@ class BatchBugReproducer:
             if err_case.is_an_error():
                 error_cases.append(err_case)
         return error_cases
+
+
+def analyze_npy_dumps(
+    console, dump_dir: T.Union[str, Path], generate_big_batch: bool = False
+):
+    """Analyze dumped npy files to find potential causes of the batch bug.
+
+    check absolute difference max/mean between unbatched and
+    batched intermediate tensors, especially for encoder outputs
+    (still check inputs are aligned).
+
+    if generate_big_batch is enabled,
+    also check if the difference becomes larger when batch size goes beyond 32,
+    by comparing results to the big batch with duplicated samples
+    (by removing the duplicate).
+
+    """
+    dump_dir = Path(dump_dir)
+
+    def load_npy(path: Path) -> np.ndarray:
+        return np.load(path)
+
+    def compare_tensors(name: str, a: np.ndarray, b: np.ndarray):
+        if a.shape != b.shape:
+            console.print(
+                f"[red]Shape mismatch[/] for {name}: {a.shape} vs {b.shape}"
+            )
+            return
+
+        diff = np.abs(a - b)
+        console.print(
+            f"[bold]{name}[/]: "
+            f"max|Δ|={diff.max():.6e}, mean|Δ|={diff.mean():.6e}"
+        )
+
+    console.print("[bold]Analyzing dumped intermediate tensors[/]\n")
+
+    # 1. Compare encoder inputs
+    console.print("[bold underline]Encoder inputs (batched vs unbatched)[/]")
+    ub_in_dir = dump_dir / "unbatched" / "encoder_inputs"
+    b_in_dir = dump_dir / "batched" / "encoder_inputs"
+
+    for ub_file in sorted(ub_in_dir.glob("*.npy")):
+        b_file = b_in_dir / ub_file.name
+        if not b_file.exists():
+            console.print(f"[yellow]Missing batched input:[/] {ub_file.name}")
+            continue
+
+        ub = load_npy(ub_file)
+        b = load_npy(b_file)
+        compare_tensors(f"encoder_inputs/{ub_file.name}", ub, b)
+
+    # 2. Compare encoder outputs
+    console.print("\n[bold underline]Encoder outputs (batched vs unbatched)[/]")
+    ub_out_dir = dump_dir / "unbatched" / "encoder_outputs"
+    b_out_dir = dump_dir / "batched" / "encoder_outputs"
+
+    for ub_file in sorted(ub_out_dir.glob("*.npy")):
+        b_file = b_out_dir / ub_file.name
+        if not b_file.exists():
+            console.print(f"[yellow]Missing batched output:[/] {ub_file.name}")
+            continue
+
+        ub = load_npy(ub_file)
+        b = load_npy(b_file)
+        compare_tensors(f"encoder_outputs/{ub_file.name}", ub, b)
+
+    # 3. Compare against original NeMo encoder (sanity check)
+    nemo_dir = dump_dir / "nemo"
+    if nemo_dir.exists():
+        console.print(
+            "\n[bold underline]NeMo encoder vs exported (unbatched)[/]"
+        )
+
+        for ub_file in sorted(ub_out_dir.glob("*.npy")):
+            # convention: nemo_encoder_step_0_output_{i}.npy
+            idx = ub_file.stem.split("_")[-1]
+            nemo_file = nemo_dir / f"nemo_encoder_step_0_output_{idx}.npy"
+
+            if not nemo_file.exists():
+                continue
+
+            nemo = load_npy(nemo_file)
+            ub = load_npy(ub_file)
+            compare_tensors(f"nemo_vs_unbatched/output_{idx}", nemo, ub)
+
+    # 4. Optional: big batch analysis
+    if generate_big_batch:
+        console.print(
+            "\n[bold underline]Big batch analysis (batch-size sensitivity)[/]"
+        )
+        console.print(
+            "Comparing normal batch (*_0.npy) vs big batch (*_1.npy) "
+            "after slicing big batch to original batch size"
+        )
+
+        for base_file in sorted(b_out_dir.glob("*_0.npy")):
+            big_file = b_out_dir / base_file.name.replace("_0.npy", "_1.npy")
+            if not big_file.exists():
+                continue
+
+            base = load_npy(base_file)
+            big = load_npy(big_file)
+
+            if base.ndim == 0 or big.ndim == 0:
+                continue
+
+            if big.shape[0] < base.shape[0]:
+                console.print(
+                    "[yellow]Big batch smaller than base batch for[/] "
+                    f"{base_file.name}"
+                )
+                continue
+
+            # Slice big batch to match original batch size
+            big_sliced = big[: base.shape[0]]
+
+            compare_tensors(
+                f"big_batch_vs_base/{base_file.name}",
+                base,
+                big_sliced,
+            )
+
+    console.print("\n[green]Analysis complete.[/]")
 
 
 def parse_args():
@@ -312,6 +441,13 @@ def parse_args():
         help="Batch size to use for reproduction.",
     )
     parser.add_argument(
+        "--generate-big-batch",
+        action="store_true",
+        help="Whether to generate a big batch with duplicated samples to "
+        "observe given dumps if behavior is related to batch size (beyond 32). "
+        "by comparing results to batched model",
+    )
+    parser.add_argument(
         "-o",
         "--output-dir",
         type=Path,
@@ -348,7 +484,11 @@ def main():
 
     reproducer = BatchBugReproducer(args.model_dir, args.output_dir)
     console.print(f"start evaluating...: {wav_ix}th wav file in the dataset")
-    error_cases = reproducer.run_inferences(dataset_config, wav_ix=wav_ix)
+    error_cases = reproducer.run_inferences(
+        dataset_config,
+        wav_ix=wav_ix,
+        generate_big_batch=args.generate_big_batch,
+    )
     if error_cases:
         for err in error_cases:
             err.print(console)
@@ -361,6 +501,9 @@ def main():
             with open(args.output_dir / "error_cases.jsonl", "w") as f:
                 for err in error_cases:
                     f.write(err.model_dump_json() + "\n")
+            analyze_npy_dumps(
+                console, Path(args.output_dir), bool(args.generate_big_batch)
+            )
     else:
         console.print("No error cases found 😊.")
 

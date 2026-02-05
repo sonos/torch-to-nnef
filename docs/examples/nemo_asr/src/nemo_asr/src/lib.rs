@@ -253,7 +253,7 @@ impl NemoAsrModel {
             std::fs::read(dec_model_path).expect("Failed to read decoder model file");
 
         Self::from_bytes(
-            model_config_bytes.as_slice(),
+            &model_config_bytes,
             runtime_config_bytes.as_deref(),
             &pre_model_bytes,
             &enc_model_bytes,
