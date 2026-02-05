@@ -3,6 +3,7 @@
 Only work on Open ASR Leaderboard datasets for now.
 """
 
+import logging
 from pathlib import Path
 import typing as T
 import os
@@ -12,7 +13,7 @@ import numpy as np
 import torch
 import evaluate
 from nemo.collections.asr.models import ASRModel
-from rich.console import Console
+from rich.console import Console as RichConsole
 from pydantic import BaseModel as PydanticModel
 
 from nemo_asr_tract import NemoAsrModel
@@ -35,6 +36,25 @@ from nemo_asr_tract.nemo_asr import RuntimeConfig
 from nemo_asr_tract.normalizer.normalizer import EnglishTextNormalizer
 
 NORMALIZER = EnglishTextNormalizer()
+
+
+class Console:
+    def __init__(self, console: T.Optional[RichConsole] = None):
+        if console is None:
+            console = RichConsole()
+        self.console = console
+
+    def print(self, *args, **kwargs):
+        self.console.print(*args, **kwargs)
+        # Additionally log to file if needed (e.g., using logging module)
+        log_line = " ".join(str(arg) for arg in args)
+        log_line = (
+            log_line.replace("[red]", "")
+            .replace("[green]", "")
+            .replace("[bold]", "")
+            .replace("[/]", "")
+        )
+        logging.info(log_line)
 
 
 class ErrorCase(PydanticModel):
@@ -684,6 +704,7 @@ def main():
         log_file=(Path(args.output_dir) / "reproduction.log")
         if args.output_dir
         else None,
+        disable_stdout=True,
     )
     # ix: 2489, 1784 in librispeech test.clean
     wav_ix = args.sample_idx

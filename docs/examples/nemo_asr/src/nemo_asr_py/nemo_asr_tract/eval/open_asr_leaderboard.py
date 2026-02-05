@@ -95,7 +95,11 @@ def run_eval(
     return result
 
 
-def init_log(verbosity: int, log_file: Optional[Path] = None):
+def init_log(
+    verbosity: int,
+    log_file: Optional[Path] = None,
+    disable_stdout: bool = False,
+) -> log.Logger:
     _stream_log = log.StreamHandler()
     try:
         # use rich handler if availlable
@@ -110,7 +114,9 @@ def init_log(verbosity: int, log_file: Optional[Path] = None):
     if verbosity > 2:
         raise ValueError("verbosity level should be between 0 and 2")
 
-    handlers = [_stream_log]
+    handlers = []
+    if not disable_stdout:
+        handlers.append(_stream_log)
     level = {
         -1: log.ERROR,
         0: log.INFO,
