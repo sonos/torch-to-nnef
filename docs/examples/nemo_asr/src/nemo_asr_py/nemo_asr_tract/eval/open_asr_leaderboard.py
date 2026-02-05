@@ -10,7 +10,7 @@ Programmatic ESB evaluation runner.
 import argparse
 import logging as log
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from nemo_asr_tract import init_env_logger
 from nemo_asr_tract.dataset import DatasetConfig
@@ -95,7 +95,7 @@ def run_eval(
     return result
 
 
-def init_log(verbosity: int):
+def init_log(verbosity: int, log_file: Optional[Path] = None):
     _stream_log = log.StreamHandler()
     try:
         # use rich handler if availlable
@@ -110,16 +110,31 @@ def init_log(verbosity: int):
     if verbosity > 2:
         raise ValueError("verbosity level should be between 0 and 2")
 
+    handlers = [_stream_log]
+    level = {
+        -1: log.ERROR,
+        0: log.INFO,
+        1: log.DEBUG,
+        2: log.DEBUG,
+    }[verbosity]
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_log = log.FileHandler(log_file)
+        file_log.setLevel(level)
+        file_log.setFormatter(
+            log.Formatter(
+                fmt="%(asctime)s,%(msecs)d %(levelname)-8s "
+                "[%(filename)s:%(lineno)d] %(message)s",
+                datefmt="%Y-%m-%d:%H:%M:%S",
+            )
+        )
+        handlers.append(file_log)
+
     log.basicConfig(
         format="%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
         datefmt="%Y-%m-%d:%H:%M:%S",
-        level={
-            -1: log.ERROR,
-            0: log.INFO,
-            1: log.DEBUG,
-            2: log.DEBUG,
-        }[verbosity],
-        handlers=[_stream_log],
+        level=level,
+        handlers=handlers,
     )
     if verbosity > -1:
         init_env_logger(verbosity)
@@ -165,9 +180,9 @@ def main():
 
     args = parser.parse_args()
 
-    init_log(verbosity=args.verbosity)
     results_dir = Path(args.results_dir).absolute()
     results_dir.mkdir(parents=True, exist_ok=True)
+    init_log(verbosity=args.verbosity, log_file=results_dir / "eval.log")
 
     conf = load_config_from_dir(args.exported_dir)
 

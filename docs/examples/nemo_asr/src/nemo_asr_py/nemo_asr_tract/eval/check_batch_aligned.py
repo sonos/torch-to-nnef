@@ -26,7 +26,11 @@ from nemo_asr_tract.dataset import (
     sort_by_duration,
 )
 from nemo_asr_tract.eval.compare_manifest import compute_wer, render_alignment
-from nemo_asr_tract.eval.open_asr_leaderboard import ESB_DATASETS, HF_ESB_SLUG
+from nemo_asr_tract.eval.open_asr_leaderboard import (
+    ESB_DATASETS,
+    HF_ESB_SLUG,
+    init_log,
+)
 from nemo_asr_tract.nemo_asr import RuntimeConfig
 from nemo_asr_tract.normalizer.normalizer import EnglishTextNormalizer
 
@@ -657,6 +661,12 @@ def parse_args():
         default=None,
         help="If specified, dumps intermediate I/O tensors to the given path.",
     )
+    parser.add_argument(
+        "--verbosity",
+        type=int,
+        default=0,
+        help="Logging verbosity level: -1 (ERROR), 0 (INFO), 1 (DEBUG).",
+    )
     return parser.parse_args()
 
 
@@ -669,6 +679,12 @@ def main():
 
     """
     args = parse_args()
+    init_log(
+        verbosity=args.verbosity,
+        log_file=(Path(args.output_dir) / "reproduction.log")
+        if args.output_dir
+        else None,
+    )
     # ix: 2489, 1784 in librispeech test.clean
     wav_ix = args.sample_idx
     batch_size = args.batch_size  # Batch size to reproduce the bug
@@ -705,10 +721,11 @@ def main():
                 for err in error_cases:
                     f.write(err.model_dump_json() + "\n")
             analyze_npy_dumps(
-                console,
                 Path(args.output_dir),
-                bool(args.generate_big_batch),
+                generate_big_batch=bool(args.generate_big_batch),
+                assume_io_one_is_lengths=True,
                 batch_size=batch_size,
+                console=console,
             )
     else:
         console.print("No error cases found 😊.")
