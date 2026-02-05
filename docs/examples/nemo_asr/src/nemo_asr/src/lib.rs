@@ -219,7 +219,7 @@ impl NemoAsrModel {
             .map(|s| s.unwrap() as f32 / i16::MAX as f32)
             .collect();
         let input_tensor = Array2::from_shape_vec((1, samples.len()), samples).unwrap();
-        Ok(input_tensor.try_into()?)
+        input_tensor.try_into()
     }
 
     /// Infer from a wav file path all at once
@@ -326,11 +326,11 @@ impl NemoAsrModel {
         let mut shapes = vec![];
         for fact in &self.decoder_state_inputs_facts {
             let mut shape = [0; 3];
-            for ix in 0..3 {
+            for (ix, s) in shape.iter_mut().enumerate() {
                 let dim = fact.dim(ix)?.eval(values)?.to_int64()? as usize;
-                shape[ix] = dim;
+                *s = dim;
             }
-            shapes.push(shape.try_into()?);
+            shapes.push(shape);
         }
         Ok(shapes)
     }
