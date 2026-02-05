@@ -302,8 +302,124 @@ class BatchBugReproducer:
         return error_cases
 
 
+def make_length_mask(
+    a: np.ndarray,
+    lengths: np.ndarray,
+    *,
+    len_dim: int = 1,
+) -> np.ndarray:
+    """Create a broadcast-safe mask for variable-length tensors.
+
+    Args:
+        a : np.ndarray
+            Input tensor of shape (B, ...).
+        lengths : np.ndarray
+            Lengths per batch element, shape (B,).
+        len_dim : int
+            Dimension to apply the length mask on.
+
+    Returns:
+        mask : np.ndarray
+            Boolean mask with same rank as `a`, broadcastable to `a`.
+    """
+    assert lengths.ndim == 1
+    assert a.shape[0] == lengths.shape[0]
+    assert 0 <= len_dim < a.ndim
+
+    B = a.shape[0]
+    L = a.shape[len_dim]
+
+    # Build base arange mask on len_dim
+    arange = np.arange(L)
+
+    # Reshape to (1, ..., 1, L, 1, ..., 1)
+    shape = [1] * a.ndim
+    shape[len_dim] = L
+    arange = arange.reshape(shape)
+
+    # Broadcast lengths to full rank
+    len_shape = [1] * a.ndim
+    len_shape[0] = B
+    lengths_b = lengths.reshape(len_shape)
+
+    base_mask = arange < lengths_b  # (B, ..., L, ...)
+
+    # Explicitly expand all other dimensions to a.shape
+    mask = np.broadcast_to(base_mask, a.shape)
+
+    return mask
+
+
+def compare_tensors(
+    name: str,
+    a: np.ndarray,
+    b: np.ndarray,
+    lengths: T.Optional[np.ndarray] = None,
+    len_dim: int = 2,
+    per_sample: bool = False,
+    console: T.Optional[Console] = None,
+    color_tol: float = 1e-5,
+):
+    if console is None:
+        console = Console()
+    if a.shape != b.shape:
+        console.print(
+            f"[red]Shape mismatch[/] for {name}: {a.shape} vs {b.shape}"
+        )
+        return
+
+    if lengths is not None and len(a.shape) > 1:
+        assert len(lengths) == a.shape[0] == b.shape[0], (
+            "Batch size mismatch with lengths"
+        )
+        masks = make_length_mask(a, lengths, len_dim=len_dim)
+        a = np.where(masks, a, 0)
+        b = np.where(masks, b, 0)
+    diff = np.abs(a - b)
+
+    def display_diff_stats(
+        name, max_d, mean_d, sample_idx=None, color_tol=1e-5
+    ):
+        if sample_idx is not None:
+            name = f"{name} (sample {sample_idx})"
+        max_d_str = f"{max_d:.2e}"
+        mean_d_str = f"{mean_d:.2e}"
+
+        def color_str(value, threshold):
+            if value > threshold:
+                return f"[red]{value:.2e}[/]"
+            else:
+                return f"[green]{value:.2e}[/]"
+
+        max_d_str = color_str(max_d, color_tol)
+        mean_d_str = color_str(mean_d, color_tol)
+
+        console.print(
+            f"[bold]{name}[/]: max|Δ|={max_d_str}, mean|Δ|={mean_d_str}"
+        )
+
+    if per_sample:
+        max_diff_per_sample = diff.reshape(diff.shape[0], -1).max(axis=1)
+        mean_diff_per_sample = diff.reshape(diff.shape[0], -1).mean(axis=1)
+        for i, (max_d, mean_d) in enumerate(
+            zip(max_diff_per_sample, mean_diff_per_sample)
+        ):
+            if max_d > 0 or mean_d > 0:
+                display_diff_stats(
+                    name, max_d, mean_d, sample_idx=i, color_tol=color_tol
+                )
+    else:
+        max_d = diff.max()
+        mean_d = diff.mean()
+        display_diff_stats(name, max_d, mean_d, color_tol=color_tol)
+
+
 def analyze_npy_dumps(
-    console, dump_dir: T.Union[str, Path], generate_big_batch: bool = False
+    dump_dir: T.Union[str, Path],
+    generate_big_batch: bool = False,
+    assume_io_one_is_lengths: bool = True,
+    batch_size: int = 32,
+    console: T.Optional[Console] = None,
 ):
     """Analyze dumped npy files to find potential causes of the batch bug.
 
@@ -317,23 +433,12 @@ def analyze_npy_dumps(
     (by removing the duplicate).
 
     """
+    if console is None:
+        console = Console()
     dump_dir = Path(dump_dir)
 
     def load_npy(path: Path) -> np.ndarray:
         return np.load(path)
-
-    def compare_tensors(name: str, a: np.ndarray, b: np.ndarray):
-        if a.shape != b.shape:
-            console.print(
-                f"[red]Shape mismatch[/] for {name}: {a.shape} vs {b.shape}"
-            )
-            return
-
-        diff = np.abs(a - b)
-        console.print(
-            f"[bold]{name}[/]: "
-            f"max|Δ|={diff.max():.6e}, mean|Δ|={diff.mean():.6e}"
-        )
 
     console.print("[bold]Analyzing dumped intermediate tensors[/]\n")
 
@@ -351,7 +456,16 @@ def analyze_npy_dumps(
 
         ub = load_npy(ub_file)
         b = load_npy(b_file)
-        compare_tensors(f"encoder_inputs/{ub_file.name}", ub, b)
+        lens = None
+        if assume_io_one_is_lengths:
+            lens = load_npy(ub_file.parent / "tensor_1_0.npy")
+        compare_tensors(
+            f"encoder_inputs/{ub_file.name}",
+            ub,
+            b,
+            lengths=lens,
+            console=console,
+        )
 
     # 2. Compare encoder outputs
     console.print("\n[bold underline]Encoder outputs (batched vs unbatched)[/]")
@@ -367,7 +481,24 @@ def analyze_npy_dumps(
 
         ub = load_npy(ub_file)
         b = load_npy(b_file)
-        compare_tensors(f"encoder_outputs/{ub_file.name}", ub, b)
+        lens = None
+        if assume_io_one_is_lengths:
+            lens = load_npy(ub_file.parent / "tensor_1_0.npy")
+        compare_tensors(
+            f"encoder_outputs/{ub_file.name}",
+            ub,
+            b,
+            lengths=lens,
+            console=console,
+        )
+        compare_tensors(
+            " > ",
+            ub,
+            b,
+            lengths=lens,
+            console=console,
+            per_sample=True,
+        )
 
     # 3. Compare against original NeMo encoder (sanity check)
     nemo_dir = dump_dir / "nemo"
@@ -385,7 +516,16 @@ def analyze_npy_dumps(
 
             nemo = load_npy(nemo_file)
             ub = load_npy(ub_file)
-            compare_tensors(f"nemo_vs_unbatched/input_{idx}", nemo, ub)
+            lens = None
+            if assume_io_one_is_lengths:
+                lens = load_npy(ub_file.parent / "tensor_1_0.npy")
+            compare_tensors(
+                f"nemo_vs_unbatched/input_{idx}",
+                nemo,
+                ub,
+                lengths=lens,
+                console=console,
+            )
 
         for ub_file in sorted(ub_out_dir.glob("*.npy")):
             # convention: nemo_encoder_step_0_output_{i}.npy
@@ -397,51 +537,73 @@ def analyze_npy_dumps(
 
             nemo = load_npy(nemo_file)
             ub = load_npy(ub_file)
-            compare_tensors(f"nemo_vs_unbatched/output_{idx}", nemo, ub)
+            lens = None
+            if assume_io_one_is_lengths:
+                lens = load_npy(ub_file.parent / "tensor_1_0.npy")
+            compare_tensors(
+                f"nemo_vs_unbatched/output_{idx}",
+                nemo,
+                ub,
+                lengths=lens,
+                console=console,
+            )
 
     # 4. Optional: big batch analysis
     if generate_big_batch:
         console.print(
-            "\n[bold underline]Big batch analysis (batch-size sensitivity)[/]"
-        )
-        console.print(
-            "Comparing normal batch (*_0.npy) vs big batch (*_n.npy) "
-            "after slicing big batch to original batch size"
+            f"\n[bold underline]Big batch analysis (sensitivity on the {batch_size} first samples of in batches)[/]"
         )
 
-        for base_file in sorted(b_out_dir.glob("*_0.npy")):
-            big_ix = 1
-            big_file = b_out_dir / base_file.name.replace(
-                "_0.npy", f"_{big_ix}.npy"
+        for ref_ix in range(3):
+            if ref_ix > 0:
+                console.print("-" * 40)
+            console.print(
+                f"* Comparing reference batch (*_{ref_ix}.npy) vs other batch (*_n.npy) "
             )
-            while big_file.exists():
-                base = load_npy(base_file)
-                big = load_npy(big_file)
+            for base_file in sorted(b_out_dir.glob(f"*_{ref_ix}.npy")):
+                other_ix = 0
+                other_file = b_out_dir / base_file.name.replace(
+                    f"_{ref_ix}.npy", f"_{other_ix}.npy"
+                )
+                while other_file.exists():
+                    if ref_ix != other_ix:
+                        base = load_npy(base_file)
+                        other = load_npy(other_file)
 
-                if base.ndim == 0 or big.ndim == 0:
-                    continue
+                        if base.ndim == 0 or other.ndim == 0:
+                            continue
 
-                if big.shape[0] < base.shape[0]:
-                    console.print(
-                        "[yellow]Big batch smaller than base batch for[/] "
-                        f"{base_file.name}"
+                        # Slice other batch to match original batch size
+                        base_batch_size = base.shape[0]
+                        other_batch_size = other.shape[0]
+                        base = base[:batch_size]
+                        other_sliced = other[:batch_size]
+                        lens = None
+                        if assume_io_one_is_lengths:
+                            lens = load_npy(base_file.parent / "tensor_1_0.npy")
+
+                        compare_tensors(
+                            f"base_{base_batch_size}_vs_other_{other_batch_size}/{base_file.name}",
+                            base,
+                            other_sliced,
+                            lengths=lens,
+                            console=console,
+                        )
+                        if (
+                            ref_ix == 0
+                        ):  # only compare with big batch when reference is the original batch
+                            compare_tensors(
+                                " > ",
+                                base,
+                                other_sliced,
+                                lengths=lens,
+                                console=console,
+                                per_sample=True,
+                            )
+                    other_ix += 1
+                    other_file = b_out_dir / base_file.name.replace(
+                        f"_{ref_ix}.npy", f"_{other_ix}.npy"
                     )
-                    continue
-
-                # Slice big batch to match original batch size
-                base_batch_size = base.shape[0]
-                big_batch_size = big.shape[0]
-                big_sliced = big[:base_batch_size]
-
-                compare_tensors(
-                    f"big_batch_{big_batch_size}_vs_base_{base_batch_size}/{base_file.name}",
-                    base,
-                    big_sliced,
-                )
-                big_ix += 1
-                big_file = b_out_dir / base_file.name.replace(
-                    "_0.npy", f"_{big_ix}.npy"
-                )
 
     console.print("\n[green]Analysis complete.[/]")
 
@@ -543,7 +705,10 @@ def main():
                 for err in error_cases:
                     f.write(err.model_dump_json() + "\n")
             analyze_npy_dumps(
-                console, Path(args.output_dir), bool(args.generate_big_batch)
+                console,
+                Path(args.output_dir),
+                bool(args.generate_big_batch),
+                batch_size=batch_size,
             )
     else:
         console.print("No error cases found 😊.")
