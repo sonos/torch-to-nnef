@@ -4,14 +4,14 @@
 ///
 /// code adapted from: nemo/collections/asr/parts/submodules/rnnt_greedy_decoding.py
 /// class ONNXGreedyBatchedRNNTInfer
-use anyhow::Context;
+use anyhow::ensure;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tract_core::tract_data::itertools::Itertools;
-use tract_ndarray::s;
-use tract_nnef::prelude::*;
-use tract_nnef::tract_ndarray::Axis;
-use tract_transformers::WithTractTransformers;
+use tract_rs::prelude::tract_ndarray::prelude::*;
+use tract_rs::{prelude::*, runtime_for_name};
+
+type Res<T> = anyhow::Result<T>;
 
 /// Decoder config struct
 #[derive(Debug, Clone, Deserialize)]
@@ -60,11 +60,12 @@ impl NemoAsrConfig {
 /// it load a model from_dir containing model files:
 #[derive(Debug, Clone)]
 pub struct NemoAsrModel {
-    preprocessor_model: TypedRunnableModel<TypedModel>,
-    encoder_model: TypedRunnableModel<TypedModel>,
-    decoder_joint_model: TypedRunnableModel<TypedModel>,
+    preprocessor_model: Runnable,
+    encoder_model: Runnable,
+    decoder_joint_model: Runnable,
     model_config: NemoAsrConfig,
     runtime_config: RuntimeConfig,
+    decoder_state_inputs_facts: Vec<Fact>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -103,7 +104,7 @@ struct Lane {
     encoder_len: usize,
     current_frame: usize,
     last_token: usize,
-    states: Vec<TValue>,
+    states: Vec<Value>,
     transcript: Vec<TranscriptItem>,
     symbols_added: usize,
     need_loop: bool,
@@ -135,47 +136,11 @@ fn normalize_transcript_text(s: &str) -> String {
 }
 
 impl NemoAsrModel {
-    fn from_bytes_submodel(
-        name: &str,
-        runtime_config: &RuntimeConfig,
-        model_bytes: &[u8],
-    ) -> TractResult<TypedRunnableModel<TypedModel>> {
-        let mut model_read = std::io::Cursor::new(model_bytes);
-        let nnef = tract_nnef::nnef().with_tract_transformers();
-
-        let transform = nnef
-            .get_transform("transformers-detect-all")?
-            .context("transformers-detect-all not found")?;
-
-        let mut nn = nnef.model_for_read(&mut model_read)?;
-
-        let mut device = "CPU";
-        if !runtime_config.force_cpu {
-            #[cfg(any(target_os = "macos", target_os = "ios"))]
-            {
-                use crate::tract_core::transform::ModelTransform;
-                use std::str::FromStr;
-                nn.properties.insert("GPU".into(), rctensor0(true));
-                tract_metal::MetalTransform::from_str("")?.transform(&mut nn)?;
-                device = "Metal GPU acceleration ";
-            }
-            #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-            {
-                use tract_core::transform::ModelTransform;
-                if tract_cuda::utils::are_culibs_present() {
-                    nn.properties.insert("GPU".into(), rctensor0(true));
-                    tract_cuda::CudaTransform.transform(&mut nn)?;
-                    device = "CUDA GPU acceleration ";
-                }
-            }
-        }
-        log::debug!("Using {} for model part: {} inference", device, name);
-
-        let mut nn = nn.into_decluttered()?;
-        nn.transform(&*transform)?;
-
-        let model = nn.into_optimized()?.into_runnable()?;
-        Ok(model)
+    fn load_submodel(bytes: &[u8]) -> Res<Model> {
+        let nnef = tract_rs::nnef()?.with_tract_transformers()?;
+        let mut nn = nnef.load_buffer(bytes)?;
+        nn.transform("transformers-detect-all")?;
+        Ok(nn)
     }
 
     fn from_bytes(
@@ -184,65 +149,65 @@ impl NemoAsrModel {
         pre_model_bytes: &[u8],
         enc_model_bytes: &[u8],
         dec_model_bytes: &[u8],
-    ) -> TractResult<NemoAsrModel> {
-        log::info!("start loading nemo asr model from bytes");
-        let model_config = serde_json::from_slice::<NemoAsrConfig>(model_config_bytes)?;
-        let runtime_config = if let Some(rt_conf) = runtime_config_bytes {
+    ) -> Res<NemoAsrModel> {
+        let runtime_config: RuntimeConfig = if let Some(rt_conf) = runtime_config_bytes {
             log::info!("found runtime config bytes, loading it");
-            serde_json::from_slice::<RuntimeConfig>(rt_conf)?
+            serde_json::from_reader(rt_conf)?
         } else {
             log::info!("NO runtime config found, using default");
             RuntimeConfig::default()
         };
 
-        let preprocessor_model =
-            NemoAsrModel::from_bytes_submodel("preprocessor", &runtime_config, pre_model_bytes)?;
-        let encoder_model =
-            NemoAsrModel::from_bytes_submodel("encoder", &runtime_config, enc_model_bytes)?;
-        let decoder_joint_model =
-            NemoAsrModel::from_bytes_submodel("decoder_joint", &runtime_config, dec_model_bytes)?;
+        let model_config: NemoAsrConfig = serde_json::from_reader(model_config_bytes)?;
 
-        log::info!("all model subparts loaded successfully in tract");
+        let decoder_joint_model = Self::load_submodel(dec_model_bytes)?;
+        let mut decoder_state_inputs_facts = vec![];
+        for ix in 0..decoder_joint_model.input_count()? {
+            if decoder_joint_model.input_name(ix)?.contains("states") {
+                let fact = decoder_joint_model.input_fact(ix)?;
+                ensure!(fact.rank()? == 3);
+                decoder_state_inputs_facts.push(fact);
+            }
+        }
+
+        let mut rt = runtime_for_name("default")?;
+        if !runtime_config.force_cpu {
+            if let Ok(r) = runtime_for_name("cuda") {
+                rt = r;
+            }
+            if let Ok(r) = runtime_for_name("metal") {
+                rt = r;
+            }
+        }
+
         Ok(NemoAsrModel {
-            preprocessor_model,
-            encoder_model,
-            decoder_joint_model,
             model_config,
             runtime_config,
+            preprocessor_model: rt.prepare(Self::load_submodel(pre_model_bytes)?)?,
+            encoder_model: rt.prepare(Self::load_submodel(enc_model_bytes)?)?,
+            decoder_joint_model: rt.prepare(decoder_joint_model)?,
+            decoder_state_inputs_facts,
         })
     }
 
-    pub fn from_dir(path: PathBuf) -> TractResult<NemoAsrModel> {
-        let runtime_config_path = path.join("runtime_config.json");
-        let model_config_path = path.join("model_config.json");
-        let pre_model_path = path.join("preprocessor.nnef.tgz");
-        let enc_model_path = path.join("encoder.nnef.tgz");
-        let dec_model_path = path.join("decoder_joint.nnef.tgz");
+    pub fn from_dir(path: PathBuf) -> Res<NemoAsrModel> {
+        let model_config_bytes = std::fs::read(path.join("model_config.json"))?;
+        let runtime_config_bytes = std::fs::read(path.join("runtime_config.json")).ok();
+        let pre_model_bytes = std::fs::read(path.join("preprocessor.nnef.tgz"))?;
+        let enc_model_bytes = std::fs::read(path.join("encoder.nnef.tgz"))?;
+        let dec_model_bytes = std::fs::read(path.join("decoder_joint.nnef.tgz"))?;
 
-        log::info!("start loading nemo asr model from dir: {:?}", path);
-
-        let runtime_config_bytes = std::fs::read(runtime_config_path).ok();
-
-        let model_config_bytes =
-            std::fs::read(model_config_path).expect("Failed to read model config file");
-        let pre_model_bytes =
-            std::fs::read(pre_model_path).expect("Failed to read preprocessor model file");
-        let enc_model_bytes =
-            std::fs::read(enc_model_path).expect("Failed to read encoder model file");
-        let dec_model_bytes =
-            std::fs::read(dec_model_path).expect("Failed to read decoder model file");
-
-        NemoAsrModel::from_bytes(
-            model_config_bytes.as_slice(),
+        Self::from_bytes(
+            &model_config_bytes,
             runtime_config_bytes.as_deref(),
-            pre_model_bytes.as_slice(),
-            enc_model_bytes.as_slice(),
-            dec_model_bytes.as_slice(),
+            &pre_model_bytes,
+            &enc_model_bytes,
+            &dec_model_bytes,
         )
     }
 
     /// Convert a single wav file path to a single input tensor
-    fn wav_path_to_tensor(&self, wav_path: &PathBuf) -> TractResult<Tensor> {
+    fn wav_path_to_tensor(&self, wav_path: &PathBuf) -> Res<Value> {
         let mut reader = hound::WavReader::open(wav_path).expect("Failed to open WAV file");
         let spec = reader.spec();
         assert_eq!(
@@ -253,89 +218,80 @@ impl NemoAsrModel {
             .samples::<i16>()
             .map(|s| s.unwrap() as f32 / i16::MAX as f32)
             .collect();
-        let input_tensor =
-            tract_ndarray::Array2::from_shape_vec((1, samples.len()), samples).unwrap();
-        Ok(input_tensor.into())
+        let input_tensor = Array2::from_shape_vec((1, samples.len()), samples).unwrap();
+        input_tensor.try_into()
     }
 
     /// Infer from a wav file path all at once
-    pub fn infer_from_wav_paths(&self, wav_paths: &[PathBuf]) -> TractResult<Vec<Transcription>> {
+    pub fn infer_from_wav_paths(&self, wav_paths: &[PathBuf]) -> Res<Vec<Transcription>> {
         log::debug!("Loading wav file from path: {:?}", wav_paths);
         let input_tensor_vec = wav_paths
             .iter()
             .map(|wp| self.wav_path_to_tensor(wp).unwrap())
-            .collect::<Vec<Tensor>>();
+            .collect::<Vec<Value>>();
         log::debug!("wav loaded correctly, starting inference");
 
         log::debug!("prepare input tensor batch");
         let lengths = input_tensor_vec
             .iter()
-            .map(|t| t.shape()[1] as i64)
-            .collect::<Vec<i64>>();
+            .map(|t| Ok(t.shape()?[1] as i64))
+            .collect::<Res<Vec<i64>>>()?;
 
         // Build input tensor batch {
-        let mut input_tensor = tract_ndarray::Array2::<f32>::zeros((
+        let mut input_tensor = Array2::<f32>::zeros((
             input_tensor_vec.len(),
             lengths.iter().max().copied().unwrap() as usize,
-        ))
-        .into_tensor();
+        ));
 
         for (ix, itensor) in input_tensor_vec.iter().enumerate() {
-            let sample_len = itensor.shape()[1];
+            let sample_len = itensor.shape()?[1];
             input_tensor
-                .to_array_view_mut()?
                 .slice_mut(s![ix, 0..sample_len])
-                .assign(&itensor.to_array_view::<f32>()?.index_axis(Axis(0), 0));
+                .assign(&itensor.view()?.index_axis(Axis(0), 0));
         }
         // }
 
-        let lengths_tensor: Tensor =
-            tract_ndarray::Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?
-                .into_tensor();
+        let lengths_tensor: Value =
+            Array1::<i64>::from_shape_vec((wav_paths.len(),), lengths)?.try_into()?;
         log::debug!("ready input tensor batch");
-        let transcripts = self.infer_from_tensor(input_tensor, lengths_tensor)?;
+        let transcripts = self.infer_from_tensor(input_tensor.try_into()?, lengths_tensor)?;
         Ok(transcripts)
     }
 
-    fn run_encoder(&self, preprocessor_output: TVec<TValue>) -> TractResult<TVec<TValue>> {
+    fn run_encoder(&self, preprocessor_output: Vec<Value>) -> Res<Vec<Value>> {
         let encoder_output = if self.runtime_config.encoder_per_batch {
             log::debug!("running encoder in full batch mode");
             self.encoder_model.run(preprocessor_output)?
         } else {
             log::debug!("running encoder in batch mode");
-            let features = preprocessor_output[0].to_array_view::<f32>()?;
-            let lengths = preprocessor_output[1].to_array_view::<i64>()?;
+            let features = preprocessor_output[0].view::<f32>()?;
+            let lengths = preprocessor_output[1].view::<i64>()?;
             let batch_size = features.shape()[0];
             let mut encoder_out = vec![];
             let mut encoder_len = vec![];
             for b in 0..batch_size {
                 // Slice one sample
-                let feat_b = features.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+                let feat_b: Value = features.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
 
-                let len_b = lengths.slice_axis(Axis(0), (b..b + 1).into()).into_owned();
+                let len_b: Value = lengths.slice_axis(Axis(0), (b..b + 1).into()).try_into()?;
                 // Run encoder for a single sample
-                let encoder_output_sample = self.encoder_model.run(tvec![
-                    feat_b.into_tensor().into_tvalue(),
-                    len_b.into_tensor().into_tvalue(),
-                ])?;
-                encoder_out.push(encoder_output_sample[0].to_array_view::<f32>()?.to_owned());
-                encoder_len.push(encoder_output_sample[1].to_array_view::<i64>()?.to_owned());
+                let encoder_output_sample = self.encoder_model.run([feat_b, len_b])?;
+                encoder_out.push(encoder_output_sample[0].view::<f32>()?.to_owned());
+                encoder_len.push(encoder_output_sample[1].view::<i64>()?.to_owned());
             }
 
-            tvec!(
+            vec![
                 tract_ndarray::concatenate(
                     Axis(0),
                     &encoder_out.iter().map(|a| a.view()).collect::<Vec<_>>(),
                 )?
-                .into_tensor()
-                .into_tvalue(),
+                .try_into()?,
                 tract_ndarray::concatenate(
                     Axis(0),
                     &encoder_len.iter().map(|a| a.view()).collect::<Vec<_>>(),
                 )?
-                .into_tensor()
-                .into_tvalue(),
-            )
+                .try_into()?,
+            ]
         };
         log::debug!("successfully ran encoder");
         Ok(encoder_output)
@@ -343,16 +299,13 @@ impl NemoAsrModel {
 
     fn infer_from_tensor(
         &self,
-        input_tensor: Tensor,
-        length_tensor: Tensor,
-    ) -> TractResult<Vec<Transcription>> {
+        input_tensor: Value,
+        length_tensor: Value,
+    ) -> Res<Vec<Transcription>> {
         log::debug!("start inference preprocessor");
 
         // Preprocessor inference
-        let preprocessor_output = self.preprocessor_model.run(tvec!(
-            input_tensor.into_tvalue(),
-            length_tensor.into_tvalue()
-        ))?;
+        let preprocessor_output = self.preprocessor_model.run([input_tensor, length_tensor])?;
         log::debug!("successfully ran preprocessor");
 
         // Encoder inference
@@ -366,43 +319,28 @@ impl NemoAsrModel {
         log::debug!("successfully ran decoder and joint");
         Ok(transcripts)
     }
-    fn get_initial_decoder_states(&self, batch_size: usize) -> TractResult<Vec<[usize; 3]>> {
-        let mdl: &TypedModel = self.decoder_joint_model.model();
 
-        mdl.input_outlets()?
-            .iter()
-            .map(|ioutlet| &mdl.nodes()[ioutlet.node])
-            .filter(|node| node.name.contains("states")) // only decoder states
-            .map(|node| {
-                // mdl.with_input_outlets
-                let shape = node.outputs[0]
-                    .fact
-                    .shape
-                    .eval_to_usize(&SymbolValues::default().with(
-                        &mdl.symbols.get("B").unwrap(),
-                        batch_size as i64,
-                    ))
-                    .context("Failed to get concrete shape for decoder state")?
-                    .to_vec();
+    fn get_initial_decoder_states(&self, batch_size: usize) -> Res<Vec<[usize; 3]>> {
+        let values = [("B", batch_size as i64)];
 
-                let shape: [usize; 3] = shape.try_into().expect("shape must be 3D");
-                if shape.contains(&0) {
-                    anyhow::bail!(
-                        "Decoder state has zero dimension in shape {:?}, cannot create initial state",
-                        shape
-                    );
-                }
-                Ok(shape)
-            })
-            .collect()
+        let mut shapes = vec![];
+        for fact in &self.decoder_state_inputs_facts {
+            let mut shape = [0; 3];
+            for (ix, s) in shape.iter_mut().enumerate() {
+                let dim = fact.dim(ix)?.eval(values)?.to_int64()? as usize;
+                *s = dim;
+            }
+            shapes.push(shape);
+        }
+        Ok(shapes)
     }
 
     pub fn decode_transcripts_from_encoder_output(
         &self,
-        encoder_out: TVec<TValue>,
-    ) -> TractResult<Vec<Transcription>> {
-        let feats = encoder_out[0].to_array_view::<f32>()?;
-        let lens = encoder_out[1].to_array_view::<i64>()?;
+        encoder_out: Vec<Value>,
+    ) -> Res<Vec<Transcription>> {
+        let feats = encoder_out[0].view::<f32>()?;
+        let lens = encoder_out[1].view::<i64>()?;
         let bsz = feats.shape()[0];
 
         let blank = self.model_config.get_blank_index();
@@ -413,18 +351,10 @@ impl NemoAsrModel {
         let mut lanes: Vec<Lane> = (0..bsz)
             .map(|b| {
                 let states = self
-                    .decoder_joint_model
-                    .model()
-                    .inputs
-                    .iter()
-                    .skip(2)
-                    .zip(self.get_initial_decoder_states(1)?)
-                    .map(|(_, shape)| {
-                        let z = tract_ndarray::Array3::<f32>::zeros(shape);
-                        Ok(z.into_tensor().into_tvalue())
-                    })
-                    .collect::<TractResult<_>>()?;
-
+                    .get_initial_decoder_states(1)?
+                    .into_iter()
+                    .map(|shape| Array3::<f32>::zeros(shape).try_into())
+                    .collect::<Res<_>>()?;
                 Ok(Lane {
                     encoder_len: lens[b] as usize,
                     current_frame: 0,
@@ -435,7 +365,7 @@ impl NemoAsrModel {
                     need_loop: true,
                 })
             })
-            .collect::<TractResult<_>>()?;
+            .collect::<Res<_>>()?;
 
         let vocab_sz = vocab.len() + 1;
         let dur_sz = durations.len();
@@ -474,24 +404,21 @@ impl NemoAsrModel {
                     })
                     .collect::<Vec<_>>(),
             )?
-            .into_tensor()
-            .into_tvalue();
+            .try_into()?;
 
-            // Predictor labels
-            let labels = tract_ndarray::Array2::<i32>::from_shape_vec(
+            let labels = Array2::<i32>::from_shape_vec(
                 (active.len(), 1),
                 active.iter().map(|&i| lanes[i].last_token as i32).collect(),
             )?
-            .into_tensor()
-            .into_tvalue();
+            .try_into()?;
 
             let packed_states = Self::state_pack_lanes(&lanes, &active)?;
-
-            let mut inputs = tvec!(enc_frames, labels);
+            let mut inputs = vec![enc_frames, labels];
             inputs.extend(packed_states);
 
             let outs = self.decoder_joint_model.run(inputs)?;
-            let logits = outs[0].to_array_view::<f32>()?;
+            let logits = outs[0].view::<f32>()?;
+            log::debug!("Decoder joint step done");
 
             for (k, &lane_ix) in active.iter().enumerate() {
                 let row = logits.index_axis(Axis(0), k);
@@ -561,25 +488,21 @@ impl NemoAsrModel {
             .collect())
     }
 
-    fn state_take_lane(state: &TValue, b: usize) -> TractResult<TValue> {
-        let v = state.to_array_view::<f32>()?;
-        Ok(v.index_axis(Axis(1), b)
-            .insert_axis(Axis(1))
-            .to_owned()
-            .into_tensor()
-            .into_tvalue())
+    fn state_take_lane(state: &Value, b: usize) -> Res<Value> {
+        let v = state.view::<f32>()?;
+        v.index_axis(Axis(1), b).insert_axis(Axis(1)).try_into()
     }
 
-    fn state_pack_lanes(lanes: &[Lane], active: &[usize]) -> TractResult<TVec<TValue>> {
+    fn state_pack_lanes(lanes: &[Lane], active: &[usize]) -> Res<Vec<Value>> {
         let n_states = lanes[active[0]].states.len();
-        let mut packed = tvec!();
+        let mut packed = vec![];
         for sid in 0..n_states {
             let views: Vec<_> = active
                 .iter()
-                .map(|&lx| lanes[lx].states[sid].to_array_view::<f32>())
-                .collect::<TractResult<_>>()?;
+                .map(|&lx| lanes[lx].states[sid].view::<f32>())
+                .collect::<Res<_>>()?;
             let cat = tract_ndarray::concatenate(Axis(1), &views)?;
-            packed.push(cat.into_tensor().into_tvalue());
+            packed.push(cat.try_into()?);
         }
         Ok(packed)
     }
@@ -628,7 +551,7 @@ mod test {
     }
 
     #[test]
-    fn test_load_and_decode_audio() -> TractResult<()> {
+    fn test_load_and_decode_audio() -> Res<()> {
         println!("Assets dir: {:?}\n", assets_dir());
         let asr = NemoAsrModel::from_dir(assets_dir().join("model"))?;
         println!("Loaded ASR model successfully");
