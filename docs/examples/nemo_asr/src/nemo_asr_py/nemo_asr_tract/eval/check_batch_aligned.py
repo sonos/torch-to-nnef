@@ -51,9 +51,10 @@ class Console:
         log_line = (
             log_line.replace("[red]", "")
             .replace("[green]", "")
+            .replace("[bold underline]", "")
             .replace("[bold]", "")
             .replace("[/]", "")
-        )
+        ).strip()
         logging.info(log_line)
 
 
