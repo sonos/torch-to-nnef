@@ -233,10 +233,13 @@ class BatchBugReproducer:
         self,
         model_dir: T.Union[str, Path],
         dump_io_path: T.Optional[T.Union[str, Path]] = None,
+        force_cpu: bool = False,
     ):
         self.model_dir = Path(model_dir)
         config = RuntimeConfig(
-            max_n_tokens_per_step=10, force_cpu=False, encoder_per_batch=False
+            max_n_tokens_per_step=10,
+            force_cpu=force_cpu,
+            encoder_per_batch=False,
         )
         if dump_io_path is not None:
             config.dump_intermediate_io_path = Path(dump_io_path) / "unbatched"
@@ -676,6 +679,12 @@ def parse_args():
         "by comparing results to batched model",
     )
     parser.add_argument(
+        "--force-cpu",
+        action="store_true",
+        help="Whether to force CPU inference for reproduction. "
+        "Set this if you want to check if the batch bug is related to GPU kernels.",
+    )
+    parser.add_argument(
         "-o",
         "--output-dir",
         type=Path,
@@ -723,7 +732,9 @@ def main():
         streaming=False,
     )
 
-    reproducer = BatchBugReproducer(args.model_dir, args.output_dir)
+    reproducer = BatchBugReproducer(
+        args.model_dir, args.output_dir, args.force_cpu
+    )
     console.print(f"start evaluating...: {wav_ix}th wav file in the dataset")
     error_cases = reproducer.run_inferences(
         dataset_config,
