@@ -246,3 +246,22 @@ class MyCustomRunner(AsRRunner):
 ```
 
 The custom runner can then be selected via the `--model_runner_class` argument in the evaluation CLI.
+
+
+### Tracking runner issues
+
+In the past we have observed some issues with the exported models, such as mismatches between NeMo and tract runner outputs, or unexpected WER scores. To help track and debug these issues, we maintain a script where we log any runner-related discrepancy when running on specific batch, with specific hardware target (due to Kernel precisions differences).
+Here is a sample usage (it needs extra eval to run properly).
+
+```bash
+nemo_tract_eval_batch_align_checker \
+    --results-dir ./../my-results-dir/ \
+    --output-file ./runner_issues_log.jsonl
+    --model-dir ../../assets/model \
+    --dataset librispeech \
+    --split test.clean \
+    --sample-idx 1000 \
+    -o ~/SONOS/data/2026_02_05_debug_batched_metal \
+    [--force-cpu]
+```
+
