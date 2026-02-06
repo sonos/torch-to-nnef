@@ -228,12 +228,29 @@ class ModuleNpyDumper:
         self._post_handle.remove()
 
 
+def use_pytorch_sdpa(model: torch.nn.Module):
+    """Modify the model to use PyTorch sdpa implementations where applicable.
+
+    This leverage attention modules set in NeMo with
+    specific use_pytorch_sdpa flag.
+    """
+    # pylint: disable=import-outside-toplevel
+    from nemo.collections.asr.parts.submodules.multi_head_attention import (
+        MultiHeadAttention,
+    )
+
+    for module in model.modules():
+        if isinstance(module, MultiHeadAttention):
+            module.use_pytorch_sdpa = True
+
+
 class BatchBugReproducer:
     def __init__(
         self,
         model_dir: T.Union[str, Path],
         dump_io_path: T.Optional[T.Union[str, Path]] = None,
         force_cpu: bool = False,
+        force_sdpa_pytorch: bool = False,
     ):
         self.model_dir = Path(model_dir)
         config = RuntimeConfig(
@@ -262,6 +279,8 @@ class BatchBugReproducer:
                 "encoder",
                 Path(dump_io_path) / "nemo",
             )
+        if force_sdpa_pytorch:
+            use_pytorch_sdpa(original_model)
         self.original_model = original_model
 
     def get_data(
@@ -682,7 +701,15 @@ def parse_args():
         "--force-cpu",
         action="store_true",
         help="Whether to force CPU inference for reproduction. "
-        "Set this if you want to check if the batch bug is related to GPU kernels.",
+        "Set this if you want to check if the batch bug is related "
+        "to GPU kernels.",
+    )
+    parser.add_argument(
+        "--force-sdpa-pytorch",
+        action="store_true",
+        help="Whether to force using PyTorch sdpa implementation "
+        "for attention. Set this if you want to compare with "
+        "another nemo/Python implementation of attention .",
     )
     parser.add_argument(
         "-o",
@@ -733,7 +760,7 @@ def main():
     )
 
     reproducer = BatchBugReproducer(
-        args.model_dir, args.output_dir, args.force_cpu
+        args.model_dir, args.output_dir, args.force_cpu, args.force_sdpa_pytorch
     )
     console.print(f"start evaluating...: {wav_ix}th wav file in the dataset")
     error_cases = reproducer.run_inferences(
