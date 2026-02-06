@@ -6,6 +6,7 @@ members = ["./src/nemo_asr/", "./src/nemo_asr_ffi", "src/nemo_asr_ffi"]
 [workspace.dependencies]
 anyhow = "1.0"
 env_logger = "0.11"
+itertools = "0.14"
 log = "0.4"
 libc = "0.2"
 ffi-convert = "0.6"
@@ -13,11 +14,9 @@ hound = "3.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 test-log = "0.2.19"
-tract-core = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-tract-nnef = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-tract-transformers = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-tract-metal = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
-tract-cuda = { git = "https://github.com/sonos/tract.git", rev = "f266c8a" }
+tract-rs = { git = "https://github.com/sonos/tract.git", rev = "af203e1" }
+# have to be aligned with tract version above
+ndarray-npy = { version = "0.9.1", features = ["compressed_npz"] }
 
 [profile.release]
 debug = true
