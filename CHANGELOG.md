@@ -3,6 +3,29 @@
 
 ## Unreleased
 
+## [0.20.4] -  2026-02-06
+
+### Added
+
+- Completed NeMo ASR export and evaluation system CLI tooling (t2n_export_nemo) with novel options
+- Shape inference for conv and test suite validating IR operation shape/dtype correctness with approximate and exact tracing modes
+- Comprehensive NeMo model subnet with improved batch alignment checks for encoder/decoder/joint export
+- Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior
+- Support for runtime config in nemo tract rust example to better control the runner.
+
+### Changed
+
+- Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations
+- NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities
+- Model wrapper now handles complex input/output structures (nested tuples, dicts, custom objects) more robustly with better constantization support
+
+### Fixed
+
+- Nemo export - removed useless parameters from model exports via wrappers
+- Named tensor operations now avoid unnecessary clones and properly handle dtype/shape access during graph parsing (improved speedups)
+- Reducer operations (sum, mean, etc.) now better handle boolean dtype inputs (improved support in tract)
+- Model zoo tests refactored for better isolation and legacy quantization compatibility
+
 ## [0.20.3] - 2026-01-26
 
 ### Added
