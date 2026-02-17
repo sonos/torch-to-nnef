@@ -2,8 +2,11 @@
 
 set -ex
 
+source ../bootstrap-rust.sh
+
 [ -e .venv ] || python3 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip # pip 23.2+ is required
 mkdir -p assets
 (
     cd assets
@@ -12,7 +15,7 @@ mkdir -p assets
 )
 rm -rf assets/model
 pip install -e ../../../[nemo-tract]
-export CUDA_VISIBLE_DEVICES=""
+
 # t2n_export_nemo -s nvidia/parakeet-tdt-0.6b-v3 -e assets/model # --tract-specific-path $HOME/SONOS/src/tract/target/release/tract
 t2n_export_nemo -s nvidia/parakeet-tdt-0.6b-v3 -e assets/model --tract-specific-path $HOME/dev/sonos/tract/target/release/tract
 cd ./src/nemo_asr/ && cargo test --release -- --nocapture && cd ../../

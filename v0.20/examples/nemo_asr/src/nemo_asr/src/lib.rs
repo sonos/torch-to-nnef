@@ -623,8 +623,8 @@ mod test {
         let transcripts = asr.infer_from_wav_paths(&[
             assets_dir().join("2086-149220-0033.wav"),
             assets_dir().join("data_smoke_test_LDC93S1.wav"),
-            workspace_root()
-                .join("src/nemo_asr_py/audio_cache/librispeech/test.clean/1188-133604-0009.wav"),
+            // workspace_root()
+            //     .join("src/nemo_asr_py/audio_cache/librispeech/test.clean/1188-133604-0009.wav"),
             //PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/4970-29093-0005.wav"),
             // PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/7127-75946-0019.wav")
         ])?;
