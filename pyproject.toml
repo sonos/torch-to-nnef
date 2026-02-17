@@ -259,7 +259,7 @@ deps = [
     "torchaudio==0.10.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
-    "setuptools>0.70",
+    "setuptools>70",
 ]
 
 [tool.tox.env.torch_1_13]
