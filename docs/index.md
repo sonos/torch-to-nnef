@@ -61,14 +61,16 @@ Installation can be performed depending on the package manager:
     poetry add torch_to_nnef
     ```
 
-!!! warning "Requires modern pip"
+??? warning "pip >= 23.2 required"
 
     This package requires **pip >= 23.2**.
 
-    Older versions of pip do not correctly resolve PEP 517
-    build dependencies and may fail.
+    Older versions of pip do not correctly resolve [PEP 517](https://peps.python.org/pep-0517/)
+    build dependencies and may fail (e.g. 22.x) during installation with:
 
-    Upgrade pip:
+        ModuleNotFoundError: No module named 'packaging.licenses'
+
+    Fix:
 
         python -m pip install --upgrade pip
 
