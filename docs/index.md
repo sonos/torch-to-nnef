@@ -42,6 +42,7 @@ Only pre-compiled PyTorch wheels and dependencies available on [pypi](https://py
 Today, the project is packaged in [PyPi](https://pypi.org/project/torch-to-nnef/).
 Installation can be performed depending on the package manager:
 
+
 === "pip"
 
     ```bash
@@ -59,6 +60,17 @@ Installation can be performed depending on the package manager:
     ```bash
     poetry add torch_to_nnef
     ```
+
+!!! warning "Requires modern pip"
+
+    This package requires **pip >= 23.2**.
+
+    Older versions of pip do not correctly resolve PEP 517
+    build dependencies and may fail.
+
+    Upgrade pip:
+
+        python -m pip install --upgrade pip
 
 !!! note
     The project scope is broad and [contributions are welcome](./contributing/guidelines.md), if any bug is encountered, the [Bug report](./contributing/guidelines.md) instructions should be followed.
