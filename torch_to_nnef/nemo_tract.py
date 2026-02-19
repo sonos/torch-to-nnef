@@ -599,6 +599,14 @@ def parser_cli():
         " (likely more efficent, once stable tract side)",
     )
     parser.add_argument(
+        "--tract-reify-sdpa",
+        action="store_true",
+        help="Forcing sdpa to be reified in NNEF. "
+        " Works only if --force-sdpa-pytorch is set."
+        " this is auto activated if tract version used is "
+        " at least 0.23.0 which support stable sdpa reifycation natively.",
+    )
+    parser.add_argument(
         "-dt",
         "--data-type",
         type=str,
@@ -685,6 +693,17 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
         inference_target.check_io = False
     else:
         inference_target.check_io_tolerance = args.tract_check_io_tolerance
+
+    if args.tract_reify_sdpa:
+        inference_target.reify_sdpa_operator = True
+        if not args.force_sdpa_pytorch and inference_target.version < "0.23.0":
+            LOGGER.warning(
+                "Reifying sdpa without forcing pytorch implementation "
+                "will likely export no sdpa operators since not expressed "
+                "in models. It is recommended to use --force-sdpa-pytorch "
+                "when using --tract-reify-sdpa, prior to tract 0.23.0 release where "
+                "sdpa reifycation is activated by default."
+            )
     return inference_target
 
 
