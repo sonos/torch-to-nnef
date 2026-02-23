@@ -3,18 +3,18 @@
 Only work on Open ASR Leaderboard datasets for now.
 """
 
-import logging
-from pathlib import Path
-import typing as T
-import os
 import inspect
+import logging
+import os
+import typing as T
+from pathlib import Path
 
+import evaluate
 import numpy as np
 import torch
-import evaluate
 from nemo.collections.asr.models import ASRModel
-from rich.console import Console as RichConsole
 from pydantic import BaseModel as PydanticModel
+from rich.console import Console as RichConsole
 
 from nemo_asr_tract import NemoAsrModel
 from nemo_asr_tract.dataset import (
