@@ -523,7 +523,7 @@ def cumsum(node, op_helper, inference_target, **kwargs):
 
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "t2n_cumsum",
+        "tract_cumsum",
         inputs=[x, init],
         attrs={
             "axis": axis,

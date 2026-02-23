@@ -10,7 +10,7 @@ fragment scan_body_add(
 }
 
 
-fragment t2n_cumsum(
+fragment tract_cumsum(
     input: tensor<scalar>,
     init: tensor<scalar>,
     axis: integer
