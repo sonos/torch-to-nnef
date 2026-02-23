@@ -76,19 +76,34 @@ def _pooling_op(
         else:
             padding = ([0] * missing_n_dims) + padding
 
-    op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        nnef_op_name,
-        inputs=op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-        attrs={
-            "size": list(kernel_size),
-            "padding": [
-                (pad, pad) if isinstance(pad, int) else pad for pad in padding
-            ],
-            "stride": list(stride),
-            "dilation": list(dilation),
-            "border": "constant",
-        },
+    inputs = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    attrs = {
+        "size": list(kernel_size),
+        "padding": [
+            (pad, pad) if isinstance(pad, int) else pad for pad in padding
+        ],
+        "stride": list(stride),
+        "dilation": list(dilation),
+        "border": "constant",
+    }
+    if len(node.outputs) == 1:
+        return op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_name,
+            inputs=inputs,
+            attrs=attrs,
+        )
+    if len(node.outputs) == 2:
+        return op_helper.add_multi_output_op_from_nnef_tensors(
+            node,
+            nnef_op_name,
+            inputs=inputs,
+            attrs=attrs,
+        )
+
+    raise T2NErrorNotImplemented(
+        f"Pooling with {len(node.outputs)} outputs "
+        "is not supported in NNEF/TractNNEF yet"
     )
 
 
@@ -115,6 +130,21 @@ def avg_pool1d(node, op_helper, **kwargs):
 def max_pool_nd(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:max_pool2d', 'aten:max_pool3d' to NNEF."""
     _pooling_op("max_pool", node.inputs, node, op_helper)
+
+
+@OP_REGISTRY.register(["max_pool2d_with_indices", "max_pool3d_with_indices"])
+def max_pool_nd_with_indices(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:max_pool{2,3}d_with_indices' to NNEF.
+
+    Indices are not representable in NNEF/Tract max_pool, so drop them.
+    """
+    if not isinstance(op_helper.inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "max_pool_with_index is not supported in TractNNEF yet"
+        )
+    # Only keep the pooled values output
+    _pooling_op("max_pool_with_index", node.inputs, node, op_helper)
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register(["avg_pool2d", "avg_pool3d"])
