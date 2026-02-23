@@ -11,6 +11,7 @@ from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     unary_input_output_op_with_constant,
 )
+from torch_to_nnef.op.helper import pick_axis
 from torch_to_nnef.torch_graph import PythonConstant
 from torch_to_nnef.torch_graph.ir_data import TensorVariable
 
@@ -481,6 +482,58 @@ def expm1(node, op_helper, **kwargs):
         inputs=input_tensor,
     )
     return ["expm1"]
+
+
+@OP_REGISTRY.register()
+def cumsum(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:cumsum' to NNEF using a scan fragment (Tract).
+
+    - Implemented via `tract_core_scan` inside `fragment cumsum` (axis=0).
+    - For arbitrary dim, transpose input to bring that axis to 0, apply
+      fragment, then transpose back.
+    """
+    input_node, dim_node = node.inputs[:2]
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented("cumsum need `TractNNEF` inference target")
+
+    axis = pick_axis(input_node, dim_node.data)
+    x = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    # build zero init slice with shape [1, ...]
+    first = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=x,
+        attrs={
+            "axes": [axis],
+            "begin": [0],
+            "end": [1],
+            "stride": [1],
+        },
+        output_tensor_name_suffix="cumsum_first",
+        pass_quantization_params=True,
+    )
+    init = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "sub",
+        inputs=[first, first],
+        output_tensor_name_suffix="cumsum_init",
+        pass_quantization_params=True,
+    )
+
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "t2n_cumsum",
+        inputs=[x, init],
+        attrs={
+            "axis": axis,
+        },
+        pass_quantization_params=True,
+    )
+
+    # Ensure final op (possibly the last transpose) maps to node output
+    # op_helper already wires node.outputs[0] to the last added op.
+    return ["cumsum"]
 
 
 @OP_REGISTRY.register()
