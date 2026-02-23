@@ -9,9 +9,9 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    pick_axis,
     unary_input_output_op_with_constant,
 )
-from torch_to_nnef.op.helper import pick_axis
 from torch_to_nnef.torch_graph import PythonConstant
 from torch_to_nnef.torch_graph.ir_data import TensorVariable
 

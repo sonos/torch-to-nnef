@@ -1,8 +1,11 @@
 import pytest
 import torch
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
-from tests.utils import TestSuiteInferenceExactnessBuilder, check_model_io_test
+from tests.utils import (
+    TRACT_INFERENCES_TO_TESTS_APPROX,
+    TestSuiteInferenceExactnessBuilder,
+    check_model_io_test,
+)
 from tests.wrapper import UnaryPrimitive
 
 
