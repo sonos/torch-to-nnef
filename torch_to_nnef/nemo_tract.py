@@ -701,8 +701,8 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
                 "Reifying sdpa without forcing pytorch implementation "
                 "will likely export no sdpa operators since not expressed "
                 "in models. It is recommended to use --force-sdpa-pytorch "
-                "when using --tract-reify-sdpa, prior to tract 0.23.0 release where "
-                "sdpa reifycation is activated by default."
+                "when using --tract-reify-sdpa, prior to tract 0.23.0 release "
+                "where sdpa reifycation is activated by default."
             )
     return inference_target
 
