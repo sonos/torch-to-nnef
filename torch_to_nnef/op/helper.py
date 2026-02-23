@@ -961,6 +961,30 @@ class OpHelper:
                 inputs[idx] = out
         return tuple(inputs)
 
+    def add_multi_output_op_from_nnef_tensors(
+        self,
+        node,
+        nnef_op_type: str,
+        inputs,
+        maybe_cast_align_tract: bool = True,
+        **kwargs,
+    ):
+        if not isinstance(inputs, (list, tuple)):
+            inputs = (inputs,)
+        if (
+            isinstance(self.inference_target, TractNNEF)
+            and maybe_cast_align_tract
+        ):
+            inputs = self._implicits_input_casting(node, nnef_op_type, inputs)
+        return add_multi_output_op(
+            node=node,
+            nnef_op_type=nnef_op_type,
+            inputs=inputs,
+            g=self.g,
+            name_to_tensor=self.name_to_tensor,
+            **kwargs,
+        )
+
     def add_single_output_op_from_nnef_tensors(
         self,
         node,
