@@ -749,6 +749,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
 def debug_dumper_pytorch_to_onnx_to_nnef(
     model_info: UnfoldModelInfo,
     target_folder: Path,
+    io_npz_path: Path,
     tract_cli: TractCli,
     raise_export_error: bool = True,
 ) -> bool:
@@ -761,7 +762,6 @@ def debug_dumper_pytorch_to_onnx_to_nnef(
     target_folder.mkdir()
     onnx_path = target_folder.parent / "model_exported_by_torch.onnx"
     nnef_path = target_folder / "onnx_converted_by_tract_model.nnef.tgz"
-    io_npz_path = target_folder / "io.npz"
     sucessfull_export, error_msg = pytorch_to_onnx_to_tract_to_nnef(
         model_info,
         nnef_path,
@@ -888,6 +888,7 @@ def assert_io_and_debug_bundle(
             model_info,
             target_folder=no_suffix_debug_bundle_path
             / "tract_onnx_converted_model",
+            io_npz_path=io_npz_path,
             raise_export_error=False,
             tract_cli=tract_cli,
         )
