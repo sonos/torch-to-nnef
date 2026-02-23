@@ -13,7 +13,9 @@ def _skip_if_not_tract(inf):
     return isinstance(inf, TractNNEF)
 
 
-test_suite = TestSuiteInferenceExactnessBuilder(TRACT_INFERENCES_TO_TESTS_APPROX)
+test_suite = TestSuiteInferenceExactnessBuilder(
+    TRACT_INFERENCES_TO_TESTS_APPROX
+)
 
 
 # Float tensor cases across typical axes
