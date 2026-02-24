@@ -51,6 +51,12 @@ def parser_cli(
         "(aka frequency at which encoder will run tract inference),"
         " 1600 frames -> 10ms",
     )
+    parser.add_argument(
+        "--apply-pulse",
+        action="store_true",
+        help="Whether to apply pulse to the exported NNEF (if not set, "
+        "the NNEF will be exported but not pulsified)",
+    )
     return parser.parse_args()
 
 
@@ -84,6 +90,7 @@ def export(
     vad_slug: str = "vad_multilingual_marblenet",
     return_softmax: bool = True,
     pulse_value=1600,  # 10ms
+    apply_pulse: bool = True,
 ):
     tract_cli = TractCli(tract_path=tract_path)
     inference_target = TractNNEF(
@@ -171,8 +178,9 @@ def export(
             ).absolute()
         ),
     ]
-    logging.info(" ".join(cmd))
-    subprocess.check_output(cmd)
+    if apply_pulse:
+        logging.info(" ".join(cmd))
+        subprocess.check_output(cmd)
     logging.info("sucessful exports")
 
 
@@ -184,6 +192,7 @@ def main():
         tract_path=Path(args.tract_path),
         vad_slug=args.vad_slug,
         pulse_value=args.pulse,
+        apply_pulse=args.apply_pulse,
     )
 
 
