@@ -1,1 +1,4 @@
 *.nnef.tgz
+.crates*
+target
+.venv

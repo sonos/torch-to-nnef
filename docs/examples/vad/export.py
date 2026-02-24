@@ -10,8 +10,8 @@ import nemo.collections.asr as nemo_asr
 import torch
 from omegaconf import OmegaConf
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef
-from torch_to_nnef.inference_target.tract import TractCheckTolerance
+from torch_to_nnef import TractNNEF, export_model_to_nnef, inference_target
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractCli
 from torch_to_nnef.log import init_log
 
 
@@ -85,6 +85,12 @@ def export(
     return_softmax: bool = True,
     pulse_value=1600,  # 10ms
 ):
+    tract_cli = TractCli(tract_path=tract_path)
+    inference_target = TractNNEF(
+        tract_cli.version,
+        specific_tract_binary_path=tract_cli_path,
+    )
+
     vad_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(
         vad_slug
     )
@@ -116,7 +122,7 @@ def export(
         args=(torch.rand(1, 512)),
         file_path_export=enc_path_export,
         inference_target=TractNNEF(
-            version=TractNNEF.latest_version(),
+            version=inference_target,
             check_io=True,
             dynamic_axes={"input_signal": {0: "B", 1: "S"}},
             check_io_tolerance=TractCheckTolerance.SUPER,
@@ -136,7 +142,7 @@ def export(
         args=(torch.rand(2, 128, 4),),
         file_path_export=dec_path_export,  # filepath to dump NNEF archive
         inference_target=TractNNEF(
-            version=TractNNEF.latest_version(),
+            version=inference_target,
             check_io=True,
             dynamic_axes={"encoder_output": {0: "B", 2: "S"}},
         ),
