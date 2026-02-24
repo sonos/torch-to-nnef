@@ -93,6 +93,13 @@ class TractNNEF(InferenceTarget):
         new_instance.dynamic_axes = dynamic_axes
         return new_instance
 
+    def with_check_io_tolerance(
+        self, check_io_tolerance: TractCheckTolerance
+    ) -> "TractNNEF":
+        new_instance = deepcopy(self)
+        new_instance.check_io_tolerance = check_io_tolerance
+        return new_instance
+
     def with_specific_properties(
         self, specific_properties: T.Dict[str, str]
     ) -> "TractNNEF":
