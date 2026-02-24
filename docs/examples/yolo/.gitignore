@@ -1,3 +1,5 @@
 *.nnef.tgz
 *.jpg
 *.txt
+*.pt
+*.onnx
