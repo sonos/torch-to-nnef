@@ -7,7 +7,9 @@ source ../bootstrap-wasm-pack.sh
 source ../bootstrap-uv.sh
 source .venv/bin/activate
 
-python ./export.py
+TRACT_VERSION="0.23.0-dev.2"
+python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
+python ./export.py -o . --tract-path $HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 
 wasm-pack build --target web --out-dir ../../html
 
