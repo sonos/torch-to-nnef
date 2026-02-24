@@ -69,6 +69,9 @@ class EncoderWrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
+        self.model._attach_and_validate_output_types = (
+            lambda *args, **kwargs: None
+        )
 
     def forward(self, x):
         dim1 = torch.tensor(x.size(1)).repeat(x.size(0))
@@ -151,7 +154,8 @@ def export(
         str(enc_path_export.absolute()),
         "--nnef-tract-core",
         "--nnef-tract-pulse",
-        f"--pulse S={pulse_value}",
+        "--pulse",
+        f"S={pulse_value}",
         "dump",
         "--nnef",
         str(
