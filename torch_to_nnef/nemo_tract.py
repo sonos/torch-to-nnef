@@ -107,16 +107,19 @@ def exportable_nemo_net(
             torch.jit.optimized_execution(True),
             pytorch_lightning.core.module._jit_is_scripting(),
         ):
+            imod = model
+            if hasattr(imod, "input_module"):
+                imod = model.input_module
             if input_example is None:
                 if float_dtype is None:
                     try:
-                        fdtype = next(model.input_module.parameters()).dtype
+                        fdtype = next(imod.parameters()).dtype
                     except StopIteration:
                         fdtype = torch.float32
                 else:
                     fdtype = float_dtype
                 LOGGER.debug("Generating dummy input... %s", float_dtype)
-                input_example = model.input_example(max_batch=batch_size)
+                input_example = imod.input_example(max_batch=batch_size)
                 # Cast to correct dtype (usualy float16 if not float16)
                 if fdtype != torch.float32:
                     input_example = [
@@ -129,10 +132,13 @@ def exportable_nemo_net(
 
             # Run (posibly overridden) prepare methods before calling forward()
             for ex in exportables:
-                ex._prepare_for_export(**my_args, noreplace=True)
-            model._prepare_for_export(
-                output=output_name, input_example=input_example, **my_args
-            )
+                if hasattr(ex, "_prepare_for_export"):
+                    ex._prepare_for_export(**my_args, noreplace=True)
+
+            if hasattr(model, "_prepare_for_export"):
+                model._prepare_for_export(
+                    output=output_name, input_example=input_example, **my_args
+                )
 
             input_list, input_dict = parse_input_example(input_example)
             output_example = model.forward(*input_list, **input_dict)
@@ -148,7 +154,8 @@ def exportable_nemo_net(
         typecheck.set_typecheck_enabled(enabled=True)
         if forward_method:
             type(model).forward = old_forward_method
-        model._export_teardown()
+        if hasattr(model, "_export_teardown"):
+            model._export_teardown()
 
 
 def decoder_fix_input_example_batch_size(

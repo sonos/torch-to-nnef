@@ -72,7 +72,7 @@ class EncoderWrapper(torch.nn.Module):
 
     def forward(self, x):
         dim1 = torch.tensor(x.size(1)).repeat(x.size(0))
-        return self.model(x, dim1)
+        return self.model(input_signal=x, input_signal_length=dim1)
 
 
 def export(
