@@ -13,8 +13,7 @@ mkdir -p assets
     wget -qN https://raw.githubusercontent.com/mozilla/DeepSpeech/master/data/smoke_test/LDC93S1.wav -O data_smoke_test_LDC93S1.wav
 )
 rm -rf assets/model
-uv pip install -e ../../../[nemo-tract]
 TRACT_VERSION="0.23.0-dev.2"
-python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF($TRACT_VERSION); print('TractNNEF $TRACT_VERSION is available')"
+python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
 t2n_export_nemo -s "nvidia/parakeet-tdt-0.6b-v3" -e "assets/model" --tract-specific-path $HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 cd ./src/nemo_asr/ && cargo test --release -- --nocapture && cd ../../

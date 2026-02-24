@@ -10,5 +10,6 @@
 *.pyd
 *.json
 *.txt
+!requirements.txt
 *.wav
 **/assets
