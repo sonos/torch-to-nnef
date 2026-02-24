@@ -8,6 +8,7 @@ custom extensions required for the export process.
 """
 
 import argparse
+from collections import OrderedDict
 import datetime
 import json
 import logging
@@ -187,6 +188,7 @@ def decoder_fix_input_example_batch_size(
     return [input_ids] + list(encoder_outputs)
 
 
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
 def iter_nemo_model_subnets(
     model,
     input_example=None,
@@ -195,6 +197,8 @@ def iter_nemo_model_subnets(
     remove_unused_inputs: bool = True,
     apply_sequential_examples: bool = False,
     batch_size: int = 3,
+    *,
+    nemo: InjectedNemoModule = INJECTED,
 ):
     """Iterator over exportable subnets of a nemo model.
 
@@ -218,7 +222,36 @@ def iter_nemo_model_subnets(
     see: nemo.core.classes.Exportable.export
 
     """
-    for subnet_name in model.list_export_subnets():
+    subnet_names = model.list_export_subnets()
+    allow_same_io_names = [False] * len(subnet_names)
+    nemo_model_mod = nemo.collections.asr.models
+    if isinstance(
+        model, nemo_model_mod.classification_models.EncDecClassificationModel
+    ):
+        subnet_names = ["encoder", "decoder"]
+        allow_same_io_names = [True, False]
+
+        # Get the class you want to patch
+        cls = model.encoder.__class__
+
+        # Capture original property getter BEFORE patching
+        orig_fget = cls.output_types.fget  # <-- important
+
+        def patched_output_types(self):
+            original = orig_fget(self)  # call original getter
+
+            new = OrderedDict()
+            for k, v in original.items():
+                if k == "encoded_lengths":
+                    new["length"] = v
+                else:
+                    new[k] = v
+            return new
+
+        # Patch the right attribute name
+        cls.output_types = property(patched_output_types)
+
+    for subnet_name, sio in zip(subnet_names, allow_same_io_names):
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
             input_example = None  # reset input example for joint
@@ -250,12 +283,14 @@ def iter_nemo_model_subnets(
                             batch_size=batch_size,
                         ),
                         decoder.dynamic_shapes_for_export(False),
+                        sio,
                     )
                     yield (
                         "joint",
                         subnet.joint,
                         subnet.joint.input_example(max_batch=batch_size),
                         subnet.joint.dynamic_shapes_for_export(False),
+                        sio,
                     )
                     continue
                 if remove_unused_inputs:
@@ -274,7 +309,7 @@ def iter_nemo_model_subnets(
                     subnet.input_names,
                     f"but expected {len(input_example)} inputs",
                 )
-            yield subnet_name, subnet, input_example, dynamic_axes
+            yield subnet_name, subnet, input_example, dynamic_axes, sio
             # Propagate input example
             # (default scenario, may need to be overriden)
             if input_example is not None and apply_sequential_examples:
@@ -350,6 +385,9 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
             elif iname == "decoder_outputs":
                 # Batch, output decoder, Unknown, Time dimension decoder
                 symbols = "BOUT"
+            elif iname == "encoder_output":
+                # example: B,512,(S+7)/8,F32
+                symbols = "BHR"  # Batch, High End Features, ReducedStream
             else:
                 raise NotImplementedError(
                     f"cannot guess dynamic axis symbols for input '{iname}'"
@@ -386,6 +424,7 @@ def build_custom_subnet_tract_properties(
     }
 
 
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
 def iter_export_params_for_generic_nemo_asr_model(
     asr_model,
     inference_target,
@@ -393,6 +432,8 @@ def iter_export_params_for_generic_nemo_asr_model(
     split_joint_decoder: bool = False,
     remove_unused_inputs: bool = True,
     float_dtype: T.Optional[torch.dtype] = None,
+    *,
+    nemo: InjectedNemoModule = INJECTED,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model.
 
@@ -427,6 +468,14 @@ def iter_export_params_for_generic_nemo_asr_model(
                 LOGGER.info("disabling pad_to for preprocessor export")
             asr_model.preprocessor.featurizer.pad_to = 0
 
+        if isinstance(
+            asr_model.preprocessor,
+            nemo.collections.asr.modules.audio_preprocessing.AudioPreprocessor,
+        ):
+            asr_model.preprocessor = WrapAudioPreprocessor(
+                asr_model.preprocessor
+            )
+
         with exportable_nemo_net(
             "preprocessor", asr_model.preprocessor, inps
         ) as (
@@ -442,11 +491,13 @@ def iter_export_params_for_generic_nemo_asr_model(
             yield ExportParameters(
                 name=subnet_name,
                 model=asr_model.preprocessor,
-                test_input=inps,
+                test_input=inps or input_example,
                 inference_target=inference_target.with_dynamic_axes(
                     dynamic_axes
                 ),
-                input_names=asr_model.preprocessor.input_names[: len(inps)],
+                input_names=asr_model.preprocessor.input_names[
+                    : len(input_example)
+                ],
                 output_names=asr_model.preprocessor.output_names,
                 custom_extensions=list(custom_extensions),
                 allow_same_io_names=False,  # not used for preprocessor export
@@ -460,6 +511,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         subnet,
         input_example,
         nemo_dynamic_axes,
+        allow_same_io_names,
     ) in iter_nemo_model_subnets(
         asr_model,
         float_dtype=float_dtype,
@@ -477,7 +529,7 @@ def iter_export_params_for_generic_nemo_asr_model(
             input_names=subnet.input_names[: len(input_example)],
             output_names=subnet.output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=False,
+            allow_same_io_names=allow_same_io_names,
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, subnet
             ),
@@ -714,6 +766,91 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
     return inference_target
 
 
+class WrapAudioPreprocessor(torch.nn.Module):
+    """Wraps the AudioPreprocessor to fix input_example empty."""
+
+    def __init__(self, preprocessor: torch.nn.Module):
+        super().__init__()
+        self.preprocessor = preprocessor
+
+    def input_example(self, max_batch: int = 1):
+        # return a dummy input example if the original is empty
+        ie = self.preprocessor.input_example()
+        if ie is None or len(ie) == 0:
+            # use self.preprocessor.input_types
+            # {'input_signal': NeuralType(axis=(batch, time), element_type=AudioSignal), 'length': NeuralType(axis=(batch,), element_type=LengthsType)}
+            # to build tensor dummy input example, with 16000 frames (1 second of audio at 16kHz)
+
+            input_types = self.preprocessor.input_types
+            batch_size = max_batch
+            default_time = 16000  # safe default for time axis
+
+            example = []
+
+            for _, neural_type in input_types.items():
+                axes = neural_type.axes  # tuple of axis descriptors
+
+                shape = []
+                dtype = torch.float32  # default
+
+                for axis in axes:
+                    # Axis may be a string or AxisType depending on NeMo version
+                    axis_name = getattr(axis, "kind", axis)
+                    axis_name = str(axis_name).lower()
+
+                    if "batch" in axis_name or axis_name == "b":
+                        shape.append(batch_size)
+                    elif "time" in axis_name or axis_name == "t":
+                        shape.append(default_time)
+                    else:
+                        # Fallback: set to 1 for unknown dims
+                        shape.append(1)
+
+                # LengthsType → long tensor
+                element_type_name = type(
+                    neural_type.elements_type
+                ).__name__.lower()
+                if "length" in element_type_name:
+                    dtype = torch.long
+                    tensor = torch.full(
+                        (batch_size,),
+                        default_time,
+                        dtype=dtype,
+                    )
+                else:
+                    tensor = torch.zeros(
+                        *shape,
+                        dtype=dtype,
+                    )
+
+                example.append(tensor)
+
+            return tuple(example)
+        return ie
+
+    def dynamic_shapes_for_export(self, *args, **kwargs):
+        name_map = {
+            "batch": "B",
+            "time": "T",
+            "stream": "S",
+        }
+        return {
+            k: {ix: name_map[str(ax.kind)] for ix, ax in enumerate(v.axes)}
+            for k, v in self.preprocessor.input_types.items()
+        }
+
+    @property
+    def input_names(self):
+        return list(self.preprocessor.input_types.keys())
+
+    @property
+    def output_names(self):
+        return list(self.preprocessor.output_types.keys())
+
+    def forward(self, *args, **kwargs):
+        return self.preprocessor(*args, **kwargs)
+
+
 class WrapPreprocessorCast(torch.nn.Module):
     """Wraps the preprocessor to add a cast to float32 at the output."""
 
@@ -721,6 +858,10 @@ class WrapPreprocessorCast(torch.nn.Module):
         super().__init__()
         self.preprocessor = preprocessor
         self.dtype = dtype
+
+    def forward(self, *args, **kwargs):
+        x = self.preprocessor(*args, **kwargs)
+        return tuple([x[0].to(self.dtype)] + list(x)[1:])
 
     def input_example(self):
         return self.preprocessor.input_example()
@@ -741,10 +882,6 @@ class WrapPreprocessorCast(torch.nn.Module):
     @property
     def output_names(self):
         return self.preprocessor.output_names
-
-    def forward(self, *args, **kwargs):
-        x = self.preprocessor(*args, **kwargs)
-        return tuple([x[0].to(self.dtype)] + list(x)[1:])
 
 
 class DecoderWithoutTargetLength(torch.nn.Module):

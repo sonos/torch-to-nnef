@@ -223,6 +223,7 @@ class TorchToNGraphExtractor:
             if self._check_io_names_qte_match and len(
                 self._forced_inputs_names
             ) != len(self.g.inputs):
+                self._torch_ir_graph.printall()
                 raise T2NErrorIoQuantity(
                     "miss-aligned quantity of `input_names`: "
                     f"{len(self._forced_inputs_names)}"
