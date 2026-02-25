@@ -251,6 +251,63 @@ def iter_nemo_model_subnets(
         # Patch the right attribute name
         cls.output_types = property(patched_output_types)
 
+    # Handle CTC families (EncDecCTCModel and EncDecCTCModelBPE)
+    EncDecCTCModel = None
+    EncDecCTCModelBPE = None
+    # Newer NeMo often exposes ctc_models submodule
+    try:
+        EncDecCTCModel = getattr(
+            nemo_model_mod.ctc_models, "EncDecCTCModel", None
+        )
+        EncDecCTCModelBPE = getattr(
+            nemo_model_mod.ctc_models, "EncDecCTCModelBPE", None
+        )
+    except AttributeError:  # pragma: no cover - defensive
+        pass
+    # Fallback: sometimes classes are directly under models
+    if EncDecCTCModel is None:
+        EncDecCTCModel = getattr(nemo_model_mod, "EncDecCTCModel", None)
+    if EncDecCTCModelBPE is None:
+        EncDecCTCModelBPE = getattr(nemo_model_mod, "EncDecCTCModelBPE", None)
+
+    if (
+        (EncDecCTCModel is not None and isinstance(model, EncDecCTCModel))
+        or (
+            EncDecCTCModelBPE is not None
+            and isinstance(model, EncDecCTCModelBPE)
+        )
+    ):
+        subnet_names = ["encoder", "decoder"]
+        allow_same_io_names = [True, False]
+        auto_seq = True
+
+        # Patch encoder output_types to map encoded_lengths -> length
+        cls = model.encoder.__class__
+        try:
+            orig_fget = cls.output_types.fget  # type: ignore[attr-defined]
+        except AttributeError:  # pragma: no cover - defensive
+            orig_fget = None
+
+        def patched_output_types_ctc(self):
+            original = (
+                orig_fget(self)
+                if orig_fget is not None
+                else getattr(self, "output_types", {})
+            )
+            try:
+                items = original.items()
+            except Exception:  # pragma: no cover - defensive
+                return original
+            new = OrderedDict()
+            for k, v in items:
+                new["length" if k == "encoded_lengths" else k] = v
+            return new
+
+        try:
+            cls.output_types = property(patched_output_types_ctc)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive
+            pass
+
     for subnet_name, sio in zip(subnet_names, allow_same_io_names):
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
