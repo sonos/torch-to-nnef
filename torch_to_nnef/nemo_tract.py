@@ -396,19 +396,31 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
     return dynamic_axes, custom_extensions
 
 
-def _collapse_axes_for_input(orig_axes: T.Dict[int, str]) -> T.Dict[int, str]:
+def _collapse_axes_for_input(
+    orig_axes: T.Dict[int, str],
+    *,
+    full_axes_spec: T.Optional[T.Sequence[str]] = None,
+    assume_batch_at0: bool = True,
+) -> T.Dict[int, str]:
     """Collapse a single input axes mapping by removing 'B' and reindexing.
 
-    Example: {0:'B', 1:'A'} -> {0:'A'}; {0:'B', 2:'S'} -> {0:'S'}
+    Supports cases where batch is not reported as dynamic by inferring it from
+    the full static axes spec or assuming B at index 0.
     """
-    # Build list ordered by original index
+    # Determine batch positions
+    if full_axes_spec is not None:
+        b_positions = [ix for ix, sym in enumerate(full_axes_spec) if sym == "B"]
+    else:
+        pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
+        b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
+        if assume_batch_at0 and 0 not in b_positions:
+            b_positions = [0] + b_positions
+
     pairs = sorted(orig_axes.items(), key=lambda kv: kv[0])
-    b_positions = [ix for ix, sym in pairs if sym == "B"]
     new_axes: T.Dict[int, str] = {}
     for orig_ix, sym in pairs:
         if sym == "B":
             continue
-        # New index is original minus number of preceding B axes
         n_b_before = sum(1 for b in b_positions if b < orig_ix)
         new_ix = orig_ix - n_b_before
         new_axes[new_ix] = sym
@@ -418,6 +430,8 @@ def _collapse_axes_for_input(orig_axes: T.Dict[int, str]) -> T.Dict[int, str]:
 def collapse_dynamic_axes_mapping(
     nemo_dynamic_axes: T.Dict[str, T.Dict[int, str]],
     keep_input_names: T.Sequence[str],
+    *,
+    full_axes_by_name: T.Optional[T.Dict[str, T.Sequence[str]]] = None,
 ) -> T.Dict[str, T.Dict[int, str]]:
     """Produce a collapsed dynamic axis mapping without batch dims.
 
@@ -429,7 +443,10 @@ def collapse_dynamic_axes_mapping(
         axes = nemo_dynamic_axes.get(name)
         if not axes:
             continue
-        collapsed[name] = _collapse_axes_for_input(axes)
+        collapsed[name] = _collapse_axes_for_input(
+            axes,
+            full_axes_spec=(full_axes_by_name or {}).get(name),
+        )
     return collapsed
 
 
@@ -573,14 +590,16 @@ def iter_export_params_for_generic_nemo_asr_model(
         test_input = input_example
         input_names = subnet.input_names[: len(input_example)]
         output_names = subnet.output_names
-        dyn = dynamic_axes
+        # Limit dynamic axes to the inputs we are actually exposing
+        dyn = {k: v for k, v in dynamic_axes.items() if k in input_names}
 
         if collapse_batch_dim:
             model = CollapseBatchDimWrapper(subnet, dynamic_axes)
             test_input = model.input_example()
             input_names = model.input_names
             output_names = model.output_names
-            dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
+            # Use wrapper's collapsed dynamic mapping for correctness
+            dyn = model.dynamic_shapes_for_export()
 
         yield ExportParameters(
             name=subnet_name,
@@ -1150,17 +1169,20 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         # Determine the external interface names (filtered)
         self._orig_input_names = list(getattr(module, "input_names", []))
         self._orig_output_names = list(getattr(module, "output_names", []))
+        def _is_len_name(n: str) -> bool:
+            nl = n.lower()
+            return (
+                nl in self.LENGTH_INPUTS
+                or nl in self.LENGTH_OUTPUTS
+                or ("length" in nl)
+            )
+
         self._ext_input_names = [
-            n for n in self._orig_input_names if n not in self.LENGTH_INPUTS
+            n for n in self._orig_input_names if not _is_len_name(n)
         ]
         self._ext_output_names = [
-            n for n in self._orig_output_names if n not in self.LENGTH_OUTPUTS
+            n for n in self._orig_output_names if not _is_len_name(n)
         ]
-
-        # Precompute collapsed axes map for external inputs
-        self._collapsed_axes = collapse_dynamic_axes_mapping(
-            self._sym_dynamic_axes, self._ext_input_names
-        )
 
         # Build a full-axes spec including static dims based on an input_example
         self._full_axes_spec: T.Dict[str, T.List[str]] = {}
@@ -1171,6 +1193,28 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 inner_ex = ex(max_batch=1)
         except Exception:  # noqa: BLE001 - best effort only
             inner_ex = None
+        # Try to use richer axis info from input_types when present
+        input_types = getattr(self.module, "input_types", None)
+
+        def _axis_kind_to_sym(kind: T.Any, default: str = "X") -> str:
+            name = None
+            if hasattr(kind, "name"):
+                name = str(kind.name).lower()
+            else:
+                name = str(kind).lower()
+            name_map = {
+                "batch": "B",
+                "time": "T",
+                "sequence": "S",
+                "stream": "S",
+                "length": "T",
+                "channel": "C",
+                "feature": "F",
+                "height": "H",
+                "width": "W",
+            }
+            return name_map.get(name, default)
+
         for idx, name in enumerate(self._orig_input_names):
             axes_dict = self._sym_dynamic_axes.get(name, {})
             rank = 0
@@ -1182,11 +1226,33 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 rank = inner_ex[idx].dim()
             else:
                 rank = (max(axes_dict.keys()) + 1) if axes_dict else 1
-            spec = ["X"] * rank
-            for ax, sym in axes_dict.items():
-                if 0 <= ax < rank:
-                    spec[ax] = sym
+            # Start from input_types axis kinds if available
+            spec: T.List[str]
+            ntype = None
+            if isinstance(input_types, dict):
+                ntype = input_types.get(name)
+            if ntype is not None and hasattr(ntype, "axes"):
+                axes_kinds = list(getattr(ntype, "axes", ()))
+                spec = [_axis_kind_to_sym(getattr(k, "kind", k)) for k in axes_kinds]
+                # If input_types and observed rank disagree, pad/truncate
+                if len(spec) < rank:
+                    spec = spec + ["X"] * (rank - len(spec))
+                elif len(spec) > rank:
+                    spec = spec[:rank]
+            else:
+                spec = ["X"] * rank
+                for ax, sym in axes_dict.items():
+                    if 0 <= ax < rank:
+                        spec[ax] = sym
+            # Ensure batch axis presence when reasonable
+            if "B" not in spec and not _is_len_name(name) and len(spec) >= 1:
+                spec[0] = "B"
             self._full_axes_spec[name] = spec
+
+        # Precompute collapsed axes map for external inputs using full spec
+        self._collapsed_axes = collapse_dynamic_axes_mapping(
+            self._sym_dynamic_axes, self._ext_input_names, full_axes_by_name=self._full_axes_spec
+        )
 
     @property
     def input_names(self) -> T.List[str]:
@@ -1203,16 +1269,29 @@ class CollapseBatchDimWrapper(torch.nn.Module):
     def input_example(self, max_batch: int = 1):
         # Build an example matching external interface (no batch, no lengths)
         ex = getattr(self.module, "input_example", None)
-        if ex is None:
-            return None
-        inner = ex(max_batch=max_batch)
+        inner = ex(max_batch=max_batch) if ex is not None else None
         if inner is None:
-            return None
+            # Synthesize minimal example using full axis spec
+            default_time = 16000
+            time_like = {"T", "A", "R", "S", "OUT"}
+            example: T.List[torch.Tensor] = []
+            for name in self._ext_input_names:
+                spec = self._full_axes_spec.get(name, ["X"])  # original ranks
+                # Collapsed shape skips 'B'
+                shape: T.List[int] = []
+                for sym in spec:
+                    if sym == "B":
+                        continue
+                    shape.append(default_time if sym in time_like else 1)
+                if not shape:
+                    shape = [default_time]
+                example.append(torch.zeros(*shape, dtype=torch.float32))
+            return example
 
         # Map inner (orig) inputs to external list: drop length-like and squeeze B
         out_examples: T.List[T.Any] = []
         for name, tensor in zip(self._orig_input_names, inner):
-            if name in self.LENGTH_INPUTS:
+            if ("length" in name.lower()) or name in self.LENGTH_INPUTS:
                 continue
             if torch.is_tensor(tensor):
                 axes = self._sym_dynamic_axes.get(name, {})
@@ -1245,25 +1324,22 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         return out_examples
 
     def _infer_time_from_visible_inputs(self, args: T.Sequence[T.Any]) -> int:
-        # Find a reasonable time length from inputs containing T/A/R/S
-        # using collapsed axes indexing
+        # Infer time length from full axis spec (works even if time is static)
         name_to_arg: T.Dict[str, T.Any] = {
             n: a for n, a in zip(self._ext_input_names, args)
         }
+        time_like = {"T", "A", "R", "S", "OUT"}
         times: T.List[int] = []
         for name, tensor in name_to_arg.items():
             if not torch.is_tensor(tensor):
                 continue
-            axes = self._sym_dynamic_axes.get(name, {})
-            # Build mapping from original to collapsed indices by skipping 'B'
-            pairs = sorted(axes.items(), key=lambda kv: kv[0])
+            spec = self._full_axes_spec.get(name, [])
             collapsed_index = 0
-            for _, sym in pairs:
+            for sym in spec:
                 if sym == "B":
                     continue
-                if sym in ("T", "A", "R", "S", "OUT"):
-                    if collapsed_index < tensor.dim():
-                        times.append(int(tensor.shape[collapsed_index]))
+                if sym in time_like and collapsed_index < tensor.dim():
+                    times.append(int(tensor.shape[collapsed_index]))
                 collapsed_index += 1
         return max(times) if times else 1
 
@@ -1303,7 +1379,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         # map from visible index to name for convenience
         vis_iter = iter(visible)
         for name in self._orig_input_names:
-            if name in self.LENGTH_INPUTS:
+            if ("length" in name.lower()) or name in self.LENGTH_INPUTS:
                 full.append(
                     self._synthesize_length_tensor(
                         ref_device, ref_dtype, time_len, name
