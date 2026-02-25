@@ -396,6 +396,43 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
     return dynamic_axes, custom_extensions
 
 
+def _collapse_axes_for_input(orig_axes: T.Dict[int, str]) -> T.Dict[int, str]:
+    """Collapse a single input axes mapping by removing 'B' and reindexing.
+
+    Example: {0:'B', 1:'A'} -> {0:'A'}; {0:'B', 2:'S'} -> {0:'S'}
+    """
+    # Build list ordered by original index
+    pairs = sorted(orig_axes.items(), key=lambda kv: kv[0])
+    b_positions = [ix for ix, sym in pairs if sym == "B"]
+    new_axes: T.Dict[int, str] = {}
+    for orig_ix, sym in pairs:
+        if sym == "B":
+            continue
+        # New index is original minus number of preceding B axes
+        n_b_before = sum(1 for b in b_positions if b < orig_ix)
+        new_ix = orig_ix - n_b_before
+        new_axes[new_ix] = sym
+    return new_axes
+
+
+def collapse_dynamic_axes_mapping(
+    nemo_dynamic_axes: T.Dict[str, T.Dict[int, str]],
+    keep_input_names: T.Sequence[str],
+) -> T.Dict[str, T.Dict[int, str]]:
+    """Produce a collapsed dynamic axis mapping without batch dims.
+
+    - Keeps only inputs present in keep_input_names.
+    - Removes 'B' from the axis symbols and compacts indices.
+    """
+    collapsed: T.Dict[str, T.Dict[int, str]] = {}
+    for name in keep_input_names:
+        axes = nemo_dynamic_axes.get(name)
+        if not axes:
+            continue
+        collapsed[name] = _collapse_axes_for_input(axes)
+    return collapsed
+
+
 ExportParameters = T.NamedTuple(
     "ExportParameters",
     [
@@ -431,6 +468,7 @@ def iter_export_params_for_generic_nemo_asr_model(
     skip_preprocessor: bool = False,
     split_joint_decoder: bool = False,
     remove_unused_inputs: bool = True,
+    collapse_batch_dim: bool = False,
     float_dtype: T.Optional[torch.dtype] = None,
     *,
     nemo: InjectedNemoModule = INJECTED,
@@ -488,21 +526,30 @@ def iter_export_params_for_generic_nemo_asr_model(
             )
 
             subnet_name = "preprocessor"
+            model = asr_model.preprocessor
+            input_names = model.input_names[: len(input_example)]
+            output_names = model.output_names
+            test_input = inps or input_example
+            dyn = dynamic_axes
+            if collapse_batch_dim:
+                # Wrap and collapse axes
+                model = CollapseBatchDimWrapper(model, dynamic_axes)
+                input_names = model.input_names
+                output_names = model.output_names
+                test_input = model.input_example()
+                dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
+
             yield ExportParameters(
                 name=subnet_name,
-                model=asr_model.preprocessor,
-                test_input=inps or input_example,
-                inference_target=inference_target.with_dynamic_axes(
-                    dynamic_axes
-                ),
-                input_names=asr_model.preprocessor.input_names[
-                    : len(input_example)
-                ],
-                output_names=asr_model.preprocessor.output_names,
+                model=model,
+                test_input=test_input,
+                inference_target=inference_target.with_dynamic_axes(dyn),
+                input_names=input_names,
+                output_names=output_names,
                 custom_extensions=list(custom_extensions),
                 allow_same_io_names=False,  # not used for preprocessor export
                 specific_tract_properties=build_custom_subnet_tract_properties(
-                    subnet_name, asr_model.preprocessor
+                    subnet_name, model
                 ),
             )
 
@@ -521,17 +568,31 @@ def iter_export_params_for_generic_nemo_asr_model(
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes
         )
+
+        model = subnet
+        test_input = input_example
+        input_names = subnet.input_names[: len(input_example)]
+        output_names = subnet.output_names
+        dyn = dynamic_axes
+
+        if collapse_batch_dim:
+            model = CollapseBatchDimWrapper(subnet, dynamic_axes)
+            test_input = model.input_example()
+            input_names = model.input_names
+            output_names = model.output_names
+            dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
+
         yield ExportParameters(
             name=subnet_name,
-            model=subnet,
-            test_input=input_example,
-            inference_target=inference_target.with_dynamic_axes(dynamic_axes),
-            input_names=subnet.input_names[: len(input_example)],
-            output_names=subnet.output_names,
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target.with_dynamic_axes(dyn),
+            input_names=input_names,
+            output_names=output_names,
             custom_extensions=list(custom_extensions),
             allow_same_io_names=allow_same_io_names,
             specific_tract_properties=build_custom_subnet_tract_properties(
-                subnet_name, subnet
+                subnet_name, model
             ),
         )
 
@@ -549,6 +610,7 @@ def export_nemo_asr_model(
     float_dtype: T.Optional[torch.dtype] = None,
     remove_unused_inputs: bool = True,
     dump_checked_io: bool = False,
+    collapse_batch_dim: bool = False,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
     **kwargs,
@@ -593,6 +655,7 @@ def export_nemo_asr_model(
         split_joint_decoder=split_joint_decoder,
         float_dtype=float_dtype,
         remove_unused_inputs=remove_unused_inputs,
+        collapse_batch_dim=collapse_batch_dim,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         if dump_checked_io:
@@ -656,6 +719,14 @@ def parser_cli():
         action="store_true",
         help="Forcing sdpa to use PyTorch implementation."
         " (likely more efficent, once stable tract side)",
+    )
+    parser.add_argument(
+        "--collapse-batch-dim",
+        action="store_true",
+        help=(
+            "Remove batch dimension from exported subnet interfaces and "
+            "hide batch-only length inputs (length, target_length, ...)."
+        ),
     )
     parser.add_argument(
         "--tract-reify-sdpa",
@@ -1040,6 +1111,197 @@ class DecoderWithoutTargetLength(torch.nn.Module):
             return getattr(self.decoder, name)
 
 
+class CollapseBatchDimWrapper(torch.nn.Module):
+    """Wrap a NeMo exportable subnet to remove batch from its interface.
+
+    - Accepts batch-less inputs and reconstructs batch=1 internally.
+    - Hides batch-only length-like inputs (e.g., 'length', 'target_length').
+    - Squeezes batch dim from tensor outputs and hides length-like outputs.
+
+    Notes:
+        - Requires the per-input dynamic axes mapping from NeMo
+          (as returned by `dynamic_shapes_for_export`).
+    """
+
+    LENGTH_INPUTS = {"length", "target_length"}
+    LENGTH_OUTPUTS = {"encoded_lengths", "prednet_lengths", "length"}
+
+    def __init__(
+        self,
+        module: torch.nn.Module,
+        sym_dynamic_axes: T.Dict[str, T.Dict[int, str]],
+    ):
+        super().__init__()
+        self.module = module
+        # Mapping: input_name -> {axis_index: symbol like 'B','T','A',...}
+        self._sym_dynamic_axes = sym_dynamic_axes or {}
+        # Determine the external interface names (filtered)
+        self._orig_input_names = list(getattr(module, "input_names", []))
+        self._orig_output_names = list(getattr(module, "output_names", []))
+        self._ext_input_names = [
+            n for n in self._orig_input_names if n not in self.LENGTH_INPUTS
+        ]
+        self._ext_output_names = [
+            n for n in self._orig_output_names if n not in self.LENGTH_OUTPUTS
+        ]
+
+        # Precompute collapsed axes map for external inputs
+        self._collapsed_axes = collapse_dynamic_axes_mapping(
+            self._sym_dynamic_axes, self._ext_input_names
+        )
+
+    @property
+    def input_names(self) -> T.List[str]:
+        return self._ext_input_names
+
+    @property
+    def output_names(self) -> T.List[str]:
+        return self._ext_output_names
+
+    def dynamic_shapes_for_export(self, *args, **kwargs):
+        # Return collapsed mapping for external inputs
+        return self._collapsed_axes
+
+    def input_example(self, max_batch: int = 1):
+        # Build an example matching external interface (no batch, no lengths)
+        ex = getattr(self.module, "input_example", None)
+        if ex is None:
+            return None
+        inner = ex(max_batch=max_batch)
+        if inner is None:
+            return None
+
+        # Map inner (orig) inputs to external list: drop length-like and squeeze B
+        out_examples: T.List[T.Any] = []
+        for name, tensor in zip(self._orig_input_names, inner):
+            if name in self.LENGTH_INPUTS:
+                continue
+            if torch.is_tensor(tensor):
+                axes = self._sym_dynamic_axes.get(name, {})
+                # squeeze all B axes (commonly axis 0)
+                # Apply in decreasing order to keep indices valid
+                b_axes = sorted(
+                    [i for i, s in axes.items() if s == "B"], reverse=True
+                )
+                t = tensor
+                for ax in b_axes:
+                    if 0 <= ax < t.dim() and t.size(ax) == 1:
+                        t = t.squeeze(dim=ax)
+                out_examples.append(t)
+            else:
+                out_examples.append(tensor)
+        return out_examples
+
+    def _infer_time_from_visible_inputs(self, args: T.Sequence[T.Any]) -> int:
+        # Find a reasonable time length from inputs containing T/A/R/S
+        # using collapsed axes indexing
+        name_to_arg: T.Dict[str, T.Any] = {
+            n: a for n, a in zip(self._ext_input_names, args)
+        }
+        times: T.List[int] = []
+        for name, tensor in name_to_arg.items():
+            if not torch.is_tensor(tensor):
+                continue
+            axes = self._sym_dynamic_axes.get(name, {})
+            # Build mapping from original to collapsed indices by skipping 'B'
+            pairs = sorted(axes.items(), key=lambda kv: kv[0])
+            collapsed_index = 0
+            for _, sym in pairs:
+                if sym == "B":
+                    continue
+                if sym in ("T", "A", "R", "S", "OUT"):
+                    if collapsed_index < tensor.dim():
+                        times.append(int(tensor.shape[collapsed_index]))
+                collapsed_index += 1
+        return max(times) if times else 1
+
+    def _synthesize_length_tensor(
+        self,
+        ref_device: torch.device,
+        ref_dtype: torch.dtype,
+        length: int,
+        name: str,
+    ) -> torch.Tensor:
+        if name == "target_length":
+            # keep an extra last dim to match common expectation (B,1)
+            return torch.tensor([[length]], device=ref_device, dtype=torch.long)
+        return torch.tensor([length], device=ref_device, dtype=torch.long)
+
+    def forward(self, *args, **kwargs):
+        # args correspond to external inputs in order self._ext_input_names
+        # Rebuild inner args matching original interface
+        assert not kwargs, (
+            "CollapseBatchDimWrapper expects positional args only"
+        )
+        visible = list(args)
+        full: T.List[T.Any] = []
+
+        # Determine a reference device/dtype and time
+        ref_tensor = next((a for a in visible if torch.is_tensor(a)), None)
+        ref_device = (
+            ref_tensor.device
+            if torch.is_tensor(ref_tensor)
+            else torch.device("cpu")
+        )
+        ref_dtype = (
+            ref_tensor.dtype if torch.is_tensor(ref_tensor) else torch.float32
+        )
+        time_len = self._infer_time_from_visible_inputs(visible)
+
+        # map from visible index to name for convenience
+        vis_iter = iter(visible)
+        for name in self._orig_input_names:
+            if name in self.LENGTH_INPUTS:
+                full.append(
+                    self._synthesize_length_tensor(
+                        ref_device, ref_dtype, time_len, name
+                    )
+                )
+                continue
+            val = next(vis_iter)
+            if torch.is_tensor(val):
+                axes = self._sym_dynamic_axes.get(name, {})
+                # Insert batch=1 at each 'B' axis position
+                b_axes = sorted(
+                    [i for i, s in axes.items() if s == "B"]
+                )  # asc order
+                t = val
+                # Adjust for growing rank when inserting
+                offset = 0
+                for ax in b_axes:
+                    t = t.unsqueeze(dim=ax + offset)
+                    offset += 1
+                full.append(t)
+            else:
+                full.append(val)
+
+        outs = self.module(*tuple(full))
+        if not isinstance(outs, tuple):
+            outs = (outs,)
+
+        # Drop length-like outputs and squeeze batch for tensors
+        keep_indices = [
+            i
+            for i, n in enumerate(self._orig_output_names)
+            if n not in self.LENGTH_OUTPUTS
+        ]
+        proc: T.List[T.Any] = []
+        for i in keep_indices:
+            o = outs[i]
+            if torch.is_tensor(o):
+                # heuristic: squeeze leading batch dim when size==1
+                if o.dim() > 0 and o.size(0) == 1:
+                    o = o.squeeze(0)
+            proc.append(o)
+        return tuple(proc)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+
 def use_pytorch_sdpa(model: torch.nn.Module):
     """Modify the model to use PyTorch sdpa implementations where applicable.
 
@@ -1269,6 +1531,7 @@ def main():
             extra_cfg={"pretrained_name": args.model_slug},
             float_dtype=float_dtype,
             dump_checked_io=args.dump_checked_io,
+            collapse_batch_dim=args.collapse_batch_dim,
         )
 
     if args.data_type == "mixed":

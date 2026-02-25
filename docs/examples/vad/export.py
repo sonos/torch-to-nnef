@@ -75,8 +75,8 @@ class EncoderWrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
-        self.model._attach_and_validate_output_types = (
-            lambda *args, **kwargs: None
+        self.model._attach_and_validate_output_types = lambda *args, **kwargs: (
+            None
         )
 
     def forward(self, x):
