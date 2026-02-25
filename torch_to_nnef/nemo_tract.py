@@ -1123,8 +1123,20 @@ class CollapseBatchDimWrapper(torch.nn.Module):
           (as returned by `dynamic_shapes_for_export`).
     """
 
-    LENGTH_INPUTS = {"length", "target_length"}
-    LENGTH_OUTPUTS = {"encoded_lengths", "prednet_lengths", "length"}
+    LENGTH_INPUTS = {
+        "length",
+        "target_length",
+        "processed_length",
+        "audio_signal_length",
+    }
+    LENGTH_OUTPUTS = {
+        "encoded_lengths",
+        "prednet_lengths",
+        "length",
+        "processed_length",
+        "audio_signal_length",
+        "input_length",
+    }
 
     def __init__(
         self,
@@ -1162,7 +1174,11 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         for idx, name in enumerate(self._orig_input_names):
             axes_dict = self._sym_dynamic_axes.get(name, {})
             rank = 0
-            if inner_ex is not None and idx < len(inner_ex) and torch.is_tensor(inner_ex[idx]):
+            if (
+                inner_ex is not None
+                and idx < len(inner_ex)
+                and torch.is_tensor(inner_ex[idx])
+            ):
                 rank = inner_ex[idx].dim()
             else:
                 rank = (max(axes_dict.keys()) + 1) if axes_dict else 1
@@ -1203,7 +1219,13 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 # squeeze all B axes (commonly axis 0)
                 # Apply in decreasing order to keep indices valid
                 b_axes = sorted(
-                    [i for i, s in enumerate(self._full_axes_spec.get(name, [])) if s == "B"],
+                    [
+                        i
+                        for i, s in enumerate(
+                            self._full_axes_spec.get(name, [])
+                        )
+                        if s == "B"
+                    ],
                     reverse=True,
                 )
                 t = tensor
@@ -1212,7 +1234,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                         t = t.squeeze(dim=ax)
                 # Reduce any extra dims to the expected collapsed rank by taking
                 # the first item along leading extra axes (keep last dims)
-                expected_rank = sum(1 for s in self._full_axes_spec.get(name, []) if s != "B")
+                expected_rank = sum(
+                    1 for s in self._full_axes_spec.get(name, []) if s != "B"
+                )
                 while torch.is_tensor(t) and t.dim() > max(1, expected_rank):
                     t = t.select(dim=0, index=0)
                 out_examples.append(t)
@@ -1290,13 +1314,21 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             if torch.is_tensor(val):
                 axes = self._sym_dynamic_axes.get(name, {})
                 # Reduce any unexpected extra dims to match collapsed spec
-                expected_rank = sum(1 for s in self._full_axes_spec.get(name, []) if s != "B")
+                expected_rank = sum(
+                    1 for s in self._full_axes_spec.get(name, []) if s != "B"
+                )
                 t = val
                 while t.dim() > max(1, expected_rank):
                     t = t.select(dim=0, index=0)
                 # Insert batch=1 at each 'B' axis position
                 b_axes = sorted(
-                    [i for i, s in enumerate(self._full_axes_spec.get(name, [])) if s == "B"]
+                    [
+                        i
+                        for i, s in enumerate(
+                            self._full_axes_spec.get(name, [])
+                        )
+                        if s == "B"
+                    ]
                 )  # asc order
                 # Adjust for growing rank when inserting
                 offset = 0
