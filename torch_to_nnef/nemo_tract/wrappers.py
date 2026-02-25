@@ -317,7 +317,15 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             for name, t in zip(self._orig_input_names, ex):
                 if name in self.LENGTH_INPUTS or "length" in name.lower():
                     continue
-                if torch.is_tensor(t):
+                if name == "states" and isinstance(t, (list, tuple)) and t:
+                    ts = t[0]
+                    if torch.is_tensor(ts):
+                        self._expected_rank_no_batch[name] = (
+                            max(0, ts.dim() - 1) if ts.dim() > 0 else 0
+                        )
+                    else:
+                        self._expected_rank_no_batch[name] = 0
+                elif torch.is_tensor(t):
                     # assume batch is first dim when present
                     self._expected_rank_no_batch[name] = (
                         max(0, t.dim() - 1) if t.dim() > 0 else 0
@@ -329,6 +337,10 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             axes = (sym_dynamic_axes or {}).get(name, {})
             bpos = sorted([i for i, s in axes.items() if s == "B"])
             self._b_axes[name] = bpos if bpos else [0]
+        # Special-case known state inputs: batch axis is 1 (layout: [L, B, H])
+        for sname in ("input_states_1", "input_states_2", "states"):
+            if sname in self._orig_input_names:
+                self._b_axes[sname] = [1]
 
     @property
     def input_names(self) -> T.List[str]:
@@ -341,15 +353,30 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         ]
 
     def input_example(self) -> T.Tuple[torch.Tensor, ...]:
-        ex = self.module.input_example(max_batch=1)
+        ex = None
+        try:
+            ex = self.module.input_example(max_batch=1)
+        except AttributeError:
+            if hasattr(self.module, "input_module"):
+                ex = self.module.input_module.input_example(max_batch=1)
         if ex is None:
             return ()
         # Remove any length-like inputs and squeeze batch where applicable
-        out: T.List[torch.Tensor] = []
+        out: T.List[T.Any] = []
         for name, t in zip(self._orig_input_names, ex):
             if name in self.LENGTH_INPUTS or "length" in name.lower():
                 continue
-            if torch.is_tensor(t) and t.dim() > 0 and t.size(0) == 1:
+            if name in ("input_states_1", "input_states_2") and torch.is_tensor(t):
+                if t.dim() > 1 and t.size(1) == 1:
+                    t = t.squeeze(1)  # remove batch axis at dim 1
+            elif name == "states" and isinstance(t, (list, tuple)):
+                proc = []
+                for s in t:
+                    if torch.is_tensor(s) and s.dim() > 1 and s.size(1) == 1:
+                        s = s.squeeze(1)
+                    proc.append(s)
+                t = tuple(proc)
+            elif torch.is_tensor(t) and t.dim() > 0 and t.size(0) == 1:
                 t = t.squeeze(0)
             out.append(t)
         return tuple(out)
@@ -410,13 +437,26 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 )
                 continue
             val = next(vis_iter)
+            # Handle combined states passed as a tuple (h, c)
+            if name == "states" and isinstance(val, (list, tuple)):
+                proc = []
+                for s in val:
+                    t = s
+                    b_axes = self._b_axes.get(name, [1])
+                    for offset, ax in enumerate(b_axes):
+                        t = t.unsqueeze(dim=ax + offset)
+                    proc.append(t)
+                full.append(tuple(proc))
+                continue
             if torch.is_tensor(val):
                 expected_rank = self._expected_rank_no_batch.get(
                     name, max(1, val.dim())
                 )
                 t = val
-                while t.dim() > max(1, expected_rank):
-                    t = t.select(dim=0, index=0)
+                # Avoid reducing layer dimension for RNNT state tensors
+                if name not in ("input_states_1", "input_states_2"):
+                    while t.dim() > max(1, expected_rank):
+                        t = t.select(dim=0, index=0)
                 b_axes = self._b_axes.get(name, [0])
                 for offset, ax in enumerate(b_axes):
                     t = t.unsqueeze(dim=ax + offset)
