@@ -2,7 +2,8 @@ import json
 import logging
 import typing as T
 from collections import OrderedDict
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -12,6 +13,7 @@ from torch_to_nnef._optional_types import (
     InjectedNemoModule,
     InjectedOmegaConfModule,
 )
+from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import (
@@ -23,10 +25,105 @@ from .wrappers import (
     CollapseBatchDimWrapper,
     DecoderWithoutTargetLength,
     WrapAudioPreprocessor,
+    collapse_dynamic_axes_mapping,
     decoder_fix_input_example_batch_size,
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _disable_training(model):
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad = False
+
+
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+def _collect_exportables(model, *, nemo: InjectedNemoModule = INJECTED):
+    exportable_class = nemo.core.classes.exportable.Exportable
+    exportables = []
+    for m in model.modules():
+        if isinstance(m, exportable_class):
+            exportables.append(m)
+    return exportables
+
+
+def _get_target_float_dtype(
+    imod, float_dtype: T.Optional[torch.dtype] = None
+) -> torch.dtype:
+    if float_dtype is None:
+        try:
+            fdtype = next(imod.parameters()).dtype
+        except StopIteration:
+            fdtype = torch.float32
+    else:
+        fdtype = float_dtype
+    return fdtype
+
+
+def _maybe_cast_float_inputs(
+    input_example: T.List[torch.Tensor], fdtype: torch.dtype
+) -> T.List[torch.Tensor]:
+    if fdtype != torch.float32:
+        input_example = [
+            ie.to(fdtype)
+            if isinstance(ie, torch.Tensor) and ie.dtype == torch.float32
+            else ie
+            for ie in input_example
+        ]
+    return input_example
+
+
+def _prepare_input_example_for_export(
+    model: torch.nn.Module,
+    input_example: T.Optional[T.List[torch.tensor]],
+    float_dtype: T.Optional[torch.dtype],
+    batch_size: int,
+):
+    imod = model
+    if hasattr(imod, "input_module"):
+        imod = model.input_module
+    if input_example is None:
+        fdtype = _get_target_float_dtype(imod, float_dtype)
+        LOGGER.debug("Generating dummy input... %s", fdtype)
+        # Cast to correct dtype (usualy float16 if not float16)
+        input_example = _maybe_cast_float_inputs(
+            imod.input_example(max_batch=batch_size), fdtype
+        )
+    return input_example
+
+
+def _prepare_for_export(
+    model, exportables, output_name, input_example, my_args
+):
+    # Run (posibly overridden) prepare methods before calling forward()
+    for ex in exportables:
+        if hasattr(ex, "_prepare_for_export"):
+            ex._prepare_for_export(**my_args, noreplace=True)
+
+    if hasattr(model, "_prepare_for_export"):
+        model._prepare_for_export(
+            output=output_name, input_example=input_example, **my_args
+        )
+
+
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+def _build_output_example(
+    model, input_example, *, nemo: InjectedNemoModule = INJECTED
+):
+    parse_input_example = nemo.utils.export_utils.parse_input_example
+    input_list, input_dict = parse_input_example(input_example)
+    output_example = model.forward(*input_list, **input_dict)
+    if not isinstance(output_example, tuple):
+        output_example = (output_example,)
+    return output_example
+
+
+@dataclass(frozen=True)
+class ExportContext:
+    input_example: T.List[torch.Tensor]
+    output_example: T.Tuple[torch.Tensor, ...]
+    dynamic_axes: T.Dict[str, T.Dict[int, str]]
 
 
 @contextmanager
@@ -45,29 +142,30 @@ def exportable_nemo_net(
 ):
     """Context manager to follow export way of nemo models.
 
-    see: nemo.core.classes.Exportable._export
+    It prepare model by switching mode to eval,
+    disabling typechecks and wrapping forward method for tracing
+    by PyTorch export tools.
+
+    Mostly borrowed from nemo codebase logic (with more modularity).
+        see: nemo.core.classes.Exportable._export
+
+    Yield:
+        ExportContext with input_example, output_example and dynamic_axes
+        ready for export.
+
     """
     typecheck = nemo.core.classes.typecheck
-    exportable_class = nemo.core.classes.exportable.Exportable
-    parse_input_example = nemo.utils.export_utils.parse_input_example
     wrap_forward_method = nemo.utils.export_utils.wrap_forward_method
     my_args = {"use_dynamo": use_dynamo}
 
-    model.eval()
-    for param in model.parameters():
-        param.requires_grad = False
-
-    exportables = []
-    for m in model.modules():
-        if isinstance(m, exportable_class):
-            exportables.append(m)
+    _disable_training(model)
+    exportables = _collect_exportables(model)
 
     forward_method = None
     old_forward_method = None
     try:
         # Disable typechecks
         typecheck.set_typecheck_enabled(enabled=False)
-
         # Allow user to completely override forward method to export
         forward_method, old_forward_method = wrap_forward_method(model)
 
@@ -78,48 +176,18 @@ def exportable_nemo_net(
             torch.jit.optimized_execution(True),
             pytorch_lightning.core.module._jit_is_scripting(),
         ):
-            imod = model
-            if hasattr(imod, "input_module"):
-                imod = model.input_module
-            if input_example is None:
-                if float_dtype is None:
-                    try:
-                        fdtype = next(imod.parameters()).dtype
-                    except StopIteration:
-                        fdtype = torch.float32
-                else:
-                    fdtype = float_dtype
-                LOGGER.debug("Generating dummy input... %s", float_dtype)
-                input_example = imod.input_example(max_batch=batch_size)
-                # Cast to correct dtype (usualy float16 if not float16)
-                if fdtype != torch.float32:
-                    input_example = [
-                        ie.to(fdtype)
-                        if isinstance(ie, torch.Tensor)
-                        and ie.dtype == torch.float32
-                        else ie
-                        for ie in input_example
-                    ]
-
-            # Run (posibly overridden) prepare methods before calling forward()
-            for ex in exportables:
-                if hasattr(ex, "_prepare_for_export"):
-                    ex._prepare_for_export(**my_args, noreplace=True)
-
-            if hasattr(model, "_prepare_for_export"):
-                model._prepare_for_export(
-                    output=output_name, input_example=input_example, **my_args
-                )
-
-            input_list, input_dict = parse_input_example(input_example)
-            output_example = model.forward(*input_list, **input_dict)
-            if not isinstance(output_example, tuple):
-                output_example = (output_example,)
-
+            input_example = _prepare_input_example_for_export(
+                model, input_example, float_dtype, batch_size
+            )
+            _prepare_for_export(
+                model, exportables, output_name, input_example, my_args
+            )
+            output_example = _build_output_example(model, input_example)
             # dynamic axis is a mapping from input/output_name
             # => list of "dynamic" indices
             dynamic_axes = model.dynamic_shapes_for_export(use_dynamo)
-            yield input_example, output_example, dynamic_axes
+
+            yield ExportContext(input_example, output_example, dynamic_axes)
     finally:
         typecheck.enable_wrapping(enabled=True)
         typecheck.set_typecheck_enabled(enabled=True)
@@ -130,18 +198,9 @@ def exportable_nemo_net(
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
-def iter_nemo_model_subnets(
-    model,
-    input_example=None,
-    float_dtype: T.Optional[torch.dtype] = None,
-    split_joint_decoder: bool = False,
-    remove_unused_inputs: bool = True,
-    apply_sequential_examples: bool = False,
-    batch_size: int = 3,
-    *,
-    nemo: InjectedNemoModule = INJECTED,
+def _pick_subnets_names_and_allowed_io_names_overlap(
+    model, *, nemo: InjectedNemoModule = INJECTED
 ):
-    """Iterator over exportable subnets of a nemo model."""
     subnet_names = model.list_export_subnets()
     allow_same_io_names = [False] * len(subnet_names)
     nemo_model_mod = nemo.collections.asr.models
@@ -172,30 +231,32 @@ def iter_nemo_model_subnets(
         cls.output_types = property(patched_output_types)
 
     # Handle CTC families (EncDecCTCModel and EncDecCTCModelBPE)
-    EncDecCTCModel = None
-    EncDecCTCModelBPE = None
+    cls_enc_dec_ctc_model = None
+    cls_enc_dec_ctc_model_bpe = None
     # Newer NeMo often exposes ctc_models submodule
     try:
-        EncDecCTCModel = getattr(
+        cls_enc_dec_ctc_model = getattr(
             nemo_model_mod.ctc_models, "EncDecCTCModel", None
         )
-        EncDecCTCModelBPE = getattr(
+        cls_enc_dec_ctc_model_bpe = getattr(
             nemo_model_mod.ctc_models, "EncDecCTCModelBPE", None
         )
     except AttributeError:  # pragma: no cover - defensive
         pass
     # Fallback: sometimes classes are directly under models
-    if EncDecCTCModel is None:
-        EncDecCTCModel = getattr(nemo_model_mod, "EncDecCTCModel", None)
-    if EncDecCTCModelBPE is None:
-        EncDecCTCModelBPE = getattr(nemo_model_mod, "EncDecCTCModelBPE", None)
+    if cls_enc_dec_ctc_model is None:
+        cls_enc_dec_ctc_model = getattr(nemo_model_mod, "EncDecCTCModel", None)
+    if cls_enc_dec_ctc_model_bpe is None:
+        cls_enc_dec_ctc_model_bpe = getattr(
+            nemo_model_mod, "EncDecCTCModelBPE", None
+        )
 
     if (
-        (EncDecCTCModel is not None and isinstance(model, EncDecCTCModel))
-        or (
-            EncDecCTCModelBPE is not None
-            and isinstance(model, EncDecCTCModelBPE)
-        )
+        cls_enc_dec_ctc_model is not None
+        and isinstance(model, cls_enc_dec_ctc_model)
+    ) or (
+        cls_enc_dec_ctc_model_bpe is not None
+        and isinstance(model, cls_enc_dec_ctc_model_bpe)
     ):
         subnet_names = ["encoder", "decoder"]
         allow_same_io_names = [True, False]
@@ -213,18 +274,28 @@ def iter_nemo_model_subnets(
                 if orig_fget is not None
                 else getattr(self, "output_types", {})
             )
-            try:
-                items = original.items()
-            except Exception:  # pragma: no cover - defensive
-                return original
             new = OrderedDict()
-            for k, v in items:
+            for k, v in original.items():
                 new["length" if k == "encoded_lengths" else k] = v
             return new
 
-        with suppress(Exception):  # pragma: no cover - defensive
-            cls.output_types = property(patched_output_types_ctc)  # type: ignore[attr-defined]
+        cls.output_types = property(patched_output_types_ctc)
+    return subnet_names, allow_same_io_names
 
+
+def iter_nemo_model_subnets(
+    model,
+    input_example=None,
+    float_dtype: T.Optional[torch.dtype] = None,
+    split_joint_decoder: bool = False,
+    remove_unused_inputs: bool = True,
+    apply_sequential_examples: bool = False,
+    batch_size: int = 3,
+):
+    """Iterator over exportable subnets of a nemo model."""
+    subnet_names, allow_same_io_names = (
+        _pick_subnets_names_and_allowed_io_names_overlap(model)
+    )
     for subnet_name, sio in zip(subnet_names, allow_same_io_names):
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
@@ -236,12 +307,8 @@ def iter_nemo_model_subnets(
             input_example,
             batch_size=batch_size,
             float_dtype=float_dtype,
-        ) as (
-            #  pylint: disable-next=redefined-argument-from-local
-            input_example,
-            out_example,
-            dynamic_axes,
-        ):
+        ) as ctx:
+            input_example = ctx.input_example
             if subnet_name == "decoder_joint":
                 if split_joint_decoder:
                     # split into decoder and joint
@@ -283,11 +350,11 @@ def iter_nemo_model_subnets(
                     subnet.input_names,
                     f"but expected {len(input_example)} inputs",
                 )
-            yield subnet_name, subnet, input_example, dynamic_axes, sio
+            yield subnet_name, subnet, input_example, ctx.dynamic_axes, sio
             # Propagate input example
             # (default scenario, may need to be overriden)
             if input_example is not None and apply_sequential_examples:
-                input_example = out_example
+                input_example = ctx.output_example
             else:
                 input_example = None
 
@@ -358,81 +425,6 @@ def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
     return dynamic_axes, custom_extensions
 
 
-def _collapse_axes_for_input(
-    orig_axes: T.Dict[int, str],
-    *,
-    full_axes_spec: T.Optional[T.Sequence[str]] = None,
-    assume_batch_at0: bool = True,
-) -> T.Dict[int, str]:
-    """Collapse a single input axes mapping by removing 'B' and reindexing."""
-    # Determine batch positions
-    if full_axes_spec is not None:
-        b_positions = [
-            ix for ix, sym in enumerate(full_axes_spec) if sym == "B"
-        ]
-    else:
-        pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
-        b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
-        if assume_batch_at0 and 0 not in b_positions:
-            b_positions = [0] + b_positions
-
-    # Build a full axes symbol list to reason about final rank
-    # If full_axes_spec wasn't provided, derive a minimal plausible one.
-    if full_axes_spec is None:
-        max_idx = max(orig_axes) if orig_axes else -1
-        full_axes = [None] * (max_idx + 1)
-        for i, s in orig_axes.items():
-            full_axes[i] = s
-        # Fill any unknowns with a generic symbol ('?'), treat as non-B
-        full_axes_spec = [s if s is not None else "?" for s in full_axes]
-
-    # Create a mapping old_index->new_index, removing B-dims
-    new_map: T.Dict[int, int] = {}
-    new_i = 0
-    for i, sym in enumerate(full_axes_spec):
-        if sym == "B":
-            continue
-        new_map[i] = new_i
-        new_i += 1
-
-    # Translate the original dynamic axes into the collapsed indexing
-    collapsed: T.Dict[int, str] = {}
-    for i, sym in orig_axes.items():
-        if full_axes_spec[i] == "B":
-            # drop this dimension entirely
-            continue
-        collapsed[new_map[i]] = sym
-    return collapsed
-
-
-def collapse_dynamic_axes_mapping(
-    nemo_dynamic_axes: T.Dict[str, T.Dict[int, str]],
-    input_names: T.Sequence[str],
-) -> T.Dict[str, T.Dict[int, str]]:
-    """Collapse mapping for all inputs keeping only the exposed inputs."""
-    # Heuristic: when batch is hidden, the external interface has no B;
-    # keep only entries for exposed input names.
-    full_axes_by_name: T.Dict[str, T.Sequence[str]] = {}
-    for name, axes in nemo_dynamic_axes.items():
-        # Derive a plausible full axes spec from dynamic mapping
-        max_idx = max(axes) if axes else -1
-        spec = ["?"] * (max_idx + 1)
-        for i, s in axes.items():
-            spec[i] = s
-        full_axes_by_name[name] = tuple(spec)
-
-    collapsed: T.Dict[str, T.Dict[int, str]] = {}
-    for name in input_names:
-        axes = nemo_dynamic_axes.get(name)
-        if not axes:
-            continue
-        collapsed[name] = _collapse_axes_for_input(
-            axes,
-            full_axes_spec=(full_axes_by_name or {}).get(name),
-        )
-    return collapsed
-
-
 ExportParameters = T.NamedTuple(
     "ExportParameters",
     [
@@ -462,6 +454,75 @@ def build_custom_subnet_tract_properties(
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+def build_preprocessor_export_params(
+    asr_model,
+    inference_target,
+    collapse_batch_dim=False,
+    *,
+    nemo: InjectedNemoModule = INJECTED,
+) -> T.Iterator[ExportParameters]:
+    """Build export parameters for the preprocessor of a NeMo ASR model."""
+    inps = asr_model.preprocessor.input_example()
+    if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
+        asr_model.preprocessor.featurizer, "dither"
+    ):
+        # disable dither for export
+        if asr_model.preprocessor.featurizer.dither != 0.0:
+            LOGGER.info("disabling dither for preprocessor export")
+        asr_model.preprocessor.featurizer.dither = 0.0
+    if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
+        asr_model.preprocessor.featurizer, "pad_to"
+    ):
+        if asr_model.preprocessor.featurizer.pad_to != 0.0:
+            LOGGER.info("disabling pad_to for preprocessor export")
+        asr_model.preprocessor.featurizer.pad_to = 0
+
+    if isinstance(
+        asr_model.preprocessor,
+        nemo.collections.asr.modules.audio_preprocessing.AudioPreprocessor,
+    ):
+        asr_model.preprocessor = WrapAudioPreprocessor(asr_model.preprocessor)
+
+    with exportable_nemo_net(
+        "preprocessor", asr_model.preprocessor, inps
+    ) as ctx:
+        # Stay inside NeMo export context while yielding parameters,
+        # so the caller performs export with typechecks disabled and
+        # wrapped forward in place.
+        input_example = ctx.input_example
+        dynamic_axes, custom_extensions = build_dynamic_axes(
+            asr_model.preprocessor, ctx.dynamic_axes
+        )
+
+        subnet_name = "preprocessor"
+        model = asr_model.preprocessor
+        input_names = model.input_names[: len(input_example)]
+        output_names = model.output_names
+        test_input = inps or input_example
+        dyn = dynamic_axes
+        if collapse_batch_dim:
+            # Wrap and collapse axes
+            model = CollapseBatchDimWrapper(model, dynamic_axes)
+            input_names = model.input_names
+            output_names = model.output_names
+            test_input = model.input_example()
+            dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
+
+        yield ExportParameters(
+            name=subnet_name,
+            model=model,
+            test_input=test_input,
+            inference_target=inference_target.with_dynamic_axes(dyn),
+            input_names=input_names,
+            output_names=output_names,
+            custom_extensions=list(custom_extensions),
+            allow_same_io_names=False,  # not used for preprocessor export
+            specific_tract_properties=build_custom_subnet_tract_properties(
+                subnet_name, model
+            ),
+        )
+
+
 def iter_export_params_for_generic_nemo_asr_model(
     asr_model,
     inference_target,
@@ -470,74 +531,15 @@ def iter_export_params_for_generic_nemo_asr_model(
     remove_unused_inputs: bool = True,
     collapse_batch_dim: bool = False,
     float_dtype: T.Optional[torch.dtype] = None,
-    *,
-    nemo: InjectedNemoModule = INJECTED,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model."""
     asr_model.eval()
 
     if not skip_preprocessor:
-        inps = asr_model.preprocessor.input_example()
-        if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
-            asr_model.preprocessor.featurizer, "dither"
-        ):
-            # disable dither for export
-            if asr_model.preprocessor.featurizer.dither != 0.0:
-                LOGGER.info("disabling dither for preprocessor export")
-            asr_model.preprocessor.featurizer.dither = 0.0
-        if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
-            asr_model.preprocessor.featurizer, "pad_to"
-        ):
-            if asr_model.preprocessor.featurizer.pad_to != 0.0:
-                LOGGER.info("disabling pad_to for preprocessor export")
-            asr_model.preprocessor.featurizer.pad_to = 0
-
-        if isinstance(
-            asr_model.preprocessor,
-            nemo.collections.asr.modules.audio_preprocessing.AudioPreprocessor,
-        ):
-            asr_model.preprocessor = WrapAudioPreprocessor(
-                asr_model.preprocessor
-            )
-
-        with exportable_nemo_net(
-            "preprocessor", asr_model.preprocessor, inps
-        ) as (
-            input_example,
-            _,
-            nemo_dynamic_axes,
-        ):
-            dynamic_axes, custom_extensions = build_dynamic_axes(
-                asr_model.preprocessor, nemo_dynamic_axes
-            )
-
-            subnet_name = "preprocessor"
-            model = asr_model.preprocessor
-            input_names = model.input_names[: len(input_example)]
-            output_names = model.output_names
-            test_input = inps or input_example
-            dyn = dynamic_axes
-            if collapse_batch_dim:
-                # Wrap and collapse axes
-                model = CollapseBatchDimWrapper(model, dynamic_axes)
-                input_names = model.input_names
-                output_names = model.output_names
-                test_input = model.input_example()
-                dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
-
-            yield ExportParameters(
-                name=subnet_name,
-                model=model,
-                test_input=test_input,
-                inference_target=inference_target.with_dynamic_axes(dyn),
-                input_names=input_names,
-                output_names=output_names,
-                custom_extensions=list(custom_extensions),
-                allow_same_io_names=False,  # not used for preprocessor export
-                specific_tract_properties=build_custom_subnet_tract_properties(
-                    subnet_name, model
-                ),
-            )
+        # Yield preprocessor export params while NeMo export context is active
+        yield from build_preprocessor_export_params(
+            asr_model, inference_target, collapse_batch_dim
+        )
 
     for (
         subnet_name,
@@ -610,8 +612,6 @@ def export_nemo_asr_model(
             cfg.update(extra_cfg)
         json.dump(cfg, fh, indent=2)
     if compress_method:
-        from torch_to_nnef.compress import dynamic_load_registry
-
         LOGGER.info("use compresssion: %s", compress_method)
         registry = dynamic_load_registry(compress_registry)
         asr_model = registry[compress_method](

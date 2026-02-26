@@ -95,8 +95,27 @@ class WrapAudioPreprocessor(torch.nn.Module):
     def output_names(self):
         return list(self.preprocessor.output_types.keys())
 
+    def _args_to_kwargs(self, args, kwargs):
+        try:
+            names = list(self.preprocessor.input_types.keys())
+        except Exception:  # pragma: no cover - defensive
+            names = list(getattr(self.preprocessor, "input_names", []) or [])
+        if not names:
+            return kwargs
+        call_kwargs = dict(kwargs)
+        ai = 0
+        for name in names:
+            if name in call_kwargs:
+                continue
+            if ai < len(args):
+                call_kwargs[name] = args[ai]
+                ai += 1
+        return call_kwargs
+
     def forward(self, *args, **kwargs):
-        return self.preprocessor(*args, **kwargs)
+        # NeMo typed modules enforce kwargs-only; translate when necessary
+        call_kwargs = self._args_to_kwargs(args, kwargs)
+        return self.preprocessor(**call_kwargs)
 
 
 class WrapPreprocessorCast(torch.nn.Module):
@@ -107,8 +126,27 @@ class WrapPreprocessorCast(torch.nn.Module):
         self.preprocessor = preprocessor
         self.dtype = dtype
 
+    def _args_to_kwargs(self, args, kwargs):
+        try:
+            names = list(self.preprocessor.input_types.keys())
+        except Exception:  # pragma: no cover - defensive
+            names = list(getattr(self.preprocessor, "input_names", []) or [])
+        if not names:
+            return kwargs
+        call_kwargs = dict(kwargs)
+        ai = 0
+        for name in names:
+            if name in call_kwargs:
+                continue
+            if ai < len(args):
+                call_kwargs[name] = args[ai]
+                ai += 1
+        return call_kwargs
+
     def forward(self, *args, **kwargs):
-        x = self.preprocessor(*args, **kwargs)
+        # Ensure kwargs-only dispatch to preprocessor
+        call_kwargs = self._args_to_kwargs(args, kwargs)
+        x = self.preprocessor(**call_kwargs)
         return tuple([x[0].to(self.dtype)] + list(x)[1:])
 
     def input_example(self):
@@ -574,4 +612,13 @@ def use_pytorch_sdpa(
     mha = nemo_submod.multi_head_attention.MultiHeadAttention
     for module in model.modules():
         if isinstance(module, mha):
+            if not hasattr(module, "use_pytorch_sdpa"):
+                raise RuntimeError(
+                    "The provided model's MultiHeadAttention module "
+                    "does not have the 'use_pytorch_sdpa' attribute. "
+                    "Cannot apply PyTorch SDPA."
+                    " Please ensure you are using a compatible NeMo version"
+                    f"(yours: '{nemo.__version__}', required: '2.1.0' or later)"
+                    " with PyTorch SDPA support."
+                )
             module.use_pytorch_sdpa = True
