@@ -10,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def decoder_fix_input_example_batch_size(
-    input_example: T.Tuple[torch.Tensor, ...],
+    input_example: T.List[torch.Tensor],
     batch_size: int,
 ) -> T.List[torch.Tensor]:
     """Fix the batch size of the input example for decoder models."""
@@ -311,7 +311,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         self._b_axes: T.Dict[str, T.List[int]] = {}
         try:
             ex = self.module.input_example(max_batch=1)
-        except Exception:  # pragma: no cover - defensive
+        except AttributeError:
             ex = None
         if isinstance(ex, (list, tuple)):
             for name, t in zip(self._orig_input_names, ex):
@@ -366,7 +366,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         for name, t in zip(self._orig_input_names, ex):
             if name in self.LENGTH_INPUTS or "length" in name.lower():
                 continue
-            if name in ("input_states_1", "input_states_2") and torch.is_tensor(t):
+            if name in ("input_states_1", "input_states_2") and torch.is_tensor(
+                t
+            ):
                 if t.dim() > 1 and t.size(1) == 1:
                     t = t.squeeze(1)  # remove batch axis at dim 1
             elif name == "states" and isinstance(t, (list, tuple)):
@@ -488,23 +490,88 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             return getattr(self.module, name)
 
 
+def _collapse_axes_for_input(
+    orig_axes: T.Dict[int, str],
+    *,
+    full_axes_spec: T.Optional[T.Sequence[str]] = None,
+    assume_batch_at0: bool = True,
+) -> T.Dict[int, str]:
+    """Collapse a single input axes mapping by removing 'B' and reindexing."""
+    # Determine batch positions
+    if full_axes_spec is not None:
+        b_positions = [
+            ix for ix, sym in enumerate(full_axes_spec) if sym == "B"
+        ]
+    else:
+        pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
+        b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
+        if assume_batch_at0 and 0 not in b_positions:
+            b_positions = [0] + b_positions
+
+    # Build a full axes symbol list to reason about final rank
+    # If full_axes_spec wasn't provided, derive a minimal plausible one.
+    if full_axes_spec is None:
+        max_idx = max(orig_axes) if orig_axes else -1
+        full_axes = [None] * (max_idx + 1)
+        for i, s in orig_axes.items():
+            full_axes[i] = s
+        # Fill any unknowns with a generic symbol ('?'), treat as non-B
+        full_axes_spec = [s if s is not None else "?" for s in full_axes]
+
+    # Create a mapping old_index->new_index, removing B-dims
+    new_map: T.Dict[int, int] = {}
+    new_i = 0
+    for i, sym in enumerate(full_axes_spec):
+        if sym == "B":
+            continue
+        new_map[i] = new_i
+        new_i += 1
+
+    # Translate the original dynamic axes into the collapsed indexing
+    collapsed: T.Dict[int, str] = {}
+    for i, sym in orig_axes.items():
+        if full_axes_spec[i] == "B":
+            # drop this dimension entirely
+            continue
+        collapsed[new_map[i]] = sym
+    return collapsed
+
+
 def collapse_dynamic_axes_mapping(
     nemo_dynamic_axes: T.Dict[str, T.Dict[int, str]],
     input_names: T.Sequence[str],
 ) -> T.Dict[str, T.Dict[int, str]]:
-    """Local import to avoid circulars (reused by wrapper)."""
-    from .export import collapse_dynamic_axes_mapping as _collapse
+    """Collapse mapping for all inputs keeping only the exposed inputs."""
+    # Heuristic: when batch is hidden, the external interface has no B;
+    # keep only entries for exposed input names.
+    full_axes_by_name: T.Dict[str, T.Sequence[str]] = {}
+    for name, axes in nemo_dynamic_axes.items():
+        # Derive a plausible full axes spec from dynamic mapping
+        max_idx = max(axes) if axes else -1
+        spec = ["?"] * (max_idx + 1)
+        for i, s in axes.items():
+            spec[i] = s
+        full_axes_by_name[name] = tuple(spec)
 
-    return _collapse(nemo_dynamic_axes, input_names)
+    collapsed: T.Dict[str, T.Dict[int, str]] = {}
+    for name in input_names:
+        axes = nemo_dynamic_axes.get(name)
+        if not axes:
+            continue
+        collapsed[name] = _collapse_axes_for_input(
+            axes,
+            full_axes_spec=(full_axes_by_name or {}).get(name),
+        )
+    return collapsed
 
 
-def use_pytorch_sdpa(model: torch.nn.Module):
+@require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
+def use_pytorch_sdpa(
+    model: torch.nn.Module, *, nemo: InjectedNemoModule = INJECTED
+):
     """Modify the model to use PyTorch sdpa implementations where applicable."""
-    # pylint: disable=import-outside-toplevel
-    from nemo.collections.asr.parts.submodules.multi_head_attention import (
-        MultiHeadAttention,
-    )
-
+    nemo_submod = nemo.collections.asr.parts.submodules
+    mha = nemo_submod.multi_head_attention.MultiHeadAttention
     for module in model.modules():
-        if isinstance(module, MultiHeadAttention):
+        if isinstance(module, mha):
             module.use_pytorch_sdpa = True
