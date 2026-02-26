@@ -11,7 +11,9 @@ def _collapse_axes_for_input(
 ) -> T.Dict[int, str]:
     """Collapse a single input axes mapping by removing 'B' and reindexing."""
     if full_axes_spec is not None:
-        b_positions = [ix for ix, sym in enumerate(full_axes_spec) if sym == "B"]
+        b_positions = [
+            ix for ix, sym in enumerate(full_axes_spec) if sym == "B"
+        ]
     else:
         pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
         b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
@@ -64,4 +66,3 @@ def collapse_dynamic_axes_mapping(
             full_axes_spec=(full_axes_by_name or {}).get(name),
         )
     return collapsed
-

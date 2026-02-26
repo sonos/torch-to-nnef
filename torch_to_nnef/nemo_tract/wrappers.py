@@ -4,19 +4,19 @@ import typing as T
 import torch
 
 from torch_to_nnef._optional_types import InjectedNemoModule
-from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
+from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.constants import (
+    AXIS_KIND_TO_SYMBOL,
     DEFAULT_TIME,
+    INPUT_STATE_TUPLE_NAME,
     LENGTH_INPUT_NAMES,
     LENGTH_OUTPUT_NAMES,
-    STATE_INPUT_NAMES,
-    INPUT_STATE_TUPLE_NAME,
     OUT_STATE_NAME,
-    AXIS_KIND_TO_SYMBOL,
+    STATE_INPUT_NAMES,
     is_length_name,
 )
-from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.utils import map_args_to_kwargs_by_names
+from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +90,10 @@ class WrapAudioPreprocessor(torch.nn.Module):
 
     def dynamic_shapes_for_export(self, *args, **kwargs):
         return {
-            k: {ix: AXIS_KIND_TO_SYMBOL[str(ax.kind)] for ix, ax in enumerate(v.axes)}
+            k: {
+                ix: AXIS_KIND_TO_SYMBOL[str(ax.kind)]
+                for ix, ax in enumerate(v.axes)
+            }
             for k, v in self.preprocessor.input_types.items()
         }
 
@@ -107,7 +110,11 @@ class WrapAudioPreprocessor(torch.nn.Module):
             names = list(self.preprocessor.input_types.keys())
         except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
-        return map_args_to_kwargs_by_names(args, kwargs, names) if names else kwargs
+        return (
+            map_args_to_kwargs_by_names(args, kwargs, names)
+            if names
+            else kwargs
+        )
 
     def forward(self, *args, **kwargs):
         # NeMo typed modules enforce kwargs-only; translate when necessary
@@ -128,7 +135,11 @@ class WrapPreprocessorCast(torch.nn.Module):
             names = list(self.preprocessor.input_types.keys())
         except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
-        return map_args_to_kwargs_by_names(args, kwargs, names) if names else kwargs
+        return (
+            map_args_to_kwargs_by_names(args, kwargs, names)
+            if names
+            else kwargs
+        )
 
     def forward(self, *args, **kwargs):
         # Ensure kwargs-only dispatch to preprocessor
@@ -329,7 +340,11 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         for name, t in zip(self._orig_input_names, ex):
             if is_length_name(name):
                 continue
-            if name == INPUT_STATE_TUPLE_NAME and isinstance(t, (list, tuple)) and t:
+            if (
+                name == INPUT_STATE_TUPLE_NAME
+                and isinstance(t, (list, tuple))
+                and t
+            ):
                 ts = t[0]
                 if torch.is_tensor(ts):
                     self._expected_rank_no_batch[name] = (
@@ -374,10 +389,14 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         for name, t in zip(self._orig_input_names, ex):
             if is_length_name(name):
                 continue
-            if name in ("input_states_1", "input_states_2") and torch.is_tensor(t):
+            if name in ("input_states_1", "input_states_2") and torch.is_tensor(
+                t
+            ):
                 if t.dim() > 1 and t.size(1) == 1:
                     t = t.squeeze(1)
-            elif name == INPUT_STATE_TUPLE_NAME and isinstance(t, (list, tuple)):
+            elif name == INPUT_STATE_TUPLE_NAME and isinstance(
+                t, (list, tuple)
+            ):
                 proc = []
                 for s in t:
                     if torch.is_tensor(s) and s.dim() > 1 and s.size(1) == 1:
@@ -458,7 +477,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 )
                 continue
             val = next(vis_iter)
-            if name == INPUT_STATE_TUPLE_NAME and isinstance(val, (list, tuple)):
+            if name == INPUT_STATE_TUPLE_NAME and isinstance(
+                val, (list, tuple)
+            ):
                 proc = []
                 for s in val:
                     t = s
@@ -505,6 +526,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
 def use_pytorch_sdpa(

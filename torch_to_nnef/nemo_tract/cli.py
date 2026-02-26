@@ -12,12 +12,14 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import SemanticVersion
-
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
 from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
-from torch_to_nnef.nemo_tract.wrappers import WrapPreprocessorCast, use_pytorch_sdpa
+from torch_to_nnef.nemo_tract.wrappers import (
+    WrapPreprocessorCast,
+    use_pytorch_sdpa,
+)
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import SemanticVersion
 
 LOGGER = logging.getLogger(__name__)
 

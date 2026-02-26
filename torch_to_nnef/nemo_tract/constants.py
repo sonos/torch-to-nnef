@@ -6,7 +6,6 @@ wrappers to keep the main logic files focused.
 
 from typing import Set
 
-
 # Default time dimension used when fabricating audio-like examples
 DEFAULT_TIME: int = 16000
 
@@ -46,5 +45,8 @@ AXIS_KIND_TO_SYMBOL = {
 
 def is_length_name(name: str) -> bool:
     nl = name.lower()
-    return nl in LENGTH_INPUT_NAMES or nl in LENGTH_OUTPUT_NAMES or ("length" in nl)
-
+    return (
+        nl in LENGTH_INPUT_NAMES
+        or nl in LENGTH_OUTPUT_NAMES
+        or ("length" in nl)
+    )
