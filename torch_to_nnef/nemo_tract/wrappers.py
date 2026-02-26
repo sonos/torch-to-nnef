@@ -98,7 +98,7 @@ class WrapAudioPreprocessor(torch.nn.Module):
     def _args_to_kwargs(self, args, kwargs):
         try:
             names = list(self.preprocessor.input_types.keys())
-        except Exception:  # pragma: no cover - defensive
+        except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
         if not names:
             return kwargs
@@ -129,7 +129,7 @@ class WrapPreprocessorCast(torch.nn.Module):
     def _args_to_kwargs(self, args, kwargs):
         try:
             names = list(self.preprocessor.input_types.keys())
-        except Exception:  # pragma: no cover - defensive
+        except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
         if not names:
             return kwargs

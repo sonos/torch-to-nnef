@@ -32,6 +32,83 @@ from .wrappers import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _patch_encoder_output_types(cls, *, from_key: str = "encoded_lengths", to_key: str = "length"):
+    """Patch encoder.output_types to remap a key (e.g., encoded_lengths -> length).
+
+    Resilient to cases where output_types is not a property; falls back gracefully.
+    """
+    try:
+        orig_fget = cls.output_types.fget  # type: ignore[attr-defined]
+    except AttributeError:  # pragma: no cover - defensive
+        orig_fget = None
+
+    def patched_output_types(self):
+        original = (
+            orig_fget(self)
+            if orig_fget is not None
+            else getattr(self, "output_types", {})
+        )
+        try:
+            items = original.items()
+        except (AttributeError, TypeError):  # pragma: no cover - defensive
+            return original
+        new = OrderedDict()
+        for k, v in items:
+            new[to_key if k == from_key else k] = v
+        return new
+
+    try:
+        cls.output_types = property(patched_output_types)  # type: ignore[attr-defined]
+    except (AttributeError, TypeError):  # pragma: no cover - defensive
+        pass
+
+
+def _resolve_ctc_model_classes(nemo_models_mod):
+    """Resolve CTC model classes across NeMo layouts."""
+    cls_enc_dec_ctc_model = None
+    cls_enc_dec_ctc_model_bpe = None
+    try:
+        cls_enc_dec_ctc_model = getattr(
+            nemo_models_mod.ctc_models, "EncDecCTCModel", None
+        )
+        cls_enc_dec_ctc_model_bpe = getattr(
+            nemo_models_mod.ctc_models, "EncDecCTCModelBPE", None
+        )
+    except AttributeError:  # pragma: no cover - defensive
+        pass
+    if cls_enc_dec_ctc_model is None:
+        cls_enc_dec_ctc_model = getattr(nemo_models_mod, "EncDecCTCModel", None)
+    if cls_enc_dec_ctc_model_bpe is None:
+        cls_enc_dec_ctc_model_bpe = getattr(
+            nemo_models_mod, "EncDecCTCModelBPE", None
+        )
+    return cls_enc_dec_ctc_model, cls_enc_dec_ctc_model_bpe
+
+
+def _pick_for_classification(model, nemo_models_mod):
+    """Specialize subnets for EncDecClassificationModel and patch encoder outputs."""
+    cls_enc_dec_cls = nemo_models_mod.classification_models.EncDecClassificationModel
+    if isinstance(model, cls_enc_dec_cls):
+        subnet_names = ["encoder", "decoder"]
+        allow_same_io_names = [True, False]
+        _patch_encoder_output_types(model.encoder.__class__)
+        return subnet_names, allow_same_io_names
+    return None
+
+
+def _pick_for_ctc(model, nemo_models_mod):
+    """Specialize subnets for CTC families and patch encoder outputs."""
+    cls_ctc, cls_ctc_bpe = _resolve_ctc_model_classes(nemo_models_mod)
+    if (cls_ctc is not None and isinstance(model, cls_ctc)) or (
+        cls_ctc_bpe is not None and isinstance(model, cls_ctc_bpe)
+    ):
+        subnet_names = ["encoder", "decoder"]
+        allow_same_io_names = [True, False]
+        _patch_encoder_output_types(model.encoder.__class__)
+        return subnet_names, allow_same_io_names
+    return None
+
+
 def _disable_training(model):
     model.eval()
     for param in model.parameters():
@@ -201,85 +278,17 @@ def exportable_nemo_net(
 def _pick_subnets_names_and_allowed_io_names_overlap(
     model, *, nemo: InjectedNemoModule = INJECTED
 ):
+    nemo_model_mod = nemo.collections.asr.models
+    # Default from model
     subnet_names = model.list_export_subnets()
     allow_same_io_names = [False] * len(subnet_names)
-    nemo_model_mod = nemo.collections.asr.models
-    if isinstance(
-        model, nemo_model_mod.classification_models.EncDecClassificationModel
-    ):
-        subnet_names = ["encoder", "decoder"]
-        allow_same_io_names = [True, False]
-
-        # Get the class you want to patch
-        cls = model.encoder.__class__
-
-        # Capture original property getter BEFORE patching
-        orig_fget = cls.output_types.fget  # <-- important
-
-        def patched_output_types(self):
-            original = orig_fget(self)  # call original getter
-
-            new = OrderedDict()
-            for k, v in original.items():
-                if k == "encoded_lengths":
-                    new["length"] = v
-                else:
-                    new[k] = v
-            return new
-
-        # Patch the right attribute name
-        cls.output_types = property(patched_output_types)
-
-    # Handle CTC families (EncDecCTCModel and EncDecCTCModelBPE)
-    cls_enc_dec_ctc_model = None
-    cls_enc_dec_ctc_model_bpe = None
-    # Newer NeMo often exposes ctc_models submodule
-    try:
-        cls_enc_dec_ctc_model = getattr(
-            nemo_model_mod.ctc_models, "EncDecCTCModel", None
-        )
-        cls_enc_dec_ctc_model_bpe = getattr(
-            nemo_model_mod.ctc_models, "EncDecCTCModelBPE", None
-        )
-    except AttributeError:  # pragma: no cover - defensive
-        pass
-    # Fallback: sometimes classes are directly under models
-    if cls_enc_dec_ctc_model is None:
-        cls_enc_dec_ctc_model = getattr(nemo_model_mod, "EncDecCTCModel", None)
-    if cls_enc_dec_ctc_model_bpe is None:
-        cls_enc_dec_ctc_model_bpe = getattr(
-            nemo_model_mod, "EncDecCTCModelBPE", None
-        )
-
-    if (
-        cls_enc_dec_ctc_model is not None
-        and isinstance(model, cls_enc_dec_ctc_model)
-    ) or (
-        cls_enc_dec_ctc_model_bpe is not None
-        and isinstance(model, cls_enc_dec_ctc_model_bpe)
-    ):
-        subnet_names = ["encoder", "decoder"]
-        allow_same_io_names = [True, False]
-
-        # Patch encoder output_types to map encoded_lengths -> length
-        cls = model.encoder.__class__
-        try:
-            orig_fget = cls.output_types.fget  # type: ignore[attr-defined]
-        except AttributeError:  # pragma: no cover - defensive
-            orig_fget = None
-
-        def patched_output_types_ctc(self):
-            original = (
-                orig_fget(self)
-                if orig_fget is not None
-                else getattr(self, "output_types", {})
-            )
-            new = OrderedDict()
-            for k, v in original.items():
-                new["length" if k == "encoded_lengths" else k] = v
-            return new
-
-        cls.output_types = property(patched_output_types_ctc)
+    # Specialize for known families
+    spec = _pick_for_classification(model, nemo_model_mod)
+    if spec is not None:
+        return spec
+    spec = _pick_for_ctc(model, nemo_model_mod)
+    if spec is not None:
+        return spec
     return subnet_names, allow_same_io_names
 
 
