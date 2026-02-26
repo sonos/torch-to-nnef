@@ -9,12 +9,16 @@ Public re-exports preserved for compatibility:
   export_nemo_asr_model, main
 """
 
-from .cli import main  # CLI entry-point
-from .export import (
+from torch_to_nnef.nemo_tract.cli import main  # CLI entry-point
+from torch_to_nnef.nemo_tract.export import (
     export_nemo_asr_model,
     iter_export_params_for_generic_nemo_asr_model,
 )
-from .model_loader import NEMOTRON_0_6B, PARAKEET_110M_SLUG, PARAKEET_V3_SLUG
+from torch_to_nnef.nemo_tract.model_loader import (
+    NEMOTRON_0_6B,
+    PARAKEET_110M_SLUG,
+    PARAKEET_V3_SLUG,
+)
 
 __all__ = [
     "PARAKEET_V3_SLUG",

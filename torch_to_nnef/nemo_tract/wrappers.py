@@ -5,6 +5,18 @@ import torch
 
 from torch_to_nnef._optional_types import InjectedNemoModule
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
+from torch_to_nnef.nemo_tract.constants import (
+    DEFAULT_TIME,
+    LENGTH_INPUT_NAMES,
+    LENGTH_OUTPUT_NAMES,
+    STATE_INPUT_NAMES,
+    INPUT_STATE_TUPLE_NAME,
+    OUT_STATE_NAME,
+    AXIS_KIND_TO_SYMBOL,
+    is_length_name,
+)
+from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
+from torch_to_nnef.nemo_tract.utils import map_args_to_kwargs_by_names
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +52,7 @@ class WrapAudioPreprocessor(torch.nn.Module):
         if ie is None or len(ie) == 0:
             input_types = self.preprocessor.input_types
             batch_size = max_batch
-            default_time = 16000  # safe default for time axis
+            default_time = DEFAULT_TIME  # safe default for time axis
 
             example = []
             for _, neural_type in input_types.items():
@@ -77,13 +89,8 @@ class WrapAudioPreprocessor(torch.nn.Module):
         return ie
 
     def dynamic_shapes_for_export(self, *args, **kwargs):
-        name_map = {
-            "batch": "B",
-            "time": "T",
-            "stream": "S",
-        }
         return {
-            k: {ix: name_map[str(ax.kind)] for ix, ax in enumerate(v.axes)}
+            k: {ix: AXIS_KIND_TO_SYMBOL[str(ax.kind)] for ix, ax in enumerate(v.axes)}
             for k, v in self.preprocessor.input_types.items()
         }
 
@@ -100,17 +107,7 @@ class WrapAudioPreprocessor(torch.nn.Module):
             names = list(self.preprocessor.input_types.keys())
         except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
-        if not names:
-            return kwargs
-        call_kwargs = dict(kwargs)
-        ai = 0
-        for name in names:
-            if name in call_kwargs:
-                continue
-            if ai < len(args):
-                call_kwargs[name] = args[ai]
-                ai += 1
-        return call_kwargs
+        return map_args_to_kwargs_by_names(args, kwargs, names) if names else kwargs
 
     def forward(self, *args, **kwargs):
         # NeMo typed modules enforce kwargs-only; translate when necessary
@@ -131,17 +128,7 @@ class WrapPreprocessorCast(torch.nn.Module):
             names = list(self.preprocessor.input_types.keys())
         except AttributeError:  # pragma: no cover - defensive
             names = list(getattr(self.preprocessor, "input_names", []) or [])
-        if not names:
-            return kwargs
-        call_kwargs = dict(kwargs)
-        ai = 0
-        for name in names:
-            if name in call_kwargs:
-                continue
-            if ai < len(args):
-                call_kwargs[name] = args[ai]
-                ai += 1
-        return call_kwargs
+        return map_args_to_kwargs_by_names(args, kwargs, names) if names else kwargs
 
     def forward(self, *args, **kwargs):
         # Ensure kwargs-only dispatch to preprocessor
@@ -217,9 +204,7 @@ class DecoderWithoutTargetLength(torch.nn.Module):
     @property
     def output_names(self):
         def rename_state(name: str) -> str:
-            if name == "states":
-                return "out_states"
-            return name
+            return OUT_STATE_NAME if name == INPUT_STATE_TUPLE_NAME else name
 
         if self.active_fitering:
             return [
@@ -303,20 +288,8 @@ class DecoderWithoutTargetLength(torch.nn.Module):
 class CollapseBatchDimWrapper(torch.nn.Module):
     """Wrap a NeMo exportable subnet to remove batch from its interface."""
 
-    LENGTH_INPUTS = {
-        "length",
-        "target_length",
-        "processed_length",
-        "audio_signal_length",
-    }
-    LENGTH_OUTPUTS = {
-        "encoded_lengths",
-        "prednet_lengths",
-        "length",
-        "processed_length",
-        "audio_signal_length",
-        "input_length",
-    }
+    LENGTH_INPUTS = LENGTH_INPUT_NAMES
+    LENGTH_OUTPUTS = LENGTH_OUTPUT_NAMES
 
     def __init__(
         self,
@@ -329,54 +302,54 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         self._orig_input_names = list(getattr(module, "input_names", []))
         self._orig_output_names = list(getattr(module, "output_names", []))
 
-        def _is_len_name(n: str) -> bool:
-            nl = n.lower()
-            return (
-                nl in self.LENGTH_INPUTS
-                or nl in self.LENGTH_OUTPUTS
-                or ("length" in nl)
-            )
-
         self._ext_input_names = [
-            n for n in self._orig_input_names if not _is_len_name(n)
+            n for n in self._orig_input_names if not is_length_name(n)
         ]
-        # Build collapsed axes for external interface (no batch, hide lengths)
         self._collapsed_axes = collapse_dynamic_axes_mapping(
             sym_dynamic_axes or {}, self._ext_input_names
         )
-        # Infer expected rank (without batch) per visible input from an example
+
         self._expected_rank_no_batch: T.Dict[str, int] = {}
         self._b_axes: T.Dict[str, T.List[int]] = {}
+        self._init_expected_ranks_from_example()
+        self._init_batch_axes(sym_dynamic_axes)
+
+    def _get_module_input_example(self):
         try:
-            ex = self.module.input_example(max_batch=1)
-        except AttributeError:
-            ex = None
-        if isinstance(ex, (list, tuple)):
-            for name, t in zip(self._orig_input_names, ex):
-                if name in self.LENGTH_INPUTS or "length" in name.lower():
-                    continue
-                if name == "states" and isinstance(t, (list, tuple)) and t:
-                    ts = t[0]
-                    if torch.is_tensor(ts):
-                        self._expected_rank_no_batch[name] = (
-                            max(0, ts.dim() - 1) if ts.dim() > 0 else 0
-                        )
-                    else:
-                        self._expected_rank_no_batch[name] = 0
-                elif torch.is_tensor(t):
-                    # assume batch is first dim when present
+            return self.module.input_example(max_batch=1)
+        except AttributeError:  # pragma: no cover - defensive
+            if hasattr(self.module, "input_module"):
+                return self.module.input_module.input_example(max_batch=1)
+        return None
+
+    def _init_expected_ranks_from_example(self) -> None:
+        ex = self._get_module_input_example()
+        if not isinstance(ex, (list, tuple)):
+            return
+        for name, t in zip(self._orig_input_names, ex):
+            if is_length_name(name):
+                continue
+            if name == INPUT_STATE_TUPLE_NAME and isinstance(t, (list, tuple)) and t:
+                ts = t[0]
+                if torch.is_tensor(ts):
                     self._expected_rank_no_batch[name] = (
-                        max(0, t.dim() - 1) if t.dim() > 0 else 0
+                        max(0, ts.dim() - 1) if ts.dim() > 0 else 0
                     )
                 else:
                     self._expected_rank_no_batch[name] = 0
-        # Determine batch axes per input from symbols mapping or default to [0]
+            elif torch.is_tensor(t):
+                self._expected_rank_no_batch[name] = (
+                    max(0, t.dim() - 1) if t.dim() > 0 else 0
+                )
+            else:
+                self._expected_rank_no_batch[name] = 0
+
+    def _init_batch_axes(self, sym_dynamic_axes) -> None:
         for name in self._orig_input_names:
             axes = (sym_dynamic_axes or {}).get(name, {})
             bpos = sorted([i for i, s in axes.items() if s == "B"])
             self._b_axes[name] = bpos if bpos else [0]
-        # Special-case known state inputs: batch axis is 1 (layout: [L, B, H])
-        for sname in ("input_states_1", "input_states_2", "states"):
+        for sname in STATE_INPUT_NAMES:
             if sname in self._orig_input_names:
                 self._b_axes[sname] = [1]
 
@@ -391,25 +364,20 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         ]
 
     def input_example(self) -> T.Tuple[torch.Tensor, ...]:
-        ex = None
-        try:
-            ex = self.module.input_example(max_batch=1)
-        except AttributeError:
-            if hasattr(self.module, "input_module"):
-                ex = self.module.input_module.input_example(max_batch=1)
+        ex = self._get_module_input_example()
         if ex is None:
             return ()
-        # Remove any length-like inputs and squeeze batch where applicable
+        return self._process_input_example(ex)
+
+    def _process_input_example(self, ex) -> T.Tuple[torch.Tensor, ...]:
         out: T.List[T.Any] = []
         for name, t in zip(self._orig_input_names, ex):
-            if name in self.LENGTH_INPUTS or "length" in name.lower():
+            if is_length_name(name):
                 continue
-            if name in ("input_states_1", "input_states_2") and torch.is_tensor(
-                t
-            ):
+            if name in ("input_states_1", "input_states_2") and torch.is_tensor(t):
                 if t.dim() > 1 and t.size(1) == 1:
-                    t = t.squeeze(1)  # remove batch axis at dim 1
-            elif name == "states" and isinstance(t, (list, tuple)):
+                    t = t.squeeze(1)
+            elif name == INPUT_STATE_TUPLE_NAME and isinstance(t, (list, tuple)):
                 proc = []
                 for s in t:
                     if torch.is_tensor(s) and s.dim() > 1 and s.size(1) == 1:
@@ -430,7 +398,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         times = []
         collapsed_index = 0
         for name in self._orig_input_names:
-            if name in self.LENGTH_INPUTS or "length" in name.lower():
+            if is_length_name(name):
                 continue
             t = visible[collapsed_index]
             if torch.is_tensor(t):
@@ -454,8 +422,13 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             "CollapseBatchDimWrapper expects positional args only"
         )
         visible = list(args)
-        full: T.List[T.Any] = []
+        ref_device, ref_dtype = self._select_device_dtype(visible)
+        time_len = self._infer_time_from_visible_inputs(visible)
+        full = self._build_full_inputs(visible, ref_device, ref_dtype, time_len)
+        outs = self.module(*tuple(full))
+        return self._filter_and_squeeze_outputs(outs)
 
+    def _select_device_dtype(self, visible):
         ref_tensor = next((a for a in visible if torch.is_tensor(a)), None)
         ref_device = (
             ref_tensor.device
@@ -465,11 +438,19 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         ref_dtype = (
             ref_tensor.dtype if torch.is_tensor(ref_tensor) else torch.float32
         )
-        time_len = self._infer_time_from_visible_inputs(visible)
+        return ref_device, ref_dtype
 
+    def _build_full_inputs(
+        self,
+        visible: T.Sequence[T.Any],
+        ref_device: torch.device,
+        ref_dtype: torch.dtype,
+        time_len: int,
+    ) -> T.List[T.Any]:
+        full: T.List[T.Any] = []
         vis_iter = iter(visible)
         for name in self._orig_input_names:
-            if ("length" in name.lower()) or name in self.LENGTH_INPUTS:
+            if is_length_name(name):
                 full.append(
                     self._synthesize_length_tensor(
                         ref_device, ref_dtype, time_len, name
@@ -477,8 +458,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 )
                 continue
             val = next(vis_iter)
-            # Handle combined states passed as a tuple (h, c)
-            if name == "states" and isinstance(val, (list, tuple)):
+            if name == INPUT_STATE_TUPLE_NAME and isinstance(val, (list, tuple)):
                 proc = []
                 for s in val:
                     t = s
@@ -493,7 +473,6 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                     name, max(1, val.dim())
                 )
                 t = val
-                # Avoid reducing layer dimension for RNNT state tensors
                 if name not in ("input_states_1", "input_states_2"):
                     while t.dim() > max(1, expected_rank):
                         t = t.select(dim=0, index=0)
@@ -503,11 +482,11 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 full.append(t)
             else:
                 full.append(val)
+        return full
 
-        outs = self.module(*tuple(full))
+    def _filter_and_squeeze_outputs(self, outs) -> T.Tuple[T.Any, ...]:
         if not isinstance(outs, tuple):
             outs = (outs,)
-
         keep_indices = [
             i
             for i, n in enumerate(self._orig_output_names)
@@ -526,82 +505,6 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-
-def _collapse_axes_for_input(
-    orig_axes: T.Dict[int, str],
-    *,
-    full_axes_spec: T.Optional[T.Sequence[str]] = None,
-    assume_batch_at0: bool = True,
-) -> T.Dict[int, str]:
-    """Collapse a single input axes mapping by removing 'B' and reindexing."""
-    # Determine batch positions
-    if full_axes_spec is not None:
-        b_positions = [
-            ix for ix, sym in enumerate(full_axes_spec) if sym == "B"
-        ]
-    else:
-        pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
-        b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
-        if assume_batch_at0 and 0 not in b_positions:
-            b_positions = [0] + b_positions
-
-    # Build a full axes symbol list to reason about final rank
-    # If full_axes_spec wasn't provided, derive a minimal plausible one.
-    if full_axes_spec is None:
-        max_idx = max(orig_axes) if orig_axes else -1
-        full_axes = [None] * (max_idx + 1)
-        for i, s in orig_axes.items():
-            full_axes[i] = s
-        # Fill any unknowns with a generic symbol ('?'), treat as non-B
-        full_axes_spec = [s if s is not None else "?" for s in full_axes]
-
-    # Create a mapping old_index->new_index, removing B-dims
-    new_map: T.Dict[int, int] = {}
-    new_i = 0
-    for i, sym in enumerate(full_axes_spec):
-        if sym == "B":
-            continue
-        new_map[i] = new_i
-        new_i += 1
-
-    # Translate the original dynamic axes into the collapsed indexing
-    collapsed: T.Dict[int, str] = {}
-    for i, sym in orig_axes.items():
-        if full_axes_spec[i] == "B":
-            # drop this dimension entirely
-            continue
-        collapsed[new_map[i]] = sym
-    return collapsed
-
-
-def collapse_dynamic_axes_mapping(
-    nemo_dynamic_axes: T.Dict[str, T.Dict[int, str]],
-    input_names: T.Sequence[str],
-) -> T.Dict[str, T.Dict[int, str]]:
-    """Collapse mapping for all inputs keeping only the exposed inputs."""
-    # Heuristic: when batch is hidden, the external interface has no B;
-    # keep only entries for exposed input names.
-    full_axes_by_name: T.Dict[str, T.Sequence[str]] = {}
-    for name, axes in nemo_dynamic_axes.items():
-        # Derive a plausible full axes spec from dynamic mapping
-        max_idx = max(axes) if axes else -1
-        spec = ["?"] * (max_idx + 1)
-        for i, s in axes.items():
-            spec[i] = s
-        full_axes_by_name[name] = tuple(spec)
-
-    collapsed: T.Dict[str, T.Dict[int, str]] = {}
-    for name in input_names:
-        axes = nemo_dynamic_axes.get(name)
-        if not axes:
-            continue
-        collapsed[name] = _collapse_axes_for_input(
-            axes,
-            full_axes_spec=(full_axes_by_name or {}).get(name),
-        )
-    return collapsed
-
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
 def use_pytorch_sdpa(
