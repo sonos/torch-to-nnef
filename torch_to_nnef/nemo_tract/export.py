@@ -19,15 +19,17 @@ from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import (
     build_io,
 )
-from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
-
+from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
+from torch_to_nnef.nemo_tract.dynaxes import (
+    build_dynamic_axes as build_dynamic_axes_for_subnet,
+)
 from torch_to_nnef.nemo_tract.wrappers import (
     CollapseBatchDimWrapper,
     DecoderWithoutTargetLength,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
 )
-from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
+from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,9 +37,12 @@ LOGGER = logging.getLogger(__name__)
 def _patch_encoder_output_types(
     cls, *, from_key: str = "encoded_lengths", to_key: str = "length"
 ):
-    """Patch encoder.output_types to remap a key (e.g., encoded_lengths -> length).
+    """Patch encoder.output_types to remap a key.
 
-    Resilient to cases where output_types is not a property; falls back gracefully.
+    (e.g., encoded_lengths -> length).
+
+    Resilient to cases where output_types is not a property;
+    falls back gracefully.
     """
     try:
         orig_fget = cls.output_types.fget  # type: ignore[attr-defined]
@@ -86,7 +91,7 @@ def _resolve_ctc_model_classes(nemo_models_mod):
 
 
 def _pick_for_classification(model, nemo_models_mod):
-    """Specialize subnets for EncDecClassificationModel and patch encoder outputs."""
+    """Specialize EncDecClassificationModel & patch encoder outputs."""
     cls_enc_dec_cls = (
         nemo_models_mod.classification_models.EncDecClassificationModel
     )
@@ -348,70 +353,14 @@ def iter_nemo_model_subnets(
                 input_example = None
 
 
-def build_dynamic_axes(subnet, nemo_dynamic_axes):  # noqa: MC0001
-    """Build dynamic axes mapping and custom extensions for nemo subnet."""
-    dynamic_axes = {}
-    # Assume each input always start by Batch dimension
-    custom_extensions = set()
-
-    def build_partial_dynamic_axes(
-        iname: str, symbols: T.Union[str, T.List[str]], suffix: str = ""
-    ):
-        siname = iname + suffix
-        dynamic_axes[siname] = {}
-        for axis in nemo_dynamic_axes[iname]:
-            if symbols[axis] in "BSA":
-                custom_extensions.add(f"tract_assert {symbols[axis]} >= 1")
-            dynamic_axes[siname][axis] = symbols[axis]
-
-    for iname in subnet.input_names:
-        if iname in nemo_dynamic_axes:
-            if not nemo_dynamic_axes[iname]:
-                continue
-            symbols = ""
-            if iname == "input_signal":
-                symbols = "BA"  # Batch, audio Frames
-            elif iname == "audio_signal":
-                assert max(nemo_dynamic_axes[iname]) < 3
-                symbols = "BFS"  # Batch, Features, Stream
-            elif iname == "length":
-                assert max(nemo_dynamic_axes[iname]) < 1
-                symbols = "B"  # Batch
-            elif iname == "encoder_outputs":
-                # example: B,512,(S+7)/8,F32
-                symbols = "BHR"  # Batch, High End Features, ReducedStream
-            elif iname == "targets":
-                symbols = "BT"  # Batch, TargetInfo
-            elif iname == "target_length":
-                symbols = "B"  # Batch
-            elif iname == "input_states_1":
-                symbols = ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"]
-            elif iname == "input_states_2":
-                symbols = ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"]
-            elif iname == "states":
-                build_partial_dynamic_axes(
-                    iname,
-                    ["STATES_1_DIM_1", "B", "STATES_1_DIM_2"],
-                    suffix="_0",
-                )
-                build_partial_dynamic_axes(
-                    iname,
-                    ["STATES_2_DIM_1", "B", "STATES_2_DIM_2"],
-                    suffix="_1",
-                )
-                continue
-            elif iname == "decoder_outputs":
-                # Batch, output decoder, Unknown, Time dimension decoder
-                symbols = "BOUT"
-            elif iname == "encoder_output":
-                # example: B,512,(S+7)/8,F32
-                symbols = "BHR"  # Batch, High End Features, ReducedStream
-            else:
-                raise NotImplementedError(
-                    f"cannot guess dynamic axis symbols for input '{iname}'"
-                )
-            build_partial_dynamic_axes(iname, symbols)
-    return dynamic_axes, custom_extensions
+def build_dynamic_axes(
+    subnet,
+    nemo_dynamic_axes,
+    input_example: T.Optional[T.Sequence[object]] = None,
+):  # noqa: MC0001
+    return build_dynamic_axes_for_subnet(
+        subnet, nemo_dynamic_axes, input_example
+    )
 
 
 def iter_decoder_joint_subnets(
@@ -546,14 +495,16 @@ def build_preprocessor_export_params(
         # wrapped forward in place.
         input_example = ctx.input_example
         dynamic_axes, custom_extensions = build_dynamic_axes(
-            asr_model.preprocessor, ctx.dynamic_axes
+            asr_model.preprocessor, ctx.dynamic_axes, input_example
         )
 
         subnet_name = "preprocessor"
         model = asr_model.preprocessor
         input_names = model.input_names[: len(input_example)]
         output_names = model.output_names
-        test_input = inps or input_example
+        # Use the context-provided input_example to ensure consistency between
+        # the dynamic axes and the actual IO used during export.
+        test_input = input_example
         dyn = dynamic_axes
         if collapse_batch_dim:
             # Wrap and collapse axes
@@ -562,6 +513,15 @@ def build_preprocessor_export_params(
             output_names = model.output_names
             test_input = model.input_example()
             dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
+            # Filter any indices that exceed ranks of external interface
+            ranks = {
+                n: (t.dim() if torch.is_tensor(t) else 0)
+                for n, t in zip(input_names, test_input or ())
+            }
+            dyn = {
+                n: {i: s for i, s in axes.items() if i < ranks.get(n, 0)}
+                for n, axes in dyn.items()
+            }
 
         yield ExportParameters(
             name=subnet_name,
@@ -609,15 +569,30 @@ def iter_export_params_for_generic_nemo_asr_model(
         remove_unused_inputs=remove_unused_inputs,
     ):
         dynamic_axes, custom_extensions = build_dynamic_axes(
-            subnet, nemo_dynamic_axes
+            subnet, nemo_dynamic_axes, input_example
         )
 
         model = subnet
         test_input = input_example
         input_names = subnet.input_names[: len(input_example)]
         output_names = subnet.output_names
-        # Limit dynamic axes to the inputs we are actually exposing
-        dyn = {k: v for k, v in dynamic_axes.items() if k in input_names}
+
+        # Limit dynamic axes to the inputs we are actually exposing.
+        # Preserve suffixed variants (e.g., states_0, states_1) even if the
+        # base name (states) is in input_names to match flattened graph IO.
+        def _base_name_of(k: str, _names=subnet.input_names) -> str:
+            for nm in _names:
+                if k == nm or k.startswith(nm + "_"):
+                    return nm
+            if "_" in k:
+                return k.split("_", 1)[0]
+            return k
+
+        dyn = {
+            k: v
+            for k, v in dynamic_axes.items()
+            if (k in input_names) or (_base_name_of(k) in input_names)
+        }
 
         if collapse_batch_dim:
             model = CollapseBatchDimWrapper(subnet, dynamic_axes)

@@ -3,6 +3,11 @@
 import typing as T
 
 
+def _is_batch_symbol(sym: str) -> bool:
+    s = str(sym).upper()
+    return s == "B" or "BATCH" in s
+
+
 def _collapse_axes_for_input(
     orig_axes: T.Dict[int, str],
     *,
@@ -12,11 +17,11 @@ def _collapse_axes_for_input(
     """Collapse a single input axes mapping by removing 'B' and reindexing."""
     if full_axes_spec is not None:
         b_positions = [
-            ix for ix, sym in enumerate(full_axes_spec) if sym == "B"
+            ix for ix, sym in enumerate(full_axes_spec) if _is_batch_symbol(sym)
         ]
     else:
         pairs_for_b = sorted(orig_axes.items(), key=lambda kv: kv[0])
-        b_positions = [ix for ix, sym in pairs_for_b if sym == "B"]
+        b_positions = [ix for ix, sym in pairs_for_b if _is_batch_symbol(sym)]
         if assume_batch_at0 and 0 not in b_positions:
             b_positions = [0] + b_positions
 
@@ -30,14 +35,14 @@ def _collapse_axes_for_input(
     new_map: T.Dict[int, int] = {}
     new_i = 0
     for i, sym in enumerate(full_axes_spec):
-        if sym == "B":
+        if _is_batch_symbol(sym):
             continue
         new_map[i] = new_i
         new_i += 1
 
     collapsed: T.Dict[int, str] = {}
     for i, sym in orig_axes.items():
-        if full_axes_spec[i] == "B":
+        if _is_batch_symbol(full_axes_spec[i]):
             continue
         collapsed[new_map[i]] = sym
     return collapsed

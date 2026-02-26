@@ -6,7 +6,6 @@ import torch
 from torch_to_nnef._optional_types import InjectedNemoModule
 from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.constants import (
-    AXIS_KIND_TO_SYMBOL,
     DEFAULT_TIME,
     INPUT_STATE_TUPLE_NAME,
     LENGTH_INPUT_NAMES,
@@ -14,6 +13,10 @@ from torch_to_nnef.nemo_tract.constants import (
     OUT_STATE_NAME,
     STATE_INPUT_NAMES,
     is_length_name,
+)
+from torch_to_nnef.nemo_tract.dynaxes import (
+    filter_dynamic_axes_by_ranks,
+    symbols_from_input_types,
 )
 from torch_to_nnef.nemo_tract.utils import map_args_to_kwargs_by_names
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
@@ -89,13 +92,7 @@ class WrapAudioPreprocessor(torch.nn.Module):
         return ie
 
     def dynamic_shapes_for_export(self, *args, **kwargs):
-        return {
-            k: {
-                ix: AXIS_KIND_TO_SYMBOL[str(ax.kind)]
-                for ix, ax in enumerate(v.axes)
-            }
-            for k, v in self.preprocessor.input_types.items()
-        }
+        return symbols_from_input_types(self.preprocessor.input_types)
 
     @property
     def input_names(self):
@@ -409,7 +406,16 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         return tuple(out)
 
     def dynamic_shapes_for_export(self) -> T.Dict[str, T.Dict[int, str]]:
-        return dict(self._collapsed_axes)
+        # Filter any indices that exceed the rank of the external interface
+        try:
+            ex = self.input_example()
+        except Exception:  # pragma: no cover - defensive
+            ex = ()
+        ranks = {
+            n: (t.dim() if torch.is_tensor(t) else 0)
+            for n, t in zip(self.input_names, ex or ())  # type: ignore[arg-type]
+        }
+        return filter_dynamic_axes_by_ranks(self._collapsed_axes or {}, ranks)
 
     def _infer_time_from_visible_inputs(
         self, visible: T.Sequence[torch.Tensor]

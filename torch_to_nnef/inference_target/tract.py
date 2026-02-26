@@ -379,7 +379,7 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     "tract_core_external",
                 ], external_op.type
                 for axis, axis_name in named_dims.items():
-                    if len(axis_name) != 1:
+                    if len(axis_name) != 1 and tract_version < "0.19.0":
                         raise T2NErrorDynamicShapeValue(
                             "axis_name in dynamic_axes must "
                             "be of length 1 to follow tract convention "
