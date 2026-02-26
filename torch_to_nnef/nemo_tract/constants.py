@@ -71,7 +71,7 @@ def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
     up = sym.upper()
     if up == "B" or "BATCH" in up:
         return "BATCH"
-    base = up if up and up not in {"?", "D", "DIM"} else f"DIM{axis_index}"
+    base = up if up and up not in {"?", "D", "DIM"} else "DIM"
     return f"{_sanitize_name(input_name)}_{base}_{axis_index}"
 
 

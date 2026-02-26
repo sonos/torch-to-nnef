@@ -265,10 +265,11 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         assert self.FILTER_ARGUMENT not in kwargs
         batch_size, ref_tensor = self._infer_batch_size(args, kwargs)
 
+        # Ensure target_length is int64 (Tract-friendly for TDim casting)
         target_length = torch.ones(
             (batch_size, 1),
             device=ref_tensor.device,
-            dtype=ref_tensor.dtype,
+            dtype=torch.long,
         )
         to_rm_in_idx = self.index_arg_to_remove
         if len(args) > to_rm_in_idx:
