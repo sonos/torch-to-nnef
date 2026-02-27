@@ -112,14 +112,15 @@ struct VadSession {
 }
 
 impl VadSession {
-    const EXPECTED_PULSE_FRAMES: usize = 2;
+    const EXPECTED_PULSE_FRAMES: usize = 1;
     fn new(preprocessor: &Runnable, encoder: &Runnable, decoder: &Runnable) -> Res<VadSession> {
-        let n_encoder_frames_to_aggregate_over = 10;
+        let n_encoder_frames_to_aggregate_over = 6;
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_state: encoder.spawn_state()?,
             decoder_model: decoder.clone(),
-            audio_buffer: vec![0.0; 160 * 2], // 20ms of audio at 16kHz
+            // 25ms window (400 samples) for pulse = 1
+            audio_buffer: vec![0.0; 400],
             current_buffer_fill: 0,
             last_score: 0.0,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
@@ -150,32 +151,22 @@ impl VadSession {
         }
         clog("RB after shift+append done");
 
-        if self.current_buffer_fill < self.audio_buffer.len() {
+        if (self.current_buffer_fill + n) < (Self::EXPECTED_PULSE_FRAMES * 160) {
             // not enough data yet, return last score
-            self.current_buffer_fill = (self.current_buffer_fill + n).min(self.audio_buffer.len());
+            self.current_buffer_fill += n;
             clog(&format!(
                 "RB filling: current_fill={} / {}",
                 self.current_buffer_fill,
                 self.audio_buffer.len()
             ));
             return Ok(self.last_score);
-        } else {
-            self.current_buffer_fill = 0; // reset fill count after we have enough data
         }
+        self.current_buffer_fill = 0;
 
-        let nd_audio_data = Array1::from_vec(self.audio_buffer.to_vec()).insert_axis(Axis(0));
-        let audio_data_value: Value = nd_audio_data.try_into()?;
-        // }
-        // run the model on the input
-        let mut pre_result = self.preprocessor_model.run(vec![audio_data_value])?;
-        // Log preprocessor shape
-        if let Ok::<ArrayView2<f32>, _>(pre_feat) =
-            pre_result[0].view::<f32>()?.into_dimensionality()
-        {
-            clog(&format!("PRE ok; shape={}", fmt_shape(pre_feat.shape())));
-        } else {
-            clog("PRE shape unknown (not 2D)");
-        }
+        // Prepare strict-length input matching expected STFT context
+        let audio_buffer_arr = Array1::from_vec(self.audio_buffer.clone()).insert_axis(Axis(0));
+        let audio_buffer_value: Value = audio_buffer_arr.try_into()?;
+        let mut pre_result = self.preprocessor_model.run(vec![audio_buffer_value])?;
         // Ensure encoder sees a stable pulse length (e.g., 2 frames per call)
         if let Ok::<ArrayView2<f32>, _>(pre_feat) =
             pre_result[0].view::<f32>()?.into_dimensionality()
@@ -203,29 +194,22 @@ impl VadSession {
         clog("ENC run");
         let enc_result = self.encoder_state.run(pre_result)?;
 
-        // aggregate encoder results over multiple frames given:
-        // - a pulse of 2
-        // - n_encoder_frames_to_aggregate_over=10
-        // this means we will have slightly wrong metrics until we reach 5x this place.
         let decoder_input = self.slide_encoder_window(enc_result)?;
         clog("DEC run");
         let dec_result = self.decoder_model.run(decoder_input)?;
-        // Handle decoder output of various shapes; expect 2-class scores, take class 1
-        let dec_dyn = dec_result[0]
+        // Handle decoder output of various shapes; average class-1 across time/batch axes
+        let dec_dyn: Array1<f32> = dec_result[0]
             .view::<f32>()?
-            .into_dimensionality::<tract_rs::prelude::tract_ndarray::IxDyn>()?;
-        clog(&format!("DEC dyn shape={}", fmt_shape(dec_dyn.shape())));
-        let total = dec_dyn.len();
-        if total < 2 {
-            clog("DEC less than 2 elements; keep last score");
+            .into_dimensionality()?
+            .to_owned();
+        let shape = dec_dyn.shape().to_vec();
+        clog(&format!("DEC dyn shape={}", fmt_shape(&shape)));
+        let len_all = dec_dyn.len();
+        if len_all < 2 {
+            clog("DEC <2 elements; keep last score");
             return Ok(self.last_score);
         }
-        // Flatten and take index 1 (speech probability)
-        let flat = dec_dyn
-            .to_owned()
-            .into_shape(total)
-            .map_err(|e| anyhow::anyhow!(format!("reshape dec flat: {e}")))?;
-        self.last_score = flat[1];
+        self.last_score = *dec_dyn.get(1).unwrap_or(&0.0);
         Ok(self.last_score)
     }
 
