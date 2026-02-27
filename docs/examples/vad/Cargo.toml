@@ -7,7 +7,9 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-tract-nnef = { git = "https://github.com/sonos/tract.git", branch = "issues-pulsing" }
+tract-rs = { git = "https://github.com/sonos/tract.git", rev = "a9b3989" }
+# tract-rs = { path = "/Users/julien.balian/SONOS/src/tract/api/rs" }
+getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
