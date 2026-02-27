@@ -11,6 +11,11 @@ TRACT_VERSION="0.23.0-dev.2"
 python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
 TRACT_PATH=$HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 
+# Silence unexpected_cfg warnings from downstream crates referring to
+# `#[cfg(feature = "inventory-registry")]` used inside macros.
+# This registers the cfg value without enabling the feature.
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inventory-registry\"))"
+
 rm -rf ./model
 t2n_export_nemo -s "vad_multilingual_marblenet" -e "./model" --tract-specific-path $TRACT_PATH --collapse-batch-dim
 
@@ -21,10 +26,10 @@ t2n_export_nemo -s "vad_multilingual_marblenet" -e "./model" --tract-specific-pa
         --nnef-tract-pulse \
         --pulse AUDIO_SIGNAL__TIME=2 \
         dump \
-        --nnef ./encoder.pulse10.nnef.tgz
+        --nnef ./encoder.pulsed.nnef.tgz
 )
-
-wasm-pack build --target web --out-dir ../../html
+#
+RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../html
 
 rm ../../html/.gitignore ../../html/*.ts
 find ../../html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete

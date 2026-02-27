@@ -5,11 +5,33 @@ use tract_rs::{
         *,
     },
 };
+use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
 type Res<T> = anyhow::Result<T>;
 
 extern crate web_sys;
+
+#[inline]
+#[cfg(feature = "log-vad")]
+fn clog(msg: &str) {
+    web_sys::console::log_1(&JsValue::from_str(msg));
+}
+#[inline]
+#[cfg(not(feature = "log-vad"))]
+fn clog(_: &str) {}
+
+#[inline]
+fn fmt_shape(shape: &[usize]) -> String {
+    format!(
+        "[{}]",
+        shape
+            .iter()
+            .map(|d| d.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
 
 #[wasm_bindgen]
 struct VadClassifier {
@@ -22,17 +44,26 @@ struct VadClassifier {
 #[wasm_bindgen]
 impl VadClassifier {
     fn load_internal() -> Res<VadClassifier> {
+        // Better panic messages in the browser console.
+        console_error_panic_hook::set_once();
+        clog("loading runtime 'default'");
         let rt = runtime_for_name("default")?;
         let preprocessor_model_bytes = include_bytes!("../model/preprocessor.nnef.tgz");
-        let nnef = tract_rs::nnef()?;
+        clog("creating NNEF loader");
+        let nnef = tract_rs::nnef()?
+            .with_tract_core()? // required for core ops used in models
+            .with_pulse()?; // required for pulse-encoded encoder model
+        clog("preparing preprocessor model");
         let preprocessor_model = rt.prepare(nnef.load_buffer(preprocessor_model_bytes)?)?;
 
-        let enc_model_bytes = include_bytes!("../model/encoder.pulse10.nnef.tgz");
+        let enc_model_bytes = include_bytes!("../model/encoder.pulsed.nnef.tgz");
+        clog("preparing encoder model");
         let encoder_model = rt.prepare(nnef.load_buffer(enc_model_bytes)?)?;
 
         let dec_model_bytes = include_bytes!("../model/decoder.nnef.tgz");
+        clog("preparing decoder model");
         let decoder_model = rt.prepare(nnef.load_buffer(dec_model_bytes)?)?;
-        web_sys::console::log_1(&"model loaded/optimized".into());
+        clog("model loaded/optimized");
         Ok(VadClassifier {
             preprocessor_model,
             encoder_model,
@@ -62,12 +93,11 @@ impl VadClassifier {
         Ok(pred.into())
     }
 
-    pub fn load() -> VadClassifier {
-        web_sys::console::log_1(&"try loading".into());
-        let result = VadClassifier::load_internal()
-            .map_err(|err| JsError::new(format!("{:?}", err).as_str()))
-            .expect("unable to load");
-        result
+    pub fn load() -> Result<VadClassifier, JsError> {
+        // Install panic hook as early as possible in public entrypoint too.
+        console_error_panic_hook::set_once();
+        clog("try loading");
+        VadClassifier::load_internal().map_err(|err| JsError::new(&format!("{:?}", err)))
     }
 }
 
@@ -82,6 +112,7 @@ struct VadSession {
 }
 
 impl VadSession {
+    const EXPECTED_PULSE_FRAMES: usize = 2;
     fn new(preprocessor: &Runnable, encoder: &Runnable, decoder: &Runnable) -> Res<VadSession> {
         let n_encoder_frames_to_aggregate_over = 10;
         Ok(Self {
@@ -99,19 +130,34 @@ impl VadSession {
         // Assumed to be called every 20ms or more
 
         // web_sys::console::debug_1(&"start predict voice presence".into());
-        assert!(self.audio_buffer.len() > raw_audio_data.len());
+        // assert!(self.audio_buffer.len() > raw_audio_data.len());
 
         // prep audio data {
-        // roll data
-        let start = self.audio_buffer.len() - raw_audio_data.len();
-        let end = self.audio_buffer.len();
-        self.audio_buffer.copy_within(start..end, 0);
-        // add fresh data
-        self.audio_buffer[..raw_audio_data.len()].copy_from_slice(&raw_audio_data);
+        // roll data into a fixed-size ring buffer (keep most recent samples)
+        let l = self.audio_buffer.len();
+        let n = raw_audio_data.len();
+        clog(&format!(
+            "RB before: buf_len={l}, incoming={n}, current_fill={}",
+            self.current_buffer_fill
+        ));
+        if n >= l {
+            // Incoming chunk is larger than buffer: keep only the last l samples
+            self.audio_buffer.copy_from_slice(&raw_audio_data[n - l..n]);
+        } else {
+            // Shift older data left by n, append new samples at the end
+            self.audio_buffer.copy_within(n..l, 0);
+            self.audio_buffer[l - n..].copy_from_slice(&raw_audio_data);
+        }
+        clog("RB after shift+append done");
 
         if self.current_buffer_fill < self.audio_buffer.len() {
             // not enough data yet, return last score
-            self.current_buffer_fill += raw_audio_data.len();
+            self.current_buffer_fill = (self.current_buffer_fill + n).min(self.audio_buffer.len());
+            clog(&format!(
+                "RB filling: current_fill={} / {}",
+                self.current_buffer_fill,
+                self.audio_buffer.len()
+            ));
             return Ok(self.last_score);
         } else {
             self.current_buffer_fill = 0; // reset fill count after we have enough data
@@ -121,7 +167,40 @@ impl VadSession {
         let audio_data_value: Value = nd_audio_data.try_into()?;
         // }
         // run the model on the input
-        let pre_result = self.preprocessor_model.run(vec![audio_data_value])?;
+        let mut pre_result = self.preprocessor_model.run(vec![audio_data_value])?;
+        // Log preprocessor shape
+        if let Ok::<ArrayView2<f32>, _>(pre_feat) =
+            pre_result[0].view::<f32>()?.into_dimensionality()
+        {
+            clog(&format!("PRE ok; shape={}", fmt_shape(pre_feat.shape())));
+        } else {
+            clog("PRE shape unknown (not 2D)");
+        }
+        // Ensure encoder sees a stable pulse length (e.g., 2 frames per call)
+        if let Ok::<ArrayView2<f32>, _>(pre_feat) =
+            pre_result[0].view::<f32>()?.into_dimensionality()
+        {
+            let frames = pre_feat.shape()[1];
+            clog(&format!("PRE frames={frames}"));
+            if frames > Self::EXPECTED_PULSE_FRAMES {
+                let start = frames - Self::EXPECTED_PULSE_FRAMES;
+                clog(&format!(
+                    "PRE slicing last {} frames (start={start})",
+                    Self::EXPECTED_PULSE_FRAMES
+                ));
+                let sliced = pre_feat.slice(s![.., start..]).to_owned();
+                let new_value: Value = sliced.try_into()?;
+                pre_result[0] = new_value;
+            } else if frames < Self::EXPECTED_PULSE_FRAMES {
+                // Not enough frames for this pulse step: skip update, keep last score
+                clog("PRE not enough frames this tick; skip");
+                return Ok(self.last_score);
+            }
+        } else {
+            clog("PRE could not 2D-cast; skip");
+            return Ok(self.last_score);
+        }
+        clog("ENC run");
         let enc_result = self.encoder_state.run(pre_result)?;
 
         // aggregate encoder results over multiple frames given:
@@ -129,26 +208,79 @@ impl VadSession {
         // - n_encoder_frames_to_aggregate_over=10
         // this means we will have slightly wrong metrics until we reach 5x this place.
         let decoder_input = self.slide_encoder_window(enc_result)?;
+        clog("DEC run");
         let dec_result = self.decoder_model.run(decoder_input)?;
-        // web_sys::console::debug_1(&"model prediction done".into());
-        // find and display the max value with its index
-        let score: ArrayView2<f32> = dec_result[0].view::<f32>()?.into_dimensionality()?;
-        self.last_score = *score.get((0, 1)).unwrap();
+        // Handle decoder output of various shapes; expect 2-class scores, take class 1
+        let dec_dyn = dec_result[0]
+            .view::<f32>()?
+            .into_dimensionality::<tract_rs::prelude::tract_ndarray::IxDyn>()?;
+        clog(&format!("DEC dyn shape={}", fmt_shape(dec_dyn.shape())));
+        let total = dec_dyn.len();
+        if total < 2 {
+            clog("DEC less than 2 elements; keep last score");
+            return Ok(self.last_score);
+        }
+        // Flatten and take index 1 (speech probability)
+        let flat = dec_dyn
+            .to_owned()
+            .into_shape(total)
+            .map_err(|e| anyhow::anyhow!(format!("reshape dec flat: {e}")))?;
+        self.last_score = flat[1];
         Ok(self.last_score)
     }
 
     fn slide_encoder_window(&mut self, enc_result: Vec<Value>) -> Res<Vec<Value>> {
-        let enc_frame: ArrayView2<f32> = enc_result[0].view::<f32>()?.into_dimensionality()?;
-        let n: i32 = enc_frame.shape()[1].try_into()?;
+        // Accept any incoming encoder shape, squeeze to 2D [features, frames]
+        clog("SLIDE start");
+        let enc_view_dyn = enc_result[0]
+            .view::<f32>()?
+            .into_dimensionality::<tract_rs::prelude::tract_ndarray::IxDyn>()?;
+        let frames_usize = *enc_view_dyn.shape().last().unwrap_or(&1);
+        let features = enc_view_dyn.len() / frames_usize;
+        clog(&format!(
+            "ENC raw dyn shape={}, features={}, frames={}",
+            fmt_shape(enc_view_dyn.shape()),
+            features,
+            frames_usize
+        ));
+        let mut enc_frame = enc_view_dyn
+            .to_owned()
+            .into_shape((features, frames_usize))
+            .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
+        // Enforce expected pulse frames for downstream window aggregation
+        if frames_usize > Self::EXPECTED_PULSE_FRAMES {
+            let start = frames_usize - Self::EXPECTED_PULSE_FRAMES;
+            clog(&format!(
+                "ENC slicing last {} frames (start={start})",
+                Self::EXPECTED_PULSE_FRAMES
+            ));
+            enc_frame = enc_frame.slice_move(s![.., start..]);
+        } else if frames_usize < Self::EXPECTED_PULSE_FRAMES {
+            // Not enough frames this tick; skip update
+            clog("ENC not enough frames; skip window update");
+            let val: Value = self.encoder_frame_buffer.clone().try_into()?;
+            return Ok(vec![val]);
+        }
+        let n: i32 = Self::EXPECTED_PULSE_FRAMES.try_into()?;
         // roll the buffer to the left by n frame
+        clog(&format!(
+            "WIN roll: window_shape={}, n={}",
+            fmt_shape(self.encoder_frame_buffer.shape()),
+            n
+        ));
         let temp = &self.encoder_frame_buffer.slice(s![.., n..]).to_owned();
         self.encoder_frame_buffer
             .slice_mut(s![.., ..-n])
             .assign(temp);
         // add the new n frames to the end of the buffer
+        clog(&format!(
+            "WIN assign tail slice shape={}, incoming={}",
+            fmt_shape(self.encoder_frame_buffer.slice(s![.., -n..]).shape()),
+            fmt_shape(enc_frame.shape())
+        ));
         self.encoder_frame_buffer
             .slice_mut(s![.., -n..])
-            .assign(&enc_frame.insert_axis(Axis(1)));
+            .assign(&enc_frame);
         let val: Value = self.encoder_frame_buffer.clone().try_into()?;
         Ok(vec![val])
     }

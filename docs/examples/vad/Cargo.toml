@@ -7,8 +7,11 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-tract-rs = { git = "https://github.com/sonos/tract.git", rev = "a9b3989" }
-# tract-rs = { path = "/Users/julien.balian/SONOS/src/tract/api/rs" }
+# tract-rs = { git = "https://github.com/sonos/tract.git", rev = "a9b3989" }
+tract-rs = { git = "https://github.com/sonos/tract.git", rev = "d2b358f", default-features = false }
+tract-onnx-opl = { git = "https://github.com/sonos/tract.git", rev = "d2b358f", features = [
+    "getrandom-js",
+] }
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
 serde = { version = "1.0", features = ["derive"] }
@@ -16,3 +19,8 @@ serde_json = "1.0"
 serde-wasm-bindgen = "0.6"
 web-sys = { version = "0.3", features = ["console"] }
 anyhow = "1.0"
+console_error_panic_hook = "0.1"
+
+[features]
+default = []
+log-vad = []

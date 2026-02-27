@@ -201,6 +201,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4e18bf7a165bf7028fde98609a0f1e8f7498d762a212598e6c891f6893556ec"
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if 1.0.1",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -336,7 +346,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1665,7 +1675,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "tract-api"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "boow",
@@ -1677,7 +1687,7 @@ dependencies = [
 [[package]]
 name = "tract-core"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "anymap3",
@@ -1685,7 +1695,6 @@ dependencies = [
  "derive-new",
  "downcast-rs",
  "dyn-clone",
- "inventory",
  "lazy_static",
  "log",
  "maplit",
@@ -1703,7 +1712,7 @@ dependencies = [
 [[package]]
 name = "tract-cuda"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "cudarc",
@@ -1725,7 +1734,7 @@ dependencies = [
 [[package]]
 name = "tract-data"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "downcast-rs",
@@ -1750,7 +1759,7 @@ dependencies = [
 [[package]]
 name = "tract-extra"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "tract-nnef",
  "tract-pulse",
@@ -1759,7 +1768,7 @@ dependencies = [
 [[package]]
 name = "tract-gpu"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1773,7 +1782,7 @@ dependencies = [
 [[package]]
 name = "tract-hir"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "derive-new",
  "log",
@@ -1783,7 +1792,7 @@ dependencies = [
 [[package]]
 name = "tract-libcli"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "box_drawing",
  "clap",
@@ -1809,7 +1818,7 @@ dependencies = [
 [[package]]
 name = "tract-linalg"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "byteorder",
  "cc",
@@ -1836,7 +1845,7 @@ dependencies = [
 [[package]]
 name = "tract-metal"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "derive-new",
@@ -1854,7 +1863,7 @@ dependencies = [
 [[package]]
 name = "tract-nnef"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "byteorder",
  "flate2",
@@ -1874,7 +1883,7 @@ dependencies = [
 [[package]]
 name = "tract-onnx"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "bytes",
  "derive-new",
@@ -1892,7 +1901,7 @@ dependencies = [
 [[package]]
 name = "tract-onnx-opl"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "getrandom",
  "log",
@@ -1906,7 +1915,7 @@ dependencies = [
 [[package]]
 name = "tract-pulse"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "downcast-rs",
  "lazy_static",
@@ -1917,7 +1926,7 @@ dependencies = [
 [[package]]
 name = "tract-pulse-opl"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "downcast-rs",
  "lazy_static",
@@ -1927,7 +1936,7 @@ dependencies = [
 [[package]]
 name = "tract-rs"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "anyhow",
  "boow",
@@ -1952,7 +1961,7 @@ dependencies = [
 [[package]]
 name = "tract-tflite"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "derive-new",
  "flatbuffers",
@@ -1962,7 +1971,7 @@ dependencies = [
 [[package]]
 name = "tract-transformers"
 version = "0.23.0-pre"
-source = "git+https://github.com/sonos/tract.git?rev=a9b3989#a9b3989527938101d991f348a71ff44f7ef30cc7"
+source = "git+https://github.com/sonos/tract.git?rev=d2b358f#d2b358fe1bbb9aafa3235a7c10dff3010a71b17e"
 dependencies = [
  "float-ord",
  "tract-nnef",
@@ -2028,10 +2037,12 @@ name = "vad-wasm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "console_error_panic_hook",
  "getrandom",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "tract-onnx-opl",
  "tract-rs",
  "wasm-bindgen",
  "web-sys",
