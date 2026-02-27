@@ -43,10 +43,10 @@ import init, { VadClassifier } from './vad_wasm.js';
 let vad_classifier = null;
 
 const desiredSampleRate = 16000;
-const realSampleRate = 44100;
 const bufferSize = 1024;
-const hopDuration = 1 / realSampleRate * bufferSize  * 1000; // in ms
-const hz = Math.floor(1000 / hopDuration);
+let realSampleRate = 44100; // will be overwritten by AudioContext.sampleRate
+let hopDuration = 1 / realSampleRate * bufferSize * 1000; // ms, recomputed once audio starts
+let hz = Math.floor(1000 / hopDuration);
 let length = 500; // n predictions stacked
 let currentTimeValue = 0;
 let timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
@@ -73,7 +73,7 @@ const getSize = () => {
     }
 }
 let sizes = getSize();
-const opts = {
+let opts = {
     title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:`,
     width: sizes.width,
     height: sizes.height,
@@ -150,6 +150,11 @@ document.getElementById('vad-click').addEventListener('click', (e) => {
     if (inited) {
         console.log("start VAD demo");
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Update timing based on actual device sample rate
+        realSampleRate = audioContext.sampleRate || realSampleRate;
+        hopDuration = bufferSize / realSampleRate * 1000;
+        hz = Math.max(1, Math.floor(1000 / hopDuration));
+        opts = { ...opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
         console.log("request microphone access");
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
