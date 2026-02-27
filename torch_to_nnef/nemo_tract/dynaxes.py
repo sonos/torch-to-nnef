@@ -120,7 +120,7 @@ def build_dynamic_axes(
         try:
             axes = subnet.input_types[base].axes  # type: ignore[index]
             return make_axis_symbol(tname, axes[axis_idx], axis_idx)
-        except Exception:  # pragma: no cover - tolerant to NeMo variations
+        except AttributeError:  # pragma: no cover - tolerant to NeMo variations
             return make_axis_symbol(tname, "DIM", axis_idx)
 
     dynamic_axes: T.Dict[str, T.Dict[int, str]] = {}

@@ -324,7 +324,7 @@ def iter_nemo_model_subnets(
             float_dtype=float_dtype,
         ) as ctx:
             if subnet_name == "decoder_joint":
-                for entry in iter_decoder_joint_subnets(
+                yield from iter_decoder_joint_subnets(
                     subnet,
                     ctx.input_example,
                     ctx.dynamic_axes,
@@ -332,8 +332,7 @@ def iter_nemo_model_subnets(
                     remove_unused_inputs=remove_unused_inputs,
                     split_joint_decoder=split_joint_decoder,
                     allow_same_io_names=sio,
-                ):
-                    yield entry
+                )
                 continue
 
             input_example = ctx.input_example

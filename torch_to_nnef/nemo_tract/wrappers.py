@@ -408,10 +408,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
 
     def dynamic_shapes_for_export(self) -> T.Dict[str, T.Dict[int, str]]:
         # Filter any indices that exceed the rank of the external interface
-        try:
-            ex = self.input_example()
-        except Exception:  # pragma: no cover - defensive
-            ex = ()
+        ex = self.input_example()
         ranks = {
             n: (t.dim() if torch.is_tensor(t) else 0)
             for n, t in zip(self.input_names, ex or ())  # type: ignore[arg-type]

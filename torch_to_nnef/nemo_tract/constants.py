@@ -46,7 +46,7 @@ def axis_kind_to_symbol(ax: Any) -> str:
     s = str(kind)
     # Strip enum-like prefixes (e.g., AxisKind.Batch -> Batch)
     if "." in s:
-        s = s.split(".")[-1]
+        s = s.rsplit(".", maxsplit=1)[-1]
     s = s.strip()
     return (s or "D").upper()
 
