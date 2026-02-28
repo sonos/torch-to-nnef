@@ -24,3 +24,6 @@ console_error_panic_hook = "0.1"
 [features]
 default = []
 log-vad = []
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

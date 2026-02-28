@@ -18,18 +18,17 @@ export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inve
 
 rm -rf ./model
 t2n_export_nemo -s "vad_multilingual_marblenet" -e "./model" --tract-specific-path $TRACT_PATH --collapse-batch-dim
-
 (
     cd ./model
     $TRACT_PATH ./encoder.nnef.tgz \
         --nnef-tract-core \
         --nnef-tract-pulse \
-        --pulse AUDIO_SIGNAL__TIME=2 \
+        --pulse AUDIO_SIGNAL__TIME=8 \
         dump \
         --nnef ./encoder.pulsed.nnef.tgz
 )
-#
-RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../html
+
+RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../html -- --features "log-vad"
 
 rm ../../html/.gitignore ../../html/*.ts
 find ../../html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete
