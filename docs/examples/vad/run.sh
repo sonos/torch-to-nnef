@@ -26,7 +26,7 @@ t2n_export_nemo -s "vad_multilingual_marblenet" \
     $TRACT_PATH ./encoder.nnef.tgz \
         --nnef-tract-core \
         --nnef-tract-pulse \
-        --pulse AUDIO_SIGNAL__TIME=8 \
+        --pulse AUDIO_SIGNAL__TIME=4 \
         dump \
         --nnef ./encoder.pulsed.nnef.tgz
 )

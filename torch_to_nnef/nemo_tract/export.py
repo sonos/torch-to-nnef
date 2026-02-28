@@ -504,21 +504,13 @@ def build_preprocessor_export_params(
         test_input = input_example
         dyn = dynamic_axes
         if collapse_batch_dim:
-            # Wrap and collapse axes
+            # Wrap and collapse axes. Use the wrapper's own dynamic-axes view
+            # to reflect the exposed ranks accurately (mirrors generic path).
             model = CollapseBatchDimWrapper(model, dynamic_axes)
             input_names = model.input_names
             output_names = model.output_names
             test_input = model.input_example()
-            dyn = collapse_dynamic_axes_mapping(dynamic_axes, input_names)
-            # Filter any indices that exceed ranks of external interface
-            ranks = {
-                n: (t.dim() if torch.is_tensor(t) else 0)
-                for n, t in zip(input_names, test_input or ())
-            }
-            dyn = {
-                n: {i: s for i, s in axes.items() if i < ranks.get(n, 0)}
-                for n, axes in dyn.items()
-            }
+            dyn = model.dynamic_shapes_for_export()
 
         yield ExportParameters(
             name=subnet_name,

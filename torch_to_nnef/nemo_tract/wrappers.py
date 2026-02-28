@@ -50,46 +50,42 @@ class WrapAudioPreprocessor(torch.nn.Module):
         self.preprocessor = preprocessor
 
     def input_example(self, max_batch: int = 1):
-        # return a dummy input example if the original is empty
-        ie = self.preprocessor.input_example()
-        if ie is None or len(ie) == 0:
-            input_types = self.preprocessor.input_types
-            batch_size = max_batch
-            default_time = DEFAULT_TIME  # safe default for time axis
+        # Build a stable example from input_types, irrespective of the
+        # underlying module's own (possibly varying) input_example.
+        input_types = self.preprocessor.input_types
+        batch_size = max_batch
+        default_time = DEFAULT_TIME  # safe default for time axis
 
-            example = []
-            for _, neural_type in input_types.items():
-                axes = neural_type.axes  # tuple of axis descriptors
-                shape = []
-                dtype = torch.float32  # default
+        example = []
+        for _, neural_type in input_types.items():
+            axes = neural_type.axes  # tuple of axis descriptors
+            shape = []
+            dtype = torch.float32  # default
 
-                for axis in axes:
-                    axis_name = getattr(axis, "kind", axis)
-                    axis_name = str(axis_name).lower()
-                    if "batch" in axis_name or axis_name == "b":
-                        shape.append(batch_size)
-                    elif "time" in axis_name or axis_name == "t":
-                        shape.append(default_time)
-                    else:
-                        shape.append(1)
-
-                element_type_name = type(
-                    neural_type.elements_type
-                ).__name__.lower()
-                if "length" in element_type_name:
-                    dtype = torch.long
-                    tensor = torch.full(
-                        (batch_size,),
-                        default_time,
-                        dtype=dtype,
-                    )
+            for axis in axes:
+                axis_name = getattr(axis, "kind", axis)
+                axis_name = str(axis_name).lower()
+                if "batch" in axis_name or axis_name == "b":
+                    shape.append(batch_size)
+                elif "time" in axis_name or axis_name == "t":
+                    shape.append(default_time)
                 else:
-                    tensor = torch.zeros(*shape, dtype=dtype)
+                    shape.append(1)
 
-                example.append(tensor)
+            element_type_name = type(neural_type.elements_type).__name__.lower()
+            if "length" in element_type_name:
+                dtype = torch.long
+                tensor = torch.full(
+                    (batch_size,),
+                    default_time,
+                    dtype=dtype,
+                )
+            else:
+                tensor = torch.zeros(*shape, dtype=dtype)
 
-            return tuple(example)
-        return ie
+            example.append(tensor)
+
+        return tuple(example)
 
     def dynamic_shapes_for_export(self, *args, **kwargs):
         return symbols_from_input_types(self.preprocessor.input_types)
@@ -362,9 +358,13 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 self._expected_rank_no_batch[name] = 0
 
     def _init_batch_axes(self, sym_dynamic_axes) -> None:
+        def _is_b(sym: object) -> bool:
+            s = str(sym).upper()
+            return s == "B" or "BATCH" in s
+
         for name in self._orig_input_names:
             axes = (sym_dynamic_axes or {}).get(name, {})
-            bpos = sorted([i for i, s in axes.items() if s == "B"])
+            bpos = sorted([i for i, s in axes.items() if _is_b(s)])
             self._b_axes[name] = bpos if bpos else [0]
         for sname in STATE_INPUT_NAMES:
             if sname in self._orig_input_names:
@@ -391,6 +391,12 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         for name, t in zip(self._orig_input_names, ex):
             if is_length_name(name):
                 continue
+            # Proactively squeeze batch axes wherever they may be located
+            # (some NeMo modules expose [T, B] instead of [B, T]).
+            if torch.is_tensor(t):
+                for bpos in sorted(self._b_axes.get(name, []), reverse=True):
+                    if 0 <= bpos < t.dim() and t.size(bpos) == 1:
+                        t = t.squeeze(bpos)
             if name in ("input_states_1", "input_states_2") and torch.is_tensor(
                 t
             ):

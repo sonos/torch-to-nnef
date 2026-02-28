@@ -116,7 +116,7 @@ struct VadSession {
 }
 
 impl VadSession {
-    const EXPECTED_PULSE_FRAMES: usize = 8;
+    const EXPECTED_PULSE_FRAMES: usize = 4;
     const ENCODER_INPUT_FRAME_SIZE: usize = 160; // 10ms at 16kHz
     const ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES: usize =
         Self::EXPECTED_PULSE_FRAMES * Self::ENCODER_INPUT_FRAME_SIZE;
@@ -193,19 +193,19 @@ impl VadSession {
         self.current_buffer_fill = 0;
 
         // Prepare strict-length input matching expected STFT context
-        // let max = self
-        //     .audio_buffer
-        //     .clone()
-        //     .into_iter()
-        //     .reduce(f32::max)
-        //     .unwrap_or(0.);
-        // if max > 1.0 || max < -1.0 {
-        //     clog(&format!(
-        //         "WARNING: audio sample value {} exceeds expected [-1.0, 1.0] range; ensure proper normalization",
-        //         max
-        //     ));
-        // }
-        let audio_buffer_arr = Array1::from_vec(self.audio_buffer.clone()).insert_axis(Axis(0));
+        let max = self
+            .audio_buffer
+            .clone()
+            .into_iter()
+            .reduce(f32::max)
+            .unwrap_or(0.);
+        if max > 1.0 || max < -1.0 {
+            bail!(format!(
+                "WARNING: audio sample value {} exceeds expected [-1.0, 1.0] range; ensure proper normalization",
+                max
+            ));
+        }
+        let audio_buffer_arr = Array1::from_vec(self.audio_buffer.clone());
         let audio_buffer_value: Value = audio_buffer_arr.try_into()?;
         let mut pre_result = self.preprocessor_model.run(vec![audio_buffer_value])?;
         // Ensure encoder sees a stable pulse length (e.g., 2 frames per call)

@@ -43,20 +43,20 @@ import init, { VadClassifier } from './vad_wasm.js';
 let vad_classifier = null;
 
 const desiredSampleRate = 16000;
-const bufferSize = 1024; // must be a power of 2
-let length = 250; // n predictions visible in the plot, older predictions will be shifted out
+const bufferSize = 512; // must be a power of 2
+let length = 256; // plotted points; older predictions will be shifted out
 
-let realSampleRate = null; // will be overwritten by AudioContext.sampleRate
-let hopDuration = null; // ms, recomputed once audio starts
-let hz = 0; // will be recomputed once audio starts
+let realSampleRate = null; // AudioContext.sampleRate
+let plotMsStep = 0; // ms per plotted point (throttled)
+let hz = 0; // plot refresh rate in Hz
 let timesElapsedArr = null; // recomputed once audio starts
 let data = null; // will be initialized once audio starts
 
 let currentTimeValue = 0;
 let vadScores = Array.from({length}, () => 0);
 let vadDet = Array.from({length}, () => 0);
-let threshold = 0.5; // lowered; typical NeMo VAD operates ~0.4–0.6
-let postProcWindowSize = 10; // will be recomputed from time once audio starts
+let threshold = 0.95;
+let postProcWindowSize = 10; // recomputed once audio starts from plot cadence
 const getData = (time_offset, score) => {
     const start = Math.max(0, vadScores.length - postProcWindowSize);
     const maxDet = Math.max(...vadScores.slice(start)) > threshold ? 1.0 : 0.0;
@@ -75,6 +75,27 @@ const getSize = () => {
     }
 }
 let sizes = getSize();
+// Optional "now" marker synced to audioMs
+const params = new URLSearchParams(location.search);
+const showNow = params.get('now') !== '0';
+let nowMarker = {
+    hooks: {
+        draw: (u) => {
+            if (!showNow) return;
+            const x = u.valToPos(currentTimeValue, 'x', true);
+            const { ctx, bbox } = u;
+            ctx.save();
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, bbox.top);
+            ctx.lineTo(x, bbox.top + bbox.height);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+};
+
 let opts = {
     title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:`,
     width: sizes.width,
@@ -92,10 +113,6 @@ let opts = {
     axes: [
         {
             space: 50,
-            ticks: [
-                1,
-                1000,
-            ],
             values: (self, val) => {
                 return val.map((v) => (
                     `${v/ 1000}s`
@@ -112,11 +129,12 @@ let opts = {
             fill: "#0000ff20",
         },
         {
-            label: `detection threshold:${threshold}`,
+            label: `detection (binary)` ,
             stroke: "red",
             fill: "#ff00ff10",
         },
     ],
+    plugins: [nowMarker],
 };
 let inited = false;
 init().then(() => {
@@ -127,7 +145,7 @@ init().then(() => {
     setVisible('page', true);
     setVisible('loading', false);
 })
-// ---- Basic low-pass FIR + linear resampler to 16 kHz ----
+// ---- Linear resampler to 16 kHz (LPF optional) ----
 const sinc = (x) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));
 const designLowpassFIR = (cutoffHz, sampleRate, taps) => {
     const fc = cutoffHz / (sampleRate / 2); // normalized 0..1 (Nyquist=1)
@@ -145,31 +163,38 @@ const designLowpassFIR = (cutoffHz, sampleRate, taps) => {
     return h;
 };
 
-const makeResampler = (inRate, outRate) => {
-    const taps = 64;
+const makeResampler = (inRate, outRate, withLPF = true) => {
+    const taps = withLPF ? 64 : 0;
     // Keep a bit of margin under 8 kHz to reduce aliasing at edges
-    const cutoff = Math.min(7900, 0.45 * outRate);
-    const h = designLowpassFIR(cutoff, inRate, taps);
+    const cutoff = withLPF ? Math.min(7900, 0.45 * outRate) : 0;
+    const h = withLPF ? designLowpassFIR(cutoff, inRate, taps) : null;
     return {
         inRate,
         outRate,
         h,
         taps,
-        hist: new Float32Array(taps), // FIR history (most-recent at index 0)
+        withLPF,
+        hist: withLPF ? new Float32Array(taps) : null, // FIR history (MRU at 0)
         pos: 0, // fractional read position for linear interpolation
         prev: 0, // last filtered sample from previous block
         ratio: inRate / outRate,
         // Process one input block
         process(block) {
-            // FIR filtering (direct form, small taps → ok in JS)
-            const y = new Float32Array(block.length);
-            for (let n = 0; n < block.length; n++) {
-                // shift history right by 1, insert new sample at 0
-                for (let k = this.taps - 1; k > 0; k--) this.hist[k] = this.hist[k - 1];
-                this.hist[0] = block[n];
-                let acc = 0;
-                for (let k = 0; k < this.taps; k++) acc += this.h[k] * this.hist[k];
-                y[n] = acc;
+            let y;
+            if (this.withLPF) {
+                // FIR filtering (direct form, small taps → ok in JS)
+                y = new Float32Array(block.length);
+                for (let n = 0; n < block.length; n++) {
+                    // shift history right by 1, insert new sample at 0
+                    for (let k = this.taps - 1; k > 0; k--) this.hist[k] = this.hist[k - 1];
+                    this.hist[0] = block[n];
+                    let acc = 0;
+                    for (let k = 0; k < this.taps; k++) acc += this.h[k] * this.hist[k];
+                    y[n] = acc;
+                }
+            } else {
+                // No LPF: pass-through the input block directly
+                y = block;
             }
             // Linear resampling to outRate with stateful phase
             // Prepend last filtered sample from previous block to ensure continuity for i+1
@@ -207,14 +232,14 @@ document.getElementById('vad-click').addEventListener('click', (e) => {
             const AC = window.AudioContext || window.webkitAudioContext;
             audioContext = new AC();
         }
-        // Update timing based on actual device sample rate
+        // Timing from audio clock; throttle plot to target FPS
         realSampleRate = audioContext.sampleRate;
-        hopDuration = bufferSize / realSampleRate * 1000;
-        hz = Math.max(1, Math.floor(1000 / hopDuration));
-        // Smoothing over ~200 ms of plotted updates
-        const smoothMs = 200;
-        postProcWindowSize = Math.max(1, Math.round(smoothMs / hopDuration));
-        timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
+        const PLOT_FPS = parseInt((params.get('fps') || '60'), 10);
+        plotMsStep = 1000 / PLOT_FPS;
+        hz = PLOT_FPS;
+        const smoothMs = parseInt((params.get('smooth') || '200'), 10); // ms
+        postProcWindowSize = Math.max(1, Math.round(smoothMs / plotMsStep));
+        timesElapsedArr = Array.from({length}, (v, i) => i * plotMsStep - (length * plotMsStep));
         data = getData(currentTimeValue);
         opts = { ...opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
         console.log("request microphone access");
@@ -242,35 +267,88 @@ document.getElementById('vad-click').addEventListener('click', (e) => {
                 source.connect(processor);
                 // No need to monitor to speakers for VAD; keep graph-only
                 // processor.connect(audioContext.destination);
-                // Init resampler for actual input rate
-                resampler = makeResampler(audioContext.sampleRate, desiredSampleRate);
-                let init_time = performance.now();
-                processor.onaudioprocess = (e) => {
-                    if (performance.now() - init_time < 200) {
-                        // delay first mic received signal to avoid pop & burst
-                        return;
-                    }
-                    const inputBuffer = e.inputBuffer;
-                    const numChannels = inputBuffer.numberOfChannels;
-                    let mergedData = new Float32Array(inputBuffer.length);
-                    for (let channel = 0; channel < numChannels; channel++) {
-                        const inputData = inputBuffer.getChannelData(channel);
-                        for (let i = 0; i < inputData.length; i++) {
-                            mergedData[i] += inputData[i] / numChannels;
-                        }
-                    }
-                    const resampledData =
-                        audioContext.sampleRate === desiredSampleRate
-                            ? mergedData
-                            : resampler.process(mergedData);
-                    if (resampledData) {
-                        // You can now save or process this further
-                        let score = vad_classifier.predict_speech_presence(resampledData);
-                        currentTimeValue += hopDuration;
-                        data = getData(currentTimeValue, score);
-                        u.setData(data);
+                // Reactivate LPF for resampler
+                resampler = makeResampler(audioContext.sampleRate, desiredSampleRate, true);
+                // Use an AudioWorklet for tighter scheduling; fall back to ScriptProcessor if failed
+                const startWithWorklet = async () => {
+                    try {
+                        await audioContext.audioWorklet.addModule('./vad_worklet.js');
+                        const workletNode = new AudioWorkletNode(audioContext, 'vad-processor');
+                        source.connect(workletNode);
+                        // Timeline from processed sample count for accuracy
+                        let audioMs = 0;
+                        let nextPlotMs = 0;
+                        let lastScore = 0.0;
+                        let pendingRAF = false;
+                        workletNode.port.onmessage = (ev) => {
+                            const msg = ev.data || {};
+                            if (msg.type === 'audio' && msg.buffer) {
+                                const mergedData = new Float32Array(msg.buffer);
+                                const resampledData =
+                                    audioContext.sampleRate === desiredSampleRate
+                                        ? mergedData
+                                        : resampler.process(mergedData);
+                                if (resampledData && resampledData.length) {
+                                    lastScore = vad_classifier.predict_speech_presence(resampledData);
+                                    // advance by original frames (pre-resample) for stable time
+                                    audioMs += (mergedData.length / realSampleRate) * 1000;
+                                    while (audioMs >= nextPlotMs) {
+                                        currentTimeValue = nextPlotMs;
+                                        data = getData(currentTimeValue, lastScore);
+                                        nextPlotMs += plotMsStep;
+                                    }
+                                    if (!pendingRAF) {
+                                        pendingRAF = true;
+                                        requestAnimationFrame(() => {
+                                            u.setData(data);
+                                            pendingRAF = false;
+                                        });
+                                    }
+                                }
+                            }
+                        };
+                    } catch (e) {
+                        console.warn('AudioWorklet unavailable, falling back:', e);
+                        const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+                        source.connect(processor);
+                        let audioMs = 0;
+                        let nextPlotMs = 0;
+                        let lastScore = 0.0;
+                        let pendingRAF = false;
+                        processor.onaudioprocess = (ev) => {
+                            const inputBuffer = ev.inputBuffer;
+                            const numChannels = inputBuffer.numberOfChannels;
+                            let mergedData = new Float32Array(inputBuffer.length);
+                            for (let ch = 0; ch < numChannels; ch++) {
+                                const inputData = inputBuffer.getChannelData(ch);
+                                for (let i = 0; i < inputData.length; i++) {
+                                    mergedData[i] += inputData[i] / numChannels;
+                                }
+                            }
+                            const resampledData =
+                                audioContext.sampleRate === desiredSampleRate
+                                    ? mergedData
+                                    : resampler.process(mergedData);
+                            if (resampledData && resampledData.length) {
+                                lastScore = vad_classifier.predict_speech_presence(resampledData);
+                                audioMs += (inputBuffer.length / realSampleRate) * 1000;
+                                while (audioMs >= nextPlotMs) {
+                                    currentTimeValue = nextPlotMs;
+                                    data = getData(currentTimeValue, lastScore);
+                                    nextPlotMs += plotMsStep;
+                                }
+                                if (!pendingRAF) {
+                                    pendingRAF = true;
+                                    requestAnimationFrame(() => {
+                                        u.setData(data);
+                                        pendingRAF = false;
+                                    });
+                                }
+                            }
+                        };
                     }
                 };
+                startWithWorklet();
             })
             .catch((data) => {
                 console.error(data);
