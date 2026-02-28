@@ -99,6 +99,10 @@ class WrapAudioPreprocessor(torch.nn.Module):
         return list(self.preprocessor.input_types.keys())
 
     @property
+    def input_types(self):
+        return self.preprocessor.input_types
+
+    @property
     def output_names(self):
         return list(self.preprocessor.output_types.keys())
 

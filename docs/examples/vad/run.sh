@@ -17,7 +17,10 @@ TRACT_PATH=$HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inventory-registry\"))"
 
 rm -rf ./model
-t2n_export_nemo -s "vad_multilingual_marblenet" -e "./model" --tract-specific-path $TRACT_PATH --collapse-batch-dim
+t2n_export_nemo -s "vad_multilingual_marblenet" \
+    -e "./model" \
+    --tract-specific-path $TRACT_PATH \
+    --collapse-batch-dim
 (
     cd ./model
     $TRACT_PATH ./encoder.nnef.tgz \

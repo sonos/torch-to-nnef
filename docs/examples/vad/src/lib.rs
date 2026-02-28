@@ -2,7 +2,7 @@ use anyhow::{bail, ensure};
 use tract_rs::{
     State,
     prelude::{
-        tract_ndarray::{Array1, Array2, Axis, s},
+        tract_ndarray::{Array1, Array2, Axis, IndexLonger, s},
         *,
     },
 };
@@ -110,6 +110,9 @@ struct VadSession {
     current_buffer_fill: usize,
     last_score: f32,
     encoder_frame_buffer: Array2<f32>,
+    puse_delay: usize,
+    warmup_done: bool,
+    decoded_emissions: usize,
 }
 
 impl VadSession {
@@ -117,9 +120,16 @@ impl VadSession {
     const ENCODER_INPUT_FRAME_SIZE: usize = 160; // 10ms at 16kHz
     const ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES: usize =
         Self::EXPECTED_PULSE_FRAMES * Self::ENCODER_INPUT_FRAME_SIZE;
+    // Model emits [non_speech, speech] logits; flip if needed
+    const SPEECH_CLASS_INDEX: usize = 1;
+    // Suppress first few decoder emissions to avoid startup spike
+    const STARTUP_SUPPRESS_EMISSIONS: usize = 2; // ~160ms with 80ms cadence
 
     fn new(preprocessor: &Runnable, encoder: &Runnable, decoder: &Runnable) -> Res<VadSession> {
         let n_encoder_frames_to_aggregate_over = 10;
+        let pulse_delay_arr = encoder.property("pulse.delay")?; // ensure pulse property exists for sanity check
+        let pulse_delay: i64 = pulse_delay_arr.view::<i64>()?.index(0).to_owned();
+        assert!(Self::EXPECTED_PULSE_FRAMES <= n_encoder_frames_to_aggregate_over);
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_state: encoder.spawn_state()?,
@@ -130,6 +140,9 @@ impl VadSession {
             current_buffer_fill: 0,
             last_score: 0.0,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
+            puse_delay: pulse_delay.try_into().unwrap_or(0usize),
+            warmup_done: false,
+            decoded_emissions: 0,
         })
     }
 
@@ -156,10 +169,20 @@ impl VadSession {
             self.audio_buffer[l - n..].copy_from_slice(&raw_audio_data);
             clog("RB after shift+append done");
         }
-
-        if (self.current_buffer_fill + n) < Self::ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES {
+        self.current_buffer_fill += n;
+        if !self.warmup_done {
+            if self.current_buffer_fill < self.puse_delay {
+                clog(&format!(
+                    "WARMUP: current_fill={} / {}",
+                    self.current_buffer_fill,
+                    Self::ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES
+                ));
+                return Ok(self.last_score);
+            }
+            self.warmup_done = true;
+        }
+        if self.current_buffer_fill < Self::ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES {
             // not enough data yet, return last score
-            self.current_buffer_fill += n;
             clog(&format!(
                 "RB filling: current_fill={} / {}",
                 self.current_buffer_fill,
@@ -208,16 +231,30 @@ impl VadSession {
         let decoder_input = self.slide_encoder_window(enc_result)?;
         clog("DEC run");
         let dec_result = self.decoder_model.run(decoder_input)?;
-        // Handle decoder output of various shapes; average class-1 across time/batch axes
-        let dec_dyn: Array1<f32> = dec_result[0]
-            .view::<f32>()?
-            .into_dimensionality()?
-            .to_owned();
-        let shape = dec_dyn.shape().to_vec();
-        clog(&format!("DEC dyn shape={}", fmt_shape(&shape)));
-        let len_all = dec_dyn.len();
-        ensure!(len_all == 2, "DEC <2 elements; keep last score");
-        self.last_score = *dec_dyn.get(1).unwrap_or(&0.0);
+        let dec_view = dec_result[0].view::<f32>()?;
+        let logits: Array1<f32> = dec_view.into_dimensionality()?.to_owned();
+        ensure!(logits.len() == 2, "Decoder output must have 2 logits");
+        let l0 = logits[0];
+        let l1 = logits[1];
+        let m = l0.max(l1);
+        let e0 = (l0 - m).exp();
+        let e1 = (l1 - m).exp();
+        let s = e0 + e1;
+        let p0 = if s == 0.0 { 0.5 } else { e0 / s };
+        let p1 = if s == 0.0 { 0.5 } else { e1 / s };
+        let p_speech = if Self::SPEECH_CLASS_INDEX == 0 {
+            p0
+        } else {
+            p1
+        };
+
+        // Suppress first few emissions to avoid startup spike
+        if self.decoded_emissions < Self::STARTUP_SUPPRESS_EMISSIONS {
+            self.last_score = 0.0;
+        } else {
+            self.last_score = p_speech;
+        }
+        self.decoded_emissions += 1;
         Ok(self.last_score)
     }
 

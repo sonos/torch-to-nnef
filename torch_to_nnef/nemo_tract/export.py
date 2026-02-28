@@ -466,19 +466,17 @@ def build_preprocessor_export_params(
 ) -> T.Iterator[ExportParameters]:
     """Build export parameters for the preprocessor of a NeMo ASR model."""
     inps = asr_model.preprocessor.input_example()
-    if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
-        asr_model.preprocessor.featurizer, "dither"
-    ):
-        # disable dither for export
-        if asr_model.preprocessor.featurizer.dither != 0.0:
-            LOGGER.info("disabling dither for preprocessor export")
-        asr_model.preprocessor.featurizer.dither = 0.0
-    if hasattr(asr_model.preprocessor, "featurizer") and hasattr(
-        asr_model.preprocessor.featurizer, "pad_to"
-    ):
-        if asr_model.preprocessor.featurizer.pad_to != 0.0:
-            LOGGER.info("disabling pad_to for preprocessor export")
-        asr_model.preprocessor.featurizer.pad_to = 0
+    if hasattr(asr_model.preprocessor, "featurizer"):
+        asr_model.preprocessor.featurizer.training = False
+        if hasattr(asr_model.preprocessor.featurizer, "dither"):
+            # disable dither for export
+            if asr_model.preprocessor.featurizer.dither != 0.0:
+                LOGGER.info("disabling dither for preprocessor export")
+            asr_model.preprocessor.featurizer.dither = 0.0
+        if hasattr(asr_model.preprocessor.featurizer, "pad_to"):
+            if asr_model.preprocessor.featurizer.pad_to != 0.0:
+                LOGGER.info("disabling pad_to for preprocessor export")
+            asr_model.preprocessor.featurizer.pad_to = 0
 
     if isinstance(
         asr_model.preprocessor,

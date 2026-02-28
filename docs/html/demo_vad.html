@@ -53,18 +53,18 @@ let timesElapsedArr = null; // recomputed once audio starts
 let data = null; // will be initialized once audio starts
 
 let currentTimeValue = 0;
-let vadScores = Array.from({length}, (v, i) => 0);
-let vadDet = Array.from({length}, (v, i) => 0);
-let threshold = 0.85;
-let postProcindowSize = 10;
+let vadScores = Array.from({length}, () => 0);
+let vadDet = Array.from({length}, () => 0);
+let threshold = 0.5; // lowered; typical NeMo VAD operates ~0.4–0.6
+let postProcWindowSize = 10; // will be recomputed from time once audio starts
 const getData = (time_offset, score) => {
-    let maxDet = Math.max(...vadScores.slice(vadScores.length - postProcindowSize, vadScores.length)) > threshold ? 1.0 : 0.0;
-    let isDet = vadDet[vadDet.length - 1] === 1 ? maxDet: ((score > threshold) ? 1.0: 0.0);
-    let propDet = maxDet;
+    const start = Math.max(0, vadScores.length - postProcWindowSize);
+    const maxDet = Math.max(...vadScores.slice(start)) > threshold ? 1.0 : 0.0;
+    const isDet = vadDet[vadDet.length - 1] === 1 ? maxDet : (score > threshold ? 1.0 : 0.0);
     return [
-        timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset),
-        vadScores = vadScores.slice(1).concat(score),
-        vadDet = vadDet.slice(1).concat(isDet),
+        (timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset)),
+        (vadScores = vadScores.slice(1).concat(score)),
+        (vadDet = vadDet.slice(1).concat(isDet)),
     ];
 };
 const vad_preview_dom = document.getElementById('vad-preview');
@@ -127,40 +127,110 @@ init().then(() => {
     setVisible('page', true);
     setVisible('loading', false);
 })
-const downsampleBuffer = (buffer, sampleRate, outSampleRate) => {
-    if (outSampleRate === sampleRate) return buffer;
-    const sampleRateRatio = sampleRate / outSampleRate;
-    const newLength = Math.round(buffer.length / sampleRateRatio);
-    const result = new Float32Array(newLength);
-    let offsetResult = 0;
-    let offsetBuffer = 0;
-    while (offsetResult < result.length) {
-        const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-        let accum = 0, count = 0;
-        for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-            accum += buffer[i];
-            count++;
-        }
-        result[offsetResult] = accum / count;
-        offsetResult++;
-        offsetBuffer = nextOffsetBuffer;
+// ---- Basic low-pass FIR + linear resampler to 16 kHz ----
+const sinc = (x) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));
+const designLowpassFIR = (cutoffHz, sampleRate, taps) => {
+    const fc = cutoffHz / (sampleRate / 2); // normalized 0..1 (Nyquist=1)
+    const M = taps - 1;
+    const h = new Float32Array(taps);
+    for (let n = 0; n < taps; n++) {
+        const k = n - M / 2;
+        const ideal = 2 * fc * sinc(2 * fc * k);
+        const w = 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / M); // Hamming window
+        h[n] = ideal * w;
     }
-    return result;
-}
+    // Normalize to unity gain at DC
+    const sum = h.reduce((a, b) => a + b, 0);
+    for (let n = 0; n < taps; n++) h[n] /= sum || 1;
+    return h;
+};
+
+const makeResampler = (inRate, outRate) => {
+    const taps = 64;
+    // Keep a bit of margin under 8 kHz to reduce aliasing at edges
+    const cutoff = Math.min(7900, 0.45 * outRate);
+    const h = designLowpassFIR(cutoff, inRate, taps);
+    return {
+        inRate,
+        outRate,
+        h,
+        taps,
+        hist: new Float32Array(taps), // FIR history (most-recent at index 0)
+        pos: 0, // fractional read position for linear interpolation
+        prev: 0, // last filtered sample from previous block
+        ratio: inRate / outRate,
+        // Process one input block
+        process(block) {
+            // FIR filtering (direct form, small taps → ok in JS)
+            const y = new Float32Array(block.length);
+            for (let n = 0; n < block.length; n++) {
+                // shift history right by 1, insert new sample at 0
+                for (let k = this.taps - 1; k > 0; k--) this.hist[k] = this.hist[k - 1];
+                this.hist[0] = block[n];
+                let acc = 0;
+                for (let k = 0; k < this.taps; k++) acc += this.h[k] * this.hist[k];
+                y[n] = acc;
+            }
+            // Linear resampling to outRate with stateful phase
+            // Prepend last filtered sample from previous block to ensure continuity for i+1
+            const proc = new Float32Array(y.length + 1);
+            proc[0] = this.prev;
+            proc.set(y, 1);
+            const out = [];
+            while (this.pos <= proc.length - 2) {
+                const i = Math.floor(this.pos);
+                const frac = this.pos - i;
+                const s0 = proc[i];
+                const s1 = proc[i + 1];
+                out.push(s0 + (s1 - s0) * frac);
+                this.pos += this.ratio;
+            }
+            // carry state to next block
+            this.pos -= (proc.length - 1);
+            this.prev = proc[proc.length - 1];
+            return new Float32Array(out);
+        },
+    };
+};
+
+let resampler = null;
 document.getElementById('vad-click').addEventListener('click', (e) => {
     console.log("try start VAD demo");
     if (inited) {
         console.log("start VAD demo");
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioContext;
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            // Request 16 kHz context when supported; browsers may ignore
+            audioContext = new AC({ sampleRate: desiredSampleRate });
+        } catch (e) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AC();
+        }
         // Update timing based on actual device sample rate
         realSampleRate = audioContext.sampleRate;
         hopDuration = bufferSize / realSampleRate * 1000;
         hz = Math.max(1, Math.floor(1000 / hopDuration));
+        // Smoothing over ~200 ms of plotted updates
+        const smoothMs = 200;
+        postProcWindowSize = Math.max(1, Math.round(smoothMs / hopDuration));
         timesElapsedArr = Array.from({length}, (v, i) => i * hopDuration - (length * hopDuration));
         data = getData(currentTimeValue);
         opts = { ...opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
         console.log("request microphone access");
-        navigator.mediaDevices.getUserMedia({ audio: true })
+        navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    sampleRate: desiredSampleRate,
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    // Browser-specific toggles (ignored if unsupported)
+                    googEchoCancellation: false,
+                    googAutoGainControl: false,
+                    googNoiseSuppression: false,
+                }
+            })
             .then(stream => {
                 document.getElementById('vad-prestart').remove();
                 let u = new uPlot(opts, data, vad_preview_dom);
@@ -170,7 +240,10 @@ document.getElementById('vad-click').addEventListener('click', (e) => {
                 const source = audioContext.createMediaStreamSource(stream);
                 const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
                 source.connect(processor);
-                processor.connect(audioContext.destination);
+                // No need to monitor to speakers for VAD; keep graph-only
+                // processor.connect(audioContext.destination);
+                // Init resampler for actual input rate
+                resampler = makeResampler(audioContext.sampleRate, desiredSampleRate);
                 let init_time = performance.now();
                 processor.onaudioprocess = (e) => {
                     if (performance.now() - init_time < 200) {
@@ -186,7 +259,10 @@ document.getElementById('vad-click').addEventListener('click', (e) => {
                             mergedData[i] += inputData[i] / numChannels;
                         }
                     }
-                    const resampledData = downsampleBuffer(mergedData, audioContext.sampleRate, desiredSampleRate);
+                    const resampledData =
+                        audioContext.sampleRate === desiredSampleRate
+                            ? mergedData
+                            : resampler.process(mergedData);
                     if (resampledData) {
                         // You can now save or process this further
                         let score = vad_classifier.predict_speech_presence(resampledData);
