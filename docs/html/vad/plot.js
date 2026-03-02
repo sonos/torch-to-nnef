@@ -14,8 +14,10 @@ export class VADPlot {
         this.det = null;
         this.data = null;
         this.currentMode = 'pulsed';
+        this.pulseDelayMs = 0;
     }
     _ensurePreZeroShadePlugin() {
+        const that = this;
         const preZeroShade = {
             hooks: {
                 // Draw over series to mask any area-fill artifacts before 0s
@@ -32,6 +34,18 @@ export class VADPlot {
                     // Solid light gray (no opacity), to clearly mark < 0s
                     ctx.fillStyle = '#e0e0e0';
                     ctx.fillRect(left, bbox.top, w, bbox.height);
+                    // Shade 0..pulseDelay if provided
+                    if (that.pulseDelayMs && that.pulseDelayMs > 0) {
+                        const xDelay = u.valToPos(that.pulseDelayMs, 'x', true);
+                        const dl = Math.max(x0, left);
+                        const dr = Math.min(xDelay, right);
+                        const dw = dr - dl;
+                        if (dw > 0) {
+                            // Transparent light gray so series remain visible beneath
+                            ctx.fillStyle = 'rgba(224,224,224,0.25)';
+                            ctx.fillRect(dl, bbox.top, dw, bbox.height);
+                        }
+                    }
                     ctx.restore();
                 },
             },
@@ -63,9 +77,9 @@ export class VADPlot {
         this._ensurePreZeroShadePlugin();
         const L = this.seriesLen;
         this.times = Array.from({ length: L }, (v, i) => i * this.plotMsStep - (L * this.plotMsStep));
-        this.scoresP = Array.from({ length: L }, () => NaN);
-        this.scoresB = Array.from({ length: L }, () => NaN);
-        this.det = Array.from({ length: L }, () => NaN);
+        this.scoresP = Array.from({ length: L }, () => null);
+        this.scoresB = Array.from({ length: L }, () => null);
+        this.det = Array.from({ length: L }, () => null);
         this.data = [this.times.slice(), this.scoresP.slice(), this.scoresB.slice(), this.det.slice()];
         this.u = new uPlot(this.opts, this.data, this.container);
         // Re-apply legend visibility after rebuilding chart
@@ -73,9 +87,9 @@ export class VADPlot {
     }
     zero() {
         if (!this.times) this.reset();
-        this.scoresP = Array.from({ length: this.seriesLen }, () => NaN);
-        this.scoresB = Array.from({ length: this.seriesLen }, () => NaN);
-        this.det = Array.from({ length: this.seriesLen }, () => NaN);
+        this.scoresP = Array.from({ length: this.seriesLen }, () => null);
+        this.scoresB = Array.from({ length: this.seriesLen }, () => null);
+        this.det = Array.from({ length: this.seriesLen }, () => null);
         this.data = [this.times.slice(), this.scoresP.slice(), this.scoresB.slice(), this.det.slice()];
         this.u ? this.u.setData(this.data) : (this.u = new uPlot(this.opts, this.data, this.container));
     }
@@ -83,20 +97,24 @@ export class VADPlot {
         if (!this.times) this.reset();
         const L = this.seriesLen;
         const cloneShift = (arr, v) => arr.slice(1).concat(v);
+        // Gate pulsed values prior to warmup (pulseDelayMs): hide fill/points until ready
+        if (mode !== 'batch' && this.pulseDelayMs && timeMs < this.pulseDelayMs) {
+            pPulsed = null;
+        }
         const scoresSel = mode === 'batch' ? this.scoresB : this.scoresP;
         const lastScoreSel = mode === 'batch' ? pBatch : pPulsed;
         const start = Math.max(0, scoresSel.length - this.postProcWindowSize);
-        const tail = scoresSel.slice(start).filter((x) => Number.isFinite(x));
-        const maxDet = tail.length ? (Math.max(...tail) > this.threshold ? 1.0 : 0.0) : NaN;
-        const prevDet = this.det.length ? this.det[this.det.length - 1] : NaN;
-        const isDet = Number.isFinite(lastScoreSel)
+        const tail = scoresSel.slice(start).filter((x) => x != null && Number.isFinite(x));
+        const maxDet = tail.length ? (Math.max(...tail) > this.threshold ? 1.0 : 0.0) : null;
+        const prevDet = this.det.length ? this.det[this.det.length - 1] : null;
+        const isDet = (lastScoreSel != null && Number.isFinite(lastScoreSel))
             ? ((lastScoreSel > this.threshold) ? 1.0 : 0.0)
-            : (Number.isFinite(prevDet) ? prevDet : maxDet);
+            : (prevDet != null ? prevDet : maxDet);
 
         this.times = cloneShift(this.times, timeMs);
-        this.scoresP = cloneShift(this.scoresP, Number.isFinite(pPulsed) ? pPulsed : NaN);
-        this.scoresB = cloneShift(this.scoresB, Number.isFinite(pBatch) ? pBatch : NaN);
-        this.det = cloneShift(this.det, isDet);
+        this.scoresP = cloneShift(this.scoresP, (pPulsed != null && Number.isFinite(pPulsed)) ? pPulsed : null);
+        this.scoresB = cloneShift(this.scoresB, (pBatch != null && Number.isFinite(pBatch)) ? pBatch : null);
+        this.det = cloneShift(this.det, (isDet != null && Number.isFinite(isDet)) ? isDet : null);
         this.data = [this.times, this.scoresP, this.scoresB, this.det];
         return this.data;
     }
@@ -115,14 +133,18 @@ export class VADPlot {
         const showP = mode !== 'batch';
         const showB = mode !== 'pulsed';
         // series indices: 0=time, 1=pulsed, 2=batch, 3=detection
-        try { this.u.setSeries(1, { show: showP }); } catch {}
-        try { this.u.setSeries(2, { show: showB }); } catch {}
+        try { this.u.setSeries(1, { show: showP }); } catch { }
+        try { this.u.setSeries(2, { show: showB }); } catch { }
     }
     setMode(mode) {
         this.applyModeLegend(mode);
     }
     show() {
-        try { this.container.classList.add('show-plot'); } catch {}
+        try { this.container.classList.add('show-plot'); } catch { }
+    }
+    setPulseDelayMs(ms) {
+        this.pulseDelayMs = ms || 0;
+        if (this.u) this.u.setData(this.data);
     }
     setTitle(hz) {
         this.opts = { ...this.opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };

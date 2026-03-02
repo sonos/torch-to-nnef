@@ -155,6 +155,45 @@ impl VadClassifier {
         self.vad_session_pulsed = None;
         self.vad_session_batch = None;
     }
+
+    // Expose pulsed parameters and readiness for UI coordination
+    pub fn get_pulse_delay(&mut self) -> Result<usize, JsError> {
+        // Ensure pulsed session exists to read properties
+        if self.vad_session_pulsed.is_none() {
+            self.vad_session_pulsed = Some(VadSessionPulsed::new(
+                &self.preprocessor_model,
+                &self.encoder_model_pulsed,
+                &self.decoder_model,
+            ).map_err(|err| JsError::new(&format!("{:?}", err)))?);
+        }
+        let s = self.vad_session_pulsed.as_ref().unwrap();
+        Ok(s.pulse_delay)
+    }
+
+    pub fn get_decoder_pool_len(&mut self) -> Result<usize, JsError> {
+        if self.vad_session_pulsed.is_none() {
+            self.vad_session_pulsed = Some(VadSessionPulsed::new(
+                &self.preprocessor_model,
+                &self.encoder_model_pulsed,
+                &self.decoder_model,
+            ).map_err(|err| JsError::new(&format!("{:?}", err)))?);
+        }
+        let s = self.vad_session_pulsed.as_ref().unwrap();
+        Ok(s.encoder_frame_buffer.shape()[1])
+    }
+
+    pub fn is_pulsed_ready(&mut self) -> Result<bool, JsError> {
+        if self.vad_session_pulsed.is_none() {
+            self.vad_session_pulsed = Some(VadSessionPulsed::new(
+                &self.preprocessor_model,
+                &self.encoder_model_pulsed,
+                &self.decoder_model,
+            ).map_err(|err| JsError::new(&format!("{:?}", err)))?);
+        }
+        let s = self.vad_session_pulsed.as_ref().unwrap();
+        let need_frames = s.pulse_delay + s.encoder_frame_buffer.shape()[1];
+        Ok(s.stable_frames_ready >= need_frames)
+    }
 }
 
 struct VadSessionPulsed {
@@ -202,7 +241,7 @@ impl VadSessionPulsed {
             audio_buffer: vec![0.0; Self::RECEPTIVE_FIELD_SAMPLES],
             // 512 extra for STFT context frames
             current_buffer_fill: 0,
-            last_score: 0.0,
+            last_score: f32::NAN,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
             pulse_delay: pulse_delay.try_into().unwrap_or(0usize),
             warmup_done: false,

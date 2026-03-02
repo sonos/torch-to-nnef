@@ -31,8 +31,8 @@ export async function initVAD() {
         series: [
             {},
             { label: 'score (pulsed)', stroke: '#1976d2', width: 2, fill: '#1976d220', spanGaps: false },
-            { label: 'score (batch)',  stroke: '#43a047', width: 2, fill: '#43a04720', spanGaps: false },
-            { label: 'detection',      stroke: '#e53935', width: 2, fill: '#e5393520', spanGaps: false },
+            { label: 'score (batch)', stroke: '#43a047', width: 2, fill: '#43a04720', spanGaps: false },
+            { label: 'detection', stroke: '#e53935', width: 2, fill: '#e5393520', spanGaps: false },
         ],
     };
     const plot = new VADPlot(container, baseOpts, 256, 0.95);
@@ -50,6 +50,18 @@ export async function initVAD() {
     // Sync legend visibility with current mode and on changes
     // Store mode for later; plot not initialized until first action
     plot.setMode(modes.get());
+    // Pull pulsed delay from WASM and shade 0..delay
+    try {
+        const delayFrames = wasm.getPulseDelay() || 0;
+        const poolFrames = wasm.getDecoderPoolLen() || 0; // usually 10
+        const FRAME_MS = 10; // 160 samples @16kHz -> 10ms per frame
+        const PULSE_FRAMES = 4; // encoder runs in 4-frame pulses
+        // Need frames before first valid pulsed decode
+        const needFrames = delayFrames + poolFrames;
+        // Quantize to pulse multiple: first decode occurs at ceil(need/4)*4 frames
+        const warmFrames = Math.ceil(needFrames / PULSE_FRAMES) * PULSE_FRAMES;
+        plot.setPulseDelayMs(warmFrames * FRAME_MS);
+    } catch { }
     modes.onChange((m) => plot.setMode(m));
 
     // Resize: update plot size on window changes

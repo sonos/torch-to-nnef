@@ -10,7 +10,7 @@
   z-index: 100;
   width: 100%;
   height: 100%;
-  background-color: #aaa;
+  background-color: transparent; /* remove gray backdrop on initial load */
 }
 .centered {
   position: fixed;
