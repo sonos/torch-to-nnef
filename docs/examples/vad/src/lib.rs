@@ -148,6 +148,13 @@ impl VadClassifier {
         clog("try loading");
         VadClassifier::load_internal().map_err(|err| JsError::new(&format!("{:?}", err)))
     }
+
+    // Reset internal streaming sessions so that a new decode (e.g., Run File)
+    // starts from a clean state for both pulsed and batch modes.
+    pub fn reset_sessions(&mut self) {
+        self.vad_session_pulsed = None;
+        self.vad_session_batch = None;
+    }
 }
 
 struct VadSessionPulsed {

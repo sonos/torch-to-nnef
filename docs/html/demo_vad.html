@@ -1,824 +1,99 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-        <script src="./uPlot.iife.min.js"></script>
-        <link rel="stylesheet" href="./uPlot.min.css">
-        <link rel="stylesheet" href="./theme.css">
-        <script src="./sync_receiver_colorscheme.js"></script>
-        <style>
-        .page    { display: none; padding: 0 0.5em; }
-        .page h1 { font-size: 2em; line-height: 1em; margin-top: 1.1em; font-weight: bold; }
-        .page p  { font-size: 1.5em; line-height: 1.275em; margin-top: 0.15em; }
-
-        #loading {
-            display: flex;
-            position: fixed;
-            z-index: 100;
-            width: 100%;
-            height: 100%;
-            background-color: "#aaa";
-        }
-
-        .centered {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            text-align: center;
-            transform: translate(-50%, -50%);
-            transform: -webkit-translate(-50%, -50%);
-            transform: -moz-translate(-50%, -50%);
-            transform: -ms-translate(-50%, -50%);
-        }
-
-        #vad-preview .u-hz {
-            padding-top: 10px;
-            padding-bottom: 10px;
-        }
-        </style>
-        <script type="module">
-// Ensure mic and run-file sit on the same line where possible
-const style = document.createElement('style');
-style.textContent = `
-  #controls-container { display:flex; flex-direction:column; gap:8px; }
-  #modes-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  #actions-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  #actions-row .file-group { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
-  /* Keep label background transparent; only color the radio circle when selected */
-  #modes-row label input[name="vad-mode"] + span {
-    padding: 4px 25px; /* restore prior padding */
-    border-radius: 12px;
-    line-height: 1.2;
-    transition: opacity .15s ease;
-    color: inherit;
-    background: transparent;
-  }
-  /* Materialize radios: outer ring (before) and inner dot (after) */
-  #modes-row label input[type="radio"]:checked + span::before {
-    border-color: #1565c0 !important; /* outer ring to blue */
-  }
-  #modes-row label input[type="radio"]:checked + span::after {
-    background-color: #1565c0 !important; /* inner dot to blue */
-    border-color: #1565c0 !important;
-  }
-  #modes-row label input[name="vad-mode"]:disabled + span { opacity: .5; }
-`;
-document.head.appendChild(style);
-import init, { VadClassifier } from './vad_wasm.js';
-
-let vad_classifier = null;
-let vadMode = 'pulsed'; // 'pulsed' | 'batch' | 'both'
-function refreshModeFromUI() {
-  const sel = document.querySelector('input[name="vad-mode"]:checked');
-  if (sel && sel.value) vadMode = sel.value;
-}
-function setMicButtonState(running) {
-  const micBtn = document.getElementById('vad-click');
-  if (!micBtn) return;
-  if (running) {
-    micBtn.innerHTML = '<i class="material-icons left">stop</i>Stop Microphone';
-    micBtn.classList.remove('blue', 'darken-3');
-    micBtn.classList.add('red', 'darken-2');
-  } else {
-    micBtn.innerHTML = '<i class="material-icons left">mic</i>From Microphone';
-    micBtn.classList.remove('red', 'darken-2');
-    micBtn.classList.add('blue', 'darken-3');
-  }
-}
-
-const desiredSampleRate = 16000;
-const bufferSize = 512; // must be a power of 2
-let length = 256; // plotted points; older predictions will be shifted out
-
-let realSampleRate = null; // AudioContext.sampleRate
-let plotMsStep = 0; // ms per plotted point (throttled)
-let hz = 0; // plot refresh rate in Hz
-let timesElapsedArr = null; // recomputed once audio starts
-let data = null; // will be initialized once audio starts
-let u = null; // uPlot instance (shared for mic + file)
-// Track live microphone context to allow stopping before running file
-const live = {
-  audioContext: null,
-  source: null,
-  async stop() {
-    try { this.source && this.source.disconnect(); } catch {}
-    try { this.audioContext && this.audioContext.close && (await this.audioContext.close()); } catch {}
-    this.audioContext = null;
-    this.source = null;
-    const sb = document.getElementById('vad-stop');
-    if (sb) sb.style.display = 'none';
-    // Re-enable mode controls after stopping mic
-    try { setModesDisabled(false); } catch {}
-  },
-};
-
-let currentTimeValue = 0;
-const makeArray = (n, v) => Array.from({length: n}, () => v);
-let vadScoresPulsed = makeArray(length, NaN);
-let vadScoresBatch = makeArray(length, NaN);
-let vadDet = makeArray(length, 0);
-let threshold = 0.95;
-let postProcWindowSize = 10; // recomputed once audio starts from plot cadence
-const getData = (time_offset, pPulsed, pBatch) => {
-    const scoresSel = vadMode === 'batch' ? vadScoresBatch : vadScoresPulsed;
-    const lastScoreSel = vadMode === 'batch' ? pBatch : pPulsed;
-    const start = Math.max(0, scoresSel.length - postProcWindowSize);
-    const tail = scoresSel.slice(start).filter((x) => Number.isFinite(x));
-    const maxDet = tail.length ? (Math.max(...tail) > threshold ? 1.0 : 0.0) : NaN;
-    const prevDet = vadDet.length ? vadDet[vadDet.length - 1] : NaN;
-    const isDet = Number.isFinite(lastScoreSel)
-        ? ((lastScoreSel > threshold) ? 1.0 : 0.0)
-        : (Number.isFinite(prevDet) ? prevDet : maxDet);
-    timesElapsedArr = timesElapsedArr.slice(1).concat(time_offset);
-    vadScoresPulsed = vadScoresPulsed.slice(1).concat(
-      Number.isFinite(pPulsed) ? pPulsed : NaN
-    );
-    vadScoresBatch = vadScoresBatch.slice(1).concat(
-      Number.isFinite(pBatch) ? pBatch : NaN
-    );
-    vadDet = vadDet.slice(1).concat(isDet);
-    return [timesElapsedArr, vadScoresPulsed, vadScoresBatch, vadDet];
-};
-const vad_preview_dom = document.getElementById('vad-preview');
-const getSize = () => {
-    return {
-        width: vad_preview_dom.clientWidth - 50,
-        height: 150,
-    }
-}
-let sizes = getSize();
-// Optional "now" marker synced to audioMs
-const params = new URLSearchParams(location.search);
-const showNow = params.get('now') !== '0';
-const debugAudio = params.get('debug') === '1';
-const normAudio = params.get('norm') === '1'; // subtract DC and clamp to [-1,1]
-const showStats = params.get('stats') !== '0';
-const ditherAmp = parseFloat(params.get('dither') || '0'); // e.g., 0.0001
-let nowMarker = {
-    hooks: {
-        draw: (u) => {
-            if (!showNow) return;
-            const x = u.valToPos(currentTimeValue, 'x', true);
-            const { ctx, bbox } = u;
-            ctx.save();
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x, bbox.top);
-            ctx.lineTo(x, bbox.top + bbox.height);
-            ctx.stroke();
-            ctx.restore();
-        }
-    }
-};
-
-let opts = {
-    title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:`,
-    width: sizes.width,
-    height: sizes.height,
-    pxAlign: false,
-    scales: {
-        x: {
-            time:false,
-        },
-        y: {
-            //	auto: false,
-            range: [0, 1.1],
-        }
-    },
-    axes: [
-        {
-            space: 50,
-            values: (self, val) => {
-                return val.map((v) => (
-                    `${v/ 1000}s`
-                ));
-            },
-        }
-    ],
-    series: [
-        { },
-        { label: "score (pulsed)", stroke: "#1976d2", width: 2, fill: "#1976d220" },
-        { label: "score (batch)",  stroke: "#43a047", width: 2, fill: "#43a04720" },
-        { label: "detection",      stroke: "#e53935", width: 2, fill: "#e5393520" },
-    ],
-    plugins: [nowMarker],
-};
-
-// Small live stats panel
-const statsDiv = document.createElement('div');
-statsDiv.id = 'audio-stats';
-statsDiv.style.position = 'fixed';
-statsDiv.style.right = '8px';
-statsDiv.style.bottom = '8px';
-statsDiv.style.background = 'rgba(0,0,0,0.6)';
-statsDiv.style.color = '#fff';
-statsDiv.style.padding = '6px 8px';
-statsDiv.style.fontSize = '12px';
-statsDiv.style.borderRadius = '4px';
-statsDiv.style.display = showStats ? 'block' : 'none';
-statsDiv.textContent = 'stats: waiting...';
-document.addEventListener('DOMContentLoaded', () => {
-    document.body.appendChild(statsDiv);
-});
-
-function computeStats(arr) {
-    let n = arr.length;
-    if (!n) return { mean: 0, rms: 0, maxAbs: 0 };
-    let sum = 0, sumsq = 0, maxAbs = 0;
-    for (let i = 0; i < n; i++) {
-        const v = arr[i];
-        sum += v;
-        sumsq += v * v;
-        const av = Math.abs(v);
-        if (av > maxAbs) maxAbs = av;
-    }
-    const mean = sum / n;
-    const rms = Math.sqrt(sumsq / n);
-    return { mean, rms, maxAbs };
-}
-
-let lastStats = null;
-function updateStatsPanel() {
-    if (!showStats || !lastStats) return;
-    const { pre, post, postNorm } = lastStats;
-    function fmt(s) {
-        return `m=${s.mean.toFixed(4)} r=${s.rms.toFixed(4)} p=${s.maxAbs.toFixed(3)}`;
-    }
-    statsDiv.textContent = `pre ${fmt(pre)} | post ${fmt(post)}${postNorm ? ' | norm ' + fmt(postNorm) : ''}`;
-}
-
-function applyDitherIfSilent(block) {
-  if (!block || !block.length || !ditherAmp) return block;
-  // Only inject if ultra-low RMS to avoid biasing real mic data
-  let n = block.length, sumsq = 0;
-  for (let i = 0; i < n; i++) sumsq += block[i] * block[i];
-  const rms = Math.sqrt(sumsq / (n || 1));
-  if (rms < 1e-5) {
-    for (let i = 0; i < n; i++) {
-      // Uniform noise in [-ditherAmp, ditherAmp]
-      block[i] += (Math.random() * 2 - 1) * ditherAmp;
-    }
-  }
-  return block;
-}
-let inited = false;
-init().then(() => {
-    console.log("start wasm");
-    vad_classifier = VadClassifier.load();
-    console.log("inited wasm");
-    inited = true;
-    setVisible('page', true);
-    setVisible('loading', false);
-    // Wire mode radios
-    const radios = document.getElementsByName('vad-mode');
-    if (radios && radios.length) {
-      for (let i = 0; i < radios.length; i++) {
-        radios[i].addEventListener('change', (e) => { if (e.target.checked) vadMode = e.target.value; });
-      }
-      // Set initial mode from current selection
-      refreshModeFromUI();
-    }
-    // Run file handler near controls bar
-    const runBtn = document.getElementById('run-file');
-    if (runBtn) runBtn.onclick = async () => {
-      let fi = document.getElementById('file-audio');
-      if (!fi) return;
-      // Replace input to drop any stale listeners from previous cancels
-      const parent = fi.parentNode;
-      const clone = fi.cloneNode(true);
-      parent.replaceChild(clone, fi);
-      fi = clone;
-      fi.addEventListener('change', async () => {
-        const file = fi.files && fi.files[0];
-        if (!file) return; // user cancelled
-        await live.stop();
-        setMicButtonState(false);
-        refreshModeFromUI();
-        setModesDisabled(true);
-        zeroPlotData();
-        try {
-          await runFile(file);
-        } finally {
-          setModesDisabled(false);
-        }
-      }, { once: true });
-      fi.click();
-    };
-    // (legacy) removed duplicate runBtn wiring
-})
-// ---- Linear resampler to 16 kHz (LPF optional) ----
-const sinc = (x) => (x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x));
-const designLowpassFIR = (cutoffHz, sampleRate, taps) => {
-    const fc = cutoffHz / (sampleRate / 2); // normalized 0..1 (Nyquist=1)
-    const M = taps - 1;
-    const h = new Float32Array(taps);
-    for (let n = 0; n < taps; n++) {
-        const k = n - M / 2;
-        const ideal = 2 * fc * sinc(2 * fc * k);
-        const w = 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / M); // Hamming window
-        h[n] = ideal * w;
-    }
-    // Normalize to unity gain at DC
-    const sum = h.reduce((a, b) => a + b, 0);
-    for (let n = 0; n < taps; n++) h[n] /= sum || 1;
-    return h;
-};
-
-const makeResampler = (inRate, outRate, withLPF = true) => {
-    const taps = withLPF ? 64 : 0;
-    // Keep a bit of margin under 8 kHz to reduce aliasing at edges
-    const cutoff = withLPF ? Math.min(7900, 0.45 * outRate) : 0;
-    const h = withLPF ? designLowpassFIR(cutoff, inRate, taps) : null;
-    return {
-        inRate,
-        outRate,
-        h,
-        taps,
-        withLPF,
-        hist: withLPF ? new Float32Array(taps) : null, // FIR history (MRU at 0)
-        pos: 0, // fractional read position for linear interpolation
-        prev: 0, // last filtered sample from previous block
-        ratio: inRate / outRate,
-        // Process one input block
-        process(block) {
-            let y;
-            if (this.withLPF) {
-                // FIR filtering (direct form, small taps → ok in JS)
-                y = new Float32Array(block.length);
-                for (let n = 0; n < block.length; n++) {
-                    // shift history right by 1, insert new sample at 0
-                    for (let k = this.taps - 1; k > 0; k--) this.hist[k] = this.hist[k - 1];
-                    this.hist[0] = block[n];
-                    let acc = 0;
-                    for (let k = 0; k < this.taps; k++) acc += this.h[k] * this.hist[k];
-                    y[n] = acc;
-                }
-            } else {
-                // No LPF: pass-through the input block directly
-                y = block;
-            }
-            // Linear resampling to outRate with stateful phase
-            // Prepend last filtered sample from previous block to ensure continuity for i+1
-            const proc = new Float32Array(y.length + 1);
-            proc[0] = this.prev;
-            proc.set(y, 1);
-            const out = [];
-            while (this.pos <= proc.length - 2) {
-                const i = Math.floor(this.pos);
-                const frac = this.pos - i;
-                const s0 = proc[i];
-                const s1 = proc[i + 1];
-                out.push(s0 + (s1 - s0) * frac);
-                this.pos += this.ratio;
-            }
-            // carry state to next block
-            this.pos -= (proc.length - 1);
-            this.prev = proc[proc.length - 1];
-            return new Float32Array(out);
-        },
-    };
-};
-
-let resampler = null;
-// FIFO at 16 kHz to feed fixed-size blocks to the VAD
-const CHUNK_SAMPLES = 4 * 160; // EXPECTED_PULSE_FRAMES * 160
-let fifo16k = new Float32Array(0);
-function fifoPush(arr) {
-  if (!arr || !arr.length) return;
-  const out = new Float32Array(fifo16k.length + arr.length);
-  out.set(fifo16k, 0);
-  out.set(arr, fifo16k.length);
-  fifo16k = out;
-}
-function fifoShift(n) {
-  if (n <= 0 || fifo16k.length === 0) return new Float32Array(0);
-  const take = Math.min(n, fifo16k.length);
-  const head = fifo16k.subarray(0, take);
-  const rest = fifo16k.subarray(take);
-  const out = new Float32Array(rest.length);
-  out.set(rest, 0);
-  fifo16k = out;
-  return head;
-}
-// Offline file processing helper
-async function runFile(file) {
-  if (!file) return;
-  const fileStats = document.getElementById('file-stats');
-  fileStats.textContent = 'decoding...';
-  const arrayBuf = await file.arrayBuffer();
-  const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext || window.AudioContext;
-  let ac;
-  try {
-    // Try decode with a temp AudioContext
-    const tmp = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuf = await tmp.decodeAudioData(arrayBuf.slice(0));
-    tmp.close();
-    // Merge to mono
-    const n = audioBuf.length;
-    const chs = audioBuf.numberOfChannels;
-    let mono = new Float32Array(n);
-    for (let ch = 0; ch < chs; ch++) {
-      const d = audioBuf.getChannelData(ch);
-      for (let i = 0; i < n; i++) mono[i] += d[i] / chs;
-    }
-    // Resample to 16k using our JS resampler
-    const rs = makeResampler(audioBuf.sampleRate, desiredSampleRate, true);
-    const block = 4096;
-    let out = [];
-    for (let i = 0; i < mono.length; i += block) {
-      const sl = mono.subarray(i, Math.min(i + block, mono.length));
-      const y = rs.process(sl);
-      if (y && y.length) out.push(y);
-    }
-    const resampled = out.length ? new Float32Array(out.reduce((a, b) => a + b.length, 0)) : new Float32Array(0);
-    if (out.length) {
-      let off = 0;
-      for (const y of out) { resampled.set(y, off); off += y.length; }
-    }
-    // Initialize plot if needed
-    if (!timesElapsedArr) {
-      const PLOT_FPS = parseInt((params.get('fps') || '60'), 10);
-      plotMsStep = 1000 / PLOT_FPS;
-      hz = PLOT_FPS;
-      timesElapsedArr = Array.from({length}, (v, i) => i * plotMsStep - (length * plotMsStep));
-      data = getData(0, NaN, NaN);
-    }
-    if (!u) {
-      if (!u) u = new uPlot(opts, data, vad_preview_dom);
-    }
-
-    // Feed into VAD in chunks matching the pulse * frame size (4*160=640 samples @16k)
-    const chunk = 4 * 160;
-    let probs = [];
-    for (let i = 0; i < resampled.length; i += chunk) {
-      const sl = resampled.subarray(i, Math.min(i + chunk, resampled.length));
-      let buf = new Float32Array(chunk);
-      buf.set(sl, 0);
-      let pP = NaN, pB = NaN;
-      if (vadMode === 'both') {
-        pP = vad_classifier.predict_speech_presence(buf);
-        pB = vad_classifier.predict_speech_presence_batch(buf);
-        probs.push(Math.max(isFinite(pP)?pP:0, isFinite(pB)?pB:0));
-      } else {
-        if (vadMode === 'batch') { pB = vad_classifier.predict_speech_presence_batch(buf); probs.push(pB); }
-        else { pP = vad_classifier.predict_speech_presence(buf); probs.push(pP); }
-      }
-      // Plot with audioMs x-axis
-      currentTimeValue = (i / desiredSampleRate) * 1000;
-      data = getData(currentTimeValue, pP, pB);
-      if ((i / chunk) % 4 === 0) { // periodic UI refresh
-        u.setData(data);
-        await new Promise(r => setTimeout(r, 0));
-      }
-    }
-    if (probs.length) {
-      const tail = probs.slice(Math.min(5, probs.length));
-      const mean = tail.length ? (tail.reduce((a, b) => a + b, 0) / tail.length) : 0;
-      const maxp = tail.length ? Math.max(...tail) : 0;
-      fileStats.textContent = `mean: ${mean.toFixed(3)}  max: ${maxp.toFixed(3)}  n: ${probs.length}`;
-      u.setData(data);
-    } else {
-      fileStats.textContent = 'no data';
-    }
-  } catch (e) {
-    console.error('file decode error', e);
-    fileStats.textContent = 'decode error';
-  }
-}
-
-document.getElementById('vad-click').addEventListener('click', async (e) => {
-    console.log("try start VAD demo");
-    if (inited) {
-        const micBtn = document.getElementById('vad-click');
-        // Toggle stop if already running
-        if (live.audioContext) {
-          await live.stop();
-          setMicButtonState(false);
-          // Ensure modes are re-enabled on stop toggle
-          setModesDisabled(false);
-          return;
-        }
-        console.log("start VAD demo");
-        refreshModeFromUI();
-        zeroPlotData();
-        let audioContext;
-        try {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            // Request 16 kHz context when supported; browsers may ignore
-            audioContext = new AC({ sampleRate: desiredSampleRate });
-        } catch (e) {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            audioContext = new AC();
-        }
-        // Timing from audio clock; throttle plot to target FPS
-        realSampleRate = audioContext.sampleRate;
-        const PLOT_FPS = parseInt((params.get('fps') || '60'), 10);
-        plotMsStep = 1000 / PLOT_FPS;
-        hz = PLOT_FPS;
-        const smoothMs = parseInt((params.get('smooth') || '200'), 10); // ms
-        postProcWindowSize = Math.max(1, Math.round(smoothMs / plotMsStep));
-        timesElapsedArr = Array.from({length}, (v, i) => i * plotMsStep - (length * plotMsStep));
-        data = getData(currentTimeValue, NaN, NaN);
-        opts = { ...opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
-        console.log("request microphone access");
-        navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    sampleRate: desiredSampleRate,
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    // Browser-specific toggles (ignored if unsupported)
-                    googEchoCancellation: false,
-                    googAutoGainControl: false,
-                    googNoiseSuppression: false,
-                }
-            })
-            .then(stream => {
-                // Keep controls visible; do not remove prestart
-                if (!u) u = new uPlot(opts, data, vad_preview_dom);
-                window.addEventListener("resize", e => {
-                    u.setSize(getSize());
-                });
-                const source = audioContext.createMediaStreamSource(stream);
-                live.audioContext = audioContext; live.source = source;
-                const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-                source.connect(processor);
-                // No need to monitor to speakers for VAD; keep graph-only
-                // processor.connect(audioContext.destination);
-                // Reactivate LPF for resampler
-                resampler = makeResampler(audioContext.sampleRate, desiredSampleRate, true);
-                // Use an AudioWorklet for tighter scheduling; fall back to ScriptProcessor if failed
-                const startWithWorklet = async () => {
-                    setModesDisabled(true);
-                    try {
-                        await audioContext.audioWorklet.addModule('./vad_worklet.js');
-                        const workletNode = new AudioWorkletNode(audioContext, 'vad-processor');
-                        source.connect(workletNode);
-                        // Ensure the worklet is pulled: connect to a silent sink
-                        const silent = audioContext.createGain();
-                        silent.gain.value = 0.0;
-                        workletNode.connect(silent).connect(audioContext.destination);
-                        // Timeline from processed sample count for accuracy
-                        let audioMs = 0;
-                        let nextPlotMs = 0;
-                        let lastScoreP = NaN, lastScoreB = NaN;
-                        let pendingRAF = false;
-                        workletNode.port.onmessage = (ev) => {
-                            const msg = ev.data || {};
-                            if (msg.type === 'audio' && msg.buffer) {
-                                const mergedData = new Float32Array(msg.buffer);
-                                const stPre = computeStats(mergedData);
-                                const resampledData =
-                                    audioContext.sampleRate === desiredSampleRate
-                                        ? mergedData
-                                        : resampler.process(mergedData);
-                                if (resampledData && resampledData.length) {
-                                    const stPost = computeStats(resampledData);
-                                    let arr = resampledData;
-                                    let stPostNorm = null;
-                                    if (normAudio) {
-                                        // Subtract DC and clamp to [-1,1] (do not boost low signals)
-                                        const mean = stPost.mean;
-                                        for (let i = 0; i < arr.length; i++) arr[i] = arr[i] - mean;
-                                        // Clamp only; avoid scaling up small signals to prevent bias
-                                        for (let i = 0; i < arr.length; i++) {
-                                            if (arr[i] > 1.0) arr[i] = 1.0;
-                                            else if (arr[i] < -1.0) arr[i] = -1.0;
-                                        }
-                                        stPostNorm = computeStats(arr);
-                                    }
-                                    lastStats = { pre: stPre, post: stPost, postNorm: stPostNorm };
-                                    if (debugAudio && (Math.random() < 0.02)) {
-                                        console.log('audio stats', lastStats);
-                                    }
-                                    // Push into 16k FIFO and process fixed-size blocks
-                                    fifoPush(arr);
-                                    while (fifo16k.length >= CHUNK_SAMPLES) {
-                                        let block = fifoShift(CHUNK_SAMPLES);
-                                        block = applyDitherIfSilent(block);
-                                        if (vadMode === 'both') {
-                                          lastScoreP = vad_classifier.predict_speech_presence(block);
-                                          lastScoreB = vad_classifier.predict_speech_presence_batch(block);
-                                        } else if (vadMode === 'batch') {
-                                          lastScoreB = vad_classifier.predict_speech_presence_batch(block);
-                                          lastScoreP = NaN;
-                                        } else {
-                                          lastScoreP = vad_classifier.predict_speech_presence(block);
-                                          lastScoreB = NaN;
-                                        }
-                                        // Advance by exact processed block size at 16k
-                                        audioMs += (CHUNK_SAMPLES / desiredSampleRate) * 1000;
-                                        while (audioMs >= nextPlotMs) {
-                                            currentTimeValue = nextPlotMs;
-                                            data = getData(currentTimeValue, lastScoreP, lastScoreB);
-                                            nextPlotMs += plotMsStep;
-                                        }
-                                    }
-                                    if (!pendingRAF) {
-                                        pendingRAF = true;
-                                        requestAnimationFrame(() => {
-                                            u.setData(data);
-                                            updateStatsPanel();
-                                            pendingRAF = false;
-                                        });
-                                    }
-                                }
-                            }
-                        };
-                    } catch (e) {
-                        console.warn('AudioWorklet unavailable, falling back:', e);
-                        const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-                        source.connect(processor);
-                        let audioMs = 0;
-                        let nextPlotMs = 0;
-                        let lastScore = 0.0;
-                        let pendingRAF = false;
-                        processor.onaudioprocess = (ev) => {
-                            const inputBuffer = ev.inputBuffer;
-                            const numChannels = inputBuffer.numberOfChannels;
-                            let mergedData = new Float32Array(inputBuffer.length);
-                            for (let ch = 0; ch < numChannels; ch++) {
-                                const inputData = inputBuffer.getChannelData(ch);
-                                for (let i = 0; i < inputData.length; i++) {
-                                    mergedData[i] += inputData[i] / numChannels;
-                                }
-                            }
-                            const resampledData =
-                                audioContext.sampleRate === desiredSampleRate
-                                    ? mergedData
-                                    : resampler.process(mergedData);
-                            if (resampledData && resampledData.length) {
-                                fifoPush(resampledData);
-                                while (fifo16k.length >= CHUNK_SAMPLES) {
-                                    let block = fifoShift(CHUNK_SAMPLES);
-                                    block = applyDitherIfSilent(block);
-                                    if (vadMode === 'both') {
-                                      lastScoreP = vad_classifier.predict_speech_presence(block);
-                                      lastScoreB = vad_classifier.predict_speech_presence_batch(block);
-                                    } else if (vadMode === 'batch') {
-                                      lastScoreB = vad_classifier.predict_speech_presence_batch(block);
-                                      lastScoreP = NaN;
-                                    } else {
-                                      lastScoreP = vad_classifier.predict_speech_presence(block);
-                                      lastScoreB = NaN;
-                                    }
-                                    audioMs += (CHUNK_SAMPLES / desiredSampleRate) * 1000;
-                                    while (audioMs >= nextPlotMs) {
-                                        currentTimeValue = nextPlotMs;
-                                        data = getData(currentTimeValue, lastScoreP, lastScoreB);
-                                        nextPlotMs += plotMsStep;
-                                    }
-                                }
-                                if (!pendingRAF) {
-                                    pendingRAF = true;
-                                    requestAnimationFrame(() => {
-                                        u.setData(data);
-                                        pendingRAF = false;
-                                    });
-                                }
-                            }
-                        };
-                    }
-                };
-                startWithWorklet();
-                setMicButtonState(true);
-            })
-            .catch((data) => {
-                console.error(data);
-                setVisible('error-container', true);
-                let msg = (
-                    data +
-                    " If you are on mobile ensure that your browser app " +
-                    "have access to microphone: " +
-                    "<a target='_blank' rel='noopener noreferrer' href='https://support.proof.com/hc/en-us/articles/14237306788503-Enable-camera-and-microphone-for-mobile'>documentation</a>"
-                );
-                document.getElementById("error").innerHTML = msg;
-                setModesDisabled(false);
-            });
-    }
-});
-
-const setVisible = (idName, visible) => {
-  let elm = document.getElementById(idName);
-  elm.style.display = visible ? 'block' : 'none';
-};
-
-function setModesDisabled(disabled) {
-  const radios = document.getElementsByName('vad-mode');
-  radios.forEach?.(r => r.disabled = !!disabled);
-}
-
-function resetPlot() {
-  try { if (u && u.destroy) u.destroy(); } catch {}
-  u = null;
-  vadScoresPulsed = makeArray(length, NaN);
-  vadScoresBatch = makeArray(length, NaN);
-  vadDet = makeArray(length, 0);
-  const PLOT_FPS = parseInt((params.get('fps') || '60'), 10);
-  plotMsStep = 1000 / PLOT_FPS;
-  hz = PLOT_FPS;
-  timesElapsedArr = Array.from({length}, (v, i) => i * plotMsStep - (length * plotMsStep));
-  data = getData(0, NaN, NaN);
-  u = new uPlot(opts, data, vad_preview_dom);
-}
-
-function zeroPlotData() {
-  // Ensure time axis exists
-  if (!timesElapsedArr) {
-    const PLOT_FPS = parseInt((params.get('fps') || '60'), 10);
-    plotMsStep = 1000 / PLOT_FPS;
-    hz = PLOT_FPS;
-    timesElapsedArr = Array.from({length}, (v, i) => i * plotMsStep - (length * plotMsStep));
-  }
-  // Zero-out score and detection series
-  vadScoresPulsed = makeArray(length, NaN);
-  vadScoresBatch = makeArray(length, NaN);
-  vadDet = makeArray(length, NaN);
-  data = [timesElapsedArr.slice(), vadScoresPulsed.slice(), vadScoresBatch.slice(), vadDet.slice()];
-  if (u) u.setData(data); else u = new uPlot(opts, data, vad_preview_dom);
-}
-
-setVisible('error-container', false);
-setVisible('page', false);
-setVisible('loading', true);
-// Trigger on load and whenever content changes {
-const sendHeight = () => {
-    const height = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*');
-};
-window.addEventListener('load', sendHeight);
-new ResizeObserver(sendHeight).observe(document.body);
-//}
-</script>
-    </head>
-    <body>
-        <div class="container" id="page">
-            <div id="vad-preview" class="card">
-                <div id="vad-prestart">
-                    <div class="card-content" style="justify-content: 'center'">
-                        <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
-                        <p>
-                            This demo runs a Voice Activity Detection (VAD) model based on NVIDIA MarbleNet.
-                            VAD estimates the probability that speech is present in short audio frames. MarbleNet is a
-                            lightweight convolutional architecture designed for accurate, low‑latency speech/no‑speech
-                            detection.
-                        </p>
-                        <p>
-                            Modes:
-                            <strong>Pulsed</strong> streams the encoder with small (4‑frame) updates for low latency;
-                            <strong>Batch</strong> computes the encoder on a larger context window each step for reference parity;
-                            <strong>Both</strong> plots the two scores side‑by‑side so you can compare behavior.
-                        </p>
-                        <div id="error-container" class="card-panel red lighten-4">
-                            <span id="error"></span>
-                        </div>
-                    </div>
-                    <div class="card-action" id="controls-container" style="display:flex; flex-direction:column; gap:8px;">
-                        <div id="modes-row" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                            <span style="color:#666;">Mode:</span>
-                            <label style="display:flex; align-items:center; gap:4px;">
-                              <input type="radio" name="vad-mode" value="pulsed" checked>
-                              <span>Pulsed</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:4px;">
-                              <input type="radio" name="vad-mode" value="batch">
-                              <span>Batch</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:4px;">
-                              <input type="radio" name="vad-mode" value="both">
-                              <span>Both</span>
-                            </label>
-                        </div>
-                        <div id="actions-row" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                            <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">mic</i>From Microphone</button>
-                            <span class="file-group" style="display:inline-flex; gap:8px; align-items:center; white-space:nowrap;">
-                                <input type="file" id="file-audio" accept="audio/*" style="display:none;" />
-                                <button id="run-file" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">folder_open</i>Run File</button>
-                            </span>
-                        </div>
-                        <div id="stats-row" style="display:flex; align-items:center; gap:8px;">
-                            <span id="file-stats" style="font-size:12px; color:#666;">&nbsp;</span>
-                        </div>
-                    </div>
-                </div>
+  <head>
+    <meta charset="UTF-8">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="./uPlot.iife.min.js"></script>
+    <link rel="stylesheet" href="./uPlot.min.css">
+    <link rel="stylesheet" href="./theme.css">
+    <link rel="stylesheet" href="./vad/demo_vad.css">
+    <script src="./sync_receiver_colorscheme.js"></script>
+    <script type="module" src="./vad/index.js"></script>
+  </head>
+  <body>
+    <div class="container page" id="page">
+      <div id="vad-preview" class="card">
+        <div id="vad-prestart">
+          <div class="card-content">
+            <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
+            <p>
+              This demo runs a Voice Activity Detection (VAD) model based on NVIDIA MarbleNet.
+              VAD estimates the probability that speech is present in short audio frames. MarbleNet is a
+              lightweight convolutional architecture designed for accurate, low‑latency speech/no‑speech
+              detection.
+            </p>
+            <p>
+              Modes:
+              <strong>Pulsed</strong> streams the encoder with small (4‑frame) updates for low latency;
+              <strong>Batch</strong> computes the encoder on a larger context window each step for reference parity;
+              <strong>Both</strong> plots the two scores side‑by‑side so you can compare behavior.
+            </p>
+            <div id="error-container" class="card-panel red lighten-4" style="display:none;">
+              <span id="error"></span>
             </div>
-        </div>
-        <div id="loading">
-            <div class="centered">
-                <div class="progress">
-                    <div class="indeterminate"></div>
-                </div>
-                <h4>
-                    <span class="card-title">👀 <span style="color:teal">Live Demo: </span> Voice Activity Detection</span>
-                </h4>
-                <h5 id="loadstatus">
-                    downloading model
-                </h5>
+          </div>
+          <div class="card-action" id="controls-container">
+            <div id="modes-row">
+              <span style="color:#666;">Mode:</span>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="pulsed" checked>
+                <span>Pulsed</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="batch">
+                <span>Batch</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="vad-mode" value="both">
+                <span>Both</span>
+              </label>
             </div>
+            <div id="actions-row">
+              <button id="vad-click" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">mic</i>From Microphone</button>
+              <span class="file-group">
+                <input type="file" id="file-audio" accept="audio/*" style="display:none;" />
+                <button id="run-file" class="btn btn-large blue darken-3 waves-effect waves-light"><i class="material-icons left">folder_open</i>Run File</button>
+              </span>
+            </div>
+            <div id="stats-row">
+              <span id="file-stats">&nbsp;</span>
+            </div>
+          </div>
         </div>
-    </body>
+      </div>
+    </div>
+    <div id="loading">
+      <div class="centered">
+        <div class="progress">
+          <div class="indeterminate"></div>
+        </div>
+        <h4>
+          <span class="card-title">👀 <span style="color:teal">Live Demo: </span> Voice Activity Detection</span>
+        </h4>
+        <h5 id="loadstatus">downloading model</h5>
+      </div>
+    </div>
+  </body>
+  <script>
+    // Initial state before module toggles visibility
+    (function(){
+      var p = document.getElementById('page');
+      var l = document.getElementById('loading');
+      if (p) p.style.display = 'none';
+      if (l) l.style.display = 'flex';
+    })();
+  </script>
+  <script>
+    // Resize notifications for embedding if this page is inside an iframe
+    (function(){
+      const sendHeight = () => {
+        const height = document.documentElement.scrollHeight;
+        try { window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*'); } catch {}
+      };
+      window.addEventListener('load', sendHeight);
+      try { new ResizeObserver(sendHeight).observe(document.body); } catch {}
+    })();
+  </script>
 </html>
