@@ -217,6 +217,20 @@ struct VadSessionPulsed {
     warmup_done: bool,
     decoded_emissions: usize,
     stable_frames_ready: usize,
+    #[cfg(test)]
+    last_pre_feat: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_pre_sliced: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_enc_out: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_enc_block: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_encoder_window: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_logits: Option<Array1<f32>>,
+    #[cfg(test)]
+    last_prob: Option<f32>,
 }
 
 impl VadSessionPulsed {
@@ -256,6 +270,20 @@ impl VadSessionPulsed {
             warmup_done: false,
             decoded_emissions: 0,
             stable_frames_ready: 0,
+            #[cfg(test)]
+            last_pre_feat: None,
+            #[cfg(test)]
+            last_pre_sliced: None,
+            #[cfg(test)]
+            last_enc_out: None,
+            #[cfg(test)]
+            last_enc_block: None,
+            #[cfg(test)]
+            last_encoder_window: None,
+            #[cfg(test)]
+            last_logits: None,
+            #[cfg(test)]
+            last_prob: None,
         })
     }
 
@@ -337,6 +365,10 @@ impl VadSessionPulsed {
                 .into_dimensionality::<tract_rs::prelude::tract_ndarray::Ix2>()?
                 .to_owned()
         };
+        #[cfg(test)]
+        {
+            self.last_pre_feat = Some(pre_feat.clone());
+        }
         let frames = pre_feat.shape()[1];
         clog(&format!("PRE frames={frames}"));
         ensure!(
@@ -350,6 +382,10 @@ impl VadSessionPulsed {
             Self::EXPECTED_PULSE_FRAMES
         ));
         let sliced = pre_feat.slice(s![.., start..]).to_owned();
+        #[cfg(test)]
+        {
+            self.last_pre_sliced = Some(sliced.clone());
+        }
         let new_value: Value = sliced.try_into()?;
         pre_result[0] = new_value;
         clog("ENC run");
@@ -358,6 +394,20 @@ impl VadSessionPulsed {
             pre_result.remove(1);
         }
         let enc_result = self.encoder_state.run(pre_result)?;
+        #[cfg(test)]
+        {
+            // Capture raw encoder output as [features, frames]
+            let enc_view_dyn = enc_result[0]
+                .view::<f32>()?
+                .into_dimensionality::<tract_rs::prelude::tract_ndarray::IxDyn>()?;
+            let frames_usize = *enc_view_dyn.shape().last().unwrap_or(&1);
+            let features = enc_view_dyn.len() / frames_usize;
+            if features > 0 && frames_usize > 0 {
+                if let Ok(enc2d) = enc_view_dyn.to_owned().into_shape((features, frames_usize)) {
+                    self.last_enc_out = Some(enc2d);
+                }
+            }
+        }
 
         let decoder_input = self.slide_encoder_window(enc_result)?;
         // Frame-accurate warmup: require encoder right-context (pulse.delay, in frames)
@@ -408,6 +458,11 @@ impl VadSessionPulsed {
         // Speech corresponds to class index 1 per model labels
         let p_speech = p1;
         self.last_score = p_speech;
+        #[cfg(test)]
+        {
+            self.last_logits = Some(logits);
+            self.last_prob = Some(p_speech);
+        }
 
         // Suppress first few emissions to avoid startup spike
         self.decoded_emissions += 1;
@@ -428,23 +483,31 @@ impl VadSessionPulsed {
             features,
             frames_usize
         ));
-        let mut enc_frame = enc_view_dyn
+        let enc_all = enc_view_dyn
             .to_owned()
             .into_shape((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
-        // Enforce expected pulse frames for downstream window aggregation
-        if frames_usize > Self::EXPECTED_PULSE_FRAMES {
+        // Select frames aligned with pulsed delay: prefer last 4 ending at (T - delay)
+        let enc_frame = if frames_usize >= self.pulse_delay + Self::EXPECTED_PULSE_FRAMES {
+            let start = frames_usize - self.pulse_delay - Self::EXPECTED_PULSE_FRAMES;
+            clog(&format!(
+                "ENC slicing delayed {} frames (start={start}, delay={})",
+                Self::EXPECTED_PULSE_FRAMES, self.pulse_delay
+            ));
+            enc_all.slice_move(s![.., start..start + Self::EXPECTED_PULSE_FRAMES])
+        } else if frames_usize >= Self::EXPECTED_PULSE_FRAMES {
+            // Early warmup: fall back to absolute last 4 frames
             let start = frames_usize - Self::EXPECTED_PULSE_FRAMES;
             clog(&format!(
-                "ENC slicing last {} frames (start={start})",
+                "ENC slicing tail {} frames (start={start})",
                 Self::EXPECTED_PULSE_FRAMES
             ));
-            enc_frame = enc_frame.slice_move(s![.., start..]);
-        } else if frames_usize < Self::EXPECTED_PULSE_FRAMES {
+            enc_all.slice_move(s![.., start..])
+        } else {
             // Not enough frames yet from pulsed encoder; keep window unchanged and do not advance readiness.
             let val: Value = self.encoder_frame_buffer.clone().try_into()?;
             return Ok(vec![val]);
-        }
+        };
         let n: i32 = Self::EXPECTED_PULSE_FRAMES.try_into()?;
         // roll the buffer to the left by n frame
         clog(&format!(
@@ -460,6 +523,11 @@ impl VadSessionPulsed {
         self.encoder_frame_buffer
             .slice_mut(s![.., -n..])
             .assign(&enc_frame);
+        #[cfg(test)]
+        {
+            self.last_enc_block = Some(enc_frame.clone());
+            self.last_encoder_window = Some(self.encoder_frame_buffer.clone());
+        }
         // Track stable frames produced so far for warmup gating.
         self.stable_frames_ready = self
             .stable_frames_ready
@@ -481,6 +549,20 @@ struct VadSessionBatch {
     stable_frames_ready: usize,
     // Use pulse delay from pulsed model to align batch outputs
     pulse_delay: usize,
+    #[cfg(test)]
+    last_pre_feat: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_pre_sliced: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_enc_out: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_enc_block: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_encoder_window: Option<Array2<f32>>,
+    #[cfg(test)]
+    last_logits: Option<Array1<f32>>,
+    #[cfg(test)]
+    last_prob: Option<f32>,
 }
 
 impl VadSessionBatch {
@@ -509,6 +591,20 @@ impl VadSessionBatch {
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
             stable_frames_ready: 0,
             pulse_delay,
+            #[cfg(test)]
+            last_pre_feat: None,
+            #[cfg(test)]
+            last_pre_sliced: None,
+            #[cfg(test)]
+            last_enc_out: None,
+            #[cfg(test)]
+            last_enc_block: None,
+            #[cfg(test)]
+            last_encoder_window: None,
+            #[cfg(test)]
+            last_logits: None,
+            #[cfg(test)]
+            last_prob: None,
         })
     }
 
@@ -573,6 +669,10 @@ impl VadSessionBatch {
             "BATCH PRE squeezed shape={}",
             fmt_shape(pre_feat.shape())
         ));
+        #[cfg(test)]
+        {
+            self.last_pre_feat = Some(pre_feat.clone());
+        }
         let pre_val: Value = pre_feat.try_into()?;
         pre_result[0] = pre_val;
         // Remove dynamic length tensor before encoder if present
@@ -607,6 +707,10 @@ impl VadSessionBatch {
             .to_owned()
             .into_shape((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
+        #[cfg(test)]
+        {
+            self.last_enc_out = Some(enc_all.clone());
+        }
         ensure!(
             features == 128,
             "expected 128 encoder features, got {}",
@@ -626,6 +730,22 @@ impl VadSessionBatch {
                 frames_usize - Self::EXPECTED_PULSE_FRAMES..frames_usize
             ])
         };
+        #[cfg(test)]
+        {
+            self.last_enc_block = Some(block.clone());
+            if let Some(pre) = &self.last_pre_feat {
+                let t = pre.shape()[1];
+                let start = if t >= self.pulse_delay + Self::EXPECTED_PULSE_FRAMES {
+                    t - self.pulse_delay - Self::EXPECTED_PULSE_FRAMES
+                } else if t >= Self::EXPECTED_PULSE_FRAMES {
+                    t - Self::EXPECTED_PULSE_FRAMES
+                } else {
+                    0
+                };
+                let pre_blk = pre.slice(s![.., start..start + Self::EXPECTED_PULSE_FRAMES]).to_owned();
+                self.last_pre_sliced = Some(pre_blk);
+            }
+        }
         // Slide into decoder window buffer
         let n: i32 = Self::EXPECTED_PULSE_FRAMES.try_into()?;
         let temp = &self.encoder_frame_buffer.slice(s![.., n..]).to_owned();
@@ -635,6 +755,10 @@ impl VadSessionBatch {
         self.encoder_frame_buffer
             .slice_mut(s![.., -n..])
             .assign(&block);
+        #[cfg(test)]
+        {
+            self.last_encoder_window = Some(self.encoder_frame_buffer.clone());
+        }
         let dec_in = {
             let val: Value = self.encoder_frame_buffer.clone().try_into()?;
             vec![val]
@@ -672,6 +796,11 @@ impl VadSessionBatch {
             self.last_score
         };
         self.last_score = p1;
+        #[cfg(test)]
+        {
+            self.last_logits = Some(logits);
+            self.last_prob = Some(p1);
+        }
         Ok(self.last_score)
     }
 
@@ -723,6 +852,55 @@ mod tests {
     use super::*;
     use hound;
     use std::path::Path;
+    use std::fs::{self, File};
+    use std::io::{Write};
+
+    fn write_npy_f32(path: &std::path::Path, data: &[f32], shape: &[usize]) -> std::io::Result<()> {
+        // Minimal NPY v1.0 writer for little-endian f32, C-order
+        // Magic header
+        let mut f = File::create(path)?;
+        f.write_all(b"\x93NUMPY")?; // magic
+        f.write_all(&[1, 0])?; // v1.0
+        // Build header dict
+        let shape_str = if shape.len() == 1 {
+            format!("({},)", shape[0])
+        } else {
+            let dims: Vec<String> = shape.iter().map(|d| d.to_string()).collect();
+            format!("({})", dims.join(", "))
+        };
+        let mut header_dict = format!(
+            "{{'descr': '<f4', 'fortran_order': False, 'shape': {}, }}",
+            shape_str
+        );
+        // Pad header to 16-byte alignment, ending with newline
+        let preamble_len = 10 + 2; // magic(6)+ver(2)+hlen(2)
+        let mut header_len = header_dict.len() + 1; // +1 for newline
+        let padding = (16 - ((preamble_len + header_len) % 16)) % 16;
+        header_dict.push_str(&" ".repeat(padding));
+        header_dict.push('\n');
+        header_len = header_dict.len();
+        if header_len > std::u16::MAX as usize {
+            panic!("npy header too large");
+        }
+        let hlen_le = (header_len as u16).to_le_bytes();
+        f.write_all(&hlen_le)?;
+        f.write_all(header_dict.as_bytes())?;
+        // Write data in little-endian
+        for &v in data {
+            f.write_all(&v.to_le_bytes())?;
+        }
+        Ok(())
+    }
+
+    fn write_npy_arr2(path: &std::path::Path, a: &Array2<f32>) -> std::io::Result<()> {
+        let buf: Vec<f32> = a.iter().copied().collect();
+        write_npy_f32(path, &buf, a.shape())
+    }
+
+    fn write_npy_arr1(path: &std::path::Path, a: &Array1<f32>) -> std::io::Result<()> {
+        let buf: Vec<f32> = a.iter().copied().collect();
+        write_npy_f32(path, &buf, a.shape())
+    }
 
     #[test]
     fn silence_pulsed_vs_batch_probs_below_6_percent() -> anyhow::Result<()> {
@@ -853,6 +1031,110 @@ mod tests {
                 idx,
                 v
             );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn silence_debug_dump_pulsed_vs_batch() -> anyhow::Result<()> {
+        // Locate silence asset (try both expected names)
+        let p1 = Path::new("assets/audio/silence_16_khz.wav");
+        let p2 = Path::new("assets/audio/silence_16k.wav");
+        let wav_path = if p1.exists() { p1 } else { p2 };
+        assert!(wav_path.exists(), "missing silence wav");
+
+        let mut reader = hound::WavReader::open(wav_path)?;
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 16_000);
+        let mut samples: Vec<f32> = Vec::with_capacity(reader.duration() as usize);
+        if spec.sample_format == hound::SampleFormat::Int {
+            for s in reader.samples::<i16>() { samples.push((s? as f32/32768.0).max(-1.0).min(1.0)); }
+        } else { for s in reader.samples::<f32>() { let v=s?; samples.push(v.max(-1.0).min(1.0)); } }
+
+        // Build VAD components
+        let mut clf = VadClassifier::load_internal()?;
+        let mut pulsed = VadSessionPulsed::new(
+            &clf.preprocessor_model,
+            &clf.encoder_model_pulsed,
+            &clf.decoder_model,
+        )?;
+        let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
+            Ok(d) => d.view::<i64>().ok().map(|v| v.index(0).to_owned() as usize).unwrap_or(0usize),
+            Err(_) => 0usize,
+        };
+        let mut batch = VadSessionBatch::new(
+            &clf.preprocessor_model,
+            &clf.encoder_model_batch,
+            &clf.decoder_model,
+            pulse_delay,
+        )?;
+
+        let step = VadSessionPulsed::ENCODER_INPUT_NEEDED_IN_AUDIO_SAMPLES; // 4*160
+        let mut i = 0usize;
+        let mut step_idx = 0usize;
+        let base = Path::new("target/vad_dumps/silence");
+        fs::create_dir_all(base)?;
+        while i < samples.len() {
+            let end = (i + step).min(samples.len());
+            let chunk = samples[i..end].to_vec();
+            let _ = pulsed.predict_speech_presence(chunk.clone())?;
+            let _ = batch.predict_speech_presence(chunk)?;
+
+            let step_dir = base.join(format!("step_{:04}", step_idx));
+            fs::create_dir_all(&step_dir)?;
+
+            // Pulsed snapshots
+            if let Some(a) = &pulsed.last_pre_feat { write_npy_arr2(&step_dir.join("pulsed_pre_full.npy"), a)?; }
+            if let Some(a) = &pulsed.last_pre_sliced { write_npy_arr2(&step_dir.join("pulsed_pre_4.npy"), a)?; }
+            if let Some(a) = &pulsed.last_enc_out { write_npy_arr2(&step_dir.join("pulsed_enc_full.npy"), a)?; }
+            if let Some(a) = &pulsed.last_enc_block { write_npy_arr2(&step_dir.join("pulsed_enc_4.npy"), a)?; }
+            if let Some(a) = &pulsed.last_encoder_window { write_npy_arr2(&step_dir.join("pulsed_dec_in.npy"), a)?; }
+            if let Some(a) = &pulsed.last_logits { write_npy_arr1(&step_dir.join("pulsed_logits.npy"), a)?; }
+            if let Some(p) = pulsed.last_prob {
+                write_npy_f32(&step_dir.join("pulsed_prob.npy"), &[p], &[1])?;
+            }
+
+            // Batch snapshots
+            if let Some(a) = &batch.last_pre_feat { write_npy_arr2(&step_dir.join("batch_pre_full.npy"), a)?; }
+            if let Some(a) = &batch.last_pre_sliced { write_npy_arr2(&step_dir.join("batch_pre_4.npy"), a)?; }
+            if let Some(a) = &batch.last_enc_out { write_npy_arr2(&step_dir.join("batch_enc_full.npy"), a)?; }
+            if let Some(a) = &batch.last_enc_block { write_npy_arr2(&step_dir.join("batch_enc_4.npy"), a)?; }
+            if let Some(a) = &batch.last_encoder_window { write_npy_arr2(&step_dir.join("batch_dec_in.npy"), a)?; }
+            if let Some(a) = &batch.last_logits { write_npy_arr1(&step_dir.join("batch_logits.npy"), a)?; }
+            if let Some(p) = batch.last_prob {
+                write_npy_f32(&step_dir.join("batch_prob.npy"), &[p], &[1])?;
+            }
+
+            // Print quick diffs where shapes match (current step)
+            let diff = |a: &Array2<f32>, b: &Array2<f32>, name: &str| {
+                if a.shape() == b.shape() {
+                    let mut mae = 0f32;
+                    let mut maxd = 0f32;
+                    let mut n = 0usize;
+                    for (x, y) in a.iter().zip(b.iter()) {
+                        let d = (x - y).abs();
+                        mae += d;
+                        if d > maxd { maxd = d; }
+                        n += 1;
+                    }
+                    if n > 0 { mae /= n as f32; }
+                    println!("step {} diff {}: mae={:.6} max={:.6}", step_idx, name, mae, maxd);
+                }
+            };
+            if let (Some(a), Some(b)) = (&pulsed.last_pre_sliced, &batch.last_pre_sliced) { diff(a, b, "pre_4"); }
+            if let (Some(a), Some(b)) = (&pulsed.last_enc_block, &batch.last_enc_block) { diff(a, b, "enc_4"); }
+            if let (Some(a), Some(b)) = (&pulsed.last_encoder_window, &batch.last_encoder_window) { diff(a, b, "dec_in_window"); }
+            if let (Some(a), Some(b)) = (&pulsed.last_logits, &batch.last_logits) {
+                if a.shape() == b.shape() {
+                    let d0 = (a[0] - b[0]).abs();
+                    let d1 = (a[1] - b[1]).abs();
+                    println!("step {} diff logits: d0={:.6} d1={:.6}", step_idx, d0, d1);
+                }
+            }
+
+            i = end;
+            step_idx += 1;
         }
 
         Ok(())
