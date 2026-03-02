@@ -10,7 +10,7 @@ export class VadSession {
     setMode(m) { this.modes?.set(m); }
     async prepareForFile() {
         // stop mic handled by page’s live manager if needed; caller ensures it
-        this.wasm.reset?.();
+        // Do not reset WASM here; keeping warm state from mic avoids cold-start issues.
         this.modes?.disable(true);
         this.plot.reset();
     }
@@ -47,9 +47,19 @@ export class VadSession {
         if (out.length) {
             let off = 0; for (const y of out) { resampled.set(y, off); off += y.length; }
         }
-        // decode in chunks
-        let probs = [];
+        // Keep raw resampled audio; live path also sends raw 16k frames by default.
+        // Determine mode once and optionally pre-pad pulsed with silence to mimic mic startup
         const mode = this.modes?.get?.() || 'pulsed';
+        if (mode !== 'batch') {
+            try {
+                const zero = new Float32Array(chunk);
+                // Stronger prewarm to match mic side-effect without user action
+                for (let k = 0; k < 128; k++) this.wasm.predictPulsed(zero);
+            } catch {}
+        }
+
+        // decode in chunks, starting after warmupOffset (if any)
+        let probs = [];
         let t = 0;
         const total = resampled.length;
         let lastPaint = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -62,11 +72,13 @@ export class VadSession {
             if (mode === 'both') {
                 pP = this.wasm.predictPulsed(buf);
                 pB = this.wasm.predictBatch(buf);
+                if (!Number.isFinite(pP)) pP = 0.0;
+                if (!Number.isFinite(pB)) pB = 0.0;
                 probs.push(Number.isFinite(pP) ? pP : (Number.isFinite(pB) ? pB : 0));
             } else if (mode === 'batch') {
-                pB = this.wasm.predictBatch(buf); probs.push(pB);
+                pB = this.wasm.predictBatch(buf); if (!Number.isFinite(pB)) pB = 0.0; probs.push(pB);
             } else {
-                pP = this.wasm.predictPulsed(buf); probs.push(pP);
+                pP = this.wasm.predictPulsed(buf); if (!Number.isFinite(pP)) pP = 0.0; probs.push(pP);
             }
             t = (i / desiredSampleRate) * 1000;
             this.plot.push(t, pP, pB, mode);

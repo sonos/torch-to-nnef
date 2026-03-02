@@ -28,7 +28,12 @@ export async function initVAD() {
         pxAlign: false,
         scales: { x: { time: false }, y: { range: [0, 1.1] } },
         axes: [{ space: 50, values: (self, val) => val.map(v => `${v / 1000}s`) }],
-        series: [{}, { label: 'score (pulsed)', stroke: '#1976d2', width: 2, fill: '#1976d220' }, { label: 'score (batch)', stroke: '#43a047', width: 2, fill: '#43a04720' }, { label: 'detection', stroke: '#e53935', width: 2, fill: '#e5393520' }],
+        series: [
+            {},
+            { label: 'score (pulsed)', stroke: '#1976d2', width: 2, fill: '#1976d220', spanGaps: false },
+            { label: 'score (batch)',  stroke: '#43a047', width: 2, fill: '#43a04720', spanGaps: false },
+            { label: 'detection',      stroke: '#e53935', width: 2, fill: '#e5393520', spanGaps: false },
+        ],
     };
     const plot = new VADPlot(container, baseOpts, 256, 0.95);
 

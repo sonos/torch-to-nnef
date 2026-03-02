@@ -14,6 +14,33 @@ export class VADPlot {
         this.det = null;
         this.data = null;
     }
+    _ensurePreZeroShadePlugin() {
+        const preZeroShade = {
+            hooks: {
+                // Draw over series to mask any area-fill artifacts before 0s
+                draw: (u) => {
+                    const { ctx, bbox } = u;
+                    const x0 = u.valToPos(0, 'x', true);
+                    const left = bbox.left;
+                    const right = bbox.left + bbox.width;
+                    // Clamp shade region to chart bounds: shade [left, min(x0, right)]
+                    let r = Math.min(Math.max(x0, left), right);
+                    const w = r - left;
+                    if (w <= 0) return; // zero or negative width → nothing to shade
+                    ctx.save();
+                    // Solid light gray (no opacity), to clearly mark < 0s
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.fillRect(left, bbox.top, w, bbox.height);
+                    ctx.restore();
+                },
+            },
+        };
+        const hasPlugins = Array.isArray(this.opts.plugins);
+        const already = hasPlugins && this.opts.plugins.some(p => p && p.hooks && (p.hooks.drawClear));
+        if (!already) {
+            this.opts = { ...this.opts, plugins: [...(this.opts.plugins || []), preZeroShade] };
+        }
+    }
     init(plotFps = 60, smoothMs = 200) {
         this.plotMsStep = 1000 / plotFps;
         this.hz = plotFps;
@@ -32,6 +59,7 @@ export class VADPlot {
         // Recompute width from container each reset
         const sz = this._containerSize();
         this.opts = { ...this.opts, width: sz.width, height: sz.height };
+        this._ensurePreZeroShadePlugin();
         const L = this.seriesLen;
         this.times = Array.from({ length: L }, (v, i) => i * this.plotMsStep - (L * this.plotMsStep));
         this.scoresP = Array.from({ length: L }, () => NaN);
