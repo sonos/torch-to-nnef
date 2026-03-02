@@ -2,3 +2,5 @@
 .crates*
 target
 .venv
+*.mp3
+*.wav
