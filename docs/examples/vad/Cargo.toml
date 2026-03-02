@@ -27,3 +27,7 @@ log-vad = []
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
+
+[dev-dependencies]
+hound = "3.5"
+lewton = "0.10" # optional; reserved for future ogg/vorbis if needed
