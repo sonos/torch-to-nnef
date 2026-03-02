@@ -46,6 +46,7 @@ export class MicRunner {
         const fps = 60;
         this.plot.init(fps, 200);
         this.plot.setTitle(fps);
+        this.plot.show();
 
         // Resampler to 16k with LPF
         this.resampler = new AudioResampler(this.ac.sampleRate, DESIRED_SR, true);
@@ -132,4 +133,3 @@ export class MicRunner {
         }
     }
 }
-

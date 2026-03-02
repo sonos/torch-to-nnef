@@ -47,6 +47,11 @@ export async function initVAD() {
     controls.onRunFile(async () => { await mic.stop(); sess.handleRunFileClick(); });
     controls.onMicToggle(() => mic.toggle());
 
+    // Sync legend visibility with current mode and on changes
+    // Store mode for later; plot not initialized until first action
+    plot.setMode(modes.get());
+    modes.onChange((m) => plot.setMode(m));
+
     // Resize: update plot size on window changes
     window.addEventListener('resize', () => plot.resizeToContainer());
 

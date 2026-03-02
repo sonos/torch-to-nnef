@@ -13,6 +13,7 @@ export class VADPlot {
         this.scoresB = null;
         this.det = null;
         this.data = null;
+        this.currentMode = 'pulsed';
     }
     _ensurePreZeroShadePlugin() {
         const preZeroShade = {
@@ -67,6 +68,8 @@ export class VADPlot {
         this.det = Array.from({ length: L }, () => NaN);
         this.data = [this.times.slice(), this.scoresP.slice(), this.scoresB.slice(), this.det.slice()];
         this.u = new uPlot(this.opts, this.data, this.container);
+        // Re-apply legend visibility after rebuilding chart
+        this.applyModeLegend(this.currentMode);
     }
     zero() {
         if (!this.times) this.reset();
@@ -105,6 +108,21 @@ export class VADPlot {
         if (!this.u) return;
         const sz = this._containerSize();
         this.u.setSize(sz);
+    }
+    applyModeLegend(mode = 'pulsed') {
+        if (!this.u) return;
+        this.currentMode = mode;
+        const showP = mode !== 'batch';
+        const showB = mode !== 'pulsed';
+        // series indices: 0=time, 1=pulsed, 2=batch, 3=detection
+        try { this.u.setSeries(1, { show: showP }); } catch {}
+        try { this.u.setSeries(2, { show: showB }); } catch {}
+    }
+    setMode(mode) {
+        this.applyModeLegend(mode);
+    }
+    show() {
+        try { this.container.classList.add('show-plot'); } catch {}
     }
     setTitle(hz) {
         this.opts = { ...this.opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };

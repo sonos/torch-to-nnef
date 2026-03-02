@@ -13,6 +13,9 @@ export class VadSession {
         // Do not reset WASM here; keeping warm state from mic avoids cold-start issues.
         this.modes?.disable(true);
         this.plot.reset();
+        this.plot.show();
+        // Ensure legend reflects current mode after reset
+        try { this.plot.setMode?.(this.modes?.get?.() || 'pulsed'); } catch {}
     }
     async finalizeAfterFile() {
         this.modes?.disable(false);

@@ -23,6 +23,10 @@
 /* Plot spacing */
 #vad-preview .u-hz { padding-top: 10px; padding-bottom: 10px; }
 
+/* Hide plot until first action (mic or run file) */
+#vad-preview .uplot { display: none; }
+#vad-preview.show-plot .uplot { display: block; }
+
 /* Controls layout */
 #controls-container { display: flex; flex-direction: column; gap: 8px; }
 #modes-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
