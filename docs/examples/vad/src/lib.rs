@@ -279,7 +279,10 @@ impl VadClassifier {
         clog("preparing encoder model (batch)");
         let encoder_model_batch = rt.prepare(enc_model)?;
         // Derive pulsed-encoded encoder from the same batch graph using pulse transform
-        clog("pulsifying encoder model (derived from batch)");
+        clog(&format!(
+            "pulsifying encoder model (derived from batch): pulse_frames={}",
+            pulse_frames
+        ));
         pulsed_encoder.pulse(
             "AUDIO_SIGNAL__TIME",
             pulse_frames.max(1).to_string().as_str(),
@@ -393,10 +396,14 @@ impl VadClassifier {
 
     // Expose configuration
     #[wasm_bindgen]
-    pub fn get_pulse_frames(&self) -> usize { self.pulse_frames }
+    pub fn get_pulse_frames(&self) -> usize {
+        self.pulse_frames
+    }
 
     #[wasm_bindgen]
-    pub fn get_frame_size(&self) -> usize { self.frame_size }
+    pub fn get_frame_size(&self) -> usize {
+        self.frame_size
+    }
 
     // Reset internal streaming sessions so that a new decode starts from a clean state.
     #[wasm_bindgen]

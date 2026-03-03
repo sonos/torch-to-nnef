@@ -1,7 +1,6 @@
 import { AudioResampler, RingBuffer } from './audio.js';
 
 const DESIRED_SR = 16000;
-const CHUNK_SAMPLES = 4 * 160; // 640 @16kHz
 
 export class MicRunner {
     constructor(wasm, plot, modes, controls) {
@@ -78,6 +77,9 @@ export class MicRunner {
             // Feed 16k FIFO and run fixed-size blocks
             this.fifo.push(resampled);
             const mode = this.modes?.get?.() || 'pulsed';
+            const pulseFrames = this.wasm.getPulseFrames?.() || 4;
+            const frameSize = this.wasm.getFrameSize?.() || 160;
+            const CHUNK_SAMPLES = pulseFrames * frameSize;
             while (this.fifo.length() >= CHUNK_SAMPLES) {
                 const block = this.fifo.shift(CHUNK_SAMPLES);
                 if (mode === 'both') {
