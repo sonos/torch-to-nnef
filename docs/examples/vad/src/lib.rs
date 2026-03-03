@@ -318,6 +318,7 @@ impl VadClassifier {
     }
 
     fn ensure_pulsed_session(&mut self) -> Res<&mut VadSessionPulsed> {
+        let pulse_delay = self.compute_pulse_delay_from_encoder();
         if self.vad_session_pulsed.is_none() {
             self.vad_session_pulsed = Some(VadSessionPulsed::new(
                 &self.preprocessor_model,
@@ -325,6 +326,7 @@ impl VadClassifier {
                 &self.decoder_model,
                 self.pulse_frames,
                 self.frame_size,
+                pulse_delay,
             )?);
         }
         Ok(self.vad_session_pulsed.as_mut().unwrap())
@@ -469,26 +471,22 @@ impl VadSessionPulsed {
         decoder: &Runnable,
         pulse_frames: usize,
         frame_size: usize,
+        pulse_delay: usize,
     ) -> Res<VadSessionPulsed> {
         // Pool ~100ms (10 frames) at the decoder for stability
         let n_encoder_frames_to_aggregate_over = 10;
-        let pulse_delay_arr = encoder.property("pulse.delay")?; // ensure pulse property exists for sanity check
-        let pulse_delay: i64 = pulse_delay_arr.view::<i64>()?.index(0).to_owned();
         assert!(pulse_frames <= n_encoder_frames_to_aggregate_over);
-        let buffer_frames = (pulse_delay as usize)
-            .saturating_add(n_encoder_frames_to_aggregate_over)
-            .saturating_add(pulse_frames.max(1));
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_state: encoder.spawn_state()?,
             decoder_model: decoder.clone(),
             // Keep a rolling window sufficient for delay + decoder window + one pulse
-            audio_buffer: vec![0.0; buffer_frames * frame_size],
+            audio_buffer: vec![0.0; pulse_delay * frame_size],
             // 512 extra for STFT context frames
             current_buffer_fill: 0,
             last_score: f32::NAN,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
-            pulse_delay: pulse_delay.try_into().unwrap_or(0usize),
+            pulse_delay,
             pulse_frames: pulse_frames.max(1),
             frame_size,
             warmup_done: false,
@@ -501,16 +499,14 @@ impl VadSessionPulsed {
 
     fn predict_speech_presence(&mut self, raw_audio_data: Vec<f32>) -> Res<f32> {
         // Assumed to be called every 10ms * pulse_frames or more
-        if !self.roll_receptive_buffer_and_ready(&raw_audio_data) {
-            return Ok(self.last_score);
-        }
+        self.roll_receptive_buffer(&raw_audio_data);
 
         // Preprocess full 2D and slice last-N frames for pulsed encoder
         let pre_full = self.preprocess_full_2d()?;
         let pre_slice = self.select_pre_slice(&pre_full);
         let sliced_value: Value = pre_slice.try_into()?;
 
-        clog("ENC run");
+        clog("ENC run: {}");
         let enc_result = self.encoder_state.run(vec![sliced_value])?;
         #[cfg(test)]
         {
@@ -528,8 +524,7 @@ impl VadSessionPulsed {
                 }
             }
         }
-
-        let decoder_input = self.build_decoder_input_from_enc_result(enc_result)?;
+        let decoder_input = self.slide_encoder_window(enc_result)?;
         if !self.warmup_ready() {
             clog(&format!(
                 "GATE frames_ready={} need={}",
@@ -543,7 +538,7 @@ impl VadSessionPulsed {
     }
 
     // Helpers to keep predict_speech_presence concise
-    fn roll_receptive_buffer_and_ready(&mut self, raw_audio_data: &[f32]) -> bool {
+    fn roll_receptive_buffer(&mut self, raw_audio_data: &[f32]) {
         let n = raw_audio_data.len();
         clog(&format!(
             "RB before: buf_len={}, incoming={}, current_fill={}",
@@ -552,22 +547,6 @@ impl VadSessionPulsed {
             self.current_buffer_fill
         ));
         roll_into_ring(&mut self.audio_buffer, raw_audio_data);
-        if n >= self.audio_buffer.len() {
-            clog("WARNING: incoming chunk bigger than buffer; kept only last part");
-        } else {
-            clog("RB after shift+append done");
-        }
-        self.current_buffer_fill += n;
-        if self.current_buffer_fill < self.step_samples() {
-            clog(&format!(
-                "RB filling: current_fill={} / {}",
-                self.current_buffer_fill,
-                self.step_samples()
-            ));
-            return false;
-        }
-        self.current_buffer_fill = 0;
-        true
     }
 
     fn step_samples(&self) -> usize {
@@ -598,10 +577,6 @@ impl VadSessionPulsed {
             self.dbg.set_pre_sliced(&sliced);
         }
         sliced
-    }
-
-    fn build_decoder_input_from_enc_result(&mut self, enc_result: Vec<Value>) -> Res<Vec<Value>> {
-        self.slide_encoder_window(enc_result)
     }
 
     fn warmup_needed_frames(&self) -> usize {
@@ -789,15 +764,18 @@ impl VadSessionBatch {
         frame_size: usize,
     ) -> Res<VadSessionBatch> {
         let n_encoder_frames_to_aggregate_over = 10; // pool ~100ms at decoder
-        let buffer_frames = pulse_delay
-            .saturating_add(n_encoder_frames_to_aggregate_over)
-            .saturating_add(pulse_frames.max(1));
+        // NOTE: using  buffer_frames * frame_size here is WRONG
+        // THIS LEAD TO DEGRADATION IN BATCH MODE BECAUSE THE PREPROCESSOR FEATURES
+        // WERE NOT PROPERLY ALIGNED WITH THE ENCODER FRAMES FED TO THE DECODER
+        // let buffer_frames = pulse_delay
+        //     .saturating_add(n_encoder_frames_to_aggregate_over)
+        //     .saturating_add(pulse_frames.max(1));
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_model: encoder.clone(),
             decoder_model: decoder.clone(),
             // Big rolling buffer initialized with zeros to satisfy receptive field
-            audio_buffer: vec![0.0; buffer_frames * frame_size],
+            audio_buffer: vec![0.0; pulse_delay * frame_size],
             last_score: 0.0,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
             stable_frames_ready: 0,
@@ -836,16 +814,9 @@ impl VadSessionBatch {
     }
 
     fn encode_full(&mut self, pre_feat: &Array2<f32>) -> Res<Array2<f32>> {
-        clog("BATCH ENC run (try 2D)");
+        clog("BATCH ENC run");
         let pre_val_2d: Value = pre_feat.clone().try_into()?;
-        let enc_result = match self.encoder_model.run(vec![pre_val_2d]) {
-            Ok(r) => r,
-            Err(e2d) => {
-                clog(&format!("BATCH ENC retry with batch axis: {}", e2d));
-                let with_b: Value = pre_feat.clone().insert_axis(Axis(0)).try_into()?;
-                self.encoder_model.run(vec![with_b])?
-            }
-        };
+        let enc_result = self.encoder_model.run(vec![pre_val_2d])?;
         let enc_view_dyn = enc_result[0]
             .view::<f32>()?
             .into_dimensionality::<tract_rs::prelude::tract_ndarray::IxDyn>()?;
@@ -1021,6 +992,7 @@ mod tests {
             &clf.decoder_model,
             4,
             clf.frame_size,
+            clf.compute_pulse_delay_from_encoder(),
         )?;
         // Use pulsed encoder's pulse.delay for batch alignment
         let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
@@ -1141,7 +1113,8 @@ mod tests {
             &clf.encoder_model_pulsed,
             &clf.decoder_model,
             4,
-            VAD_ENCODER_INPUT_FRAME_SIZE,
+            clf.frame_size,
+            clf.compute_pulse_delay_from_encoder(),
         )?;
         let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
             Ok(d) => d
@@ -1157,7 +1130,7 @@ mod tests {
             &clf.decoder_model,
             pulse_delay,
             4,
-            VAD_ENCODER_INPUT_FRAME_SIZE,
+            clf.frame_size,
         )?;
 
         let step = pulsed.step_samples();
