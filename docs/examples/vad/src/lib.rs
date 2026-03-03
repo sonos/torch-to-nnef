@@ -506,7 +506,10 @@ impl VadSessionPulsed {
         let pre_slice = self.select_pre_slice(&pre_full);
         let sliced_value: Value = pre_slice.try_into()?;
 
-        clog("ENC run: {}");
+        clog(&format!(
+            "PULSED ENC run with new audio data qte: {}",
+            raw_audio_data.len()
+        ));
         let enc_result = self.encoder_state.run(vec![sliced_value])?;
         #[cfg(test)]
         {
@@ -948,15 +951,8 @@ mod tests {
     #[test]
     fn silence_pulsed_vs_batch_probs_below_6_percent() -> anyhow::Result<()> {
         // Locate silence asset (try both expected names)
-        let p1 = Path::new("assets/audio/silence_16_khz.wav");
-        let p2 = Path::new("assets/audio/silence_16k.wav");
-        let wav_path = if p1.exists() { p1 } else { p2 };
-        assert!(
-            wav_path.exists(),
-            "silence wav not found at {:?} or {:?}",
-            p1,
-            p2
-        );
+        let wav_path = Path::new("assets/audio/silence_16_khz.wav");
+        assert!(wav_path.exists(), "silence wav not found at {:?}", wav_path);
 
         // Load mono PCM16 -> f32 in [-1, 1]
         let mut reader = hound::WavReader::open(wav_path)?;
@@ -1105,9 +1101,24 @@ mod tests {
                 samples.push(v.clamp(-1.0, 1.0));
             }
         }
+        self::write_npy_f32(
+            Path::new("target/vad_dumps/silence_samples.npy"),
+            &samples,
+            &[samples.len()],
+        )?;
 
         // Build VAD components
         let clf = VadClassifier::load_internal(4)?;
+        let pre_feats_arr = run_preprocessor_2d(&clf.preprocessor_model, &samples)?;
+        let new = pre_feats_arr.clone();
+        let pre_shape = new.shape();
+        let pre_feats = pre_feats_arr.into_raw_vec_and_offset().0;
+        // up preprocessor for clean debug dumps
+        self::write_npy_f32(
+            Path::new("target/vad_dumps/silence_pre_feats.npy"),
+            &pre_feats,
+            pre_shape,
+        )?;
         let mut pulsed = VadSessionPulsed::new(
             &clf.preprocessor_model,
             &clf.encoder_model_pulsed,
