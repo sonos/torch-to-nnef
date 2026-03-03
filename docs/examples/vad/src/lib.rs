@@ -1,5 +1,6 @@
+#![cfg_attr(target_arch = "wasm32", allow(unused, dead_code))]
+
 use anyhow::{bail, ensure};
-use std::collections::VecDeque;
 use tract_rs::{
     State,
     prelude::{
@@ -329,7 +330,7 @@ impl VadSessionPulsed {
             .into_iter()
             .reduce(f32::max)
             .unwrap_or(0.);
-        if max > 1.0 || max < -1.0 {
+        if !(-1.0..=1.0).contains(&max) {
             bail!(format!(
                 "WARNING: audio sample value {} exceeds expected [-1.0, 1.0] range; ensure proper normalization",
                 max
@@ -485,14 +486,15 @@ impl VadSessionPulsed {
         ));
         let enc_all = enc_view_dyn
             .to_owned()
-            .into_shape((features, frames_usize))
+            .into_shape_with_order((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
         // Select frames aligned with pulsed delay: prefer last 4 ending at (T - delay)
         let enc_frame = if frames_usize >= self.pulse_delay + Self::EXPECTED_PULSE_FRAMES {
             let start = frames_usize - self.pulse_delay - Self::EXPECTED_PULSE_FRAMES;
             clog(&format!(
                 "ENC slicing delayed {} frames (start={start}, delay={})",
-                Self::EXPECTED_PULSE_FRAMES, self.pulse_delay
+                Self::EXPECTED_PULSE_FRAMES,
+                self.pulse_delay
             ));
             enc_all.slice_move(s![.., start..start + Self::EXPECTED_PULSE_FRAMES])
         } else if frames_usize >= Self::EXPECTED_PULSE_FRAMES {
@@ -705,7 +707,7 @@ impl VadSessionBatch {
         let features = enc_view_dyn.len() / frames_usize;
         let enc_all = enc_view_dyn
             .to_owned()
-            .into_shape((features, frames_usize))
+            .into_shape_with_order((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
         #[cfg(test)]
         {
@@ -742,7 +744,9 @@ impl VadSessionBatch {
                 } else {
                     0
                 };
-                let pre_blk = pre.slice(s![.., start..start + Self::EXPECTED_PULSE_FRAMES]).to_owned();
+                let pre_blk = pre
+                    .slice(s![.., start..start + Self::EXPECTED_PULSE_FRAMES])
+                    .to_owned();
                 self.last_pre_sliced = Some(pre_blk);
             }
         }
@@ -816,7 +820,7 @@ impl VadSessionBatch {
         let features = enc_view_dyn.len() / frames_usize;
         let enc_all = enc_view_dyn
             .to_owned()
-            .into_shape((features, frames_usize))
+            .into_shape_with_order((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
         // Select frames aligned with pulsed delay: prefer last 4 ending at (T - delay).
         // During early warmup when there are not enough frames to honor the delay,
@@ -850,10 +854,9 @@ impl VadSessionBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hound;
-    use std::path::Path;
     use std::fs::{self, File};
-    use std::io::{Write};
+    use std::io::Write;
+    use std::path::Path;
 
     fn write_npy_f32(path: &std::path::Path, data: &[f32], shape: &[usize]) -> std::io::Result<()> {
         // Minimal NPY v1.0 writer for little-endian f32, C-order
@@ -879,7 +882,7 @@ mod tests {
         header_dict.push_str(&" ".repeat(padding));
         header_dict.push('\n');
         header_len = header_dict.len();
-        if header_len > std::u16::MAX as usize {
+        if header_len > u16::MAX as usize {
             panic!("npy header too large");
         }
         let hlen_le = (header_len as u16).to_le_bytes();
@@ -911,7 +914,8 @@ mod tests {
         assert!(
             wav_path.exists(),
             "silence wav not found at {:?} or {:?}",
-            p1, p2
+            p1,
+            p2
         );
 
         // Load mono PCM16 -> f32 in [-1, 1]
@@ -926,12 +930,12 @@ mod tests {
         if spec.bits_per_sample <= 16 && spec.sample_format == hound::SampleFormat::Int {
             for s in reader.samples::<i16>() {
                 let v = s? as f32 / 32768.0;
-                samples.push(v.max(-1.0).min(1.0));
+                samples.push(v.clamp(-1.0, 1.0));
             }
         } else if spec.sample_format == hound::SampleFormat::Float {
             for s in reader.samples::<f32>() {
                 let v = s?;
-                samples.push(v.max(-1.0).min(1.0));
+                samples.push(v.clamp(-1.0, 1.0));
             }
         } else {
             panic!(
@@ -941,7 +945,7 @@ mod tests {
         }
 
         // Build VAD components
-        let mut clf = VadClassifier::load_internal()?;
+        let clf = VadClassifier::load_internal()?;
         let mut pulsed = VadSessionPulsed::new(
             &clf.preprocessor_model,
             &clf.encoder_model_pulsed,
@@ -1049,18 +1053,29 @@ mod tests {
         assert_eq!(spec.sample_rate, 16_000);
         let mut samples: Vec<f32> = Vec::with_capacity(reader.duration() as usize);
         if spec.sample_format == hound::SampleFormat::Int {
-            for s in reader.samples::<i16>() { samples.push((s? as f32/32768.0).max(-1.0).min(1.0)); }
-        } else { for s in reader.samples::<f32>() { let v=s?; samples.push(v.max(-1.0).min(1.0)); } }
+            for s in reader.samples::<i16>() {
+                samples.push((s? as f32 / 32768.0).clamp(-1.0, 1.0));
+            }
+        } else {
+            for s in reader.samples::<f32>() {
+                let v = s?;
+                samples.push(v.clamp(-1.0, 1.0));
+            }
+        }
 
         // Build VAD components
-        let mut clf = VadClassifier::load_internal()?;
+        let clf = VadClassifier::load_internal()?;
         let mut pulsed = VadSessionPulsed::new(
             &clf.preprocessor_model,
             &clf.encoder_model_pulsed,
             &clf.decoder_model,
         )?;
         let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
-            Ok(d) => d.view::<i64>().ok().map(|v| v.index(0).to_owned() as usize).unwrap_or(0usize),
+            Ok(d) => d
+                .view::<i64>()
+                .ok()
+                .map(|v| v.index(0).to_owned() as usize)
+                .unwrap_or(0usize),
             Err(_) => 0usize,
         };
         let mut batch = VadSessionBatch::new(
@@ -1085,23 +1100,47 @@ mod tests {
             fs::create_dir_all(&step_dir)?;
 
             // Pulsed snapshots
-            if let Some(a) = &pulsed.last_pre_feat { write_npy_arr2(&step_dir.join("pulsed_pre_full.npy"), a)?; }
-            if let Some(a) = &pulsed.last_pre_sliced { write_npy_arr2(&step_dir.join("pulsed_pre_4.npy"), a)?; }
-            if let Some(a) = &pulsed.last_enc_out { write_npy_arr2(&step_dir.join("pulsed_enc_full.npy"), a)?; }
-            if let Some(a) = &pulsed.last_enc_block { write_npy_arr2(&step_dir.join("pulsed_enc_4.npy"), a)?; }
-            if let Some(a) = &pulsed.last_encoder_window { write_npy_arr2(&step_dir.join("pulsed_dec_in.npy"), a)?; }
-            if let Some(a) = &pulsed.last_logits { write_npy_arr1(&step_dir.join("pulsed_logits.npy"), a)?; }
+            if let Some(a) = &pulsed.last_pre_feat {
+                write_npy_arr2(&step_dir.join("pulsed_pre_full.npy"), a)?;
+            }
+            if let Some(a) = &pulsed.last_pre_sliced {
+                write_npy_arr2(&step_dir.join("pulsed_pre_4.npy"), a)?;
+            }
+            if let Some(a) = &pulsed.last_enc_out {
+                write_npy_arr2(&step_dir.join("pulsed_enc_full.npy"), a)?;
+            }
+            if let Some(a) = &pulsed.last_enc_block {
+                write_npy_arr2(&step_dir.join("pulsed_enc_4.npy"), a)?;
+            }
+            if let Some(a) = &pulsed.last_encoder_window {
+                write_npy_arr2(&step_dir.join("pulsed_dec_in.npy"), a)?;
+            }
+            if let Some(a) = &pulsed.last_logits {
+                write_npy_arr1(&step_dir.join("pulsed_logits.npy"), a)?;
+            }
             if let Some(p) = pulsed.last_prob {
                 write_npy_f32(&step_dir.join("pulsed_prob.npy"), &[p], &[1])?;
             }
 
             // Batch snapshots
-            if let Some(a) = &batch.last_pre_feat { write_npy_arr2(&step_dir.join("batch_pre_full.npy"), a)?; }
-            if let Some(a) = &batch.last_pre_sliced { write_npy_arr2(&step_dir.join("batch_pre_4.npy"), a)?; }
-            if let Some(a) = &batch.last_enc_out { write_npy_arr2(&step_dir.join("batch_enc_full.npy"), a)?; }
-            if let Some(a) = &batch.last_enc_block { write_npy_arr2(&step_dir.join("batch_enc_4.npy"), a)?; }
-            if let Some(a) = &batch.last_encoder_window { write_npy_arr2(&step_dir.join("batch_dec_in.npy"), a)?; }
-            if let Some(a) = &batch.last_logits { write_npy_arr1(&step_dir.join("batch_logits.npy"), a)?; }
+            if let Some(a) = &batch.last_pre_feat {
+                write_npy_arr2(&step_dir.join("batch_pre_full.npy"), a)?;
+            }
+            if let Some(a) = &batch.last_pre_sliced {
+                write_npy_arr2(&step_dir.join("batch_pre_4.npy"), a)?;
+            }
+            if let Some(a) = &batch.last_enc_out {
+                write_npy_arr2(&step_dir.join("batch_enc_full.npy"), a)?;
+            }
+            if let Some(a) = &batch.last_enc_block {
+                write_npy_arr2(&step_dir.join("batch_enc_4.npy"), a)?;
+            }
+            if let Some(a) = &batch.last_encoder_window {
+                write_npy_arr2(&step_dir.join("batch_dec_in.npy"), a)?;
+            }
+            if let Some(a) = &batch.last_logits {
+                write_npy_arr1(&step_dir.join("batch_logits.npy"), a)?;
+            }
             if let Some(p) = batch.last_prob {
                 write_npy_f32(&step_dir.join("batch_prob.npy"), &[p], &[1])?;
             }
@@ -1115,22 +1154,35 @@ mod tests {
                     for (x, y) in a.iter().zip(b.iter()) {
                         let d = (x - y).abs();
                         mae += d;
-                        if d > maxd { maxd = d; }
+                        if d > maxd {
+                            maxd = d;
+                        }
                         n += 1;
                     }
-                    if n > 0 { mae /= n as f32; }
-                    println!("step {} diff {}: mae={:.6} max={:.6}", step_idx, name, mae, maxd);
+                    if n > 0 {
+                        mae /= n as f32;
+                    }
+                    println!(
+                        "step {} diff {}: mae={:.6} max={:.6}",
+                        step_idx, name, mae, maxd
+                    );
                 }
             };
-            if let (Some(a), Some(b)) = (&pulsed.last_pre_sliced, &batch.last_pre_sliced) { diff(a, b, "pre_4"); }
-            if let (Some(a), Some(b)) = (&pulsed.last_enc_block, &batch.last_enc_block) { diff(a, b, "enc_4"); }
-            if let (Some(a), Some(b)) = (&pulsed.last_encoder_window, &batch.last_encoder_window) { diff(a, b, "dec_in_window"); }
-            if let (Some(a), Some(b)) = (&pulsed.last_logits, &batch.last_logits) {
-                if a.shape() == b.shape() {
-                    let d0 = (a[0] - b[0]).abs();
-                    let d1 = (a[1] - b[1]).abs();
-                    println!("step {} diff logits: d0={:.6} d1={:.6}", step_idx, d0, d1);
-                }
+            if let (Some(a), Some(b)) = (&pulsed.last_pre_sliced, &batch.last_pre_sliced) {
+                diff(a, b, "pre_4");
+            }
+            if let (Some(a), Some(b)) = (&pulsed.last_enc_block, &batch.last_enc_block) {
+                diff(a, b, "enc_4");
+            }
+            if let (Some(a), Some(b)) = (&pulsed.last_encoder_window, &batch.last_encoder_window) {
+                diff(a, b, "dec_in_window");
+            }
+            if let (Some(a), Some(b)) = (&pulsed.last_logits, &batch.last_logits)
+                && a.shape() == b.shape()
+            {
+                let d0 = (a[0] - b[0]).abs();
+                let d1 = (a[1] - b[1]).abs();
+                println!("step {} diff logits: d0={:.6} d1={:.6}", step_idx, d0, d1);
             }
 
             i = end;
