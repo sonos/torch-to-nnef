@@ -21,15 +21,6 @@ t2n_export_nemo -s "vad_multilingual_marblenet" \
     -e "./model" \
     --tract-specific-path $TRACT_PATH \
     --collapse-batch-dim
-(
-    cd ./model
-    $TRACT_PATH ./encoder.nnef.tgz \
-        --nnef-tract-core \
-        --nnef-tract-pulse \
-        --pulse AUDIO_SIGNAL__TIME=4 \
-        dump \
-        --nnef ./encoder.pulsed.nnef.tgz
-)
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."
@@ -55,6 +46,7 @@ fi
 if [ -f "$SILENCE_MP3" ]; then
     if command -v ffmpeg >/dev/null 2>&1; then
         ffmpeg -y -hide_banner -loglevel error -i "$SILENCE_MP3" -ac 1 -ar 16000 "$SILENCE_WAV" || true
+        rm -f "$SILENCE_MP3"
     fi
 fi
 if [ ! -f "$SILENCE_WAV" ]; then

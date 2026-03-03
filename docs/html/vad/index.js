@@ -17,7 +17,9 @@ export async function initVAD() {
     setVisible('page', false);
     setVisible('loading', true);
 
-    const wasm = await WasmVAD.load();
+    // Optional: allow overriding pulse via global (e.g., window.VAD_PULSE)
+    const pulseOverride = Number(window?.VAD_PULSE ?? 0) || undefined;
+    const wasm = await WasmVAD.load({ pulseFrames: pulseOverride });
     const modes = new ModeController(document);
     const controls = new Controls(document);
     // Build base uPlot opts from globals if present or define minimal
@@ -54,13 +56,15 @@ export async function initVAD() {
     try {
         const delayFrames = wasm.getPulseDelay() || 0;
         const poolFrames = wasm.getDecoderPoolLen() || 0; // usually 10
-        const FRAME_MS = 10; // 160 samples @16kHz -> 10ms per frame
-        const PULSE_FRAMES = 4; // encoder runs in 4-frame pulses
+        const pulseFrames = wasm.getPulseFrames() || 4;
+        const frameSize = wasm.getFrameSize() || 160; // samples per frame
+        // Convert frame size to milliseconds: 160 samples at 16kHz -> 10ms
+        const frameMs = Math.round(frameSize / 16);
         // Need frames before first valid pulsed decode
         const needFrames = delayFrames + poolFrames;
-        // Quantize to pulse multiple: first decode occurs at ceil(need/4)*4 frames
-        const warmFrames = Math.ceil(needFrames / PULSE_FRAMES) * PULSE_FRAMES;
-        plot.setPulseDelayMs(warmFrames * FRAME_MS);
+        // Quantize to pulse multiple: first decode occurs at ceil(need/pulse)*pulse frames
+        const warmFrames = Math.ceil(needFrames / pulseFrames) * pulseFrames;
+        plot.setPulseDelayMs(warmFrames * frameMs);
     } catch { }
     modes.onChange((m) => plot.setMode(m));
 

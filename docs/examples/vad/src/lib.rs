@@ -40,12 +40,7 @@ fn fmt_shape(shape: &[usize]) -> String {
 }
 
 // Shared VAD constants
-const VAD_EXPECTED_PULSE_FRAMES: usize = 4; // 4 frames per step (~40ms)
 const VAD_ENCODER_INPUT_FRAME_SIZE: usize = 160; // 10ms at 16kHz
-const VAD_RECEPTIVE_FIELD_FRAMES: usize = 75; // 750ms receptive field
-const VAD_RECEPTIVE_FIELD_SAMPLES: usize =
-    VAD_RECEPTIVE_FIELD_FRAMES * VAD_ENCODER_INPUT_FRAME_SIZE;
-const VAD_PULSE_STEP_SAMPLES: usize = VAD_EXPECTED_PULSE_FRAMES * VAD_ENCODER_INPUT_FRAME_SIZE; // 4 * 160 = 640
 
 impl VadSessionCommon for VadSessionPulsed {
     fn decoder_model(&self) -> &Runnable {
@@ -258,32 +253,38 @@ struct VadClassifier {
     // Sessions are created lazily on first use for each mode
     vad_session_pulsed: Option<VadSessionPulsed>,
     vad_session_batch: Option<VadSessionBatch>,
+    // configuration
+    pulse_frames: usize,
+    frame_size: usize,
 }
 
 // Internal API usable by tests and wasm shims
 impl VadClassifier {
-    fn load_internal() -> Res<VadClassifier> {
+    fn load_internal(pulse_frames: usize) -> Res<VadClassifier> {
         // Better panic messages in the browser console.
         console_error_panic_hook::set_once();
         clog("loading runtime 'default'");
         let rt = runtime_for_name("default")?;
         let preprocessor_model_bytes = include_bytes!("../model/preprocessor.nnef.tgz");
         clog("creating NNEF loader");
-        let nnef = tract_rs::nnef()?
-            .with_tract_core()? // required for core ops used in models
-            .with_pulse()?; // required for pulse-encoded encoder model
+        let mut nnef = tract_rs::nnef()?.with_tract_core()?; // core ops for models
+        nnef.enable_pulse()?; // allow pulsing the batch graph
         clog("preparing preprocessor model");
         let preprocessor_model = rt.prepare(nnef.load_buffer(preprocessor_model_bytes)?)?;
 
-        // Load pulsed-encoded encoder for stream/pulse mode
-        let enc_model_pulsed_bytes = include_bytes!("../model/encoder.pulsed.nnef.tgz");
-        clog("preparing encoder model (pulsed)");
-        let encoder_model_pulsed = rt.prepare(nnef.load_buffer(enc_model_pulsed_bytes)?)?;
-
-        // Load batch (non-pulsed) encoder for stream/batch mode
+        // Load batch (non-pulsed) encoder for stream/batch mode, then derive pulsed from it
         let enc_model_batch_bytes = include_bytes!("../model/encoder.nnef.tgz");
+        let enc_model = nnef.load_buffer(enc_model_batch_bytes)?;
+        let mut pulsed_encoder = enc_model.clone();
         clog("preparing encoder model (batch)");
-        let encoder_model_batch = rt.prepare(nnef.load_buffer(enc_model_batch_bytes)?)?;
+        let encoder_model_batch = rt.prepare(enc_model)?;
+        // Derive pulsed-encoded encoder from the same batch graph using pulse transform
+        clog("pulsifying encoder model (derived from batch)");
+        pulsed_encoder.pulse(
+            "AUDIO_SIGNAL__TIME",
+            pulse_frames.max(1).to_string().as_str(),
+        )?;
+        let encoder_model_pulsed = rt.prepare(pulsed_encoder)?;
 
         let dec_model_bytes = include_bytes!("../model/decoder.nnef.tgz");
         clog("preparing decoder model");
@@ -296,6 +297,8 @@ impl VadClassifier {
             decoder_model,
             vad_session_pulsed: None,
             vad_session_batch: None,
+            pulse_frames: pulse_frames.max(1),
+            frame_size: VAD_ENCODER_INPUT_FRAME_SIZE,
         })
     }
 
@@ -317,6 +320,8 @@ impl VadClassifier {
                 &self.preprocessor_model,
                 &self.encoder_model_pulsed,
                 &self.decoder_model,
+                self.pulse_frames,
+                self.frame_size,
             )?);
         }
         Ok(self.vad_session_pulsed.as_mut().unwrap())
@@ -330,6 +335,8 @@ impl VadClassifier {
                 &self.encoder_model_batch,
                 &self.decoder_model,
                 pulse_delay,
+                self.pulse_frames,
+                self.frame_size,
             )?);
         }
         Ok(self.vad_session_batch.as_mut().unwrap())
@@ -339,7 +346,6 @@ impl VadClassifier {
         let session = self.ensure_pulsed_session()?;
         session.predict_speech_presence(raw_audio_data)
     }
-
 }
 
 // JS-facing API exposed only on wasm32
@@ -376,8 +382,21 @@ impl VadClassifier {
     pub fn load() -> Result<VadClassifier, JsError> {
         console_error_panic_hook::set_once();
         clog("try loading");
-        VadClassifier::load_internal().map_err(|err| JsError::new(&format!("{:?}", err)))
+        VadClassifier::load_internal(4).map_err(|err| JsError::new(&format!("{:?}", err)))
     }
+
+    #[wasm_bindgen]
+    pub fn load_with_pulse(pulse_frames: usize) -> Result<VadClassifier, JsError> {
+        console_error_panic_hook::set_once();
+        VadClassifier::load_internal(pulse_frames).map_err(|e| JsError::new(&format!("{:?}", e)))
+    }
+
+    // Expose configuration
+    #[wasm_bindgen]
+    pub fn get_pulse_frames(&self) -> usize { self.pulse_frames }
+
+    #[wasm_bindgen]
+    pub fn get_frame_size(&self) -> usize { self.frame_size }
 
     // Reset internal streaming sessions so that a new decode starts from a clean state.
     #[wasm_bindgen]
@@ -422,6 +441,8 @@ struct VadSessionPulsed {
     last_score: f32,
     encoder_frame_buffer: Array2<f32>,
     pulse_delay: usize,
+    pulse_frames: usize,
+    frame_size: usize,
     warmup_done: bool,
     decoded_emissions: usize,
     stable_frames_ready: usize,
@@ -439,23 +460,30 @@ impl VadSessionPulsed {
         preprocessor: &Runnable,
         encoder: &Runnable,
         decoder: &Runnable,
+        pulse_frames: usize,
+        frame_size: usize,
     ) -> Res<VadSessionPulsed> {
         // Pool ~100ms (10 frames) at the decoder for stability
         let n_encoder_frames_to_aggregate_over = 10;
         let pulse_delay_arr = encoder.property("pulse.delay")?; // ensure pulse property exists for sanity check
         let pulse_delay: i64 = pulse_delay_arr.view::<i64>()?.index(0).to_owned();
-        assert!(VAD_EXPECTED_PULSE_FRAMES <= n_encoder_frames_to_aggregate_over);
+        assert!(pulse_frames <= n_encoder_frames_to_aggregate_over);
+        let buffer_frames = (pulse_delay as usize)
+            .saturating_add(n_encoder_frames_to_aggregate_over)
+            .saturating_add(pulse_frames.max(1));
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_state: encoder.spawn_state()?,
             decoder_model: decoder.clone(),
-            // Use long receptive field to stabilize last-4 preprocessor frames like batch mode
-            audio_buffer: vec![0.0; VAD_RECEPTIVE_FIELD_SAMPLES],
+            // Keep a rolling window sufficient for delay + decoder window + one pulse
+            audio_buffer: vec![0.0; buffer_frames * frame_size],
             // 512 extra for STFT context frames
             current_buffer_fill: 0,
             last_score: f32::NAN,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
             pulse_delay: pulse_delay.try_into().unwrap_or(0usize),
+            pulse_frames: pulse_frames.max(1),
+            frame_size,
             warmup_done: false,
             decoded_emissions: 0,
             stable_frames_ready: 0,
@@ -465,7 +493,7 @@ impl VadSessionPulsed {
     }
 
     fn predict_speech_presence(&mut self, raw_audio_data: Vec<f32>) -> Res<f32> {
-        // Assumed to be called every 10ms * VAD_EXPECTED_PULSE_FRAMES or more
+        // Assumed to be called every 10ms * pulse_frames or more
         if !self.roll_receptive_buffer_and_ready(&raw_audio_data) {
             return Ok(self.last_score);
         }
@@ -512,7 +540,9 @@ impl VadSessionPulsed {
         let n = raw_audio_data.len();
         clog(&format!(
             "RB before: buf_len={}, incoming={}, current_fill={}",
-            self.audio_buffer.len(), n, self.current_buffer_fill
+            self.audio_buffer.len(),
+            n,
+            self.current_buffer_fill
         ));
         roll_into_ring(&mut self.audio_buffer, raw_audio_data);
         if n >= self.audio_buffer.len() {
@@ -521,15 +551,20 @@ impl VadSessionPulsed {
             clog("RB after shift+append done");
         }
         self.current_buffer_fill += n;
-        if self.current_buffer_fill < VAD_PULSE_STEP_SAMPLES {
+        if self.current_buffer_fill < self.step_samples() {
             clog(&format!(
                 "RB filling: current_fill={} / {}",
-                self.current_buffer_fill, VAD_PULSE_STEP_SAMPLES
+                self.current_buffer_fill,
+                self.step_samples()
             ));
             return false;
         }
         self.current_buffer_fill = 0;
         true
+    }
+
+    fn step_samples(&self) -> usize {
+        self.pulse_frames * self.frame_size
     }
 
     fn preprocess_full_2d(&mut self) -> Res<Array2<f32>> {
@@ -545,10 +580,10 @@ impl VadSessionPulsed {
     fn select_pre_slice(&mut self, pre_feat: &Array2<f32>) -> Array2<f32> {
         let frames = pre_feat.shape()[1];
         clog(&format!("PRE frames={frames}"));
-        let start = frames.saturating_sub(VAD_EXPECTED_PULSE_FRAMES);
+        let start = frames.saturating_sub(self.pulse_frames);
         clog(&format!(
             "PRE slicing last {} frames (start={start})",
-            VAD_EXPECTED_PULSE_FRAMES
+            self.pulse_frames
         ));
         let sliced = pre_feat.slice(s![.., start..]).to_owned();
         #[cfg(test)]
@@ -634,19 +669,19 @@ impl VadSessionPulsed {
             .into_shape_with_order((features, frames_usize))
             .map_err(|e| anyhow::anyhow!(format!("reshape encoder frame: {e}")))?;
         // Select frames aligned with pulsed delay: prefer last 4 ending at (T - delay)
-        let enc_frame = if frames_usize >= self.pulse_delay + VAD_EXPECTED_PULSE_FRAMES {
-            let start = frames_usize - self.pulse_delay - VAD_EXPECTED_PULSE_FRAMES;
+        let enc_frame = if frames_usize >= self.pulse_delay + self.pulse_frames {
+            let start = frames_usize - self.pulse_delay - self.pulse_frames;
             clog(&format!(
                 "ENC slicing delayed {} frames (start={start}, delay={})",
-                VAD_EXPECTED_PULSE_FRAMES, self.pulse_delay
+                self.pulse_frames, self.pulse_delay
             ));
-            enc_all.slice_move(s![.., start..start + VAD_EXPECTED_PULSE_FRAMES])
-        } else if frames_usize >= VAD_EXPECTED_PULSE_FRAMES {
+            enc_all.slice_move(s![.., start..start + self.pulse_frames])
+        } else if frames_usize >= self.pulse_frames {
             // Early warmup: fall back to absolute last 4 frames
-            let start = frames_usize - VAD_EXPECTED_PULSE_FRAMES;
+            let start = frames_usize - self.pulse_frames;
             clog(&format!(
                 "ENC slicing tail {} frames (start={start})",
-                VAD_EXPECTED_PULSE_FRAMES
+                self.pulse_frames
             ));
             enc_all.slice_move(s![.., start..])
         } else {
@@ -654,7 +689,7 @@ impl VadSessionPulsed {
             let val: Value = self.encoder_frame_buffer.clone().try_into()?;
             return Ok(vec![val]);
         };
-        let n: i32 = VAD_EXPECTED_PULSE_FRAMES.try_into()?;
+        let n: i32 = self.pulse_frames.try_into()?;
         // roll the buffer to the left by n frame
         clog(&format!(
             "WIN roll: window_shape={}, n={}",
@@ -676,9 +711,7 @@ impl VadSessionPulsed {
             self.dbg.set_encoder_window(&win);
         }
         // Track stable frames produced so far for warmup gating.
-        self.stable_frames_ready = self
-            .stable_frames_ready
-            .saturating_add(VAD_EXPECTED_PULSE_FRAMES);
+        self.stable_frames_ready = self.stable_frames_ready.saturating_add(self.pulse_frames);
         let val: Value = self.encoder_frame_buffer.clone().try_into()?;
         Ok(vec![val])
     }
@@ -731,6 +764,8 @@ struct VadSessionBatch {
     stable_frames_ready: usize,
     // Use pulse delay from pulsed model to align batch outputs
     pulse_delay: usize,
+    pulse_frames: usize,
+    frame_size: usize,
     #[cfg(test)]
     dbg: SessionDebug,
 }
@@ -743,18 +778,25 @@ impl VadSessionBatch {
         encoder: &Runnable,
         decoder: &Runnable,
         pulse_delay: usize,
+        pulse_frames: usize,
+        frame_size: usize,
     ) -> Res<VadSessionBatch> {
         let n_encoder_frames_to_aggregate_over = 10; // pool ~100ms at decoder
+        let buffer_frames = pulse_delay
+            .saturating_add(n_encoder_frames_to_aggregate_over)
+            .saturating_add(pulse_frames.max(1));
         Ok(Self {
             preprocessor_model: preprocessor.clone(),
             encoder_model: encoder.clone(),
             decoder_model: decoder.clone(),
             // Big rolling buffer initialized with zeros to satisfy receptive field
-            audio_buffer: vec![0.0; VAD_RECEPTIVE_FIELD_SAMPLES],
+            audio_buffer: vec![0.0; buffer_frames * frame_size],
             last_score: 0.0,
             encoder_frame_buffer: Array2::<f32>::zeros((128, n_encoder_frames_to_aggregate_over)),
             stable_frames_ready: 0,
             pulse_delay,
+            pulse_frames: pulse_frames.max(1),
+            frame_size,
             #[cfg(test)]
             dbg: SessionDebug::default(),
         })
@@ -810,9 +852,13 @@ impl VadSessionBatch {
         {
             self.dbg.set_enc_out(&enc_all);
         }
-        ensure!(features == 128, "expected 128 encoder features, got {}", features);
         ensure!(
-            frames_usize >= VAD_EXPECTED_PULSE_FRAMES,
+            features == 128,
+            "expected 128 encoder features, got {}",
+            features
+        );
+        ensure!(
+            frames_usize >= self.pulse_frames,
             "encoder produced too few frames: {}",
             frames_usize
         );
@@ -825,27 +871,31 @@ impl VadSessionBatch {
         pre_feat: &Array2<f32>,
     ) -> Array2<f32> {
         let frames_usize = enc_all.shape()[1];
-        let block = if frames_usize >= self.pulse_delay + VAD_EXPECTED_PULSE_FRAMES {
-            let start = frames_usize - self.pulse_delay - VAD_EXPECTED_PULSE_FRAMES;
-            enc_all.slice(s![.., start..start + VAD_EXPECTED_PULSE_FRAMES]).to_owned()
+        // Empirically, pulsed encoder stable output lags batch by ~1 frame
+        let align_shift: usize = 1;
+        let block = if frames_usize >= self.pulse_delay + self.pulse_frames + align_shift {
+            let start = frames_usize - self.pulse_delay - self.pulse_frames - align_shift;
+            enc_all
+                .slice(s![.., start..start + self.pulse_frames])
+                .to_owned()
         } else {
             enc_all
-                .slice(s![.., frames_usize - VAD_EXPECTED_PULSE_FRAMES..frames_usize])
+                .slice(s![.., frames_usize - self.pulse_frames..frames_usize])
                 .to_owned()
         };
         #[cfg(test)]
         {
             self.dbg.set_enc_block(&block);
             let t = pre_feat.shape()[1];
-            let start = if t >= self.pulse_delay + VAD_EXPECTED_PULSE_FRAMES {
-                t - self.pulse_delay - VAD_EXPECTED_PULSE_FRAMES
-            } else if t >= VAD_EXPECTED_PULSE_FRAMES {
-                t - VAD_EXPECTED_PULSE_FRAMES
+            let start = if t >= self.pulse_delay + self.pulse_frames + align_shift {
+                t - self.pulse_delay - self.pulse_frames - align_shift
+            } else if t >= self.pulse_frames {
+                t - self.pulse_frames
             } else {
                 0
             };
             let pre_blk = pre_feat
-                .slice(s![.., start..start + VAD_EXPECTED_PULSE_FRAMES])
+                .slice(s![.., start..start + self.pulse_frames])
                 .to_owned();
             self.dbg.set_pre_sliced(&pre_blk);
         }
@@ -853,7 +903,7 @@ impl VadSessionBatch {
     }
 
     fn build_decoder_input_from_block(&mut self, block: &Array2<f32>) -> Res<Vec<Value>> {
-        let dec_in = self.slide_window_append(block, VAD_EXPECTED_PULSE_FRAMES)?;
+        let dec_in = self.slide_window_append(block, self.pulse_frames)?;
         #[cfg(test)]
         {
             let win = self.encoder_frame_buffer.clone();
@@ -957,11 +1007,13 @@ mod tests {
         }
 
         // Build VAD components
-        let clf = VadClassifier::load_internal()?;
+        let clf = VadClassifier::load_internal(4)?;
         let mut pulsed = VadSessionPulsed::new(
             &clf.preprocessor_model,
             &clf.encoder_model_pulsed,
             &clf.decoder_model,
+            4,
+            clf.frame_size,
         )?;
         // Use pulsed encoder's pulse.delay for batch alignment
         let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
@@ -977,10 +1029,12 @@ mod tests {
             &clf.encoder_model_batch,
             &clf.decoder_model,
             pulse_delay,
+            4,
+            clf.frame_size,
         )?;
 
         // Stream in 4-frame pulses (640 samples at 16kHz)
-        let step = VAD_PULSE_STEP_SAMPLES; // 4*160
+        let step = pulsed.step_samples();
         let mut pulsed_scores: Vec<f32> = Vec::new();
         let mut batch_scores: Vec<f32> = Vec::new();
         let mut i = 0usize;
@@ -1074,11 +1128,13 @@ mod tests {
         }
 
         // Build VAD components
-        let clf = VadClassifier::load_internal()?;
+        let clf = VadClassifier::load_internal(4)?;
         let mut pulsed = VadSessionPulsed::new(
             &clf.preprocessor_model,
             &clf.encoder_model_pulsed,
             &clf.decoder_model,
+            4,
+            VAD_ENCODER_INPUT_FRAME_SIZE,
         )?;
         let pulse_delay: usize = match clf.encoder_model_pulsed.property("pulse.delay") {
             Ok(d) => d
@@ -1093,9 +1149,11 @@ mod tests {
             &clf.encoder_model_batch,
             &clf.decoder_model,
             pulse_delay,
+            4,
+            VAD_ENCODER_INPUT_FRAME_SIZE,
         )?;
 
-        let step = VAD_PULSE_STEP_SAMPLES; // 4*160
+        let step = pulsed.step_samples();
         let mut i = 0usize;
         let mut step_idx = 0usize;
         let base = Path::new("target/vad_dumps/silence");
