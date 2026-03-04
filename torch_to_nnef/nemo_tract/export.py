@@ -26,6 +26,7 @@ from torch_to_nnef.nemo_tract.dynaxes import (
 from torch_to_nnef.nemo_tract.wrappers import (
     CollapseBatchDimWrapper,
     DecoderWithoutTargetLength,
+    RenameOutputs,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
 )
@@ -522,6 +523,12 @@ def build_preprocessor_export_params(
         model = asr_model.preprocessor
         input_names = model.input_names[: len(input_example)]
         output_names = model.output_names
+        # If any outputs share names with inputs, rename outputs to avoid collision
+        inter = set(input_names).intersection(set(output_names))
+        if inter:
+            rename_map = {n: f"{n}_out" for n in inter}
+            model = RenameOutputs(model, rename_map)
+            output_names = [rename_map.get(n, n) for n in output_names]
         # Use the context-provided input_example to ensure consistency between
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
@@ -543,7 +550,7 @@ def build_preprocessor_export_params(
             input_names=input_names,
             output_names=output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=False,  # not used for preprocessor export
+            allow_same_io_names=False,  # enforce different IO names
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),
@@ -614,6 +621,13 @@ def iter_export_params_for_generic_nemo_asr_model(
             # Use wrapper's collapsed dynamic mapping for correctness
             dyn = model.dynamic_shapes_for_export()
 
+        # Avoid name collisions between inputs and outputs (e.g., 'length').
+        inter = set(input_names).intersection(set(output_names))
+        if inter:
+            rename_map = {n: f"{n}_out" for n in inter}
+            model = RenameOutputs(model, rename_map)
+            output_names = [rename_map.get(n, n) for n in output_names]
+
         yield ExportParameters(
             name=subnet_name,
             model=model,
@@ -622,7 +636,7 @@ def iter_export_params_for_generic_nemo_asr_model(
             input_names=input_names,
             output_names=output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=allow_same_io_names,
+            allow_same_io_names=False,
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),
@@ -678,7 +692,10 @@ def export_nemo_asr_model(
             build_io(
                 export_params.model,
                 export_params.test_input,
-                io_npz_path=test_dir / f"{export_params.name}_checked_io.npz",
+                input_bundle_path=test_dir
+                / f"{export_params.name}_inputs_checked.npz",
+                output_bundle_path=test_dir
+                / f"{export_params.name}_outputs_checked.npz",
                 input_names=export_params.input_names,
                 output_names=export_params.output_names,
             )

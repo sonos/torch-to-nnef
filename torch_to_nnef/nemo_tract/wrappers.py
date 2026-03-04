@@ -197,6 +197,38 @@ class WrapPreprocessorCast(torch.nn.Module):
         return self.preprocessor.output_names
 
 
+class RenameOutputs(torch.nn.Module):
+    """Wrapper that renames output tensor names for export-time only.
+
+    Leaves computation unchanged and preserves input names.
+    Useful to avoid name collisions between inputs and outputs
+    (e.g., both named 'length').
+    """
+
+    def __init__(self, module: torch.nn.Module, rename_map: T.Dict[str, str]):
+        super().__init__()
+        self.module = module
+        self._rename_map = dict(rename_map or {})
+
+    @property
+    def input_names(self):
+        return getattr(self.module, "input_names", [])
+
+    @property
+    def output_names(self):
+        base = list(getattr(self.module, "output_names", []) or [])
+        return [self._rename_map.get(n, n) for n in base]
+
+    def dynamic_shapes_for_export(self, *args, **kwargs):
+        # outputs renaming does not affect dynamic input axes
+        if hasattr(self.module, "dynamic_shapes_for_export"):
+            return self.module.dynamic_shapes_for_export(*args, **kwargs)
+        return {}
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
+
+
 class DecoderWithoutTargetLength(torch.nn.Module):
     """Wrap decoder/joint+decoder to remove 'target_length' argument/output."""
 

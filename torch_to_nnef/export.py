@@ -335,16 +335,26 @@ def _check_io_names(
         )
 
     if (
-        input_names
-        and output_names
+        input_names and output_names
         and len(set(output_names + input_names))
         != len(input_names + output_names)
-        and not allow_same_io_names
     ):
-        raise T2NErrorInvalidArgument(
-            "input_names and output_names must be different "
-            "(else it could lead to wrong simplification of the graph)"
+        collisions = sorted(
+            set(input_names).intersection(set(output_names))
         )
+        if allow_same_io_names:
+            LOGGER.warning(
+                "Input and output names overlap: %s. This may cause variable "
+                "shadowing in inference engines, leading to misbinding, "
+                "incorrect dynamic-shape facts, or optimizer mis-simplification. "
+                "Prefer distinct IO names or rename outputs at export.",
+                collisions,
+            )
+        else:
+            raise T2NErrorInvalidArgument(
+                "input_names and output_names must be different "
+                "(else it could lead to wrong simplification of the graph)"
+            )
 
 
 def _real_export_path(

@@ -97,13 +97,10 @@ def test_export_base():
     model = MyDumbNN()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
 
         model = model.eval()
 
-        input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
-        )
+        input_names, output_names = build_io(model, test_input)
         export_model_to_nnef(
             model=model,
             args=test_input,
