@@ -420,29 +420,22 @@ class LLMExporter:
             input_names=input_names,
             output_names=output_names,
         )
-        # Optionally produce a single combined NPZ for convenience
-        if io_npz_path is not None and inputs_npz_path and outputs_npz_path:
-            in_dic = dict(np.load(inputs_npz_path))
-            out_dic = dict(np.load(outputs_npz_path))
-            merged = {**in_dic, **out_dic}
-            np.savez(io_npz_path, **merged)
 
     def dump_all_io_npz_kind(
         self, io_npz_dirpath: Path, size: int = 6
     ) -> T.List[Path]:
         """Realistic dump of IO's."""
         half = size // 2
-        prompt_npz_filepath = io_npz_dirpath / "prompt_io.npz"
         prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"
         prompt_out_npz = io_npz_dirpath / "prompt_outputs.npz"
         self.build_io_npz(
-            prompt_npz_filepath,
+            io_npz_path=None,
             n_input_tokens=size,
             n_past_input_tokens=0,
             inputs_npz_path=prompt_in_npz,
             outputs_npz_path=prompt_out_npz,
         )
-        res = {**np.load(prompt_npz_filepath)}
+        res = {**np.load(prompt_in_npz), **np.load(prompt_out_npz)}
         out_kv = {}
         for k, v in res.items():
             if k.startswith("out_cache_key_"):
@@ -453,12 +446,13 @@ class LLMExporter:
             for idx in range(max(list(out_kv.keys())) + 1)
             for _ in out_kv[idx]
         ]
-        prompt_with_past_npz_filepath = io_npz_dirpath / "prompt_with_past_io.npz"
         prompt_with_past_in_npz = io_npz_dirpath / "prompt_with_past_inputs.npz"
-        prompt_with_past_out_npz = io_npz_dirpath / "prompt_with_past_outputs.npz"
+        prompt_with_past_out_npz = (
+            io_npz_dirpath / "prompt_with_past_outputs.npz"
+        )
         try:
             self.build_io_npz(
-                prompt_with_past_npz_filepath,
+                io_npz_path=None,
                 n_input_tokens=half,
                 n_past_input_tokens=half,
                 real_kv_cache=real_kv_cache,
@@ -471,11 +465,10 @@ class LLMExporter:
                 "(likely modeling limit): %s",
                 exp,
             )
-        text_gen_npz_filepath = io_npz_dirpath / "text_generation_io.npz"
         text_gen_in_npz = io_npz_dirpath / "text_generation_inputs.npz"
         text_gen_out_npz = io_npz_dirpath / "text_generation_outputs.npz"
         self.build_io_npz(
-            text_gen_npz_filepath,
+            io_npz_path=None,
             n_input_tokens=1,
             n_past_input_tokens=size - 1,
             real_kv_cache=real_kv_cache,
@@ -483,9 +476,9 @@ class LLMExporter:
             outputs_npz_path=text_gen_out_npz,
         )
         return [
-            prompt_npz_filepath,
-            prompt_with_past_npz_filepath,
-            text_gen_npz_filepath,
+            (prompt_in_npz, prompt_out_npz),
+            (prompt_with_past_in_npz, prompt_with_past_out_npz),
+            (text_gen_in_npz, text_gen_out_npz),
         ]
 
     @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
@@ -630,12 +623,17 @@ class LLMExporter:
                     "sample_generation_total_size=%d",
                     sample_generation_total_size,
                 )
-                modes = [
-                    p.with_suffix("").name.replace("_io", "")
-                    for p in self.dump_all_io_npz_kind(
-                        test_dir, size=sample_generation_total_size
-                    )
-                ]
+                pairs = self.dump_all_io_npz_kind(
+                    test_dir, size=sample_generation_total_size
+                )
+                modes = []
+                for in_p, _ in pairs:
+                    base = in_p.stem
+                    for suff in ("_inputs", "_outputs", "_io"):
+                        if base.endswith(suff):
+                            base = base[: -len(suff)]
+                            break
+                    modes.append(base)
                 with (export_dirpath / "modes.json").open(
                     "w", encoding="utf8"
                 ) as fh:
@@ -666,13 +664,18 @@ class LLMExporter:
             if self.is_half_precision_model:
                 self.apply_half_precision_fixes()
 
+            # Produce separate input/output bundles for Tract checks
+            export_inputs_npz = test_dir / "export_inputs.npz"
+            export_outputs_npz = test_dir / "export_outputs.npz"
             build_io(
                 self.wrapped_model,
                 inputs,
-                io_npz_path=test_dir / "export_io.npz",
+                input_bundle_path=export_inputs_npz,
+                output_bundle_path=export_outputs_npz,
                 input_names=input_names,
                 output_names=output_names,
             )
+            # No merged NPZ: keep inputs/outputs separate
             export_model_to_nnef(
                 model=self.wrapped_model,
                 args=inputs,

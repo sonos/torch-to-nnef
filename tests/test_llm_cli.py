@@ -206,12 +206,12 @@ def test_llama_export_io_npz():
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         total_tokens = 6
-        p_npz, pp_npz, tg_npz = llm_exporter.dump_all_io_npz_kind(
-            td, size=total_tokens
+        (p_in, p_out), (pp_in, pp_out), (tg_in, tg_out) = (
+            llm_exporter.dump_all_io_npz_kind(td, size=total_tokens)
         )
-        pdic = dict(**np.load(p_npz))
-        ppdic = dict(**np.load(pp_npz))
-        tgdic = dict(**np.load(tg_npz))
+        pdic = {**np.load(p_in), **np.load(p_out)}
+        ppdic = {**np.load(pp_in), **np.load(pp_out)}
+        tgdic = {**np.load(tg_in), **np.load(tg_out)}
         token_gens_and_dic_list = [
             (total_tokens, pdic),
             (total_tokens // 2, ppdic),
