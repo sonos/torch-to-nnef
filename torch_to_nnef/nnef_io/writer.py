@@ -31,11 +31,11 @@ from nnef_tools.io.nnef.helpers import tgz_compress
 from nnef_tools.model import Tensor
 from nnef_tools.utils.types import as_str, from_numpy
 
+from torch_to_nnef.exceptions import T2NError
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.khronos import KhronosNNEF
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor.offload import OffloadedTensor
-from torch_to_nnef.exceptions import T2NError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -164,7 +164,11 @@ def _print(
                 attribs[key] = _nnef_dtype(value)
 
         # Special-case pass-through op to generate a simple assignment for Tract
-        if op.type == "identity" and len(op.inputs) == 1 and len(op.outputs) == 1:
+        if (
+            op.type == "identity"
+            and len(op.inputs) == 1
+            and len(op.outputs) == 1
+        ):
             in_name = as_str(op.inputs[0].name)
             out_name = as_str(op.outputs[0].name)
             if isinstance(inference_target, TractNNEF):
@@ -174,7 +178,8 @@ def _print(
                     "Encountered identity pass-through in graph. This explicit "
                     "alias is only supported for TractNNEF. Collision: "
                     f"input '{in_name}' -> output '{out_name}'. "
-                    "Please use distinct IO names or export targeting TractNNEF."
+                    "Please use distinct IO names or export targeting "
+                    "TractNNEF."
                 )
         else:
             invocation = nnef.format_invocation(

@@ -716,7 +716,9 @@ def build_io(
 
     # Prefer separate input/output bundles
     if input_bundle_path is not None:
-        model_info.write_input_npz(filepath=input_bundle_path, tract_compat=True)
+        model_info.write_input_npz(
+            filepath=input_bundle_path, tract_compat=True
+        )
     if output_bundle_path is not None:
         model_info.write_output_npz(
             filepath=output_bundle_path, tract_compat=True

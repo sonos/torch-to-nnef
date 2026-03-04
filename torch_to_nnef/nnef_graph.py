@@ -6,11 +6,9 @@ import typing as T
 import numpy as np
 import torch
 from nnef_tools.model import Graph as NGraph
-from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import (
-    T2NError,
     T2NErrorIoQuantity,
     T2NErrorIR,
     T2NErrorNotImplemented,
@@ -22,8 +20,8 @@ from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
-from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.op.helper import add_nnef_operation
+from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
     Data,
@@ -279,7 +277,7 @@ class TorchToNGraphExtractor:
                         outputs=(alias,),
                         attribs={},
                     )
-                    # Replace the output tensor reference (ListView not assignable)
+                    # (ListView not assignable)
                     self.g.outputs = [
                         (alias if t is onode else t) for t in self.g.outputs
                     ]

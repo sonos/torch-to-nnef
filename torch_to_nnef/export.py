@@ -335,18 +335,18 @@ def _check_io_names(
         )
 
     if (
-        input_names and output_names
+        input_names
+        and output_names
         and len(set(output_names + input_names))
         != len(input_names + output_names)
     ):
-        collisions = sorted(
-            set(input_names).intersection(set(output_names))
-        )
+        collisions = sorted(set(input_names).intersection(set(output_names)))
         if allow_same_io_names:
             LOGGER.warning(
                 "Input and output names overlap: %s. This may cause variable "
                 "shadowing in inference engines, leading to misbinding, "
-                "incorrect dynamic-shape facts, or optimizer mis-simplification. "
+                "incorrect dynamic-shape facts, or optimizer "
+                "mis-simplification. "
                 "Prefer distinct IO names or rename outputs at export.",
                 collisions,
             )

@@ -77,7 +77,11 @@ def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
     # To keep axis sharing consistent across tuple elements and match Tract's
     # expectations, force axis 1 of any state input to be BATCH.
     in_up = _sanitize_name(input_name)
-    if (in_up == "STATES" or in_up.startswith("STATES_") or in_up.startswith("INPUT_STATES_")) and axis_index == 1:
+    if (
+        in_up == "STATES"
+        or in_up.startswith("STATES_")
+        or in_up.startswith("INPUT_STATES_")
+    ) and axis_index == 1:
         return "BATCH"
     base = up if up and up not in {"?", "D", "DIM"} else f"DIM{axis_index}"
     return f"{_sanitize_name(input_name)}__{base}"

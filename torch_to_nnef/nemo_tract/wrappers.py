@@ -493,8 +493,8 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         """Infer a reasonable time dimension from external inputs.
 
         - Ignores any length-only inputs (already filtered from ``visible``).
-        - Skips state inputs entirely, as their trailing dimension is hidden size
-          and does not represent time.
+        - Skips state inputs entirely, as their trailing dimension is
+          hidden size and does not represent time.
         - Handles tuples/lists of tensors and 0-D tensors safely.
         """
         times: T.List[int] = []
@@ -578,7 +578,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 continue
             val = next(vis_iter)
             # For state tensors, default to explicit batch axis at dim 1.
-            if name == INPUT_STATE_TUPLE_NAME and isinstance(val, (list, tuple)):
+            if name == INPUT_STATE_TUPLE_NAME and isinstance(
+                val, (list, tuple)
+            ):
                 proc = []
                 for s in val:
                     t = s
@@ -591,17 +593,21 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             if torch.is_tensor(val):
                 t = val
                 # Detect token-like integer inputs (e.g., decoder targets)
-                is_token = (
-                    not is_length_name(name)
-                    and t.dtype in (torch.int8, torch.int16, torch.int32, torch.int64)
+                is_token = not is_length_name(name) and t.dtype in (
+                    torch.int8,
+                    torch.int16,
+                    torch.int32,
+                    torch.int64,
                 )
                 if is_token:
-                    # For token IDs, prefer explicit [B, U] with B inserted at dim 0
+                    # For token IDs, prefer explicit [B, U] with B inserted
+                    # at dim 0
                     if t.dim() == 0:
                         t = t.unsqueeze(0)
                     if t.dim() == 1:
                         t = t.unsqueeze(0)
-                    # Do not add further unsqueezes based on dynamic map for tokens
+                    # Do not add further unsqueezes based on dynamic map
+                    # for tokens
                     full.append(t)
                     continue
 

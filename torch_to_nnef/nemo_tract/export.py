@@ -19,7 +19,6 @@ from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import (
     build_io,
 )
-from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
@@ -283,13 +282,10 @@ def exportable_nemo_net(
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
-def _pick_subnets_names_and_allowed_io_names_overlap(
-    model, *, nemo: InjectedNemoModule = INJECTED
-):
+def _pick_subnets_names(model, *, nemo: InjectedNemoModule = INJECTED):
     nemo_model_mod = nemo.collections.asr.models
     # Default from model
     subnet_names = model.list_export_subnets()
-    allow_same_io_names = [False] * len(subnet_names)
     # Specialize for known families
     spec = _pick_for_classification(model, nemo_model_mod)
     if spec is not None:
@@ -297,7 +293,7 @@ def _pick_subnets_names_and_allowed_io_names_overlap(
     spec = _pick_for_ctc(model, nemo_model_mod)
     if spec is not None:
         return spec
-    return subnet_names, allow_same_io_names
+    return subnet_names
 
 
 def iter_nemo_model_subnets(
@@ -310,10 +306,8 @@ def iter_nemo_model_subnets(
     batch_size: int = 3,
 ):
     """Iterator over exportable subnets of a nemo model."""
-    subnet_names, allow_same_io_names = (
-        _pick_subnets_names_and_allowed_io_names_overlap(model)
-    )
-    for subnet_name, sio in zip(subnet_names, allow_same_io_names):
+    subnet_names = _pick_subnets_names(model)
+    for subnet_name in subnet_names:
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
             input_example = None  # reset: joint needs more than encoder out
@@ -332,7 +326,6 @@ def iter_nemo_model_subnets(
                     batch_size=batch_size,
                     remove_unused_inputs=remove_unused_inputs,
                     split_joint_decoder=split_joint_decoder,
-                    allow_same_io_names=sio,
                 )
                 continue
 
@@ -344,7 +337,7 @@ def iter_nemo_model_subnets(
                     subnet.input_names,
                     f"but expected {len(input_example)} inputs",
                 )
-            yield subnet_name, subnet, input_example, ctx.dynamic_axes, sio
+            yield subnet_name, subnet, input_example, ctx.dynamic_axes
             # Propagate input example
             # (default scenario, may need to be overriden)
             if input_example is not None and apply_sequential_examples:
@@ -371,7 +364,6 @@ def iter_decoder_joint_subnets(
     batch_size: int,
     remove_unused_inputs: bool,
     split_joint_decoder: bool,
-    allow_same_io_names: bool,
 ):
     """Yield export tuples for the decoder_joint case.
 
@@ -393,14 +385,12 @@ def iter_decoder_joint_subnets(
                 batch_size=batch_size,
             ),
             decoder.dynamic_shapes_for_export(False),
-            allow_same_io_names,
         )
         yield (
             "joint",
             subnet.joint,
             subnet.joint.input_example(max_batch=batch_size),
             subnet.joint.dynamic_shapes_for_export(False),
-            allow_same_io_names,
         )
         return
 
@@ -425,7 +415,6 @@ def iter_decoder_joint_subnets(
         subnet,
         input_example,
         ctx_dynamic_axes,
-        allow_same_io_names,
     )
 
 
@@ -523,7 +512,8 @@ def build_preprocessor_export_params(
         model = asr_model.preprocessor
         input_names = model.input_names[: len(input_example)]
         output_names = model.output_names
-        # If any outputs share names with inputs, rename outputs to avoid collision
+        # If any outputs share names with inputs, rename outputs
+        # to avoid collision
         inter = set(input_names).intersection(set(output_names))
         if inter:
             rename_map = {n: f"{n}_out" for n in inter}
@@ -580,7 +570,6 @@ def iter_export_params_for_generic_nemo_asr_model(
         subnet,
         input_example,
         nemo_dynamic_axes,
-        allow_same_io_names,
     ) in iter_nemo_model_subnets(
         asr_model,
         float_dtype=float_dtype,
