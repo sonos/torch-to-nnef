@@ -10,7 +10,6 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
