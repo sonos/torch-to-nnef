@@ -35,6 +35,7 @@ from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.khronos import KhronosNNEF
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.tensor.offload import OffloadedTensor
+from torch_to_nnef.exceptions import T2NError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -78,7 +79,13 @@ def _nnef_dtype(dtype):
 
 
 def _print(
-    graph, file, extensions, fragments, version_custom_ops, annotate_shapes
+    graph,
+    file,
+    extensions,
+    fragments,
+    version_custom_ops,
+    annotate_shapes,
+    inference_target: T.Optional[InferenceTarget] = None,
 ):
     assert graph.is_sorted(), "graph must be topologically sorted"
     assert all(
@@ -156,13 +163,27 @@ def _print(
             if isinstance(value, (type, np.dtype)):
                 attribs[key] = _nnef_dtype(value)
 
-        invocation = nnef.format_invocation(
-            name=name,
-            dtype=dtype,
-            attribs=attribs,
-            inputs=inputs,
-            outputs=outputs,
-        )
+        # Special-case pass-through op to generate a simple assignment for Tract
+        if op.type == "identity" and len(op.inputs) == 1 and len(op.outputs) == 1:
+            in_name = as_str(op.inputs[0].name)
+            out_name = as_str(op.outputs[0].name)
+            if isinstance(inference_target, TractNNEF):
+                invocation = f"{out_name} = {in_name}"
+            else:
+                raise T2NError(
+                    "Encountered identity pass-through in graph. This explicit "
+                    "alias is only supported for TractNNEF. Collision: "
+                    f"input '{in_name}' -> output '{out_name}'. "
+                    "Please use distinct IO names or export targeting TractNNEF."
+                )
+        else:
+            invocation = nnef.format_invocation(
+                name=name,
+                dtype=dtype,
+                attribs=attribs,
+                inputs=inputs,
+                outputs=outputs,
+            )
         annotation = (
             "    # "
             + ", ".join(
@@ -388,6 +409,7 @@ class Writer:
                     version_custom_ops=self._generate_custom_fragments
                     and self._version_custom_fragments,
                     annotate_shapes=self._annotate_shapes,
+                    inference_target=self._inference_target,
                 )
 
             if any(tensor.quant for tensor in graph.tensors):
