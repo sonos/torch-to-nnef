@@ -428,20 +428,35 @@ def iter_decoder_joint_subnets(
     )
 
 
-ExportParameters = T.NamedTuple(
-    "ExportParameters",
-    [
-        ("name", str),
-        ("model", torch.nn.Module),
-        ("test_input", object),
-        ("inference_target", InferenceTarget),
-        ("input_names", list),
-        ("output_names", list),
-        ("custom_extensions", list),
-        ("allow_same_io_names", bool),
-        ("specific_tract_properties", dict),
-    ],
-)
+@dataclass(frozen=True)
+class ExportParameters:
+    name: str
+    model: torch.nn.Module
+    test_input: object
+    inference_target: InferenceTarget
+    input_names: list
+    output_names: list
+    custom_extensions: list
+    allow_same_io_names: bool
+    specific_tract_properties: dict
+
+    def display(self):
+        def display_inp(inp):
+            if isinstance(inp, torch.Tensor):
+                return f"Tensor(shape={tuple(inp.shape)}, dtype={inp.dtype})"
+            if isinstance(inp, (list, tuple)):
+                return f"{type(inp).__name__}([{', '.join(display_inp(i) for i in inp)}])"
+            return repr(inp)
+
+        print("name", self.name)
+        print("model", repr(self.model.__class__))
+        print("test_input", display_inp(self.test_input))
+        print("inference_target", repr(self.inference_target))
+        print("input_names", self.input_names)
+        print("output_names", self.output_names)
+        print("custom_extensions", self.custom_extensions)
+        print("allow_same_io_names", self.allow_same_io_names)
+        print("specific_tract_properties", self.specific_tract_properties)
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")
