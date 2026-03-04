@@ -465,7 +465,6 @@ def build_preprocessor_export_params(
     nemo: InjectedNemoModule = INJECTED,
 ) -> T.Iterator[ExportParameters]:
     """Build export parameters for the preprocessor of a NeMo ASR model."""
-    inps = asr_model.preprocessor.input_example()
     if hasattr(asr_model.preprocessor, "featurizer"):
         asr_model.preprocessor.featurizer.training = False
         if hasattr(asr_model.preprocessor.featurizer, "dither"):
@@ -478,11 +477,17 @@ def build_preprocessor_export_params(
                 LOGGER.info("disabling pad_to for preprocessor export")
             asr_model.preprocessor.featurizer.pad_to = 0
 
-    if isinstance(
-        asr_model.preprocessor,
-        nemo.collections.asr.modules.audio_preprocessing.AudioPreprocessor,
+    inps = asr_model.preprocessor.input_example()
+    if (
+        isinstance(
+            asr_model.preprocessor,
+            nemo.collections.asr.modules.audio_preprocessing.AudioPreprocessor,
+        )
+        and inps is None
     ):
         asr_model.preprocessor = WrapAudioPreprocessor(asr_model.preprocessor)
+        inps = asr_model.preprocessor.input_example()
+        assert inps is not None, "input_example must be provided by the wrapper"
 
     with exportable_nemo_net(
         "preprocessor", asr_model.preprocessor, inps

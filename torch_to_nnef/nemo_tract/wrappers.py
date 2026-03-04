@@ -49,12 +49,44 @@ class WrapAudioPreprocessor(torch.nn.Module):
         super().__init__()
         self.preprocessor = preprocessor
 
-    def input_example(self, max_batch: int = 1):
+    @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="torchaudio")
+    def input_example(
+        self, max_batch: int = 2, *, torchaudio: InjectedNemoModule = INJECTED
+    ):
+        results = self.preprocessor.input_example(max_batch=max_batch)
+        if results is not None:
+            LOGGER.warning(
+                "AudioPreprocessor input_example is not empty; using it as-is. "
+                "If you encounter issues with dynamic axes during export,"
+                " consider overriding the input_example method "
+                "to return a stable example."
+            )
+            return results
         # Build a stable example from input_types, irrespective of the
         # underlying module's own (possibly varying) input_example.
         input_types = self.preprocessor.input_types
+        if self.preprocessor.featurizer is None:
+            LOGGER.warning(
+                "AudioPreprocessor has no featurizer."
+                "This is unknown behavior for T2N maintainer."
+            )
+        if not isinstance(
+            self.preprocessor.featurizer,
+            (torchaudio.transforms.MelSpectrogram, torchaudio.transforms.MFCC),
+        ):
+            LOGGER.warning(
+                "AudioPreprocessor featurizer is not a MelSpectrogram/MFCC."
+                "This is unknown behavior for T2N maintainer and may lead to "
+                "suboptimal export results."
+            )
         batch_size = max_batch
-        default_time = DEFAULT_TIME  # safe default for time axis
+        # safe default for time axis
+        default_time = (
+            self.preprocessor.featurizer.sample_rate
+            if self.preprocessor.featurizer
+            and hasattr(self.preprocessor.featurizer, "sample_rate")
+            else DEFAULT_TIME
+        )
 
         example = []
         for _, neural_type in input_types.items():
@@ -324,11 +356,10 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         self._init_batch_axes(sym_dynamic_axes)
 
     def _get_module_input_example(self):
-        try:
-            return self.module.input_example(max_batch=1)
-        except AttributeError:  # pragma: no cover - defensive
-            if hasattr(self.module, "input_module"):
-                return self.module.input_module.input_example(max_batch=1)
+        if hasattr(self.module, "input_example"):
+            return self.module.input_example()
+        if hasattr(self.module, "input_module"):
+            return self.module.input_module.input_example()
         return None
 
     def _init_expected_ranks_from_example(self) -> None:
