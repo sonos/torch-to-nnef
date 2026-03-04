@@ -472,7 +472,7 @@ def build_preprocessor_export_params(
             # disable dither for export
             if asr_model.preprocessor.featurizer.dither != 0.0:
                 LOGGER.info("disabling dither for preprocessor export")
-            asr_model.preprocessor.featurizer.dither = 1e-3
+            asr_model.preprocessor.featurizer.dither = 0
         if hasattr(asr_model.preprocessor.featurizer, "pad_to"):
             if asr_model.preprocessor.featurizer.pad_to != 0.0:
                 LOGGER.info("disabling pad_to for preprocessor export")
@@ -503,7 +503,7 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
-        if collapse_batch_dim and False:
+        if collapse_batch_dim:
             # Wrap and collapse axes. Use the wrapper's own dynamic-axes view
             # to reflect the exposed ranks accurately (mirrors generic path).
             model = CollapseBatchDimWrapper(model, dynamic_axes)
