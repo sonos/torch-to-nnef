@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
+import os
 
 import torch
 
@@ -156,8 +157,14 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
             else args.tract_specific_version
         )
     elif args.tract_specific_path:
-        tract_cli_path = Path(args.tract_specific_path)
-        assert tract_cli_path.exists(), tract_cli_path
+        # Expand env vars and user home (e.g. "$HOME" or "~/"), then resolve
+        expanded = os.path.expandvars(str(args.tract_specific_path))
+        tract_cli_path = Path(expanded).expanduser().resolve()
+        if not tract_cli_path.exists() or not tract_cli_path.is_file():
+            raise FileNotFoundError(
+                f"Invalid --tract-specific-path: '{args.tract_specific_path}' "
+                f"-> '{tract_cli_path}' does not exist or is not a file"
+            )
         tract_cli = TractCli(tract_cli_path)
         inference_target = TractNNEF(
             tract_cli.version,

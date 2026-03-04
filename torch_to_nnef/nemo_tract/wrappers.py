@@ -298,10 +298,9 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         batch_size, ref_tensor = self._infer_batch_size(args, kwargs)
 
         # Ensure target_length is int64 (Tract-friendly for TDim casting)
+        # Shape as (B,) for compatibility with NeMo decoders
         target_length = torch.ones(
-            (batch_size, 1),
-            device=ref_tensor.device,
-            dtype=torch.long,
+            (batch_size,), device=ref_tensor.device, dtype=torch.long
         )
         to_rm_in_idx = self.index_arg_to_remove
         if len(args) > to_rm_in_idx:
@@ -458,17 +457,39 @@ class CollapseBatchDimWrapper(torch.nn.Module):
 
     def _infer_time_from_visible_inputs(
         self, visible: T.Sequence[torch.Tensor]
-    ):
-        times = []
+    ) -> int:
+        """Infer a reasonable time dimension from external inputs.
+
+        - Ignores any length-only inputs (already filtered from ``visible``).
+        - Skips state inputs entirely, as their trailing dimension is hidden size
+          and does not represent time.
+        - Handles tuples/lists of tensors and 0-D tensors safely.
+        """
+        times: T.List[int] = []
         collapsed_index = 0
         for name in self._orig_input_names:
             if is_length_name(name):
                 continue
+            if collapsed_index >= len(visible):
+                break
             t = visible[collapsed_index]
-            if torch.is_tensor(t):
-                times.append(t.shape[-1])
             collapsed_index += 1
-        return max(times) if times else 1
+
+            # Do not use state tensors to infer time
+            if name in STATE_INPUT_NAMES:
+                continue
+
+            def push_time(x: T.Any):
+                if torch.is_tensor(x) and x.dim() > 0:
+                    times.append(int(x.shape[-1]))
+
+            if isinstance(t, (list, tuple)):
+                for s in t:
+                    push_time(s)
+            else:
+                push_time(t)
+
+        return int(max(times)) if times else 1
 
     def _synthesize_length_tensor(
         self,
@@ -478,7 +499,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         name: str,
     ) -> torch.Tensor:
         if name == "target_length":
-            return torch.tensor([[length]], device=ref_device, dtype=torch.long)
+            # For collapsed-batch invocation, a single-sample vector of length 1
+            # is enough; DecoderWithoutTargetLength will expand per batch later.
+            return torch.tensor([length], device=ref_device, dtype=torch.long)
         return torch.tensor([length], device=ref_device, dtype=torch.long)
 
     def forward(self, *args, **kwargs):
@@ -522,9 +545,8 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 )
                 continue
             val = next(vis_iter)
-            if name == INPUT_STATE_TUPLE_NAME and isinstance(
-                val, (list, tuple)
-            ):
+            # For state tensors, default to explicit batch axis at dim 1.
+            if name == INPUT_STATE_TUPLE_NAME and isinstance(val, (list, tuple)):
                 proc = []
                 for s in val:
                     t = s
@@ -535,10 +557,25 @@ class CollapseBatchDimWrapper(torch.nn.Module):
                 full.append(tuple(proc))
                 continue
             if torch.is_tensor(val):
-                expected_rank = self._expected_rank_no_batch.get(
-                    name, max(1, val.dim())
-                )
                 t = val
+                # Detect token-like integer inputs (e.g., decoder targets)
+                is_token = (
+                    not is_length_name(name)
+                    and t.dtype in (torch.int8, torch.int16, torch.int32, torch.int64)
+                )
+                if is_token:
+                    # For token IDs, prefer explicit [B, U] with B inserted at dim 0
+                    if t.dim() == 0:
+                        t = t.unsqueeze(0)
+                    if t.dim() == 1:
+                        t = t.unsqueeze(0)
+                    # Do not add further unsqueezes based on dynamic map for tokens
+                    full.append(t)
+                    continue
+
+                expected_rank = self._expected_rank_no_batch.get(
+                    name, max(1, t.dim())
+                )
                 if name not in ("input_states_1", "input_states_2"):
                     while t.dim() > max(1, expected_rank):
                         t = t.select(dim=0, index=0)

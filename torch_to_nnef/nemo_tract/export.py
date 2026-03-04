@@ -445,7 +445,10 @@ class ExportParameters:
             if isinstance(inp, torch.Tensor):
                 return f"Tensor(shape={tuple(inp.shape)}, dtype={inp.dtype})"
             if isinstance(inp, (list, tuple)):
-                return f"{type(inp).__name__}([{', '.join(display_inp(i) for i in inp)}])"
+                return (
+                    f"{type(inp).__name__}"
+                    f"([{', '.join(display_inp(i) for i in inp)}])"
+                )
             return repr(inp)
 
         print("name", self.name)
