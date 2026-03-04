@@ -1124,22 +1124,21 @@ for op in [
     )
 
 
-def test_should_fail_since_no_input():
+def test_should_create_an_identity_graph():
     inference_target = TractNNEF.latest()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
         model = nn.Dropout()
-        with pytest.raises(T2NError):
-            export_model_to_nnef(
-                model=model,
-                args=test_input,
-                file_path_export=export_path,
-                input_names=["input"],
-                output_names=["output"],
-                log_level=log.WARNING,
-                inference_target=inference_target,
-            )
+        export_model_to_nnef(
+            model=model,
+            args=test_input,
+            file_path_export=export_path,
+            input_names=["input"],
+            output_names=["output"],
+            log_level=log.WARNING,
+            inference_target=inference_target,
+        )
 
 
 def test_should_fail_since_false_output():
