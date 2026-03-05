@@ -1,5 +1,5 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 # -----------------------------
 # Configuration
@@ -10,12 +10,11 @@ VENV_DIR=".venv"
 # -----------------------------
 # Utilities
 # -----------------------------
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
+command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 install_uv() {
     echo "Installing uv..."
+    # Use pipefail to surface curl or installer failures
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$PATH"
 
@@ -25,11 +24,7 @@ install_uv() {
     fi
 }
 
-ensure_uv() {
-    if ! command_exists uv; then
-        install_uv
-    fi
-}
+ensure_uv() { command_exists uv || install_uv; }
 
 # -----------------------------
 # Ensure Python toolchain
