@@ -38,7 +38,7 @@ from torch_to_nnef.torch_graph.ir_naming import (
     DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
 )
-from torch_to_nnef.utils import dedup_list, torch_version
+from torch_to_nnef.utils import dedup_list, torch_version, ensure_tuple_io
 
 LOGGER = log.getLogger(__name__)
 
@@ -211,12 +211,7 @@ def export_model_to_nnef(
             "custom extensions should be a list, "
             "because some extensions may be order sensitive (in tract)."
         )
-    if isinstance(args, (torch.Tensor, int, float, bool, dict)) or (
-        hasattr(args, "__getitem__")
-        and hasattr(args, "items")
-        and not isinstance(args, torch.Tensor)
-    ):
-        args = (args,)
+    args = ensure_tuple_io(args)
 
     with (
         select_model_mode_for_export(model, TrainingMode.EVAL),
@@ -227,12 +222,7 @@ def export_model_to_nnef(
     apply_name_to_tensor_in_module(model)
     # Normalize single-output or mapping-like outputs into a tuple for
     # downstream processing.
-    if isinstance(outs, (torch.Tensor, int, float, bool, dict)) or (
-        hasattr(outs, "__getitem__")
-        and hasattr(outs, "items")
-        and not isinstance(outs, torch.Tensor)
-    ):
-        outs = (outs,)
+    outs = ensure_tuple_io(outs)
     _check_io_names(input_names, output_names, allow_same_io_names)
 
     LOGGER.info(
