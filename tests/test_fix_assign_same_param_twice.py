@@ -1,4 +1,4 @@
-import subprocess
+import tarfile
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -40,8 +40,10 @@ def check_no_dup_dat(inference_target, path):
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         with cd(td):
-            subprocess.check_output(["tar", "-xzf", str(path)])
-            dats = [_ for _ in td.iterdir() if ".dat" in _.suffixes]
+            # Robustly extract regardless of .tar or .tgz
+            with tarfile.open(path, "r:*") as tf:
+                tf.extractall(td)
+            dats = list(td.glob("*.dat"))
             if len(dats) != 2:
                 names = [_.name for _ in dats]
                 raise T2NErrorMisuse(f"too much .dat produced: {names}")
