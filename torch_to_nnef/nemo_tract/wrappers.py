@@ -7,6 +7,7 @@ from torch_to_nnef._optional_types import (
     InjectedNemoModule,
     InjectedTorchaudioModule,
 )
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.constants import (
     DEFAULT_TIME,
@@ -272,7 +273,11 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         for v in kwargs.values():
             if torch.is_tensor(v):
                 return v.shape[0], v
-        raise RuntimeError("Cannot infer batch size: no Tensor inputs found")
+        from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+
+        raise T2NErrorInvalidArgument(
+            "Cannot infer batch size: no Tensor inputs found"
+        )
 
     @property
     def input_names(self):
@@ -303,7 +308,7 @@ class DecoderWithoutTargetLength(torch.nn.Module):
             for idx, name in enumerate(self.decoder.input_names):
                 if name == self.FILTER_ARGUMENT:
                     return idx
-        raise RuntimeError(
+        raise T2NErrorInvalidArgument(
             f"Cannot find argument named {self.FILTER_ARGUMENT} to remove"
         )
 
@@ -313,7 +318,7 @@ class DecoderWithoutTargetLength(torch.nn.Module):
             for idx, name in enumerate(self.decoder.output_names):
                 if name == self.FILTER_OUTPUT:
                     return idx
-        raise RuntimeError(
+        raise T2NErrorInvalidArgument(
             f"Cannot find output named {self.FILTER_OUTPUT} to remove"
         )
 
@@ -541,10 +546,9 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         length: int,
         name: str,
     ) -> torch.Tensor:
-        if name == "target_length":
-            # For collapsed-batch invocation, a single-sample vector of length 1
-            # is enough; DecoderWithoutTargetLength will expand per batch later.
-            return torch.tensor([length], device=ref_device, dtype=torch.long)
+        # For collapsed-batch invocation, a single-sample vector of the
+        # inferred time length is sufficient. Decoder wrappers can expand if
+        # needed downstream.
         return torch.tensor([length], device=ref_device, dtype=torch.long)
 
     def forward(self, *args, **kwargs):
@@ -669,12 +673,13 @@ def use_pytorch_sdpa(
     for module in model.modules():
         if isinstance(module, mha):
             if not hasattr(module, "use_pytorch_sdpa"):
-                raise RuntimeError(
-                    "The provided model's MultiHeadAttention module "
-                    "does not have the 'use_pytorch_sdpa' attribute. "
-                    "Cannot apply PyTorch SDPA."
-                    " Please ensure you are using a compatible NeMo version"
-                    f"(yours: '{nemo.__version__}', required: '2.1.0' or later)"
-                    " with PyTorch SDPA support."
+                raise T2NErrorInvalidArgument(
+                    (
+                        "The provided model's MultiHeadAttention module does "
+                        "not have the 'use_pytorch_sdpa' attribute. Cannot "
+                        "apply PyTorch SDPA. Please ensure a compatible NeMo "
+                        f"version (yours: '{nemo.__version__}', required: "
+                        "'2.1.0' or later) with PyTorch SDPA support."
+                    )
                 )
             module.use_pytorch_sdpa = True

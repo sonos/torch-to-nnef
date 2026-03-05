@@ -14,11 +14,10 @@ from torch_to_nnef._optional_types import (
     InjectedOmegaConfModule,
 )
 from torch_to_nnef.compress import dynamic_load_registry
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.inference_target.tract import (
-    build_io,
-)
+from torch_to_nnef.inference_target.tract import build_io
 from torch_to_nnef.nemo_tract.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
@@ -332,10 +331,12 @@ def iter_nemo_model_subnets(
             input_example = ctx.input_example
             if len(input_example) > len(subnet.input_names):
                 # if < that means some inputs are optional
-                raise RuntimeError(
-                    "declared input names:",
-                    subnet.input_names,
-                    f"but expected {len(input_example)} inputs",
+                raise T2NErrorInvalidArgument(
+                    (
+                        "Declared input names: %s but received %d inputs. "
+                        "Some inputs may be optional; verify subnet interface."
+                    )
+                    % (subnet.input_names, len(input_example))
                 )
             yield subnet_name, subnet, input_example, ctx.dynamic_axes
             # Propagate input example
@@ -404,10 +405,12 @@ def iter_decoder_joint_subnets(
 
     if len(input_example) > len(subnet.input_names):
         # if < that means some inputs are optional
-        raise RuntimeError(
-            "declared input names:",
-            subnet.input_names,
-            f"but expected {len(input_example)} inputs",
+        raise T2NErrorInvalidArgument(
+            (
+                "Declared input names: %s but received %d inputs. "
+                "Some inputs may be optional; verify subnet interface."
+            )
+            % (subnet.input_names, len(input_example))
         )
 
     yield (
