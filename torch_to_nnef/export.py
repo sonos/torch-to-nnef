@@ -594,10 +594,12 @@ def export_tensors_to_nnef(
 
 @contextlib.contextmanager
 def _unsupported_module_alerter(inference_target: InferenceTarget):
-    """Trigger an error if module or specific function are unsupported.
+    """Temporarily raise for unsupported nn.utils.rnn utilities.
 
-    This avoid suprious expension of internal graph leads to
-    error messages hard to interpret.
+    Notes:
+    - This performs a process-wide monkeypatch during export and restores
+      originals on exit. It is not thread-safe; avoid concurrent exports.
+    - The patching only applies when targeting TractNNEF.
     """
 
     class UnsupportedRaise:
@@ -607,31 +609,39 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
         def __call__(self, *args: T.Any, **kwds: T.Any) -> T.Any:
             raise T2NErrorNotImplemented(self.msg)
 
+    orig_pack = None
+    orig_pad = None
+    did_patch_pack = False
+    did_patch_pad = False
+
     if isinstance(inference_target, TractNNEF):
-        torch.nn.utils.rnn.original_pack_padded_sequence = (
-            torch.nn.utils.rnn.pack_padded_sequence
-        )
-        torch.nn.utils.rnn.pack_padded_sequence = UnsupportedRaise(
-            "'nn.utils.rnn.pack_padded_sequence' not supported by tract yet."
-            " Contribution welcome."
-        )
-        torch.nn.utils.rnn.original_pad_packed_sequence = (
-            torch.nn.utils.rnn.pad_packed_sequence
-        )
-        torch.nn.utils.rnn.pad_packed_sequence = UnsupportedRaise(
-            "'nn.utils.rnn.pad_packed_sequence' not supported by tract yet."
-            " Contribution welcome."
-        )
+        # Patch pack_padded_sequence
+        rnnmod = getattr(torch.nn.utils, "rnn", None)
+        if rnnmod is not None and hasattr(rnnmod, "pack_padded_sequence"):
+            orig_pack = rnnmod.pack_padded_sequence
+            rnnmod.pack_padded_sequence = UnsupportedRaise(
+                "'nn.utils.rnn.pack_padded_sequence' not supported by tract yet."
+                " Contribution welcome."
+            )
+            did_patch_pack = True
+        # Patch pad_packed_sequence
+        if rnnmod is not None and hasattr(rnnmod, "pad_packed_sequence"):
+            orig_pad = rnnmod.pad_packed_sequence
+            rnnmod.pad_packed_sequence = UnsupportedRaise(
+                "'nn.utils.rnn.pad_packed_sequence' not supported by tract yet."
+                " Contribution welcome."
+            )
+            did_patch_pad = True
     try:
         yield
     finally:
         if isinstance(inference_target, TractNNEF):
-            torch.nn.utils.rnn.pack_padded_sequence = (
-                torch.nn.utils.rnn.original_pack_padded_sequence
-            )
-            torch.nn.utils.rnn.pad_packed_sequence = (
-                torch.nn.utils.rnn.original_pad_packed_sequence
-            )
+            rnnmod = getattr(torch.nn.utils, "rnn", None)
+            if rnnmod is not None:
+                if did_patch_pack and orig_pack is not None:
+                    rnnmod.pack_padded_sequence = orig_pack
+                if did_patch_pad and orig_pad is not None:
+                    rnnmod.pad_packed_sequence = orig_pad
 
 
 @contextlib.contextmanager
