@@ -96,9 +96,8 @@ def _pick_for_classification(model, nemo_models_mod):
     )
     if isinstance(model, cls_enc_dec_cls):
         subnet_names = ["encoder", "decoder"]
-        allow_same_io_names = [True, False]
         _patch_encoder_output_types(model.encoder.__class__)
-        return subnet_names, allow_same_io_names
+        return subnet_names
     return None
 
 
@@ -109,9 +108,8 @@ def _pick_for_ctc(model, nemo_models_mod):
         cls_ctc_bpe is not None and isinstance(model, cls_ctc_bpe)
     ):
         subnet_names = ["encoder", "decoder"]
-        allow_same_io_names = [True, False]
         _patch_encoder_output_types(model.encoder.__class__)
-        return subnet_names, allow_same_io_names
+        return subnet_names
     return None
 
 
@@ -430,7 +428,6 @@ class ExportParameters:
     input_names: list
     output_names: list
     custom_extensions: list
-    allow_same_io_names: bool
     specific_tract_properties: dict
 
     def display(self):
@@ -451,7 +448,6 @@ class ExportParameters:
         print("input_names", self.input_names)
         print("output_names", self.output_names)
         print("custom_extensions", self.custom_extensions)
-        print("allow_same_io_names", self.allow_same_io_names)
         print("specific_tract_properties", self.specific_tract_properties)
 
 
@@ -543,7 +539,6 @@ def build_preprocessor_export_params(
             input_names=input_names,
             output_names=output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=False,  # enforce different IO names
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),
@@ -628,7 +623,6 @@ def iter_export_params_for_generic_nemo_asr_model(
             input_names=input_names,
             output_names=output_names,
             custom_extensions=list(custom_extensions),
-            allow_same_io_names=False,
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),
@@ -701,7 +695,6 @@ def export_nemo_asr_model(
             output_names=export_params.output_names,
             file_path_export=export_dir / f"{export_params.name}.nnef.tgz",
             custom_extensions=export_params.custom_extensions,
-            allow_same_io_names=export_params.allow_same_io_names,
             **kwargs,
         )
         LOGGER.info("exported subnet: %s with success", export_params.name)

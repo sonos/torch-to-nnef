@@ -119,6 +119,7 @@ site/
 *.wav
 *.npz
 *.nnef.tgz
+*.nnef.tar
 graph.nnef
 *.dat
 *.json
