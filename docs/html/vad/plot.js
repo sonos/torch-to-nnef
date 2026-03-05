@@ -150,4 +150,10 @@ export class VADPlot {
         this.opts = { ...this.opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
         // Reapply title on next reset; uPlot doesn’t support live title updates directly without full opts rebuild.
     }
+
+    clearTitle() {
+        if (!this.opts) return;
+        const { title, ...rest } = this.opts;
+        this.opts = { ...rest };
+    }
 }

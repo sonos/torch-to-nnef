@@ -11,7 +11,7 @@ function setVisible(id, on) {
 
 export async function initVAD() {
     // Grab required DOM nodes from existing HTML
-    const container = document.getElementById('vad-preview');
+    const container = document.getElementById('vad-plot');
     const stats = new StatsPanel(document);
     // Show loading until wasm is ready
     setVisible('page', false);
@@ -24,7 +24,6 @@ export async function initVAD() {
     const controls = new Controls(document);
     // Build base uPlot opts from globals if present or define minimal
     const baseOpts = window.opts || {
-        title: 'VAD detection with Nvidia MarbleNet',
         width: 640, // will be recalculated on reset
         height: 150,
         pxAlign: false,

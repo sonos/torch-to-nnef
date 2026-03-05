@@ -12,6 +12,7 @@ export class VadSession {
         // stop mic handled by page’s live manager if needed; caller ensures it
         // Do not reset WASM here; keeping warm state from mic avoids cold-start issues.
         this.modes?.disable(true);
+        try { this.plot.clearTitle?.(); } catch { }
         this.plot.reset();
         this.plot.show();
         // Ensure legend reflects current mode after reset

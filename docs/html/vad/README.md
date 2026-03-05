@@ -17,6 +17,9 @@ Prereqs
 
 - Rust toolchain (stable) and `wasm-pack`
 - Binaryen’s `wasm-opt` for size-optimized builds (recommended)
+  - macOS (brew): `brew install binaryen`
+  - Linux: use your package manager or https://github.com/WebAssembly/binaryen
+  - Ensure `~/.cargo/bin` is on your `PATH` (for `wasm-pack`)
 
 Commands
 
@@ -45,4 +48,3 @@ Notes
 
 - Release builds are configured for small size in `docs/examples/vad/Cargo.toml` (`opt-level=z`, thin LTO, `wasm-opt=true`).
 - If you change the Rust code, re-run the wasm-pack build step and refresh the page.
-

@@ -19,17 +19,35 @@
           <div class="card-content">
             <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
             <p>
-              This demo runs a Voice Activity Detection (VAD) model based on NVIDIA MarbleNet.
+              This demo runs a Voice Activity Detection (VAD) model based on NVIDIA
+              <a href="https://arxiv.org/pdf/2010.13886" target="_blank" rel="noopener noreferrer">MarbleNet</a>.
               VAD estimates the probability that speech is present in short audio frames. MarbleNet is a
               lightweight convolutional architecture designed for accurate, low‑latency speech/no‑speech
               detection.
             </p>
-            <p>
-              Modes:
-              <strong>Pulsed</strong> streams the encoder with small (4‑frame) updates for low latency;
-              <strong>Batch</strong> computes the encoder on a larger context window each step for reference parity;
-              <strong>Both</strong> plots the two scores side‑by‑side so you can compare behavior.
+            <div class="card-panel teal lighten-5" style="margin-top:8px;">
+              <span class="black-text">
+                <strong>Did you know?</strong> In tract, a <em>pulse</em> is a small, fixed‑size
+                chunk on the time axis (here: 4 frames). The engine streams these pulses through
+                the graph, carrying just enough internal state to run <em>causally</em> without
+                replaying history. Latency is thus bounded by the pulse size (ops must be
+                streamable or have a small look‑ahead).
+              </span>
+            </div>
+            <div class="modes" style="margin-top:8px;">
+              <span style="color:#666;">Modes:</span>
+              <ul class="browser-default" style="margin:6px 0 0 18px;">
+                <li><strong>Pulsed</strong>: low‑latency streaming using the current pulse size.</li>
+                <li><strong>Batch</strong>: larger context per step for reference parity.</li>
+                <li><strong>Both</strong>: plots both scores side‑by‑side for comparison.</li>
+              </ul>
+            </div>
+            <p style="margin-top:8px;">
+              <em>Dev notes:</em> see <a href="https://github.com/sonos/torch-to-nnef/blob/main/docs/html/vad/README.md" target="_blank" rel="noopener noreferrer">VAD module README</a>
+              for local wasm build and serve instructions.
             </p>
+            <!-- Plot placeholder: chart renders here, just after the intro/dev notes -->
+            <div id="vad-plot" class="vad-plot" style="margin-top:8px;"></div>
             <div id="error-container" class="card-panel red lighten-4" style="display:none;">
               <span id="error"></span>
             </div>
