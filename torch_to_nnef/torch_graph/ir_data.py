@@ -306,6 +306,9 @@ class TensorVariable(Data):
         return self
 
     def __eq__(self, other) -> bool:
+        # Fast path: identical objects are always equal
+        if self is other:
+            return True
         # check by name first
         # since faster than isinstance
         try:
