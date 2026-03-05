@@ -403,42 +403,53 @@ class TorchModuleIRGraph:
     def _merge_subraph(
         self, submodule_graph, callmethod_node, prefix: str, module_prefix: str
     ):
-        # Re-Wire input and output naming => {
-        def search_and_replace_data_nodes(
-            node_subgraph_to_wire: T.List[Data],
-            node_graph_to_wire: T.List[Data],
-            datas_attr: str,
-        ):
-            assert datas_attr in ["inputs", "outputs"]
-            if datas_attr == "inputs":
-                node_graph_to_wire = [
-                    node_graph_to_wire[idx]
-                    for idx in submodule_graph.provided_inputs_picked_indexes
-                ]
-            ref_nodes = list(
-                _expand_node_containers_if_exists(
-                    node_graph_to_wire, filter_container=True
-                )
-            )
-            subgraph_nodes = list(
-                _expand_node_containers_if_exists(
-                    node_subgraph_to_wire, filter_container=True
-                )
-            )
-            if datas_attr == "inputs":
-                for snode, ref_node in zip(subgraph_nodes, ref_nodes):
-                    submodule_graph.remap_node(
-                        from_node=snode, to_node=ref_node
-                    )
-            elif datas_attr == "outputs":
-                for snode, ref_node in zip(subgraph_nodes, ref_nodes):
-                    self.remap_node(from_node=ref_node, to_node=snode)
+        # Wire inputs from caller to subgraph
+        self._wire_data_nodes(submodule_graph, callmethod_node, which="inputs")
 
-        search_and_replace_data_nodes(
-            submodule_graph.inputs, callmethod_node.inputs, "inputs"
+        # Rewrite scopes/module paths in the subgraph to include callsite info
+        self._rewrite_subgraph_scope(submodule_graph, prefix, module_prefix)
+
+        # Prefix data node names and merge them into self, handling collisions
+        self._prefix_and_merge_data_nodes(submodule_graph, prefix)
+
+        # Wire subgraph outputs back to caller outputs
+        self._wire_data_nodes(submodule_graph, callmethod_node, which="outputs")
+
+        # Replace the callmethod op by inlined subgraph ops
+        self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
+        self.op_nodes += submodule_graph.op_nodes
+
+    def _wire_data_nodes(
+        self, submodule_graph, callmethod_node, which: str
+    ) -> None:
+        assert which in ("inputs", "outputs")
+        node_subgraph_to_wire: T.List[Data] = getattr(submodule_graph, which)
+        node_graph_to_wire: T.List[Data] = getattr(callmethod_node, which)
+        if which == "inputs":
+            node_graph_to_wire = [
+                node_graph_to_wire[idx]
+                for idx in submodule_graph.provided_inputs_picked_indexes
+            ]
+        ref_nodes = list(
+            _expand_node_containers_if_exists(
+                node_graph_to_wire, filter_container=True
+            )
         )
-        # }
+        subgraph_nodes = list(
+            _expand_node_containers_if_exists(
+                node_subgraph_to_wire, filter_container=True
+            )
+        )
+        if which == "inputs":
+            for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+                submodule_graph.remap_node(from_node=snode, to_node=ref_node)
+        else:
+            for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+                self.remap_node(from_node=ref_node, to_node=snode)
 
+    def _rewrite_subgraph_scope(
+        self, submodule_graph, prefix: str, module_prefix: str
+    ) -> None:
         for _ in submodule_graph.op_nodes:
             res = _.scope.split(self.SEP, maxsplit=1)
             if len(res) >= 2 and isinstance(res, list):
@@ -447,6 +458,9 @@ class TorchModuleIRGraph:
                 _.scope = f"{res}[{prefix}]"
             _.module_path = f"{module_prefix}.{_.module_path}"
 
+    def _prefix_and_merge_data_nodes(
+        self, submodule_graph, prefix: str
+    ) -> None:
         protected_from_rename_node = set(submodule_graph.inputs)
         for dn in submodule_graph.data_nodes[:]:
             if dn in protected_from_rename_node:
@@ -454,43 +468,34 @@ class TorchModuleIRGraph:
             dn.name = f"{prefix}.{dn.name}"
 
         for dn in submodule_graph.data_nodes[:]:
-            if not self.data_nodes.contains(dn, strict=True):
-                # A failure mode is not fully understood here:
-                # in some edge-cases (only observed in CI)
-                # there is a collision that is detected between
-                # names and append do not work
-                # (which is supposed to not happen thanks to
-                # `rename_variable_by_incr`)
-                # hence this retry logic
-                for start_index in range(1, 4):  # give 3 try
-                    new_name = dn.name
-                    if self.data_nodes.get_by_name(dn.name):
-                        new_name = rename_variable_by_incr(
-                            dn.name,
-                            [self.data_nodes, submodule_graph.data_nodes],
-                            start_index=start_index,
-                        )
-                        LOGGER.info(
-                            "potential name collision detected rename"
-                            "new '%s' into '%s'",
-                            dn.name,
-                            new_name,
-                        )
-                        dn.name = new_name
-                    try:
-                        self.data_nodes.append(dn)
-                        break
-                    except T2NErrorDataNodeValue as exp:
-                        LOGGER.warning(
-                            "tried to append '%s' in data_nodes but failed: %s",
-                            new_name,
-                            exp,
-                        )
-        search_and_replace_data_nodes(
-            submodule_graph.outputs, callmethod_node.outputs, "outputs"
-        )
-        self.op_nodes = [op for op in self.op_nodes if op != callmethod_node]
-        self.op_nodes += submodule_graph.op_nodes
+            if self.data_nodes.contains(dn, strict=True):
+                continue
+            for start_index in range(1, 4):  # give 3 try
+                new_name = dn.name
+                if self.data_nodes.get_by_name(dn.name):
+                    new_name = rename_variable_by_incr(
+                        dn.name,
+                        [self.data_nodes, submodule_graph.data_nodes],
+                        start_index=start_index,
+                    )
+                    LOGGER.info(
+                        (
+                            "potential name collision detected: "
+                            "rename '%s' into '%s'"
+                        ),
+                        dn.name,
+                        new_name,
+                    )
+                    dn.name = new_name
+                try:
+                    self.data_nodes.append(dn)
+                    break
+                except T2NErrorDataNodeValue as exp:
+                    LOGGER.warning(
+                        "tried to append '%s' in data_nodes but failed: %s",
+                        new_name,
+                        exp,
+                    )
 
     def _recursive_call_method(
         self, nnef_variable_naming_scheme: VariableNamingScheme

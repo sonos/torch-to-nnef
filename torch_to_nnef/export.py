@@ -214,32 +214,36 @@ def export_model_to_nnef(
         input_names = list(input_names)
     if isinstance(output_names, KeysView):
         output_names = list(output_names)
-    if isinstance(args, ValuesView):
-        args = tuple(args)
+    args = tuple(args) if isinstance(args, ValuesView) else args
+
     mod_tensor_updater = ModTensorUpdater(
         model,
         add_buffers=False,
         add_unregistred_tensor=False,
         disable_requires_grad=True,
     )
+
     if custom_extensions is not None and not isinstance(
         custom_extensions, list
     ):
         raise T2NErrorInvalidArgument(
-            "custom extensions should be a list, "
-            "because some extensions may be order sensitive (in tract)."
+            (
+                "custom extensions should be a list, because some extensions "
+                "may be order sensitive (in tract)."
+            )
         )
-    args = ensure_tuple_io(args)
 
+    # Run forward once to capture outputs under safe modes
+    args = ensure_tuple_io(args)
     with (
         select_model_mode_for_export(model, TrainingMode.EVAL),
         torch.no_grad(),
         torch.inference_mode(),
     ):
         outs = model(*args)
+
+    # Normalize and validate IO names and shapes
     apply_name_to_tensor_in_module(model)
-    # Normalize single-output or mapping-like outputs into a tuple for
-    # downstream processing.
     outs = ensure_tuple_io(outs)
     _check_io_names(input_names, output_names, allow_same_io_names)
 
@@ -251,64 +255,35 @@ def export_model_to_nnef(
             "`file_path_export` should end with '.nnef' or '.nnef.tgz',"
             f" but found: {file_path_export.suffixes}"
         )
+
     with (
         _unsupported_module_alerter(inference_target),
         select_model_mode_for_export(model, TrainingMode.EVAL),
     ):
-        set_opaque_tensor_in_params_as_ref(model)
-        # may unfold io structures {
-        model_info = unfold_model_io(
+        model_info = _unfold_and_prepare_model_io(
             model, args, outs, input_names, output_names
         )
         input_names = model_info.input_names
         output_names = model_info.output_names
-        # }
-        inference_target.pre_trace(model, input_names, output_names)
 
-        graph_extractor = TorchToNGraphExtractor(
-            model_info.model,
-            model_info.flat_inputs,
-            inference_target=inference_target,
-            nnef_variable_naming_scheme=nnef_variable_naming_scheme,
-            check_io_names_qte_match=check_io_names_qte_match,
-            forced_inputs_names=input_names,
-            forced_outputs_names=output_names,
+        (
+            nnef_graph,
+            active_custom_extensions,
+            active_custom_fragments,
+        ) = _build_nnef_graph_and_fragments(
+            model_info,
+            model,
+            inference_target,
+            nnef_variable_naming_scheme,
+            check_io_names_qte_match,
+            input_names,
+            output_names,
+            custom_extensions,
         )
-        nnef_graph = graph_extractor.parse()
 
-        active_custom_extensions = _get_active_custom_extensions(
-            graph_extractor
-        )
-        inference_target.post_trace(nnef_graph, active_custom_extensions)
-        if custom_extensions is not None:
-            active_custom_extensions = dedup_list(
-                active_custom_extensions + custom_extensions
-            )
-
-        active_custom_fragments = inference_target.specific_fragments(model)
-        active_custom_fragments.update(
-            _get_active_custom_fragments(graph_extractor)
-        )
-        del graph_extractor
-        nnef_exp_file_path = _real_export_path(
+        nnef_exp_file_path, archive_format = _compute_archive_settings(
             file_path_export, compression_level
         )
-
-        # NNEFWriter: using version sometime create conflict with ops
-        # hence set to None
-        # Decide archive format from user path and compression_level
-        original_suffixes = file_path_export.suffixes
-        wants_tgz = any(s == ".tgz" for s in original_suffixes)
-        archive_format = None
-        if compression_level is not None:
-            if wants_tgz:
-                archive_format = "tgz"
-            else:
-                archive_format = (
-                    "tgz"
-                    if (compression_level and compression_level > 0)
-                    else "tar"
-                )
 
         NNEFWriter(
             compression=compression_level,
@@ -320,40 +295,17 @@ def export_model_to_nnef(
             archive_format=archive_format,
         )(nnef_graph, str(nnef_exp_file_path))
 
-        if len(active_custom_extensions) > 0:
-            LOGGER.info(
-                "The exported NNEF model need special custom extensions "
-                "such as %s, be sure to use the inference engine "
-                "you specified: %s",
-                active_custom_extensions,
-                inference_target,
-            )
-        LOGGER.info(
-            "model exported successfully as NNEF at: %s", nnef_exp_file_path
+        _log_extensions_and_success(
+            active_custom_extensions, inference_target, nnef_exp_file_path
         )
-        if compression_level is not None:
-            # Follow same format decision
-            if archive_format == "tgz":
-                suf = ".tgz"
-            elif archive_format == "tar":
-                suf = ".tar"
-            else:
-                suf = (
-                    ".tgz"
-                    if (compression_level and compression_level > 0)
-                    else ".tar"
-                )
-            exported_filepath = file_path_export.parent / (
-                nnef_exp_file_path.name + suf
-            )
-            LOGGER.info(
-                "created archive: %s (compression=%s)",
-                exported_filepath,
-                compression_level,
-            )
-        else:
-            exported_filepath = nnef_exp_file_path
-            LOGGER.info("exported directory: %s", exported_filepath)
+
+        exported_filepath = _finalize_export_path(
+            file_path_export,
+            nnef_exp_file_path,
+            compression_level,
+            archive_format,
+        )
+
         with _fixed_backend():
             inference_target.post_export(
                 model_info,
@@ -362,6 +314,128 @@ def export_model_to_nnef(
                 debug_bundle_path=debug_bundle_path,
             )
     mod_tensor_updater.restore_require_grad()
+    return exported_filepath
+
+
+def _unfold_and_prepare_model_io(
+    model: torch.nn.Module,
+    args: T.Tuple[T.Any, ...],
+    outs: T.Tuple[T.Any, ...],
+    input_names: T.Optional[T.List[str]],
+    output_names: T.Optional[T.List[str]],
+):
+    """Unfold IO structures and set opaque tensor params as references."""
+    set_opaque_tensor_in_params_as_ref(model)
+    model_info = unfold_model_io(model, args, outs, input_names, output_names)
+    return model_info
+
+
+def _build_nnef_graph_and_fragments(
+    model_info,
+    model: torch.nn.Module,
+    inference_target: InferenceTarget,
+    nnef_variable_naming_scheme: VariableNamingScheme,
+    check_io_names_qte_match: bool,
+    input_names: T.Optional[T.List[str]],
+    output_names: T.Optional[T.List[str]],
+    custom_extensions: T.Optional[T.List[str]],
+):
+    """Build the NNEF graph, collect active extensions and fragments."""
+    inference_target.pre_trace(model, input_names, output_names)
+
+    graph_extractor = TorchToNGraphExtractor(
+        model_info.model,
+        model_info.flat_inputs,
+        inference_target=inference_target,
+        nnef_variable_naming_scheme=nnef_variable_naming_scheme,
+        check_io_names_qte_match=check_io_names_qte_match,
+        forced_inputs_names=input_names,
+        forced_outputs_names=output_names,
+    )
+    nnef_graph = graph_extractor.parse()
+
+    active_custom_extensions = _get_active_custom_extensions(graph_extractor)
+    inference_target.post_trace(nnef_graph, active_custom_extensions)
+    if custom_extensions is not None:
+        active_custom_extensions = dedup_list(
+            active_custom_extensions + custom_extensions
+        )
+
+    active_custom_fragments = inference_target.specific_fragments(model)
+    active_custom_fragments.update(
+        _get_active_custom_fragments(graph_extractor)
+    )
+    del graph_extractor
+    return nnef_graph, active_custom_extensions, active_custom_fragments
+
+
+def _compute_archive_settings(
+    file_path_export: Path, compression_level: T.Optional[int]
+) -> T.Tuple[Path, T.Optional[str]]:
+    """Decide writer path and archive format."""
+    nnef_exp_file_path = _real_export_path(file_path_export, compression_level)
+    original_suffixes = file_path_export.suffixes
+    wants_tgz = any(s == ".tgz" for s in original_suffixes)
+    archive_format = None
+    if compression_level is not None:
+        if wants_tgz:
+            archive_format = "tgz"
+        else:
+            archive_format = (
+                "tgz"
+                if (compression_level and compression_level > 0)
+                else "tar"
+            )
+    return nnef_exp_file_path, archive_format
+
+
+def _log_extensions_and_success(
+    active_custom_extensions, inference_target, nnef_exp_file_path: Path
+) -> None:
+    if len(active_custom_extensions) > 0:
+        LOGGER.info(
+            (
+                "The exported NNEF model need special custom extensions "
+                "such as %s, be sure to use the inference engine you "
+                "specified: %s"
+            ),
+            active_custom_extensions,
+            inference_target,
+        )
+    LOGGER.info(
+        "model exported successfully as NNEF at: %s", nnef_exp_file_path
+    )
+
+
+def _finalize_export_path(
+    file_path_export: Path,
+    nnef_exp_file_path: Path,
+    compression_level: T.Optional[int],
+    archive_format: T.Optional[str],
+) -> Path:
+    """Return the final exported filepath and emit an informative log."""
+    if compression_level is not None:
+        if archive_format == "tgz":
+            suf = ".tgz"
+        elif archive_format == "tar":
+            suf = ".tar"
+        else:
+            suf = (
+                ".tgz"
+                if (compression_level and compression_level > 0)
+                else ".tar"
+            )
+        exported_filepath = file_path_export.parent / (
+            nnef_exp_file_path.name + suf
+        )
+        LOGGER.info(
+            "created archive: %s (compression=%s)",
+            exported_filepath,
+            compression_level,
+        )
+    else:
+        exported_filepath = nnef_exp_file_path
+        LOGGER.info("exported directory: %s", exported_filepath)
     return exported_filepath
 
 

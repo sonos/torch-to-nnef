@@ -382,140 +382,123 @@ class Writer:
         LOGGER.info(
             "start writing NNEF %s into: '%s'",
             "archive" if compressing else "directory",
-            (
-                f"{path}"
-                + (
-                    ".tgz"
-                    if (
-                        compressing and (self._archive_format or "tgz") == "tgz"
-                    )
-                    else (".tar" if compressing else "")
-                )
+            f"{path}"
+            + (
+                ".tgz"
+                if (compressing and (self._archive_format or "tgz") == "tgz")
+                else (".tar" if compressing else "")
             ),
         )
         folder = None
         try:
-            if compressing:
-                folder = tempfile.mkdtemp(prefix="nnef_")
-            else:
-                folder = path
-                if not os.path.exists(folder):
-                    os.makedirs(folder)
-
-            self._write_tensors_from_operators(graph, folder)
-
-            fragments = "".join(text for _, text in self._fragments.items())
-            if self._generate_custom_fragments:
-                customs = _generate_custom_fragments(
-                    graph,
-                    fragments=self._fragments,
-                    version=self._version_custom_fragments,
-                )
-                if fragments and customs:
-                    fragments += "\n"
-                fragments += customs
-
-            if len(fragments) and not isinstance(
-                self._inference_target, TractNNEF
-            ):
-                if "KHR_enable_fragment_definitions" not in self._extensions:
-                    self._extensions.append("KHR_enable_fragment_definitions")
-                if "KHR_enable_operator_expressions" not in self._extensions:
-                    self._extensions.append("KHR_enable_operator_expressions")
-
-            graph_filename = os.path.join(folder, "graph.nnef")
-            with open(graph_filename, "w", encoding="utf8") as file:
-                _print(
-                    graph,
-                    file,
-                    extensions=self._extensions,
-                    fragments=fragments,
-                    version_custom_ops=self._generate_custom_fragments
-                    and self._version_custom_fragments,
-                    annotate_shapes=self._annotate_shapes,
-                    inference_target=self._inference_target,
-                )
-
-            if any(tensor.quant for tensor in graph.tensors):
-                quant_filename = os.path.join(folder, "graph.quant")
-                with open(quant_filename, "w", encoding="utf8") as file:
-                    _write_quantization(graph, file)
+            folder = self._ensure_output_folder(path, compressing)
+            self._emit_graph_files(graph, folder)
         finally:
             if compressing and folder:
-                # Write archives atomically: create in a temporary file, then
-                # replace the final archive on success. Clean temp on failure.
-                archive_tmp = None
-                try:
-                    # Respect explicit archive_format when provided
-                    if (self._archive_format or "") == "tar":
-                        final_path = path + ".tar"
-                        archive_tmp = final_path + ".tmp"
-                        with tarfile.open(archive_tmp, mode="w") as tf:
-                            tf.add(folder, arcname=".")
-                        os.replace(archive_tmp, final_path)
-                        shutil.rmtree(folder)
-                        LOGGER.info(
-                            (
-                                "finished writing NNEF archive: %s "
-                                "(tar, no compression)"
-                            ),
-                            final_path,
-                        )
-                    elif (self._archive_format or "") == "tgz":
-                        final_path = path + ".tgz"
-                        archive_tmp = final_path + ".tmp"
-                        tgz_compress(
-                            folder,
-                            archive_tmp,
-                            compression_level=self._compression,
-                        )
-                        os.replace(archive_tmp, final_path)
-                        shutil.rmtree(folder)
-                        LOGGER.info(
-                            "finished writing NNEF archive: %s (gzip level=%s)",
-                            final_path,
-                            self._compression,
-                        )
-                    elif (
-                        isinstance(self._compression, int)
-                        and self._compression == 0
-                    ):
-                        # Default: 0 => tar, 1..9 => tgz
-                        final_path = path + ".tar"
-                        archive_tmp = final_path + ".tmp"
-                        with tarfile.open(archive_tmp, mode="w") as tf:
-                            tf.add(folder, arcname=".")
-                        os.replace(archive_tmp, final_path)
-                        shutil.rmtree(folder)
-                        LOGGER.info(
-                            (
-                                "finished writing NNEF archive: %s "
-                                "(tar, no compression)"
-                            ),
-                            final_path,
-                        )
-                    else:
-                        final_path = path + ".tgz"
-                        archive_tmp = final_path + ".tmp"
-                        tgz_compress(
-                            folder,
-                            archive_tmp,
-                            compression_level=self._compression,
-                        )
-                        os.replace(archive_tmp, final_path)
-                        shutil.rmtree(folder)
-                        LOGGER.info(
-                            "finished writing NNEF archive: %s (gzip level=%s)",
-                            final_path,
-                            self._compression,
-                        )
-                finally:
-                    # Cleanup temporary file if still present
-                    if archive_tmp and os.path.exists(archive_tmp):
-                        with contextlib.suppress(Exception):
-                            os.remove(archive_tmp)
+                self._finalize_archive(folder, path)
             else:
                 LOGGER.info("finished writing NNEF directory: %s", path)
+
+    def _ensure_output_folder(self, path: str, compressing: bool) -> str:
+        if compressing:
+            return tempfile.mkdtemp(prefix="nnef_")
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
+    def _emit_graph_files(self, graph, folder: str) -> None:
+        self._write_tensors_from_operators(graph, folder)
+
+        fragments = "".join(text for _, text in self._fragments.items())
+        if self._generate_custom_fragments:
+            customs = _generate_custom_fragments(
+                graph,
+                fragments=self._fragments,
+                version=self._version_custom_fragments,
+            )
+            if fragments and customs:
+                fragments += "\n"
+            fragments += customs
+
+        if len(fragments) and not isinstance(self._inference_target, TractNNEF):
+            if "KHR_enable_fragment_definitions" not in self._extensions:
+                self._extensions.append("KHR_enable_fragment_definitions")
+            if "KHR_enable_operator_expressions" not in self._extensions:
+                self._extensions.append("KHR_enable_operator_expressions")
+
+        graph_filename = os.path.join(folder, "graph.nnef")
+        with open(graph_filename, "w", encoding="utf8") as file:
+            _print(
+                graph,
+                file,
+                extensions=self._extensions,
+                fragments=fragments,
+                version_custom_ops=self._generate_custom_fragments
+                and self._version_custom_fragments,
+                annotate_shapes=self._annotate_shapes,
+                inference_target=self._inference_target,
+            )
+
+        if any(tensor.quant for tensor in graph.tensors):
+            quant_filename = os.path.join(folder, "graph.quant")
+            with open(quant_filename, "w", encoding="utf8") as file:
+                _write_quantization(graph, file)
+
+    def _finalize_archive(self, folder: str, path: str) -> None:
+        archive_tmp = None
+        try:
+            if (self._archive_format or "") == "tar":
+                final_path = path + ".tar"
+                archive_tmp = final_path + ".tmp"
+                with tarfile.open(archive_tmp, mode="w") as tf:
+                    tf.add(folder, arcname=".")
+                os.replace(archive_tmp, final_path)
+                shutil.rmtree(folder)
+                LOGGER.info(
+                    "finished writing NNEF archive: %s (tar, no compression)",
+                    final_path,
+                )
+            elif (self._archive_format or "") == "tgz":
+                final_path = path + ".tgz"
+                archive_tmp = final_path + ".tmp"
+                tgz_compress(
+                    folder, archive_tmp, compression_level=self._compression
+                )
+                os.replace(archive_tmp, final_path)
+                shutil.rmtree(folder)
+                LOGGER.info(
+                    "finished writing NNEF archive: %s (gzip level=%s)",
+                    final_path,
+                    self._compression,
+                )
+            elif isinstance(self._compression, int) and self._compression == 0:
+                final_path = path + ".tar"
+                archive_tmp = final_path + ".tmp"
+                with tarfile.open(archive_tmp, mode="w") as tf:
+                    tf.add(folder, arcname=".")
+                os.replace(archive_tmp, final_path)
+                shutil.rmtree(folder)
+                LOGGER.info(
+                    "finished writing NNEF archive: %s (tar, no compression)",
+                    final_path,
+                )
+            else:
+                final_path = path + ".tgz"
+                archive_tmp = final_path + ".tmp"
+                tgz_compress(
+                    folder, archive_tmp, compression_level=self._compression
+                )
+                os.replace(archive_tmp, final_path)
+                shutil.rmtree(folder)
+                LOGGER.info(
+                    "finished writing NNEF archive: %s (gzip level=%s)",
+                    final_path,
+                    self._compression,
+                )
+        finally:
+            if archive_tmp and os.path.exists(archive_tmp):
+                with contextlib.suppress(Exception):
+                    os.remove(archive_tmp)
 
     @staticmethod
     def _used_operators(graph, dependencies):
