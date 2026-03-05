@@ -463,9 +463,7 @@ class Writer:
                 if kind == "tar":
                     # Add files at archive root without leading './'.
                     self._write_plain_tar(folder, archive_tmp)
-                    LOGGER_msg = (
-                        "finished writing NNEF archive: %s (tar, no compression)"
-                    )
+                    LOGGER_msg = "finished writing NNEF archive: %s (tar, no compression)"
                 else:
                     tgz_compress(
                         folder, archive_tmp, compression_level=self._compression
