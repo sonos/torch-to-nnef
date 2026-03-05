@@ -192,7 +192,7 @@ def export_model_to_nnef(
         >>> mod = nn.Sequential(nn.Linear(1, 5), nn.ReLU())
         >>> export_path = tempfile.mktemp(suffix=".nnef.tgz")
         >>> inference_target = TractNNEF.latest()
-        >>> export_model_to_nnef(
+        >>> _ = export_model_to_nnef(
         ...   mod,
         ...   torch.rand(3, 1),
         ...   export_path,
