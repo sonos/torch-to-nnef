@@ -388,7 +388,9 @@ def _default_filter_key(key):
 
 
 def iter_torch_tensors_from_disk(
-    store_filepath: Path, filter_key: T.Optional[T.Callable[[str], bool]] = None
+    store_filepath: Path,
+    filter_key: T.Optional[T.Callable[[str], bool]] = None,
+    map_location: T.Union[str, torch.device] = "cpu",
 ) -> T.Iterator[T.Tuple[str, _Tensor]]:
     """Iter on torch tensors from disk .safetensors, .pt, pth, .bin.
 
@@ -398,6 +400,9 @@ def iter_torch_tensors_from_disk(
         filter_key:
             if set, this function filter over tensor by name
             stored in those format
+        map_location:
+            device mapping used by torch.load for .pt/.pth/.bin files
+            (default: "cpu").
 
     Yields:
        provide each tensor that are validated by filter within store filepath
@@ -416,17 +421,25 @@ def iter_torch_tensors_from_disk(
                 if filter_key(key):
                     yield key, fh.get_tensor(key)
     elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
-        # Always load tensors onto CPU to avoid device-specific state and
-        # environments lacking CUDA.
-        res = torch.load(store_filepath, map_location="cpu")
+        # Always load tensors to the requested device (default CPU) to avoid
+        # device-specific state and environments lacking CUDA.
+        res = torch.load(store_filepath, map_location=map_location)
         if isinstance(res, torch.nn.Module):
             for key, tensor in res.named_parameters():
                 if filter_key(key):
                     yield key, tensor
         elif hasattr(res, "items"):
             for key, tensor in res.items():
-                if filter_key(key):
+                if not filter_key(key):
+                    continue
+                if isinstance(tensor, torch.Tensor):
                     yield key, tensor
+                else:
+                    LOGGER.warning(
+                        "Skipping non-tensor entry from state dict: %s (type=%s)",
+                        key,
+                        type(tensor),
+                    )
         else:
             raise T2NErrorNotImplemented(type(res))
 
@@ -438,6 +451,7 @@ def export_tensors_from_disk_to_nnef(
     fn_check_found_tensors: T.Optional[
         T.Callable[[T.Dict[str, _Tensor]], bool]
     ] = None,
+    map_location: T.Union[str, torch.device] = "cpu",
 ) -> T.Dict[str, _Tensor]:
     """Export any statedict or safetensors file torch.Tensors to NNEF .dat file.
 
@@ -452,6 +466,9 @@ def export_tensors_from_disk_to_nnef(
         fn_check_found_tensors:
             post checking function to ensure all requested tensors have
             effectively been dumped
+        map_location:
+            device mapping used by torch.load for .pt/.pth/.bin files
+            (default: "cpu").
 
     Returns:
         a dict of tensor name as key and torch.Tensor values,
@@ -491,7 +508,7 @@ def export_tensors_from_disk_to_nnef(
         store_filepath = Path(store_filepath)
     to_export = {}
     for key, tensor in iter_torch_tensors_from_disk(  # type: ignore
-        store_filepath, filter_key
+        store_filepath, filter_key, map_location
     ):
         to_export[key] = tensor
 
