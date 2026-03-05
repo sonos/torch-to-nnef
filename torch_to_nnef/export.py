@@ -57,7 +57,7 @@ def export_model_to_nnef(
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
     allow_same_io_names: bool = False,
-):
+) -> Path:
     """Main entrypoint of this library.
 
     Export any torch.nn.Module to NNEF file format archive
@@ -158,6 +158,9 @@ def export_model_to_nnef(
             and outputs set this flag to True.
             Some libs like 'nvidia/nemo' use this pattern.
             (note that it only make sense if it's a no operation)
+
+    Returns:
+        Path: the path to the exported NNEF archive (.nnef.tgz)
 
     Raises:
         torch_to_nnef.exceptions.T2NError
@@ -309,6 +312,7 @@ def export_model_to_nnef(
                 debug_bundle_path=debug_bundle_path,
             )
     mod_tensor_updater.restore_require_grad()
+    return exported_filepath
 
 
 def _check_io_names(
