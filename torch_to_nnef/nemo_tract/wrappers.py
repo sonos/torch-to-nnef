@@ -3,7 +3,10 @@ import typing as T
 
 import torch
 
-from torch_to_nnef._optional_types import InjectedNemoModule
+from torch_to_nnef._optional_types import (
+    InjectedNemoModule,
+    InjectedTorchaudioModule,
+)
 from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
 from torch_to_nnef.nemo_tract.constants import (
     DEFAULT_TIME,
@@ -51,7 +54,10 @@ class WrapAudioPreprocessor(torch.nn.Module):
 
     @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="torchaudio")
     def input_example(
-        self, max_batch: int = 2, *, torchaudio: InjectedNemoModule = INJECTED
+        self,
+        max_batch: int = 2,
+        *,
+        torchaudio: InjectedTorchaudioModule = INJECTED,
     ):
         results = self.preprocessor.input_example(max_batch=max_batch)
         if results is not None:
