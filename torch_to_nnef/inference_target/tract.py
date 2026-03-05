@@ -615,6 +615,17 @@ def tract_err_filter(serr: str) -> str:
     return err_filtered.strip()
 
 
+def _extract_tar_archive(archive_path: Path) -> None:
+    """Extract a tar archive, detecting gzip by suffix.
+
+    Uses `tar -xf` for plain `.tar` and `tar -xzf` for `.tgz`/`.tar.gz`.
+    """
+    path_str = str(archive_path)
+    gz = path_str.endswith((".tgz", ".tar.gz"))
+    cmd = ["tar", "-xzf" if gz else "-xf", path_str]
+    subprocess.check_output(cmd)
+
+
 class TractBinaryDownloader:
     """Tract Downloader.
 
@@ -686,6 +697,7 @@ class TractBinaryDownloader:
                 raise T2NErrorTractDownload(
                     f"Error downloading tract at URL {self.binary_url}"
                 ) from exc
+            # Tract binary release is always a gzipped tarball.
             subprocess.check_output(["tar", "-xzf", str(archive_gz_path)])
             shutil.move(archive_path / "tract", self.extract_dir)
             shutil.rmtree(archive_path)
@@ -902,11 +914,14 @@ def assert_io_and_debug_bundle(
         ).open("w", encoding="utf8") as fh:
             fh.write(exp.args[0])
         with cd(no_suffix_debug_bundle_torch_to_nnef_path):
+            # Use a filename that matches the original archive type
+            is_gz = str(nnef_file_path).endswith((".tgz", ".tar.gz"))
+            model_archive_name = "model.nnef.tgz" if is_gz else "model.nnef.tar"
             shutil.copy(
                 nnef_file_path,
-                no_suffix_debug_bundle_torch_to_nnef_path / "model.nnef.tgz",
+                no_suffix_debug_bundle_torch_to_nnef_path / model_archive_name,
             )
-            subprocess.check_output(["tar", "-xzf", str(nnef_file_path)])
+            _extract_tar_archive(nnef_file_path)
             shutil.copy(
                 input_bundle_path,
                 no_suffix_debug_bundle_torch_to_nnef_path / "inputs.npz",
@@ -930,7 +945,9 @@ def assert_io_and_debug_bundle(
         run_sh_path = no_suffix_debug_bundle_torch_to_nnef_path / "run.sh"
         with run_sh_path.open("w") as fh:
             cmd = tract_cli.assert_io_cmd_str(
-                nnef_path=Path("./model.nnef.tgz"),
+                nnef_path=Path(
+                    "./model.nnef.tgz" if is_gz else "./model.nnef.tar"
+                ),
                 input_bundle_path=Path("./inputs.npz"),
                 output_bundle_path=Path("./outputs.npz"),
                 check_tolerance=check_tolerance,

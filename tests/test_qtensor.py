@@ -46,7 +46,10 @@ def check_tensor_in_nnef_archive(
     exdir.mkdir(parents=True, exist_ok=True)
     graph_filename = "graph.nnef"
     with cd(exdir):
-        subprocess.check_call(["tar", "-xzf", str(path), graph_filename])
+        gz = str(path).endswith((".tgz", ".tar.gz"))
+        subprocess.check_call(
+            ["tar", "-xzf" if gz else "-xf", str(path), graph_filename]
+        )
         graph_filepath = exdir / graph_filename
         graph_content = graph_filepath.read_text()
         found_labels = set()
@@ -76,7 +79,12 @@ def check_tensor_in_nnef_archive(
                 if expected_dtype is not None:
                     dat_filename = f"{label_name}.dat"
                     subprocess.check_call(
-                        ["tar", "-xzf", str(path), dat_filename]
+                        [
+                            "tar",
+                            "-xzf" if gz else "-xf",
+                            str(path),
+                            dat_filename,
+                        ]
                     )
                     bin_header = DatBinHeader.from_dat(dat_filename)
                     if bin_header.torch_dtype_or_custom != expected_dtype:
