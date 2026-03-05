@@ -273,7 +273,6 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         for v in kwargs.values():
             if torch.is_tensor(v):
                 return v.shape[0], v
-        from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 
         raise T2NErrorInvalidArgument(
             "Cannot infer batch size: no Tensor inputs found"

@@ -330,11 +330,9 @@ def iter_nemo_model_subnets(
             if len(input_example) > len(subnet.input_names):
                 # if < that means some inputs are optional
                 raise T2NErrorInvalidArgument(
-                    (
-                        "Declared input names: %s but received %d inputs. "
-                        "Some inputs may be optional; verify subnet interface."
-                    )
-                    % (subnet.input_names, len(input_example))
+                    f"Declared input names: {subnet.input_names} "
+                    f"but received {len(input_example)} inputs. "
+                    "Some inputs may be optional; verify subnet interface."
                 )
             yield subnet_name, subnet, input_example, ctx.dynamic_axes
             # Propagate input example
@@ -404,11 +402,9 @@ def iter_decoder_joint_subnets(
     if len(input_example) > len(subnet.input_names):
         # if < that means some inputs are optional
         raise T2NErrorInvalidArgument(
-            (
-                "Declared input names: %s but received %d inputs. "
-                "Some inputs may be optional; verify subnet interface."
-            )
-            % (subnet.input_names, len(input_example))
+            f"Declared input names: {subnet.input_names} "
+            f"but received {len(input_example)} inputs. "
+            "Some inputs may be optional; verify subnet interface."
         )
 
     yield (

@@ -1129,7 +1129,7 @@ def test_should_create_an_identity_graph():
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
         model = nn.Dropout()
-        exported_path = export_model_to_nnef(
+        _ = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
