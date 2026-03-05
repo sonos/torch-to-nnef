@@ -10,7 +10,6 @@ from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    SimpleOpChainer,
     cast_and_add_nnef_operation,
     get_tract_dyn_axis_size_soc,
     pick_axis,
@@ -668,34 +667,9 @@ def argsort(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node.data, int), dim_node
     dim = pick_axis(input_node, dim_node.data)
     if inference_target.has_dynamic_axes:
-        shape_tensor_name = f"{input_nnef.name}_shape"
-        soc = SimpleOpChainer(
-            op_helper=op_helper, input_data_nodes=[input_node]
-        )
-        soc = soc.chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=shape_tensor_name,
-        )
-
-        index_tensor_name = f"{input_nnef.name}_dim{dim}"
-        if index_tensor_name not in op_helper.name_to_tensor:
-            soc = soc.chain(
-                "slice",
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            ).chain(
-                "squeeze",
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-        dim_size = nnef.Identifier(index_tensor_name)
+        # Centralized dynamic axis extraction
+        get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
+        dim_size = nnef.Identifier(f"{input_node.export_name}_dim{dim}")
     else:
         dim_size = input_nnef.shape[dim]
 
@@ -738,34 +712,9 @@ def sort(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node.data, int), dim_node
     dim = pick_axis(input_node, dim_node.data)
     if inference_target.has_dynamic_axes:
-        shape_tensor_name = f"{input_nnef.name}_shape"
-        soc = SimpleOpChainer(
-            op_helper=op_helper, input_data_nodes=[input_node]
-        )
-        soc = soc.chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=shape_tensor_name,
-        )
-
-        index_tensor_name = f"{input_nnef.name}_dim{dim}"
-        if index_tensor_name not in op_helper.name_to_tensor:
-            soc = soc.chain(
-                "slice",
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            ).chain(
-                "squeeze",
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-        dim_size = nnef.Identifier(index_tensor_name)
+        # Centralized dynamic axis extraction
+        get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
+        dim_size = nnef.Identifier(f"{input_node.export_name}_dim{dim}")
     else:
         dim_size = input_nnef.shape[dim]
 
