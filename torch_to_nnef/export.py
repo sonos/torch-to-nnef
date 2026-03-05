@@ -109,9 +109,6 @@ def export_model_to_nnef(
                         and values are axis names. If a list, each element is
                         an axis index.
 
-        specific_tract_binary_path:
-            Optional[Path] ideal to check io against new tract versions
-
 
         input_names: Optional list of names for args, it replaces
             variable inputs names traced from graph
@@ -400,14 +397,16 @@ def _real_export_path(
 ) -> Path:
     """Canonicalize the working export path used by the NNEF writer.
 
-    If `compression_level` is provided and the target path ends with `.tgz`,
-    we strip the suffix to obtain the base `.nnef` path for the writer.
+    If the target path ends with `.tgz` (i.e., a user passed `.../model.nnef.tgz`),
+    always treat it as the base `.../model.nnef` path for the writer, regardless
+    of `compression_level`. This lets callers use the suffix to express intent
+    for the final artifact format, while the writer always receives the base
+    directory path.
     """
-    nnef_exp_file_path = file_path_export
-    if compression_level is not None:
-        nnef_exp_file_path = Path(nnef_exp_file_path)
-        if nnef_exp_file_path.suffix == ".tgz":
-            nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
+    nnef_exp_file_path = Path(file_path_export)
+    # Strip only the last suffix if it's .tgz (e.g., model.nnef.tgz -> model.nnef)
+    if nnef_exp_file_path.suffix == ".tgz":
+        nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
     return nnef_exp_file_path
 
 
