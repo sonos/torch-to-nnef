@@ -444,61 +444,56 @@ class Writer:
             with open(quant_filename, "w", encoding="utf8") as file:
                 _write_quantization(graph, file)
 
+    def _write_plain_tar(self, src_folder: str, dest_archive: str) -> None:
+        """Write a tar archive with members at root (no leading './')."""
+        with tarfile.open(dest_archive, mode="w") as tf:
+            for root, _, files in os.walk(src_folder):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    arcname = os.path.relpath(fpath, src_folder)
+                    tf.add(fpath, arcname=arcname)
+
     def _finalize_archive(self, folder: str, path: str) -> None:
-        archive_tmp = None
-        try:
-            if (self._archive_format or "") == "tar":
-                final_path = path + ".tar"
-                archive_tmp = final_path + ".tmp"
-                with tarfile.open(archive_tmp, mode="w") as tf:
-                    tf.add(folder, arcname=".")
+        def _create_archive(folder: str, base_path: str, kind: str) -> None:
+            assert kind in ("tar", "tgz")
+            ext = ".tar" if kind == "tar" else ".tgz"
+            final_path = base_path + ext
+            archive_tmp = final_path + ".tmp"
+            try:
+                if kind == "tar":
+                    # Add files at archive root without leading './'.
+                    self._write_plain_tar(folder, archive_tmp)
+                    LOGGER_msg = (
+                        "finished writing NNEF archive: %s (tar, no compression)"
+                    )
+                else:
+                    tgz_compress(
+                        folder, archive_tmp, compression_level=self._compression
+                    )
+                    LOGGER_msg = (
+                        "finished writing NNEF archive: %s (gzip level=%s)"
+                    )
                 os.replace(archive_tmp, final_path)
                 shutil.rmtree(folder)
-                LOGGER.info(
-                    "finished writing NNEF archive: %s (tar, no compression)",
-                    final_path,
-                )
-            elif (self._archive_format or "") == "tgz":
-                final_path = path + ".tgz"
-                archive_tmp = final_path + ".tmp"
-                tgz_compress(
-                    folder, archive_tmp, compression_level=self._compression
-                )
-                os.replace(archive_tmp, final_path)
-                shutil.rmtree(folder)
-                LOGGER.info(
-                    "finished writing NNEF archive: %s (gzip level=%s)",
-                    final_path,
-                    self._compression,
-                )
-            elif isinstance(self._compression, int) and self._compression == 0:
-                final_path = path + ".tar"
-                archive_tmp = final_path + ".tmp"
-                with tarfile.open(archive_tmp, mode="w") as tf:
-                    tf.add(folder, arcname=".")
-                os.replace(archive_tmp, final_path)
-                shutil.rmtree(folder)
-                LOGGER.info(
-                    "finished writing NNEF archive: %s (tar, no compression)",
-                    final_path,
-                )
-            else:
-                final_path = path + ".tgz"
-                archive_tmp = final_path + ".tmp"
-                tgz_compress(
-                    folder, archive_tmp, compression_level=self._compression
-                )
-                os.replace(archive_tmp, final_path)
-                shutil.rmtree(folder)
-                LOGGER.info(
-                    "finished writing NNEF archive: %s (gzip level=%s)",
-                    final_path,
-                    self._compression,
-                )
-        finally:
-            if archive_tmp and os.path.exists(archive_tmp):
-                with contextlib.suppress(Exception):
-                    os.remove(archive_tmp)
+                if kind == "tar":
+                    LOGGER.info(LOGGER_msg, final_path)
+                else:
+                    LOGGER.info(LOGGER_msg, final_path, self._compression)
+            finally:
+                # Clean temp file on failure
+                if os.path.exists(archive_tmp):
+                    with contextlib.suppress(Exception):
+                        os.remove(archive_tmp)
+
+        # Choose archive kind preserving previous behavior
+        if (self._archive_format or "") == "tar":
+            _create_archive(folder, path, "tar")
+        elif (self._archive_format or "") == "tgz":
+            _create_archive(folder, path, "tgz")
+        elif isinstance(self._compression, int) and self._compression == 0:
+            _create_archive(folder, path, "tar")
+        else:
+            _create_archive(folder, path, "tgz")
 
     @staticmethod
     def _used_operators(graph, dependencies):
