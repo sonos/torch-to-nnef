@@ -55,6 +55,20 @@ t2n_export_nemo --help
 
 Some NeMo preprocessing components are not yet fully supported by tract. In such cases, options such as `--skip-preprocessor` can be used to exclude those stages from the export.
 
+### CLI flags quick reference
+
+- `-e, --export-dir`: Output directory (must not pre-exist).
+- `-s, --model-slug`: Explicit NeMo model slug; omit to choose interactively.
+- `--tract-specific-version` / `--tract-specific-path`: Select Tract version or binary.
+- `--tract-reify-sdpa`: Enable SDPA reification where supported by selected Tract.
+- `-tt, --tract-check-io-tolerance`: IO check strictness (`exact`, `approximate`, `loose`, or `skip`).
+- `--skip-preprocessor`: Export only encoder/decoder/joint parts.
+- `--split-joint-decoder`: Split `decoder` and `joint` into separate subnets.
+- `--collapse-batch-dim`: Hide batch-only dims from subnet interfaces where possible.
+- `--compress-registry` / `--compress-method`: Apply weight compression during export.
+
+Run `t2n_export_nemo --help` for the full list of options.
+
 ## Audio preprocessing requirements
 
 All supported NeMo ASR models expect audio input with the following characteristics:
@@ -264,4 +278,3 @@ nemo_tract_eval_batch_align_checker \
     -o ~/SONOS/data/2026_02_05_debug_batched_metal \
     [--force-cpu]
 ```
-

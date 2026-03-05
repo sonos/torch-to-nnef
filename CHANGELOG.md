@@ -3,6 +3,26 @@
 
 ## Unreleased
 
+### Added
+
+- NeMo ASR export via new `torch_to_nnef.nemo_tract` package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.
+- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, and `clean.sh` to streamline local setup and cleanup.
+- VAD demo rework: modular JS under `docs/html/vad/` with clearer separation of mic, plotting, session, and wasm glue code.
+- Tests: artifact packaging behavior (`tests/test_artifacts.py`) to validate `.nnef`/`.tar`/`.tgz` outputs.
+
+### Changed
+
+- NNEF export artifacts: honoring `.nnef.tgz` as an intent for the final archive while always writing to the base `.nnef` path internally; consistent selection of directory (`compression=None`), `.tar` (`0`), or `.tgz` (`1..9`).
+- Writer: explicit `archive_format` for predictable `.tar` vs `.tgz` emission; avoids unnecessary fragment extensions for Tract targets.
+- Export robustness: normalized mapping-like/single outputs via `ensure_tuple_io`; stricter IO name collision checks with opt-in `allow_same_io_names` (kept False by default).
+- NeMo export pipeline: improved subnet iteration (optional split of decoder/joint), batch-dimension collapse option, safer preprocessor export, and automatic output renaming to avoid input/output name collisions.
+
+### Fixed
+
+- `.nnef.tgz` target path now produces a `.nnef` directory when `compression_level=None` (base-path semantics), matching tests and documentation.
+- Dynamic-axes propagation and rank filtering across NeMo subnets to better reflect actual exposed IO.
+- Minor linting and config tweaks (prospector rule, gitignore patterns).
+
 ## [0.20.4] -  2026-02-06
 
 ### Added
