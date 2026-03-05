@@ -74,10 +74,15 @@ class WrapAudioPreprocessor(torch.nn.Module):
             self.preprocessor.featurizer,
             (torchaudio.transforms.MelSpectrogram, torchaudio.transforms.MFCC),
         ):
-            LOGGER.warning(
-                "AudioPreprocessor featurizer is not a MelSpectrogram/MFCC."
-                "This is unknown behavior for T2N maintainer and may lead to "
-                "suboptimal export results."
+            cls = (
+                type(self.preprocessor.featurizer).__name__
+                if self.preprocessor.featurizer is not None
+                else "None"
+            )
+            LOGGER.info(
+                "AudioPreprocessor featurizer is %s (not MelSpectrogram/MFCC). "
+                "Export continues via wrapper; verify dynamic axes if needed.",
+                cls,
             )
         batch_size = max_batch
         # safe default for time axis
