@@ -46,10 +46,11 @@ def ensure_tuple_io(value: T.Any) -> T.Tuple[T.Any, ...]:
     if isinstance(value, list):
         return tuple(value)
     # Torch tensor or primitive
-    if isinstance(value, (torch.Tensor, int, float, bool, dict)):
+    if isinstance(value, (torch.Tensor, int, float, bool)):
         return (value,)
-    # Mapping-like (duck-typed) but not a Tensor
-    if hasattr(value, "__getitem__") and hasattr(value, "items") and not isinstance(value, torch.Tensor):
+    # Dicts are preserved as single entries; other custom containers are not
+    # treated specially to avoid surprising wrapping heuristics.
+    if isinstance(value, dict):
         return (value,)
     return (value,)
 
