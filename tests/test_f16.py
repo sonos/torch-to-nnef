@@ -101,7 +101,8 @@ def check_contains_f32_upcast_attn(inference_target, path):
     graph_content = _read_graph_nnef_from_archive(path)
     if inference_target.force_attention_inner_in_f32:
         assert (
-            "fragment scaled_dot_product_attention_3d_f16_df32(" in graph_content
+            "fragment scaled_dot_product_attention_3d_f16_df32("
+            in graph_content
         )
     else:
         assert "fragment scaled_dot_product_attention_3d_f16(" in graph_content
@@ -128,7 +129,8 @@ def check_contains_f32_upcast_norm(inference_target, path):
     elms_to_be_found = ["to = 'f32'", "to = 'f16'"]
     if inference_target.force_norm_in_f32:
         assert all(
-            elm in graph_content for elm in elms_to_be_found + ["tract_core_cast"]
+            elm in graph_content
+            for elm in elms_to_be_found + ["tract_core_cast"]
         )
     else:
         assert not any(elm in graph_content for elm in elms_to_be_found)

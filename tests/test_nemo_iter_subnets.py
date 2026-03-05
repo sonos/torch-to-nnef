@@ -48,4 +48,3 @@ def test_iter_nemo_model_subnets_accepts_list_names(monkeypatch):
     # We should receive one tuple starting with the subnet name 'encoder'
     assert results, "No subnets yielded"
     assert results[0][0] == "encoder"
-
