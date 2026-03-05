@@ -38,7 +38,7 @@ from torch_to_nnef.torch_graph.ir_naming import (
     DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
 )
-from torch_to_nnef.utils import dedup_list, torch_version, ensure_tuple_io
+from torch_to_nnef.utils import dedup_list, ensure_tuple_io, torch_version
 
 LOGGER = log.getLogger(__name__)
 
@@ -169,9 +169,12 @@ def export_model_to_nnef(
 
     Returns:
         Path: the path to the exported artifact.
-            - If `compression_level is None`: returns the `.nnef` directory path.
-            - If `compression_level == 0`: returns the `.nnef.tar` archive path.
-            - If `compression_level in 1..9`: returns the `.nnef.tgz` archive path.
+            - If `compression_level is None`: returns the
+              `.nnef` directory path.
+            - If `compression_level == 0`: returns the
+              `.nnef.tar` archive path.
+            - If `compression_level in 1..9`: returns the
+              `.nnef.tgz` archive path.
 
     Raises:
         torch_to_nnef.exceptions.T2NError
@@ -301,7 +304,11 @@ def export_model_to_nnef(
             if wants_tgz:
                 archive_format = "tgz"
             else:
-                archive_format = "tgz" if (compression_level and compression_level > 0) else "tar"
+                archive_format = (
+                    "tgz"
+                    if (compression_level and compression_level > 0)
+                    else "tar"
+                )
 
         NNEFWriter(
             compression=compression_level,
@@ -331,7 +338,11 @@ def export_model_to_nnef(
             elif archive_format == "tar":
                 suf = ".tar"
             else:
-                suf = ".tgz" if (compression_level and compression_level > 0) else ".tar"
+                suf = (
+                    ".tgz"
+                    if (compression_level and compression_level > 0)
+                    else ".tar"
+                )
             exported_filepath = file_path_export.parent / (
                 nnef_exp_file_path.name + suf
             )
@@ -397,14 +408,16 @@ def _real_export_path(
 ) -> Path:
     """Canonicalize the working export path used by the NNEF writer.
 
-    If the target path ends with `.tgz` (i.e., a user passed `.../model.nnef.tgz`),
+    If the target path ends with `.tgz` (i.e., a user passed
+    `.../model.nnef.tgz`),
     always treat it as the base `.../model.nnef` path for the writer, regardless
     of `compression_level`. This lets callers use the suffix to express intent
     for the final artifact format, while the writer always receives the base
     directory path.
     """
     nnef_exp_file_path = Path(file_path_export)
-    # Strip only the last suffix if it's .tgz (e.g., model.nnef.tgz -> model.nnef)
+    # Strip only the last suffix if it's .tgz
+    # (e.g., model.nnef.tgz -> model.nnef)
     if nnef_exp_file_path.suffix == ".tgz":
         nnef_exp_file_path = nnef_exp_file_path.with_suffix("")
     return nnef_exp_file_path
@@ -486,7 +499,10 @@ def iter_torch_tensors_from_disk(
                     yield key, tensor
                 else:
                     LOGGER.warning(
-                        "Skipping non-tensor entry from state dict: %s (type=%s)",
+                        (
+                            "Skipping non-tensor entry from state dict: %s "
+                            "(type=%s)"
+                        ),
                         key,
                         type(tensor),
                     )
@@ -666,8 +682,10 @@ def _unsupported_module_alerter(inference_target: InferenceTarget):
         if rnnmod is not None and hasattr(rnnmod, "pack_padded_sequence"):
             orig_pack = rnnmod.pack_padded_sequence
             rnnmod.pack_padded_sequence = UnsupportedRaise(
-                "'nn.utils.rnn.pack_padded_sequence' not supported by tract yet."
-                " Contribution welcome."
+                (
+                    "'nn.utils.rnn.pack_padded_sequence' not supported by "
+                    "tract yet. Contribution welcome."
+                )
             )
             did_patch_pack = True
         # Patch pad_packed_sequence

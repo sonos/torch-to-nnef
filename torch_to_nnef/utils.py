@@ -36,8 +36,7 @@ def ensure_tuple_io(value: T.Any) -> T.Tuple[T.Any, ...]:
     Behavior:
     - If already a tuple, return as-is.
     - If a list or other finite sequence, return tuple(value).
-    - If a single Tensor, number, bool, or mapping-like (has items and __getitem__),
-      wrap into a 1-tuple.
+    - If a single Tensor, number, bool, or dict, wrap into a 1-tuple.
     - Otherwise, return (value,).
     """
     if isinstance(value, tuple):

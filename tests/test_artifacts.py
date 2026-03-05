@@ -75,4 +75,3 @@ def test_artifacts_for_nneftgz_path():
         assert exported.suffix == ".tgz"
         with tarfile.open(exported, "r:*") as tf:
             assert any(m.name.endswith("graph.nnef") for m in tf.getmembers())
-

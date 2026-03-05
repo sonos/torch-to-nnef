@@ -350,7 +350,7 @@ def build_dynamic_axes(
     subnet,
     nemo_dynamic_axes,
     input_example: T.Optional[T.Sequence[object]] = None,
-):  # noqa: MC0001
+):
     return build_dynamic_axes_for_subnet(
         subnet, nemo_dynamic_axes, input_example
     )

@@ -9,8 +9,8 @@ from torch_to_nnef.op.helper import (
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
-    pick_axis,
     get_tract_dyn_axis_size_soc,
+    pick_axis,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 

@@ -60,4 +60,3 @@ def test_export_with_renamed_outputs_succeeds():
             compression_level=0,
         )
         assert exported.exists()
-

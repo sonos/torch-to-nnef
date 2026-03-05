@@ -385,7 +385,9 @@ class Writer:
                 f"{path}"
                 + (
                     ".tgz"
-                    if (compressing and (self._archive_format or 'tgz') == 'tgz')
+                    if (
+                        compressing and (self._archive_format or "tgz") == "tgz"
+                    )
                     else (".tar" if compressing else "")
                 )
             ),
@@ -447,7 +449,10 @@ class Writer:
                         tf.add(folder, arcname=".")
                     shutil.rmtree(folder)
                     LOGGER.info(
-                        "finished writing NNEF archive: %s (tar, no compression)",
+                        (
+                            "finished writing NNEF archive: %s "
+                            "(tar, no compression)"
+                        ),
                         archive_path,
                     )
                 elif (self._archive_format or "") == "tgz":
@@ -463,14 +468,20 @@ class Writer:
                         archive_path,
                         self._compression,
                     )
-                elif isinstance(self._compression, int) and self._compression == 0:
+                elif (
+                    isinstance(self._compression, int)
+                    and self._compression == 0
+                ):
                     # Default: 0 => tar, 1..9 => tgz
                     archive_path = path + ".tar"
                     with tarfile.open(archive_path, mode="w") as tf:
                         tf.add(folder, arcname=".")
                     shutil.rmtree(folder)
                     LOGGER.info(
-                        "finished writing NNEF archive: %s (tar, no compression)",
+                        (
+                            "finished writing NNEF archive: %s "
+                            "(tar, no compression)"
+                        ),
                         archive_path,
                     )
                 else:

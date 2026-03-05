@@ -23,6 +23,27 @@ LOGGER = logging.getLogger(__name__)
 OP_REGISTRY = AtenOpRegistry()
 
 
+def _should_cast_for_select(inp, expected_np_dtype):
+    """Return True when `select` inputs should be cast to the expected dtype."""
+    return (inp.dtype != expected_np_dtype) or (
+        np.prod(inp.shape) == 1
+        and inp.dtype not in (np.float32, np.int64, np.bool_)
+    )
+
+
+def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
+    name = f"{tensor.name}_cast_{to_tract_dtype}"
+    if suffix:
+        name = f"{name}_{suffix}"
+    return op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        nnef_op_type="tract_core_cast",
+        inputs=tensor,
+        attrs={"to": to_tract_dtype},
+        force_full_output_tensor_name=name,
+    )
+
+
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
     node,
@@ -248,31 +269,15 @@ def tract_pre_0_21_7_slice(
 def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
     decision = inputs[0]
     if decision.dtype != np.bool_:
-        decision = op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            nnef_op_type="tract_core_cast",
-            inputs=decision,
-            attrs={"to": "bool"},
-            force_full_output_tensor_name=f"{decision.name}_cast_bool",
-        )
+        decision = _nnef_cast(op_helper, node, decision, "bool")
     casted_inputs = [decision]
     expected_dtype = TORCH_TO_NUMPY_DTYPE[target_torch_dtype]
     expected_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]
     for inp in inputs[1:]:
-        if (
-            inp.dtype != expected_dtype
-            or (
-                np.prod(inp.shape) == 1
-                and inp.dtype not in [torch.float32, torch.int64]
-            )
-        ) and isinstance(op_helper.inference_target, TractNNEF):
-            inp = op_helper.add_single_output_op_from_nnef_tensors(
-                node,
-                nnef_op_type="tract_core_cast",
-                inputs=inp,
-                attrs={"to": expected_dtype_tract},
-                force_full_output_tensor_name=f"{inp.name}_cast_{expected_dtype_tract}",
-            )
+        if isinstance(
+            op_helper.inference_target, TractNNEF
+        ) and _should_cast_for_select(inp, expected_dtype):
+            inp = _nnef_cast(op_helper, node, inp, expected_dtype_tract)
         casted_inputs.append(inp)
     return casted_inputs
 
