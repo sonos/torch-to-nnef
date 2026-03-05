@@ -116,6 +116,7 @@ print(f"exported {file_path_export.absolute()}")
 ```
 
 1. Full function documentation available [here](../../reference/torch_to_nnef/export/#torch_to_nnef.export.export_model_to_nnef)
+2. See [Artifacts and Compression](./2_nnef_archive.md#artifacts-and-compression) to control whether export writes a directory, `.tar`, or `.tgz`.
 2. Full Class documentation available [here](../../reference/torch_to_nnef/inference_target/tract/#torch_to_nnef.inference_target.tract.TractNNEF)
 
 And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/main/docs/examples/getting_started_py/export.py))

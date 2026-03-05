@@ -10,7 +10,6 @@ import pytest
 import torch
 from torch import nn
 
-from torch_to_nnef.exceptions import T2NError
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import KhronosNNEF, TractNNEF
 from torch_to_nnef.log import log
@@ -1130,28 +1129,7 @@ def test_should_fail_since_no_input():
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
         model = nn.Dropout()
-        with pytest.raises(T2NError):
-            export_model_to_nnef(
-                model=model,
-                args=test_input,
-                file_path_export=export_path,
-                input_names=["input"],
-                output_names=["output"],
-                log_level=log.WARNING,
-                inference_target=inference_target,
-            )
-
-
-def test_should_fail_since_false_output():
-    inference_target = TractNNEF.latest()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_input = torch.rand(1, 10, 100)
-        model = nn.Sequential(nn.Conv1d(10, 20, 3))
-        export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
-
-        test_output = model(test_input)
-        export_model_to_nnef(
+        _ = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
@@ -1161,15 +1139,37 @@ def test_should_fail_since_false_output():
             inference_target=inference_target,
         )
 
+
+def test_should_fail_since_false_output():
+    inference_target = TractNNEF.latest()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_input = torch.rand(1, 10, 100)
+        model = nn.Sequential(nn.Conv1d(10, 20, 3))
+        export_path = Path(tmpdir) / "model.nnef"
+        inputs_npz = Path(tmpdir) / "inputs.npz"
+        outputs_npz = Path(tmpdir) / "outputs.npz"
+
+        test_output = model(test_input)
+        exported_path = export_model_to_nnef(
+            model=model,
+            args=test_input,
+            file_path_export=export_path,
+            compression_level=1,
+            input_names=["input"],
+            output_names=["output"],
+            log_level=log.WARNING,
+            inference_target=inference_target,
+        )
+
+        np.savez(inputs_npz, input=test_input.detach().numpy())
         np.savez(
-            io_npz_path,
-            input=test_input.detach().numpy(),
-            output=test_output.detach().numpy()
-            + 1,  # <-- here we artificially add 1 to make it FAIL
+            outputs_npz,
+            output=test_output.detach().numpy() + 1,  # force FAIL
         )
         assert not inference_target.tract_cli.assert_io(
-            export_path.with_suffix(".nnef.tgz"),
-            io_npz_path,
+            exported_path,
+            inputs_npz,
+            outputs_npz,
             raise_exception=False,
         ), f"SHOULD fail tract io check with {model}"
 

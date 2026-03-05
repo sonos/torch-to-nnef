@@ -50,7 +50,7 @@ def export_model_to_nnef(
     inference_target: InferenceTarget,
     input_names: T.Optional[T.List[str]] = None,
     output_names: T.Optional[T.List[str]] = None,
-    compression_level: int = 0,
+    compression_level: T.Optional[int] = 0,
     log_level: int = log.INFO,
     nnef_variable_naming_scheme: VariableNamingScheme = DEFAULT_VARNAME_SCHEME,
     check_io_names_qte_match: bool = True,
@@ -74,8 +74,16 @@ def export_model_to_nnef(
             WARNING! tensor size in args will increase export time so take that
             in consideration for dynamic axes
 
-        file_path_export: a Path to the exported NNEF serialized model archive.
-            It must by convention end with `.nnef.tgz` suffixes
+        file_path_export: target path for the exported model.
+            Accepted forms are:
+            - ".../model.nnef" → base path; creates:
+                • directory when `compression_level is None`
+                • archive "model.nnef.tar" when `compression_level == 0`
+                • archive "model.nnef.tgz" when `compression_level in 1..9`
+            - ".../model.nnef.tgz" → treated as a request to use base name
+              "model.nnef"; the actual artifact still follows the rule above
+              (directory, .tar, or .tgz) depending on `compression_level`.
+            Any other suffix pattern is rejected.
 
         inference_target:
             can be `torch_to_nnef.TractNNEF` or `torch_to_nnef.KhronosNNEF`
@@ -113,8 +121,11 @@ def export_model_to_nnef(
             it replaces variable output names traced from graph
             (if set it must have the same size as number of outputs)
 
-        compression_level: int (>= 0)
-            compression level of tar.gz (higher is more compressed)
+        compression_level: Optional[int] = 0
+            If None, writes an uncompressed `.nnef` directory.
+            If 0, writes an uncompressed tar archive `.nnef.tar`.
+            If 1..9, writes a gzip-compressed tar archive `.nnef.tgz` with the
+            given compression level.
 
         log_level: int,
             logger level for `torch_to_nnef` following Python
@@ -159,6 +170,15 @@ def export_model_to_nnef(
             Some libs like 'nvidia/nemo' use this pattern.
             (note that it only make sense if it's a no operation)
 
+    Returns:
+        Path: the path to the exported artifact.
+            - If `compression_level is None`: returns the
+              `.nnef` directory path.
+            - If `compression_level == 0`: returns the
+              `.nnef.tar` archive path.
+            - If `compression_level in 1..9`: returns the
+              `.nnef.tgz` archive path.
+
     Raises:
         torch_to_nnef.exceptions.T2NError
             If something fail during the export process we try to provide
@@ -180,6 +200,7 @@ def export_model_to_nnef(
         ...   torch.rand(3, 1),
         ...   export_path,
         ...   inference_target,
+        ...   compression_level=0,
         ...   input_names=["inp"],
         ...   output_names=["out"]
         ... )
@@ -286,6 +307,20 @@ def export_model_to_nnef(
 
         # NNEFWriter: using version sometime create conflict with ops
         # hence set to None
+        # Decide archive format from user path and compression_level
+        original_suffixes = file_path_export.suffixes
+        wants_tgz = any(s == ".tgz" for s in original_suffixes)
+        archive_format = None
+        if compression_level is not None:
+            if wants_tgz:
+                archive_format = "tgz"
+            else:
+                archive_format = (
+                    "tgz"
+                    if (compression_level and compression_level > 0)
+                    else "tar"
+                )
+
         NNEFWriter(
             compression=compression_level,
             fragments=active_custom_fragments,
@@ -293,6 +328,7 @@ def export_model_to_nnef(
             extensions=list(active_custom_extensions),
             version_custom_fragments=None,
             inference_target=inference_target,
+            archive_format=archive_format,
         )(nnef_graph, str(nnef_exp_file_path))
 
         if len(active_custom_extensions) > 0:
@@ -306,9 +342,29 @@ def export_model_to_nnef(
         LOGGER.info(
             "model exported successfully as NNEF at: %s", nnef_exp_file_path
         )
-        exported_filepath = file_path_export.parent / (
-            nnef_exp_file_path.name + ".tgz"
-        )
+        if compression_level is not None:
+            # Follow same format decision
+            if archive_format == "tgz":
+                suf = ".tgz"
+            elif archive_format == "tar":
+                suf = ".tar"
+            else:
+                suf = (
+                    ".tgz"
+                    if (compression_level and compression_level > 0)
+                    else ".tar"
+                )
+            exported_filepath = file_path_export.parent / (
+                nnef_exp_file_path.name + suf
+            )
+            LOGGER.info(
+                "created archive: %s (compression=%s)",
+                exported_filepath,
+                compression_level,
+            )
+        else:
+            exported_filepath = nnef_exp_file_path
+            LOGGER.info("exported directory: %s", exported_filepath)
         with _fixed_backend():
             inference_target.post_export(
                 model_info,
@@ -350,6 +406,11 @@ def _check_io_names(
 def _real_export_path(
     file_path_export: Path, compression_level: T.Optional[int] = None
 ) -> Path:
+    """Canonicalize the working export path used by the NNEF writer.
+
+    If `compression_level` is provided and the target path ends with `.tgz`,
+    we strip the suffix to obtain the base `.nnef` path for the writer.
+    """
     nnef_exp_file_path = file_path_export
     if compression_level is not None:
         nnef_exp_file_path = Path(nnef_exp_file_path)
