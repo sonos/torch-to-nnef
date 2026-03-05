@@ -264,6 +264,12 @@ class TorchToNGraphExtractor:
                 if onode.name in self._forced_inputs_names:
                     # Create an explicit pass-through op so the output becomes
                     # a distinct named tensor without changing the input name.
+                    LOGGER.info(
+                        "Output name '%s' collides with input. "
+                        "Adding identity alias '%s' to avoid shadowing.",
+                        onode.name,
+                        new_name,
+                    )
                     alias = NTensor(
                         self.g,
                         name=new_name,
