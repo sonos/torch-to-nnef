@@ -225,10 +225,12 @@ def export_model_to_nnef(
     ):
         outs = model(*args)
     apply_name_to_tensor_in_module(model)
+    # Normalize single-output or mapping-like outputs into a tuple for
+    # downstream processing.
     if isinstance(outs, (torch.Tensor, int, float, bool, dict)) or (
-        hasattr(args, "__getitem__")
-        and hasattr(args, "items")
-        and not isinstance(args, torch.Tensor)
+        hasattr(outs, "__getitem__")
+        and hasattr(outs, "items")
+        and not isinstance(outs, torch.Tensor)
     ):
         outs = (outs,)
     _check_io_names(input_names, output_names, allow_same_io_names)
@@ -424,7 +426,9 @@ def iter_torch_tensors_from_disk(
                 if filter_key(key):
                     yield key, fh.get_tensor(key)
     elif any(store_filepath.name.endswith(_) for _ in [".pt", ".pth", ".bin"]):
-        res = torch.load(store_filepath)
+        # Always load tensors onto CPU to avoid device-specific state and
+        # environments lacking CUDA.
+        res = torch.load(store_filepath, map_location="cpu")
         if isinstance(res, torch.nn.Module):
             for key, tensor in res.named_parameters():
                 if filter_key(key):

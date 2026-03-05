@@ -110,7 +110,7 @@ class TorchToNGraphExtractor:
             )
 
         raise T2NErrorNotImplemented(
-            f"NNEF Operation for {node} NOT implmented"
+            f"NNEF operation for {node} not implemented"
         )
 
     def _if_dyn_shape_may_remove_resolved_dim(self, operators_nodes):
