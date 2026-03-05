@@ -21,6 +21,7 @@ Also some minimal adaptation like code style have been done be pythonic.
 import logging
 import os
 import shutil
+import tarfile
 import tempfile
 import typing as T
 
@@ -341,6 +342,7 @@ class Writer:
         version_custom_fragments=True,
         annotate_shapes=False,
         inference_target: T.Optional[InferenceTarget] = None,
+        archive_format: T.Optional[str] = None,
     ):
         if inference_target is None:
             inference_target = KhronosNNEF.latest()
@@ -351,6 +353,8 @@ class Writer:
         self._version_custom_fragments = version_custom_fragments
         self._annotate_shapes = annotate_shapes
         self._inference_target = inference_target
+        # archive_format: one of None|'tar'|'tgz'
+        self._archive_format = archive_format
 
     def _write_tensors_from_operators(self, graph, folder):
         for op in graph.operations:
@@ -373,10 +377,22 @@ class Writer:
                     )
 
     def __call__(self, graph, path):
-        LOGGER.info("start writting NNEF graph into: '%s'", path)
+        compressing = self._compression is not None
+        LOGGER.info(
+            "start writing NNEF %s into: '%s'",
+            "archive" if compressing else "directory",
+            (
+                f"{path}"
+                + (
+                    ".tgz"
+                    if (compressing and (self._archive_format or 'tgz') == 'tgz')
+                    else (".tar" if compressing else "")
+                )
+            ),
+        )
         folder = None
         try:
-            if self._compression is not None:
+            if compressing:
                 folder = tempfile.mkdtemp(prefix="nnef_")
             else:
                 folder = path
@@ -422,12 +438,56 @@ class Writer:
                 with open(quant_filename, "w", encoding="utf8") as file:
                     _write_quantization(graph, file)
         finally:
-            if self._compression is not None and folder:
-                tgz_compress(
-                    folder, path + ".tgz", compression_level=self._compression
-                )
-                shutil.rmtree(folder)
-        LOGGER.info("finished writting NNEF graph into: %s", path)
+            if compressing and folder:
+                # Respect explicit archive_format when provided
+                if (self._archive_format or "") == "tar":
+                    # Create an uncompressed tar archive (.tar)
+                    archive_path = path + ".tar"
+                    with tarfile.open(archive_path, mode="w") as tf:
+                        tf.add(folder, arcname=".")
+                    shutil.rmtree(folder)
+                    LOGGER.info(
+                        "finished writing NNEF archive: %s (tar, no compression)",
+                        archive_path,
+                    )
+                elif (self._archive_format or "") == "tgz":
+                    archive_path = path + ".tgz"
+                    tgz_compress(
+                        folder,
+                        archive_path,
+                        compression_level=self._compression,
+                    )
+                    shutil.rmtree(folder)
+                    LOGGER.info(
+                        "finished writing NNEF archive: %s (gzip level=%s)",
+                        archive_path,
+                        self._compression,
+                    )
+                elif isinstance(self._compression, int) and self._compression == 0:
+                    # Default: 0 => tar, 1..9 => tgz
+                    archive_path = path + ".tar"
+                    with tarfile.open(archive_path, mode="w") as tf:
+                        tf.add(folder, arcname=".")
+                    shutil.rmtree(folder)
+                    LOGGER.info(
+                        "finished writing NNEF archive: %s (tar, no compression)",
+                        archive_path,
+                    )
+                else:
+                    archive_path = path + ".tgz"
+                    tgz_compress(
+                        folder,
+                        archive_path,
+                        compression_level=self._compression,
+                    )
+                    shutil.rmtree(folder)
+                    LOGGER.info(
+                        "finished writing NNEF archive: %s (gzip level=%s)",
+                        archive_path,
+                        self._compression,
+                    )
+            else:
+                LOGGER.info("finished writing NNEF directory: %s", path)
 
     @staticmethod
     def _used_operators(graph, dependencies):

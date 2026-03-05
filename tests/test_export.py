@@ -254,17 +254,18 @@ def test_deep_obj_tensor_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef.tgz"
         model = model.eval()
-        export_model_to_nnef(
+        exported_path = export_model_to_nnef(
             model=model,
             args=(test_input, {"a": FakeTensorHolder(torch.rand(1, 2))}),
             file_path_export=export_path,
+            compression_level=0,
             input_names=["a", "dic"],
             output_names=["b"],
             log_level=log.INFO,
             inference_target=INFERENCE_TARGETS_TO_TESTS[0],
         )
         assert graph_contains_line(
-            export_path,
+            exported_path,
             "dic_a_b = tract_core_external"
             "(shape = [1, 2], datum_type = 'f32');",
         )

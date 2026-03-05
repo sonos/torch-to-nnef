@@ -1129,7 +1129,7 @@ def test_should_create_an_identity_graph():
         export_path = Path(tmpdir) / "model.nnef"
         test_input = torch.rand(1, 10, 100)
         model = nn.Dropout()
-        export_model_to_nnef(
+        exported_path = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
@@ -1150,10 +1150,11 @@ def test_should_fail_since_false_output():
         outputs_npz = Path(tmpdir) / "outputs.npz"
 
         test_output = model(test_input)
-        export_model_to_nnef(
+        exported_path = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
+            compression_level=1,
             input_names=["input"],
             output_names=["output"],
             log_level=log.WARNING,
@@ -1166,7 +1167,7 @@ def test_should_fail_since_false_output():
             output=test_output.detach().numpy() + 1,  # force FAIL
         )
         assert not inference_target.tract_cli.assert_io(
-            export_path.with_suffix(".nnef.tgz"),
+            exported_path,
             inputs_npz,
             outputs_npz,
             raise_exception=False,
