@@ -472,20 +472,23 @@ class CollapseBatchDimWrapper(torch.nn.Module):
             # (some NeMo modules expose [T, B] instead of [B, T]).
             if torch.is_tensor(t):
                 for bpos in sorted(self._b_axes.get(name, []), reverse=True):
-                    if 0 <= bpos < t.dim() and t.size(bpos) == 1:
-                        t = t.squeeze(bpos)
+                    if 0 <= bpos < t.dim():
+                        if t.size(bpos) == 1:
+                            t = t.squeeze(bpos)
+                        else:
+                            t = t.select(dim=bpos, index=0)
             if name in ("input_states_1", "input_states_2") and torch.is_tensor(
                 t
             ):
-                if t.dim() > 1 and t.size(1) == 1:
-                    t = t.squeeze(1)
+                if t.dim() > 1:
+                    t = t.squeeze(1) if t.size(1) == 1 else t.select(1, 0)
             elif name == INPUT_STATE_TUPLE_NAME and isinstance(
                 t, (list, tuple)
             ):
                 proc = []
                 for s in t:
-                    if torch.is_tensor(s) and s.dim() > 1 and s.size(1) == 1:
-                        s = s.squeeze(1)
+                    if torch.is_tensor(s) and s.dim() > 1:
+                        s = s.squeeze(1) if s.size(1) == 1 else s.select(1, 0)
                     proc.append(s)
                 t = tuple(proc)
             elif torch.is_tensor(t) and t.dim() > 0 and t.size(0) == 1:
