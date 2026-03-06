@@ -463,20 +463,20 @@ class Writer:
                 if kind == "tar":
                     # Add files at archive root without leading './'.
                     self._write_plain_tar(folder, archive_tmp)
-                    LOGGER_msg = "finished writing NNEF archive: %s (tar, no compression)"
+                    logger_msg = "finished writing NNEF archive: %s (tar, no compression)"
                 else:
                     tgz_compress(
                         folder, archive_tmp, compression_level=self._compression
                     )
-                    LOGGER_msg = (
+                    logger_msg = (
                         "finished writing NNEF archive: %s (gzip level=%s)"
                     )
                 os.replace(archive_tmp, final_path)
                 shutil.rmtree(folder)
                 if kind == "tar":
-                    LOGGER.info(LOGGER_msg, final_path)
+                    LOGGER.info(logger_msg, final_path)
                 else:
-                    LOGGER.info(LOGGER_msg, final_path, self._compression)
+                    LOGGER.info(logger_msg, final_path, self._compression)
             finally:
                 # Clean temp file on failure
                 if os.path.exists(archive_tmp):
