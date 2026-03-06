@@ -217,16 +217,13 @@ fn validate_audio_range_11(buf: &[f32]) -> Res<()> {
     Ok(())
 }
 
-fn run_preprocessor_2d(preprocessor: &Runnable, audio: &[f32]) -> Res<Array2<f32>> {
+fn run_preprocessor(preprocessor: &Runnable, audio: &[f32]) -> Res<Array2<f32>> {
+    // Some preprocessors take only the audio tensor (1 input),
+    // others expect (audio, length) (2 inputs). Try the minimal form first.
     let audio_arr = Array1::from_vec(audio.to_vec());
     let audio_val_1d: Value = audio_arr.clone().try_into()?;
-    let audio_val_2d: Value = audio_arr.insert_axis(Axis(0)).try_into()?;
-    let audio_len: i64 = audio.len() as i64;
-    let len_val: Value = Array1::<i64>::from_vec(vec![audio_len]).try_into()?;
-    let pre_result = match preprocessor.run(vec![audio_val_1d, len_val.clone()]) {
-        Ok(r) => r,
-        Err(_) => preprocessor.run(vec![audio_val_2d, len_val.clone()])?,
-    };
+
+    let pre_result = preprocessor.run(vec![audio_val_1d])?;
     let pre_any = pre_result[0].view::<f32>()?;
     // Squeeze optional batch axis and ensure 2D [features, frames]
     let pre_feat = if pre_any.shape().len() == 3 && pre_any.shape()[0] == 1 {
@@ -558,7 +555,7 @@ impl VadSessionPulsed {
 
     fn preprocess_full_2d(&mut self) -> Res<Array2<f32>> {
         validate_audio_range_11(&self.audio_buffer)?;
-        let pre_feat = run_preprocessor_2d(&self.preprocessor_model, &self.audio_buffer)?;
+        let pre_feat = run_preprocessor(&self.preprocessor_model, &self.audio_buffer)?;
         #[cfg(test)]
         {
             self.dbg.set_pre_feat(&pre_feat);
@@ -808,7 +805,7 @@ impl VadSessionBatch {
 
     fn preprocess_full_2d(&mut self) -> Res<Array2<f32>> {
         validate_audio_range_11(&self.audio_buffer)?;
-        let pre_feat = run_preprocessor_2d(&self.preprocessor_model, &self.audio_buffer)?;
+        let pre_feat = run_preprocessor(&self.preprocessor_model, &self.audio_buffer)?;
         #[cfg(test)]
         {
             self.dbg.set_pre_feat(&pre_feat);
@@ -1109,7 +1106,7 @@ mod tests {
 
         // Build VAD components
         let clf = VadClassifier::load_internal(4)?;
-        let pre_feats_arr = run_preprocessor_2d(&clf.preprocessor_model, &samples)?;
+        let pre_feats_arr = run_preprocessor(&clf.preprocessor_model, &samples)?;
         let new = pre_feats_arr.clone();
         let pre_shape = new.shape();
         let pre_feats = pre_feats_arr.into_raw_vec_and_offset().0;
