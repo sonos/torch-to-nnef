@@ -16,9 +16,9 @@ export class WasmVAD {
     }
     predictPulsed(block) { return this.classifier.predict_speech_presence(block); }
     predictBatch(block) { return this.classifier.predict_speech_presence_batch(block); }
-    getPulseDelay() { return this.classifier.get_pulse_delay(); }
-    getDecoderPoolLen() { return this.classifier.get_decoder_pool_len(); }
-    isPulsedReady() { return this.classifier.is_pulsed_ready(); }
-    getPulseFrames() { return this.classifier.get_pulse_frames?.(); }
-    getFrameSize() { return this.classifier.get_frame_size?.() }
+    getPulseDelay() { try { return this.classifier.get_pulse_delay(); } catch { return 0; } }
+    getDecoderPoolLen() { try { return this.classifier.get_decoder_pool_len(); } catch { return 0; } }
+    isPulsedReady() { try { return this.classifier.is_pulsed_ready(); } catch { return false; } }
+    getPulseFrames() { try { return this.classifier.get_pulse_frames?.(); } catch { return 4; } }
+    getFrameSize() { try { return this.classifier.get_frame_size?.(); } catch { return 160; } }
 }

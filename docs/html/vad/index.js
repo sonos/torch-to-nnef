@@ -73,10 +73,10 @@ export async function initVAD() {
     // Resize notifications for embedding
     const sendHeight = () => {
         const height = document.documentElement.scrollHeight;
-        window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*');
+        try { window.parent.postMessage({ type: 'resize', height, ref: 'vad' }, '*'); } catch {}
     };
     window.addEventListener('load', sendHeight);
-    new ResizeObserver(sendHeight).observe(document.body);
+    try { new ResizeObserver(sendHeight).observe(document.body); } catch { /* older browsers */ }
     window.vadPlot = plot;
     window.vadSession = sess;
 }

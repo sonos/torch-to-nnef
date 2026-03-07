@@ -25,7 +25,6 @@ export class VadSession {
         if (!file) return;
         this.stats?.setFileText?.('decoding...');
         const arrayBuf = await file.arrayBuffer();
-        const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext || window.AudioContext;
         const tmp = new (window.AudioContext || window.webkitAudioContext)();
         let audioBuf;
         try { audioBuf = await tmp.decodeAudioData(arrayBuf.slice(0)); }

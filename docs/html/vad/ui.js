@@ -26,7 +26,12 @@ export class ModeController {
     }
     disable(b) {
         const radios = this.root.getElementsByName('vad-mode');
-        radios.forEach?.(r => r.disabled = !!b);
+        try {
+            Array.from(radios).forEach(r => { r.disabled = !!b; });
+        } catch {
+            // Fallback for very old browsers without Array.from on NodeList
+            for (let i = 0; i < radios.length; i++) radios[i].disabled = !!b;
+        }
     }
     onChange(cb) { this.listeners.push(cb); }
 }

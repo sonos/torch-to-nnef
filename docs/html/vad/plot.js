@@ -18,7 +18,9 @@ export class VADPlot {
     }
     _ensurePreZeroShadePlugin() {
         const that = this;
+        // Tag the plugin so we can de-duplicate across resets
         const preZeroShade = {
+            __vadTag: 'preZeroShade',
             hooks: {
                 // Draw over series to mask any area-fill artifacts before 0s
                 draw: (u) => {
@@ -51,10 +53,8 @@ export class VADPlot {
             },
         };
         const hasPlugins = Array.isArray(this.opts.plugins);
-        const already = hasPlugins && this.opts.plugins.some(p => p && p.hooks && (p.hooks.drawClear));
-        if (!already) {
-            this.opts = { ...this.opts, plugins: [...(this.opts.plugins || []), preZeroShade] };
-        }
+        const already = hasPlugins && this.opts.plugins.some(p => p && (p.__vadTag === 'preZeroShade'));
+        if (!already) this.opts = { ...this.opts, plugins: [...(this.opts.plugins || []), preZeroShade] };
     }
     init(plotFps = 60, smoothMs = 200) {
         this.plotMsStep = 1000 / plotFps;
