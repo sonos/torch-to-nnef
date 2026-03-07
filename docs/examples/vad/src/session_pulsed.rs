@@ -72,6 +72,28 @@ impl VadSessionCommon for VadSessionPulsed {
         }
         self.decoded_emissions = self.decoded_emissions.saturating_add(1);
     }
+
+    // For the pulsed encoder, the emitted frames already reflect the internal delay.
+    // We should not subtract `pulse_delay` again when selecting the block to append
+    // to the decoder's window. Use the most recent `pulse_frames` directly.
+    fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Value>> {
+        let frames = enc_all.shape()[1];
+        if frames < self.pulse_frames() {
+            let val: Value = self.encoder_frame_buffer().clone().try_into()?;
+            return Ok(vec![val]);
+        }
+        let start = frames - self.pulse_frames();
+        let block = enc_all.slice(s![.., start..]).to_owned();
+        #[cfg(test)]
+        self.dbg.set_enc_block(&block);
+        let dec_in = self.slide_window_append(&block, self.pulse_frames())?;
+        #[cfg(test)]
+        {
+            let win = self.encoder_frame_buffer().clone();
+            self.dbg.set_encoder_window(&win);
+        }
+        Ok(dec_in)
+    }
 }
 
 impl VadSessionPulsed {

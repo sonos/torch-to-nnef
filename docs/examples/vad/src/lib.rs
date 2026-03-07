@@ -562,4 +562,115 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn speech_pulsed_vs_batch_probs_above_95_percent() -> anyhow::Result<()> {
+        // Expect a clean speech segment to yield high p(speech) near the tail
+        let wav_path = Path::new("assets/audio/speech.wav");
+        assert!(wav_path.exists(), "missing speech wav at {:?}", wav_path);
+
+        let mut reader = hound::WavReader::open(wav_path)?;
+        let spec = reader.spec();
+        assert_eq!(
+            spec.sample_rate, 16_000,
+            "speech.wav must be 16kHz mono; got {} Hz",
+            spec.sample_rate
+        );
+        let mut samples: Vec<f32> = Vec::with_capacity(reader.duration() as usize);
+        if spec.sample_format == hound::SampleFormat::Int {
+            for s in reader.samples::<i16>() {
+                samples.push((s? as f32 / 32768.0).clamp(-1.0, 1.0));
+            }
+        } else {
+            for s in reader.samples::<f32>() {
+                let v = s?;
+                samples.push(v.clamp(-1.0, 1.0));
+            }
+        }
+
+        // Build VAD components
+        let clf = VadClassifier::load_internal(4)?;
+        let pulse_delay = clf.compute_pulse_delay_from_encoder();
+        let mut pulsed = VadSessionPulsed::new(
+            &clf.preprocessor_model,
+            &clf.encoder_model_pulsed,
+            &clf.decoder_model,
+            4,
+            clf.frame_size,
+            pulse_delay,
+        )?;
+        let mut batch = VadSessionBatch::new(
+            &clf.preprocessor_model,
+            &clf.encoder_model_batch,
+            &clf.decoder_model,
+            pulse_delay,
+            4,
+            clf.frame_size,
+        )?;
+
+        // Stream in 4-frame pulses (640 samples at 16kHz)
+        let step = pulsed.step_samples();
+        let mut pulsed_scores: Vec<f32> = Vec::new();
+        let mut batch_scores: Vec<f32> = Vec::new();
+        let mut i = 0usize;
+        while i < samples.len() {
+            let end = (i + step).min(samples.len());
+            let chunk = samples[i..end].to_vec();
+            let p_pulsed = pulsed.predict_speech_presence(chunk.clone())?;
+            let p_batch = batch.predict_speech_presence(chunk)?;
+            pulsed_scores.push(p_pulsed);
+            batch_scores.push(p_batch);
+            i = end;
+        }
+
+        // Consider only post-warmup (finite) values and check the tail
+        let pulsed_finite: Vec<f32> = pulsed_scores
+            .iter()
+            .copied()
+            .filter(|v| v.is_finite())
+            .collect();
+        let batch_finite: Vec<f32> = batch_scores
+            .iter()
+            .copied()
+            .filter(|v| v.is_finite())
+            .collect();
+
+        assert!(
+            !pulsed_finite.is_empty(),
+            "no finite pulsed predictions observed (warmup never completed?)"
+        );
+        assert!(
+            !batch_finite.is_empty(),
+            "no finite batch predictions observed (warmup never completed?)"
+        );
+
+        // Check last 20 values from each sequence
+        let n_check = 20usize;
+        let pulsed_tail_start = pulsed_finite.len().saturating_sub(n_check);
+        let batch_tail_start = batch_finite.len().saturating_sub(n_check);
+        let pulsed_tail = &pulsed_finite[pulsed_tail_start..];
+        let batch_tail = &batch_finite[batch_tail_start..];
+        println!("pulsed last {} p(speech): {:?}", n_check, pulsed_tail);
+        println!("batch  last {} p(speech): {:?}", n_check, batch_tail);
+
+        let thr = 0.95f32;
+        for (idx, v) in pulsed_tail.iter().enumerate() {
+            assert!(
+                *v >= thr,
+                "pulsed p(speech) at tail idx {} = {:.5} below 95%",
+                idx,
+                v
+            );
+        }
+        for (idx, v) in batch_tail.iter().enumerate() {
+            assert!(
+                *v >= thr,
+                "batch p(speech) at tail idx {} = {:.5} below 95%",
+                idx,
+                v
+            );
+        }
+
+        Ok(())
+    }
 }
