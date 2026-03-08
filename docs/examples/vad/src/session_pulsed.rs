@@ -25,6 +25,10 @@ pub(crate) struct VadSessionPulsed {
     frame_size: usize,
     decoded_emissions: usize,
     pub(crate) stable_frames_ready: usize,
+    // Skip initial emissions just after warmup to avoid transient spikes (pulsed only)
+    post_warmup_grace: usize,
+    ready_seen: bool,
+    enc_center_frames: usize,
     #[cfg(test)]
     pub(crate) dbg: SessionDebug,
 }
@@ -73,17 +77,16 @@ impl VadSessionCommon for VadSessionPulsed {
         self.decoded_emissions = self.decoded_emissions.saturating_add(1);
     }
 
-    // For the pulsed encoder, the emitted frames already reflect the internal delay.
-    // We should not subtract `pulse_delay` again when selecting the block to append
-    // to the decoder's window. Use the most recent `pulse_frames` directly.
+    // For pulsed, select from the encoder output timeline using the same
+    // pulse_delay and a 1-frame align shift as batch to target the same
+    // temporal slice post-warmup.
     fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Value>> {
-        let frames = enc_all.shape()[1];
-        if frames < self.pulse_frames() {
+        use crate::audio::select_enc_block;
+        let eff_delay = self.pulse_delay().saturating_add(self.enc_center_frames);
+        let Some(block) = select_enc_block(enc_all, self.pulse_frames(), eff_delay, 1) else {
             let val: Value = self.encoder_frame_buffer().clone().try_into()?;
             return Ok(vec![val]);
-        }
-        let start = frames - self.pulse_frames();
-        let block = enc_all.slice(s![.., start..]).to_owned();
+        };
         #[cfg(test)]
         self.dbg.set_enc_block(&block);
         let dec_in = self.slide_window_append(&block, self.pulse_frames())?;
@@ -125,10 +128,16 @@ impl VadSessionPulsed {
             frame_size,
             decoded_emissions: 0,
             stable_frames_ready: 0,
+            post_warmup_grace: 0,
+            ready_seen: false,
+            enc_center_frames: 32,
             #[cfg(test)]
             dbg: SessionDebug::default(),
         })
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_enc_center_frames(&mut self, v: usize) { self.enc_center_frames = v; }
 
     pub(crate) fn predict_speech_presence(&mut self, raw_audio_data: Vec<f32>) -> Res<f32> {
         roll_into_ring(&mut self.audio_buffer, &raw_audio_data);
@@ -149,6 +158,15 @@ impl VadSessionPulsed {
                 self.stable_frames_ready,
                 self.warmup_needed_frames()
             ));
+            return Ok(self.last_score);
+        }
+        // After warmup completes, skip a couple emissions to avoid an initial transient
+        if !self.ready_seen {
+            self.ready_seen = true;
+            self.post_warmup_grace = 2;
+        }
+        if self.post_warmup_grace > 0 {
+            self.post_warmup_grace = self.post_warmup_grace.saturating_sub(1);
             return Ok(self.last_score);
         }
 
