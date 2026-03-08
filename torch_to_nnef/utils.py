@@ -29,6 +29,31 @@ def cache(func: T.Callable[..., C]) -> C:
     return functools.lru_cache()(func)  # type: ignore
 
 
+def ensure_tuple_io(value: T.Any) -> T.Tuple[T.Any, ...]:
+    """Normalize inputs/outputs into a tuple.
+
+    Behavior:
+    - If already a tuple, return as-is.
+    - If a list or other finite sequence, return tuple(value).
+    - If a single Tensor, number, bool, or mapping-like (has items and
+      __getitem__), wrap into a 1-tuple.
+    - Otherwise, return (value,).
+    """
+    if isinstance(value, tuple):
+        return value
+    # Preserve common containers
+    if isinstance(value, list):
+        return tuple(value)
+    # Torch tensor or primitive
+    if isinstance(value, (torch.Tensor, int, float, bool)):
+        return (value,)
+    # Dicts are preserved as single entries; other custom containers are not
+    # treated specially to avoid surprising wrapping heuristics.
+    if isinstance(value, dict):
+        return (value,)
+    return (value,)
+
+
 def fullname(o) -> str:
     """Full class name with module path from an object."""
     klass = o.__class__
