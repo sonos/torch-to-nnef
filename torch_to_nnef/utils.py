@@ -509,7 +509,10 @@ class ReactiveNamedItemDict:
     def contains(self, item: NamedItem, strict: bool = False):
         name_exists = item.name in self._map
         if name_exists and strict:
-            return self._map[item.name] == item
+            # Strict mode means the exact same object instance must be stored.
+            # Using identity avoids fragile __eq__ implementations (e.g.,
+            # tensors with NaNs that are not equal to themselves).
+            return self._map[item.name] is item
         return name_exists
 
     def append(self, item: NamedItem):
