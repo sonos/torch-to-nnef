@@ -251,6 +251,41 @@ class UnfoldModelInfo:
         )
         np.savez(filepath, **kwargs)
 
+    # Compatibility shims for split IO bundle workflow
+    def write_input_npz(self, filepath: Path, tract_compat: bool = False):
+        """Write only inputs to an NPZ bundle.
+
+        Mirrors write_io_npz but excludes outputs; used by Tract checks when
+        input and output bundles are handled separately.
+        """
+        def cast(val):
+            if val.dtype in [torch.float16, torch.bfloat16]:
+                val = val.to(torch.float32)
+            return val.detach().numpy()
+
+        kwargs = {
+            key: cast(t) if tract_compat else t
+            for key, t in zip(self.input_names, self.flat_inputs)
+        }
+        np.savez(filepath, **kwargs)
+
+    def write_output_npz(self, filepath: Path, tract_compat: bool = False):
+        """Write only outputs to an NPZ bundle.
+
+        Mirrors write_io_npz but excludes inputs; used by Tract checks when
+        input and output bundles are handled separately.
+        """
+        def cast(val):
+            if val.dtype in [torch.float16, torch.bfloat16]:
+                val = val.to(torch.float32)
+            return val.detach().numpy()
+
+        kwargs = {
+            key: cast(t) if tract_compat else t
+            for key, t in zip(self.output_names, self.flat_outputs)
+        }
+        np.savez(filepath, **kwargs)
+
 
 def cast_tensor_if_int(inp: T.Any) -> torch.Tensor:
     if isinstance(inp, int):
