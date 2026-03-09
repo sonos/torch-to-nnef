@@ -206,11 +206,16 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
         )
+        # For Khronos checks, export as .tgz to
+        # satisfy nnef-tools decompression.
+        # Otherwise, keep deterministic tar (0)
+        # for other targets.
+        comp_level = 1 if isinstance(inference_target, KhronosNNEF) else 0
         exported_path = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
-            compression_level=0,
+            compression_level=comp_level,
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,

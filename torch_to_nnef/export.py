@@ -573,10 +573,8 @@ def iter_torch_tensors_from_disk(
                     yield key, tensor
                 else:
                     LOGGER.warning(
-                        (
-                            "Skipping non-tensor entry from state dict: %s "
-                            "(type=%s)"
-                        ),
+                        "Skipping non-tensor entry from state dict: %s "
+                        "(type=%s)",
                         key,
                         type(tensor),
                     )

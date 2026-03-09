@@ -1,6 +1,6 @@
 import operator
 import platform
-import subprocess
+import tarfile
 import time
 import typing as T
 from copy import deepcopy
@@ -46,10 +46,16 @@ def check_tensor_in_nnef_archive(
     exdir.mkdir(parents=True, exist_ok=True)
     graph_filename = "graph.nnef"
     with cd(exdir):
-        gz = str(path).endswith((".tgz", ".tar.gz"))
-        subprocess.check_call(
-            ["tar", "-xzf" if gz else "-xf", str(path), graph_filename]
-        )
+        # Extract graph.nnef from either .tar or .tgz
+        with tarfile.open(path, "r:*") as tf:
+            member = None
+            for m in tf.getmembers():
+                if m.name.endswith(graph_filename):
+                    member = m
+                    break
+            if member is None:
+                raise T2NErrorTestFailed("graph.nnef not found in archive")
+            tf.extract(member, exdir)
         graph_filepath = exdir / graph_filename
         graph_content = graph_filepath.read_text()
         found_labels = set()
@@ -78,15 +84,18 @@ def check_tensor_in_nnef_archive(
                 expected_dtype = label_opt_checks.get("dtype")
                 if expected_dtype is not None:
                     dat_filename = f"{label_name}.dat"
-                    subprocess.check_call(
-                        [
-                            "tar",
-                            "-xzf" if gz else "-xf",
-                            str(path),
-                            dat_filename,
-                        ]
-                    )
-                    bin_header = DatBinHeader.from_dat(dat_filename)
+                    with tarfile.open(path, "r:*") as tf:
+                        member = None
+                        for m in tf.getmembers():
+                            if m.name.endswith(dat_filename):
+                                member = m
+                                break
+                        if member is None:
+                            raise T2NErrorTestFailed(
+                                f"{dat_filename} not found in archive"
+                            )
+                        tf.extract(member, exdir)
+                    bin_header = DatBinHeader.from_dat(exdir / dat_filename)
                     if bin_header.torch_dtype_or_custom != expected_dtype:
                         raise T2NErrorTestFailed(
                             "wrong dtype in NNEF archive "
