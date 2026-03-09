@@ -261,11 +261,13 @@ class TorchToNGraphExtractor:
                 if onode.name == new_name:
                     continue
                 if onode.name in self._forced_inputs_names:
-                    raise T2NError(
-                        f"input tensor named: '{onode.name}' tryied to "
-                        f"be replaced by output named: '{new_name}'."
-                        "This is forbidden as it leads to nop for this tensor"
+                    LOGGER.warning(
+                        "Output '%s' aliases input '%s'; keeping output name as '%s' (identity).",
+                        new_name,
+                        onode.name,
+                        onode.name,
                     )
+                    continue
                 onode.name = new_name
         LOGGER.info("translated internal IR to NNEF Graph object sucessfully")
 

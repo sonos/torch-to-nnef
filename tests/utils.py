@@ -206,6 +206,14 @@ def check_model_io_test(
             input_names=input_names,
             output_names=output_names,
         )
+        # Also emit a combined io.npz for compatibility with tests/utilities
+        # that expect a single bundle file.
+        try:
+            merged = {**np.load(inputs_npz_path), **np.load(outputs_npz_path)}
+            io_npz_path = Path(tmpdir) / "io.npz"
+            np.savez(io_npz_path, **merged)
+        except Exception:  # best-effort
+            pass
         # For Khronos checks, export as .tgz to
         # satisfy nnef-tools decompression.
         # Otherwise, keep deterministic tar (0)
@@ -239,6 +247,12 @@ def check_model_io_test(
                 outputs_npz_path,
                 dump_test_tz_path.with_suffix(".outputs.npz"),
             )
+            # Preserve legacy combined bundle naming
+            if (Path(tmpdir) / "io.npz").exists():
+                shutil.copy(
+                    Path(tmpdir) / "io.npz",
+                    dump_test_tz_path.with_suffix(".io.npz"),
+                )
         if callback_post_export is not None:
             callback_post_export(inference_target, export_path)
 

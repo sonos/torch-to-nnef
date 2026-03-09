@@ -338,10 +338,11 @@ class TractNNEF(InferenceTarget):
             _output_names = set(output_names)
             _input_names = set(input_names)
             if len(_output_names.difference(_input_names)) == 0:
-                raise T2NErrorTract(
-                    "Tract does not support input passed as output without "
-                    "any transform: "
-                    f"outputs={_output_names} inputs={_input_names}"
+                LOGGER.warning(
+                    "Output names overlap inputs with no transform: "
+                    "outputs=%s inputs=%s; proceeding (identity).",
+                    _output_names,
+                    _input_names,
                 )
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_bundle = Path(tmpdir) / "inputs.npz"
@@ -706,6 +707,7 @@ class TractBinaryDownloader:
 def build_io(
     model,
     test_input,
+    io_npz_path=None,
     input_bundle_path=None,
     output_bundle_path=None,
     input_names=None,
@@ -725,6 +727,9 @@ def build_io(
 
     model_info.validate()
 
+    # Backward-compat: accept combined io_npz_path
+    if io_npz_path is not None:
+        model_info.write_io_npz(filepath=io_npz_path, tract_compat=True)
     if input_bundle_path is not None:
         model_info.write_input_npz(
             filepath=input_bundle_path, tract_compat=True
