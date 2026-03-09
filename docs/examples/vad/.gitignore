@@ -1,6 +1,6 @@
+*.nnef.tgz
 .crates*
 target
 .venv
 *.mp3
 *.wav
-*.nnef.tgz
