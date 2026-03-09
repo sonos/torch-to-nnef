@@ -4,6 +4,7 @@ import importlib
 import inspect
 import logging
 import os
+import re
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
@@ -317,11 +318,17 @@ def init_on_device(
 
 @total_ordering
 class SemanticVersion:
-    """Helper to check a version is higher than another.
+    """SemVer 2.0 compatible version class.
 
-    Attributes:
-        TAGS: each versions level (should not be modified in most cases)
-            ordering being done from left to right.
+    Supports:
+        1.2.3
+        1.2.3-alpha
+        1.2.3-alpha.1
+        1.2.3-rc.1
+        1.2.3+build.5  (build metadata ignored in ordering)
+
+    Allows symmetric comparison with strings:
+        "1.2.0" < SemanticVersion.from_str("1.3.0")
 
     Example:
         >>> version = SemanticVersion.from_str("1.2.13")
@@ -333,53 +340,117 @@ class SemanticVersion:
         True
     """
 
-    TAGS = ["major", "minor", "patch"]
+    __slots__ = (
+        "major",
+        "minor",
+        "patch",
+        "prerelease",
+        "build",
+        "_cmp_key",
+    )
 
-    def __init__(self, **kwargs):
-        """Init.
+    _SEMVER_RE = re.compile(
+        r"""
+        ^
+        (?P<major>0|[1-9]\d*)\.
+        (?P<minor>0|[1-9]\d*)\.
+        (?P<patch>0|[1-9]\d*)
+        (?:-(?P<prerelease>[0-9A-Za-z.-]+))?
+        (?:\+(?P<build>[0-9A-Za-z.-]+))?
+        $
+        """,
+        re.VERBOSE,
+    )
 
-        Args: (depends on TAGS but default is:)
-            major: int
-            minor: int
-            patch: int
-        """
-        for t in self.TAGS:
-            assert isinstance(kwargs[t], int), kwargs[t]
-            assert kwargs[t] >= 0, kwargs[t]
+    def __init__(self, major, minor, patch, prerelease=None, build=None):
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+        self.prerelease = tuple(prerelease or ())
+        self.build = build
 
-        self.version = {t: kwargs[t] for t in self.TAGS}
+        # Precompute comparison key (critical for performance)
+        self._cmp_key = self._build_cmp_key()
 
     @classmethod
-    def from_str(cls, version_str, sep="."):
-        version_chunks = version_str.strip().split(sep)
-        if "-" in version_chunks[-1]:
-            version_chunks[-1] = version_chunks[-1].split("-")[0]
-        vtags = list(map(int, version_chunks))
-        assert len(vtags) == len(cls.TAGS)
-        return cls(**dict(zip(cls.TAGS, vtags)))
+    def from_str(cls, version: str) -> "SemanticVersion":
+        m = cls._SEMVER_RE.match(version.strip())
+        if not m:
+            raise ValueError(f"Invalid semantic version: {version}")
 
-    def __eq__(self, other: object):
+        major = int(m.group("major"))
+        minor = int(m.group("minor"))
+        patch = int(m.group("patch"))
+
+        prerelease_raw = m.group("prerelease")
+        if prerelease_raw:
+            parsed = []
+            for part in prerelease_raw.split("."):
+                if part.isdigit():
+                    parsed.append(int(part))
+                else:
+                    parsed.append(part)
+            prerelease = tuple(parsed)
+        else:
+            prerelease = ()
+
+        return cls(
+            major=major,
+            minor=minor,
+            patch=patch,
+            prerelease=prerelease,
+            build=m.group("build"),
+        )
+
+    def _build_cmp_key(self):
+        """Build a tuple usable for correct SemVer precedence comparison."""
+        # Core version
+        core = (self.major, self.minor, self.patch)
+
+        # Pre-release ordering:
+        # No prerelease > prerelease
+        if not self.prerelease:
+            pre_key = (1,)  # higher than any prerelease
+        else:
+            normalized = []
+            for identifier in self.prerelease:
+                if isinstance(identifier, int):
+                    normalized.append((0, identifier))
+                else:
+                    normalized.append((1, identifier))
+            pre_key = (0, tuple(normalized))
+
+        return core + (pre_key,)
+
+    def _coerce_other(self, other):
         if isinstance(other, str):
-            other = SemanticVersion.from_str(other)
-        assert isinstance(other, SemanticVersion), other
-        return all(self.version[t] == other.version[t] for t in self.TAGS)
+            return SemanticVersion.from_str(other)
+        if isinstance(other, SemanticVersion):
+            return other
+        raise TypeError(f"Cannot compare SemanticVersion with {type(other)}")
 
-    def __lt__(self, other: object):
-        if isinstance(other, str):
-            other = SemanticVersion.from_str(other)
-        assert isinstance(other, SemanticVersion), other
-        for t in self.TAGS:
-            if self.version[t] < other.version[t]:
-                return True
-            if self.version[t] > other.version[t]:
-                return False
-        return False
+    def __eq__(self, other):
+        other = self._coerce_other(other)
+        return self._cmp_key == other._cmp_key
 
-    def to_str(self):
-        return ".".join(str(self.version[t]) for t in self.TAGS)
+    def __lt__(self, other):
+        other = self._coerce_other(other)
+        return self._cmp_key < other._cmp_key
 
-    def __repr__(self) -> str:
-        return f"<Version {self.to_str()}>"
+    def to_str(self) -> str:
+        """Return canonical SemVer string."""
+        return str(self)
+
+    def __str__(self):
+        base = f"{self.major}.{self.minor}.{self.patch}"
+        if self.prerelease:
+            base += "-" + ".".join(str(p) for p in self.prerelease)
+        if self.build:
+            base += f"+{self.build}"
+        return base
+
+    def __repr__(self):
+        return f"<SemanticVersion {self}>"
 
 
 def torch_version() -> SemanticVersion:
