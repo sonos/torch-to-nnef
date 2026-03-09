@@ -29,8 +29,25 @@ easily navigate it.
 
 As shown in the 1st tutorial, export step creates a `${MY_MODEL_NAME}.nnef.tgz` archive.
 This is really just a classical `tar` archive with `gzip` compression option.
-You can in fact control the compression ratio with the `compression_level: int` parameter of the export function (0 meaning no compression). Compression allows to trade
-space on disk and network transfers against time to load the model during the first time (decompression).
+You can control packaging and compression via `file_path_export` and the `compression_level` parameter.
+
+### Artifacts and Compression
+
+Accepted path forms for `file_path_export`:
+
+- `.../model.nnef` → base name; the actual artifact depends on `compression_level`.
+- `.../model.nnef.tgz` → treated as a request to use base name `model.nnef`; the
+  actual artifact still depends on `compression_level`.
+
+Export results by `compression_level`:
+
+- `compression_level is None` → writes a `.nnef` directory; returns its path.
+- `compression_level == 0` →
+  - If path ends with `.nnef.tgz`, writes `model.nnef.tgz` (gzip store) to honor suffix.
+  - Otherwise writes `model.nnef.tar` (uncompressed tar).
+- `compression_level in 1..9` → writes a gzip tar `model.nnef.tgz` with the given level.
+
+export_model_to_nnef returns the path of the created artifact (directory, `.tar`, or `.tgz`).
 
 !!! info
 
