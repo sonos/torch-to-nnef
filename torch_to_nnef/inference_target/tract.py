@@ -615,6 +615,17 @@ def tract_err_filter(serr: str) -> str:
     return err_filtered.strip()
 
 
+def _extract_tar_archive(archive_path: Path) -> None:
+    """Extract a tar archive, detecting gzip by suffix.
+
+    Uses `tar -xf` for plain `.tar` and `tar -xzf` for `.tgz`/`.tar.gz`.
+    """
+    path_str = str(archive_path)
+    gz = path_str.endswith((".tgz", ".tar.gz"))
+    cmd = ["tar", "-xzf" if gz else "-xf", path_str]
+    subprocess.check_output(cmd)
+
+
 class TractBinaryDownloader:
     """Tract Downloader.
 
@@ -938,15 +949,6 @@ def assert_io_and_debug_bundle(
                 ),
                 input_bundle_path=Path("./inputs.npz"),
                 output_bundle_path=Path("./outputs.npz"),
-def _extract_tar_archive(archive_path: Path) -> None:
-    """Extract a tar archive, detecting gzip by suffix.
-
-    Uses `tar -xf` for plain `.tar` and `tar -xzf` for `.tgz`/`.tar.gz`.
-    """
-    path_str = str(archive_path)
-    gz = path_str.endswith((".tgz", ".tar.gz"))
-    cmd = ["tar", "-xzf" if gz else "-xf", path_str]
-    subprocess.check_output(cmd)
                 check_tolerance=check_tolerance,
             )
             fh.write("${1:-%s} " % cmd[0])
