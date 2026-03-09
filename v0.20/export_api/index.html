@@ -657,6 +657,25 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-target-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing the Target Runtime
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Choosing the Target Runtime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.export" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;export
@@ -699,6 +718,11 @@
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;iter_torch_tensors_from_disk
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -2991,6 +3015,25 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-target-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing the Target Runtime
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Choosing the Target Runtime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.export" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;export
@@ -3040,6 +3083,11 @@
     </nav>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
     </ul>
   
@@ -3061,6 +3109,36 @@
 
 
 <h1 id="main-export-apis"><img alt="🚀" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/1f680.svg" title=":rocket:" /> Main export API's</h1>
+<p>For details on the exported artifact (directory vs <code>.tar</code> vs <code>.tgz</code>) and how
+<code>compression_level</code> and the output path suffix influence it, see
+<a href="../tutos/2_nnef_archive/#artifacts-and-compression">Artifacts and Compression</a>.</p>
+<h3 id="see-also">See Also</h3>
+<ul>
+<li>NeMo ASR export tutorial: <a href="../examples/nemo_asr/">Export and run NeMo ASR</a></li>
+<li>Transformers/LLM export tutorial: <a href="../tutos/5_llm/">LLM export guide</a></li>
+</ul>
+<h2 id="choosing-the-target-runtime">Choosing the Target Runtime</h2>
+<p><code>torch_to_nnef</code> exports to an inference-target abstraction. The most common choice is <code>TractNNEF</code>.</p>
+<ul>
+<li>Use <code>TractNNEF.latest()</code> for the most recent supported Tract.</li>
+<li>Pin a specific Tract version: <code>TractNNEF(SemanticVersion.from_str("0.23.0"))</code>.</li>
+<li>Pass dynamic-axes constraints and feature toggles (e.g., SDPA reification) through the inference target when needed.</li>
+</ul>
+<p>Example</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">torch_to_nnef.inference_target</span><span class="w"> </span><span class="kn">import</span> <span class="n">TractNNEF</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">torch_to_nnef.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">SemanticVersion</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">target</span> <span class="o">=</span> <span class="n">TractNNEF</span><span class="o">.</span><span class="n">latest</span><span class="p">()</span>  <span class="c1"># or TractNNEF(SemanticVersion.from_str(&quot;0.23.0&quot;))</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">export_model_to_nnef</span><span class="p">(</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">model</span><span class="o">=</span><span class="n">my_model</span><span class="o">.</span><span class="n">eval</span><span class="p">(),</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">file_path_export</span><span class="o">=</span><span class="s2">&quot;/tmp/model.nnef.tgz&quot;</span><span class="p">,</span>  <span class="c1"># suffix expresses archive intent</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">inference_target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;inp&quot;</span><span class="p">],</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;out&quot;</span><span class="p">],</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">compression_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># 1..9 =&gt; .tgz, 0 =&gt; .tar, None =&gt; .nnef dir</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
+</span></code></pre></div>
 
 
 <div class="doc doc-object doc-module">
@@ -3095,7 +3173,7 @@
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3156,8 +3234,16 @@ in consideration for dynamic axes</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a Path to the exported NNEF serialized model archive.
-It must by convention end with <code>.nnef.tgz</code> suffixes</p>
+                <p>target path for the exported model.
+Accepted forms are:
+- ".../model.nnef" → base path; creates:
+    • directory when <code>compression_level is None</code>
+    • archive "model.nnef.tar" when <code>compression_level == 0</code>
+    • archive "model.nnef.tgz" when <code>compression_level in 1..9</code>
+- ".../model.nnef.tgz" → treated as a request to use base name
+  "model.nnef"; the actual artifact still follows the rule above
+  (directory, .tar, or .tgz) depending on <code>compression_level</code>.
+Any other suffix pattern is rejected.</p>
               </div>
             </td>
             <td>
@@ -3200,19 +3286,6 @@ for each you can specify version targeted:
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>specific_tract_binary_path</code></td>
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Optional[Path] ideal to check io against new tract versions</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
             <td><code>input_names</code></td>
             <td>
                   <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
@@ -3247,12 +3320,15 @@ it replaces variable output names traced from graph
           <tr class="doc-section-item">
             <td><code>compression_level</code></td>
             <td>
-                  <code><span title="int">int</span></code>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>int (&gt;= 0)
-compression level of tar.gz (higher is more compressed)</p>
+                <p>Optional[int] = 0
+If None, writes an uncompressed <code>.nnef</code> directory.
+If 0, writes an uncompressed tar archive <code>.nnef.tar</code>.
+If 1..9, writes a gzip-compressed tar archive <code>.nnef.tgz</code> with the
+given compression level.</p>
               </div>
             </td>
             <td>
@@ -3378,6 +3454,35 @@ Some libs like 'nvidia/nemo' use this pattern.
     </table>
 
 
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Path</code></td>            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the path to the exported artifact.
+- If <code>compression_level is None</code>: returns the
+  <code>.nnef</code> directory path.
+- If <code>compression_level == 0</code>: returns the
+  <code>.nnef.tar</code> archive path.
+- If <code>compression_level in 1..9</code>: returns the
+  <code>.nnef.tgz</code> archive path.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
 <p><span class="doc-section-title">Examples:</span></p>
     <p>For example this function can be used to export
 as simple perceptron model:</p>
@@ -3388,18 +3493,19 @@ as simple perceptron model:</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mod</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">export_path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mktemp</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;.nnef.tgz&quot;</span><span class="p">)</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">inference_target</span> <span class="o">=</span> <span class="n">TractNNEF</span><span class="o">.</span><span class="n">latest</span><span class="p">()</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">export_model_to_nnef</span><span class="p">(</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">export_model_to_nnef</span><span class="p">(</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">... </span>  <span class="n">mod</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">... </span>  <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="gp">... </span>  <span class="n">export_path</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gp">... </span>  <span class="n">inference_target</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="gp">... </span>  <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;inp&quot;</span><span class="p">],</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="gp">... </span>  <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;out&quot;</span><span class="p">]</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="gp">... </span><span class="p">)</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">export_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="n">maxsplit</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">tarfile</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">export_path</span><span class="p">)</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="s2">&quot;graph.nnef&quot;</span><span class="p">)</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;graph network(inp) -&gt; (out)&quot;</span> <span class="ow">in</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;graph.nnef&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="go">True</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="gp">... </span>  <span class="n">compression_level</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="gp">... </span>  <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;inp&quot;</span><span class="p">],</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="gp">... </span>  <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;out&quot;</span><span class="p">]</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="gp">... </span><span class="p">)</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">export_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="n">maxsplit</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">tarfile</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">export_path</span><span class="p">)</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="s2">&quot;graph.nnef&quot;</span><span class="p">)</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="gp">&gt;&gt;&gt; </span><span class="s2">&quot;graph network(inp) -&gt; (out)&quot;</span> <span class="ow">in</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;graph.nnef&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="go">True</span>
 </span></code></pre></div>
 
     </div>
@@ -3414,7 +3520,7 @@ as simple perceptron model:</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_from_disk_to_nnef</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_check_found_tensors</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_tensors_from_disk_to_nnef</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">fn_check_found_tensors</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3489,6 +3595,21 @@ effectively been dumped</p>
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>map_location</code></td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="torch.device">device</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>device mapping used by torch.load for .pt/.pth/.bin files
+(default: "cpu").</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;cpu&#39;</code>
             </td>
           </tr>
       </tbody>
@@ -3670,7 +3791,7 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_torch_tensors_from_disk</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">iter_torch_tensors_from_disk</span><span class="p">(</span><span class="n">store_filepath</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">filter_key</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">map_location</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterator</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Tensor</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3717,6 +3838,21 @@ stored in those format</p>
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>map_location</code></td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="torch.device">device</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>device mapping used by torch.load for .pt/.pth/.bin files
+(default: "cpu").</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;cpu&#39;</code>
             </td>
           </tr>
       </tbody>
@@ -3788,7 +3924,7 @@ stored in those format</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="July 8, 2025 09:33:28 UTC">July 8, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 8, 2026 13:18:57 UTC">March 8, 2026</span>
   </span>
 
     

@@ -88,14 +88,13 @@ pub struct Transcription {
 impl Transcription {
     pub fn from_transcript_items(items: Vec<TranscriptItem>) -> Transcription {
         Transcription {
-            text: normalize_transcript_text(
-                items
-                    .iter()
-                    .map(|ti| ti.token.as_str())
-                    .join("")
-                    .replace("▁", " ")
-                    .trim(),
-            ),
+            text: items
+                .iter()
+                .map(|ti| ti.token.as_str())
+                .join("")
+                .replace("▁", " ")
+                .trim()
+                .into(),
             items,
         }
     }
@@ -111,31 +110,6 @@ struct Lane {
     transcript: Vec<TranscriptItem>,
     symbols_added: usize,
     need_loop: bool,
-}
-
-fn normalize_transcript_text(s: &str) -> String {
-    // Very conservative cleanup:
-    // - remove [] debug-style brackets
-    // - collapse excessive whitespace
-    let mut out = String::with_capacity(s.len());
-    let mut last_space = false;
-
-    for c in s.chars() {
-        if c == '[' || c == ']' {
-            continue;
-        }
-        if c.is_whitespace() {
-            if !last_space {
-                out.push(' ');
-            }
-            last_space = true;
-        } else {
-            last_space = false;
-            out.push(c);
-        }
-    }
-
-    out.trim().to_string()
 }
 
 /// dump tensor to a npy file
@@ -623,10 +597,6 @@ mod test {
         let transcripts = asr.infer_from_wav_paths(&[
             assets_dir().join("2086-149220-0033.wav"),
             assets_dir().join("data_smoke_test_LDC93S1.wav"),
-            // workspace_root()
-            //     .join("src/nemo_asr_py/audio_cache/librispeech/test.clean/1188-133604-0009.wav"),
-            //PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/4970-29093-0005.wav"),
-            // PathBuf::from("/Users/julien.balian/SONOS/src/torch-to-nnef/docs/examples/nemo_asr/src/nemo_asr_py/audio_cache/librispeech/test.clean/7127-75946-0019.wav")
         ])?;
         let max_chars = 500;
         for (i, t) in transcripts.iter().enumerate() {
@@ -639,8 +609,6 @@ mod test {
             //     println!("Full items: {:#?}", t.items);
             // }
         }
-        // This code works if only 1 sample in batch
-        // but output garbage text when multiple samples in batch
         Ok(())
     }
 }

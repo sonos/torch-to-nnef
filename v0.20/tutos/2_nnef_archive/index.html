@@ -455,6 +455,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#artifacts-and-compression" class="md-nav__link">
+    <span class="md-ellipsis">
+      Artifacts and Compression
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#graphnnef" class="md-nav__link">
     <span class="md-ellipsis">
       graph.nnef
@@ -2985,6 +2994,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#artifacts-and-compression" class="md-nav__link">
+    <span class="md-ellipsis">
+      Artifacts and Compression
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#graphnnef" class="md-nav__link">
     <span class="md-ellipsis">
       graph.nnef
@@ -3055,8 +3073,23 @@ easily navigate it.</p>
 <h2 id="inside-the-archive"><span style="color:#6666aa"><strong><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 6H2V2h18zm-8.97 6H8v-1.5c0-.28.22-.5.5-.5h4.54c1.8-1.13 4.03-1.3 5.96-.5V7H3v13h8.82c-2.12-2.2-2.38-5.5-.79-8m12.36 9L22 22.39l-3.12-3.07c-.69.43-1.51.68-2.38.68-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5c0 .88-.25 1.71-.69 2.4zM19 15.5a2.5 2.5 0 0 0-5 0 2.5 2.5 0 0 0 5 0"/></svg></span></strong></span>  Inside the archive</h2>
 <p>As shown in the 1st tutorial, export step creates a <code>${MY_MODEL_NAME}.nnef.tgz</code> archive.
 This is really just a classical <code>tar</code> archive with <code>gzip</code> compression option.
-You can in fact control the compression ratio with the <code>compression_level: int</code> parameter of the export function (0 meaning no compression). Compression allows to trade
-space on disk and network transfers against time to load the model during the first time (decompression).</p>
+You can control packaging and compression via <code>file_path_export</code> and the <code>compression_level</code> parameter.</p>
+<h3 id="artifacts-and-compression">Artifacts and Compression</h3>
+<p>Accepted path forms for <code>file_path_export</code>:</p>
+<ul>
+<li><code>.../model.nnef</code> → base name; the actual artifact depends on <code>compression_level</code>.</li>
+<li><code>.../model.nnef.tgz</code> → treated as a request to use base name <code>model.nnef</code>; the
+  actual artifact still depends on <code>compression_level</code>.</li>
+</ul>
+<p>Export results by <code>compression_level</code>:</p>
+<ul>
+<li><code>compression_level is None</code> → writes a <code>.nnef</code> directory; returns its path.</li>
+<li><code>compression_level == 0</code> →</li>
+<li>If path ends with <code>.nnef.tgz</code>, writes <code>model.nnef.tgz</code> (gzip store) to honor suffix.</li>
+<li>Otherwise writes <code>model.nnef.tar</code> (uncompressed tar).</li>
+<li><code>compression_level in 1..9</code> → writes a gzip tar <code>model.nnef.tgz</code> with the given level.</li>
+</ul>
+<p>export_model_to_nnef returns the path of the created artifact (directory, <code>.tar</code>, or <code>.tgz</code>).</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 <p><strong>tract</strong> itself is agnostic to specific archive or 'compression' format and as long as you provide a
@@ -3170,7 +3203,7 @@ in the <a href="../6_quantization">quantization tutorial</a>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 16, 2026 15:03:36 UTC">January 16, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 8, 2026 13:18:57 UTC">March 8, 2026</span>
   </span>
 
     

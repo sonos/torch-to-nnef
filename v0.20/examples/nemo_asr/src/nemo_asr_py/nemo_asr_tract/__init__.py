@@ -3,10 +3,10 @@ from ctypes import c_size_t
 from .nemo_asr import (
     NemoAsrConfig,
     NemoAsrModel,
+    RuntimeConfig,
     Transcript,
     TranscriptItem,
     Transcripts,
-    RuntimeConfig,
     load_config_from_dir,
 )
 from .utils import check_ffi_error, lib

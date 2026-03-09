@@ -1842,6 +1842,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.pool.max_pool_nd_with_indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;max_pool_nd_with_indices
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.pool.upsample_nearest2d" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest2d
@@ -3084,6 +3093,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.pool.max_pool_nd_with_indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;max_pool_nd_with_indices
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.pool.upsample_nearest2d" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest2d
@@ -3263,6 +3281,26 @@ ceil_mode_node)</p>
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:max_pool2d', 'aten:max_pool3d' to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.pool.max_pool_nd_with_indices" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">max_pool_nd_with_indices</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">max_pool_nd_with_indices</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:max_pool{2,3}d_with_indices' to NNEF.</p>
+<p>Indices are not representable in NNEF/Tract max_pool, so drop them.</p>
 
     </div>
 
