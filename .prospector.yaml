@@ -6,6 +6,7 @@ pylint:
   disable:
     - missing-docstring
     - ungrouped-imports
+    - django-not-available # we don't use Django
     - bad-mcs-classmethod-argument
 
 pycodestyle:

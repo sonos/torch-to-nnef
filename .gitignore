@@ -118,6 +118,9 @@ site/
 .tract
 *.wav
 *.npz
+*.nnef.tar
 *.nnef.tgz
+*.json
+*.out
 graph.nnef
 *.dat
