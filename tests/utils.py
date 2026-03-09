@@ -190,7 +190,8 @@ def check_model_io_test(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
+        inputs_npz_path = Path(tmpdir) / "inputs.npz"
+        outputs_npz_path = Path(tmpdir) / "outputs.npz"
 
         if not hasattr(model, "eval"):
             model = ModelWrapper(model)
@@ -200,7 +201,8 @@ def check_model_io_test(
         input_names, output_names = build_io(
             model,
             test_input,
-            io_npz_path=io_npz_path,
+            input_bundle_path=inputs_npz_path,
+            output_bundle_path=outputs_npz_path,
             input_names=input_names,
             output_names=output_names,
         )
@@ -209,7 +211,6 @@ def check_model_io_test(
         # Otherwise, keep deterministic tar (0)
         # for other targets.
         from torch_to_nnef.inference_target import KhronosNNEF  # local import
-
         comp_level = 1 if isinstance(inference_target, KhronosNNEF) else 0
         exported_path = export_model_to_nnef(
             model=model,
@@ -232,8 +233,11 @@ def check_model_io_test(
                 dump_test_tz_path,
             )
             shutil.copy(
-                io_npz_path,
-                dump_test_tz_path.with_suffix(".io.npz"),
+                inputs_npz_path, dump_test_tz_path.with_suffix(".inputs.npz")
+            )
+            shutil.copy(
+                outputs_npz_path,
+                dump_test_tz_path.with_suffix(".outputs.npz"),
             )
         if callback_post_export is not None:
             callback_post_export(inference_target, export_path)

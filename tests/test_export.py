@@ -97,13 +97,10 @@ def test_export_base():
     model = MyDumbNN()
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
 
         model = model.eval()
 
-        input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
-        )
+        input_names, output_names = build_io(model, test_input)
         export_model_to_nnef(
             model=model,
             args=test_input,
@@ -257,7 +254,7 @@ def test_deep_obj_tensor_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef.tgz"
         model = model.eval()
-        export_model_to_nnef(
+        exported_path = export_model_to_nnef(
             model=model,
             args=(test_input, {"a": FakeTensorHolder(torch.rand(1, 2))}),
             file_path_export=export_path,
@@ -265,9 +262,10 @@ def test_deep_obj_tensor_inputs():
             output_names=["b"],
             log_level=log.INFO,
             inference_target=INFERENCE_TARGETS_TO_TESTS[0],
+            compression_level=0,
         )
         assert graph_contains_line(
-            export_path,
+            exported_path,
             "dic_a_b = tract_core_external"
             "(shape = [1, 2], datum_type = 'f32');",
         )

@@ -398,7 +398,14 @@ class LLMExporter:
             dynamic_axes,
         )
 
-    def build_io_npz(self, io_npz_path: Path, *args, **kwargs):
+    def build_io_npz(
+        self,
+        io_npz_path: Path,
+        *args,
+        inputs_npz_path: T.Optional[Path] = None,
+        outputs_npz_path: T.Optional[Path] = None,
+        **kwargs,
+    ):
         (
             inputs,
             input_names,
@@ -408,23 +415,28 @@ class LLMExporter:
         build_io(
             self.wrapped_model,
             inputs,
-            io_npz_path=io_npz_path,
+            input_bundle_path=inputs_npz_path if inputs_npz_path else io_npz_path,
+            output_bundle_path=
+                outputs_npz_path if outputs_npz_path else io_npz_path,
             input_names=input_names,
             output_names=output_names,
         )
 
     def dump_all_io_npz_kind(
         self, io_npz_dirpath: Path, size: int = 6
-    ) -> T.List[Path]:
+    ) -> T.List[T.Tuple[Path, Path]]:
         """Realistic dump of IO's."""
         half = size // 2
-        prompt_npz_filepath = io_npz_dirpath / "prompt_io.npz"
+        prompt_in_npz = io_npz_dirpath / "prompt_inputs.npz"
+        prompt_out_npz = io_npz_dirpath / "prompt_outputs.npz"
         self.build_io_npz(
-            prompt_npz_filepath,
+            prompt_in_npz,
             n_input_tokens=size,
             n_past_input_tokens=0,
+            inputs_npz_path=prompt_in_npz,
+            outputs_npz_path=prompt_out_npz,
         )
-        res = {**np.load(prompt_npz_filepath)}
+        res = {**np.load(prompt_in_npz), **np.load(prompt_out_npz)}
         out_kv = {}
         for k, v in res.items():
             if k.startswith("out_cache_key_"):
@@ -435,15 +447,18 @@ class LLMExporter:
             for idx in range(max(list(out_kv.keys())) + 1)
             for _ in out_kv[idx]
         ]
-        prompt_with_past_npz_filepath = (
-            io_npz_dirpath / "prompt_with_past_io.npz"
+        prompt_with_past_in_npz = io_npz_dirpath / "prompt_with_past_inputs.npz"
+        prompt_with_past_out_npz = (
+            io_npz_dirpath / "prompt_with_past_outputs.npz"
         )
         try:
             self.build_io_npz(
-                prompt_with_past_npz_filepath,
+                prompt_with_past_in_npz,
                 n_input_tokens=half,
                 n_past_input_tokens=half,
                 real_kv_cache=real_kv_cache,
+                inputs_npz_path=prompt_with_past_in_npz,
+                outputs_npz_path=prompt_with_past_out_npz,
             )
         except Exception as exp:  # pylint: disable=broad-except
             LOGGER.error(
@@ -451,13 +466,21 @@ class LLMExporter:
                 "(likely modeling limit): %s",
                 exp,
             )
-        text_gen_npz_filepath = io_npz_dirpath / "text_generation_io.npz"
+        text_gen_in_npz = io_npz_dirpath / "text_generation_inputs.npz"
+        text_gen_out_npz = io_npz_dirpath / "text_generation_outputs.npz"
         self.build_io_npz(
-            text_gen_npz_filepath,
+            text_gen_in_npz,
             n_input_tokens=1,
             n_past_input_tokens=size - 1,
             real_kv_cache=real_kv_cache,
+            inputs_npz_path=text_gen_in_npz,
+            outputs_npz_path=text_gen_out_npz,
         )
+        return [
+            (prompt_in_npz, prompt_out_npz),
+            (prompt_with_past_in_npz, prompt_with_past_out_npz),
+            (text_gen_in_npz, text_gen_out_npz),
+        ]
         return [
             prompt_npz_filepath,
             prompt_with_past_npz_filepath,
