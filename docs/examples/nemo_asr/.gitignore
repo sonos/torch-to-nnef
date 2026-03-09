@@ -9,6 +9,7 @@
 *.pyo
 *.pyd
 *.json
+!requirements.txt
 *.txt
 *.wav
 **/assets
