@@ -190,7 +190,8 @@ def check_model_io_test(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
+        inputs_npz_path = Path(tmpdir) / "inputs.npz"
+        outputs_npz_path = Path(tmpdir) / "outputs.npz"
 
         if not hasattr(model, "eval"):
             model = ModelWrapper(model)
@@ -200,14 +201,16 @@ def check_model_io_test(
         input_names, output_names = build_io(
             model,
             test_input,
-            io_npz_path=io_npz_path,
+            input_bundle_path=inputs_npz_path,
+            output_bundle_path=outputs_npz_path,
             input_names=input_names,
             output_names=output_names,
         )
-        export_model_to_nnef(
+        exported_path = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
+            compression_level=0,
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
@@ -217,15 +220,17 @@ def check_model_io_test(
             custom_extensions=custom_extensions,
             allow_same_io_names=True,
         )
-        export_path = export_path.with_suffix(".nnef.tgz")
+        export_path = exported_path
         if DUMP_DIRPATH:
             shutil.copy(
                 export_path,
                 dump_test_tz_path,
             )
             shutil.copy(
-                io_npz_path,
-                dump_test_tz_path.with_suffix(".io.npz"),
+                inputs_npz_path, dump_test_tz_path.with_suffix(".inputs.npz")
+            )
+            shutil.copy(
+                outputs_npz_path, dump_test_tz_path.with_suffix(".outputs.npz")
             )
         if callback_post_export is not None:
             callback_post_export(inference_target, export_path)

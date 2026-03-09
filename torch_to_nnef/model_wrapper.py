@@ -232,24 +232,40 @@ class UnfoldModelInfo:
             f"with output names: {self.output_names}"
         )
 
-    def write_io_npz(self, filepath: Path, tract_compat: bool = False):
-        def cast(val):
-            if val.dtype in [torch.float16, torch.bfloat16]:
-                val = val.to(torch.float32)  # tract --allow-float-casts
-            val = val.detach().numpy()
-            return val
-
-        kwargs = {
-            key: cast(input_arg) if tract_compat else input_arg
-            for key, input_arg in zip(self.input_names, self.flat_inputs)
-        }
-        kwargs.update(
-            {
-                key: cast(output_arg)
-                for key, output_arg in zip(self.output_names, self.flat_outputs)
-            }
+    def write_input_npz(self, filepath: Path, tract_compat: bool = False):
+        self._write_tensor_npz(
+            names=self.input_names,
+            tensors=self.flat_inputs,
+            filepath=filepath,
+            tract_compat=tract_compat,
         )
-        np.savez(filepath, **kwargs)
+
+    def write_output_npz(self, filepath: Path, tract_compat: bool = False):
+        self._write_tensor_npz(
+            names=self.output_names,
+            tensors=self.flat_outputs,
+            filepath=filepath,
+            tract_compat=tract_compat,
+        )
+
+    def _write_tensor_npz(
+        self,
+        *,
+        names: T.Sequence[str],
+        tensors: T.Sequence[torch.Tensor],
+        filepath: Path,
+        tract_compat: bool = False,
+    ) -> None:
+        def cast(val: torch.Tensor):
+            if val.dtype in (torch.float16, torch.bfloat16):
+                val = val.to(torch.float32)
+            return val.detach().numpy()
+
+        payload = {
+            name: (cast(t) if tract_compat else t)
+            for name, t in zip(names, tensors)
+        }
+        np.savez(filepath, **payload)
 
 
 def cast_tensor_if_int(inp: T.Any) -> torch.Tensor:
