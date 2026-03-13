@@ -120,7 +120,7 @@ site/
 *.npz
 *.nnef.tgz
 *.nnef.tar
-*.dat
 graph.nnef
+*.dat
 *.json
 *.out

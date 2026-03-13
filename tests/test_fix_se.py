@@ -75,13 +75,10 @@ def test_export(inference_target):
     model = SqueezeExcitationBlock1d(nb_input_channels=2)
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
 
         model = model.eval()
 
-        input_names, output_names = build_io(
-            model, test_input, io_npz_path=io_npz_path
-        )
+        input_names, output_names = build_io(model, test_input)
         dbg_name = datetime.now().strftime("%Y_%m_%dT%H_%M_%S")
         dbg_name = f"{dbg_name}_squeeze_exite"
         export_model_to_nnef(

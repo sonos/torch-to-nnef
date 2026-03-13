@@ -32,6 +32,7 @@ def check_align_with_reserialized(inference_target, path):
     )
 
     exp_out = path.parent / "expected_out.npz"
+    inputs_npz = path.parent / "inputs.npz"
     inference_target.tract_cli.run(
         [
             str(path),
@@ -39,7 +40,7 @@ def check_align_with_reserialized(inference_target, path):
             "-O",
             "run",
             "--input-from-npz",
-            str(path.parent / "io.npz"),
+            str(inputs_npz),
             "--save-outputs-npz",
             str(exp_out),
         ]
@@ -52,7 +53,7 @@ def check_align_with_reserialized(inference_target, path):
             "-O",
             "run",
             "--input-from-npz",
-            str(path.parent / "io.npz"),
+            str(inputs_npz),
             "--assert-output-bundle",
             str(exp_out),
         ]

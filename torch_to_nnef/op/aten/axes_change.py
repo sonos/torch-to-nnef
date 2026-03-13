@@ -6,10 +6,10 @@ from torch_to_nnef.op.aten.complex import (
 )
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    SimpleOpChainer,
     add_single_output_op,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
+    get_tract_dyn_axis_size_soc,
     pick_axis,
 )
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
@@ -78,37 +78,13 @@ def unflatten(
     )
 
     if inference_target.has_dynamic_axes:
-        # TODO: fix me now
-        soc = SimpleOpChainer(
-            op_helper=op_helper, input_data_nodes=[input_node]
-        )
-        shape_tensor_name = f"{input_node.export_name}_shape"
-        soc = soc.chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=shape_tensor_name,
-        )
         dim_data = []
         for dim in range(rank_data):
-            index_tensor_name = f"{input_node.export_name}_dim{dim}"
-            if index_tensor_name not in op_helper.name_to_tensor:
-                soc.chain(
-                    "slice",
-                    attrs={
-                        "axes": [0],
-                        "begin": [dim],
-                        "end": [dim + 1],
-                        "stride": [1],
-                    },
-                    output_tensor_name_suffix=f"sliced{dim}",
-                ).chain(
-                    "squeeze",
-                    attrs={
-                        "axes": [0],
-                    },
-                    force_full_output_tensor_name=index_tensor_name,
-                )
-            dim_size = nnef.Identifier(index_tensor_name)
-            dim_data.append(dim_size)
+            # Reuse centralized dynamic axis extraction helper
+            get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
+            dim_data.append(
+                nnef.Identifier(f"{input_node.export_name}_dim{dim}")
+            )
     else:
         dim_data = input_node.shape[:rank_data]
     dim_data = dim_data + partial_dim_data + input_node.shape[rank_data + 1 :]
