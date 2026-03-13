@@ -3,6 +3,35 @@
 
 ## Unreleased
 
+### Added
+
+- NeMo ASR export via new `torch_to_nnef.nemo_tract` package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.
+- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, and `clean.sh` to streamline local setup and cleanup.
+- VAD demo rework: modular JS under `docs/html/vad/` with clearer separation of mic, plotting, session, and wasm glue code.
+- Tests: artifact packaging behavior (`tests/test_artifacts.py`) to validate `.nnef`/`.tar`/`.tgz` outputs.
+- API: `export_model_to_nnef` now returns the exported artifact path for easier downstream use.
+- Ops: added support for `cumsum` (exported as `tract_cumsum`) and MaxPool2d with indices.
+- Export helpers: `iter_torch_tensors_from_disk(map_location=...)` to control device mapping; skips non‑tensor entries in state dicts.
+- Writer: pass‑through identity (input→output) renders as an assignment when targeting Tract; prevents silent aliasing.
+- Tract option: `--tract-reify-sdpa` to reify SDP attention for improved tract optimizations.
+
+### Changed
+
+- NNEF export artifacts: honoring `.nnef.tgz` as an intent for the final archive while always writing to the base `.nnef` path internally; consistent selection of directory (`compression=None`), `.tar` (`0`), or `.tgz` (`1..9`).
+- Writer: explicit `archive_format` for predictable `.tar` vs `.tgz` emission; avoids unnecessary fragment extensions for Tract targets.
+- Export robustness: normalized mapping-like/single outputs via `ensure_tuple_io`; stricter IO name collision checks with opt-in `allow_same_io_names` (kept False by default).
+- NeMo export pipeline: improved subnet iteration (optional split of decoder/joint), batch-dimension collapse option, safer preprocessor export, and automatic output renaming to avoid input/output name collisions.
+- RNN utils monkeypatching is now narrowly scoped and only applied for Tract targets; clearer error messages when unsupported.
+- Dynamic‑axes inference refined for unflatten/argsort/sort using `get_tract_dyn_axis_size_soc`.
+- Cumsum: initial simple implementation introduced and later renamed from `t2n_cumsum` to `tract_cumsum`; improved tract ONNX↔NNEF compare utility.
+- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); hardened Nemo ASR `run.sh`; minor doc clarifications.
+
+### Fixed
+
+- `.nnef.tgz` target path now produces a `.nnef` directory when `compression_level=None` (base-path semantics), matching tests and documentation.
+- Dynamic-axes propagation and rank filtering across NeMo subnets to better reflect actual exposed IO.
+- Minor linting and config tweaks (prospector rule, gitignore patterns).
+
 ## [0.20.4] -  2026-02-06
 
 ### Added

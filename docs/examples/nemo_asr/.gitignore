@@ -11,5 +11,6 @@
 *.json
 !requirements.txt
 *.txt
+!requirements.txt
 *.wav
 **/assets

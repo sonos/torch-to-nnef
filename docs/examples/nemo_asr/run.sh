@@ -3,10 +3,9 @@
 set -ex
 
 source ../bootstrap-rust.sh
-
-[ -e .venv ] || python3 -m venv .venv
+source ../bootstrap-wasm-pack.sh
+source ../bootstrap-uv.sh
 source .venv/bin/activate
-pip install --upgrade pip # pip 23.2+ is required
 mkdir -p assets
 (
     cd assets
@@ -14,8 +13,7 @@ mkdir -p assets
     wget -qN https://raw.githubusercontent.com/mozilla/DeepSpeech/master/data/smoke_test/LDC93S1.wav -O data_smoke_test_LDC93S1.wav
 )
 rm -rf assets/model
-pip install -e ../../../[nemo-tract]
-
-# t2n_export_nemo -s nvidia/parakeet-tdt-0.6b-v3 -e assets/model # --tract-specific-path $HOME/SONOS/src/tract/target/release/tract
-t2n_export_nemo -s nvidia/parakeet-tdt-0.6b-v3 -e assets/model --tract-specific-path $HOME/dev/sonos/tract/target/release/tract
+TRACT_VERSION="0.23.0-dev.2"
+python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
+t2n_export_nemo -s "nvidia/parakeet-tdt-0.6b-v3" -e "assets/model" --tract-specific-path $HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 cd ./src/nemo_asr/ && cargo test --release -- --nocapture && cd ../../
