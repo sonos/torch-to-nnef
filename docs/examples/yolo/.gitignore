@@ -3,3 +3,5 @@
 *.pt
 *.onnx
 *.txt
+*.pt
+*.onnx
