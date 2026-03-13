@@ -47,7 +47,6 @@ def check_export_asr_model(model_slug, skip_preprocessor=False):
             input_names=export_params.input_names,
             output_names=export_params.output_names,
             custom_extensions=export_params.custom_extensions,
-            allow_same_io_names=export_params.allow_same_io_names,
         )
 
 
