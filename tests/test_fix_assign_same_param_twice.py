@@ -40,10 +40,10 @@ def check_no_dup_dat(inference_target, path):
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         with cd(td):
-            # Extract regardless of .tar or .tgz
+            # Robustly extract regardless of .tar or .tgz
             with tarfile.open(path, "r:*") as tf:
                 tf.extractall(td)
-            dats = [_ for _ in td.iterdir() if ".dat" in _.suffixes]
+            dats = list(td.glob("*.dat"))
             if len(dats) != 2:
                 names = [_.name for _ in dats]
                 raise T2NErrorMisuse(f"too much .dat produced: {names}")

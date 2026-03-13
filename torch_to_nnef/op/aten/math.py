@@ -79,7 +79,8 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
         if isinstance(inference_target, TractNNEF):
-            io_casting_with_dtype = np.uint64
+            # Tract expects I64 for dimensions; avoid producing U64 here.
+            io_casting_with_dtype = np.int64
         suffix_div_op_output = "div"
 
     out = op_helper.add_single_output_op_from_nnef_tensors(

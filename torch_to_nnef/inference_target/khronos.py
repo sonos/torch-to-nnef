@@ -59,9 +59,11 @@ class KhronosNNEF(InferenceTarget):
                 # reader decompression ill written in nnef-tools
                 # so uncompress here to avoid issue
                 with cd(td):
-                    subprocess.check_output(
-                        ["tar", "-xzf", str(exported_filepath)]
-                    )
+                    # Handle both plain .tar and .tgz archives.
+                    path_str = str(exported_filepath)
+                    gz = path_str.endswith((".tgz", ".tar.gz"))
+                    cmd = ["tar", "-xzf" if gz else "-xf", path_str]
+                    subprocess.check_output(cmd)
                 try:
                     nnef_mod = NNEFModule(td)
                 except Exception as exp:

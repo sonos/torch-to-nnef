@@ -23,6 +23,7 @@ from torch_to_nnef.exceptions import (
     T2NError,
     T2NErrorConsistency,
     T2NErrorIRDataConsistency,
+    T2NErrorMisuse,
     T2NErrorNotImplemented,
     T2NErrorTorchNotFoundDataNode,
     T2NErrorTorchUnableToTraceData,
@@ -104,7 +105,7 @@ class TensorDataSlot:
     def __set__(self, obj, value):
         # Allow first assignment only
         if hasattr(obj, self.private):
-            raise RuntimeError(
+            raise T2NErrorMisuse(
                 f"{obj.name}: direct reassignment of .data is forbidden; "
                 f"use set_data(...) instead"
             )

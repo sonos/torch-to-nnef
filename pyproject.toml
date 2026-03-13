@@ -164,15 +164,17 @@ markers = [
 ]
 
 [tool.pylint.master]
-extension-pkg-whitelist = ["torch", "numpy"]
+py-version = "3.10"
+extension-pkg-allow-list = ["torch", "numpy", "peft"]
 
 [tool.pylint.typecheck]
 ignored-modules = ["torch", "numpy"]
 ignored-classes = ["torch", "numpy"]
-generated-members = ["torch.*"]
+generated-members = ["torch.*", "peft.*"]
 
 [tool.pylint.format]
 max-module-lines = 2000
+
 
 [tool.pylint."MESSAGE CONTROL"]
 disable = [

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     import peft
     import pytorch_lightning
     import questionary
+    import torchaudio
     import transformers
     import transformers.cache_utils as transformers_cache_utils
     import transformers.utils as transformers_utils
@@ -44,6 +45,7 @@ else:
     omegaconf = Any
     pytorch_lightning = Any
     questionary = Any
+    torchaudio = Any
 
 
 TransformersModule: TypeAlias = transformers
@@ -55,6 +57,7 @@ NemoModule: TypeAlias = nemo
 OmegaConfModule: TypeAlias = omegaconf
 LightningModule: TypeAlias = pytorch_lightning
 QuestionaryModule: TypeAlias = questionary
+TorchaudioModule: TypeAlias = torchaudio
 
 
 InjectedTransformersModule: TypeAlias = Union[TransformersModule, Injected]
@@ -70,3 +73,4 @@ InjectedNemoModule: TypeAlias = Union[NemoModule, Injected]
 InjectedOmegaConfModule: TypeAlias = Union[OmegaConfModule, Injected]
 InjectedLightningModule: TypeAlias = Union[LightningModule, Injected]
 InjectedQuestionaryModule: TypeAlias = Union[QuestionaryModule, Injected]
+InjectedTorchaudioModule: TypeAlias = Union[TorchaudioModule, Injected]

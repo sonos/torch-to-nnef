@@ -10,7 +10,6 @@ from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
-    SimpleOpChainer,
     cast_and_add_nnef_operation,
     get_tract_dyn_axis_size_soc,
     pick_axis,
@@ -22,6 +21,27 @@ from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
 LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
+
+
+def _should_cast_for_select(inp, expected_np_dtype):
+    """Return True when `select` inputs should be cast to the expected dtype."""
+    return (inp.dtype != expected_np_dtype) or (
+        np.prod(inp.shape) == 1
+        and inp.dtype not in (np.float32, np.int64, np.bool_)
+    )
+
+
+def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
+    name = f"{tensor.name}_cast_{to_tract_dtype}"
+    if suffix:
+        name = f"{name}_{suffix}"
+    return op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        nnef_op_type="tract_core_cast",
+        inputs=tensor,
+        attrs={"to": to_tract_dtype},
+        force_full_output_tensor_name=name,
+    )
 
 
 @OP_REGISTRY.register(torch_op_ids=["slice"])
@@ -249,31 +269,15 @@ def tract_pre_0_21_7_slice(
 def _select_maybe_cast(op_helper, node, inputs, target_torch_dtype):
     decision = inputs[0]
     if decision.dtype != np.bool_:
-        decision = op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            nnef_op_type="tract_core_cast",
-            inputs=decision,
-            attrs={"to": "bool"},
-            force_full_output_tensor_name=f"{decision.name}_cast_bool",
-        )
+        decision = _nnef_cast(op_helper, node, decision, "bool")
     casted_inputs = [decision]
     expected_dtype = TORCH_TO_NUMPY_DTYPE[target_torch_dtype]
     expected_dtype_tract = TORCH_DTYPE_TO_TRACT_STR[target_torch_dtype]
     for inp in inputs[1:]:
-        if (
-            inp.dtype != expected_dtype
-            or (
-                np.prod(inp.shape) == 1
-                and inp.dtype not in [torch.float32, torch.int64]
-            )
-        ) and isinstance(op_helper.inference_target, TractNNEF):
-            inp = op_helper.add_single_output_op_from_nnef_tensors(
-                node,
-                nnef_op_type="tract_core_cast",
-                inputs=inp,
-                attrs={"to": expected_dtype_tract},
-                force_full_output_tensor_name=f"{inp.name}_cast_{expected_dtype_tract}",
-            )
+        if isinstance(
+            op_helper.inference_target, TractNNEF
+        ) and _should_cast_for_select(inp, expected_dtype):
+            inp = _nnef_cast(op_helper, node, inp, expected_dtype_tract)
         casted_inputs.append(inp)
     return casted_inputs
 
@@ -668,34 +672,9 @@ def argsort(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node.data, int), dim_node
     dim = pick_axis(input_node, dim_node.data)
     if inference_target.has_dynamic_axes:
-        shape_tensor_name = f"{input_nnef.name}_shape"
-        soc = SimpleOpChainer(
-            op_helper=op_helper, input_data_nodes=[input_node]
-        )
-        soc = soc.chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=shape_tensor_name,
-        )
-
-        index_tensor_name = f"{input_nnef.name}_dim{dim}"
-        if index_tensor_name not in op_helper.name_to_tensor:
-            soc = soc.chain(
-                "slice",
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            ).chain(
-                "squeeze",
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-        dim_size = nnef.Identifier(index_tensor_name)
+        # Centralized dynamic axis extraction
+        get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
+        dim_size = nnef.Identifier(f"{input_node.export_name}_dim{dim}")
     else:
         dim_size = input_nnef.shape[dim]
 
@@ -738,34 +717,9 @@ def sort(node, op_helper, inference_target, **kwargs):
     assert isinstance(dim_node.data, int), dim_node
     dim = pick_axis(input_node, dim_node.data)
     if inference_target.has_dynamic_axes:
-        shape_tensor_name = f"{input_nnef.name}_shape"
-        soc = SimpleOpChainer(
-            op_helper=op_helper, input_data_nodes=[input_node]
-        )
-        soc = soc.chain(
-            "tract_core_shape_of",
-            force_full_output_tensor_name=shape_tensor_name,
-        )
-
-        index_tensor_name = f"{input_nnef.name}_dim{dim}"
-        if index_tensor_name not in op_helper.name_to_tensor:
-            soc = soc.chain(
-                "slice",
-                attrs={
-                    "axes": [0],
-                    "begin": [dim],
-                    "end": [dim + 1],
-                    "stride": [1],
-                },
-                output_tensor_name_suffix=f"sliced{dim}",
-            ).chain(
-                "squeeze",
-                attrs={
-                    "axes": [0],
-                },
-                force_full_output_tensor_name=index_tensor_name,
-            )
-        dim_size = nnef.Identifier(index_tensor_name)
+        # Centralized dynamic axis extraction
+        get_tract_dyn_axis_size_soc(op_helper, input_node, dim)
+        dim_size = nnef.Identifier(f"{input_node.export_name}_dim{dim}")
     else:
         dim_size = input_nnef.shape[dim]
 
