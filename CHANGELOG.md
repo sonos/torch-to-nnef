@@ -3,16 +3,22 @@
 
 ## Unreleased
 
+
+
+## [0.21.0] - 2026-02-15
+
 ### Added
 
 - NeMo ASR export via new `torch_to_nnef.nemo_tract` package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.
-- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, and `clean.sh` to streamline local setup and cleanup.
+- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, `bootstrap-rust.sh`, and `clean.sh` to streamline local setup and cleanup.
 - Tests: artifact packaging behavior (`tests/test_artifacts.py`) to validate `.nnef`/`.tar`/`.tgz` outputs.
+- Tests: expanded coverage around new features and edge cases, including cumsum (`tests/test_cumsum.py`), MaxPool2d with indices (`tests/test_pool_with_indices.py`), output renaming safeguards (`tests/test_rename_outputs.py`), and NeMo subnet iteration/splitting (`tests/test_nemo_iter_subnets.py`).
 - API: `export_model_to_nnef` now returns the exported artifact path for easier downstream use.
 - Ops: added support for `cumsum` (exported as `tract_cumsum`) and MaxPool2d with indices.
 - Export helpers: `iter_torch_tensors_from_disk(map_location=...)` to control device mapping; skips non‑tensor entries in state dicts.
 - Writer: pass‑through identity (input→output) renders as an assignment when targeting Tract; prevents silent aliasing.
 - Tract option: `--tract-reify-sdpa` to reify SDP attention for improved tract optimizations.
+- Versioning: new SemVer 2.0 utilities (`SemanticVersion`) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.
 
 ### Changed
 
@@ -23,7 +29,9 @@
 - RNN utils monkeypatching is now narrowly scoped and only applied for Tract targets; clearer error messages when unsupported.
 - Dynamic‑axes inference refined for unflatten/argsort/sort using `get_tract_dyn_axis_size_soc`.
 - Cumsum: initial simple implementation introduced and later renamed from `t2n_cumsum` to `tract_cumsum`; improved tract ONNX↔NNEF compare utility.
-- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); hardened Nemo ASR `run.sh`; minor doc clarifications.
+- Versioning: `torch_version()` now yields a semantic `SemanticVersion`; feature toggles (e.g., default SDPA reification) are gated semantically and auto‑enable reify for Tract > 0.22.0.
+- Docs/examples: added `docs/examples/nemo_asr/requirements.txt`, hardened NeMo ASR `run.sh`, and removed a stale YOLO TorchScript asset.
+- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); minor doc clarifications.
 
 ### Fixed
 
