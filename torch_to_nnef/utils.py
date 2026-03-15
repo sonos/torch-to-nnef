@@ -805,15 +805,10 @@ def check_torch_ecosystem():
     This is a common source of runtime errors, so we proactively check and raise
     a clear error message with instructions if we detect a mismatch.
 
-    (avoiding cryptic symbol not found errors that can occur missmatched versions)
+    (avoid cryptic symbol not found errors that can occur missmatched versions)
 
     """
-    import torch
-
-    def major_minor(v):
-        return tuple(v.split("+")[0].split(".")[:2])
-
-    torch_mm = major_minor(torch.__version__)
+    torch_mm = SemanticVersion.from_str(torch.__version__)
 
     for name in ("torchaudio", "torchvision"):
         try:
@@ -821,11 +816,15 @@ def check_torch_ecosystem():
         except ModuleNotFoundError:
             continue
 
-        if major_minor(mod.__version__) != torch_mm:
+        mod_version = SemanticVersion.from_str(mod.__version__)
+        if not (
+            (mod_version.major == torch_mm.major)
+            and (mod_version.minor == torch_mm.minor)
+        ):
             raise T2NErrorMisuse(
                 f"{name} ({mod.__version__}) is incompatible with "
                 "torch ({torch.__version__}). "
                 f"Install matching versions, e.g.:\n"
-                f"  pip install torch=={torch_mm[0]}.{torch_mm[1]}.* "
-                f"{name}=={torch_mm[0]}.{torch_mm[1]}.*"
+                f"  pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"{name}=={torch_mm.major}.{torch_mm.minor}.*"
             )
