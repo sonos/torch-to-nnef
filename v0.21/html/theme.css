@@ -1,0 +1,85 @@
+/* 1) Theme tokens */
+:root {
+    --bg: #fff;
+    --text: #212121;
+    --muted: #616161;
+    --card: #ffffff;
+    --border: #e0e0e0;
+    --primary: #26a69a;           /* matches Materialize teal lighten-1 default btn */
+    --primary-text: #ffffff;
+    --shadow: rgba(0,0,0,.12);
+}
+html.theme-dark {
+    --bg: #121212;
+    --text: #e0e0e0;
+    --muted: #bdbdbd;
+    --card: #1e1e1e;
+    --border: #2a2a2a;
+    --primary: #80cbc4;           /* a lighter teal for dark backgrounds */
+    --primary-text: #000000;      /* readable on lighter primary */
+    --shadow: rgba(0,0,0,.5);
+}
+
+/* 2) Global base */
+body {
+    background: var(--bg);
+    color: var(--text);
+}
+.container { padding-top: 2rem; }
+
+/* 3) Override common Materialize surfaces */
+.card,
+.collection,
+.dropdown-content,
+.sidenav,
+nav,
+.modal,
+.collapsible,
+.tabs .tab a,
+.tabs .tab a.active {
+    background: var(--card) !important;
+    color: var(--text) !important;
+    box-shadow: 0 1px 3px var(--shadow);
+}
+.collection .collection-item {
+    background: var(--card);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+}
+.divider { background-color: var(--border); }
+.modal { border: 1px solid var(--border); }
+
+/* Buttons */
+.btn, .btn-large, .btn-small {
+    background-color: var(--primary) !important;
+    color: var(--primary-text) !important;
+}
+
+/* Inputs */
+.input-field input,
+.input-field textarea {
+    color: var(--text);
+}
+/* label color */
+.input-field label { color: var(--muted); }
+/* label focus color */
+.input-field input:focus + label,
+.input-field textarea:focus + label { color: var(--primary) !important; }
+/* input underline focus color */
+.input-field input:focus,
+.input-field textarea:focus { border-bottom: 1px solid var(--primary) !important; box-shadow: 0 1px 0 0 var(--primary) !important; }
+/* valid/invalid colors (optional) */
+.input-field input.valid { border-bottom: 1px solid #2e7d32; box-shadow: 0 1px 0 0 #2e7d32; }
+.input-field input.invalid { border-bottom: 1px solid #c62828; box-shadow: 0 1px 0 0 #c62828; }
+
+/* Tabs indicator */
+.tabs .indicator { background-color: var(--primary); }
+
+/* Select dropdown text color */
+.select-dropdown, .dropdown-content li>a, .dropdown-content li>span {
+    color: var(--text) !important;
+}
+
+/* Navbar specific */
+nav .brand-logo, nav ul a { color: var(--text) !important; }
+nav { border-bottom: 1px solid var(--border); }
