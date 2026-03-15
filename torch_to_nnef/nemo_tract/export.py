@@ -28,7 +28,12 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
 )
-from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
+from torch_to_nnef.utils import (
+    INJECTED,
+    T2NExtra,
+    check_torch_ecosystem,
+    require_extra_decorator,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -644,6 +649,7 @@ def export_nemo_asr_model(
     **kwargs,
 ):
     """Export a generic NeMo ASR model to NNEF format using TractNNEF."""
+    check_torch_ecosystem()
     with (export_dir / "model_config.json").open("w", encoding="utf8") as fh:
         cfg = omegaconf.OmegaConf.to_container(asr_model.cfg)
         if extra_cfg is not None:

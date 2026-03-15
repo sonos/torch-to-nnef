@@ -797,3 +797,34 @@ def blank_from_init(cls):
         setattr(obj, name, None)
 
     return obj
+
+
+def check_torch_ecosystem():
+    """Check that torch, torchaudio and torchvision versions are compatible.
+
+    This is a common source of runtime errors, so we proactively check and raise
+    a clear error message with instructions if we detect a mismatch.
+
+    (avoid cryptic symbol not found errors that can occur missmatched versions)
+
+    """
+    torch_mm = SemanticVersion.from_str(torch.__version__)
+
+    for name in ("torchaudio", "torchvision"):
+        try:
+            mod = __import__(name)
+        except ModuleNotFoundError:
+            continue
+
+        mod_version = SemanticVersion.from_str(mod.__version__)
+        if not (
+            (mod_version.major == torch_mm.major)
+            and (mod_version.minor == torch_mm.minor)
+        ):
+            raise T2NErrorMisuse(
+                f"{name} ({mod.__version__}) is incompatible with "
+                "torch ({torch.__version__}). "
+                f"Install matching versions, e.g.:\n"
+                f"  pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"{name}=={torch_mm.major}.{torch_mm.minor}.*"
+            )

@@ -56,7 +56,16 @@ llm-tract = [
 llm-tract-accelerate = ["accelerate"]
 safetensors = ["safetensors"]
 peft = ["peft"]
-nemo-tract = ["nemo_toolkit[asr]>=2.0.0,<2.7.0", "questionary"]
+nemo-tract = [
+    "nemo_toolkit[asr]>=2.0.0,<2.7.0",
+    # torchaudio must match torch
+    "torchaudio",
+    "questionary",
+    # 'nemo-toolkit' is too loosy in deps tree management
+    #  with not well packaged compat:
+    #  numba/llvmlite deps conflict with "numpy>=2.1" (2026-01-09)
+    "numpy<2.1",
+]
 test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
