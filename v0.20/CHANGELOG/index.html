@@ -9979,7 +9979,6 @@
 <ul>
 <li>NeMo ASR export via new <code>torch_to_nnef.nemo_tract</code> package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.</li>
 <li>Example scripts for docs/examples: <code>bootstrap-uv.sh</code>, <code>bootstrap-wasm-pack.sh</code>, and <code>clean.sh</code> to streamline local setup and cleanup.</li>
-<li>VAD demo rework: modular JS under <code>docs/html/vad/</code> with clearer separation of mic, plotting, session, and wasm glue code.</li>
 <li>Tests: artifact packaging behavior (<code>tests/test_artifacts.py</code>) to validate <code>.nnef</code>/<code>.tar</code>/<code>.tgz</code> outputs.</li>
 <li>API: <code>export_model_to_nnef</code> now returns the exported artifact path for easier downstream use.</li>
 <li>Ops: added support for <code>cumsum</code> (exported as <code>tract_cumsum</code>) and MaxPool2d with indices.</li>
