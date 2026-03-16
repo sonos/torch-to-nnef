@@ -98,7 +98,9 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
     return new_lst
 
 
-def normalize_cli_list_option(values: T.Optional[T.Iterable[T.Any]]) -> T.Optional[T.List[str]]:
+def normalize_cli_list_option(
+    values: T.Optional[T.Iterable[T.Any]],
+) -> T.Optional[T.List[str]]:
     """Normalize repeated/CSV CLI options into a list of unique strings.
 
     Accepts values from argparse patterns like `action="append"` and also
