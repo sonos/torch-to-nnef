@@ -20,7 +20,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     use_pytorch_sdpa,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import SemanticVersion
+from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
 LOGGER = logging.getLogger(__name__)
 
@@ -137,6 +137,19 @@ def parser_cli():
         help="Dump tested IO to export_dir/test for checking.",
     )
 
+    # Filter which NeMo subnets to export
+    parser.add_argument(
+        "--only-subnet",
+        dest="only_subnets",
+        action="append",
+        default=None,
+        help=(
+            "Export only the specified subnet(s). Repeat the flag or use a "
+            "comma-separated list to include multiple (e.g. --only-subnet "
+            "encoder --only-subnet decoder or --only-subnet encoder,decoder)."
+        ),
+    )
+
     parser.add_argument(
         "-v",
         "--verbose",
@@ -190,6 +203,8 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
 def main():
     init_log()
     args = parser_cli()
+    # Normalize early so subsequent logic and config dump see final form
+    args.only_subnets = normalize_cli_list_option(args.only_subnets)
     log_level = logging.INFO
     if args.verbose:
         log_level = logging.DEBUG
@@ -258,6 +273,7 @@ def main():
             compress_method=args.compress_method,
             skip_preprocessor=args.skip_preprocessor,
             split_joint_decoder=args.split_joint_decoder,
+            only_subnets=args.only_subnets,
             extra_cfg={"pretrained_name": args.model_slug},
             float_dtype=float_dtype,
             dump_checked_io=args.dump_checked_io,

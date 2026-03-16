@@ -306,9 +306,13 @@ def iter_nemo_model_subnets(
     remove_unused_inputs: bool = True,
     apply_sequential_examples: bool = False,
     batch_size: int = 3,
+    only_subnets: T.Optional[T.Collection[str]] = None,
 ):
     """Iterator over exportable subnets of a nemo model."""
     subnet_names = _pick_subnets_names(model)
+    allow: T.Optional[set[str]] = None
+    if only_subnets is not None:
+        allow = set(only_subnets)
     for subnet_name in subnet_names:
         subnet = model.get_export_subnet(subnet_name)
         if subnet_name == "decoder_joint":
@@ -321,14 +325,26 @@ def iter_nemo_model_subnets(
             float_dtype=float_dtype,
         ) as ctx:
             if subnet_name == "decoder_joint":
-                yield from iter_decoder_joint_subnets(
+                for (
+                    name,
+                    _subnet,
+                    _input_example,
+                    _dyn_axes,
+                ) in iter_decoder_joint_subnets(
                     subnet,
                     ctx.input_example,
                     ctx.dynamic_axes,
                     batch_size=batch_size,
                     remove_unused_inputs=remove_unused_inputs,
                     split_joint_decoder=split_joint_decoder,
-                )
+                ):
+                    if allow is None or name in allow:
+                        yield name, _subnet, _input_example, _dyn_axes
+                continue
+
+            # Filter non-joint subnets early if a restriction is provided
+            if allow is not None and subnet_name not in allow:
+                input_example = None
                 continue
 
             input_example = ctx.input_example
@@ -554,11 +570,15 @@ def iter_export_params_for_generic_nemo_asr_model(
     remove_unused_inputs: bool = True,
     collapse_batch_dim: bool = False,
     float_dtype: T.Optional[torch.dtype] = None,
+    only_subnets: T.Optional[T.Collection[str]] = None,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model."""
     asr_model.eval()
 
-    if not skip_preprocessor:
+    # Optionally export preprocessor (unless filtered out explicitly)
+    if not skip_preprocessor and (
+        only_subnets is None or "preprocessor" in set(only_subnets)
+    ):
         # Yield preprocessor export params while NeMo export context is active
         yield from build_preprocessor_export_params(
             asr_model, inference_target, collapse_batch_dim
@@ -574,6 +594,7 @@ def iter_export_params_for_generic_nemo_asr_model(
         float_dtype=float_dtype,
         split_joint_decoder=split_joint_decoder,
         remove_unused_inputs=remove_unused_inputs,
+        only_subnets=only_subnets,
     ):
         dynamic_axes, custom_extensions = build_dynamic_axes(
             subnet, nemo_dynamic_axes, input_example
@@ -644,6 +665,7 @@ def export_nemo_asr_model(
     remove_unused_inputs: bool = True,
     dump_checked_io: bool = False,
     collapse_batch_dim: bool = False,
+    only_subnets: T.Optional[T.Collection[str]] = None,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
     **kwargs,
@@ -672,6 +694,7 @@ def export_nemo_asr_model(
         float_dtype=float_dtype,
         remove_unused_inputs=remove_unused_inputs,
         collapse_batch_dim=collapse_batch_dim,
+        only_subnets=only_subnets,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         if dump_checked_io:
