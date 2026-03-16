@@ -98,6 +98,33 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
     return new_lst
 
 
+def normalize_cli_list_option(values: T.Optional[T.Iterable[T.Any]]) -> T.Optional[T.List[str]]:
+    """Normalize repeated/CSV CLI options into a list of unique strings.
+
+    Accepts values from argparse patterns like `action="append"` and also
+    tolerates a single string. Splits on commas, strips whitespace, removes
+    empty entries, and de-duplicates while preserving order. Returns None if
+    the input is falsy.
+    """
+    if not values:
+        return None
+    # Coerce a single string to an iterable interface
+    if isinstance(values, str):
+        values = [values]
+    flat: T.List[str] = []
+    for item in values:
+        text = item if isinstance(item, str) else str(item)
+        flat.extend(part.strip() for part in text.split(",") if part.strip())
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    out: T.List[str] = []
+    for s in flat:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def flatten_dict_tuple_or_list(
     obj: T.Any,
     collected_types: T.Optional[T.List[T.Type]] = None,
