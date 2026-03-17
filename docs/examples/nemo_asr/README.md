@@ -34,6 +34,7 @@ t2n_export_nemo \
     -tt very # numerical tolerance for NeMo vs tract checks
 
 # -s nvidia/parakeet-tdt-0.6b-v3 \ # optional explicit model slug
+# -p ~/user/finetuned-parakeet.nemo \ # optional explicit path to .nemo file
 # --compress-method min_max_q4_0_all # optional model compression
 ```
 
@@ -59,6 +60,7 @@ Some NeMo preprocessing components are not yet fully supported by tract. In such
 
 - `-e, --export-dir`: Output directory (must not pre-exist).
 - `-s, --model-slug`: Explicit NeMo model slug; omit to choose interactively.
+- `-p, --model-path`: Explicit local path to .nemo file.
 - `--tract-specific-version` / `--tract-specific-path`: Select Tract version or binary.
 - `--tract-reify-sdpa`: Enable SDPA reification where supported by selected Tract.
 - `-tt, --tract-check-io-tolerance`: IO check strictness (`exact`, `approximate`, `loose`, or `skip`).
