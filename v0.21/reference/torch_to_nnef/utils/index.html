@@ -2988,6 +2988,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.check_torch_ecosystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;check_torch_ecosystem
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.utils.dedup_list" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dedup_list
@@ -3045,6 +3054,15 @@
   <a href="#torch_to_nnef.utils.init_on_device" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;init_on_device
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.normalize_cli_list_option" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;normalize_cli_list_option
     </span>
   </a>
   
@@ -3442,6 +3460,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.check_torch_ecosystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;check_torch_ecosystem
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.utils.dedup_list" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dedup_list
@@ -3499,6 +3526,15 @@
   <a href="#torch_to_nnef.utils.init_on_device" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;init_on_device
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.utils.normalize_cli_list_option" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;normalize_cli_list_option
     </span>
   </a>
   
@@ -3839,6 +3875,28 @@ True</p>
     <div class="doc doc-contents ">
 
         <p>Context manager for changing the current working directory.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.utils.check_torch_ecosystem" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">check_torch_ecosystem</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">check_torch_ecosystem</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check that torch, torchaudio and torchvision versions are compatible.</p>
+<p>This is a common source of runtime errors, so we proactively check and raise
+a clear error message with instructions if we detect a mismatch.</p>
+<p>(avoid cryptic symbol not found errors that can occur missmatched versions)</p>
 
     </div>
 
@@ -4210,6 +4268,29 @@ while initializing.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">with</span> <span class="n">init_on_device</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">)):</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tst</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>  <span class="c1"># on `cuda` device</span>
 </span></code></pre></div></p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.utils.normalize_cli_list_option" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">normalize_cli_list_option</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">normalize_cli_list_option</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Iterable</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Normalize repeated/CSV CLI options into a list of unique strings.</p>
+<p>Accepts values from argparse patterns like <code>action="append"</code> and also
+tolerates a single string. Splits on commas, strips whitespace, removes
+empty entries, and de-duplicates while preserving order. Returns None if
+the input is falsy.</p>
 
     </div>
 
