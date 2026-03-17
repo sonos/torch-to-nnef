@@ -14,7 +14,10 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
-from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
+from torch_to_nnef.nemo_tract.model_loader import (
+    load_asr_model_from_nemo_slug,
+    load_asr_model_from_path,
+)
 from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
@@ -39,6 +42,12 @@ def parser_cli():
             "The model slug for the NeMo ASR model to export."
             " If unknown, leave blank to select interactively."
         ),
+    )
+    parser.add_argument(
+        "-p",
+        "--model-path",
+        type=str,
+        help=("Path to a local .nemo file."),
     )
     parser.add_argument(
         "-e",
@@ -224,7 +233,10 @@ def main():
     logging.getLogger().addHandler(handler)
     LOGGER.info("started nemo_tract export with args: %s", args)
     # ensure that the model is loaded on CPU
-    asr_model = load_asr_model_from_nemo_slug(args.model_slug)
+    if args.model_path is not None:
+        asr_model = load_asr_model_from_path(args.model_path)
+    else:
+        asr_model = load_asr_model_from_nemo_slug(args.model_slug)
 
     if args.force_sdpa_pytorch:
         use_pytorch_sdpa(asr_model)

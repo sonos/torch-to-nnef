@@ -3,6 +3,7 @@ import logging
 import sys
 import typing as T
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 
@@ -150,3 +151,16 @@ def load_asr_model_from_nemo_slug(
             map_location=torch.device("cpu"),
         )
     return asr_model
+
+
+@require_extra_decorator(
+    extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
+)
+def load_asr_model_from_path(
+    model_path: Path,
+    *,
+    nemo_asr: InjectedNemoModule = INJECTED,
+):
+    return nemo_asr.models.ASRModel.restore_from(
+        restore_path=model_path, map_location=torch.device("cpu")
+    )
