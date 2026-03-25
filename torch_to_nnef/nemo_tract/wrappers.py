@@ -8,18 +8,12 @@ from torch_to_nnef._optional_types import (
     InjectedTorchaudioModule,
 )
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
-from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping  # legacy import (unused)
 from torch_to_nnef.nemo_tract.constants import (
     DEFAULT_TIME,
     INPUT_STATE_TUPLE_NAME,
-    LENGTH_INPUT_NAMES,
-    LENGTH_OUTPUT_NAMES,
     OUT_STATE_NAME,
-    STATE_INPUT_NAMES,
-    is_length_name,
 )
 from torch_to_nnef.nemo_tract.dynaxes import (
-    filter_dynamic_axes_by_ranks,
     symbols_from_input_types,
 )
 from torch_to_nnef.nemo_tract.utils import map_args_to_kwargs_by_names
@@ -372,15 +366,11 @@ class DecoderWithoutTargetLength(torch.nn.Module):
             return getattr(self.decoder, name)
 
 
-class _REMOVE_LEGACY_PLACEHOLDER:  # kept to preserve file structure; no-op
-    pass
-
-
 class BoundaryAdapter(torch.nn.Module):
-    """Export-time boundary adapter applying per-input tuple flattening and collapse.
+    """Boundary adapter applying tuple flattening and collapse at export time.
 
-    - Flattens tuple inputs to `name_0`, `name_1`, ... for external IO.
-    - Applies per-input collapse of dynamic axes (supports batch-only v1).
+    - Flattens tuple inputs to name_0, name_1, ... for external IO.
+    - Applies per-input collapse of dynamic axes (batch-only for now).
     - Re-inserts collapsed axes before invoking the inner module.
     - Recomputes dynamic input axes to match the external interface.
     """
@@ -399,42 +389,61 @@ class BoundaryAdapter(torch.nn.Module):
         self.module = module
         self.subnet_name = subnet_name
         self._orig_input_names = list(getattr(module, "input_names", []) or [])
-        self._orig_output_names = list(getattr(module, "output_names", []) or [])
+        self._orig_output_names = list(
+            getattr(module, "output_names", []) or []
+        )
         self._orig_input_example = list(input_example or [])
         self._dyn_axes = dict(dynamic_axes or {})
+        (
+            initial_ext_names,
+            initial_ext_map,
+        ) = self._init_external_names()
+        self._init_collapse_indices(
+            initial_ext_names, collapse_by_input or {}, renamed_map or {}
+        )
+        self._init_bind_map(initial_ext_names, binds_by_input or {})
+        self._finalize_external_interface(initial_ext_names, initial_ext_map)
 
-        # Build external names by flattening tuple inputs
-        initial_ext_names: list[str] = []
-        initial_ext_map: list[tuple[str, int | None]] = []  # (base, idx)
+    def _init_external_names(
+        self,
+    ) -> tuple[list[str], list[tuple[str, int | None]]]:
+        """Flatten tuple inputs into external names and mapping."""
+        names: list[str] = []
+        mapping: list[tuple[str, int | None]] = []
         for nm, val in zip(self._orig_input_names, self._orig_input_example):
             if isinstance(val, (list, tuple)) and val:
                 for k, _ in enumerate(val):
-                    initial_ext_names.append(f"{nm}_{k}")
-                    initial_ext_map.append((nm, k))
+                    names.append(f"{nm}_{k}")
+                    mapping.append((nm, k))
             else:
-                initial_ext_names.append(nm)
-                initial_ext_map.append((nm, None))
+                names.append(nm)
+                mapping.append((nm, None))
+        return names, mapping
 
-        # Resolve collapse rules per external name (qualified keys)
-        self._collapse_idx: dict[str, list[int]] = {}
+    def _init_collapse_indices(
+        self,
+        initial_ext_names: list[str],
+        collapse_by_input: dict[str, set[str]],
+        renamed_map: dict[str, list[str]],
+    ) -> None:
+        """Compute per-external-name indices to collapse based on config."""
+        self._collapse_idx = {}
         self._rename_map = {
             str(t).upper(): [str(s).upper() for s in (srcs or [])]
             for t, srcs in (renamed_map or {}).items()
         }
         for ext in initial_ext_names:
-            q = f"{subnet_name}.{ext}"
-            want = set((collapse_by_input or {}).get(q, set()))
+            q = f"{self.subnet_name}.{ext}"
+            want = set(collapse_by_input.get(q, set()))
             if not want:
                 continue
             dyn = self._dyn_axes.get(ext, {})
-            # Support collapsing any requested dynamic symbols present on this input
-            drop = []
+            drop: list[int] = []
             for i, s in dyn.items():
                 su = str(s).upper()
                 if su in want:
                     drop.append(i)
                     continue
-                # Also allow alias: if wanted contains a target alias and current symbol is in its sources
                 for w in want:
                     srcs = self._rename_map.get(w)
                     if srcs and su in srcs:
@@ -443,22 +452,29 @@ class BoundaryAdapter(torch.nn.Module):
             if drop:
                 self._collapse_idx[ext] = sorted(drop)
 
-        # Resolve bindings per external name and mark targets as removed
-        self._bind_for_ext: dict[str, tuple[str, str]] = {}
-        if binds_by_input:
-            for ext in list(initial_ext_names):
-                q = f"{subnet_name}.{ext}"
-                val = binds_by_input.get(q)
-                if not isinstance(val, str) or "." not in val:
-                    continue
-                src_q, _, sym = val.rpartition(".")
-                src_ext = src_q.split(".", 1)[1] if "." in src_q else src_q
-                self._bind_for_ext[ext] = (src_ext, str(sym).strip().upper())
+    def _init_bind_map(
+        self, initial_ext_names: list[str], binds_by_input: dict[str, str]
+    ) -> None:
+        """Resolve scalar binding map per external name."""
+        self._bind_for_ext = {}
+        for ext in list(initial_ext_names):
+            q = f"{self.subnet_name}.{ext}"
+            val = binds_by_input.get(q)
+            if not isinstance(val, str) or "." not in val:
+                continue
+            src_q, _, sym = val.rpartition(".")
+            src_ext = src_q.split(".", 1)[1] if "." in src_q else src_q
+            self._bind_for_ext[ext] = (src_ext, str(sym).strip().upper())
 
-        # Final external names exclude bound targets
-        self._ext_names: list[str] = []
-        self._ext_map: list[tuple[str, int | None]] = []
-        self._bound_targets: dict[str, tuple[str, str, str, int | None]] = {}
+    def _finalize_external_interface(
+        self,
+        initial_ext_names: list[str],
+        initial_ext_map: list[tuple[str, int | None]],
+    ) -> None:
+        """Compute final external names/maps and record bound targets."""
+        self._ext_names = []
+        self._ext_map = []
+        self._bound_targets = {}
         for ext, mapping in zip(initial_ext_names, initial_ext_map):
             if ext in self._bind_for_ext:
                 src_ext, sym = self._bind_for_ext[ext]
@@ -490,10 +506,32 @@ class BoundaryAdapter(torch.nn.Module):
         out: list[object] = []
         for (base, idx), ext in zip(self._ext_map, self._ext_names):
             if idx is None:
-                val = next((v for n, v in zip(self._orig_input_names, self._orig_input_example) if n == base), None)
+                val = next(
+                    (
+                        v
+                        for n, v in zip(
+                            self._orig_input_names, self._orig_input_example
+                        )
+                        if n == base
+                    ),
+                    None,
+                )
             else:
-                base_val = next((v for n, v in zip(self._orig_input_names, self._orig_input_example) if n == base), None)
-                val = base_val[idx] if isinstance(base_val, (list, tuple)) else None
+                base_val = next(
+                    (
+                        v
+                        for n, v in zip(
+                            self._orig_input_names, self._orig_input_example
+                        )
+                        if n == base
+                    ),
+                    None,
+                )
+                val = (
+                    base_val[idx]
+                    if isinstance(base_val, (list, tuple))
+                    else None
+                )
             out.append(self._ext_example_for(ext, val))
         return tuple(out)
 
@@ -520,12 +558,20 @@ class BoundaryAdapter(torch.nn.Module):
         return ext_dyn
 
     def _rebuild_internal_args(self, args) -> list:
-        # Reinsert collapsed axes, and repack tuples
+        """Reinsert collapsed axes, repack tuples, and inject bound scalars."""
+        ext_val_map: dict[str, object] = dict(zip(self._ext_names, args))
+        by_base = self._pack_by_base_from_args(args)
+        self._inject_bound_scalars(by_base, ext_val_map)
+        ordered: list = []
+        for nm in self._orig_input_names:
+            val = by_base.get(nm)
+            ordered.append(tuple(val) if isinstance(val, list) else val)
+        return ordered
+
+    def _pack_by_base_from_args(self, args: list) -> dict[str, object | list]:
         by_base: dict[str, object | list] = {}
-        ext_val_map: dict[str, object] = {ext: val for ext, val in zip(self._ext_names, args)}
         for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
             t = val
-            # Reinsert collapsed axes as size-1 dims
             for ax in sorted(self._collapse_idx.get(ext, [])):
                 if torch.is_tensor(t):
                     t = t.unsqueeze(ax)
@@ -535,22 +581,22 @@ class BoundaryAdapter(torch.nn.Module):
                 lst = by_base.get(base)
                 if not isinstance(lst, list):
                     lst = []
-                # ensure size
                 while len(lst) <= idx:
                     lst.append(None)
                 lst[idx] = t
                 by_base[base] = lst
+        return by_base
 
-        # Inject bound scalars for removed external inputs
+    def _inject_bound_scalars(
+        self, by_base: dict[str, object | list], ext_val_map: dict[str, object]
+    ) -> None:
         for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
             src_val = ext_val_map.get(src_ext)
             if not torch.is_tensor(src_val):
                 raise T2NErrorInvalidArgument(
                     f"binding source '{src_ext}' is not a tensor"
                 )
-            # Find original axis index for symbol on source, then remap after collapse
             axes = self._dyn_axes.get(src_ext, {}) or {}
-            # Resolve symbol on source: exact match or match through rename alias
             old_ax = None
             for i, s in axes.items():
                 if str(s).upper() == sym:
@@ -567,21 +613,20 @@ class BoundaryAdapter(torch.nn.Module):
             drop = sorted(self._collapse_idx.get(src_ext, []))
             shift = sum(1 for d in drop if d < old_ax)
             new_ax = old_ax - shift
-            if not (0 <= new_ax < src_val.dim()):
+            if not 0 <= new_ax < src_val.dim():
                 raise T2NErrorInvalidArgument(
                     f"binding axis {new_ax} out of range for '{src_ext}'"
                 )
-            # Keep dynamism: prefer aten::size (may return Tensor in tracing)
             dim_val = src_val.size(new_ax)
             if torch.is_tensor(dim_val):
-                bound_scalar = dim_val.to(dtype=torch.long, device=src_val.device)
+                bound_scalar = dim_val.to(
+                    dtype=torch.long, device=src_val.device
+                )
             else:
                 bound_scalar = torch.scalar_tensor(
                     dim_val, dtype=torch.long, device=src_val.device
                 )
-            # If the target originally had collapsed axes (e.g., BATCH for length),
-            # reinsert them so the inner module receives the expected rank (e.g., [B]).
-            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, [])) if hasattr(self, "_collapse_idx") else []
+            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, []))
             tval = bound_scalar
             for ax in tgt_drop:
                 tval = tval.unsqueeze(ax)
@@ -595,15 +640,6 @@ class BoundaryAdapter(torch.nn.Module):
                     lst.append(None)
                 lst[idx] = tval
                 by_base[base] = lst
-        # Order by original input_names; replace lists with tuples where needed
-        ordered: list = []
-        for nm in self._orig_input_names:
-            val = by_base.get(nm)
-            if isinstance(val, list):
-                ordered.append(tuple(val))
-            else:
-                ordered.append(val)
-        return ordered
 
     def forward(self, *args, **kwargs):
         assert not kwargs, "BoundaryAdapter expects positional args only"

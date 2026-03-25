@@ -859,8 +859,10 @@ def check_torch_ecosystem():
                 f"torchaudio=={torch_mm.major}.{torch_mm.minor}.*"
             )
         elif name == "torchvision":
-            # torchvision 0.(15 + torch_minor).x pairs with torch 2.torch_minor.x
-            # Examples: torch 2.6.x <-> torchvision 0.21.x; 2.9.x <-> 0.24.x
+            # torchvision 0.(15 + torch_minor).x pairs with
+            # torch 2.torch_minor.x
+            # Examples: torch 2.6.x <-> torchvision 0.21.x;
+            # 2.9.x <-> 0.24.x
             expected_major = 0
             expected_minor = 15 + torch_mm.minor
             compatible = (
@@ -873,6 +875,7 @@ def check_torch_ecosystem():
             )
         if not compatible:
             raise T2NErrorMisuse(
-                f"{name} ({mod.__version__}) is incompatible with "
-                f"torch ({torch.__version__}). Install matching versions, e.g.:\n  {hint}"
+                f"{name} ({mod.__version__}) is incompatible with torch "
+                f"({torch.__version__}). Install matching versions, e.g.:\n"
+                f"  {hint}"
             )

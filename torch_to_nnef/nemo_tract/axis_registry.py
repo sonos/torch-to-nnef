@@ -23,7 +23,8 @@ class AxisSymbolRegistry:
     bind_to_dim: T.Dict[str, str]
     # Collapse dims (dynamic-only), per input only
     input_collapse_dims: T.Dict[str, T.List[str]]
-    # Optional per-subnet renames: subnet -> { target_symbol: [source_symbols...] }
+    # Optional per-subnet renames:
+    # subnet -> { target_symbol: [source_symbols...] }
     renamed_symbols_per_subnet: T.Dict[str, T.Dict[str, T.List[str]]]
 
     @staticmethod
@@ -53,6 +54,277 @@ def _list_to_axis_map(
     return axis
 
 
+def _validate_key(key: str) -> None:
+    """Validate a non-empty mapping key.
+
+    Args:
+        key: Key string from the config.
+    """
+    if not isinstance(key, str) or not key:
+        raise ValueError(
+            f"Invalid key in shape-config (expected non-empty string): {key!r}"
+        )
+
+
+def _validate_and_record(
+    key: str,
+    shape_val: T.Sequence[T.Union[str, int]],
+    symbols: T.Dict[str, AxisSymbolMap],
+    ranks: T.Dict[str, int],
+) -> None:
+    """Validate a shape list and record into outputs.
+
+    Args:
+        key: Qualified input key.
+        shape_val: Sequence of dim entries.
+        symbols: Output map to axis symbols.
+        ranks: Output map to ranks.
+    """
+    _validate_key(key)
+    for i, v in enumerate(shape_val):
+        if not isinstance(v, (str, int)):
+            raise ValueError(
+                "Invalid dim at "
+                f"{key}[{i}]: {type(v).__name__}; expected str or int"
+            )
+        if isinstance(v, str) and not v.strip():
+            raise ValueError(f"Empty dim symbol at {key}[{i}] is not allowed")
+    symbols[key] = _list_to_axis_map(shape_val)
+    ranks[key] = len(shape_val)
+
+
+def _normalize_syms(seq: T.Sequence[str]) -> T.List[str]:
+    """Normalize a list of symbol strings to canonical uppercase tokens."""
+    out: T.List[str] = []
+    for s in seq:
+        ss = s.strip()
+        if ss.lower() in ("b", "batch"):
+            out.append("BATCH")
+        else:
+            out.append(ss.upper())
+    return out
+
+
+def _parse_renamed_symbols(
+    top_key: str, raw_val: object
+) -> dict[str, list[str]]:
+    """Parse an optional `renamed_symbols` block for a subnet.
+
+    Args:
+        top_key: Subnet name.
+        raw_val: Raw value from the config.
+
+    Returns:
+        Mapping of TARGET -> [SOURCES...], all uppercased.
+    """
+    if raw_val is None:
+        return {}
+    mapping: dict[str, list[str]] = {}
+    if isinstance(raw_val, dict):
+        items_iter = raw_val.items()
+    elif isinstance(raw_val, (list, tuple)):
+        items_iter = []
+        for elem in raw_val:
+            if isinstance(elem, dict) and len(elem) == 1:
+                items_iter += list(elem.items())
+            else:
+                msg = f"Invalid renamed_symbols entry for subnet '{top_key}'"
+                raise ValueError(msg)
+    else:
+        msg = (
+            "renamed_symbols for subnet '"
+            + top_key
+            + "' must be mapping or list"
+        )
+        raise ValueError(msg)
+    for tgt, srcs in items_iter:  # type: ignore[attr-defined]
+        if not isinstance(tgt, str) or not isinstance(srcs, (list, tuple)):
+            msg = (
+                f"Invalid renamed_symbols target/sources for subnet '{top_key}'"
+            )
+            raise ValueError(msg)
+        tnorm = str(tgt).strip().upper()
+        snorm = [str(s).strip().upper() for s in srcs]
+        if tnorm in snorm:
+            msg = (
+                "renamed_symbols for subnet "
+                + top_key
+                + ": target '"
+                + tnorm
+                + "' cannot include itself"
+            )
+            raise ValueError(msg)
+        mapping[tnorm] = snorm
+    return mapping
+
+
+def _nts_handle_tuple_group(
+    top_key: str,
+    inp_name: str,
+    group: dict,
+    symbols: T.Dict[str, AxisSymbolMap],
+    ranks: T.Dict[str, int],
+    binds: T.Dict[str, str],
+    input_dims: T.Dict[str, T.List[str]],
+) -> None:
+    """Handle tuple-group style input mapping (index -> sub-mapping)."""
+    for idx_str, inner in group.items():
+        qname = f"{top_key}.{inp_name}_{idx_str}"
+        if not isinstance(inner, dict):
+            raise ValueError(
+                f"Invalid tuple entry for '{qname}': expected mapping"
+            )
+        if "original_shape" in inner:
+            oshp = inner.get("original_shape")
+            if not isinstance(oshp, (list, tuple)):
+                raise ValueError(f"Invalid original_shape for '{qname}'")
+            _validate_and_record(qname, oshp, symbols, ranks)
+        if "collapse_dims" in inner:
+            cdv = inner.get("collapse_dims")
+            if not isinstance(cdv, (list, tuple)):
+                raise ValueError(f"Invalid collapse_dims for '{qname}'")
+            input_dims[qname] = _normalize_syms([str(x) for x in cdv])
+        b = None
+        if "bind_scalar_to_dim_size" in inner:
+            b = inner.get("bind_scalar_to_dim_size")
+        elif "bind_to_dim" in inner:
+            b = inner.get("bind_to_dim")
+        if isinstance(b, str) and b:
+            binds[qname] = b
+
+
+def _nts_handle_single_mapping(
+    top_key: str,
+    inp_name: str,
+    mapping: dict,
+    symbols: T.Dict[str, AxisSymbolMap],
+    ranks: T.Dict[str, int],
+    binds: T.Dict[str, str],
+    input_dims: T.Dict[str, T.List[str]],
+) -> None:
+    """Handle single input mapping with optional shape/collapse/bind fields."""
+    qbase = f"{top_key}.{inp_name}"
+    if "original_shape" in mapping:
+        oshp = mapping.get("original_shape")
+        if not isinstance(oshp, (list, tuple)):
+            raise ValueError(f"Invalid original_shape for '{qbase}'")
+        _validate_and_record(qbase, oshp, symbols, ranks)
+    if "collapse_dims" in mapping:
+        cdv = mapping.get("collapse_dims")
+        if not isinstance(cdv, (list, tuple)):
+            raise ValueError(f"Invalid collapse_dims for '{qbase}'")
+        input_dims[qbase] = _normalize_syms([str(x) for x in cdv])
+    b = None
+    if "bind_scalar_to_dim_size" in mapping:
+        b = mapping.get("bind_scalar_to_dim_size")
+    elif "bind_to_dim" in mapping:
+        b = mapping.get("bind_to_dim")
+    if isinstance(b, str) and b:
+        binds[qbase] = b
+
+
+def _parse_top_level(
+    raw: dict,
+) -> tuple[
+    T.Dict[str, AxisSymbolMap],
+    T.Dict[str, int],
+    T.Dict[str, str],
+    T.Dict[str, T.List[str]],
+]:
+    """Parse top-level entries into symbols/ranks/binds/input_dims."""
+    symbols: T.Dict[str, AxisSymbolMap] = {}
+    ranks: T.Dict[str, int] = {}
+    binds: T.Dict[str, str] = {}
+    input_dims: T.Dict[str, T.List[str]] = {}
+    for top_key, val in dict(raw or {}).items():
+        _validate_key(top_key)
+        if isinstance(val, dict):
+            _ = _parse_renamed_symbols(top_key, val.get("renamed_symbols"))
+            _parse_nested_subnet(
+                top_key, val, symbols, ranks, binds, input_dims
+            )
+        elif isinstance(val, (list, tuple)):
+            _validate_and_record(top_key, val, symbols, ranks)
+        else:
+            msg = (
+                "Invalid value for '"
+                + top_key
+                + "': expected list/tuple or nested mapping"
+            )
+            raise ValueError(msg)
+    return symbols, ranks, binds, input_dims
+
+
+def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
+    """Build per-subnet renamed_symbols mapping from raw config."""
+    out: dict[str, dict[str, list[str]]] = {}
+    for top_key, val in dict(raw or {}).items():
+        if isinstance(val, dict) and "renamed_symbols" in val:
+            mapping = _parse_renamed_symbols(
+                top_key, val.get("renamed_symbols")
+            )
+            if mapping:
+                out[top_key] = mapping
+    return out
+
+
+def _parse_nested_subnet(
+    top_key: str,
+    val: dict,
+    symbols: T.Dict[str, AxisSymbolMap],
+    ranks: T.Dict[str, int],
+    binds: T.Dict[str, str],
+    input_dims: T.Dict[str, T.List[str]],
+) -> None:
+    """Parse a nested subnet mapping into outputs.
+
+    Args:
+        top_key: Subnet name.
+        val: Mapping for the subnet.
+        symbols: Output symbols map.
+        ranks: Output ranks map.
+        binds: Output binds mapping.
+        input_dims: Output collapse-dims mapping.
+    """
+    if "collapse_dims" in val:
+        raise ValueError(
+            f"Do not set collapse_dims at subnet '{top_key}'. "
+            "Define per-input collapse_dims instead."
+        )
+    if "collapse_batch_dim" in val:
+        raise ValueError(
+            f"Legacy collapse_batch_dim found at subnet '{top_key}'. "
+            "Use per-input collapse_dims only."
+        )
+
+    for inp_name, shape in val.items():
+        if inp_name in {
+            "renamed_symbols",
+            "collapse_batch_dim",
+            "collapse_dims",
+        }:
+            continue
+        if isinstance(shape, dict):
+            is_tuple_group = "original_shape" not in shape and all(
+                isinstance(k, str) and k.isdigit() for k in shape
+            )
+            if is_tuple_group:
+                _nts_handle_tuple_group(
+                    top_key, inp_name, shape, symbols, ranks, binds, input_dims
+                )
+            else:
+                _nts_handle_single_mapping(
+                    top_key, inp_name, shape, symbols, ranks, binds, input_dims
+                )
+        elif isinstance(shape, (list, tuple)):
+            _validate_and_record(f"{top_key}.{inp_name}", shape, symbols, ranks)
+        else:
+            raise ValueError(
+                f"Invalid value for '{top_key}.{inp_name}': "
+                "expected list/tuple or mapping"
+            )
+
+
 def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
     """Load a YAML/JSON shape config into an AxisSymbolRegistry.
 
@@ -78,246 +350,11 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
             "shape-config must be a mapping (optionally nested) of "
             "input-name -> list of dims"
         )
-    symbols: T.Dict[str, AxisSymbolMap] = {}
-    ranks: T.Dict[str, int] = {}
-    binds: T.Dict[str, str] = {}
-    input_dims: T.Dict[str, T.List[str]] = {}
-
-    def _validate_and_set(key: str, shape_val: T.Sequence[T.Union[str, int]]):
-        if not isinstance(key, str) or not key:
-            raise ValueError(
-                "Invalid key in shape-config (expected non-empty string): "
-                f"{key!r}"
-            )
-        for i, v in enumerate(shape_val):
-            if not isinstance(v, (str, int)):
-                raise ValueError(
-                    "Invalid dim at "
-                    f"{key}[{i}]: {type(v).__name__}; expected str or int"
-                )
-            if isinstance(v, str) and not v.strip():
-                raise ValueError(
-                    f"Empty dim symbol at {key}[{i}] is not allowed"
-                )
-        symbols[key] = _list_to_axis_map(shape_val)
-        ranks[key] = len(shape_val)
-
-    def _normalize_syms(seq: T.Sequence[str]) -> T.List[str]:
-        out: T.List[str] = []
-        for s in seq:
-            ss = s.strip()
-            if ss.lower() in ("b", "batch"):
-                out.append("BATCH")
-            else:
-                out.append(ss.upper())
-        return out
-
-    # Support both flat and nested (subnet -> inputs -> mapping) forms
-    for top_key, val in dict(raw or {}).items():
-        if not isinstance(top_key, str) or not top_key:
-            raise ValueError(
-                "Invalid key in shape-config (expected non-empty string): "
-                f"{top_key!r}"
-            )
-        if isinstance(val, dict):
-            # Nested context: top_key is subnet, keys inside are input names
-            # Reject subnet-level collapse_dims / collapse_batch_dim
-            if "collapse_dims" in val:
-                raise ValueError(
-                    f"Do not set collapse_dims at subnet '{top_key}'. "
-                    "Define per-input collapse_dims instead."
-                )
-            if "collapse_batch_dim" in val:
-                raise ValueError(
-                    f"Legacy collapse_batch_dim found at subnet '{top_key}'. "
-                    "Use per-input collapse_dims only."
-                )
-            # Extract optional subnet-level renamed_symbols mapping
-            renamed_raw = val.get("renamed_symbols") if isinstance(val, dict) else None
-            if renamed_raw is not None:
-                # Accept mapping or list-of-singleton-maps
-                mapping: dict[str, list[str]] = {}
-                if isinstance(renamed_raw, dict):
-                    items_iter = renamed_raw.items()
-                elif isinstance(renamed_raw, (list, tuple)):
-                    # Expect list of {target: [sources]}
-                    items_iter = []
-                    for elem in renamed_raw:
-                        if isinstance(elem, dict) and len(elem) == 1:
-                            items_iter += list(elem.items())
-                        else:
-                            raise ValueError(
-                                f"Invalid renamed_symbols entry for subnet '{top_key}'"
-                            )
-                else:
-                    raise ValueError(
-                        f"renamed_symbols for subnet '{top_key}' must be mapping or list"
-                    )
-                for tgt, srcs in items_iter:  # type: ignore[attr-defined]
-                    if not isinstance(tgt, str) or not isinstance(srcs, (list, tuple)):
-                        raise ValueError(
-                            f"Invalid renamed_symbols target/sources for subnet '{top_key}'"
-                        )
-                    tnorm = tgt.strip().upper()
-                    snorm = [str(s).strip().upper() for s in srcs]
-                    if tnorm in snorm:
-                        raise ValueError(
-                            f"renamed_symbols for subnet '{top_key}': target '{tnorm}' cannot include itself"
-                        )
-                    mapping[tnorm] = snorm
-                # Stash and continue with other keys
-                # We'll ignore 'renamed_symbols' as an input name below
-            else:
-                mapping = {}
-
-            if mapping:
-                # ensure container exists
-                pass
-
-            for inp_name, shape in val.items():
-                if inp_name == "renamed_symbols":
-                    continue
-                if inp_name == "collapse_batch_dim":
-                    continue
-                if inp_name == "collapse_dims":
-                    continue
-                # Structured input mapping or legacy list/tuple
-                if isinstance(shape, dict):
-                    # Tuple grouping support: keys are indices 0,1,...
-                    is_tuple_group = (
-                        "original_shape" not in shape
-                        and all(
-                            isinstance(k, str) and k.isdigit() for k in shape
-                        )
-                    )
-                    if is_tuple_group:
-                        for idx_str, inner in shape.items():
-                            qname = f"{top_key}.{inp_name}_{idx_str}"
-                            if not isinstance(inner, dict):
-                                raise ValueError(
-                                    "Invalid tuple entry for '"
-                                    f"{qname}': expected mapping"
-                                )
-                            if "original_shape" in inner:
-                                oshp = inner.get("original_shape")
-                                if not isinstance(oshp, (list, tuple)):
-                                    raise ValueError(
-                                        f"Invalid original_shape for '{qname}'"
-                                    )
-                                _validate_and_set(qname, oshp)
-                            if "collapse_dims" in inner:
-                                cdv = inner.get("collapse_dims")
-                                if not isinstance(cdv, (list, tuple)):
-                                    raise ValueError(
-                                        f"Invalid collapse_dims for '{qname}'"
-                                    )
-                                input_dims[qname] = _normalize_syms(
-                                    [str(x) for x in cdv]
-                                )
-                            b = None
-                            if "bind_scalar_to_dim_size" in inner:
-                                b = inner.get("bind_scalar_to_dim_size")
-                            elif "bind_to_dim" in inner:
-                                b = inner.get("bind_to_dim")
-                            if isinstance(b, str) and b:
-                                binds[qname] = b
-                    else:
-                        # Optional fields per input:
-                        # - original_shape
-                        # - collapse_dims
-                        # - bind_scalar_to_dim_size (preferred), or legacy bind_to_dim
-                        if "original_shape" in shape:
-                            oshp = shape.get("original_shape")
-                            if not isinstance(oshp, (list, tuple)):
-                                raise ValueError(
-                                    "Invalid original_shape for '"
-                                    f"{top_key}.{inp_name}'"
-                                )
-                            _validate_and_set(f"{top_key}.{inp_name}", oshp)
-                        if "collapse_dims" in shape:
-                            cdv = shape.get("collapse_dims")
-                            if not isinstance(cdv, (list, tuple)):
-                                raise ValueError(
-                                    "Invalid collapse_dims for '"
-                                    f"{top_key}.{inp_name}'"
-                                )
-                            input_dims[f"{top_key}.{inp_name}"] = _normalize_syms(
-                                [str(x) for x in cdv]
-                            )
-                        # Prefer new key name; fall back to legacy if present
-                        b = None
-                        if "bind_scalar_to_dim_size" in shape:
-                            b = shape.get("bind_scalar_to_dim_size")
-                        elif "bind_to_dim" in shape:
-                            b = shape.get("bind_to_dim")
-                        if isinstance(b, str) and b:
-                            binds[f"{top_key}.{inp_name}"] = b
-                elif isinstance(shape, (list, tuple)):
-                    _validate_and_set(f"{top_key}.{inp_name}", shape)
-                else:
-                    raise ValueError(
-                        f"Invalid value for '{top_key}.{inp_name}': "
-                        "expected list/tuple or mapping"
-                    )
-            # Persist mapping if any
-            if mapping:
-                # merge into top-level container
-                # Initialize container if needed
-                pass
-            if mapping:
-                # assign after loop to avoid shadowing
-                pass
-            if mapping:
-                # done
-                pass
-            # Store mapping in outer scope dict after processing inputs
-            if mapping:
-                # ensure outer dict exists
-                symbols.setdefault("__dummy__", {})  # no-op to keep type usage
-                # we can't store mapping in symbols; use a local var; final return builds renamed
-                # We'll attach mapping via closure var outside loop
-                pass
-        elif isinstance(val, (list, tuple)):
-            # Flat qualified or bare name at top-level
-            _validate_and_set(top_key, val)
-        else:
-            raise ValueError(
-                f"Invalid value for '{top_key}': expected list/tuple or "
-                "nested mapping"
-            )
+    # Delegate detailed parsing to helpers to keep complexity low
+    symbols, ranks, binds, input_dims = _parse_top_level(raw)
     if not symbols:
         raise ValueError("shape-config did not define any input shapes")
-    # Build per-subnet renamed_symbols from raw again (second pass to avoid variable scoping issues)
-    renamed_per_subnet: dict[str, dict[str, list[str]]] = {}
-    for top_key, val in dict(raw or {}).items():
-        if isinstance(val, dict) and "renamed_symbols" in val:
-            renamed_raw = val.get("renamed_symbols")
-            mapping: dict[str, list[str]] = {}
-            if isinstance(renamed_raw, dict):
-                items_iter = renamed_raw.items()
-            elif isinstance(renamed_raw, (list, tuple)):
-                items_iter = []
-                for elem in renamed_raw:
-                    if isinstance(elem, dict) and len(elem) == 1:
-                        items_iter += list(elem.items())
-                    else:
-                        raise ValueError(
-                            f"Invalid renamed_symbols entry for subnet '{top_key}'"
-                        )
-            else:
-                raise ValueError(
-                    f"renamed_symbols for subnet '{top_key}' must be mapping or list"
-                )
-            for tgt, srcs in items_iter:  # type: ignore[attr-defined]
-                tnorm = str(tgt).strip().upper()
-                snorm = [str(s).strip().upper() for s in srcs]
-                if tnorm in snorm:
-                    raise ValueError(
-                        f"renamed_symbols for subnet '{top_key}': target '{tnorm}' cannot include itself"
-                    )
-                mapping[tnorm] = snorm
-            if mapping:
-                renamed_per_subnet[top_key] = mapping
+    renamed_per_subnet = _build_renamed_map(raw)
 
     return AxisSymbolRegistry(
         symbols_per_input=symbols,

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import typing as T
 from collections import OrderedDict
 from contextlib import contextmanager, suppress
@@ -22,11 +23,11 @@ from torch_to_nnef.nemo_tract.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
 from torch_to_nnef.nemo_tract.wrappers import (
+    BoundaryAdapter,
     DecoderWithoutTargetLength,
     RenameOutputs,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
-    BoundaryAdapter,
 )
 from torch_to_nnef.utils import (
     INJECTED,
@@ -38,10 +39,47 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _rewrite_assertions_with_renames(
+    assertions: list[str], rename_map: dict[str, list[str]] | None
+) -> list[str]:
+    """Rewrite assertion symbol names based on a rename mapping.
+
+    Args:
+        assertions: List of assertion strings, e.g. "tract_assert U = BATCH".
+        rename_map: Mapping of target symbol to list of source symbols
+            that should be rewritten to the target. Comparison is
+            case-insensitive; rewritten symbols are emitted uppercased.
+
+    Returns:
+        A list of assertions with symbols rewritten according to
+        the provided mapping. Unknown tokens are left unchanged.
+    """
+    if not rename_map:
+        return list(assertions)
+
+    inv: dict[str, str] = {}
+    for tgt, srcs in (rename_map or {}).items():
+        t_u = str(tgt).upper()
+        for s in srcs or []:
+            inv[str(s).upper()] = t_u
+
+    # Replace only identifier-like tokens to avoid altering operators
+    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+
+    def _sub(m: re.Match[str]) -> str:
+        tok = m.group(0)
+        return inv.get(tok.upper(), tok)
+
+    out: list[str] = []
+    for a in assertions:
+        out.append(ident.sub(_sub, str(a)))
+    return out
+
+
 def _batch_equal_assertions_for_subnet(
     subnet_name: str, dyn: dict[str, dict[int, str]] | None
 ) -> set[str]:
-    """Emit tract_assert equality constraints among batch-like symbols when needed.
+    """Emit tract_assert equality constraints when batch-like symbols need it.
 
     - For decoder-like subnets, batch dims across inputs must be equal; add
       equality assertions to help Tract unify distinct symbols at typecheck.
@@ -572,11 +610,18 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
-        # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
-        if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
-            collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+        # Config-driven boundary adapter: apply per-input batch collapse
+        # and tuple flattening
+        if axis_registry is not None and getattr(
+            axis_registry, "input_collapse_dims", None
+        ):
+            collapse_map = (
+                getattr(axis_registry, "input_collapse_dims", {}) or {}
+            )
             binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            rename_map = (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
+            rename_map = (
+                getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
+            ).get(subnet_name, {})
             model = BoundaryAdapter(
                 model,
                 subnet_name,
@@ -609,7 +654,11 @@ def build_preprocessor_export_params(
         custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
         custom_ext = set(
             _rewrite_assertions_with_renames(
-                list(custom_ext), (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
+                list(custom_ext),
+                (
+                    getattr(axis_registry, "renamed_symbols_per_subnet", {})
+                    or {}
+                ).get(subnet_name, {}),
             )
         )
 
@@ -688,11 +737,18 @@ def iter_export_params_for_generic_nemo_asr_model(
         }
         # Keep namespaced dims; we'll add targeted equality assertions below
 
-        # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
-        if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
-            collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+        # Config-driven boundary adapter: apply per-input batch collapse
+        # and tuple flattening
+        if axis_registry is not None and getattr(
+            axis_registry, "input_collapse_dims", None
+        ):
+            collapse_map = (
+                getattr(axis_registry, "input_collapse_dims", {}) or {}
+            )
             binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            rename_map = (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
+            rename_map = (
+                getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
+            ).get(subnet_name, {})
             model = BoundaryAdapter(
                 model,
                 subnet_name,

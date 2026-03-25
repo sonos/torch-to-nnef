@@ -30,6 +30,17 @@ class InspectStage(Enum):
     BOUND = "bound"
     FINAL = "final"
 
+
+@dataclass(frozen=True)
+class StageInputTransform:
+    """Result of applying stage transforms to a single input."""
+
+    skip: bool
+    new_shape: T.List[T.Union[int, str]]
+    remap: dict[int, str]
+    notes: T.List[str]
+    bind_flag: str | None
+
     def order(self) -> int:
         """Return a stable order rank for human rendering.
 
@@ -224,7 +235,7 @@ def _collect_signatures_for_stage(
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
         only_subnets: Optional subset filter.
-        
+
 
     Returns:
         A list of SubnetSignature snapshots in discovery order.
@@ -250,7 +261,8 @@ def _collect_signatures_for_stage(
         dyn_axes = ep.inference_target.dynamic_axes or {}
         for idx, name in enumerate(ep.input_names):
             t = test_in[idx] if idx < len(test_in) else None
-            # Handle tuple/list inputs by expanding them into name_0, name_1, ...
+            # Handle tuple/list inputs by expanding into
+            # name_0, name_1, ...
             if isinstance(t, (list, tuple)) and len(t) > 0:
                 for k, tk in enumerate(t):
                     ename = f"{name}_{k}"
@@ -306,7 +318,10 @@ def _collect_signatures_for_stage(
 
 
 def _print_human(
-    sigs: T.List[SubnetSignature], *, to_path: Path | None, diff: bool,
+    sigs: T.List[SubnetSignature],
+    *,
+    to_path: Path | None,
+    diff: bool,
     model_label: T.Optional[str] = None,
 ) -> None:
     """Render signatures as human-readable text to stdout or a file."""
@@ -333,7 +348,9 @@ def _print_human(
 
 
 def _print_json(
-    sigs: T.List[SubnetSignature], *, to_path: Path | None,
+    sigs: T.List[SubnetSignature],
+    *,
+    to_path: Path | None,
     model_label: T.Optional[str] = None,
 ) -> None:
     """Render signatures as JSON for tooling and CI.
@@ -374,7 +391,7 @@ def _print_json(
                 },
             }
             for s in sigs
-        ]
+        ],
     }
     txt = json.dumps(payload, indent=2)
     if to_path is None:
@@ -549,14 +566,75 @@ def run_inspection(
         axis_registry: Optional registry to overlay symbolic axes for inputs.
         model_label: Optional model slug or local path for header/JSON.
     """
-    # Normalize stages selection
     chosen: list[InspectStage] = stages if stages else [InspectStage.FINAL]
+    all_sigs = _collect_for_stages(
+        asr_model=asr_model,
+        inference_target=inference_target,
+        chosen=chosen,
+        skip_preprocessor=skip_preprocessor,
+        split_joint_decoder=split_joint_decoder,
+        float_dtype=float_dtype,
+        only_subnets=only_subnets,
+    )
 
+    # Strict validation and overlay from shape-config, then transforms
+    if axis_registry and getattr(axis_registry, "symbols_per_input", None):
+        (
+            qualified,
+            q_ranks,
+            q_shapes,
+            subnets,
+            bare_to_qualified,
+        ) = _build_signature_maps(all_sigs)
+        reg = axis_registry.symbols_per_input
+        resolved = _resolve_config_keys(
+            reg, qualified, subnets, bare_to_qualified
+        )
+        _validate_ranks(
+            resolved,
+            getattr(axis_registry, "rank_per_input", {}) or {},
+            q_ranks,
+            q_shapes,
+        )
+        all_sigs, q_to_axes = _overlay_symbols(all_sigs, resolved, reg)
+        cfg_collapse, cfg_binds_src, batch_alias = _derive_cfg_transforms(
+            axis_registry, resolved, qualified, q_to_axes
+        )
+
+        all_sigs = _apply_stage_transforms(
+            all_sigs, cfg_collapse, cfg_binds_src, batch_alias
+        )
+
+        # Warnings when non-batch collapse is configured
+        non_batch = []
+        for q, syms in cfg_collapse.items():
+            for s in syms:
+                if s not in {"BATCH", "B"}:
+                    non_batch.append((q, s))
+        if non_batch:
+            LOGGER.warning(
+                "Non-batch collapse configured for %s; consider probing sizes "
+                "with representative inputs to validate correctness.",
+                ", ".join(f"{q}:{s}" for q, s in non_batch),
+            )
+
+    _emit_output(fmt, all_sigs, to_path, diff, model_label)
+
+
+def _collect_for_stages(
+    *,
+    asr_model,
+    inference_target,
+    chosen: list[InspectStage],
+    skip_preprocessor: bool,
+    split_joint_decoder: bool,
+    float_dtype: torch.dtype,
+    only_subnets: T.Optional[T.Collection[str]],
+) -> list[SubnetSignature]:
     LOGGER.info(
         "running inspection for stages: %s",
         ", ".join(st.value for st in chosen),
     )
-
     all_sigs: list[SubnetSignature] = []
     for st in chosen:
         snaps = _collect_signatures_for_stage(
@@ -569,293 +647,16 @@ def run_inspection(
             only_subnets=only_subnets,
         )
         all_sigs.extend(snaps)
+    return all_sigs
 
-    # Strict validation of shape-config keys against discovered inputs
-    if axis_registry and getattr(axis_registry, "symbols_per_input", None):
-        reg = axis_registry.symbols_per_input
-        # Build discovered qualified and bare maps
-        qualified: set[str] = set()
-        q_ranks: dict[str, int] = {}
-        q_shapes: dict[str, T.List[T.Union[int, str]]] = {}
-        subnets: set[str] = set()
-        bare_to_qualified: dict[str, list[str]] = {}
-        for ss in all_sigs:
-            subnets.add(ss.name)
-            for i in ss.inputs:
-                q = f"{ss.name}.{i.name}"
-                qualified.add(q)
-                if i.shape:
-                    q_ranks.setdefault(q, len(i.shape))
-                    q_shapes.setdefault(q, list(i.shape))
-                bare_to_qualified.setdefault(i.name, []).append(q)
 
-        # Resolve each config key to a qualified input or raise
-        resolved: dict[str, str] = {}
-        for key in reg:
-            if "." in key:
-                if key not in qualified:
-                    # Be more specific: check if subnet exists, then list inputs
-                    subnet, _, inp = key.partition(".")
-                    if subnet not in subnets:
-                        raise ValueError(
-                            "Unknown subnet in --shape-config: '"
-                            + subnet
-                            + "'. Known subnets: "
-                            + ", ".join(sorted(subnets))
-                        )
-                    # Subnet exists; list its discovered inputs
-                    inputs_in_subnet = sorted({
-                        q.split(".", 1)[1]
-                        for q in qualified
-                        if q.startswith(subnet + ".")
-                    })
-                    raise ValueError(
-                        "Unknown qualified input '"
-                        + key
-                        + "' in --shape-config. Known inputs for subnet '"
-                        + subnet
-                        + "': "
-                        + ", ".join(inputs_in_subnet)
-                    )
-                resolved[key] = key
-            else:
-                qlist = bare_to_qualified.get(key, [])
-                if not qlist:
-                    known_bare = sorted(set(bare_to_qualified.keys()))
-                    raise ValueError(
-                        "Unknown input name in --shape-config: '"
-                        + key
-                        + "'. Known input names: "
-                        + ", ".join(known_bare)
-                    )
-                if len(qlist) > 1:
-                    raise ValueError(
-                        "Ambiguous input name in --shape-config '"
-                        + key
-                        + "' appears in multiple subnets: "
-                        + ", ".join(sorted(qlist))
-                        + ". Qualify as 'subnet.input'"
-                    )
-                resolved[key] = qlist[0]
-
-        # Rank validation for resolved keys
-        cfg_ranks = getattr(axis_registry, "rank_per_input", {}) or {}
-        mismatches: list[str] = []
-        for key, q in resolved.items():
-            if (q in q_ranks) and (key in cfg_ranks) and (
-                int(cfg_ranks[key]) != int(q_ranks[q])
-            ):
-                hint = ", ".join(str(d) for d in q_shapes.get(q, []))
-                hint_shape = f"[{hint}]"
-                mismatches.append(
-                    "{}: config rank {} vs discovered rank {} {}".format(
-                        key, int(cfg_ranks[key]), int(q_ranks[q]), hint_shape
-                    )
-                )
-        if mismatches:
-            raise ValueError(
-                "Rank mismatch in --shape-config: " + "; ".join(mismatches)
-            )
-
-        # Overlay symbols using resolved qualified keys
-        q_to_axes: dict[str, T.Dict[int, str]] = {}
-        for key, amap in reg.items():
-            q = resolved.get(key)
-            if q and isinstance(amap, dict):
-                q_to_axes[q] = {int(k): str(v) for k, v in amap.items()}
-
-        merged_all: list[SubnetSignature] = []
-        for ss in all_sigs:
-            merged_axes: T.Dict[str, T.Dict[int, str]] = dict(ss.symbol_axes)
-            for i in ss.inputs:
-                q = f"{ss.name}.{i.name}"
-                if q in q_to_axes:
-                    merged_axes[i.name] = dict(q_to_axes[q])
-            # Also substitute symbols into shapes so printed shapes match config
-            new_inputs: list[IODescriptor] = []
-            for i in ss.inputs:
-                amap = merged_axes.get(i.name, {}) or {}
-                if i.shape:
-                    new_shape: list[T.Union[int, str]] = []
-                    for ax, d in enumerate(i.shape):
-                        if ax in amap:
-                            new_shape.append(str(amap[ax]))
-                        else:
-                            new_shape.append(d)
-                else:
-                    new_shape = list(i.shape)
-                new_inputs.append(
-                    IODescriptor(
-                        name=i.name, shape=new_shape, dtype=i.dtype, notes=i.notes
-                    )
-                )
-            merged_all.append(
-                SubnetSignature(
-                    name=ss.name,
-                    stage=ss.stage,
-                    inputs=new_inputs,
-                    outputs=ss.outputs,
-                    applied_flags=ss.applied_flags,
-                    symbol_axes=merged_axes,
-                )
-            )
-        all_sigs = merged_all
-
-        # Derive transforms from config: per-input collapses and scalar binds
-        # Normalize collapse list keys to qualified
-        cfg_collapse: dict[str, list[str]] = {}
-        raw_collapse = getattr(axis_registry, "input_collapse_dims", {}) or {}
-        for key, seq in raw_collapse.items():
-            q = resolved.get(key, key)
-            syms = [str(s).strip().upper() for s in (seq or [])]
-            cfg_collapse[q] = syms
-
-        # Parse binds: value form is 'subnet.input.SYMBOL'
-        cfg_binds_src: dict[str, tuple[str, str]] = {}
-        raw_binds = getattr(axis_registry, "bind_to_dim", {}) or {}
-        for key, val in raw_binds.items():
-            qkey = resolved.get(key, key)
-            if not isinstance(val, str) or "." not in val:
-                raise ValueError(
-                    "Invalid bind_scalar_to_dim_size for '"
-                    + key
-                    + "': expected 'subnet.input.SYMBOL'"
-                )
-            src, _, sym = val.rpartition(".")
-            if src not in qualified:
-                raise ValueError(
-                    "Unknown source input in bind '"
-                    + val
-                    + "'. Known qualified inputs: "
-                    + ", ".join(sorted(qualified))
-                )
-            cfg_binds_src[qkey] = (src, str(sym).strip().upper())
-
-        # Prepare optional batch alias per qualified input from config
-        batch_alias: dict[str, str] = {}
-        for q, amap in q_to_axes.items():
-            for _, sym in amap.items():
-                s = str(sym).upper()
-                if s != "BATCH" and (s.endswith("__BATCH") or "BATCH" in s):
-                    batch_alias[q] = str(sym)
-                    break
-
-        # Apply transforms to snapshots for COLLAPSED/BOUND/FINAL stages
-        def _apply_to_signature(ss: SubnetSignature) -> SubnetSignature:
-            # Build maps for quick lookup
-            new_inputs: list[IODescriptor] = []
-            new_axes: dict[str, dict[int, str]] = {}
-            applied = list(ss.applied_flags)
-            for i in ss.inputs:
-                qname = f"{ss.name}.{i.name}"
-                # Resolve dynamic symbols mapping for this input
-                sym_map = ss.symbol_axes.get(i.name, {}) or {}
-                # Establish removal set for this stage
-                remove_syms: set[str] = set()
-                # Configured per-input collapse symbols
-                remove_syms.update(cfg_collapse.get(qname, []))
-
-                # Validate that all requested symbols exist dynamically here
-                known_syms = {str(sym).upper() for sym in sym_map.values()}
-                extra = [s for s in remove_syms if s not in known_syms]
-                if remove_syms and extra and ss.stage != InspectStage.RAW:
-                    raise ValueError(
-                        f"Cannot collapse non-dynamic dims for {qname} at "
-                        f"stage {ss.stage.value}: requested {sorted(remove_syms)} "
-                        f"but dynamic symbols are {sorted(known_syms)}"
-                    )
-
-                # Compute indices to drop and reindex shapes/axes
-                drop_idx = sorted(
-                    [ax for ax, sym in (sym_map.items() if sym_map else []) if str(sym).upper() in remove_syms]
-                )
-
-                # For BOUND/FINAL, drop the entire input if it is bound
-                is_bound_here = ss.stage in (InspectStage.BOUND, InspectStage.FINAL) and qname in cfg_binds_src
-                if is_bound_here:
-                    src_q, src_sym = cfg_binds_src[qname]
-                    applied.append(f"--bind {i.name}={src_q}.{src_sym}")
-                    # Enforce scalar-only after collapse: resulting rank must be 0
-                    if i.shape and len([d for j, d in enumerate(i.shape) if j not in drop_idx]) > 0:
-                        raise ValueError(
-                            f"Binding requires scalar input for {qname}; "
-                            f"after collapse kept rank>0: {i.shape}"
-                        )
-                    # Skip adding this input entirely to external IO
-                    continue
-
-                # Otherwise, keep input potentially with collapsed dims
-                if i.shape:
-                    new_shape = [d for j, d in enumerate(i.shape) if j not in drop_idx]
-                else:
-                    new_shape = list(i.shape)
-
-                # Rebuild axes map with reindexed positions
-                if sym_map:
-                    remap: dict[int, str] = {}
-                    shift = 0
-                    for ax in sorted(sym_map.keys()):
-                        if ax in drop_idx:
-                            shift += 1
-                            continue
-                        remap[ax - shift] = sym_map[ax]
-                else:
-                    remap = {}
-
-                # If remap still shows generic BATCH and config provided a
-                # namespaced alias for this qualified input, replace it in both
-                # remap and the displayed shape.
-                q_alias = batch_alias.get(qname)
-                if q_alias:
-                    for pos, sym in list(remap.items()):
-                        if str(sym).upper() == "BATCH":
-                            remap[pos] = q_alias
-                            if pos < len(new_shape) and str(new_shape[pos]).upper() == "BATCH":
-                                new_shape[pos] = q_alias
-
-                notes = list(i.notes)
-                if remove_syms:
-                    # Note collapsed symbols for visibility
-                    notes.append("collapsed:" + ",".join(sorted(remove_syms)))
-                new_axes[i.name] = remap
-                new_inputs.append(
-                    IODescriptor(
-                        name=i.name, shape=new_shape, dtype=i.dtype, notes=notes
-                    )
-                )
-
-            return SubnetSignature(
-                name=ss.name,
-                stage=ss.stage,
-                inputs=new_inputs,
-                outputs=ss.outputs,
-                applied_flags=applied,
-                symbol_axes=new_axes if new_axes else ss.symbol_axes,
-            )
-
-        transformed: list[SubnetSignature] = []
-        for ss in all_sigs:
-            # For RAW, we leave shapes as-is (but overlay symbols already done)
-            if ss.stage == InspectStage.RAW:
-                transformed.append(ss)
-            else:
-                # Apply collapse/bind projections for non-RAW stages
-                transformed.append(_apply_to_signature(ss))
-        all_sigs = transformed
-
-        # Warnings when non-batch collapse is configured
-        non_batch = []
-        for q, syms in cfg_collapse.items():
-            for s in syms:
-                if s != "BATCH" and s != "B":
-                    non_batch.append((q, s))
-        if non_batch:
-            LOGGER.warning(
-                "Non-batch collapse configured for %s; consider probing sizes "
-                "with representative inputs to validate correctness.",
-                ", ".join(f"{q}:{s}" for q, s in non_batch),
-            )
-
+def _emit_output(
+    fmt: InspectFormat,
+    all_sigs: list[SubnetSignature],
+    to_path: Path | None,
+    diff: bool,
+    model_label: T.Optional[str],
+) -> None:
     if fmt == InspectFormat.HUMAN:
         _print_human(
             all_sigs, to_path=to_path, diff=diff, model_label=model_label
@@ -866,6 +667,318 @@ def run_inspection(
         )
     else:
         _print_json(all_sigs, to_path=to_path, model_label=model_label)
+
+
+def _apply_stage_transforms(
+    all_sigs: list[SubnetSignature],
+    cfg_collapse: dict[str, list[str]],
+    cfg_binds_src: dict[str, tuple[str, str]],
+    batch_alias: dict[str, str],
+) -> list[SubnetSignature]:
+    transformed: list[SubnetSignature] = []
+    for ss in all_sigs:
+        if ss.stage == InspectStage.RAW:
+            transformed.append(ss)
+            continue
+        new_inputs: list[IODescriptor] = []
+        new_axes: dict[str, dict[int, str]] = {}
+        applied = list(ss.applied_flags)
+        for i in ss.inputs:
+            tr = _compute_input_transform(
+                ss, i, cfg_collapse, cfg_binds_src, batch_alias
+            )
+            if tr.bind_flag:
+                applied.append(tr.bind_flag)
+            if tr.skip:
+                continue
+            new_axes[i.name] = tr.remap
+            new_inputs.append(
+                IODescriptor(
+                    name=i.name,
+                    shape=tr.new_shape,
+                    dtype=i.dtype,
+                    notes=tr.notes,
+                )
+            )
+        transformed.append(
+            SubnetSignature(
+                name=ss.name,
+                stage=ss.stage,
+                inputs=new_inputs,
+                outputs=ss.outputs,
+                applied_flags=applied,
+                symbol_axes=new_axes if new_axes else ss.symbol_axes,
+            )
+        )
+    return transformed
+
+
+def _compute_input_transform(
+    ss: SubnetSignature,
+    i: IODescriptor,
+    cfg_collapse: dict[str, list[str]],
+    cfg_binds_src: dict[str, tuple[str, str]],
+    batch_alias: dict[str, str],
+) -> StageInputTransform:
+    qname = f"{ss.name}.{i.name}"
+    sym_map = ss.symbol_axes.get(i.name, {}) or {}
+    remove_syms: set[str] = set(cfg_collapse.get(qname, []))
+    known_syms = {str(sym).upper() for sym in sym_map.values()}
+    extra = [s for s in remove_syms if s not in known_syms]
+    if remove_syms and extra and ss.stage != InspectStage.RAW:
+        raise ValueError(
+            f"Cannot collapse non-dynamic dims for {qname} at "
+            f"stage {ss.stage.value}: requested {sorted(remove_syms)} "
+            f"but dynamic symbols are {sorted(known_syms)}"
+        )
+    drop_idx = sorted(
+        [
+            ax
+            for ax, sym in (sym_map.items() if sym_map else [])
+            if str(sym).upper() in remove_syms
+        ]
+    )
+    is_bound_here = (
+        ss.stage in (InspectStage.BOUND, InspectStage.FINAL)
+        and qname in cfg_binds_src
+    )
+    if is_bound_here:
+        src_q, src_sym = cfg_binds_src[qname]
+        bind_flag = f"--bind {i.name}={src_q}.{src_sym}"
+        if (
+            i.shape
+            and len([d for j, d in enumerate(i.shape) if j not in drop_idx]) > 0
+        ):
+            msg = (
+                f"Binding requires scalar input for {qname}; "
+                f"after collapse kept rank>0: {i.shape}"
+            )
+            raise ValueError(msg)
+        return StageInputTransform(
+            skip=True,
+            new_shape=[],
+            remap={},
+            notes=list(i.notes),
+            bind_flag=bind_flag,
+        )
+    if i.shape:
+        new_shape = [d for j, d in enumerate(i.shape) if j not in drop_idx]
+    else:
+        new_shape = list(i.shape)
+    if sym_map:
+        remap: dict[int, str] = {}
+        shift = 0
+        for ax in sorted(sym_map.keys()):
+            if ax in drop_idx:
+                shift += 1
+                continue
+            remap[ax - shift] = sym_map[ax]
+    else:
+        remap = {}
+    q_alias = batch_alias.get(qname)
+    if q_alias:
+        for pos, sym in list(remap.items()):
+            if str(sym).upper() == "BATCH":
+                remap[pos] = q_alias
+                if (
+                    pos < len(new_shape)
+                    and str(new_shape[pos]).upper() == "BATCH"
+                ):
+                    new_shape[pos] = q_alias
+    notes = list(i.notes)
+    if remove_syms:
+        notes.append("collapsed:" + ",".join(sorted(remove_syms)))
+    return StageInputTransform(
+        skip=False,
+        new_shape=new_shape,
+        remap=remap,
+        notes=notes,
+        bind_flag=None,
+    )
+
+
+def _build_signature_maps(all_sigs: list[SubnetSignature]):
+    qualified: set[str] = set()
+    q_ranks: dict[str, int] = {}
+    q_shapes: dict[str, T.List[T.Union[int, str]]] = {}
+    subnets: set[str] = set()
+    bare_to_qualified: dict[str, list[str]] = {}
+    for ss in all_sigs:
+        subnets.add(ss.name)
+        for i in ss.inputs:
+            q = f"{ss.name}.{i.name}"
+            qualified.add(q)
+            if i.shape:
+                q_ranks.setdefault(q, len(i.shape))
+                q_shapes.setdefault(q, list(i.shape))
+            bare_to_qualified.setdefault(i.name, []).append(q)
+    return qualified, q_ranks, q_shapes, subnets, bare_to_qualified
+
+
+def _resolve_config_keys(
+    reg: dict, qualified: set[str], subnets: set[str], bare_to_qualified: dict
+) -> dict[str, str]:
+    resolved: dict[str, str] = {}
+    for key in reg:
+        if "." in key:
+            if key not in qualified:
+                subnet, _, _ = key.partition(".")
+                if subnet not in subnets:
+                    raise ValueError(
+                        "Unknown subnet in --shape-config: '"
+                        + subnet
+                        + "'. Known subnets: "
+                        + ", ".join(sorted(subnets))
+                    )
+                inputs_in_subnet = sorted(
+                    {
+                        q.split(".", 1)[1]
+                        for q in qualified
+                        if q.startswith(subnet + ".")
+                    }
+                )
+                raise ValueError(
+                    "Unknown qualified input '"
+                    + key
+                    + "' in --shape-config. Known inputs for subnet '"
+                    + subnet
+                    + "': "
+                    + ", ".join(inputs_in_subnet)
+                )
+            resolved[key] = key
+        else:
+            qlist = bare_to_qualified.get(key, [])
+            if not qlist:
+                known_bare = sorted(set(bare_to_qualified.keys()))
+                raise ValueError(
+                    "Unknown input name in --shape-config: '"
+                    + key
+                    + "'. Known input names: "
+                    + ", ".join(known_bare)
+                )
+            if len(qlist) > 1:
+                raise ValueError(
+                    "Ambiguous input name in --shape-config '"
+                    + key
+                    + "' appears in multiple subnets: "
+                    + ", ".join(sorted(qlist))
+                    + ". Qualify as 'subnet.input'"
+                )
+            resolved[key] = qlist[0]
+    return resolved
+
+
+def _validate_ranks(
+    resolved: dict[str, str],
+    cfg_ranks: dict[str, int],
+    q_ranks: dict[str, int],
+    q_shapes: dict[str, T.List[T.Union[int, str]]],
+) -> None:
+    mismatches: list[str] = []
+    for key, q in resolved.items():
+        if (
+            (q in q_ranks)
+            and (key in cfg_ranks)
+            and (int(cfg_ranks[key]) != int(q_ranks[q]))
+        ):
+            hint = ", ".join(str(d) for d in q_shapes.get(q, []))
+            hint_shape = f"[{hint}]"
+            msg = (
+                f"{key}: config rank {int(cfg_ranks[key])} vs discovered "
+                f"rank {int(q_ranks[q])} {hint_shape}"
+            )
+            mismatches.append(msg)
+    if mismatches:
+        raise ValueError(
+            "Rank mismatch in --shape-config: " + "; ".join(mismatches)
+        )
+
+
+def _overlay_symbols(
+    all_sigs: list[SubnetSignature], resolved: dict[str, str], reg: dict
+) -> tuple[list[SubnetSignature], dict[str, dict[int, str]]]:
+    q_to_axes: dict[str, dict[int, str]] = {}
+    for key, amap in reg.items():
+        q = resolved.get(key)
+        if q and isinstance(amap, dict):
+            q_to_axes[q] = {int(k): str(v) for k, v in amap.items()}
+
+    merged_all: list[SubnetSignature] = []
+    for ss in all_sigs:
+        merged_axes: dict[str, dict[int, str]] = dict(ss.symbol_axes)
+        for i in ss.inputs:
+            q = f"{ss.name}.{i.name}"
+            if q in q_to_axes:
+                merged_axes[i.name] = dict(q_to_axes[q])
+        new_inputs: list[IODescriptor] = []
+        for i in ss.inputs:
+            amap = merged_axes.get(i.name, {}) or {}
+            if i.shape:
+                new_shape: list[T.Union[int, str]] = []
+                for ax, d in enumerate(i.shape):
+                    new_shape.append(str(amap[ax]) if ax in amap else d)
+            else:
+                new_shape = list(i.shape)
+            new_inputs.append(
+                IODescriptor(
+                    name=i.name, shape=new_shape, dtype=i.dtype, notes=i.notes
+                )
+            )
+        merged_all.append(
+            SubnetSignature(
+                name=ss.name,
+                stage=ss.stage,
+                inputs=new_inputs,
+                outputs=ss.outputs,
+                applied_flags=ss.applied_flags,
+                symbol_axes=merged_axes,
+            )
+        )
+    return merged_all, q_to_axes
+
+
+def _derive_cfg_transforms(
+    axis_registry,
+    resolved: dict[str, str],
+    qualified: set[str],
+    q_to_axes: dict[str, dict[int, str]],
+) -> tuple[dict[str, list[str]], dict[str, tuple[str, str]], dict[str, str]]:
+    cfg_collapse: dict[str, list[str]] = {}
+    raw_collapse = getattr(axis_registry, "input_collapse_dims", {}) or {}
+    for key, seq in raw_collapse.items():
+        q = resolved.get(key, key)
+        syms = [str(s).strip().upper() for s in (seq or [])]
+        cfg_collapse[q] = syms
+
+    cfg_binds_src: dict[str, tuple[str, str]] = {}
+    raw_binds = getattr(axis_registry, "bind_to_dim", {}) or {}
+    for key, val in raw_binds.items():
+        qkey = resolved.get(key, key)
+        if not isinstance(val, str) or "." not in val:
+            raise ValueError(
+                "Invalid bind_scalar_to_dim_size for '"
+                + key
+                + "': expected 'subnet.input.SYMBOL'"
+            )
+        src, _, sym = val.rpartition(".")
+        if src not in qualified:
+            raise ValueError(
+                "Unknown source input in bind '"
+                + val
+                + "'. Known qualified inputs: "
+                + ", ".join(sorted(qualified))
+            )
+        cfg_binds_src[qkey] = (src, str(sym).strip().upper())
+
+    batch_alias: dict[str, str] = {}
+    for q, amap in q_to_axes.items():
+        for _, sym in amap.items():
+            s = str(sym).upper()
+            if s != "BATCH" and (s.endswith("__BATCH") or "BATCH" in s):
+                batch_alias[q] = str(sym)
+    return cfg_collapse, cfg_binds_src, batch_alias
+
+
 def collect_signatures(
     *,
     asr_model,

@@ -370,26 +370,18 @@ def _normalize_inspect_stages(args):
     return [InspectStage(s) for s in raw_stages]
 
 
-def main():
-    init_log()
-    args = parser_cli()
-    # Normalize early so subsequent logic and config dump see final form
-    args.only_subnets = normalize_cli_list_option(args.only_subnets)
-    log_level = logging.INFO
-    if args.verbose:
-        log_level = logging.DEBUG
-    set_lib_log_level(log_level)
-    export_dir = Path(args.export_dir)
-    _prepare_export_dir_and_logging(args, export_dir)
-    LOGGER.info("started nemo_tract export with args: %s", args)
-    # ensure that the model is loaded on CPU
-    if args.model_path is not None:
-        asr_model = load_asr_model_from_path(args.model_path)
-    else:
-        asr_model = load_asr_model_from_nemo_slug(args.model_slug)
+def _build_axis_registry_from_args(args) -> AxisSymbolRegistry | None:
+    """Load optional shape-config into an AxisSymbolRegistry.
 
-    asr_model = _prepare_model_dtype_and_wrappers(asr_model, args)
+    Returns None if no shape-config was provided.
+    """
+    if args.shape_config is None:
+        return None
+    return load_axis_symbol_registry(args.shape_config)
 
+
+def _normalize_tolerance(args) -> None:
+    """Normalize `tract_check_io_tolerance` CLI option to enum when needed."""
     if (
         isinstance(args.tract_check_io_tolerance, str)
         and args.tract_check_io_tolerance != "skip"
@@ -398,179 +390,271 @@ def main():
             args.tract_check_io_tolerance
         )
 
+
+def _compute_log_level(args) -> int:
+    """Return logging level based on verbosity flag."""
+    return logging.DEBUG if args.verbose else logging.INFO
+
+
+def _init_logging_and_export_dir(args) -> Path:
+    """Initialize logging and export directory; return export_dir Path."""
+    set_lib_log_level(_compute_log_level(args))
+    export_dir = Path(args.export_dir)
+    _prepare_export_dir_and_logging(args, export_dir)
+    LOGGER.info("started nemo_tract export with args: %s", args)
+    return export_dir
+
+
+def _dump_shape_config_template(
+    *,
+    args,
+    asr_model,
+    inference_target,
+    model_label: str,
+) -> None:
+    """Generate and write a structured shape-config template to file.
+
+    This encapsulates the long YAML dump logic to keep `main()` small.
+    """
+    snaps = collect_signatures(
+        asr_model=asr_model,
+        inference_target=inference_target,
+        stage=InspectStage.RAW,
+        skip_preprocessor=args.skip_preprocessor,
+        split_joint_decoder=args.split_joint_decoder,
+        float_dtype=(
+            torch.float16 if args.data_type == "float16" else torch.float32
+        ),
+        only_subnets=args.only_subnets,
+    )
+    nested = _build_nested_template_dict(snaps, args)
+
+    args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
+
+    class _FlowSeqDumper(yaml.SafeDumper):
+        pass
+
+    def _repr_seq(dumper, data):
+        return dumper.represent_sequence(
+            "tag:yaml.org,2002:seq", data, flow_style=True
+        )
+
+    _FlowSeqDumper.add_representer(list, _repr_seq)
+
+    with args.dump_shape_config.open("w", encoding="utf8") as fh:
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        cmd = " ".join(shlex.quote(a) for a in sys.argv)
+        _write_config_header(fh, model_label, now, cmd)
+        _write_config_example_block(fh)
+        yaml.dump(
+            nested,
+            fh,
+            Dumper=_FlowSeqDumper,
+            sort_keys=False,
+            default_flow_style=None,
+        )
+
+
+def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
+    """Build nested dict for template from collected signatures."""
+    nested: dict[str, dict] = {}
+    for ss in snaps:
+        bucket = nested.setdefault(ss.name, {})
+        for i in ss.inputs:
+            dims = []
+            for d in i.shape or []:
+                if isinstance(d, int):
+                    dims.append(int(d))
+                else:
+                    s = str(d)
+                    if s.upper() == "BATCH":
+                        s = f"{i.name.upper()}__BATCH"
+                    dims.append(s)
+            entry: dict = {}
+            entry["original_shape"] = dims
+            entry["collapse_dims"] = []
+            bucket[i.name] = entry
+        batch_syms = []
+        for i in ss.inputs:
+            for d in i.shape or []:
+                if (
+                    isinstance(d, str)
+                    and d.upper().endswith("__BATCH")
+                    and d not in batch_syms
+                ):
+                    batch_syms.append(d)
+        if ss.name in ("decoder", "decoder_joint") and len(batch_syms) > 1:
+            bucket["renamed_symbols"] = {"BATCH": batch_syms}
+    return nested
+
+
+def _write_config_header(fh, model_label: str, now: str, cmd: str) -> None:
+    """Write the header section of the template file."""
+    fh.write(f"# '{model_label}' shapes config generated on '{now}'\n")
+    fh.write("# Command:\n")
+    fh.write(f"#   {cmd}\n")
+    fh.write(
+        "# Edit dims/symbols as needed. Keys must match subnet/input names.\n"
+    )
+    fh.write("#\n")
+
+
+def _write_config_example_block(fh) -> None:
+    """Write the example config block for guidance."""
+    fh.write("# Config example (structured):\n")
+    fh.write("# encoder:\n")
+    fh.write("#   audio_signal:\n")
+    fh.write(
+        "#     original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]\n"
+    )
+    fh.write("#     collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
+    fh.write("#   length:\n")
+    fh.write("#     original_shape: [LENGTH__BATCH]\n")
+    fh.write("#     collapse_dims: [LENGTH__BATCH]\n")
+    fh.write(
+        "#     bind_scalar_to_dim_size: encoder.audio_signal."
+        "AUDIO_SIGNAL__TIME\n"
+    )
+    fh.write("# decoder_joint:\n")
+    fh.write("#   encoder_outputs:\n")
+    fh.write(
+        "#     original_shape: [ENCODER_OUTPUTS__BATCH, 1024, "
+        "ENCODER_OUTPUTS__TIME]\n"
+    )
+    fh.write(
+        "#     collapse_dims: [ENCODER_OUTPUTS__BATCH, "
+        "ENCODER_OUTPUTS__TIME]\n\n"
+    )
+    fh.write("# decoder:\n")
+    fh.write("#   # Unify batch symbols for Tract-facing dynamic axes\n")
+    fh.write(
+        "#   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, "
+        "STATES_1__BATCH] }\n"
+    )
+    fh.write("#   targets:\n")
+    fh.write("#     original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
+    fh.write(
+        "#     # Alias 'BATCH' is accepted when listed in renamed_symbols\n"
+    )
+    fh.write("#     collapse_dims: [BATCH]\n")
+    fh.write("#   states_0:\n")
+    fh.write("#     original_shape: [2, STATES_0__BATCH, 640]\n")
+    fh.write("#     collapse_dims: [BATCH]\n")
+    fh.write("#   states_1:\n")
+    fh.write("#     original_shape: [2, STATES_1__BATCH, 640]\n")
+    fh.write("#     collapse_dims: [BATCH]\n")
+    fh.write("#   # Binding can also use alias symbols:\n")
+    fh.write("#   #   bind_scalar_to_dim_size: decoder.targets.BATCH\n\n")
+
+
+def _run_inspection_flow(
+    *,
+    args,
+    asr_model,
+    inference_target,
+    model_label: str,
+) -> None:
+    """Execute the inspection flow including optional template dump."""
+    norm_stages = _normalize_inspect_stages(args)
+    fmt_enum = InspectFormat(args.inspect_format)
+    axis_reg = _build_axis_registry_from_args(args)
+    if args.dump_shape_config is not None:
+        _dump_shape_config_template(
+            args=args,
+            asr_model=asr_model,
+            inference_target=inference_target,
+            model_label=model_label,
+        )
+    run_inspection(
+        asr_model=asr_model,
+        inference_target=inference_target,
+        skip_preprocessor=args.skip_preprocessor,
+        split_joint_decoder=args.split_joint_decoder,
+        float_dtype=(
+            torch.float16 if args.data_type == "float16" else torch.float32
+        ),
+        only_subnets=args.only_subnets,
+        stages=norm_stages,
+        fmt=fmt_enum,
+        to_path=args.inspect_output,
+        diff=args.inspect_diff,
+        axis_registry=axis_reg,
+        model_label=model_label,
+    )
+
+
+def _call_export(
+    *,
+    asr_model,
+    inference_target,
+    export_dir: Path,
+    args,
+    float_dtype: torch.dtype,
+) -> None:
+    """Thin wrapper to perform the export with provided dtype and args."""
+    export_nemo_asr_model(
+        asr_model,
+        inference_target,
+        export_dir,
+        nnef_variable_naming_scheme=VariableNamingScheme(args.naming_scheme),
+        compress_registry=args.compress_registry,
+        compress_method=args.compress_method,
+        skip_preprocessor=args.skip_preprocessor,
+        split_joint_decoder=args.split_joint_decoder,
+        only_subnets=args.only_subnets,
+        extra_cfg={"pretrained_name": args.model_slug},
+        float_dtype=float_dtype,
+        dump_checked_io=args.dump_checked_io,
+        axis_registry=(
+            load_axis_symbol_registry(args.shape_config)
+            if args.shape_config is not None
+            else None
+        ),
+    )
+
+
+def _parse_args():
+    """Initialize logging and parse CLI arguments."""
+    init_log()
+    return parser_cli()
+
+
+def main():
+    args = _parse_args()
+    # Normalize early so subsequent logic and config dump see final form
+    args.only_subnets = normalize_cli_list_option(args.only_subnets)
+    export_dir = _init_logging_and_export_dir(args)
+    # ensure that the model is loaded on CPU
+    asr_model = (
+        load_asr_model_from_path(args.model_path)
+        if args.model_path is not None
+        else load_asr_model_from_nemo_slug(args.model_slug)
+    )
+
+    asr_model = _prepare_model_dtype_and_wrappers(asr_model, args)
+
+    _normalize_tolerance(args)
+
     inference_target = setup_inference_target_from_cli_args(args)
 
     _maybe_dump_export_config(args, export_dir)
 
     # If in inspection mode (explicit or via dry-run), run the inspector.
     if args.inspect_signatures or args.dry_run:
-        # Normalize stages to enums, handling 'all'
-        norm_stages = _normalize_inspect_stages(args)
-
-        # Normalize format
-        fmt_enum = InspectFormat(args.inspect_format)
-
-        # Load optional shape-config and pass registry to inspector
-        axis_reg: AxisSymbolRegistry | None = None
-        if args.shape_config is not None:
-            axis_reg = load_axis_symbol_registry(args.shape_config)
-
         # Determine a human-friendly model label for inspection header
         model_label = (
             str(Path(args.model_path).resolve())
             if args.model_path
             else str(args.model_slug)
         )
-
-        # Optional dump of a template shape-config (raw stage)
-        if args.dump_shape_config is not None:
-            snaps = collect_signatures(
-                asr_model=asr_model,
-                inference_target=inference_target,
-                stage=InspectStage.RAW,
-                skip_preprocessor=args.skip_preprocessor,
-                split_joint_decoder=args.split_joint_decoder,
-                float_dtype=(torch.float16 if args.data_type == "float16"
-                             else torch.float32),
-                only_subnets=args.only_subnets,
-            )
-            nested: dict[str, dict] = {}
-            for ss in snaps:
-                bucket = nested.setdefault(ss.name, {})
-                # Subnet-level collapse policy omitted; use per-input collapse_dims
-                for i in ss.inputs:
-                    dims = []
-                    for d in (i.shape or []):
-                        if isinstance(d, int):
-                            dims.append(int(d))
-                        else:
-                            s = str(d)
-                            # Namespace unscoped batch to input-specific form
-                            if s.upper() == "BATCH":
-                                s = f"{i.name.upper()}__BATCH"
-                            dims.append(s)
-                    # Preserve key order: original_shape first, then options
-                    entry: dict = {}
-                    entry["original_shape"] = dims
-                    entry["collapse_dims"] = []
-                    # Include commented binding example in header, not here
-                    bucket[i.name] = entry
-                # Suggest subnet-level renamed_symbols when multiple batch-like symbols exist
-                batch_syms = []
-                for i in ss.inputs:
-                    for d in (i.shape or []):
-                        if isinstance(d, str) and d.upper().endswith("__BATCH"):
-                            if d not in batch_syms:
-                                batch_syms.append(d)
-                if ss.name in ("decoder", "decoder_joint") and len(batch_syms) > 1:
-                    # Propose unification to BATCH
-                    bucket["renamed_symbols"] = {"BATCH": batch_syms}
-            args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
-            # Dump YAML with sequences in flow style (inline: [..]) and
-            # mappings in block style, to keep the file compact and readable.
-            class _FlowSeqDumper(yaml.SafeDumper):
-                pass
-
-            def _repr_seq(dumper, data):
-                return dumper.represent_sequence(
-                    "tag:yaml.org,2002:seq", data, flow_style=True
-                )
-
-            _FlowSeqDumper.add_representer(list, _repr_seq)
-
-            with args.dump_shape_config.open("w", encoding="utf8") as fh:
-                # Header with timestamp, command, and example block
-                now = datetime.datetime.now().isoformat(timespec="seconds")
-                cmd = " ".join(shlex.quote(a) for a in sys.argv)
-                fh.write(
-                    f"# '{model_label}' shapes config generated on '{now}'\n"
-                )
-                fh.write("# Command:\n")
-                fh.write(f"#   {cmd}\n")
-                fh.write("# Edit dims/symbols as needed. Keys must match ")
-                fh.write("subnet/input names.\n")
-                fh.write("#\n")
-                fh.write("# Config example (structured):\n")
-                fh.write("# encoder:\n")
-                fh.write("#   audio_signal:\n")
-                fh.write("#     original_shape: ")
-                fh.write("[AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]\n")
-                fh.write("#     collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
-                fh.write("#   length:\n")
-                fh.write("#     original_shape: [LENGTH__BATCH]\n")
-                fh.write("#     collapse_dims: [LENGTH__BATCH]\n")
-                fh.write("#     bind_scalar_to_dim_size: ")
-                fh.write("encoder.audio_signal.AUDIO_SIGNAL__TIME\n")
-                fh.write("# decoder_joint:\n")
-                fh.write("#   encoder_outputs:\n")
-                fh.write("#     original_shape: ")
-                fh.write("[ENCODER_OUTPUTS__BATCH, 1024, ENCODER_OUTPUTS__TIME]\n")
-                fh.write("#     collapse_dims: ")
-                fh.write("[ENCODER_OUTPUTS__BATCH, ENCODER_OUTPUTS__TIME]\n\n")
-                fh.write("# decoder:\n")
-                fh.write("#   # Unify batch symbols for Tract-facing dynamic axes\n")
-                fh.write("#   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, STATES_1__BATCH] }\n")
-                fh.write("#   targets:\n")
-                fh.write("#     original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
-                fh.write("#     # Alias 'BATCH' is accepted when listed in renamed_symbols\n")
-                fh.write("#     collapse_dims: [BATCH]\n")
-                fh.write("#   states_0:\n")
-                fh.write("#     original_shape: [2, STATES_0__BATCH, 640]\n")
-                fh.write("#     collapse_dims: [BATCH]\n")
-                fh.write("#   states_1:\n")
-                fh.write("#     original_shape: [2, STATES_1__BATCH, 640]\n")
-                fh.write("#     collapse_dims: [BATCH]\n")
-                fh.write("#   # Binding can also use alias symbols:\n")
-                fh.write("#   #   bind_scalar_to_dim_size: decoder.targets.BATCH\n\n")
-                yaml.dump(
-                    nested,
-                    fh,
-                    Dumper=_FlowSeqDumper,
-                    sort_keys=False,
-                    default_flow_style=None,
-                )
-
-        run_inspection(
+        _run_inspection_flow(
+            args=args,
             asr_model=asr_model,
             inference_target=inference_target,
-            skip_preprocessor=args.skip_preprocessor,
-            split_joint_decoder=args.split_joint_decoder,
-            float_dtype=(
-                torch.float16 if args.data_type == "float16" else torch.float32
-            ),
-            only_subnets=args.only_subnets,
-            stages=norm_stages,
-            fmt=fmt_enum,
-            to_path=args.inspect_output,
-            diff=args.inspect_diff,
-            axis_registry=axis_reg,
             model_label=model_label,
         )
         if args.dry_run:
             return
-
-    def call_export(float_dtype=torch.float32):
-        export_nemo_asr_model(
-            asr_model,
-            inference_target,
-            export_dir,
-            nnef_variable_naming_scheme=VariableNamingScheme(
-                args.naming_scheme
-            ),
-            compress_registry=args.compress_registry,
-            compress_method=args.compress_method,
-            skip_preprocessor=args.skip_preprocessor,
-            split_joint_decoder=args.split_joint_decoder,
-            only_subnets=args.only_subnets,
-            extra_cfg={"pretrained_name": args.model_slug},
-            float_dtype=float_dtype,
-            dump_checked_io=args.dump_checked_io,
-            axis_registry=(
-                load_axis_symbol_registry(args.shape_config)
-                if args.shape_config is not None
-                else None
-            ),
-        )
 
     if args.data_type == "mixed":
         try:
@@ -583,14 +667,24 @@ def main():
                 "(not supported by tract)"
             )
             with autocast(device_type="cpu", dtype=torch.float16):
-                call_export(float_dtype=torch.float16)
+                _call_export(
+                    asr_model=asr_model,
+                    inference_target=inference_target,
+                    export_dir=export_dir,
+                    args=args,
+                    float_dtype=torch.float16,
+                )
         except ImportError as ie:
             raise ImportError(
                 "To use mixed precision export please install recent torch"
             ) from ie
     else:
-        call_export(
-            float_dtype=torch.float16
-            if args.data_type == "float16"
-            else torch.float32
+        _call_export(
+            asr_model=asr_model,
+            inference_target=inference_target,
+            export_dir=export_dir,
+            args=args,
+            float_dtype=(
+                torch.float16 if args.data_type == "float16" else torch.float32
+            ),
         )
