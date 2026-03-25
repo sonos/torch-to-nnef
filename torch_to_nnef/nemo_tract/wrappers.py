@@ -8,7 +8,7 @@ from torch_to_nnef._optional_types import (
     InjectedTorchaudioModule,
 )
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
-from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping
+from torch_to_nnef.nemo_tract.axes import collapse_dynamic_axes_mapping  # legacy import (unused)
 from torch_to_nnef.nemo_tract.constants import (
     DEFAULT_TIME,
     INPUT_STATE_TUPLE_NAME,
@@ -374,6 +374,140 @@ class DecoderWithoutTargetLength(torch.nn.Module):
 
 class _REMOVE_LEGACY_PLACEHOLDER:  # kept to preserve file structure; no-op
     pass
+
+
+class BoundaryAdapter(torch.nn.Module):
+    """Export-time boundary adapter applying per-input tuple flattening and collapse.
+
+    - Flattens tuple inputs to `name_0`, `name_1`, ... for external IO.
+    - Applies per-input collapse of dynamic axes (supports batch-only v1).
+    - Re-inserts collapsed axes before invoking the inner module.
+    - Recomputes dynamic input axes to match the external interface.
+    """
+
+    def __init__(
+        self,
+        module: torch.nn.Module,
+        subnet_name: str,
+        input_example: list,
+        dynamic_axes: dict[str, dict[int, str]] | None,
+        collapse_by_input: dict[str, set[str]] | None,
+    ) -> None:
+        super().__init__()
+        self.module = module
+        self.subnet_name = subnet_name
+        self._orig_input_names = list(getattr(module, "input_names", []) or [])
+        self._orig_output_names = list(getattr(module, "output_names", []) or [])
+        self._orig_input_example = list(input_example or [])
+        self._dyn_axes = dict(dynamic_axes or {})
+
+        # Build external names by flattening tuple inputs
+        self._ext_names: list[str] = []
+        self._ext_map: list[tuple[str, int | None]] = []  # (base, idx)
+        for nm, val in zip(self._orig_input_names, self._orig_input_example):
+            if isinstance(val, (list, tuple)) and val:
+                for k, _ in enumerate(val):
+                    self._ext_names.append(f"{nm}_{k}")
+                    self._ext_map.append((nm, k))
+            else:
+                self._ext_names.append(nm)
+                self._ext_map.append((nm, None))
+
+        # Resolve collapse rules per external name (qualified keys)
+        self._collapse_idx: dict[str, list[int]] = {}
+        for ext in self._ext_names:
+            q = f"{subnet_name}.{ext}"
+            want = set((collapse_by_input or {}).get(q, set()))
+            if not want:
+                continue
+            dyn = self._dyn_axes.get(ext, {})
+            # Only support batch-like symbols in v1
+            drop = [i for i, s in dyn.items() if "BATCH" in str(s).upper() and any("BATCH" in w for w in want)]
+            if drop:
+                self._collapse_idx[ext] = sorted(drop)
+
+    @property
+    def input_names(self) -> list[str]:
+        return list(self._ext_names)
+
+    @property
+    def output_names(self) -> list[str]:
+        return list(self._orig_output_names)
+
+    def _ext_example_for(self, name: str, val) -> object:
+        drop = set(self._collapse_idx.get(name, []))
+        t = val
+        if torch.is_tensor(t) and drop:
+            for ax in sorted(drop, reverse=True):
+                if 0 <= ax < t.dim():
+                    # select 0 or squeeze for batch-like axis
+                    t = t.squeeze(ax) if t.size(ax) == 1 else t.select(ax, 0)
+        return t
+
+    def input_example(self):
+        out: list[object] = []
+        for (base, idx), ext in zip(self._ext_map, self._ext_names):
+            if idx is None:
+                val = next((v for n, v in zip(self._orig_input_names, self._orig_input_example) if n == base), None)
+            else:
+                base_val = next((v for n, v in zip(self._orig_input_names, self._orig_input_example) if n == base), None)
+                val = base_val[idx] if isinstance(base_val, (list, tuple)) else None
+            out.append(self._ext_example_for(ext, val))
+        return tuple(out)
+
+    def dynamic_shapes_for_export(self) -> dict[str, dict[int, str]]:
+        # Filter dynamic axes by removed indices
+        ext_dyn: dict[str, dict[int, str]] = {}
+        for ext in self._ext_names:
+            axes = dict(self._dyn_axes.get(ext, {}) or {})
+            if not axes:
+                continue
+            drop = set(self._collapse_idx.get(ext, []))
+            if not drop:
+                ext_dyn[ext] = axes
+                continue
+            remap: dict[int, str] = {}
+            shift = 0
+            for ax in sorted(axes.keys()):
+                if ax in drop:
+                    shift += 1
+                    continue
+                remap[ax - shift] = axes[ax]
+            if remap:
+                ext_dyn[ext] = remap
+        return ext_dyn
+
+    def _rebuild_internal_args(self, args) -> list:
+        # Reinsert collapsed axes, and repack tuples
+        by_base: dict[str, list] = {}
+        for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
+            t = val
+            # Reinsert collapsed axes as size-1 dims
+            for ax in sorted(self._collapse_idx.get(ext, [])):
+                if torch.is_tensor(t):
+                    t = t.unsqueeze(ax)
+            if idx is None:
+                by_base.setdefault(base, [None])[0:1] = [t]
+            else:
+                bucket = by_base.setdefault(base, [])
+                # ensure size
+                while len(bucket) <= idx:
+                    bucket.append(None)
+                bucket[idx] = t
+        # Order by original input_names; replace lists with tuples where needed
+        ordered: list = []
+        for nm in self._orig_input_names:
+            val = by_base.get(nm)
+            if isinstance(val, list) and any(v is not None for v in val):
+                ordered.append(tuple(val))
+            else:
+                ordered.append(val[0] if isinstance(val, list) else val)
+        return ordered
+
+    def forward(self, *args, **kwargs):
+        assert not kwargs, "BoundaryAdapter expects positional args only"
+        internal_args = self._rebuild_internal_args(list(args))
+        return self.module(*internal_args)
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")

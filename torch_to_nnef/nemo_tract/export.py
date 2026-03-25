@@ -26,6 +26,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     RenameOutputs,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
+    BoundaryAdapter,
 )
 from torch_to_nnef.utils import (
     INJECTED,
@@ -485,6 +486,7 @@ def build_preprocessor_export_params(
     inference_target,
     *,
     nemo: InjectedNemoModule = INJECTED,
+    axis_registry=None,
 ) -> T.Iterator[ExportParameters]:
     """Build export parameters for the preprocessor of a NeMo ASR model."""
     if hasattr(asr_model.preprocessor, "featurizer"):
@@ -537,8 +539,19 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
-        # Legacy automatic batch-collapse is disabled.
-        # The interface remains unchanged; use config-driven transforms later.
+        # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
+        if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
+            collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+            model = BoundaryAdapter(
+                model,
+                subnet_name,
+                test_input,
+                dyn,
+                {k: set(v) for k, v in collapse_map.items()},
+            )
+            input_names = model.input_names
+            test_input = list(model.input_example())
+            dyn = model.dynamic_shapes_for_export()
 
         yield ExportParameters(
             name=subnet_name,
@@ -562,6 +575,7 @@ def iter_export_params_for_generic_nemo_asr_model(
     remove_unused_inputs: bool = True,
     float_dtype: T.Optional[torch.dtype] = None,
     only_subnets: T.Optional[T.Collection[str]] = None,
+    axis_registry=None,
 ) -> T.Iterator[ExportParameters]:
     """Iterator over export parameters for a generic NeMo ASR model."""
     asr_model.eval()
@@ -572,7 +586,7 @@ def iter_export_params_for_generic_nemo_asr_model(
     ):
         # Yield preprocessor export params while NeMo export context is active
         yield from build_preprocessor_export_params(
-            asr_model, inference_target
+            asr_model, inference_target, axis_registry=axis_registry
         )
 
     for (
@@ -613,7 +627,19 @@ def iter_export_params_for_generic_nemo_asr_model(
             if (k in input_names) or (_base_name_of(k) in input_names)
         }
 
-        # Legacy automatic batch-collapse is disabled; keep original interface.
+        # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
+        if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
+            collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+            model = BoundaryAdapter(
+                model,
+                subnet_name,
+                test_input,
+                dyn,
+                {k: set(v) for k, v in collapse_map.items()},
+            )
+            input_names = model.input_names
+            test_input = list(model.input_example())
+            dyn = model.dynamic_shapes_for_export()
 
         # Avoid name collisions between inputs and outputs (e.g., 'length').
         inter = set(input_names).intersection(set(output_names))
@@ -652,6 +678,7 @@ def export_nemo_asr_model(
     only_subnets: T.Optional[T.Collection[str]] = None,
     *,
     omegaconf: InjectedOmegaConfModule = INJECTED,
+    axis_registry=None,
     **kwargs,
 ):
     """Export a generic NeMo ASR model to NNEF format using TractNNEF."""
@@ -678,6 +705,7 @@ def export_nemo_asr_model(
         float_dtype=float_dtype,
         remove_unused_inputs=remove_unused_inputs,
         only_subnets=only_subnets,
+        axis_registry=axis_registry,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
         if dump_checked_io:

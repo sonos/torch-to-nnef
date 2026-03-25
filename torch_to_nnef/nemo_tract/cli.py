@@ -540,6 +540,11 @@ def main():
             extra_cfg={"pretrained_name": args.model_slug},
             float_dtype=float_dtype,
             dump_checked_io=args.dump_checked_io,
+            axis_registry=(
+                load_axis_symbol_registry(args.shape_config)
+                if args.shape_config is not None
+                else None
+            ),
         )
 
     if args.data_type == "mixed":
