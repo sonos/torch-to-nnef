@@ -61,6 +61,7 @@ nemo-tract = [
     # torchaudio must match torch
     "torchaudio",
     "questionary",
+    "rich",
     # 'nemo-toolkit' is too loosy in deps tree management
     #  with not well packaged compat:
     #  numba/llvmlite deps conflict with "numpy>=2.1" (2026-01-09)

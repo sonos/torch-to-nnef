@@ -14,6 +14,11 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
+from torch_to_nnef.nemo_tract.inspect import (
+    InspectFormat,
+    InspectStage,
+    run_inspection,
+)
 from torch_to_nnef.nemo_tract.model_loader import (
     load_asr_model_from_nemo_slug,
     load_asr_model_from_path,
@@ -26,6 +31,70 @@ from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
 LOGGER = logging.getLogger(__name__)
+
+
+def add_inspection_args(parser: argparse.ArgumentParser) -> None:
+    """Register inspection and dry-run arguments.
+
+    Args:
+        parser: The CLI parser to augment with inspection flags.
+
+    Notes:
+        These flags enable signature inspection at various stages without
+        affecting the actual export behavior (unless --dry-run is used).
+    """
+    parser.add_argument(
+        "--inspect-signatures",
+        action="store_true",
+        help=(
+            "Inspect per-subnetwork IO signatures without exporting. "
+            "Shows shapes, dtypes, and names at chosen stages."
+        ),
+    )
+    parser.add_argument(
+        "--inspect-stage",
+        dest="inspect_stages",
+        action="append",
+        default=None,
+        choices=[st.value for st in InspectStage] + ["all"],
+        help=(
+            "Which stage(s) to display: raw|collapsed|bound|final|all. "
+            "Repeat flag to show multiple; default is final."
+        ),
+    )
+    parser.add_argument(
+        "--inspect-format",
+        dest="inspect_format",
+        default=InspectFormat.HUMAN_RICH.value,
+        choices=[f.value for f in InspectFormat],
+        help="Inspection output format (human, human-rich, or json).",
+    )
+    parser.add_argument(
+        "--inspect-output",
+        dest="inspect_output",
+        type=Path,
+        default=None,
+        help=(
+            "Optional file path to write inspection output. If omitted, "
+            "prints to stdout."
+        ),
+    )
+    parser.add_argument(
+        "--inspect-diff",
+        action="store_true",
+        help=(
+            "When two stages are selected, print concise diffs per IO. "
+            "(human format only)"
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run model loading and inspection pipeline without writing any "
+            "export artifacts. Implies --inspect-signatures."
+        ),
+    )
 
 
 def parser_cli():
@@ -146,6 +215,9 @@ def parser_cli():
         help="Dump tested IO to export_dir/test for checking.",
     )
 
+    # Inspection / dry-run controls (Phase 0)
+    add_inspection_args(parser)
+
     # Filter which NeMo subnets to export
     parser.add_argument(
         "--only-subnet",
@@ -209,6 +281,75 @@ def setup_inference_target_from_cli_args(args) -> TractNNEF:
     return inference_target
 
 
+def _prepare_export_dir_and_logging(args, export_dir: Path) -> None:
+    """Create export directory and attach file logger when exporting.
+
+    Args:
+        args: Parsed CLI args.
+        export_dir: Target directory for export artifacts.
+    """
+    if args.inspect_signatures or args.dry_run:
+        return
+    assert not export_dir.exists(), f"export_dir '{export_dir}' must not exist"
+    export_dir.mkdir(parents=True, exist_ok=False)
+    handler = logging.FileHandler(export_dir / "nemo_tract_export.log")
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s,%(msecs)d %(levelname)-8s "
+            "[%(filename)s:%(lineno)d] %(message)s",
+            "%Y-%m-%d:%H:%M:%S",
+        )
+    )
+    logging.getLogger().addHandler(handler)
+
+
+def _maybe_dump_export_config(args, export_dir: Path) -> None:
+    """Write CLI configuration to export directory if exporting."""
+    if args.inspect_signatures or args.dry_run:
+        return
+    with (export_dir / "export_config.json").open("w", encoding="utf8") as fh:
+        json.dump(
+            {
+                k: str(v) if isinstance(v, Path) else v
+                for k, v in vars(args).items()
+            },
+            fh,
+            indent=2,
+        )
+
+
+def _prepare_model_dtype_and_wrappers(asr_model, args):
+    """Apply dtype conversions and wrappers based on CLI args."""
+    if args.force_sdpa_pytorch:
+        use_pytorch_sdpa(asr_model)
+    asr_model.eval()
+    if args.data_type == "float16":
+        asr_model = asr_model.half()
+        asr_model.preprocessor.to(dtype=torch.float32)
+    if args.data_type in ["float16", "mixed"] and hasattr(
+        asr_model, "preprocessor"
+    ):
+        asr_model.preprocessor = WrapPreprocessorCast(
+            asr_model.preprocessor, dtype=torch.float16
+        )
+    return asr_model
+
+
+def _normalize_inspect_stages(args):
+    """Return list of InspectStage or None based on CLI args."""
+    raw_stages = args.inspect_stages or None
+    if not raw_stages:
+        return None
+    if any(s == "all" for s in raw_stages):
+        return [
+            InspectStage.RAW,
+            InspectStage.COLLAPSED,
+            InspectStage.BOUND,
+            InspectStage.FINAL,
+        ]
+    return [InspectStage(s) for s in raw_stages]
+
+
 def main():
     init_log()
     args = parser_cli()
@@ -219,18 +360,7 @@ def main():
         log_level = logging.DEBUG
     set_lib_log_level(log_level)
     export_dir = Path(args.export_dir)
-    assert not export_dir.exists(), f"export_dir '{export_dir}' must not exist"
-    export_dir.mkdir(parents=True, exist_ok=False)
-
-    handler = logging.FileHandler(export_dir / "nemo_tract_export.log")
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s,%(msecs)d %(levelname)-8s "
-            "[%(filename)s:%(lineno)d] %(message)s",
-            "%Y-%m-%d:%H:%M:%S",
-        )
-    )
-    logging.getLogger().addHandler(handler)
+    _prepare_export_dir_and_logging(args, export_dir)
     LOGGER.info("started nemo_tract export with args: %s", args)
     # ensure that the model is loaded on CPU
     if args.model_path is not None:
@@ -238,20 +368,7 @@ def main():
     else:
         asr_model = load_asr_model_from_nemo_slug(args.model_slug)
 
-    if args.force_sdpa_pytorch:
-        use_pytorch_sdpa(asr_model)
-    asr_model.eval()
-
-    if args.data_type == "float16":
-        asr_model = asr_model.half()
-        asr_model.preprocessor.to(dtype=torch.float32)
-
-    if args.data_type in ["float16", "mixed"] and hasattr(
-        asr_model, "preprocessor"
-    ):
-        asr_model.preprocessor = WrapPreprocessorCast(
-            asr_model.preprocessor, dtype=torch.float16
-        )
+    asr_model = _prepare_model_dtype_and_wrappers(asr_model, args)
 
     if (
         isinstance(args.tract_check_io_tolerance, str)
@@ -263,15 +380,33 @@ def main():
 
     inference_target = setup_inference_target_from_cli_args(args)
 
-    with (export_dir / "export_config.json").open("w", encoding="utf8") as fh:
-        json.dump(
-            {
-                k: str(v) if isinstance(v, Path) else v
-                for k, v in vars(args).items()
-            },
-            fh,
-            indent=2,
+    _maybe_dump_export_config(args, export_dir)
+
+    # If in inspection mode (explicit or via dry-run), run the inspector.
+    if args.inspect_signatures or args.dry_run:
+        # Normalize stages to enums, handling 'all'
+        norm_stages = _normalize_inspect_stages(args)
+
+        # Normalize format
+        fmt_enum = InspectFormat(args.inspect_format)
+
+        run_inspection(
+            asr_model=asr_model,
+            inference_target=inference_target,
+            collapse_batch_dim=args.collapse_batch_dim,
+            skip_preprocessor=args.skip_preprocessor,
+            split_joint_decoder=args.split_joint_decoder,
+            float_dtype=(
+                torch.float16 if args.data_type == "float16" else torch.float32
+            ),
+            only_subnets=args.only_subnets,
+            stages=norm_stages,
+            fmt=fmt_enum,
+            to_path=args.inspect_output,
+            diff=args.inspect_diff,
         )
+        if args.dry_run:
+            return
 
     def call_export(float_dtype=torch.float32):
         export_nemo_asr_model(
