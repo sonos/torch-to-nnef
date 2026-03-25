@@ -28,6 +28,7 @@ from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,
 )
+from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 
 __all__ = [
     "Stage",
@@ -40,6 +41,8 @@ __all__ = [
     "load_config",
     "save_config",
     "validate_registry_against_signatures",
+    "BoundaryAdapter",
+    "RenameOutputs",
 ]
 
 

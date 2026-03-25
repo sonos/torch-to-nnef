@@ -68,6 +68,17 @@ plan = plan_from_registry(cfg)
 wrapped = prov.apply(asr, plan)  # {"encoder": nn.Module, ...}
 ```
 
+Pretty printing with Rich
+
+```python
+from torch_to_nnef.remodeler.rich_render import print_signatures_rich
+from torch_to_nnef.remodeler import Stage as RemodelStage
+import rich
+
+signatures = prov.discover_signatures(asr, RemodelStage.FINAL)
+print_signatures_rich(signatures, diff=True, rich=rich, model_label="MyNeMo")
+```
+
 Export a wrapped subnet
 
 ```python

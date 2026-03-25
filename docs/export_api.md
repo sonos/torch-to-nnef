@@ -68,7 +68,10 @@ from torch_to_nnef.remodeler import (
   save_config,
   validate_registry_against_signatures,
 )
+from torch_to_nnef.remodeler.serialize import signatures_to_json_text
+from torch_to_nnef.remodeler.rich_render import print_signatures_rich
 ```
 
 Providers implement discovery/apply (e.g., `NemoProvider`). The NeMo CLI wires
-this when `--shape-config` is provided.
+this when `--shape-config` is provided. For pretty inspection in terminals,
+`print_signatures_rich` renders grouped IO using the `rich` library.

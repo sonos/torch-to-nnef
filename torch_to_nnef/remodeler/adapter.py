@@ -24,6 +24,8 @@ class BoundaryAdapter(torch.nn.Module):
         binds_by_input: dict[str, str] | None = None,
         renamed_map: dict[str, list[str]] | None = None,
         outputs_keep: list[str] | None = None,
+        *,
+        apply_symbol_renames: bool = True,
     ) -> None:
         super().__init__()
         self.module = module
@@ -35,6 +37,7 @@ class BoundaryAdapter(torch.nn.Module):
         self._orig_input_example = list(input_example or [])
         self._dyn_axes = dict(dynamic_axes or {})
         self._outputs_keep = list(outputs_keep or [])
+        self._apply_syms = bool(apply_symbol_renames)
         (
             initial_ext_names,
             initial_ext_map,
@@ -193,6 +196,21 @@ class BoundaryAdapter(torch.nn.Module):
                 remap[ax - shift] = axes[ax]
             if remap:
                 ext_dyn[ext] = remap
+
+        # Optionally apply symbol renames (alias sources -> target)
+        if self._apply_syms and getattr(self, "_rename_map", None):
+            inv: dict[str, str] = {}
+            for tgt, srcs in (self._rename_map or {}).items():
+                for s in srcs or []:
+                    inv[str(s).upper()] = str(tgt).upper()
+            renamed: dict[str, dict[int, str]] = {}
+            for name, axes in (ext_dyn or {}).items():
+                mapped: dict[int, str] = {}
+                for i, s in (axes or {}).items():
+                    su = str(s).upper()
+                    mapped[i] = inv.get(su, str(s))
+                renamed[name] = mapped
+            ext_dyn = renamed
         return ext_dyn
 
     def _rebuild_internal_args(self, args) -> list:

@@ -630,20 +630,7 @@ def build_preprocessor_export_params(
             input_names = model.input_names
             test_input = list(model.input_example())
             dyn = model.dynamic_shapes_for_export()
-            # Apply symbol renames for Tract-facing dynamic axes
-            if rename_map:
-                renamed_dyn: dict[str, dict[int, str]] = {}
-                inv: dict[str, str] = {}
-                for tgt, srcs in rename_map.items():
-                    for s in srcs:
-                        inv[s.upper()] = tgt.upper()
-                for name, axes in (dyn or {}).items():
-                    mapped: dict[int, str] = {}
-                    for i, s in (axes or {}).items():
-                        su = str(s).upper()
-                        mapped[i] = inv.get(su, str(s))
-                    renamed_dyn[name] = mapped
-                dyn = renamed_dyn
+            # Symbol renames are now applied by the BoundaryAdapter
 
         # Augment custom extensions and consolidate with renames
         custom_ext = set(custom_extensions)
@@ -760,20 +747,7 @@ def iter_export_params_for_generic_nemo_asr_model(
             input_names = model.input_names
             test_input = list(model.input_example())
             dyn = model.dynamic_shapes_for_export()
-            # Apply symbol renames for Tract-facing dynamic axes
-            if rename_map:
-                renamed_dyn: dict[str, dict[int, str]] = {}
-                inv: dict[str, str] = {}
-                for tgt, srcs in rename_map.items():
-                    for s in srcs:
-                        inv[s.upper()] = tgt.upper()
-                for name, axes in (dyn or {}).items():
-                    mapped: dict[int, str] = {}
-                    for i, s in (axes or {}).items():
-                        su = str(s).upper()
-                        mapped[i] = inv.get(su, str(s))
-                    renamed_dyn[name] = mapped
-                dyn = renamed_dyn
+            # Symbol renames are now applied by the BoundaryAdapter
 
         # Avoid name collisions between inputs and outputs (e.g., 'length').
         inter = set(input_names).intersection(set(output_names))

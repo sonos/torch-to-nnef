@@ -22,6 +22,7 @@ from torch_to_nnef.remodeler.inspect_utils import (
     render_diffs_plain,
     render_groups_plain,
 )
+from torch_to_nnef.remodeler.rich_render import print_signatures_rich
 from torch_to_nnef.remodeler.serialize import write_signatures_json
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
@@ -236,84 +237,7 @@ def _print_json(
     write_signatures_json(sigs, to_path=to_path, model_label=model_label)
 
 
-def _rich_make_tables(rich, rep: SubnetSignature):
-    """Build Rich tables for inputs/outputs and return with counts.
-
-    Returns:
-        has_notes, tin, tout, in_count, out_count
-    """
-    table_cls = rich.table.Table
-    has_notes = any(bool(i.notes) for i in rep.inputs)
-    tin = table_cls(show_header=True, header_style="bold", pad_edge=False)
-    tin.add_column("Input")
-    tin.add_column("Shape")
-    tin.add_column("Dtype", style="dim")
-    if has_notes:
-        tin.add_column("Notes", style="yellow")
-    in_count = 0
-    for i in rep.inputs:
-        shp = ", ".join(str(d) for d in i.shape) if i.shape else ""
-        row = [i.name, f"[{shp}]" if shp else "", i.dtype or ""]
-        if has_notes:
-            row.append(" ".join(i.notes) if i.notes else "")
-        tin.add_row(*row)
-        in_count += 1
-    tout = table_cls(show_header=True, header_style="bold", pad_edge=False)
-    tout.add_column("Output")
-    out_count = 0
-    for o in rep.outputs:
-        tout.add_row(o.name)
-        out_count += 1
-    return has_notes, tin, tout, in_count, out_count
-
-
-def _rich_balance_tables(
-    tin, tout, in_count: int, out_count: int, has_notes: bool
-):
-    if in_count > out_count:
-        for _ in range(in_count - out_count):
-            tout.add_row("")
-    elif out_count > in_count:
-        pad_cols = 3 + (1 if has_notes else 0)
-        empty_row = [""] * pad_cols
-        for _ in range(out_count - in_count):
-            tin.add_row(*empty_row)
-
-
-def _rich_print_diffs(rich, console, groups):
-    text_cls = rich.text.Text
-    table_cls = rich.table.Table
-    for gi in range(len(groups) - 1):
-        stages_a, a = groups[gi]
-        stages_b, b = groups[gi + 1]
-        left = ",".join(s.value for s in stages_a)
-        right = ",".join(s.value for s in stages_b)
-        console.print(text_cls(f"Diff: {left} → {right}", style="bold yellow"))
-        a_map = {i.name: i for i in a.inputs}
-        b_map = {i.name: i for i in b.inputs}
-        all_names = sorted(set(a_map.keys()) | set(b_map.keys()))
-        td = table_cls(show_header=True, header_style="bold")
-        td.add_column("Input")
-        td.add_column(",".join(s.value for s in stages_a))
-        td.add_column("")
-        td.add_column(",".join(s.value for s in stages_b))
-        for nm in all_names:
-            ai, bi = a_map.get(nm), b_map.get(nm)
-            if ai and bi:
-                changed = (
-                    ai.shape != bi.shape
-                    or ai.dtype != bi.dtype
-                    or ai.notes != bi.notes
-                )
-                if changed:
-                    td.add_row(
-                        nm, str(ai.shape or []), "→", str(bi.shape or [])
-                    )
-            elif ai and not bi:
-                td.add_row(nm, "present", "→", "removed")
-            elif bi and not ai:
-                td.add_row(nm, "absent", "→", "present")
-        console.print(td)
+    # end loop
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="rich")
@@ -325,49 +249,10 @@ def _print_human_rich(
     rich=INJECTED,
     model_label: T.Optional[str] = None,
 ) -> None:
-    """Render signatures using Rich tables/colors (requires extra)."""
-    if to_path is not None:
-        _print_human(sigs, to_path=to_path, diff=diff)
-        return
-    console_cls = rich.console.Console
-    columns_cls = rich.columns.Columns
-    text_cls = rich.text.Text
-
-    console = console_cls()
-    grouped = group_by_subnet(sigs)
-    first_key = next(iter(grouped.keys()), None)
-    for subnet_name, entries in grouped.items():
-        # Print model header right before the first subnet header
-        if model_label is not None and subnet_name == first_key:
-            console.print(text_cls(f"Model: {model_label}", style="bold green"))
-        entries.sort(key=lambda e: e.stage.order())
-        groups = group_consecutive(entries)
-
-        console.print(text_cls(f"Subnet: {subnet_name}", style="bold cyan"))
-        for stages, rep in groups:
-            stages_txt = ", ".join(s.value for s in stages)
-            console.print(
-                text_cls(f"Stages: {stages_txt}", style="bold magenta")
-            )
-            has_notes, tin, tout, in_count, out_count = _rich_make_tables(
-                rich, rep
-            )
-            _rich_balance_tables(tin, tout, in_count, out_count, has_notes)
-            try:
-                term_width = console.size.width  # type: ignore[attr-defined]
-            except AttributeError:
-                term_width = 80
-            if term_width >= 100:
-                cols = columns_cls(
-                    [tin, tout], equal=False, expand=False, padding=1
-                )
-                console.print(cols)
-            else:
-                console.print(tin)
-                console.print(tout)
-
-        if diff and len(groups) >= 2:
-            _rich_print_diffs(rich, console, groups)
+    """Render signatures using Rich via remodeler (requires extra)."""
+    print_signatures_rich(
+        sigs, to_path=to_path, diff=diff, rich=rich, model_label=model_label
+    )
 
 
 def run_inspection(
