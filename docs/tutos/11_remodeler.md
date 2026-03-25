@@ -3,7 +3,7 @@ search:
   boost: 2
 ---
 
-# 11. Shapes Remodeler (provider-agnostic)
+# 11. Shapes Remodeler (provider‑agnostic)
 
 This tutorial introduces the boundary remodeler: a provider-agnostic way to
 describe and apply IO-boundary transforms (collapse, bind, and symbol aliases)
@@ -25,7 +25,49 @@ Core concepts
     symbol unification
   - `outputs_keep` (optional): list of outputs to keep (template pre-fills)
 
-Generate a starter config (CLI)
+Provider‑agnostic Python workflow
+
+The remodeler API is provider‑agnostic. Any provider that can discover
+subnet signatures can participate. The typical flow is the same:
+
+1) Discover RAW signatures → dump a starter registry
+2) Edit the YAML (collapse/bind/alias/outputs_keep)
+3) Validate the edited config against discovered signatures
+4) Build a plan and apply it → wrapped subnets expose the remodeled boundary
+
+```python
+from pathlib import Path
+
+# Conceptually, `provider` can be any implementation exposing
+#   discover_signatures(model, Stage) and apply(model, plan).
+# For a concrete example, see the NeMo provider below.
+
+from torch_to_nnef.remodeler import (
+  Stage as RemodelStage,
+  dump_registry_from_signatures,
+  load_config,
+  plan_from_registry,
+  save_config,
+  validate_registry_against_signatures,
+)
+
+# 1) Discover RAW signatures (provider-specific model omitted here)
+signatures = provider.discover_signatures(model, RemodelStage.RAW)
+
+# 2) Dump a starter YAML registry (pre-fills outputs_keep)
+registry = dump_registry_from_signatures(signatures)
+save_config(Path("./shapes.yaml"), registry)
+
+# 3) Validate user-edited config against discovered signatures
+cfg = load_config(Path("./shapes.yaml"))
+validate_registry_against_signatures(signatures, cfg)
+
+# 4) Apply the plan: returns {subnet_name: wrapped_module}
+plan = plan_from_registry(cfg)
+wrapped = provider.apply(model, plan)
+```
+
+Generate a starter config (NeMo CLI example)
 
 ```bash
 t2n_export_nemo \
@@ -35,7 +77,7 @@ t2n_export_nemo \
   --model-slug nvidia/parakeet-tdt-0.6b-v3
 ```
 
-Programmatic usage (Python)
+NeMo provider (Python example)
 
 ```python
 import torch
@@ -54,7 +96,7 @@ from torch_to_nnef.remodeler import (
 )
 
 # Discover and dump a starter config
-asr = load_asr_model_from_nemo_slug("nvidia/parakeet-tdt-0.6b-v3").eval()
+asr = load_asr_model_from_nemo_slug("<your-nemo-asr-model>").eval()
 target = TractNNEF.latest()
 prov = NemoProvider(inference_target=target, split_joint_decoder=True)
 signatures = prov.discover_signatures(asr, RemodelStage.RAW)
@@ -79,7 +121,7 @@ signatures = prov.discover_signatures(asr, RemodelStage.FINAL)
 print_signatures_rich(signatures, diff=True, rich=rich, model_label="MyNeMo")
 ```
 
-Export a wrapped subnet
+Export a wrapped subnet (generic)
 
 ```python
 from torch_to_nnef.export import export_model_to_nnef
@@ -93,7 +135,7 @@ args = ie if isinstance(ie, tuple) else tuple(ie)
 export_model_to_nnef(
     model=enc,
     args=args,
-    file_path_export="./encoder.nnef.tgz",
+    file_path_export="./wrapped_subnet.nnef.tgz",
     inference_target=target,
     input_names=getattr(enc, "input_names", []),
     output_names=getattr(enc, "output_names", []),

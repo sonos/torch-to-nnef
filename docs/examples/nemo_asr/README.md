@@ -179,6 +179,8 @@ Boundary semantics
 
 Quick commands
 
+See also: the provider‑agnostic remodeler tutorial for programmatic usage and richer inspection: ../tutos/11_remodeler.md
+
 Inspect with config applied (human-rich):
 
 ```bash
@@ -201,52 +203,6 @@ t2n_export_nemo \
   --export-dir ./export_with_shapes \
   --shape-config shapes.yaml \
   --split-joint-decoder
-```
-
-### Programmatic remodeler (Python)
-
-Use the provider-agnostic remodeler API to load a shapes config, validate it
-against discovered NeMo signatures, and apply boundary transforms programmatically:
-
-```python
-from pathlib import Path
-
-import torch
-
-from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
-from torch_to_nnef.nemo_tract.provider import NemoProvider
-from torch_to_nnef.remodeler import (
-    Stage as RemodelStage,
-    load_config,
-    plan_from_registry,
-    validate_registry_against_signatures,
-)
-
-# 1) Load the NeMo model (CPU) and Tract target
-asr_model = load_asr_model_from_nemo_slug("nvidia/parakeet-tdt-0.6b-v3")
-asr_model.eval()
-inference_target = TractNNEF.latest()
-
-# 2) Build the NeMo provider (controls discovery and wrapping)
-provider = NemoProvider(
-    inference_target=inference_target,
-    skip_preprocessor=False,
-    split_joint_decoder=True,
-    float_dtype=torch.float32,
-)
-
-# 3) Discover RAW signatures and validate the config
-signatures = provider.discover_signatures(asr_model, RemodelStage.RAW)
-registry = load_config(Path("./shapes.yaml"))
-validate_registry_against_signatures(signatures, registry)
-
-# 4) Apply the remodel plan to obtain wrapped exportable subnets
-plan = plan_from_registry(registry)
-wrapped = provider.apply(asr_model, plan)  # {"encoder": nn.Module, ...}
-
-# wrapped["encoder"], wrapped["decoder"], ... present the remodeled IO boundary
-# and can be exported via torch_to_nnef.export.export_model_to_nnef if needed.
 ```
 
 ---

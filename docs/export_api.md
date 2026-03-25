@@ -52,26 +52,7 @@ export_model_to_nnef(
       show_root_heading: true
       show_source: false
 
-## Remodeler API (overview)
+## Remodeler
 
-For boundary-only transforms, the remodeler provides a small, typed API and a
-strict nested YAML/JSON config.
-
-Key entry points (see tutorial for end-to-end examples):
-
-```python
-from torch_to_nnef.remodeler import (
-  Stage as RemodelStage,
-  dump_registry_from_signatures,
-  load_config,
-  plan_from_registry,
-  save_config,
-  validate_registry_against_signatures,
-)
-from torch_to_nnef.remodeler.serialize import signatures_to_json_text
-from torch_to_nnef.remodeler.rich_render import print_signatures_rich
-```
-
-Providers implement discovery/apply (e.g., `NemoProvider`). The NeMo CLI wires
-this when `--shape-config` is provided. For pretty inspection in terminals,
-`print_signatures_rich` renders grouped IO using the `rich` library.
+For boundary‑only transforms (collapse, bind, alias, outputs_keep), see the
+dedicated tutorial: [Provider‑agnostic remodeler](./tutos/11_remodeler.md).
