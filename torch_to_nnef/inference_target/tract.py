@@ -759,8 +759,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 opset_version=17,
             )
         # parametrized failure exception emission
-        # pylint: disable-next=broad-except
-        except Exception as exp:
+        except (RuntimeError, ValueError, TypeError) as exp:
             if raise_export_error:
                 raise T2NErrorOnnxExport(exp.args) from exp
             LOGGER.warning("ONNX export error: %s", exp)
@@ -772,8 +771,12 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 nnef_path=nnef_path,
             )
         # parametrized failure exception emission
-        # pylint: disable-next=broad-except
-        except Exception as exp:
+        except (
+            subprocess.CalledProcessError,
+            OSError,
+            RuntimeError,
+            ValueError,
+        ) as exp:
             if raise_export_error:
                 raise T2NErrorTractOnnxToNNEF(exp.args) from exp
             error_msg = str(exp.args[-1])
