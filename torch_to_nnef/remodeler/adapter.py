@@ -245,31 +245,63 @@ class BoundaryAdapter(torch.nn.Module):
     def _inject_bound_scalars(
         self, by_base: dict[str, object | list], ext_val_map: dict[str, object]
     ) -> None:
-        for _tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
+        for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
             src_val = ext_val_map.get(src_ext)
             if not torch.is_tensor(src_val):
                 raise T2NErrorInvalidArgument(
                     f"binding source '{src_ext}' is not a tensor"
                 )
+            # Locate the axis in the (external) dynamic mapping, considering
+            # aliasing via renamed symbols when relevant.
             axes = self._dyn_axes.get(src_ext, {}) or {}
             old_ax = None
             for i, s in axes.items():
-                if str(s).upper() == sym:
+                su = str(s).upper()
+                if su == sym:
+                    old_ax = i
+                    break
+                # Accept alias if symbol was renamed to target
+                srcs = (self._rename_map or {}).get(sym)
+                if srcs and su in srcs:
                     old_ax = i
                     break
             if old_ax is None:
                 raise T2NErrorInvalidArgument(
-                    f"binding source '{src_ext}.{sym}' axis not found"
+                    f"binding symbol '{sym}' not found on source '{src_ext}'"
                 )
+            # Adjust for collapsed dims on the source external input
+            drop = sorted(self._collapse_idx.get(src_ext, []))
+            shift = sum(1 for d in drop if d < old_ax)
+            new_ax = old_ax - shift
+            if not 0 <= new_ax < src_val.dim():
+                raise T2NErrorInvalidArgument(
+                    f"binding axis {new_ax} out of range for '{src_ext}'"
+                )
+            dim_val = src_val.size(new_ax)
+            # Build int64 scalar tensor on same device
+            if torch.is_tensor(dim_val):
+                bound_scalar = dim_val.to(
+                    dtype=torch.long, device=src_val.device
+                )
+            else:
+                bound_scalar = torch.scalar_tensor(
+                    dim_val, dtype=torch.long, device=src_val.device
+                )
+            # Reinsert collapsed dims on the target input so internal ranks
+            # remain consistent
+            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, []))
+            tval = bound_scalar
+            for ax in tgt_drop:
+                tval = tval.unsqueeze(ax)
             if idx is None:
-                by_base[base] = src_val.size(old_ax)
+                by_base[base] = tval
             else:
                 lst = by_base.get(base)
                 if not isinstance(lst, list):
                     lst = []
                 while len(lst) <= idx:
                     lst.append(None)
-                lst[idx] = src_val.size(old_ax)
+                lst[idx] = tval
                 by_base[base] = lst
 
     def forward(self, *args, **kwargs):
