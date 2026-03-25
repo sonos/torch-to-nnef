@@ -316,13 +316,12 @@ decoder:
     original_shape: [TARGETS__BATCH, TARGETS__TIME]
     # Alias 'BATCH' is accepted when listed in renamed_symbols
     collapse_dims: [BATCH]
-  states:
-    0:
-      original_shape: [2, STATES_0__BATCH, 640]
-      collapse_dims: [BATCH]
-    1:
-      original_shape: [2, STATES_1__BATCH, 640]
-      collapse_dims: [BATCH]
+  states_0:
+    original_shape: [2, STATES_0__BATCH, 640]
+    collapse_dims: [BATCH]
+  states_1:
+    original_shape: [2, STATES_1__BATCH, 640]
+    collapse_dims: [BATCH]
   # Binding can also use alias symbols:
   #   bind_scalar_to_dim_size: decoder.targets.BATCH
 
