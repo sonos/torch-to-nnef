@@ -24,7 +24,6 @@ from torch_to_nnef.nemo_tract.dynaxes import (
 )
 from torch_to_nnef.nemo_tract.wrappers import (
     BoundaryAdapter,
-    DecoderWithoutTargetLength,
     RenameOutputs,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
@@ -464,8 +463,6 @@ def iter_decoder_joint_subnets(
     """
     if split_joint_decoder:
         decoder = subnet.decoder
-        if remove_unused_inputs:
-            decoder = DecoderWithoutTargetLength(decoder)
         yield (
             "decoder",
             decoder,
@@ -484,9 +481,6 @@ def iter_decoder_joint_subnets(
         return
 
     # Not splitting: keep decoder_joint together
-    if remove_unused_inputs:
-        subnet = DecoderWithoutTargetLength(subnet)
-        input_example = subnet.filter_original_input_example(input_example)
     input_example = decoder_fix_input_example_batch_size(
         input_example, batch_size=batch_size
     )
@@ -630,6 +624,9 @@ def build_preprocessor_export_params(
                 {k: set(v) for k, v in collapse_map.items()},
                 binds_map,
                 rename_map,
+                outputs_keep=(
+                    getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
+                ).get(subnet_name, []),
             )
             input_names = model.input_names
             test_input = list(model.input_example())
@@ -757,6 +754,9 @@ def iter_export_params_for_generic_nemo_asr_model(
                 {k: set(v) for k, v in collapse_map.items()},
                 binds_map,
                 rename_map,
+                outputs_keep=(
+                    getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
+                ).get(subnet_name, []),
             )
             input_names = model.input_names
             test_input = list(model.input_example())

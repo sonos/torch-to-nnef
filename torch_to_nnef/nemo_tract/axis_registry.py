@@ -26,6 +26,8 @@ class AxisSymbolRegistry:
     # Optional per-subnet renames:
     # subnet -> { target_symbol: [source_symbols...] }
     renamed_symbols_per_subnet: T.Dict[str, T.Dict[str, T.List[str]]]
+    # Optional per-subnet output selection: keep only these outputs
+    outputs_keep_per_subnet: T.Dict[str, T.List[str]]
 
     @staticmethod
     def empty() -> "AxisSymbolRegistry":
@@ -35,6 +37,7 @@ class AxisSymbolRegistry:
             bind_to_dim={},
             input_collapse_dims={},
             renamed_symbols_per_subnet={},
+            outputs_keep_per_subnet={},
         )
 
 
@@ -230,12 +233,14 @@ def _parse_top_level(
     T.Dict[str, int],
     T.Dict[str, str],
     T.Dict[str, T.List[str]],
+    T.Dict[str, T.List[str]],
 ]:
     """Parse top-level entries into symbols/ranks/binds/input_dims."""
     symbols: T.Dict[str, AxisSymbolMap] = {}
     ranks: T.Dict[str, int] = {}
     binds: T.Dict[str, str] = {}
     input_dims: T.Dict[str, T.List[str]] = {}
+    outputs_keep: T.Dict[str, T.List[str]] = {}
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
@@ -243,6 +248,18 @@ def _parse_top_level(
             _parse_nested_subnet(
                 top_key, val, symbols, ranks, binds, input_dims
             )
+            if "outputs_keep" in val:
+                oks = val.get("outputs_keep")
+                if not isinstance(oks, (list, tuple)) or not all(
+                    isinstance(x, str) and x for x in oks
+                ):
+                    msg = (
+                        "Invalid outputs_keep for subnet '"
+                        + top_key
+                        + "' (list[str] expected)"
+                    )
+                    raise ValueError(msg)
+                outputs_keep[top_key] = [str(x) for x in oks]
         elif isinstance(val, (list, tuple)):
             _validate_and_record(top_key, val, symbols, ranks)
         else:
@@ -252,7 +269,7 @@ def _parse_top_level(
                 + "': expected list/tuple or nested mapping"
             )
             raise ValueError(msg)
-    return symbols, ranks, binds, input_dims
+    return symbols, ranks, binds, input_dims, outputs_keep
 
 
 def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
@@ -297,13 +314,23 @@ def _parse_nested_subnet(
             "Use per-input collapse_dims only."
         )
 
-    for inp_name, shape in val.items():
-        if inp_name in {
-            "renamed_symbols",
-            "collapse_batch_dim",
-            "collapse_dims",
-        }:
-            continue
+    # Require new-style nested inputs mapping under key 'inputs'.
+    input_section = val.get("inputs") if isinstance(val, dict) else None
+    if not isinstance(input_section, dict):
+        raise ValueError(
+            "Each subnet must declare an 'inputs' mapping. Flat per-input "
+            "keys at the subnet level are no longer supported."
+        )
+    # Reject unknown top-level keys besides the allowed ones
+    allowed = {"inputs", "renamed_symbols", "outputs_keep"}
+    unknown = {k for k in val if k not in allowed}
+    if unknown:
+        raise ValueError(
+            "Unknown keys in subnet config: " + ", ".join(sorted(unknown))
+        )
+    items = input_section.items()
+
+    for inp_name, shape in items:
         if isinstance(shape, dict):
             is_tuple_group = "original_shape" not in shape and all(
                 isinstance(k, str) and k.isdigit() for k in shape
@@ -351,7 +378,7 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
             "input-name -> list of dims"
         )
     # Delegate detailed parsing to helpers to keep complexity low
-    symbols, ranks, binds, input_dims = _parse_top_level(raw)
+    symbols, ranks, binds, input_dims, outputs_keep = _parse_top_level(raw)
     if not symbols:
         raise ValueError("shape-config did not define any input shapes")
     renamed_per_subnet = _build_renamed_map(raw)
@@ -362,4 +389,5 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         bind_to_dim=binds,
         input_collapse_dims=input_dims,
         renamed_symbols_per_subnet=renamed_per_subnet,
+        outputs_keep_per_subnet=outputs_keep,
     )

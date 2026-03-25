@@ -10,8 +10,6 @@ from torch_to_nnef._optional_types import (
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.constants import (
     DEFAULT_TIME,
-    INPUT_STATE_TUPLE_NAME,
-    OUT_STATE_NAME,
 )
 from torch_to_nnef.nemo_tract.dynaxes import (
     symbols_from_input_types,
@@ -235,137 +233,6 @@ class RenameOutputs(torch.nn.Module):
         return self.module(*args, **kwargs)
 
 
-class DecoderWithoutTargetLength(torch.nn.Module):
-    """Wrap decoder/joint+decoder to remove 'target_length' argument/output."""
-
-    FILTER_ARGUMENT = "target_length"
-    FILTER_OUTPUT = "prednet_lengths"
-
-    @require_extra_decorator(
-        extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
-    )
-    def __init__(
-        self,
-        decoder: torch.nn.Module,
-        *,
-        nemo_asr: InjectedNemoModule = INJECTED,
-    ):
-        super().__init__()
-        self.decoder = decoder
-        self.active_fitering = isinstance(
-            decoder,
-            (
-                nemo_asr.modules.rnnt.RNNTDecoderJoint,
-                nemo_asr.modules.rnnt.RNNTDecoder,
-            ),
-        )
-
-    def _infer_batch_size(self, args, kwargs):
-        for v in args:
-            if torch.is_tensor(v):
-                return v.shape[0], v
-        for v in kwargs.values():
-            if torch.is_tensor(v):
-                return v.shape[0], v
-
-        raise T2NErrorInvalidArgument(
-            "Cannot infer batch size: no Tensor inputs found"
-        )
-
-    @property
-    def input_names(self):
-        if self.active_fitering:
-            return [
-                name
-                for name in self.decoder.input_names
-                if name != self.FILTER_ARGUMENT
-            ]
-        return self.decoder.input_names
-
-    @property
-    def output_names(self):
-        def rename_state(name: str) -> str:
-            return OUT_STATE_NAME if name == INPUT_STATE_TUPLE_NAME else name
-
-        if self.active_fitering:
-            return [
-                rename_state(_)
-                for _ in self.decoder.output_names
-                if _ != self.FILTER_OUTPUT
-            ]
-        return self.decoder.output_names
-
-    @property
-    def index_arg_to_remove(self) -> int:
-        if self.active_fitering:
-            for idx, name in enumerate(self.decoder.input_names):
-                if name == self.FILTER_ARGUMENT:
-                    return idx
-        raise T2NErrorInvalidArgument(
-            f"Cannot find argument named {self.FILTER_ARGUMENT} to remove"
-        )
-
-    @property
-    def index_output_to_remove(self) -> int:
-        if self.active_fitering:
-            for idx, name in enumerate(self.decoder.output_names):
-                if name == self.FILTER_OUTPUT:
-                    return idx
-        raise T2NErrorInvalidArgument(
-            f"Cannot find output named {self.FILTER_OUTPUT} to remove"
-        )
-
-    def input_example(self, *args, **kwargs):
-        if not self.active_fitering:
-            return self.decoder.input_example(*args, **kwargs)
-        return self.filter_original_input_example(
-            self.decoder.input_example(*args, **kwargs)
-        )
-
-    def filter_original_input_example(
-        self, inputs: T.List[torch.Tensor]
-    ) -> T.List[torch.Tensor]:
-        filtered_inputs = []
-        for name, tensor in zip(self.decoder.input_names, inputs):
-            if name != self.FILTER_ARGUMENT:
-                filtered_inputs.append(tensor)
-        return filtered_inputs
-
-    def forward(self, *args, **kwargs):
-        if not self.active_fitering:
-            return self.decoder(*args, **kwargs)
-
-        assert self.FILTER_ARGUMENT not in kwargs
-        batch_size, ref_tensor = self._infer_batch_size(args, kwargs)
-
-        # Ensure target_length is int64 (Tract-friendly for TDim casting)
-        # Shape as (B,) for compatibility with NeMo decoders
-        target_length = torch.ones(
-            (batch_size,), device=ref_tensor.device, dtype=torch.long
-        )
-        to_rm_in_idx = self.index_arg_to_remove
-        if len(args) > to_rm_in_idx:
-            args = list(args)
-            args.insert(to_rm_in_idx, target_length)
-            args = tuple(args)
-        else:
-            kwargs = dict(kwargs)
-            kwargs[self.FILTER_ARGUMENT] = target_length
-
-        outs = self.decoder(*args, **kwargs)
-
-        to_rm_out_idx = self.index_output_to_remove
-        return tuple(
-            list(outs[:to_rm_out_idx]) + list(outs[to_rm_out_idx + 1 :])
-        )
-
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.decoder, name)
-
-
 class BoundaryAdapter(torch.nn.Module):
     """Boundary adapter applying tuple flattening and collapse at export time.
 
@@ -384,6 +251,7 @@ class BoundaryAdapter(torch.nn.Module):
         collapse_by_input: dict[str, set[str]] | None,
         binds_by_input: dict[str, str] | None = None,
         renamed_map: dict[str, list[str]] | None = None,
+        outputs_keep: list[str] | None = None,
     ) -> None:
         super().__init__()
         self.module = module
@@ -394,6 +262,7 @@ class BoundaryAdapter(torch.nn.Module):
         )
         self._orig_input_example = list(input_example or [])
         self._dyn_axes = dict(dynamic_axes or {})
+        self._outputs_keep = list(outputs_keep or [])
         (
             initial_ext_names,
             initial_ext_map,
@@ -490,7 +359,10 @@ class BoundaryAdapter(torch.nn.Module):
 
     @property
     def output_names(self) -> list[str]:
-        return list(self._orig_output_names)
+        if not self._outputs_keep:
+            return list(self._orig_output_names)
+        keep = set(self._outputs_keep)
+        return [n for n in self._orig_output_names if n in keep]
 
     def _ext_example_for(self, name: str, val) -> object:
         drop = set(self._collapse_idx.get(name, []))
@@ -644,7 +516,14 @@ class BoundaryAdapter(torch.nn.Module):
     def forward(self, *args, **kwargs):
         assert not kwargs, "BoundaryAdapter expects positional args only"
         internal_args = self._rebuild_internal_args(list(args))
-        return self.module(*internal_args)
+        outs = self.module(*internal_args)
+        if not self._outputs_keep:
+            return outs
+        if not isinstance(outs, tuple):
+            outs = (outs,)
+        keep = set(self._outputs_keep)
+        idx = [i for i, n in enumerate(self._orig_output_names) if n in keep]
+        return tuple(outs[i] for i in idx)
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")

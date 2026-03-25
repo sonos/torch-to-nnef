@@ -30,6 +30,15 @@ class InspectStage(Enum):
     BOUND = "bound"
     FINAL = "final"
 
+    def order(self) -> int:
+        """Return a stable order rank for human rendering."""
+        return {
+            InspectStage.RAW: 0,
+            InspectStage.COLLAPSED: 1,
+            InspectStage.BOUND: 2,
+            InspectStage.FINAL: 3,
+        }[self]
+
 
 @dataclass(frozen=True)
 class StageInputTransform:
@@ -41,18 +50,7 @@ class StageInputTransform:
     notes: T.List[str]
     bind_flag: str | None
 
-    def order(self) -> int:
-        """Return a stable order rank for human rendering.
-
-        Returns:
-            An integer rank where lower means earlier in display order.
-        """
-        return {
-            InspectStage.RAW: 0,
-            InspectStage.COLLAPSED: 1,
-            InspectStage.BOUND: 2,
-            InspectStage.FINAL: 3,
-        }[self]
+    # No ordering logic here; ordering is defined on InspectStage
 
 
 class InspectFormat(Enum):

@@ -460,6 +460,12 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
     nested: dict[str, dict] = {}
     for ss in snaps:
         bucket = nested.setdefault(ss.name, {})
+        inputs_map: dict = bucket.setdefault("inputs", {})
+        # Always include outputs_keep pre-filled; easier to remove than add
+        if isinstance(ss.outputs, list) and ss.outputs:
+            bucket["outputs_keep"] = [o.name for o in ss.outputs]
+        else:
+            bucket["outputs_keep"] = []
         for i in ss.inputs:
             dims = []
             for d in i.shape or []:
@@ -473,7 +479,7 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
             entry: dict = {}
             entry["original_shape"] = dims
             entry["collapse_dims"] = []
-            bucket[i.name] = entry
+            inputs_map[i.name] = entry
         batch_syms = []
         for i in ss.inputs:
             for d in i.shape or []:
@@ -497,32 +503,39 @@ def _write_config_header(fh, model_label: str, now: str, cmd: str) -> None:
         "# Edit dims/symbols as needed. Keys must match subnet/input names.\n"
     )
     fh.write("#\n")
+    fh.write(
+        "# Optional: per-subnet 'outputs_keep' filters exported outputs;\n"
+    )
+    fh.write("# if not set, all outputs declared by the subnet are kept.\n")
 
 
 def _write_config_example_block(fh) -> None:
     """Write the example config block for guidance."""
     fh.write("# Config example (structured):\n")
     fh.write("# encoder:\n")
-    fh.write("#   audio_signal:\n")
+    fh.write("#   inputs:\n")
+    fh.write("#     audio_signal:\n")
     fh.write(
-        "#     original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]\n"
+        "#       original_shape: [AUDIO_SIGNAL__BATCH, 128, "
+        "AUDIO_SIGNAL__TIME]\n"
     )
-    fh.write("#     collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
-    fh.write("#   length:\n")
-    fh.write("#     original_shape: [LENGTH__BATCH]\n")
-    fh.write("#     collapse_dims: [LENGTH__BATCH]\n")
+    fh.write("#       collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
+    fh.write("#     length:\n")
+    fh.write("#       original_shape: [LENGTH__BATCH]\n")
+    fh.write("#       collapse_dims: [LENGTH__BATCH]\n")
     fh.write(
-        "#     bind_scalar_to_dim_size: encoder.audio_signal."
+        "#       bind_scalar_to_dim_size: encoder.audio_signal."
         "AUDIO_SIGNAL__TIME\n"
     )
     fh.write("# decoder_joint:\n")
-    fh.write("#   encoder_outputs:\n")
+    fh.write("#   inputs:\n")
+    fh.write("#     encoder_outputs:\n")
     fh.write(
-        "#     original_shape: [ENCODER_OUTPUTS__BATCH, 1024, "
+        "#       original_shape: [ENCODER_OUTPUTS__BATCH, 1024, "
         "ENCODER_OUTPUTS__TIME]\n"
     )
     fh.write(
-        "#     collapse_dims: [ENCODER_OUTPUTS__BATCH, "
+        "#       collapse_dims: [ENCODER_OUTPUTS__BATCH, "
         "ENCODER_OUTPUTS__TIME]\n\n"
     )
     fh.write("# decoder:\n")
@@ -531,18 +544,21 @@ def _write_config_example_block(fh) -> None:
         "#   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, "
         "STATES_1__BATCH] }\n"
     )
-    fh.write("#   targets:\n")
-    fh.write("#     original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
+    fh.write("#   # Optionally select exported outputs (default: keep all)\n")
+    fh.write("#   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]\n")
+    fh.write("#   inputs:\n")
+    fh.write("#     targets:\n")
+    fh.write("#       original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
     fh.write(
-        "#     # Alias 'BATCH' is accepted when listed in renamed_symbols\n"
+        "#       # Alias 'BATCH' is accepted when listed in renamed_symbols\n"
     )
-    fh.write("#     collapse_dims: [BATCH]\n")
-    fh.write("#   states_0:\n")
-    fh.write("#     original_shape: [2, STATES_0__BATCH, 640]\n")
-    fh.write("#     collapse_dims: [BATCH]\n")
-    fh.write("#   states_1:\n")
-    fh.write("#     original_shape: [2, STATES_1__BATCH, 640]\n")
-    fh.write("#     collapse_dims: [BATCH]\n")
+    fh.write("#       collapse_dims: [BATCH]\n")
+    fh.write("#     states_0:\n")
+    fh.write("#       original_shape: [2, STATES_0__BATCH, 640]\n")
+    fh.write("#       collapse_dims: [BATCH]\n")
+    fh.write("#     states_1:\n")
+    fh.write("#       original_shape: [2, STATES_1__BATCH, 640]\n")
+    fh.write("#       collapse_dims: [BATCH]\n")
     fh.write("#   # Binding can also use alias symbols:\n")
     fh.write("#   #   bind_scalar_to_dim_size: decoder.targets.BATCH\n\n")
 
