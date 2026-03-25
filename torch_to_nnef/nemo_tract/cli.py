@@ -507,6 +507,22 @@ def main():
                 fh.write("[ENCODER_OUTPUTS__BATCH, 1024, ENCODER_OUTPUTS__TIME]\n")
                 fh.write("#     collapse_dims: ")
                 fh.write("[ENCODER_OUTPUTS__BATCH, ENCODER_OUTPUTS__TIME]\n\n")
+                fh.write("# decoder:\n")
+                fh.write("#   # Unify batch symbols for Tract-facing dynamic axes\n")
+                fh.write("#   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, STATES_1__BATCH] }\n")
+                fh.write("#   targets:\n")
+                fh.write("#     original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
+                fh.write("#     # Alias 'BATCH' is accepted when listed in renamed_symbols\n")
+                fh.write("#     collapse_dims: [BATCH]\n")
+                fh.write("#   states:\n")
+                fh.write("#     0:\n")
+                fh.write("#       original_shape: [2, STATES_0__BATCH, 640]\n")
+                fh.write("#       collapse_dims: [BATCH]\n")
+                fh.write("#     1:\n")
+                fh.write("#       original_shape: [2, STATES_1__BATCH, 640]\n")
+                fh.write("#       collapse_dims: [BATCH]\n")
+                fh.write("#   # Binding can also use alias symbols:\n")
+                fh.write("#   #   bind_scalar_to_dim_size: decoder.targets.BATCH\n\n")
                 yaml.dump(
                     nested,
                     fh,

@@ -604,9 +604,14 @@ def build_preprocessor_export_params(
                     renamed_dyn[name] = mapped
                 dyn = renamed_dyn
 
-        # Augment custom extensions with decoder batch equalities where needed
+        # Augment custom extensions and consolidate with renames
         custom_ext = set(custom_extensions)
         custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
+        custom_ext = set(
+            _rewrite_assertions_with_renames(
+                list(custom_ext), (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
+            )
+        )
 
         yield ExportParameters(
             name=subnet_name,
