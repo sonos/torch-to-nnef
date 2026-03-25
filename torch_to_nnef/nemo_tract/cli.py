@@ -153,14 +153,6 @@ def parser_cli():
         ),
     )
     parser.add_argument(
-        "--collapse-batch-dim",
-        action="store_true",
-        help=(
-            "Remove batch dimension from exported subnet interfaces and "
-            "hide batch-only length inputs (length, target_length, ...)."
-        ),
-    )
-    parser.add_argument(
         "--tract-reify-sdpa",
         action="store_true",
         help=(
@@ -441,7 +433,6 @@ def main():
                 float_dtype=(torch.float16 if args.data_type == "float16"
                              else torch.float32),
                 only_subnets=args.only_subnets,
-                collapse_batch_dim=False,
             )
             nested: dict[str, dict] = {}
             for ss in snaps:
@@ -517,7 +508,6 @@ def main():
         run_inspection(
             asr_model=asr_model,
             inference_target=inference_target,
-            collapse_batch_dim=args.collapse_batch_dim,
             skip_preprocessor=args.skip_preprocessor,
             split_joint_decoder=args.split_joint_decoder,
             float_dtype=(
@@ -550,7 +540,6 @@ def main():
             extra_cfg={"pretrained_name": args.model_slug},
             float_dtype=float_dtype,
             dump_checked_io=args.dump_checked_io,
-            collapse_batch_dim=args.collapse_batch_dim,
         )
 
     if args.data_type == "mixed":

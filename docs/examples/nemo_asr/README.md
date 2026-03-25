@@ -66,7 +66,6 @@ Some NeMo preprocessing components are not yet fully supported by tract. In such
 - `-tt, --tract-check-io-tolerance`: IO check strictness (`exact`, `approximate`, `loose`, or `skip`).
 - `--skip-preprocessor`: Export only encoder/decoder/joint parts.
 - `--split-joint-decoder`: Split `decoder` and `joint` into separate subnets.
-- `--collapse-batch-dim`: Hide batch-only dims from subnet interfaces where possible.
 - `--compress-registry` / `--compress-method`: Apply weight compression during export.
 
 Run `t2n_export_nemo --help` for the full list of options.

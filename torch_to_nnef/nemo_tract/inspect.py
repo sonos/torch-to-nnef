@@ -213,7 +213,6 @@ def _collect_signatures_for_stage(
     split_joint_decoder: bool,
     float_dtype: torch.dtype,
     only_subnets: T.Optional[T.Collection[str]],
-    collapse_batch_dim_default: bool,
 ) -> T.List[SubnetSignature]:
     """Collect per-subnet signatures for a specific stage.
 
@@ -225,19 +224,11 @@ def _collect_signatures_for_stage(
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
         only_subnets: Optional subset filter.
-        collapse_batch_dim_default: Collapse flag for non-RAW stages.
+        
 
     Returns:
         A list of SubnetSignature snapshots in discovery order.
     """
-    # Phase 0 mapping:
-    # - raw => no collapse
-    # - collapsed/bound/final => follow provided flag
-    if stage == InspectStage.RAW:
-        collapse = False
-    else:
-        collapse = collapse_batch_dim_default
-
     sigs: T.List[SubnetSignature] = []
     for ep in iter_export_params_for_generic_nemo_asr_model(
         asr_model,
@@ -246,7 +237,6 @@ def _collect_signatures_for_stage(
         split_joint_decoder=split_joint_decoder,
         float_dtype=float_dtype,
         remove_unused_inputs=True,
-        collapse_batch_dim=collapse,
         only_subnets=only_subnets,
     ):
         # Inputs: names, shapes, dtypes, notes
@@ -290,13 +280,6 @@ def _collect_signatures_for_stage(
             shp = _tensor_shape_with_symbols(t, sym_map)
             dt = _dtype_of(t)
             notes: T.List[str] = []
-            # Basic annotation in Phase 0:
-            # note collapse when a B/BATCH symbol existed at any axis index
-            if collapse and any(
-                (str(s).upper() == "B" or "BATCH" in str(s).upper())
-                for s in sym_map.values()
-            ):
-                notes.append("collapsed:B")
             inputs.append(
                 IODescriptor(name=name, shape=shp, dtype=dt, notes=notes)
             )
@@ -308,8 +291,6 @@ def _collect_signatures_for_stage(
         ]
 
         applied_flags: T.List[str] = []
-        if collapse:
-            applied_flags.append("--collapse-batch-dim")
 
         sigs.append(
             SubnetSignature(
@@ -546,7 +527,6 @@ def run_inspection(
     *,
     asr_model,
     inference_target,
-    collapse_batch_dim: bool,
     skip_preprocessor: bool,
     split_joint_decoder: bool,
     float_dtype: torch.dtype,
@@ -563,7 +543,6 @@ def run_inspection(
     Args:
         asr_model: NeMo model instance.
         inference_target: Export target wrapper.
-        collapse_batch_dim: Whether to drop batch in boundary shapes.
         skip_preprocessor: Whether to skip preprocessor subnet.
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
@@ -593,7 +572,6 @@ def run_inspection(
             split_joint_decoder=split_joint_decoder,
             float_dtype=float_dtype,
             only_subnets=only_subnets,
-            collapse_batch_dim_default=collapse_batch_dim,
         )
         all_sigs.extend(snaps)
 
@@ -779,20 +757,6 @@ def run_inspection(
                 sym_map = ss.symbol_axes.get(i.name, {}) or {}
                 # Establish removal set for this stage
                 remove_syms: set[str] = set()
-                # CLI collapse-batch option folds into any non-RAW stage
-                # We infer batch by symbol strings containing 'BATCH' or 'B'
-                # when caller requested collapse_batch_dim
-                # Note: handled at stage collection via notes, but we want to
-                # reflect shape too here when configured via CLI.
-                # We keep CLI behavior consistent by removing any axis whose
-                # symbol maps to BATCH.
-                # Only apply for non-RAW stages; RAW is probe-only.
-                # External flag detection via presence in ss.applied_flags.
-                if any(f == "--collapse-batch-dim" for f in ss.applied_flags):
-                    for ax, sym in (sym_map.items() if sym_map else []):
-                        s = str(sym).upper()
-                        if s == "B" or "BATCH" in s:
-                            remove_syms.add("BATCH")
                 # Configured per-input collapse symbols
                 remove_syms.update(cfg_collapse.get(qname, []))
 
@@ -916,7 +880,6 @@ def collect_signatures(
     split_joint_decoder: bool = False,
     float_dtype: torch.dtype | None = None,
     only_subnets: T.Optional[T.Collection[str]] = None,
-    collapse_batch_dim: bool = False,
 ) -> T.List[SubnetSignature]:
     """Collect per-subnet signatures without printing.
 
@@ -928,7 +891,6 @@ def collect_signatures(
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
         only_subnets: Optional subset filter.
-        collapse_batch_dim: Collapse flag for non-RAW stages.
 
     Returns:
         List of SubnetSignature snapshots.
@@ -941,5 +903,4 @@ def collect_signatures(
         split_joint_decoder=split_joint_decoder,
         float_dtype=float_dtype or torch.float32,
         only_subnets=only_subnets,
-        collapse_batch_dim_default=collapse_batch_dim,
     )
