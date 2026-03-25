@@ -168,6 +168,39 @@ Notes:
 - `bind_scalar_to_dim_size` binds a dynamic size as an `int64` scalar.
 - `outputs_keep` filters exported outputs; order follows the subnet’s original `output_names`. The template always includes it so you can easily trim.
 
+Boundary semantics
+
+- Inputs that are Python tuples in the module API are flattened at the boundary (e.g., RNNT `states` → `states_0`, `states_1`).
+- `collapse_dims` removes listed dynamic axes externally and reinserts them internally so inner modules see their expected rank.
+- `bind_scalar_to_dim_size` removes the bound input from the external IO and injects `shape(source)[axis]` as a dynamic `int64` tensor.
+- `renamed_symbols` only affects the Tract-facing dynamic axes; inspector views remain namespaced by input (e.g., `TARGETS__BATCH`).
+
+Quick commands
+
+Inspect with config applied (human-rich):
+
+```bash
+t2n_export_nemo \
+  --model-slug nvidia/parakeet-tdt-0.6b-v3 \
+  --export-dir ./noop \
+  --inspect-signatures \
+  --inspect-stage final \
+  --inspect-format human-rich \
+  --shape-config shapes.yaml \
+  --dry-run \
+  --split-joint-decoder
+```
+
+Export with config:
+
+```bash
+t2n_export_nemo \
+  --model-slug nvidia/parakeet-tdt-0.6b-v3 \
+  --export-dir ./export_with_shapes \
+  --shape-config shapes.yaml \
+  --split-joint-decoder
+```
+
 ---
 
 
@@ -380,90 +413,4 @@ nemo_tract_eval_batch_align_checker \
     -o ~/SONOS/data/2026_02_05_debug_batched_metal \
     [--force-cpu]
 ```
-### Shapes config (shapes.yaml)
-
-You can generate and apply a per-subnet shapes configuration to annotate symbols, collapse boundary dims, bind scalars to dim sizes, and (optionally) rename symbols for the Tract-facing contract.
-
-Workflow
-
-1) Dump a template (nested by subnet):
-
-```
-t2n_export_nemo \
-  --model-slug nvidia/parakeet-tdt-0.6b-v3 \
-  --export-dir ./noop \
-  --inspect-signatures \
-  --dump-shape-config shapes.yaml \
-  --dry-run \
-  --split-joint-decoder
-```
-
-2) Edit `shapes.yaml` (structured example):
-
-```
-encoder:
-  audio_signal:
-    original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
-    collapse_dims: [AUDIO_SIGNAL__BATCH]
-  length:
-    original_shape: [LENGTH__BATCH]
-    collapse_dims: [LENGTH__BATCH]
-    bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL__TIME
-
-decoder:
-  # Unify batch symbols for Tract-facing dynamic axes
-  renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, STATES_1__BATCH] }
-  targets:
-    original_shape: [TARGETS__BATCH, TARGETS__TIME]
-    # Alias 'BATCH' is accepted when listed in renamed_symbols
-    collapse_dims: [BATCH]
-  states_0:
-    original_shape: [2, STATES_0__BATCH, 640]
-    collapse_dims: [BATCH]
-  states_1:
-    original_shape: [2, STATES_1__BATCH, 640]
-    collapse_dims: [BATCH]
-  # Binding can also use alias symbols:
-  #   bind_scalar_to_dim_size: decoder.targets.BATCH
-
-joint:
-  encoder_outputs:
-    original_shape: [ENCODER_OUTPUTS__BATCH, 1024, ENCODER_OUTPUTS__TIME]
-    collapse_dims: [ENCODER_OUTPUTS__BATCH, ENCODER_OUTPUTS__TIME]
-  decoder_outputs:
-    original_shape: [DECODER_OUTPUTS__BATCH, 640, DECODER_OUTPUTS__TIME]
-    collapse_dims: [DECODER_OUTPUTS__TIME]
-```
-
-3) Inspect with config applied (human-rich):
-
-```
-t2n_export_nemo \
-  --model-slug nvidia/parakeet-tdt-0.6b-v3 \
-  --export-dir ./noop \
-  --inspect-signatures \
-  --inspect-stage final \
-  --inspect-format human-rich \
-  --shape-config shapes.yaml \
-  --dry-run \
-  --split-joint-decoder
-```
-
-4) Export with config:
-
-```
-t2n_export_nemo \
-  --model-slug nvidia/parakeet-tdt-0.6b-v3 \
-  --export-dir ./export_with_shapes \
-  --shape-config shapes.yaml \
-  --split-joint-decoder
-```
-
-Notes
-
-- Dynamic symbols are namespaced by input for clarity (e.g., `TARGETS__BATCH`).
-- At the export boundary:
-  - Tuple inputs are flattened (`states_0`, `states_1`).
-  - `collapse_dims` removes listed dynamic axes externally and reinserts them internally.
-  - `bind_scalar_to_dim_size` removes the bound input and injects `shape(source)[axis]` as an int64 tensor (dynamic).
-  - `renamed_symbols` only affects the Tract-facing dynamic axes (e.g., unify batch under `BATCH` for decoder); inspector remains namespaced.
+ 
