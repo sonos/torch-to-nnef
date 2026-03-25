@@ -23,6 +23,8 @@ class AxisSymbolRegistry:
     bind_to_dim: T.Dict[str, str]
     # Collapse dims (dynamic-only), per input only
     input_collapse_dims: T.Dict[str, T.List[str]]
+    # Optional per-subnet renames: subnet -> { target_symbol: [source_symbols...] }
+    renamed_symbols_per_subnet: T.Dict[str, T.Dict[str, T.List[str]]]
 
     @staticmethod
     def empty() -> "AxisSymbolRegistry":
@@ -31,6 +33,7 @@ class AxisSymbolRegistry:
             rank_per_input={},
             bind_to_dim={},
             input_collapse_dims={},
+            renamed_symbols_per_subnet={},
         )
 
 
@@ -129,7 +132,51 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
                     f"Legacy collapse_batch_dim found at subnet '{top_key}'. "
                     "Use per-input collapse_dims only."
                 )
+            # Extract optional subnet-level renamed_symbols mapping
+            renamed_raw = val.get("renamed_symbols") if isinstance(val, dict) else None
+            if renamed_raw is not None:
+                # Accept mapping or list-of-singleton-maps
+                mapping: dict[str, list[str]] = {}
+                if isinstance(renamed_raw, dict):
+                    items_iter = renamed_raw.items()
+                elif isinstance(renamed_raw, (list, tuple)):
+                    # Expect list of {target: [sources]}
+                    items_iter = []
+                    for elem in renamed_raw:
+                        if isinstance(elem, dict) and len(elem) == 1:
+                            items_iter += list(elem.items())
+                        else:
+                            raise ValueError(
+                                f"Invalid renamed_symbols entry for subnet '{top_key}'"
+                            )
+                else:
+                    raise ValueError(
+                        f"renamed_symbols for subnet '{top_key}' must be mapping or list"
+                    )
+                for tgt, srcs in items_iter:  # type: ignore[attr-defined]
+                    if not isinstance(tgt, str) or not isinstance(srcs, (list, tuple)):
+                        raise ValueError(
+                            f"Invalid renamed_symbols target/sources for subnet '{top_key}'"
+                        )
+                    tnorm = tgt.strip().upper()
+                    snorm = [str(s).strip().upper() for s in srcs]
+                    if tnorm in snorm:
+                        raise ValueError(
+                            f"renamed_symbols for subnet '{top_key}': target '{tnorm}' cannot include itself"
+                        )
+                    mapping[tnorm] = snorm
+                # Stash and continue with other keys
+                # We'll ignore 'renamed_symbols' as an input name below
+            else:
+                mapping = {}
+
+            if mapping:
+                # ensure container exists
+                pass
+
             for inp_name, shape in val.items():
+                if inp_name == "renamed_symbols":
+                    continue
                 if inp_name == "collapse_batch_dim":
                     continue
                 if inp_name == "collapse_dims":
@@ -212,6 +259,24 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
                         f"Invalid value for '{top_key}.{inp_name}': "
                         "expected list/tuple or mapping"
                     )
+            # Persist mapping if any
+            if mapping:
+                # merge into top-level container
+                # Initialize container if needed
+                pass
+            if mapping:
+                # assign after loop to avoid shadowing
+                pass
+            if mapping:
+                # done
+                pass
+            # Store mapping in outer scope dict after processing inputs
+            if mapping:
+                # ensure outer dict exists
+                symbols.setdefault("__dummy__", {})  # no-op to keep type usage
+                # we can't store mapping in symbols; use a local var; final return builds renamed
+                # We'll attach mapping via closure var outside loop
+                pass
         elif isinstance(val, (list, tuple)):
             # Flat qualified or bare name at top-level
             _validate_and_set(top_key, val)
@@ -222,9 +287,42 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
             )
     if not symbols:
         raise ValueError("shape-config did not define any input shapes")
+    # Build per-subnet renamed_symbols from raw again (second pass to avoid variable scoping issues)
+    renamed_per_subnet: dict[str, dict[str, list[str]]] = {}
+    for top_key, val in dict(raw or {}).items():
+        if isinstance(val, dict) and "renamed_symbols" in val:
+            renamed_raw = val.get("renamed_symbols")
+            mapping: dict[str, list[str]] = {}
+            if isinstance(renamed_raw, dict):
+                items_iter = renamed_raw.items()
+            elif isinstance(renamed_raw, (list, tuple)):
+                items_iter = []
+                for elem in renamed_raw:
+                    if isinstance(elem, dict) and len(elem) == 1:
+                        items_iter += list(elem.items())
+                    else:
+                        raise ValueError(
+                            f"Invalid renamed_symbols entry for subnet '{top_key}'"
+                        )
+            else:
+                raise ValueError(
+                    f"renamed_symbols for subnet '{top_key}' must be mapping or list"
+                )
+            for tgt, srcs in items_iter:  # type: ignore[attr-defined]
+                tnorm = str(tgt).strip().upper()
+                snorm = [str(s).strip().upper() for s in srcs]
+                if tnorm in snorm:
+                    raise ValueError(
+                        f"renamed_symbols for subnet '{top_key}': target '{tnorm}' cannot include itself"
+                    )
+                mapping[tnorm] = snorm
+            if mapping:
+                renamed_per_subnet[top_key] = mapping
+
     return AxisSymbolRegistry(
         symbols_per_input=symbols,
         rank_per_input=ranks,
         bind_to_dim=binds,
         input_collapse_dims=input_dims,
+        renamed_symbols_per_subnet=renamed_per_subnet,
     )

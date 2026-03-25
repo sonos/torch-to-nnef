@@ -38,6 +38,39 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _batch_equal_assertions_for_subnet(
+    subnet_name: str, dyn: dict[str, dict[int, str]] | None
+) -> set[str]:
+    """Emit tract_assert equality constraints among batch-like symbols when needed.
+
+    - For decoder-like subnets, batch dims across inputs must be equal; add
+      equality assertions to help Tract unify distinct symbols at typecheck.
+    - For other subnets, we stay hands-off to preserve independence unless the
+      model semantics require otherwise in the future.
+    """
+    if not dyn:
+        return set()
+    needs_tie = subnet_name in {"decoder", "decoder_joint"}
+    if not needs_tie:
+        return set()
+    # Collect batch-like symbols across inputs
+    batch_syms: list[str] = []
+    for axes in dyn.values():
+        for s in (axes or {}).values():
+            su = str(s).upper()
+            if su == "B" or "BATCH" in su:
+                batch_syms.append(str(s))
+    uniq = []
+    for s in batch_syms:
+        if s not in uniq:
+            uniq.append(s)
+    if len(uniq) <= 1:
+        return set()
+    ref = uniq[0]
+    # Use single '=' for compatibility with tract assertion parser
+    return {f"tract_assert {s} = {ref}" for s in uniq[1:]}
+
+
 def _patch_encoder_output_types(
     cls, *, from_key: str = "encoded_lengths", to_key: str = "length"
 ):
@@ -542,16 +575,38 @@ def build_preprocessor_export_params(
         # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
         if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
             collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+            binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
+            rename_map = (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
             model = BoundaryAdapter(
                 model,
                 subnet_name,
                 test_input,
                 dyn,
                 {k: set(v) for k, v in collapse_map.items()},
+                binds_map,
+                rename_map,
             )
             input_names = model.input_names
             test_input = list(model.input_example())
             dyn = model.dynamic_shapes_for_export()
+            # Apply symbol renames for Tract-facing dynamic axes
+            if rename_map:
+                renamed_dyn: dict[str, dict[int, str]] = {}
+                inv: dict[str, str] = {}
+                for tgt, srcs in rename_map.items():
+                    for s in srcs:
+                        inv[s.upper()] = tgt.upper()
+                for name, axes in (dyn or {}).items():
+                    mapped: dict[int, str] = {}
+                    for i, s in (axes or {}).items():
+                        su = str(s).upper()
+                        mapped[i] = inv.get(su, str(s))
+                    renamed_dyn[name] = mapped
+                dyn = renamed_dyn
+
+        # Augment custom extensions with decoder batch equalities where needed
+        custom_ext = set(custom_extensions)
+        custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
 
         yield ExportParameters(
             name=subnet_name,
@@ -560,7 +615,7 @@ def build_preprocessor_export_params(
             inference_target=inference_target.with_dynamic_axes(dyn),
             input_names=input_names,
             output_names=output_names,
-            custom_extensions=list(custom_extensions),
+            custom_extensions=list(custom_ext),
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),
@@ -626,20 +681,39 @@ def iter_export_params_for_generic_nemo_asr_model(
             for k, v in dynamic_axes.items()
             if (k in input_names) or (_base_name_of(k) in input_names)
         }
+        # Keep namespaced dims; we'll add targeted equality assertions below
 
         # Config-driven boundary adapter: apply per-input batch collapse and tuple flattening
         if axis_registry is not None and getattr(axis_registry, "input_collapse_dims", None):
             collapse_map = getattr(axis_registry, "input_collapse_dims", {}) or {}
+            binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
+            rename_map = (getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}).get(subnet_name, {})
             model = BoundaryAdapter(
                 model,
                 subnet_name,
                 test_input,
                 dyn,
                 {k: set(v) for k, v in collapse_map.items()},
+                binds_map,
+                rename_map,
             )
             input_names = model.input_names
             test_input = list(model.input_example())
             dyn = model.dynamic_shapes_for_export()
+            # Apply symbol renames for Tract-facing dynamic axes
+            if rename_map:
+                renamed_dyn: dict[str, dict[int, str]] = {}
+                inv: dict[str, str] = {}
+                for tgt, srcs in rename_map.items():
+                    for s in srcs:
+                        inv[s.upper()] = tgt.upper()
+                for name, axes in (dyn or {}).items():
+                    mapped: dict[int, str] = {}
+                    for i, s in (axes or {}).items():
+                        su = str(s).upper()
+                        mapped[i] = inv.get(su, str(s))
+                    renamed_dyn[name] = mapped
+                dyn = renamed_dyn
 
         # Avoid name collisions between inputs and outputs (e.g., 'length').
         inter = set(input_names).intersection(set(output_names))
@@ -648,6 +722,10 @@ def iter_export_params_for_generic_nemo_asr_model(
             model = RenameOutputs(model, rename_map)
             output_names = [rename_map.get(n, n) for n in output_names]
 
+        # Augment custom extensions with decoder batch equalities where needed
+        custom_ext = set(custom_extensions)
+        custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
+
         yield ExportParameters(
             name=subnet_name,
             model=model,
@@ -655,7 +733,7 @@ def iter_export_params_for_generic_nemo_asr_model(
             inference_target=inference_target.with_dynamic_axes(dyn),
             input_names=input_names,
             output_names=output_names,
-            custom_extensions=list(custom_extensions),
+            custom_extensions=list(custom_ext),
             specific_tract_properties=build_custom_subnet_tract_properties(
                 subnet_name, model
             ),

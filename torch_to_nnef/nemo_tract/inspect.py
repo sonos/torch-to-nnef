@@ -262,11 +262,6 @@ def _collect_signatures_for_stage(
                     shp = _tensor_shape_with_symbols(tk, sym_map)
                     dt = _dtype_of(tk)
                     notes: T.List[str] = []
-                    if collapse and any(
-                        (str(s).upper() == "B" or "BATCH" in str(s).upper())
-                        for s in sym_map.values()
-                    ):
-                        notes.append("collapsed:B")
                     inputs.append(
                         IODescriptor(
                             name=ename, shape=shp, dtype=dt, notes=notes

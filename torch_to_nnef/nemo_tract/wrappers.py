@@ -393,6 +393,7 @@ class BoundaryAdapter(torch.nn.Module):
         dynamic_axes: dict[str, dict[int, str]] | None,
         collapse_by_input: dict[str, set[str]] | None,
         binds_by_input: dict[str, str] | None = None,
+        renamed_map: dict[str, list[str]] | None = None,
     ) -> None:
         super().__init__()
         self.module = module
@@ -416,14 +417,29 @@ class BoundaryAdapter(torch.nn.Module):
 
         # Resolve collapse rules per external name (qualified keys)
         self._collapse_idx: dict[str, list[int]] = {}
+        self._rename_map = {
+            str(t).upper(): [str(s).upper() for s in (srcs or [])]
+            for t, srcs in (renamed_map or {}).items()
+        }
         for ext in initial_ext_names:
             q = f"{subnet_name}.{ext}"
             want = set((collapse_by_input or {}).get(q, set()))
             if not want:
                 continue
             dyn = self._dyn_axes.get(ext, {})
-            # Only support batch-like symbols in v1
-            drop = [i for i, s in dyn.items() if "BATCH" in str(s).upper() and any("BATCH" in w for w in want)]
+            # Support collapsing any requested dynamic symbols present on this input
+            drop = []
+            for i, s in dyn.items():
+                su = str(s).upper()
+                if su in want:
+                    drop.append(i)
+                    continue
+                # Also allow alias: if wanted contains a target alias and current symbol is in its sources
+                for w in want:
+                    srcs = self._rename_map.get(w)
+                    if srcs and su in srcs:
+                        drop.append(i)
+                        break
             if drop:
                 self._collapse_idx[ext] = sorted(drop)
 
@@ -534,9 +550,17 @@ class BoundaryAdapter(torch.nn.Module):
                 )
             # Find original axis index for symbol on source, then remap after collapse
             axes = self._dyn_axes.get(src_ext, {}) or {}
-            try:
-                old_ax = next(i for i, s in axes.items() if str(s).upper() == sym)
-            except StopIteration:
+            # Resolve symbol on source: exact match or match through rename alias
+            old_ax = None
+            for i, s in axes.items():
+                if str(s).upper() == sym:
+                    old_ax = i
+                    break
+                srcs = self._rename_map.get(sym)
+                if srcs and str(s).upper() in srcs:
+                    old_ax = i
+                    break
+            if old_ax is None:
                 raise T2NErrorInvalidArgument(
                     f"binding symbol '{sym}' not found on source '{src_ext}'"
                 )
@@ -547,8 +571,14 @@ class BoundaryAdapter(torch.nn.Module):
                 raise T2NErrorInvalidArgument(
                     f"binding axis {new_ax} out of range for '{src_ext}'"
                 )
-            size = int(src_val.shape[new_ax])
-            bound_scalar = torch.tensor(size, dtype=torch.long, device=src_val.device)
+            # Keep dynamism: prefer aten::size (may return Tensor in tracing)
+            dim_val = src_val.size(new_ax)
+            if torch.is_tensor(dim_val):
+                bound_scalar = dim_val.to(dtype=torch.long, device=src_val.device)
+            else:
+                bound_scalar = torch.scalar_tensor(
+                    dim_val, dtype=torch.long, device=src_val.device
+                )
             # If the target originally had collapsed axes (e.g., BATCH for length),
             # reinsert them so the inner module receives the expected rank (e.g., [B]).
             tgt_drop = sorted(self._collapse_idx.get(tgt_ext, [])) if hasattr(self, "_collapse_idx") else []

@@ -455,6 +455,16 @@ def main():
                     entry["collapse_dims"] = []
                     # Include commented binding example in header, not here
                     bucket[i.name] = entry
+                # Suggest subnet-level renamed_symbols when multiple batch-like symbols exist
+                batch_syms = []
+                for i in ss.inputs:
+                    for d in (i.shape or []):
+                        if isinstance(d, str) and d.upper().endswith("__BATCH"):
+                            if d not in batch_syms:
+                                batch_syms.append(d)
+                if ss.name in ("decoder", "decoder_joint") and len(batch_syms) > 1:
+                    # Propose unification to BATCH
+                    bucket["renamed_symbols"] = {"BATCH": batch_syms}
             args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
             # Dump YAML with sequences in flow style (inline: [..]) and
             # mappings in block style, to keep the file compact and readable.
