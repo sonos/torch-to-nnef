@@ -392,6 +392,7 @@ class BoundaryAdapter(torch.nn.Module):
         input_example: list,
         dynamic_axes: dict[str, dict[int, str]] | None,
         collapse_by_input: dict[str, set[str]] | None,
+        binds_by_input: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
         self.module = module
@@ -402,20 +403,20 @@ class BoundaryAdapter(torch.nn.Module):
         self._dyn_axes = dict(dynamic_axes or {})
 
         # Build external names by flattening tuple inputs
-        self._ext_names: list[str] = []
-        self._ext_map: list[tuple[str, int | None]] = []  # (base, idx)
+        initial_ext_names: list[str] = []
+        initial_ext_map: list[tuple[str, int | None]] = []  # (base, idx)
         for nm, val in zip(self._orig_input_names, self._orig_input_example):
             if isinstance(val, (list, tuple)) and val:
                 for k, _ in enumerate(val):
-                    self._ext_names.append(f"{nm}_{k}")
-                    self._ext_map.append((nm, k))
+                    initial_ext_names.append(f"{nm}_{k}")
+                    initial_ext_map.append((nm, k))
             else:
-                self._ext_names.append(nm)
-                self._ext_map.append((nm, None))
+                initial_ext_names.append(nm)
+                initial_ext_map.append((nm, None))
 
         # Resolve collapse rules per external name (qualified keys)
         self._collapse_idx: dict[str, list[int]] = {}
-        for ext in self._ext_names:
+        for ext in initial_ext_names:
             q = f"{subnet_name}.{ext}"
             want = set((collapse_by_input or {}).get(q, set()))
             if not want:
@@ -425,6 +426,31 @@ class BoundaryAdapter(torch.nn.Module):
             drop = [i for i, s in dyn.items() if "BATCH" in str(s).upper() and any("BATCH" in w for w in want)]
             if drop:
                 self._collapse_idx[ext] = sorted(drop)
+
+        # Resolve bindings per external name and mark targets as removed
+        self._bind_for_ext: dict[str, tuple[str, str]] = {}
+        if binds_by_input:
+            for ext in list(initial_ext_names):
+                q = f"{subnet_name}.{ext}"
+                val = binds_by_input.get(q)
+                if not isinstance(val, str) or "." not in val:
+                    continue
+                src_q, _, sym = val.rpartition(".")
+                src_ext = src_q.split(".", 1)[1] if "." in src_q else src_q
+                self._bind_for_ext[ext] = (src_ext, str(sym).strip().upper())
+
+        # Final external names exclude bound targets
+        self._ext_names: list[str] = []
+        self._ext_map: list[tuple[str, int | None]] = []
+        self._bound_targets: dict[str, tuple[str, str, str, int | None]] = {}
+        for ext, mapping in zip(initial_ext_names, initial_ext_map):
+            if ext in self._bind_for_ext:
+                src_ext, sym = self._bind_for_ext[ext]
+                base, idx = mapping
+                self._bound_targets[ext] = (src_ext, sym, base, idx)
+                continue
+            self._ext_names.append(ext)
+            self._ext_map.append(mapping)
 
     @property
     def input_names(self) -> list[str]:
@@ -479,7 +505,8 @@ class BoundaryAdapter(torch.nn.Module):
 
     def _rebuild_internal_args(self, args) -> list:
         # Reinsert collapsed axes, and repack tuples
-        by_base: dict[str, list] = {}
+        by_base: dict[str, object | list] = {}
+        ext_val_map: dict[str, object] = {ext: val for ext, val in zip(self._ext_names, args)}
         for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
             t = val
             # Reinsert collapsed axes as size-1 dims
@@ -487,21 +514,65 @@ class BoundaryAdapter(torch.nn.Module):
                 if torch.is_tensor(t):
                     t = t.unsqueeze(ax)
             if idx is None:
-                by_base.setdefault(base, [None])[0:1] = [t]
+                by_base[base] = t
             else:
-                bucket = by_base.setdefault(base, [])
+                lst = by_base.get(base)
+                if not isinstance(lst, list):
+                    lst = []
                 # ensure size
-                while len(bucket) <= idx:
-                    bucket.append(None)
-                bucket[idx] = t
+                while len(lst) <= idx:
+                    lst.append(None)
+                lst[idx] = t
+                by_base[base] = lst
+
+        # Inject bound scalars for removed external inputs
+        for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
+            src_val = ext_val_map.get(src_ext)
+            if not torch.is_tensor(src_val):
+                raise T2NErrorInvalidArgument(
+                    f"binding source '{src_ext}' is not a tensor"
+                )
+            # Find original axis index for symbol on source, then remap after collapse
+            axes = self._dyn_axes.get(src_ext, {}) or {}
+            try:
+                old_ax = next(i for i, s in axes.items() if str(s).upper() == sym)
+            except StopIteration:
+                raise T2NErrorInvalidArgument(
+                    f"binding symbol '{sym}' not found on source '{src_ext}'"
+                )
+            drop = sorted(self._collapse_idx.get(src_ext, []))
+            shift = sum(1 for d in drop if d < old_ax)
+            new_ax = old_ax - shift
+            if not (0 <= new_ax < src_val.dim()):
+                raise T2NErrorInvalidArgument(
+                    f"binding axis {new_ax} out of range for '{src_ext}'"
+                )
+            size = int(src_val.shape[new_ax])
+            bound_scalar = torch.tensor(size, dtype=torch.long, device=src_val.device)
+            # If the target originally had collapsed axes (e.g., BATCH for length),
+            # reinsert them so the inner module receives the expected rank (e.g., [B]).
+            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, [])) if hasattr(self, "_collapse_idx") else []
+            tval = bound_scalar
+            for ax in tgt_drop:
+                tval = tval.unsqueeze(ax)
+            if idx is None:
+                by_base[base] = tval
+            else:
+                lst = by_base.get(base)
+                if not isinstance(lst, list):
+                    lst = []
+                while len(lst) <= idx:
+                    lst.append(None)
+                lst[idx] = tval
+                by_base[base] = lst
         # Order by original input_names; replace lists with tuples where needed
         ordered: list = []
         for nm in self._orig_input_names:
             val = by_base.get(nm)
-            if isinstance(val, list) and any(v is not None for v in val):
+            if isinstance(val, list):
                 ordered.append(tuple(val))
             else:
-                ordered.append(val[0] if isinstance(val, list) else val)
+                ordered.append(val)
         return ordered
 
     def forward(self, *args, **kwargs):
