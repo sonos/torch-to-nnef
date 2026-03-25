@@ -70,7 +70,8 @@ def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
     sym = axis_kind_to_symbol(axis_kind)
     up = sym.upper()
     if up == "B" or "BATCH" in up:
-        return "BATCH"
+        # Always namespace batch by input to keep interfaces consistent
+        return f"{_sanitize_name(input_name)}__BATCH"
     # Heuristic: NeMo RNN-T decoders expose recurrent states as
     #   states: [L, B, H] (or expanded to states_0/states_1)
     # Their axis-annotations may not always label the batch axis.
@@ -82,7 +83,7 @@ def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
         or in_up.startswith("STATES_")
         or in_up.startswith("INPUT_STATES_")
     ) and axis_index == 1:
-        return "BATCH"
+        return f"{_sanitize_name(input_name)}__BATCH"
     base = up if up and up not in {"?", "D", "DIM"} else f"DIM{axis_index}"
     return f"{_sanitize_name(input_name)}__{base}"
 

@@ -1,10 +1,14 @@
 import argparse
+import datetime
 import json
 import logging
 import os
+import shlex
+import sys
 from pathlib import Path
 
 import torch
+import yaml
 
 from torch_to_nnef.compress import DEFAULT_COMPRESSION_REGISTRY
 from torch_to_nnef.inference_target.tract import (
@@ -13,10 +17,15 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
 )
 from torch_to_nnef.log import init_log, set_lib_log_level
+from torch_to_nnef.nemo_tract.axis_registry import (
+    AxisSymbolRegistry,
+    load_axis_symbol_registry,
+)
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
 from torch_to_nnef.nemo_tract.inspect import (
     InspectFormat,
     InspectStage,
+    collect_signatures,
     run_inspection,
 )
 from torch_to_nnef.nemo_tract.model_loader import (
@@ -238,6 +247,25 @@ def parser_cli():
         help="Display debug information.",
     )
 
+    parser.add_argument(
+        "--shape-config",
+        type=Path,
+        default=None,
+        help=(
+            "Optional YAML/JSON mapping of input name → symbolic dims\n"
+            "e.g. encoder.audio_signal: [B,128,S]"
+        ),
+    )
+    parser.add_argument(
+        "--dump-shape-config",
+        type=Path,
+        default=None,
+        help=(
+            "Write a template shapes YAML (nested by subnet) built from the "
+            "current model inspect (raw stage)."
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -390,6 +418,102 @@ def main():
         # Normalize format
         fmt_enum = InspectFormat(args.inspect_format)
 
+        # Load optional shape-config and pass registry to inspector
+        axis_reg: AxisSymbolRegistry | None = None
+        if args.shape_config is not None:
+            axis_reg = load_axis_symbol_registry(args.shape_config)
+
+        # Determine a human-friendly model label for inspection header
+        model_label = (
+            str(Path(args.model_path).resolve())
+            if args.model_path
+            else str(args.model_slug)
+        )
+
+        # Optional dump of a template shape-config (raw stage)
+        if args.dump_shape_config is not None:
+            snaps = collect_signatures(
+                asr_model=asr_model,
+                inference_target=inference_target,
+                stage=InspectStage.RAW,
+                skip_preprocessor=args.skip_preprocessor,
+                split_joint_decoder=args.split_joint_decoder,
+                float_dtype=(torch.float16 if args.data_type == "float16"
+                             else torch.float32),
+                only_subnets=args.only_subnets,
+                collapse_batch_dim=False,
+            )
+            nested: dict[str, dict] = {}
+            for ss in snaps:
+                bucket = nested.setdefault(ss.name, {})
+                # Subnet-level collapse policy omitted; use per-input collapse_dims
+                for i in ss.inputs:
+                    dims = []
+                    for d in (i.shape or []):
+                        if isinstance(d, int):
+                            dims.append(int(d))
+                        else:
+                            s = str(d)
+                            # Namespace unscoped batch to input-specific form
+                            if s.upper() == "BATCH":
+                                s = f"{i.name.upper()}__BATCH"
+                            dims.append(s)
+                    # Preserve key order: original_shape first, then options
+                    entry: dict = {}
+                    entry["original_shape"] = dims
+                    entry["collapse_dims"] = []
+                    # Include commented binding example in header, not here
+                    bucket[i.name] = entry
+            args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
+            # Dump YAML with sequences in flow style (inline: [..]) and
+            # mappings in block style, to keep the file compact and readable.
+            class _FlowSeqDumper(yaml.SafeDumper):
+                pass
+
+            def _repr_seq(dumper, data):
+                return dumper.represent_sequence(
+                    "tag:yaml.org,2002:seq", data, flow_style=True
+                )
+
+            _FlowSeqDumper.add_representer(list, _repr_seq)
+
+            with args.dump_shape_config.open("w", encoding="utf8") as fh:
+                # Header with timestamp, command, and example block
+                now = datetime.datetime.now().isoformat(timespec="seconds")
+                cmd = " ".join(shlex.quote(a) for a in sys.argv)
+                fh.write(
+                    f"# '{model_label}' shapes config generated on '{now}'\n"
+                )
+                fh.write("# Command:\n")
+                fh.write(f"#   {cmd}\n")
+                fh.write("# Edit dims/symbols as needed. Keys must match ")
+                fh.write("subnet/input names.\n")
+                fh.write("#\n")
+                fh.write("# Config example (structured):\n")
+                fh.write("# encoder:\n")
+                fh.write("#   audio_signal:\n")
+                fh.write("#     original_shape: ")
+                fh.write("[AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]\n")
+                fh.write("#     collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
+                fh.write("#   length:\n")
+                fh.write("#     original_shape: [LENGTH__BATCH]\n")
+                fh.write("#     collapse_dims: [LENGTH__BATCH]\n")
+                fh.write("#     bind_scalar_to_dim_size: ")
+                fh.write("encoder.audio_signal.AUDIO_SIGNAL__TIME\n")
+                fh.write("# decoder_joint:\n")
+                fh.write("#   encoder_outputs:\n")
+                fh.write("#     original_shape: ")
+                fh.write("[ENCODER_OUTPUTS__BATCH, 1024, ENCODER_OUTPUTS__TIME]\n")
+                fh.write("#     collapse_dims: ")
+                fh.write("[ENCODER_OUTPUTS__BATCH, ENCODER_OUTPUTS__TIME]\n\n")
+                yaml.dump(
+                    nested,
+                    fh,
+                    Dumper=_FlowSeqDumper,
+                    sort_keys=False,
+                    default_flow_style=None,
+                )
+
         run_inspection(
             asr_model=asr_model,
             inference_target=inference_target,
@@ -404,6 +528,8 @@ def main():
             fmt=fmt_enum,
             to_path=args.inspect_output,
             diff=args.inspect_diff,
+            axis_registry=axis_reg,
+            model_label=model_label,
         )
         if args.dry_run:
             return
