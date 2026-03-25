@@ -70,6 +70,105 @@ Some NeMo preprocessing components are not yet fully supported by tract. In such
 
 Run `t2n_export_nemo --help` for the full list of options.
 
+
+## Shape configuration (boundary remodeler)
+
+In many cases you will want to control the symbolic shapes and boundary transforms used during export (e.g., set a stable `BATCH` symbol, collapse size-1 dims, bind a scalar to a dynamic size, or keep only a subset of outputs). You can manage this via a YAML shape config file passed to the CLI.
+
+Generate a starting template aligned to your model with:
+
+```bash
+t2n_export_nemo \
+  --inspect-signatures \
+  --dump-shape-config ./shapes.yaml \
+  # ... your usual flags (model slug/path, etc.)
+```
+
+The generated `shapes.yaml` uses a nested layout per subnet:
+
+- `inputs`: mapping of input-name → settings
+- `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` aliasing of dynamic symbols
+- `outputs_keep` (always present in the template): ordered list of output names to keep (default if omitted: keep all)
+
+Per-input settings under `inputs`:
+
+- `original_shape`: list of dims (ints or strings)
+- `collapse_dims` (optional): list of symbols to collapse at the boundary
+- `bind_scalar_to_dim_size` (optional): dynamic source as `subnet.input.SYMBOL`
+
+Example (abbreviated):
+
+```yaml
+encoder:
+  inputs:
+    audio_signal:
+      original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
+      collapse_dims: [AUDIO_SIGNAL__BATCH]
+    length:
+      original_shape: [LENGTH__BATCH]
+      collapse_dims: [LENGTH__BATCH]
+      bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL__TIME
+
+decoder_joint:
+  inputs:
+    encoder_outputs:
+      original_shape: [ENCODER_OUTPUTS__BATCH, 1024, ENCODER_OUTPUTS__TIME]
+      collapse_dims: [ENCODER_OUTPUTS__BATCH, ENCODER_OUTPUTS__TIME]
+
+decoder:
+  renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, STATES_1__BATCH] }
+  outputs_keep: [LOG_PROBS, STATES_0, STATES_1]
+  inputs:
+    targets:
+      original_shape: [TARGETS__BATCH, TARGETS__TIME]
+      collapse_dims: [BATCH]
+    states_0:
+      original_shape: [2, STATES_0__BATCH, 640]
+      collapse_dims: [BATCH]
+    states_1:
+      original_shape: [2, STATES_1__BATCH, 640]
+      collapse_dims: [BATCH]
+```
+
+!!! note "Decoder: dropping prednet_lengths while keeping IO aligned"
+
+    When you exclude `prednet_lengths` from decoder outputs via `outputs_keep`,
+    also bind the `target_length` input to the TIME dimension of `targets` so it becomes
+    an internal scalar (and is no longer exposed as an external input):
+
+    ```yaml
+    decoder:
+      outputs_keep: [outputs, states_out]
+      inputs:
+        targets:
+          original_shape: [TARGETS__BATCH, TARGETS__TIME]
+          collapse_dims: []
+        target_length:
+          original_shape: [TARGET_LENGTH__BATCH]
+          collapse_dims: []
+          bind_scalar_to_dim_size: decoder.targets.TARGETS__TIME
+        states_0:
+          original_shape: [2, STATES_0__BATCH, 640]
+          collapse_dims: [BATCH]
+        states_1:
+          original_shape: [2, STATES_1__BATCH, 640]
+          collapse_dims: [BATCH]
+    ```
+
+    This keeps the external input/output quantities consistent and makes the
+    boundary contract explicit: `target_length = size(targets, TIME)`.
+
+Notes:
+
+- Symbols are normalized to uppercase; `b`/`batch` become `BATCH`.
+- `renamed_symbols` targets cannot include themselves in sources.
+- `collapse_dims` requires the symbol to be dynamic on that input at the selected stage.
+- `bind_scalar_to_dim_size` binds a dynamic size as an `int64` scalar.
+- `outputs_keep` filters exported outputs; order follows the subnet’s original `output_names`. The template always includes it so you can easily trim.
+
+---
+
+
 ## Audio preprocessing requirements
 
 All supported NeMo ASR models expect audio input with the following characteristics:
