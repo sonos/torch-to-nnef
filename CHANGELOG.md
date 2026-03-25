@@ -13,6 +13,7 @@
 - symbol generation: batch dims are now namespaced as `<INPUT>__BATCH` (e.g., `ENCODER_OUTPUTS__BATCH`) for clarity and consistency across inputs.
 - inspector: stricter config validation (qualified/bare name resolution, rank mismatches with discovered shapes); symbol overlay/substitution; clearer errors and warnings.
 - export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions are consolidated to alias targets to keep headers consistent.
+- remodeler: moved generic `BoundaryAdapter` and `RenameOutputs` to `torch_to_nnef.remodeler.adapter` (previously under `nemo_tract.wrappers`), and updated usages/tests accordingly.
 
 ### Removed
 - legacy `--collapse-batch-dim` flag and its wrapper; use `shapes.yaml` (`collapse_dims`) instead.

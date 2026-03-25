@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import torch
-import yaml
 
 from torch_to_nnef.compress import DEFAULT_COMPRESSION_REGISTRY
 from torch_to_nnef.inference_target.tract import (
@@ -25,16 +24,24 @@ from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
 from torch_to_nnef.nemo_tract.inspect import (
     InspectFormat,
     InspectStage,
-    collect_signatures,
     run_inspection,
 )
 from torch_to_nnef.nemo_tract.model_loader import (
     load_asr_model_from_nemo_slug,
     load_asr_model_from_path,
 )
+from torch_to_nnef.nemo_tract.provider import NemoProvider
 from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
+)
+from torch_to_nnef.remodeler import (
+    Stage as RemodelStage,
+)
+from torch_to_nnef.remodeler import (
+    dump_registry_from_signatures,
+    save_config,
+    validate_registry_against_signatures,
 )
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
@@ -416,10 +423,9 @@ def _dump_shape_config_template(
 
     This encapsulates the long YAML dump logic to keep `main()` small.
     """
-    snaps = collect_signatures(
-        asr_model=asr_model,
+    # Use provider-agnostic remodeler discovery (NeMo provider here)
+    provider = NemoProvider(
         inference_target=inference_target,
-        stage=InspectStage.RAW,
         skip_preprocessor=args.skip_preprocessor,
         split_joint_decoder=args.split_joint_decoder,
         float_dtype=(
@@ -427,32 +433,17 @@ def _dump_shape_config_template(
         ),
         only_subnets=args.only_subnets,
     )
-    nested = _build_nested_template_dict(snaps, args)
+    snaps = provider.discover_signatures(asr_model, RemodelStage.RAW)
+    registry = dump_registry_from_signatures(snaps)
 
     args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
-
-    class _FlowSeqDumper(yaml.SafeDumper):
-        pass
-
-    def _repr_seq(dumper, data):
-        return dumper.represent_sequence(
-            "tag:yaml.org,2002:seq", data, flow_style=True
-        )
-
-    _FlowSeqDumper.add_representer(list, _repr_seq)
-
     with args.dump_shape_config.open("w", encoding="utf8") as fh:
         now = datetime.datetime.now().isoformat(timespec="seconds")
         cmd = " ".join(shlex.quote(a) for a in sys.argv)
         _write_config_header(fh, model_label, now, cmd)
         _write_config_example_block(fh)
-        yaml.dump(
-            nested,
-            fh,
-            Dumper=_FlowSeqDumper,
-            sort_keys=False,
-            default_flow_style=None,
-        )
+        # Dump remodeler registry to YAML content after header
+        save_config(args.dump_shape_config, registry, stream=fh)
 
 
 def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
@@ -581,6 +572,20 @@ def _run_inspection_flow(
             inference_target=inference_target,
             model_label=model_label,
         )
+    # Validate shape-config early to catch mistakes before printing results
+    if axis_reg is not None:
+        provider = NemoProvider(
+            inference_target=inference_target,
+            skip_preprocessor=args.skip_preprocessor,
+            split_joint_decoder=args.split_joint_decoder,
+            float_dtype=(
+                torch.float16 if args.data_type == "float16" else torch.float32
+            ),
+            only_subnets=args.only_subnets,
+        )
+        raw_sigs = provider.discover_signatures(asr_model, RemodelStage.RAW)
+        validate_registry_against_signatures(raw_sigs, axis_reg)
+
     run_inspection(
         asr_model=asr_model,
         inference_target=inference_target,

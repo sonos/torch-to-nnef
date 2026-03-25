@@ -1,4 +1,3 @@
-import json
 import logging
 import typing as T
 from dataclasses import dataclass
@@ -10,34 +9,32 @@ import torch
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )
+from torch_to_nnef.remodeler import (
+    IODescriptor,
+    SubnetSignature,
+)
+from torch_to_nnef.remodeler import (
+    Stage as InspectStage,
+)
+from torch_to_nnef.remodeler.inspect_utils import (
+    group_by_subnet,
+    group_consecutive,
+    render_diffs_plain,
+    render_groups_plain,
+)
+from torch_to_nnef.remodeler.serialize import write_signatures_json
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
 LOGGER = logging.getLogger(__name__)
 
 
-class InspectStage(Enum):
-    """Stages for signature inspection.
-
-    Attributes:
-        RAW: Model IO before any collapsing/binding/removal.
-        COLLAPSED: After collapse requests are applied to IO boundaries.
-        BOUND: After binding or removals (e.g., length from shape()).
-        FINAL: Final export-visible IO after adapters and normalization.
-    """
-
-    RAW = "raw"
-    COLLAPSED = "collapsed"
-    BOUND = "bound"
-    FINAL = "final"
-
-    def order(self) -> int:
-        """Return a stable order rank for human rendering."""
-        return {
-            InspectStage.RAW: 0,
-            InspectStage.COLLAPSED: 1,
-            InspectStage.BOUND: 2,
-            InspectStage.FINAL: 3,
-        }[self]
+def _stage_order(stage: InspectStage) -> int:
+    return {
+        InspectStage.RAW: 0,
+        InspectStage.COLLAPSED: 1,
+        InspectStage.BOUND: 2,
+        InspectStage.FINAL: 3,
+    }[stage]
 
 
 @dataclass(frozen=True)
@@ -61,127 +58,11 @@ class InspectFormat(Enum):
     HUMAN_RICH = "human-rich"
 
 
-@dataclass
-class IODescriptor:
-    """Input/Output descriptor for inspection rendering.
-
-    Attributes:
-        name: Tensor name in the subnet signature.
-        shape: Symbolic or concrete shape per dimension.
-        dtype: Stringified dtype (e.g., "float32"), if known.
-        notes: Annotations about transformations (e.g., "collapsed:B").
-    """
-
-    name: str
-    shape: T.List[T.Union[int, str]]
-    dtype: str | None
-    notes: T.List[str]
-
-
-# AxisSymbolMap is a simple type alias for axis-index→symbol mapping.
 AxisSymbolMap = T.Dict[int, str]
 
 
-@dataclass
-class SubnetSignature:
-    """Per-subnet signature snapshot at a given stage."""
-
-    name: str
-    stage: InspectStage
-    inputs: T.List[IODescriptor]
-    outputs: T.List[IODescriptor]
-    applied_flags: T.List[str]
-    symbol_axes: T.Dict[str, T.Dict[int, str]]
-
-
-def group_by_subnet(
-    snapshots: T.List[SubnetSignature],
-) -> dict[str, list[SubnetSignature]]:
-    """Group signature snapshots by subnet name preserving order."""
-    per: dict[str, list[SubnetSignature]] = {}
-    for s in snapshots:
-        per.setdefault(s.name, []).append(s)
-    return per
-
-
-def sig_key(e: SubnetSignature) -> tuple:
-    in_key = tuple(
-        (i.name, tuple(map(str, i.shape)), i.dtype or "", tuple(i.notes))
-        for i in e.inputs
-    )
-    out_key = tuple(
-        (o.name, tuple(map(str, o.shape)), o.dtype or "", tuple(o.notes))
-        for o in e.outputs
-    )
-    return (in_key, out_key)
-
-
-def group_consecutive(
-    entries: list[SubnetSignature],
-) -> list[tuple[list[InspectStage], SubnetSignature]]:
-    """Group consecutive entries with identical IO signatures."""
-    groups: list[tuple[list[InspectStage], SubnetSignature]] = []
-    for e in entries:
-        k = sig_key(e)
-        if groups and sig_key(groups[-1][1]) == k:
-            groups[-1][0].append(e.stage)
-        else:
-            groups.append(([e.stage], e))
-    return groups
-
-
-def render_groups_plain(
-    subnet_name: str,
-    groups: list[tuple[list[InspectStage], SubnetSignature]],
-) -> list[str]:
-    """Render grouped signatures for one subnet into plain-text lines."""
-    lines: list[str] = [f"Subnet: {subnet_name}"]
-    for stages, rep in groups:
-        stages_txt = ", ".join(s.value for s in stages)
-        lines.append(f"  Stages: {stages_txt}")
-        lines.append("    Inputs:")
-        for i in rep.inputs:
-            shp = ", ".join(str(d) for d in i.shape) if i.shape else ""
-            ann = f" [{' '.join(i.notes)}]" if i.notes else ""
-            dt = f" ({i.dtype})" if i.dtype else ""
-            shape_txt = f" [{shp}]" if shp else ""
-            lines.append(f"      - {i.name}:{shape_txt}{dt}{ann}")
-        lines.append("    Outputs:")
-        for o in rep.outputs:
-            lines.append(f"      - {o.name}")
-    return lines
-
-
-def render_diffs_plain(
-    groups: list[tuple[list[InspectStage], SubnetSignature]],
-) -> list[str]:
-    """Render diffs between successive unique signature groups."""
-    lines: list[str] = []
-    for gi in range(len(groups) - 1):
-        stages_a, a = groups[gi]
-        stages_b, b = groups[gi + 1]
-        left = ",".join(s.value for s in stages_a)
-        right = ",".join(s.value for s in stages_b)
-        lines.append(f"  Diff: {left} -> {right}")
-        a_map = {i.name: i for i in a.inputs}
-        b_map = {i.name: i for i in b.inputs}
-        all_names = sorted(set(a_map.keys()) | set(b_map.keys()))
-        for nm in all_names:
-            ai, bi = a_map.get(nm), b_map.get(nm)
-            if ai and bi:
-                if (
-                    ai.shape != bi.shape
-                    or ai.dtype != bi.dtype
-                    or ai.notes != bi.notes
-                ):
-                    lines.append(
-                        f"    - {nm}: {ai.shape or []} -> {bi.shape or []}"
-                    )
-            elif ai and not bi:
-                lines.append(f"    - {nm}: present -> removed")
-            elif bi and not ai:
-                lines.append(f"    - {nm}: absent -> present")
-    return lines
+def _order_stage_in_place(entries: list[SubnetSignature]) -> None:
+    entries.sort(key=lambda e: _stage_order(e.stage))
 
 
 def _tensor_shape_with_symbols(
@@ -328,7 +209,7 @@ def _print_human(
     lines: list[str] = []
     printed_header = False
     for subnet_name, entries in group_by_subnet(sigs).items():
-        entries.sort(key=lambda e: e.stage.order())
+        _order_stage_in_place(entries)
         groups = group_consecutive(entries)
         if model_label and not printed_header:
             lines.append(f"Model: {model_label}")
@@ -351,52 +232,8 @@ def _print_json(
     to_path: Path | None,
     model_label: T.Optional[str] = None,
 ) -> None:
-    """Render signatures as JSON for tooling and CI.
-
-    Args:
-        sigs: Signatures to serialize.
-        to_path: Optional output file path; stdout if None.
-        model_label: Optional model slug or local path to include in JSON.
-    """
-    payload = {
-        "model": model_label,
-        "subnets": [
-            {
-                "name": s.name,
-                "stage": s.stage.value,
-                "inputs": [
-                    {
-                        "name": i.name,
-                        "shape": [str(d) for d in i.shape],
-                        "dtype": i.dtype,
-                        "notes": i.notes,
-                    }
-                    for i in s.inputs
-                ],
-                "outputs": [
-                    {
-                        "name": o.name,
-                        "shape": [str(d) for d in o.shape],
-                        "dtype": o.dtype,
-                        "notes": o.notes,
-                    }
-                    for o in s.outputs
-                ],
-                "applied_flags": s.applied_flags,
-                "symbol_axes": {
-                    k: {int(ax): str(sym) for ax, sym in v.items()}
-                    for k, v in s.symbol_axes.items()
-                },
-            }
-            for s in sigs
-        ],
-    }
-    txt = json.dumps(payload, indent=2)
-    if to_path is None:
-        print(txt)
-    else:
-        to_path.parent.mkdir(parents=True, exist_ok=True)
-        to_path.write_text(txt + "\n", encoding="utf8")
+    """Render signatures as JSON for tooling and CI."""
+    write_signatures_json(sigs, to_path=to_path, model_label=model_label)
 
 
 def _rich_make_tables(rich, rep: SubnetSignature):

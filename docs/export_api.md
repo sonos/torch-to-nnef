@@ -17,6 +17,7 @@ For details on the exported artifact (directory vs `.tar` vs `.tgz`) and how
 
 - NeMo ASR export tutorial: [Export and run NeMo ASR](./examples/nemo_asr/README.md)
 - Transformers/LLM export tutorial: [LLM export guide](./tutos/5_llm.md)
+- Shapes remodeler tutorial: [Provider-agnostic remodeler](./tutos/11_remodeler.md)
 
 ## Choosing the Target Runtime
 
@@ -50,3 +51,24 @@ export_model_to_nnef(
       heading_level: 3
       show_root_heading: true
       show_source: false
+
+## Remodeler API (overview)
+
+For boundary-only transforms, the remodeler provides a small, typed API and a
+strict nested YAML/JSON config.
+
+Key entry points (see tutorial for end-to-end examples):
+
+```python
+from torch_to_nnef.remodeler import (
+  Stage as RemodelStage,
+  dump_registry_from_signatures,
+  load_config,
+  plan_from_registry,
+  save_config,
+  validate_registry_against_signatures,
+)
+```
+
+Providers implement discovery/apply (e.g., `NemoProvider`). The NeMo CLI wires
+this when `--shape-config` is provided.

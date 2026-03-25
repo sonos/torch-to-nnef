@@ -23,11 +23,10 @@ from torch_to_nnef.nemo_tract.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
 from torch_to_nnef.nemo_tract.wrappers import (
-    BoundaryAdapter,
-    RenameOutputs,
     WrapAudioPreprocessor,
     decoder_fix_input_example_batch_size,
 )
+from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.utils import (
     INJECTED,
     T2NExtra,
