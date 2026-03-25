@@ -117,7 +117,9 @@ decoder_joint:
 
 decoder:
   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, STATES_1__BATCH] }
-  outputs_keep: [LOG_PROBS, STATES_0, STATES_1]
+  # Typical RNNT decoder outputs include: outputs, prednet_lengths, states_out
+  # Keep only the ones you need (e.g., drop prednet_lengths)
+  outputs_keep: [outputs, states_out]
   inputs:
     targets:
       original_shape: [TARGETS__BATCH, TARGETS__TIME]
