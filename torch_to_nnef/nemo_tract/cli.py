@@ -6,7 +6,6 @@ import os
 import shlex
 import sys
 import textwrap
-import typing as T
 from pathlib import Path
 
 import torch
@@ -44,7 +43,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
 )
-from torch_to_nnef.remodeler import Stage, SubnetSignature, save_config
+from torch_to_nnef.remodeler import Stage, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
