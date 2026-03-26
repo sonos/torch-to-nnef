@@ -370,7 +370,7 @@ def _normalize_inspect_stages(args):
     if not raw_stages:
         return None
     if any(s == "all" for s in raw_stages):
-        return [st for st in Stage]
+        return list(Stage)
     return [Stage(s) for s in raw_stages]
 
 
@@ -430,7 +430,7 @@ def _dump_shape_config_template(
         ),
         only_subnets=args.only_subnets,
     )
-    snaps = provider.discover_signatures(asr_model, RemodelStage.RAW)
+    snaps = provider.discover_signatures(asr_model, Stage.RAW)
     registry = dump_registry_from_signatures(snaps)
 
     args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
@@ -563,7 +563,7 @@ def _run_inspection_flow(
             ),
             only_subnets=args.only_subnets,
         )
-        raw_sigs = provider.discover_signatures(asr_model, RemodelStage.RAW)
+        raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
         validate_registry_against_signatures(raw_sigs, axis_reg)
 
     run_inspection(

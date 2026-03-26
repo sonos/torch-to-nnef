@@ -7,7 +7,9 @@ from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )
-from torch_to_nnef.nemo_tract.inspect import collect_signatures as nemo_collect_signatures
+from torch_to_nnef.nemo_tract.inspect import (
+    collect_signatures as nemo_collect_signatures,
+)
 from torch_to_nnef.remodeler import (
     IODescriptor,
     Provider,
