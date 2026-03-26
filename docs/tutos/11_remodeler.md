@@ -55,9 +55,9 @@ from torch_to_nnef.remodeler import (
 )
 from torch_to_nnef.nemo_tract.registry_utils import (
   dump_registry_from_signatures,
-  load_config,
   validate_registry_against_signatures,
 )
+from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
 
 # 1) Discover RAW signatures (provider-specific model omitted here)
 signatures = provider.discover_signatures(model, RemodelStage.RAW)
@@ -67,7 +67,7 @@ registry = dump_registry_from_signatures(signatures)
 save_config(Path("./shapes.yaml"), registry)
 
 # 3) Validate user-edited config against discovered signatures
-cfg = load_config(Path("./shapes.yaml"))
+cfg = load_axis_symbol_registry(Path("./shapes.yaml"))
 validate_registry_against_signatures(signatures, cfg)
 
 # 4) Apply the plan: returns {subnet_name: wrapped_module}
@@ -101,9 +101,9 @@ from torch_to_nnef.remodeler import (
 )
 from torch_to_nnef.nemo_tract.registry_utils import (
     dump_registry_from_signatures,
-    load_config,
     validate_registry_against_signatures,
 )
+from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
 
 # Discover and dump a starter config
 asr = load_asr_model_from_nemo_slug("<your-nemo-asr-model>").eval()
@@ -114,7 +114,7 @@ registry = dump_registry_from_signatures(signatures)
 save_config(Path("./shapes.yaml"), registry)
 
 # Validate and apply a user-edited config
-cfg = load_config(Path("./shapes.yaml"))
+cfg = load_axis_symbol_registry(Path("./shapes.yaml"))
 validate_registry_against_signatures(signatures, cfg)
 plan = plan_from_registry(cfg)
 wrapped = prov.apply(asr, plan)  # {"encoder": nn.Module, ...}

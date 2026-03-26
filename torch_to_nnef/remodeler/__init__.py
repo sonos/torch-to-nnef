@@ -43,6 +43,7 @@ __all__ = [
     "SubnetSignature",
     "RemodelPlan",
     "Provider",
+    "stage_order",
     "plan_from_registry",
     "save_config",
     "BoundaryAdapter",
@@ -57,6 +58,21 @@ class Stage(Enum):
     COLLAPSED = "collapsed"
     BOUND = "bound"
     FINAL = "final"
+
+    @property
+    def order(self) -> int:
+        """Stable sort order (RAW < COLLAPSED < BOUND < FINAL)."""
+        return {
+            Stage.RAW: 0,
+            Stage.COLLAPSED: 1,
+            Stage.BOUND: 2,
+            Stage.FINAL: 3,
+        }[self]
+
+
+def stage_order(stage: "Stage") -> int:
+    """Back-compat helper; prefer ``stage.order``."""
+    return stage.order
 
 
 @dataclass(frozen=True)

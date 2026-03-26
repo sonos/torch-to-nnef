@@ -1,10 +1,8 @@
 import typing as T
-from pathlib import Path
 
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
-    load_axis_symbol_registry,
 )
 from torch_to_nnef.remodeler import SubnetSignature
 
@@ -181,10 +179,6 @@ def dump_registry_from_signatures(
         renamed_symbols_per_subnet={},
         outputs_keep_per_subnet=outputs_keep_per_subnet,
     )
-
-
-def load_config(path: T.Union[Path, str]) -> AxisSymbolRegistry:
-    return load_axis_symbol_registry(Path(path))
 
 
 def validate_registry_against_signatures(

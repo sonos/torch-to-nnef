@@ -12,10 +12,8 @@ from torch_to_nnef.nemo_tract.export import (
 )
 from torch_to_nnef.remodeler import (
     IODescriptor,
+    Stage,
     SubnetSignature,
-)
-from torch_to_nnef.remodeler import (
-    Stage as InspectStage,
 )
 from torch_to_nnef.remodeler.inspect_utils import (
     group_by_subnet,
@@ -30,15 +28,6 @@ from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 LOGGER = logging.getLogger(__name__)
 
 
-def _stage_order(stage: InspectStage) -> int:
-    return {
-        InspectStage.RAW: 0,
-        InspectStage.COLLAPSED: 1,
-        InspectStage.BOUND: 2,
-        InspectStage.FINAL: 3,
-    }[stage]
-
-
 @dataclass(frozen=True)
 class StageInputTransform:
     """Result of applying stage transforms to a single input."""
@@ -48,8 +37,6 @@ class StageInputTransform:
     remap: dict[int, str]
     notes: T.List[str]
     bind_flag: T.Optional[str]
-
-    # No ordering logic here; ordering is defined on InspectStage
 
 
 class InspectFormat(Enum):
@@ -64,7 +51,7 @@ AxisSymbolMap = T.Dict[int, str]
 
 
 def _order_stage_in_place(entries: list[SubnetSignature]) -> None:
-    entries.sort(key=lambda e: _stage_order(e.stage))
+    entries.sort(key=lambda e: e.stage.order)
 
 
 def _tensor_shape_with_symbols(
@@ -93,38 +80,38 @@ def _dtype_of(t: object) -> T.Optional[str]:
     return None
 
 
-def _collect_signatures_for_stage(
+def collect_signatures(
     *,
     asr_model,
     inference_target,
-    stage: InspectStage,
-    skip_preprocessor: bool,
-    split_joint_decoder: bool,
-    float_dtype: torch.dtype,
-    only_subnets: T.Optional[T.Collection[str]],
+    stage: Stage = Stage.RAW,
+    skip_preprocessor: bool = False,
+    split_joint_decoder: bool = False,
+    float_dtype: T.Optional[torch.dtype] = None,
+    only_subnets: T.Optional[T.Collection[str]] = None,
 ) -> T.List[SubnetSignature]:
-    """Collect per-subnet signatures for a specific stage.
+    """Collect per-subnet signatures without printing.
 
     Args:
         asr_model: NeMo model instance.
         inference_target: Export target wrapper.
-        stage: Logical inspection stage.
+        stage: Stage to collect (RAW, COLLAPSED, BOUND, FINAL semantics).
         skip_preprocessor: Whether to skip preprocessor subnet.
         split_joint_decoder: Whether to split joint/decoder.
         float_dtype: Preferred float dtype for examples.
         only_subnets: Optional subset filter.
 
-
     Returns:
-        A list of SubnetSignature snapshots in discovery order.
+        List of SubnetSignature snapshots.
     """
+    eff_dtype: torch.dtype = float_dtype or torch.float32
     sigs: T.List[SubnetSignature] = []
     for ep in iter_export_params_for_generic_nemo_asr_model(
         asr_model,
         inference_target,
         skip_preprocessor=skip_preprocessor,
         split_joint_decoder=split_joint_decoder,
-        float_dtype=float_dtype,
+        float_dtype=eff_dtype,
         remove_unused_inputs=True,
         only_subnets=only_subnets,
     ):
@@ -234,8 +221,6 @@ def _print_json(
     """Render signatures as JSON for tooling and CI."""
     write_signatures_json(sigs, to_path=to_path, model_label=model_label)
 
-    # end loop
-
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="rich")
 def _print_human_rich(
@@ -260,7 +245,7 @@ def run_inspection(
     split_joint_decoder: bool,
     float_dtype: torch.dtype,
     only_subnets: T.Optional[T.Collection[str]],
-    stages: T.Optional[T.List[InspectStage]],
+    stages: T.Optional[T.List[Stage]],
     fmt: InspectFormat,
     to_path: T.Optional[Path],
     diff: bool,
@@ -283,7 +268,7 @@ def run_inspection(
         axis_registry: Optional registry to overlay symbolic axes for inputs.
         model_label: Optional model slug or local path for header/JSON.
     """
-    chosen: list[InspectStage] = stages if stages else [InspectStage.FINAL]
+    chosen: list[Stage] = stages if stages else [Stage.FINAL]
     all_sigs = _collect_for_stages(
         asr_model=asr_model,
         inference_target=inference_target,
@@ -329,7 +314,7 @@ def _collect_for_stages(
     *,
     asr_model,
     inference_target,
-    chosen: list[InspectStage],
+    chosen: list[Stage],
     skip_preprocessor: bool,
     split_joint_decoder: bool,
     float_dtype: torch.dtype,
@@ -341,7 +326,7 @@ def _collect_for_stages(
     )
     all_sigs: list[SubnetSignature] = []
     for st in chosen:
-        snaps = _collect_signatures_for_stage(
+        snaps = collect_signatures(
             asr_model=asr_model,
             inference_target=inference_target,
             stage=st,
@@ -380,7 +365,7 @@ def _apply_stage_transforms(
 ) -> list[SubnetSignature]:
     transformed: list[SubnetSignature] = []
     for ss in all_sigs:
-        if ss.stage == InspectStage.RAW:
+        if ss.stage == Stage.RAW:
             transformed.append(ss)
             continue
         new_inputs: list[IODescriptor] = []
@@ -425,7 +410,7 @@ def _compute_input_transform(
     remove_syms: set[str] = set(cfg_collapse.get(qname, []))
     known_syms = {str(sym).upper() for sym in sym_map.values()}
     extra = [s for s in remove_syms if s not in known_syms]
-    if remove_syms and extra and ss.stage != InspectStage.RAW:
+    if remove_syms and extra and ss.stage != Stage.RAW:
         raise T2NErrorInvalidArgument(
             f"Cannot collapse non-dynamic dims for {qname} at "
             f"stage {ss.stage.value}: requested {sorted(remove_syms)} "
@@ -439,8 +424,7 @@ def _compute_input_transform(
         ]
     )
     is_bound_here = (
-        ss.stage in (InspectStage.BOUND, InspectStage.FINAL)
-        and qname in cfg_binds_src
+        ss.stage in (Stage.BOUND, Stage.FINAL) and qname in cfg_binds_src
     )
     if is_bound_here:
         src_q, src_sym = cfg_binds_src[qname]
@@ -653,38 +637,3 @@ def _derive_cfg_transforms(
         cfg_binds_src[qkey] = (src, str(sym).strip().upper())
 
     return cfg_collapse, cfg_binds_src
-
-
-def collect_signatures(
-    *,
-    asr_model,
-    inference_target,
-    stage: InspectStage = InspectStage.RAW,
-    skip_preprocessor: bool = False,
-    split_joint_decoder: bool = False,
-    float_dtype: T.Optional[torch.dtype] = None,
-    only_subnets: T.Optional[T.Collection[str]] = None,
-) -> T.List[SubnetSignature]:
-    """Collect per-subnet signatures without printing.
-
-    Args:
-        asr_model: NeMo model instance.
-        inference_target: Export target wrapper.
-        stage: Stage to collect (RAW, COLLAPSED, BOUND, FINAL semantics).
-        skip_preprocessor: Whether to skip preprocessor subnet.
-        split_joint_decoder: Whether to split joint/decoder.
-        float_dtype: Preferred float dtype for examples.
-        only_subnets: Optional subset filter.
-
-    Returns:
-        List of SubnetSignature snapshots.
-    """
-    return _collect_signatures_for_stage(
-        asr_model=asr_model,
-        inference_target=inference_target,
-        stage=stage,
-        skip_preprocessor=skip_preprocessor,
-        split_joint_decoder=split_joint_decoder,
-        float_dtype=float_dtype or torch.float32,
-        only_subnets=only_subnets,
-    )

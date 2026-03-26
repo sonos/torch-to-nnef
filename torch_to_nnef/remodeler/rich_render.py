@@ -1,6 +1,6 @@
 import typing as T
 
-from torch_to_nnef.remodeler import Stage, SubnetSignature
+from torch_to_nnef.remodeler import SubnetSignature
 from torch_to_nnef.remodeler.inspect_utils import (
     group_by_subnet,
     group_consecutive,
@@ -100,14 +100,7 @@ def print_signatures_rich(
         lines: list[str] = []
         printed_header = False
         for subnet_name, entries in group_by_subnet(sigs).items():
-            entries.sort(
-                key=lambda e: {
-                    Stage.RAW: 0,
-                    Stage.COLLAPSED: 1,
-                    Stage.BOUND: 2,
-                    Stage.FINAL: 3,
-                }[e.stage]
-            )
+            entries.sort(key=lambda e: e.stage.order)
             groups = group_consecutive(entries)
             if model_label and not printed_header:
                 lines.append(f"Model: {model_label}")
@@ -134,14 +127,7 @@ def print_signatures_rich(
         console.print(rule_cls(text_cls(f"Model: {model_label}", style="bold")))
 
     for subnet_name, entries in group_by_subnet(sigs).items():
-        entries.sort(
-            key=lambda e: {
-                Stage.RAW: 0,
-                Stage.COLLAPSED: 1,
-                Stage.BOUND: 2,
-                Stage.FINAL: 3,
-            }[e.stage]
-        )
+        entries.sort(key=lambda e: e.stage.order)
         groups = group_consecutive(entries)
         console.print(text_cls(f"Subnet: {subnet_name}", style="bold"))
         for _, rep in groups:
