@@ -49,7 +49,7 @@ from pathlib import Path
 # For a concrete example, see the NeMo provider below.
 
 from torch_to_nnef.remodeler import (
-  Stage as RemodelStage,
+  Stage,
   plan_from_registry,
   save_config,
 )
@@ -60,7 +60,7 @@ from torch_to_nnef.nemo_tract.registry_utils import (
 from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
 
 # 1) Discover RAW signatures (provider-specific model omitted here)
-signatures = provider.discover_signatures(model, RemodelStage.RAW)
+signatures = provider.discover_signatures(model, Stage.RAW)
 
 # 2) Dump a starter YAML registry (pre-fills outputs_keep)
 registry = dump_registry_from_signatures(signatures)
@@ -95,7 +95,7 @@ from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
 from torch_to_nnef.nemo_tract.provider import NemoProvider
 from torch_to_nnef.remodeler import (
-    Stage as RemodelStage,
+    Stage,
     plan_from_registry,
     save_config,
 )
@@ -109,7 +109,7 @@ from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
 asr = load_asr_model_from_nemo_slug("<your-nemo-asr-model>").eval()
 target = TractNNEF.latest()
 prov = NemoProvider(inference_target=target, split_joint_decoder=True)
-signatures = prov.discover_signatures(asr, RemodelStage.RAW)
+signatures = prov.discover_signatures(asr, Stage.RAW)
 registry = dump_registry_from_signatures(signatures)
 save_config(Path("./shapes.yaml"), registry)
 
@@ -124,10 +124,10 @@ Pretty printing with Rich
 
 ```python
 from torch_to_nnef.remodeler.rich_render import print_signatures_rich
-from torch_to_nnef.remodeler import Stage as RemodelStage
+from torch_to_nnef.remodeler import Stage
 import rich
 
-signatures = prov.discover_signatures(asr, RemodelStage.FINAL)
+signatures = prov.discover_signatures(asr, Stage.FINAL)
 print_signatures_rich(signatures, diff=True, rich=rich, model_label="MyNeMo")
 ```
 
