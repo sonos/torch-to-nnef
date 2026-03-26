@@ -51,7 +51,7 @@ def render_groups_plain(
         lines.append("    Inputs:")
         for i in rep.inputs:
             shp = ", ".join(str(d) for d in i.shape) if i.shape else ""
-            ann = f" [{' '.join(i.notes)}]" if (i.notes or []) else ""
+            ann = f" [{' '.join(i.notes)}]" if i.notes else ""
             dt = f" ({i.dtype})" if i.dtype else ""
             shape_txt = f" [{shp}]" if shp else ""
             lines.append(f"      - {i.name}:{shape_txt}{dt}{ann}")
@@ -91,4 +91,3 @@ def render_diffs_plain(
             elif bi and not ai:
                 lines.append(f"    - {nm}: absent -> present")
     return lines
-

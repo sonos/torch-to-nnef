@@ -16,18 +16,17 @@ from __future__ import annotations
 
 import json
 import typing as T
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 import yaml
 
-# Reuse the validated nested schema and data container
-from torch_to_nnef.nemo_tract.axis_registry import (
-    AxisSymbolRegistry,
-    load_axis_symbol_registry,
-)
+if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
+    # Reuse the validated nested schema and data container
+    from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 
 __all__ = [
@@ -36,11 +35,8 @@ __all__ = [
     "SubnetSignature",
     "RemodelPlan",
     "Provider",
-    "dump_registry_from_signatures",
     "plan_from_registry",
-    "load_config",
     "save_config",
-    "validate_registry_against_signatures",
     "BoundaryAdapter",
     "RenameOutputs",
 ]
@@ -61,8 +57,8 @@ class IODescriptor:
 
     name: str
     shape: list[T.Union[int, str]]
-    dtype: str | None = None
-    notes: list[str] | None = None
+    dtype: T.Optional[str] = None
+    notes: T.Optional[list[str]] = None
 
 
 @dataclass(frozen=True)
@@ -74,7 +70,9 @@ class SubnetSignature:
     inputs: list[IODescriptor]
     outputs: list[IODescriptor]
     # Optional: dynamic axes as name -> {axis -> symbol}
-    symbol_axes: dict[str, dict[int, str]] | None = None
+    symbol_axes: T.Optional[dict[str, dict[int, str]]] = None
+    # Optional: flags applied during transforms/inspection (provider-specific)
+    applied_flags: T.List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -85,7 +83,7 @@ class RemodelPlan:
     - registry: The validated, parsed axis registry (nested schema).
     """
 
-    registry: AxisSymbolRegistry
+    registry: "AxisSymbolRegistry"
 
 
 class Provider(T.Protocol):
@@ -108,63 +106,17 @@ class Provider(T.Protocol):
         raise NotImplementedError
 
 
-def dump_registry_from_signatures(
-    signatures: list[SubnetSignature],
-) -> AxisSymbolRegistry:
-    """Infer a starter AxisSymbolRegistry from signatures.
-
-    - Uses provided input shapes and symbol axes to build per-input maps.
-    - Always pre-fills per-subnet outputs_keep from discovered outputs.
-    """
-    symbols: dict[str, dict[int, str]] = {}
-    ranks: dict[str, int] = {}
-    outputs_keep_per_subnet: dict[str, list[str]] = {}
-
-    for ss in signatures:
-        # Pre-fill outputs_keep in the template for convenience
-        outputs_keep_per_subnet[ss.name] = [o.name for o in (ss.outputs or [])]
-        axes_map = ss.symbol_axes or {}
-        for io in ss.inputs:
-            q = f"{ss.name}.{io.name}"
-            if io.shape:
-                ranks[q] = len(io.shape)
-            # Map existing dynamic axes; keep stable ints as concrete dims
-            if io.name in axes_map and axes_map[io.name]:
-                # Normalize symbols to strings
-                symbols[q] = {
-                    int(ax): str(sym) for ax, sym in axes_map[io.name].items()
-                }
-            else:
-                symbols.setdefault(q, {})
-
-    return AxisSymbolRegistry(
-        symbols_per_input=symbols,
-        rank_per_input=ranks,
-        bind_to_dim={},
-        input_collapse_dims={},
-        renamed_symbols_per_subnet={},
-        outputs_keep_per_subnet=outputs_keep_per_subnet,
-    )
-
-
-def plan_from_registry(registry: AxisSymbolRegistry) -> RemodelPlan:
-    """Build a remodel plan from a validated axis registry."""
-    if not isinstance(registry, AxisSymbolRegistry):
-        raise TypeError("registry must be an AxisSymbolRegistry")
+def plan_from_registry(registry: T.Any) -> RemodelPlan:
+    """Build a remodel plan from a validated registry (provider-specific)."""
     return RemodelPlan(registry=registry)
 
 
-def load_config(path: Path | str) -> AxisSymbolRegistry:
-    """Load a YAML/JSON remodel config into an AxisSymbolRegistry."""
-    return load_axis_symbol_registry(Path(path))
-
-
 def save_config(
-    path: Path | str | None,
-    registry: AxisSymbolRegistry,
+    path: T.Union[Path, str, None],
+    registry: "AxisSymbolRegistry",
     *,
     flow_seq: bool = True,
-    stream: T.TextIO | None = None,
+    stream: T.Optional[T.TextIO] = None,
 ) -> None:
     """Save an AxisSymbolRegistry to YAML or JSON.
 
@@ -215,7 +167,11 @@ def save_config(
         return
 
     # JSON
-    payload = _registry_to_nested_mapping(registry)
+    payload = (
+        registry
+        if isinstance(registry, dict)
+        else _registry_to_nested_mapping(registry)
+    )
     txt = json.dumps(payload, indent=2) + "\n"
     if stream is not None:
         stream.write(txt)
@@ -225,13 +181,15 @@ def save_config(
     p.write_text(txt, encoding="utf8")
 
 
-def _registry_to_nested_mapping(reg: AxisSymbolRegistry) -> dict[str, dict]:
+def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
     """Render AxisSymbolRegistry back to the nested mapping schema."""
     # Prepare nested layout: { subnet: { inputs: { name: {...} }, ... } }
     nested: dict[str, dict] = {}
 
     # Invert inputs like "subnet.input" back into nested keys
-    for qname, axis_map in (reg.symbols_per_input or {}).items():
+    for qname, axis_map in (
+        getattr(reg, "symbols_per_input", None) or {}
+    ).items():
         if "." not in qname:
             # Keep defensive, but the loader always yields qualified keys
             subnet, inp = "", qname
@@ -241,7 +199,7 @@ def _registry_to_nested_mapping(reg: AxisSymbolRegistry) -> dict[str, dict]:
         inputs_map: dict = bucket.setdefault("inputs", {})
         entry: dict = {}
         # Reconstruct original_shape from rank map using axis positions
-        rank = (reg.rank_per_input or {}).get(qname)
+        rank = (getattr(reg, "rank_per_input", None) or {}).get(qname)
         if isinstance(rank, int) and rank >= 0:
             dims: list[T.Union[int, str]] = []
             for i in range(rank):
@@ -251,147 +209,27 @@ def _registry_to_nested_mapping(reg: AxisSymbolRegistry) -> dict[str, dict]:
         else:
             entry["original_shape"] = []
         entry["collapse_dims"] = list(
-            (reg.input_collapse_dims or {}).get(qname, [])
+            (getattr(reg, "input_collapse_dims", None) or {}).get(qname, [])
         )
-        b = (reg.bind_to_dim or {}).get(qname)
+        b = (getattr(reg, "bind_to_dim", None) or {}).get(qname)
         if isinstance(b, str) and b:
             entry["bind_scalar_to_dim_size"] = b
         inputs_map[inp] = entry
 
     # Copy optional renamed_symbols and outputs_keep per subnet
-    for subnet, mapping in (reg.renamed_symbols_per_subnet or {}).items():
+    for subnet, mapping in (
+        getattr(reg, "renamed_symbols_per_subnet", None) or {}
+    ).items():
         bucket = nested.setdefault(subnet, {})
         if mapping:
             bucket["renamed_symbols"] = {
                 str(t): [str(s) for s in (srcs or [])]
                 for t, srcs in mapping.items()
             }
-    for subnet, keep in (reg.outputs_keep_per_subnet or {}).items():
+    for subnet, keep in (
+        getattr(reg, "outputs_keep_per_subnet", None) or {}
+    ).items():
         bucket = nested.setdefault(subnet, {})
         bucket["outputs_keep"] = list(keep or [])
 
     return nested
-
-
-def validate_registry_against_signatures(
-    signatures: list[SubnetSignature], registry: AxisSymbolRegistry
-) -> None:
-    """Validate a registry structurally against discovered signatures.
-
-    Checks
-    - Unknown subnets in registry vs discovered
-    - Unknown qualified inputs in registry vs discovered
-    - outputs_keep entries are subsets of discovered outputs
-    - bind_to_dim references point to known qualified inputs
-
-    Raises ValueError with a concise aggregated message when mismatches exist.
-    """
-    # Build discovered sets
-    disc_subnets: set[str] = {ss.name for ss in signatures}
-    disc_inputs: set[str] = set()
-    disc_outputs: dict[str, set[str]] = {}
-    disc_input_dyn_syms: dict[str, set[str]] = {}
-    subnet_dyn_syms: dict[str, set[str]] = {}
-    for ss in signatures:
-        for i in ss.inputs:
-            disc_inputs.add(f"{ss.name}.{i.name}")
-            # dynamic symbols known for this input at discovery time
-            axes = (ss.symbol_axes or {}).get(i.name, {}) or {}
-            syms = {str(s).upper() for s in axes.values()}
-            disc_input_dyn_syms[f"{ss.name}.{i.name}"] = syms
-            subnet_dyn_syms.setdefault(ss.name, set()).update(syms)
-        disc_outputs.setdefault(ss.name, set()).update(
-            o.name for o in ss.outputs
-        )
-
-    # Registry-derived subnets and inputs
-    reg_inputs = set((registry.symbols_per_input or {}).keys())
-    reg_binds = set((registry.bind_to_dim or {}).keys())
-    reg_collapse = set((registry.input_collapse_dims or {}).keys())
-    reg_subnets = set()
-    for q in reg_inputs | reg_binds | reg_collapse:
-        if "." in q:
-            reg_subnets.add(q.split(".", 1)[0])
-    reg_subnets |= set((registry.renamed_symbols_per_subnet or {}).keys())
-    reg_subnets |= set((registry.outputs_keep_per_subnet or {}).keys())
-
-    problems: list[str] = []
-
-    # Unknown subnets
-    unknown_subnets = sorted(reg_subnets - disc_subnets)
-    if unknown_subnets:
-        problems.append(
-            "unknown subnets: " + ", ".join(unknown_subnets)
-        )
-
-    # Unknown inputs
-    unknown_inputs = sorted(
-        (reg_inputs | reg_binds | reg_collapse) - disc_inputs
-    )
-    if unknown_inputs:
-        problems.append(
-            "unknown inputs: " + ", ".join(unknown_inputs)
-        )
-
-    # outputs_keep subset
-    for subnet, keep in (registry.outputs_keep_per_subnet or {}).items():
-        disc = disc_outputs.get(subnet, set())
-        extra = sorted(set(keep or []) - disc)
-        if extra:
-            problems.append(
-                f"outputs_keep for '{subnet}' has unknown: " + ", ".join(extra)
-            )
-
-    # bind_to_dim source references
-    for tgt_q, src in (registry.bind_to_dim or {}).items():
-        if not isinstance(src, str) or "." not in src:
-            problems.append(f"bind_to_dim for '{tgt_q}' is invalid: {src!r}")
-            continue
-        src_q, _, sym = src.rpartition(".")
-        if src_q not in disc_inputs:
-            problems.append(
-                f"bind_to_dim references unknown source '{src_q}' for '{tgt_q}'"
-            )
-        if not sym:
-            problems.append(
-                f"bind_to_dim for '{tgt_q}' missing terminal symbol in '{src}'"
-            )
-        # Check symbol present among dynamic axes of the source input
-        if sym:
-            known = disc_input_dyn_syms.get(src_q, set())
-            if str(sym).upper() not in known:
-                problems.append(
-                    "bind_to_dim symbol '"
-                    + str(sym)
-                    + "' not in dynamic axes of '"
-                    + src_q
-                    + "'"
-                )
-
-    # collapse_dims symbols known at input level
-    for q, syms in (registry.input_collapse_dims or {}).items():
-        known = disc_input_dyn_syms.get(q, set())
-        for s in syms or []:
-            if str(s).upper() not in known:
-                problems.append(
-                    f"collapse_dims for '{q}' contains unknown symbol '{s}'"
-                )
-
-    # renamed_symbols sources known at subnet level
-    for subnet, mapping in (registry.renamed_symbols_per_subnet or {}).items():
-        known = subnet_dyn_syms.get(subnet, set())
-        for _t, srcs in (mapping or {}).items():
-            for s in srcs or []:
-                if str(s).upper() not in known:
-                    problems.append(
-                        "renamed_symbols for '"
-                        + subnet
-                        + "' has unknown source '"
-                        + str(s)
-                        + "'"
-                    )
-
-    if problems:
-        raise ValueError(
-            "shape-config validation failed: " + "; ".join(problems)
-        )

@@ -17,4 +17,3 @@ def test_signatures_to_json_payload_basic():
     assert p["subnets"][0]["name"] == "s"
     assert p["subnets"][0]["stage"] == "raw"
     assert p["subnets"][0]["inputs"][0]["shape"][0] == "B"
-

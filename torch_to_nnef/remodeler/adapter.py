@@ -19,11 +19,11 @@ class BoundaryAdapter(torch.nn.Module):
         module: torch.nn.Module,
         subnet_name: str,
         input_example: list,
-        dynamic_axes: dict[str, dict[int, str]] | None,
-        collapse_by_input: dict[str, set[str]] | None,
-        binds_by_input: dict[str, str] | None = None,
-        renamed_map: dict[str, list[str]] | None = None,
-        outputs_keep: list[str] | None = None,
+        dynamic_axes: T.Optional[dict[str, dict[int, str]]],
+        collapse_by_input: T.Optional[dict[str, set[str]]],
+        binds_by_input: T.Optional[dict[str, str]] = None,
+        renamed_map: T.Optional[dict[str, list[str]]] = None,
+        outputs_keep: T.Optional[list[str]] = None,
         *,
         apply_symbol_renames: bool = True,
     ) -> None:
@@ -50,9 +50,9 @@ class BoundaryAdapter(torch.nn.Module):
 
     def _init_external_names(
         self,
-    ) -> tuple[list[str], list[tuple[str, int | None]]]:
+    ) -> tuple[list[str], list[tuple[str, T.Optional[int]]]]:
         names: list[str] = []
-        mapping: list[tuple[str, int | None]] = []
+        mapping: list[tuple[str, T.Optional[int]]] = []
         for nm, val in zip(self._orig_input_names, self._orig_input_example):
             if isinstance(val, (list, tuple)) and val:
                 for k, _ in enumerate(val):
@@ -110,7 +110,7 @@ class BoundaryAdapter(torch.nn.Module):
     def _finalize_external_interface(
         self,
         initial_ext_names: list[str],
-        initial_ext_map: list[tuple[str, int | None]],
+        initial_ext_map: list[tuple[str, T.Optional[int]]],
     ) -> None:
         self._ext_names = []
         self._ext_map = []
@@ -223,8 +223,10 @@ class BoundaryAdapter(torch.nn.Module):
             ordered.append(tuple(val) if isinstance(val, list) else val)
         return ordered
 
-    def _pack_by_base_from_args(self, args: list) -> dict[str, object | list]:
-        by_base: dict[str, object | list] = {}
+    def _pack_by_base_from_args(
+        self, args: list
+    ) -> dict[str, T.Union[object, list]]:
+        by_base: dict[str, T.Union[object, list]] = {}
         for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
             t = val
             for ax in sorted(self._collapse_idx.get(ext, [])):
@@ -243,7 +245,9 @@ class BoundaryAdapter(torch.nn.Module):
         return by_base
 
     def _inject_bound_scalars(
-        self, by_base: dict[str, object | list], ext_val_map: dict[str, object]
+        self,
+        by_base: dict[str, T.Union[object, list]],
+        ext_val_map: dict[str, object],
     ) -> None:
         for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
             src_val = ext_val_map.get(src_ext)

@@ -49,7 +49,7 @@ def signatures_to_json_text(
 def write_signatures_json(
     sigs: T.List[SubnetSignature],
     *,
-    to_path: Path | None = None,
+    to_path: T.Optional[Path] = None,
     stream=None,
     model_label: T.Optional[str] = None,
     indent: int = 2,

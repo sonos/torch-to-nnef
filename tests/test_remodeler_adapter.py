@@ -33,4 +33,3 @@ def test_dynamic_axes_symbol_renames_applied():
     out_dyn = ba.dynamic_shapes_for_export()
     assert out_dyn["a"][0] == "BATCH"
     assert out_dyn["a"][1] == "U"
-

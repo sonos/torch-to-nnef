@@ -1,10 +1,8 @@
 from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
-from torch_to_nnef.remodeler import (
-    IODescriptor,
-    Stage,
-    SubnetSignature,
+from torch_to_nnef.nemo_tract.registry_utils import (
     validate_registry_against_signatures,
 )
+from torch_to_nnef.remodeler import IODescriptor, Stage, SubnetSignature
 
 
 def _sig(name: str, inputs, outputs, axes=None):
@@ -51,4 +49,3 @@ def test_validate_outputs_keep_subset():
         assert "outputs_keep" in str(e)
     else:
         raise AssertionError("expected ValueError for outputs_keep")
-

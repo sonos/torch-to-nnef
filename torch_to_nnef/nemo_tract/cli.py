@@ -5,6 +5,7 @@ import logging
 import os
 import shlex
 import sys
+import typing as T
 from pathlib import Path
 
 import torch
@@ -31,6 +32,10 @@ from torch_to_nnef.nemo_tract.model_loader import (
     load_asr_model_from_path,
 )
 from torch_to_nnef.nemo_tract.provider import NemoProvider
+from torch_to_nnef.nemo_tract.registry_utils import (
+    dump_registry_from_signatures,
+    validate_registry_against_signatures,
+)
 from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
@@ -38,11 +43,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
 from torch_to_nnef.remodeler import (
     Stage as RemodelStage,
 )
-from torch_to_nnef.remodeler import (
-    dump_registry_from_signatures,
-    save_config,
-    validate_registry_against_signatures,
-)
+from torch_to_nnef.remodeler import save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
@@ -377,7 +378,7 @@ def _normalize_inspect_stages(args):
     return [InspectStage(s) for s in raw_stages]
 
 
-def _build_axis_registry_from_args(args) -> AxisSymbolRegistry | None:
+def _build_axis_registry_from_args(args) -> T.Optional[AxisSymbolRegistry]:
     """Load optional shape-config into an AxisSymbolRegistry.
 
     Returns None if no shape-config was provided.

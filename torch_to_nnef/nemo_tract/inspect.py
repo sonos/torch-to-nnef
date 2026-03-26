@@ -46,7 +46,7 @@ class StageInputTransform:
     new_shape: T.List[T.Union[int, str]]
     remap: dict[int, str]
     notes: T.List[str]
-    bind_flag: str | None
+    bind_flag: T.Optional[str]
 
     # No ordering logic here; ordering is defined on InspectStage
 
@@ -67,7 +67,7 @@ def _order_stage_in_place(entries: list[SubnetSignature]) -> None:
 
 
 def _tensor_shape_with_symbols(
-    t: object, symbols: AxisSymbolMap | None
+    t: object, symbols: T.Optional[AxisSymbolMap]
 ) -> T.List[T.Union[int, str]]:
     """Build a list for the tensor shape using provided symbols.
 
@@ -88,7 +88,7 @@ def _tensor_shape_with_symbols(
     return shp
 
 
-def _dtype_of(t: object) -> str | None:
+def _dtype_of(t: object) -> T.Optional[str]:
     """Return the tensor dtype as a short string, if available."""
     if torch.is_tensor(t):
         return str(t.dtype).replace("torch.", "")
@@ -200,7 +200,7 @@ def _collect_signatures_for_stage(
 def _print_human(
     sigs: T.List[SubnetSignature],
     *,
-    to_path: Path | None,
+    to_path: T.Optional[Path],
     diff: bool,
     model_label: T.Optional[str] = None,
 ) -> None:
@@ -230,12 +230,11 @@ def _print_human(
 def _print_json(
     sigs: T.List[SubnetSignature],
     *,
-    to_path: Path | None,
+    to_path: T.Optional[Path],
     model_label: T.Optional[str] = None,
 ) -> None:
     """Render signatures as JSON for tooling and CI."""
     write_signatures_json(sigs, to_path=to_path, model_label=model_label)
-
 
     # end loop
 
@@ -244,7 +243,7 @@ def _print_json(
 def _print_human_rich(
     sigs: T.List[SubnetSignature],
     *,
-    to_path: Path | None,
+    to_path: T.Optional[Path],
     diff: bool,
     rich=INJECTED,
     model_label: T.Optional[str] = None,
@@ -265,7 +264,7 @@ def run_inspection(
     only_subnets: T.Optional[T.Collection[str]],
     stages: T.Optional[T.List[InspectStage]],
     fmt: InspectFormat,
-    to_path: Path | None,
+    to_path: T.Optional[Path],
     diff: bool,
     axis_registry=None,
     model_label: T.Optional[str] = None,
@@ -373,7 +372,7 @@ def _collect_for_stages(
 def _emit_output(
     fmt: InspectFormat,
     all_sigs: list[SubnetSignature],
-    to_path: Path | None,
+    to_path: T.Optional[Path],
     diff: bool,
     model_label: T.Optional[str],
 ) -> None:
@@ -706,7 +705,7 @@ def collect_signatures(
     stage: InspectStage = InspectStage.RAW,
     skip_preprocessor: bool = False,
     split_joint_decoder: bool = False,
-    float_dtype: torch.dtype | None = None,
+    float_dtype: T.Optional[torch.dtype] = None,
     only_subnets: T.Optional[T.Collection[str]] = None,
 ) -> T.List[SubnetSignature]:
     """Collect per-subnet signatures without printing.

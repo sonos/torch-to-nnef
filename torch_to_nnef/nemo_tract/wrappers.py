@@ -201,12 +201,10 @@ class WrapPreprocessorCast(torch.nn.Module):
         return self.preprocessor.output_names
 
 
-"""
-Generic NeMo wrappers.
-
-Note: BoundaryAdapter and RenameOutputs have moved to
-torch_to_nnef.remodeler.adapter.
-"""
+# Generic NeMo wrappers.
+#
+# Note: BoundaryAdapter and RenameOutputs have moved to
+# torch_to_nnef.remodeler.adapter.
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="nemo")

@@ -41,8 +41,8 @@ class NemoProvider(Provider):
     inference_target: TractNNEF
     skip_preprocessor: bool = False
     split_joint_decoder: bool = False
-    float_dtype: torch.dtype | None = None
-    only_subnets: T.Collection[str] | None = None
+    float_dtype: T.Optional[torch.dtype] = None
+    only_subnets: T.Optional[T.Collection[str]] = None
 
     @staticmethod
     def _map_stage(stage: Stage) -> InspectStage:

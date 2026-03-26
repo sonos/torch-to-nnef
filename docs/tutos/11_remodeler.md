@@ -44,10 +44,12 @@ from pathlib import Path
 
 from torch_to_nnef.remodeler import (
   Stage as RemodelStage,
-  dump_registry_from_signatures,
-  load_config,
   plan_from_registry,
   save_config,
+)
+from torch_to_nnef.nemo_tract.registry_utils import (
+  dump_registry_from_signatures,
+  load_config,
   validate_registry_against_signatures,
 )
 
@@ -88,10 +90,12 @@ from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
 from torch_to_nnef.nemo_tract.provider import NemoProvider
 from torch_to_nnef.remodeler import (
     Stage as RemodelStage,
-    dump_registry_from_signatures,
-    load_config,
     plan_from_registry,
     save_config,
+)
+from torch_to_nnef.nemo_tract.registry_utils import (
+    dump_registry_from_signatures,
+    load_config,
     validate_registry_against_signatures,
 )
 

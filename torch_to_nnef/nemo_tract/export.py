@@ -38,7 +38,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _rewrite_assertions_with_renames(
-    assertions: list[str], rename_map: dict[str, list[str]] | None
+    assertions: list[str], rename_map: T.Optional[dict[str, list[str]]]
 ) -> list[str]:
     """Rewrite assertion symbol names based on a rename mapping.
 
@@ -75,7 +75,7 @@ def _rewrite_assertions_with_renames(
 
 
 def _batch_equal_assertions_for_subnet(
-    subnet_name: str, dyn: dict[str, dict[int, str]] | None
+    subnet_name: str, dyn: T.Optional[dict[str, dict[int, str]]]
 ) -> set[str]:
     """Emit tract_assert equality constraints when batch-like symbols need it.
 
