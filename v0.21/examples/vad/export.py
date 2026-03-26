@@ -33,7 +33,7 @@ def parser_cli(
         "-t",
         "--tract-path",
         required=True,
-        help="Tract cli binary path to allow pulsification",
+        help="tract cli binary path to allow pulsification",
     )
 
     parser.add_argument(
