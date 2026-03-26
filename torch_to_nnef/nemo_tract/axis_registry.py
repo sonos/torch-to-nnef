@@ -1,6 +1,6 @@
 import json
 import typing as T
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -43,7 +43,9 @@ class AxisSymbolRegistry:
     outputs_keep_per_subnet: T.Dict[str, T.List[str]]
     # Optional: discovered shapes with mixed ints/symbols per qualified input
     # (used for template serialization; not required when loading config)
-    original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]]
+    original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]] = field(
+        default_factory=dict
+    )
 
     @staticmethod
     def empty() -> "AxisSymbolRegistry":

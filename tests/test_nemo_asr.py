@@ -1,5 +1,11 @@
 import pytest
 
+from torch_to_nnef.nemo_tract.model_loader import (
+    FAST_CONFORMER_TDT_LARGE,
+    MARBLENET_VAD,
+    NEMOTRON_0_6B,
+    QUARTZNET,
+)
 from torch_to_nnef.utils import SemanticVersion
 
 from .utils import (
@@ -52,3 +58,17 @@ def check_export_asr_model(model_slug, skip_preprocessor=False):
 
 def test_nemo_asr_parakeet_v3():
     check_export_asr_model(PARAKEET_V3_SLUG)
+
+
+@pytest.mark.ci_skip
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param(NEMOTRON_0_6B, id=NEMOTRON_0_6B),
+        pytest.param(QUARTZNET, id=QUARTZNET),
+        pytest.param(MARBLENET_VAD, id=MARBLENET_VAD),
+        pytest.param(FAST_CONFORMER_TDT_LARGE, id=FAST_CONFORMER_TDT_LARGE),
+    ],
+)
+def test_nemo_model_export(model):
+    check_export_asr_model(model)

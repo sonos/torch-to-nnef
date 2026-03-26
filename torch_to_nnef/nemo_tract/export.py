@@ -601,34 +601,44 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
-        # Config-driven boundary adapter: apply per-input batch collapse
-        # and tuple flattening
-        if axis_registry is not None and getattr(
-            axis_registry, "input_collapse_dims", None
-        ):
+        # Config-driven boundary adapter: apply tuple flattening, optional
+        # per-input collapse, binds, and symbol renames, even when only
+        # renames or output filtering are requested.
+        if axis_registry is not None:
             collapse_map = (
                 getattr(axis_registry, "input_collapse_dims", {}) or {}
             )
             binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            rename_map = (
+            per_subnet_renames = (
                 getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
-            ).get(subnet_name, {})
-            model = BoundaryAdapter(
-                model,
-                subnet_name,
-                test_input,
-                dyn,
-                {k: set(v) for k, v in collapse_map.items()},
-                binds_map,
-                rename_map,
-                outputs_keep=(
-                    getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
-                ).get(subnet_name, []),
             )
-            input_names = model.input_names
-            test_input = list(model.input_example())
-            dyn = model.dynamic_shapes_for_export()
-            # Symbol renames are now applied by the BoundaryAdapter
+            rename_map = per_subnet_renames.get(subnet_name, {})
+            outputs_keep = (
+                getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
+            ).get(subnet_name, [])
+
+            # Apply adapter if any transformation is requested for this subnet
+            has_collapse = any(
+                q.startswith(f"{subnet_name}.") for q in collapse_map
+            )
+            has_bind = any(q.startswith(f"{subnet_name}.") for q in binds_map)
+            has_rename = bool(rename_map)
+            has_outputs_keep = bool(outputs_keep)
+            if has_collapse or has_bind or has_rename or has_outputs_keep:
+                model = BoundaryAdapter(
+                    model,
+                    subnet_name,
+                    test_input,
+                    dyn,
+                    {k: set(v) for k, v in collapse_map.items()},
+                    binds_map,
+                    rename_map,
+                    outputs_keep=outputs_keep,
+                )
+                input_names = model.input_names
+                test_input = list(model.input_example())
+                dyn = model.dynamic_shapes_for_export()
+                # Symbol renames are now applied by the BoundaryAdapter
 
         # Consolidate with renames and discard assertions on removed symbols
         custom_ext = set(
@@ -717,34 +727,44 @@ def iter_export_params_for_generic_nemo_asr_model(
         }
         # Keep namespaced dims; we'll add targeted equality assertions below
 
-        # Config-driven boundary adapter: apply per-input batch collapse
-        # and tuple flattening
-        if axis_registry is not None and getattr(
-            axis_registry, "input_collapse_dims", None
-        ):
+        # Config-driven boundary adapter: apply tuple flattening, optional
+        # per-input collapse, binds, and symbol renames, even when only
+        # renames or output filtering are requested.
+        if axis_registry is not None:
             collapse_map = (
                 getattr(axis_registry, "input_collapse_dims", {}) or {}
             )
             binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            rename_map = (
+            per_subnet_renames = (
                 getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
-            ).get(subnet_name, {})
-            model = BoundaryAdapter(
-                model,
-                subnet_name,
-                test_input,
-                dyn,
-                {k: set(v) for k, v in collapse_map.items()},
-                binds_map,
-                rename_map,
-                outputs_keep=(
-                    getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
-                ).get(subnet_name, []),
             )
-            input_names = model.input_names
-            test_input = list(model.input_example())
-            dyn = model.dynamic_shapes_for_export()
-            # Symbol renames are now applied by the BoundaryAdapter
+            rename_map = per_subnet_renames.get(subnet_name, {})
+            outputs_keep = (
+                getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
+            ).get(subnet_name, [])
+
+            # Apply adapter if any transformation is requested for this subnet
+            has_collapse = any(
+                q.startswith(f"{subnet_name}.") for q in collapse_map
+            )
+            has_bind = any(q.startswith(f"{subnet_name}.") for q in binds_map)
+            has_rename = bool(rename_map)
+            has_outputs_keep = bool(outputs_keep)
+            if has_collapse or has_bind or has_rename or has_outputs_keep:
+                model = BoundaryAdapter(
+                    model,
+                    subnet_name,
+                    test_input,
+                    dyn,
+                    {k: set(v) for k, v in collapse_map.items()},
+                    binds_map,
+                    rename_map,
+                    outputs_keep=outputs_keep,
+                )
+                input_names = model.input_names
+                test_input = list(model.input_example())
+                dyn = model.dynamic_shapes_for_export()
+                # Symbol renames are now applied by the BoundaryAdapter
 
         # Avoid name collisions between inputs and outputs (e.g., 'length').
         inter = set(input_names).intersection(set(output_names))

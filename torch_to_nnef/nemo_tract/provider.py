@@ -39,7 +39,7 @@ class NemoProvider(Provider):
 
     def discover_signatures(
         self, model: torch.nn.Module, stage: Stage
-    ) -> list[SubnetSignature]:
+    ) -> T.List[SubnetSignature]:
         """Discover per-subnet signatures for the given stage."""
         snaps = nemo_collect_signatures(
             asr_model=model,

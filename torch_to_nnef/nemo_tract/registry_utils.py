@@ -4,6 +4,9 @@ from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
 )
+from torch_to_nnef.nemo_tract.constants import (
+    NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
+)
 from torch_to_nnef.remodeler import SubnetSignature
 
 
@@ -97,11 +100,13 @@ def _check_bind_refs(
     disc_inputs: set[str],
     disc_input_dyn_syms: dict[str, set[str]],
 ) -> None:
-    for tgt_q, src in (registry.bind_to_dim or {}).items():
+    for tgt_q, src in registry.bind_to_dim.items():
+        subnet, _, _ = tgt_q.rpartition(".")
         if not isinstance(src, str) or "." not in src:
             problems.append(f"bind_to_dim for '{tgt_q}' is invalid: {src!r}")
             continue
         src_q, _, sym = src.rpartition(".")
+        src_q = f"{subnet}.{src_q}"
         if src_q not in disc_inputs:
             problems.append(
                 f"bind_to_dim references unknown source '{src_q}' for '{tgt_q}'"
@@ -183,6 +188,54 @@ def dump_registry_from_signatures(
         outputs_keep_per_subnet=outputs_keep_per_subnet,
         original_shape_per_input=original_shapes,
     )
+
+
+def tie_batch_symbols_in_registry(
+    registry: AxisSymbolRegistry,
+) -> AxisSymbolRegistry:
+    """Alias input-namespaced batch symbols to a unified ``BATCH`` per subnet.
+
+    For each subnet, collects all dynamic symbols that end with
+    ``f"{_SEP}BATCH"`` and records a rename mapping so they are presented to
+    backends as a single ``BATCH`` symbol. This keeps provider-facing symbols
+    namespaced while unifying them for tract-facing assertions and adapters.
+
+    Args:
+        registry: Axis symbol registry discovered from signatures.
+
+    Returns:
+        The same registry instance with ``renamed_symbols_per_subnet`` updated.
+    """
+    per_subnet_sources: dict[str, set[str]] = {}
+    for qname, axes in (registry.symbols_per_input or {}).items():
+        if "." not in qname:
+            continue
+        subnet, _ = qname.split(".", 1)
+        if subnet == "joint":  # batch of joint may be disimilar
+            continue
+        syms = [str(s).upper() for s in (axes or {}).values()]
+        batch_like = [s for s in syms if s.endswith(f"{_SEP}BATCH")]
+        if not batch_like:
+            continue
+        per_subnet_sources.setdefault(subnet, set()).update(batch_like)
+
+    if not per_subnet_sources:
+        return registry
+
+    # Merge into existing mapping if present; otherwise initialize fresh
+    renamed = dict(registry.renamed_symbols_per_subnet or {})
+    for subnet, srcs in per_subnet_sources.items():
+        if not srcs:
+            continue
+        mapping = dict(renamed.get(subnet, {}))
+        # Do not overwrite user-provided target if already present
+        tgt = "BATCH"
+        existing = set(mapping.get(tgt, []))
+        mapping[tgt] = sorted(existing | {str(s) for s in srcs})
+        renamed[subnet] = mapping
+
+    registry.renamed_symbols_per_subnet = renamed
+    return registry
 
 
 def validate_registry_against_signatures(

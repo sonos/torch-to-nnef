@@ -173,12 +173,11 @@ def collect_signatures(
                 applied_flags=applied_flags,
                 symbol_axes={
                     k: v
-                    for k, v in (dyn_axes or {}).items()
-                    if k in ep.input_names
+                    for k, v in dyn_axes.items()
+                    if any(k == inp.name for inp in inputs)
                 },
             )
         )
-
     return sigs
 
 
