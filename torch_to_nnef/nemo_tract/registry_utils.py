@@ -100,11 +100,13 @@ def _check_bind_refs(
     disc_inputs: set[str],
     disc_input_dyn_syms: dict[str, set[str]],
 ) -> None:
-    for tgt_q, src in (registry.bind_to_dim or {}).items():
+    for tgt_q, src in registry.bind_to_dim.items():
+        subnet, _, _ = tgt_q.rpartition(".")
         if not isinstance(src, str) or "." not in src:
             problems.append(f"bind_to_dim for '{tgt_q}' is invalid: {src!r}")
             continue
         src_q, _, sym = src.rpartition(".")
+        src_q = f"{subnet}.{src_q}"
         if src_q not in disc_inputs:
             problems.append(
                 f"bind_to_dim references unknown source '{src_q}' for '{tgt_q}'"
