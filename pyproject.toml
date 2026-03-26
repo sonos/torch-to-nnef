@@ -267,10 +267,12 @@ commands = [
 basepython = ["python3.13"]
 extras = ["test"]
 deps = [
+    "--index-strategy",
+    "unsafe-best-match",
     "-i https://download.pytorch.org/whl/cpu",
-    "torch==2.5.*",
-    "torchvision==0.20.*",
-    "torchaudio==2.5.*",
+    "torch==2.6.*",
+    "torchvision==0.21.*",
+    "torchaudio==2.6.*",
 ]
 
 [tool.tox.env.torch_1_10]
