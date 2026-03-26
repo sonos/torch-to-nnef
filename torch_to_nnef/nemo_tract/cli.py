@@ -37,13 +37,14 @@ from torch_to_nnef.nemo_tract.model_loader import (
 from torch_to_nnef.nemo_tract.provider import NemoProvider
 from torch_to_nnef.nemo_tract.registry_utils import (
     dump_registry_from_signatures,
+    tie_batch_symbols_in_registry,
     validate_registry_against_signatures,
 )
 from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
 )
-from torch_to_nnef.remodeler import Stage, save_config
+from torch_to_nnef.remodeler import Stage, SubnetSignature, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
@@ -374,14 +375,24 @@ def _normalize_inspect_stages(args):
     return [Stage(s) for s in raw_stages]
 
 
-def _build_axis_registry_from_args(args) -> T.Optional[AxisSymbolRegistry]:
+def _build_axis_registry_from_args(
+    args, asr_model, inference_target
+) -> AxisSymbolRegistry:
     """Load optional shape-config into an AxisSymbolRegistry.
 
     Returns None if no shape-config was provided.
     """
+    raw_sigs = _generate_raw_sigs(
+        args=args, asr_model=asr_model, inference_target=inference_target
+    )
     if args.shape_config is None:
-        return None
-    return load_axis_symbol_registry(args.shape_config)
+        default_axis_reg = dump_registry_from_signatures(raw_sigs)
+        # Auto-alias namespaced batch symbols to unified BATCH per subnet
+        return tie_batch_symbols_in_registry(default_axis_reg)
+
+    axis_reg = load_axis_symbol_registry(args.shape_config)
+    validate_registry_against_signatures(raw_sigs, axis_reg)
+    return axis_reg
 
 
 def _normalize_tolerance(args) -> None:
@@ -409,17 +420,12 @@ def _init_logging_and_export_dir(args) -> Path:
     return export_dir
 
 
-def _dump_shape_config_template(
+def _generate_raw_sigs(
     *,
     args,
     asr_model,
     inference_target,
-    model_label: str,
-) -> None:
-    """Generate and write a structured shape-config template to file.
-
-    This encapsulates the long YAML dump logic to keep `main()` small.
-    """
+) -> T.List[SubnetSignature]:
     # Use provider-agnostic remodeler discovery (NeMo provider here)
     provider = NemoProvider(
         inference_target=inference_target,
@@ -430,9 +436,19 @@ def _dump_shape_config_template(
         ),
         only_subnets=args.only_subnets,
     )
-    snaps = provider.discover_signatures(asr_model, Stage.RAW)
-    registry = dump_registry_from_signatures(snaps)
+    return provider.discover_signatures(asr_model, Stage.RAW)
 
+
+def _dump_shape_config_template(
+    *,
+    args,
+    registry: AxisSymbolRegistry,
+    model_label: str,
+) -> None:
+    """Generate and write a structured shape-config template to file.
+
+    This encapsulates the long YAML dump logic to keep `main()` small.
+    """
     args.dump_shape_config.parent.mkdir(parents=True, exist_ok=True)
     with args.dump_shape_config.open("w", encoding="utf8") as fh:
         now = datetime.datetime.now().isoformat(timespec="seconds")
@@ -441,40 +457,6 @@ def _dump_shape_config_template(
         _write_config_example_block(fh)
         # Dump remodeler registry to YAML content after header
         save_config(args.dump_shape_config, registry, stream=fh)
-
-
-def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
-    """Build nested dict for template from collected signatures."""
-    nested: dict[str, dict] = {}
-    for ss in snaps:
-        bucket = nested.setdefault(ss.name, {})
-        inputs_map: dict = bucket.setdefault("inputs", {})
-        # Always include outputs_keep pre-filled; easier to remove than add
-        if isinstance(ss.outputs, list) and ss.outputs:
-            bucket["outputs_keep"] = [o.name for o in ss.outputs]
-        else:
-            bucket["outputs_keep"] = []
-        for i in ss.inputs:
-            dims = [
-                int(d) if isinstance(d, int) else str(d)
-                for d in (i.shape or [])
-            ]
-            entry: dict = {}
-            entry["original_shape"] = dims
-            entry["collapse_dims"] = []
-            inputs_map[i.name] = entry
-        batch_syms = []
-        for i in ss.inputs:
-            for d in i.shape or []:
-                if (
-                    isinstance(d, str)
-                    and d.upper().endswith(f"{_SEP}BATCH")
-                    and d not in batch_syms
-                ):
-                    batch_syms.append(d)
-        if ss.name in ("decoder", "decoder_joint") and len(batch_syms) > 1:
-            bucket["renamed_symbols"] = {"BATCH": batch_syms}
-    return nested
 
 
 def _write_config_header(fh, model_label: str, now: str, cmd: str) -> None:
@@ -541,6 +523,7 @@ def _write_config_example_block(fh) -> None:
 def _run_inspection_flow(
     *,
     args,
+    axis_reg,
     asr_model,
     inference_target,
     model_label: str,
@@ -548,27 +531,12 @@ def _run_inspection_flow(
     """Execute the inspection flow including optional template dump."""
     norm_stages = _normalize_inspect_stages(args)
     fmt_enum = InspectFormat(args.inspect_format)
-    axis_reg = _build_axis_registry_from_args(args)
     if args.dump_shape_config is not None:
         _dump_shape_config_template(
             args=args,
-            asr_model=asr_model,
-            inference_target=inference_target,
+            registry=axis_reg,
             model_label=model_label,
         )
-    # Validate shape-config early to catch mistakes before printing results
-    if axis_reg is not None:
-        provider = NemoProvider(
-            inference_target=inference_target,
-            skip_preprocessor=args.skip_preprocessor,
-            split_joint_decoder=args.split_joint_decoder,
-            float_dtype=(
-                torch.float16 if args.data_type == "float16" else torch.float32
-            ),
-            only_subnets=args.only_subnets,
-        )
-        raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
-        validate_registry_against_signatures(raw_sigs, axis_reg)
 
     run_inspection(
         asr_model=asr_model,
@@ -591,6 +559,7 @@ def _run_inspection_flow(
 def _call_export(
     *,
     asr_model,
+    axis_reg,
     inference_target,
     export_dir: Path,
     args,
@@ -610,11 +579,7 @@ def _call_export(
         extra_cfg={"pretrained_name": args.model_slug},
         float_dtype=float_dtype,
         dump_checked_io=args.dump_checked_io,
-        axis_registry=(
-            load_axis_symbol_registry(args.shape_config)
-            if args.shape_config is not None
-            else None
-        ),
+        axis_registry=axis_reg,
     )
 
 
@@ -644,6 +609,7 @@ def main():
 
     _maybe_dump_export_config(args, export_dir)
 
+    axis_reg = _build_axis_registry_from_args(args, asr_model, inference_target)
     # If in inspection mode (explicit or via dry-run), run the inspector.
     if args.inspect_signatures or args.dry_run:
         # Determine a human-friendly model label for inspection header
@@ -654,6 +620,7 @@ def main():
         )
         _run_inspection_flow(
             args=args,
+            axis_reg=axis_reg,
             asr_model=asr_model,
             inference_target=inference_target,
             model_label=model_label,
@@ -676,6 +643,7 @@ def main():
                     asr_model=asr_model,
                     inference_target=inference_target,
                     export_dir=export_dir,
+                    axis_reg=axis_reg,
                     args=args,
                     float_dtype=torch.float16,
                 )
@@ -688,6 +656,7 @@ def main():
             asr_model=asr_model,
             inference_target=inference_target,
             export_dir=export_dir,
+            axis_reg=axis_reg,
             args=args,
             float_dtype=(
                 torch.float16 if args.data_type == "float16" else torch.float32
