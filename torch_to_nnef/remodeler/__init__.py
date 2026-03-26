@@ -28,6 +28,14 @@ if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
     # Reuse the validated nested schema and data container
     from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
+from torch_to_nnef.remodeler.schema import (
+    INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
+    INPUT_FIELD_COLLAPSE_DIMS,
+    INPUT_FIELD_ORIGINAL_SHAPE,
+    SHAPE_KEY_INPUTS,
+    SHAPE_KEY_OUTPUTS_KEEP,
+    SHAPE_KEY_RENAMED,
+)
 
 __all__ = [
     "Stage",
@@ -196,7 +204,7 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         else:
             subnet, inp = qname.split(".", 1)
         bucket = nested.setdefault(subnet, {})
-        inputs_map: dict = bucket.setdefault("inputs", {})
+        inputs_map: dict = bucket.setdefault(SHAPE_KEY_INPUTS, {})
         entry: dict = {}
         # Reconstruct original_shape from rank map using axis positions
         rank = (getattr(reg, "rank_per_input", None) or {}).get(qname)
@@ -205,15 +213,15 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
             for i in range(rank):
                 sym = (axis_map or {}).get(i)
                 dims.append(str(sym) if sym is not None else 1)
-            entry["original_shape"] = dims
+            entry[INPUT_FIELD_ORIGINAL_SHAPE] = dims
         else:
-            entry["original_shape"] = []
-        entry["collapse_dims"] = list(
+            entry[INPUT_FIELD_ORIGINAL_SHAPE] = []
+        entry[INPUT_FIELD_COLLAPSE_DIMS] = list(
             (getattr(reg, "input_collapse_dims", None) or {}).get(qname, [])
         )
         b = (getattr(reg, "bind_to_dim", None) or {}).get(qname)
         if isinstance(b, str) and b:
-            entry["bind_scalar_to_dim_size"] = b
+            entry[INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE] = b
         inputs_map[inp] = entry
 
     # Copy optional renamed_symbols and outputs_keep per subnet
@@ -222,7 +230,7 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
     ).items():
         bucket = nested.setdefault(subnet, {})
         if mapping:
-            bucket["renamed_symbols"] = {
+            bucket[SHAPE_KEY_RENAMED] = {
                 str(t): [str(s) for s in (srcs or [])]
                 for t, srcs in mapping.items()
             }
@@ -230,6 +238,6 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         getattr(reg, "outputs_keep_per_subnet", None) or {}
     ).items():
         bucket = nested.setdefault(subnet, {})
-        bucket["outputs_keep"] = list(keep or [])
+        bucket[SHAPE_KEY_OUTPUTS_KEEP] = list(keep or [])
 
     return nested

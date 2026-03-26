@@ -68,10 +68,7 @@ def _rewrite_assertions_with_renames(
         tok = m.group(0)
         return inv.get(tok.upper(), tok)
 
-    out: list[str] = []
-    for a in assertions:
-        out.append(ident.sub(_sub, str(a)))
-    return out
+    return [ident.sub(_sub, str(a)) for a in assertions]
 
 
 def _rewrite_and_filter_assertions(
@@ -95,17 +92,17 @@ def _rewrite_and_filter_assertions(
             present.add(str(s).upper())
 
     ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-    out: list[str] = []
-    for a in rewritten:
-        toks = [t.upper() for t in ident.findall(a)]
-        # Ignore the assertion keyword itself
-        syms = [t for t in toks if t not in {"TRACT_ASSERT"}]
-        # If any referenced symbol is not present, drop the assertion
-        if any(t not in present for t in syms):
-            continue
-        out.append(a)
+    filtered = [
+        a
+        for a in rewritten
+        if all(
+            t.upper() in present
+            for t in ident.findall(a)
+            if t.upper() not in {"TRACT_ASSERT"}
+        )
+    ]
     # De-duplicate while preserving order
-    return list(dict.fromkeys(out))
+    return list(dict.fromkeys(filtered))
 
 
 def _patch_encoder_output_types(

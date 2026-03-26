@@ -82,11 +82,8 @@ def _tensor_shape_with_symbols(
     """
     if not torch.is_tensor(t):
         return []
-    shp: T.List[T.Union[int, str]] = []
     syms = symbols or {}
-    for i, dim in enumerate(list(t.shape)):
-        shp.append(syms.get(i, int(dim)))
-    return shp
+    return [syms.get(i, int(dim)) for i, dim in enumerate(list(t.shape))]
 
 
 def _dtype_of(t: object) -> T.Optional[str]:

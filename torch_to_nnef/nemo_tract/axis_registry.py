@@ -9,6 +9,14 @@ from torch_to_nnef.exceptions import (
     T2NErrorInvalidArgument,
     T2NErrorNotFoundFile,
 )
+from torch_to_nnef.remodeler.schema import (
+    INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
+    INPUT_FIELD_COLLAPSE_DIMS,
+    INPUT_FIELD_ORIGINAL_SHAPE,
+    SHAPE_KEY_INPUTS,
+    SHAPE_KEY_OUTPUTS_KEEP,
+    SHAPE_KEY_RENAMED,
+)
 
 AxisSymbolMap = T.Dict[int, str]
 
@@ -100,10 +108,7 @@ def _validate_and_record(
 
 def _normalize_syms(seq: T.Sequence[str]) -> T.List[str]:
     """Uppercase a list of symbols without applying aliases."""
-    out: T.List[str] = []
-    for s in seq:
-        out.append(str(s).strip().upper())
-    return out
+    return [str(s).strip().upper() for s in seq]
 
 
 def _parse_renamed_symbols(
@@ -129,15 +134,21 @@ def _parse_renamed_symbols(
             if isinstance(elem, dict) and len(elem) == 1:
                 items_iter += list(elem.items())
             else:
-                msg = f"Invalid renamed_symbols entry for subnet '{top_key}'"
+                msg = (
+                    f"Invalid {SHAPE_KEY_RENAMED} entry for subnet '{top_key}'"
+                )
                 raise T2NErrorInvalidArgument(msg)
     else:
-        msg = f"renamed_symbols for subnet '{top_key}' must be mapping or list"
+        msg = (
+            f"{SHAPE_KEY_RENAMED} for subnet '{top_key}' must be mapping or "
+            "list"
+        )
         raise T2NErrorInvalidArgument(msg)
     for tgt, srcs in items_iter:  # type: ignore[attr-defined]
         if not isinstance(tgt, str) or not isinstance(srcs, (list, tuple)):
             msg = (
-                f"Invalid renamed_symbols target/sources for subnet '{top_key}'"
+                f"Invalid {SHAPE_KEY_RENAMED} target/sources for subnet "
+                f"'{top_key}'"
             )
             raise T2NErrorInvalidArgument(msg)
         tnorm = str(tgt).strip().upper()
@@ -168,27 +179,24 @@ def _nts_handle_tuple_group(
             raise T2NErrorInvalidArgument(
                 f"Invalid tuple entry for '{qname}': expected mapping"
             )
-        if "original_shape" in inner:
-            oshp = inner.get("original_shape")
+        if INPUT_FIELD_ORIGINAL_SHAPE in inner:
+            oshp = inner.get(INPUT_FIELD_ORIGINAL_SHAPE)
             if not isinstance(oshp, (list, tuple)):
                 raise T2NErrorInvalidArgument(
                     f"Invalid original_shape for '{qname}'"
                 )
             _validate_and_record(qname, oshp, symbols, ranks)
-        if "collapse_dims" in inner:
-            cdv = inner.get("collapse_dims")
+        if INPUT_FIELD_COLLAPSE_DIMS in inner:
+            cdv = inner.get(INPUT_FIELD_COLLAPSE_DIMS)
             if not isinstance(cdv, (list, tuple)):
                 raise T2NErrorInvalidArgument(
                     f"Invalid collapse_dims for '{qname}'"
                 )
             input_dims[qname] = _normalize_syms([str(x) for x in cdv])
-        b = None
-        if "bind_scalar_to_dim_size" in inner:
-            b = inner.get("bind_scalar_to_dim_size")
-        elif "bind_to_dim" in inner:
-            b = inner.get("bind_to_dim")
-        if isinstance(b, str) and b:
-            binds[qname] = b
+        if INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE in inner:
+            b = inner.get(INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE)
+            if isinstance(b, str) and b:
+                binds[qname] = b
 
 
 def _nts_handle_single_mapping(
@@ -202,27 +210,24 @@ def _nts_handle_single_mapping(
 ) -> None:
     """Handle single input mapping with optional shape/collapse/bind fields."""
     qbase = f"{top_key}.{inp_name}"
-    if "original_shape" in mapping:
-        oshp = mapping.get("original_shape")
+    if INPUT_FIELD_ORIGINAL_SHAPE in mapping:
+        oshp = mapping.get(INPUT_FIELD_ORIGINAL_SHAPE)
         if not isinstance(oshp, (list, tuple)):
             raise T2NErrorInvalidArgument(
                 f"Invalid original_shape for '{qbase}'"
             )
         _validate_and_record(qbase, oshp, symbols, ranks)
-    if "collapse_dims" in mapping:
-        cdv = mapping.get("collapse_dims")
+    if INPUT_FIELD_COLLAPSE_DIMS in mapping:
+        cdv = mapping.get(INPUT_FIELD_COLLAPSE_DIMS)
         if not isinstance(cdv, (list, tuple)):
             raise T2NErrorInvalidArgument(
                 f"Invalid collapse_dims for '{qbase}'"
             )
         input_dims[qbase] = _normalize_syms([str(x) for x in cdv])
-    b = None
-    if "bind_scalar_to_dim_size" in mapping:
-        b = mapping.get("bind_scalar_to_dim_size")
-    elif "bind_to_dim" in mapping:
-        b = mapping.get("bind_to_dim")
-    if isinstance(b, str) and b:
-        binds[qbase] = b
+    if INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE in mapping:
+        b = mapping.get(INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE)
+        if isinstance(b, str) and b:
+            binds[qbase] = b
 
 
 def _parse_top_level(
@@ -243,12 +248,12 @@ def _parse_top_level(
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
-            _ = _parse_renamed_symbols(top_key, val.get("renamed_symbols"))
+            _ = _parse_renamed_symbols(top_key, val.get(SHAPE_KEY_RENAMED))
             _parse_nested_subnet(
                 top_key, val, symbols, ranks, binds, input_dims
             )
-            if "outputs_keep" in val:
-                oks = val.get("outputs_keep")
+            if SHAPE_KEY_OUTPUTS_KEEP in val:
+                oks = val.get(SHAPE_KEY_OUTPUTS_KEEP)
                 if not isinstance(oks, (list, tuple)) or not all(
                     isinstance(x, str) and x for x in oks
                 ):
@@ -273,9 +278,9 @@ def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
     """Build per-subnet renamed_symbols mapping from raw config."""
     out: dict[str, dict[str, list[str]]] = {}
     for top_key, val in dict(raw or {}).items():
-        if isinstance(val, dict) and "renamed_symbols" in val:
+        if isinstance(val, dict) and SHAPE_KEY_RENAMED in val:
             mapping = _parse_renamed_symbols(
-                top_key, val.get("renamed_symbols")
+                top_key, val.get(SHAPE_KEY_RENAMED)
             )
             if mapping:
                 out[top_key] = mapping
@@ -300,26 +305,21 @@ def _parse_nested_subnet(
         binds: Output binds mapping.
         input_dims: Output collapse-dims mapping.
     """
-    if "collapse_dims" in val:
+    if INPUT_FIELD_COLLAPSE_DIMS in val:
         raise T2NErrorInvalidArgument(
             f"Do not set collapse_dims at subnet '{top_key}'. "
             "Define per-input collapse_dims instead."
         )
-    if "collapse_batch_dim" in val:
-        raise T2NErrorInvalidArgument(
-            f"Legacy collapse_batch_dim found at subnet '{top_key}'. "
-            "Use per-input collapse_dims only."
-        )
 
     # Require new-style nested inputs mapping under key 'inputs'.
-    input_section = val.get("inputs") if isinstance(val, dict) else None
+    input_section = val.get(SHAPE_KEY_INPUTS) if isinstance(val, dict) else None
     if not isinstance(input_section, dict):
         raise T2NErrorInvalidArgument(
             "Each subnet must declare an 'inputs' mapping. Flat per-input "
             "keys at the subnet level are no longer supported."
         )
     # Reject unknown top-level keys besides the allowed ones
-    allowed = {"inputs", "renamed_symbols", "outputs_keep"}
+    allowed = {SHAPE_KEY_INPUTS, SHAPE_KEY_RENAMED, SHAPE_KEY_OUTPUTS_KEEP}
     unknown = {k for k in val if k not in allowed}
     if unknown:
         raise T2NErrorInvalidArgument(

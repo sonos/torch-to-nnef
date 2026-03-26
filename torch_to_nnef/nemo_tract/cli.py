@@ -463,12 +463,10 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
         else:
             bucket["outputs_keep"] = []
         for i in ss.inputs:
-            dims = []
-            for d in i.shape or []:
-                if isinstance(d, int):
-                    dims.append(int(d))
-                else:
-                    dims.append(str(d))
+            dims = [
+                int(d) if isinstance(d, int) else str(d)
+                for d in (i.shape or [])
+            ]
             entry: dict = {}
             entry["original_shape"] = dims
             entry["collapse_dims"] = []
@@ -517,8 +515,8 @@ def _write_config_example_block(fh) -> None:
     fh.write(f"#       original_shape: [LENGTH{_SEP}BATCH]\n")
     fh.write(f"#       collapse_dims: [LENGTH{_SEP}BATCH]\n")
     fh.write(
-        f"#       bind_scalar_to_dim_size: encoder.audio_signal."
-        f"AUDIO_SIGNAL{_SEP}TIME\n"
+        f"#       bind_scalar_to_dim_size: "
+        f"encoder.audio_signal.AUDIO_SIGNAL{_SEP}TIME\n"
     )
     fh.write("# decoder_joint:\n")
     fh.write("#   inputs:\n")
