@@ -267,8 +267,7 @@ commands = [
 basepython = ["python3.13"]
 extras = ["test"]
 deps = [
-    "-i",
-    "https://download.pytorch.org/whl/cpu",
+    "-i https://download.pytorch.org/whl/cpu",
     "torch==2.5.*",
     "torchvision==0.20.*",
     "torchaudio==2.5.*",
@@ -407,8 +406,7 @@ commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 basepython = ["python3.12"]
 extras = ["test", "nemo-tract"]
 deps = [
-    "-i",
-    "https://download.pytorch.org/whl/cpu",
+    "-i https://download.pytorch.org/whl/cpu",
     "torch==2.5.*",
     "torchvision==0.20.*",
     "torchaudio==2.5.*",
