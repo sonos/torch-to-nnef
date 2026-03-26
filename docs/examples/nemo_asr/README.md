@@ -73,7 +73,7 @@ Run `t2n_export_nemo --help` for the full list of options.
 
 ## Shape configuration (boundary remodeler)
 
-See also: the [dedicated remodeler tutorial](../11_remodeler.md) for broader, provider-agnostic usage and API details
+See also: the [dedicated remodeler tutorial](./11_remodeler.md) for broader, provider-agnostic usage and API details
 
 In many cases you will want to control the symbolic shapes and boundary transforms used during export (e.g., set a stable `BATCH` symbol, collapse size-1 dims, bind a scalar to a dynamic size, or keep only a subset of outputs). You can manage this via a YAML shape config file passed to the CLI.
 
@@ -177,9 +177,9 @@ Boundary semantics
 - `bind_scalar_to_dim_size` removes the bound input from the external IO and injects `shape(source)[axis]` as a dynamic `int64` tensor.
 - `renamed_symbols` only affects the Tract-facing dynamic axes; inspector views remain namespaced by input (e.g., `TARGETS__BATCH`).
 
-Quick commands
+### Quick commands
 
-See also: the provider‑agnostic remodeler tutorial for programmatic usage and richer inspection: ../tutos/11_remodeler.md
+See also: the [provider‑agnostic remodeler tutorial](./11_remodeler.md) for programmatic usage and richer inspection:
 
 Inspect with config applied (human-rich):
 
