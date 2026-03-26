@@ -63,8 +63,13 @@ def test_nemo_asr_parakeet_v3():
 
 @pytest.mark.ci_skip
 @pytest.mark.parametrize(
-    "models",
-    [NEMOTRON_0_6B, QUARTZNET, MARBLENET_VAD, FAST_CONFORMER_TDT_LARGE],
+    "model",
+    [
+        pytest.param(NEMOTRON_0_6B, id=NEMOTRON_0_6B),
+        pytest.param(QUARTZNET, id=QUARTZNET),
+        pytest.param(MARBLENET_VAD, id=MARBLENET_VAD),
+        pytest.param(FAST_CONFORMER_TDT_LARGE, id=FAST_CONFORMER_TDT_LARGE),
+    ],
 )
 def test_nemo_model_export(model):
     check_export_asr_model(model)
