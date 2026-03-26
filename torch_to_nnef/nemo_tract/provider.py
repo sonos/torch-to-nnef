@@ -7,22 +7,13 @@ from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )
-from torch_to_nnef.nemo_tract.inspect import (
-    InspectStage,
-)
-from torch_to_nnef.nemo_tract.inspect import (
-    collect_signatures as nemo_collect_signatures,
-)
+from torch_to_nnef.nemo_tract.inspect import collect_signatures as nemo_collect_signatures
 from torch_to_nnef.remodeler import (
-    IODescriptor as RIO,
-)
-from torch_to_nnef.remodeler import (
+    IODescriptor,
     Provider,
     RemodelPlan,
     Stage,
-)
-from torch_to_nnef.remodeler import (
-    SubnetSignature as RSig,
+    SubnetSignature,
 )
 
 
@@ -44,31 +35,27 @@ class NemoProvider(Provider):
     float_dtype: T.Optional[torch.dtype] = None
     only_subnets: T.Optional[T.Collection[str]] = None
 
-    @staticmethod
-    def _map_stage(stage: Stage) -> InspectStage:
-        return InspectStage(stage.value)
-
     def discover_signatures(
         self, model: torch.nn.Module, stage: Stage
-    ) -> list[RSig]:
+    ) -> list[SubnetSignature]:
         """Discover per-subnet signatures for the given stage."""
         snaps = nemo_collect_signatures(
             asr_model=model,
             inference_target=self.inference_target,
-            stage=self._map_stage(stage),
+            stage=stage,
             skip_preprocessor=self.skip_preprocessor,
             split_joint_decoder=self.split_joint_decoder,
             float_dtype=self.float_dtype or torch.float32,
             only_subnets=self.only_subnets,
         )
-        out: list[RSig] = []
+        out: list[SubnetSignature] = []
         for ss in snaps:
             out.append(
-                RSig(
+                SubnetSignature(
                     name=ss.name,
                     stage=Stage(ss.stage.value),
                     inputs=[
-                        RIO(
+                        IODescriptor(
                             name=i.name,
                             shape=list(i.shape or []),
                             dtype=i.dtype,
@@ -77,7 +64,7 @@ class NemoProvider(Provider):
                         for i in ss.inputs
                     ],
                     outputs=[
-                        RIO(
+                        IODescriptor(
                             name=o.name,
                             shape=list(o.shape or []),
                             dtype=o.dtype,

@@ -28,7 +28,6 @@ from torch_to_nnef.nemo_tract.constants import (
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
 from torch_to_nnef.nemo_tract.inspect import (
     InspectFormat,
-    InspectStage,
     run_inspection,
 )
 from torch_to_nnef.nemo_tract.model_loader import (
@@ -44,10 +43,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     use_pytorch_sdpa,
 )
-from torch_to_nnef.remodeler import (
-    Stage as RemodelStage,
-)
-from torch_to_nnef.remodeler import save_config
+from torch_to_nnef.remodeler import Stage, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
 
@@ -77,7 +73,7 @@ def add_inspection_args(parser: argparse.ArgumentParser) -> None:
         dest="inspect_stages",
         action="append",
         default=None,
-        choices=[st.value for st in InspectStage] + ["all"],
+        choices=[st.value for st in Stage] + ["all"],
         help=(
             "Which stage(s) to display: raw|collapsed|bound|final|all. "
             "Repeat flag to show multiple; default is final."
@@ -369,18 +365,13 @@ def _prepare_model_dtype_and_wrappers(asr_model, args):
 
 
 def _normalize_inspect_stages(args):
-    """Return list of InspectStage or None based on CLI args."""
+    """Return list of Stage or None based on CLI args."""
     raw_stages = args.inspect_stages or None
     if not raw_stages:
         return None
     if any(s == "all" for s in raw_stages):
-        return [
-            InspectStage.RAW,
-            InspectStage.COLLAPSED,
-            InspectStage.BOUND,
-            InspectStage.FINAL,
-        ]
-    return [InspectStage(s) for s in raw_stages]
+        return [st for st in Stage]
+    return [Stage(s) for s in raw_stages]
 
 
 def _build_axis_registry_from_args(args) -> T.Optional[AxisSymbolRegistry]:

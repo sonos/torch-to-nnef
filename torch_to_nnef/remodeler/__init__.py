@@ -43,7 +43,6 @@ __all__ = [
     "SubnetSignature",
     "RemodelPlan",
     "Provider",
-    "stage_order",
     "plan_from_registry",
     "save_config",
     "BoundaryAdapter",
@@ -68,11 +67,6 @@ class Stage(Enum):
             Stage.BOUND: 2,
             Stage.FINAL: 3,
         }[self]
-
-
-def stage_order(stage: "Stage") -> int:
-    """Back-compat helper; prefer ``stage.order``."""
-    return stage.order
 
 
 @dataclass(frozen=True)
