@@ -1,4 +1,5 @@
 import typing as T
+from importlib import import_module
 
 from torch_to_nnef.remodeler import SubnetSignature
 from torch_to_nnef.remodeler.inspect_utils import (
@@ -9,10 +10,26 @@ from torch_to_nnef.remodeler.inspect_utils import (
 )
 
 
+def _rich_classes(rich):
+    """Resolve rich classes using the provided module object.
+
+    Imports submodules from the module name of the provided `rich` to avoid
+    hard import-time dependencies.
+    """
+    base = rich.__name__
+    Table = import_module(f"{base}.table").Table
+    Text = import_module(f"{base}.text").Text
+    Console = import_module(f"{base}.console").Console
+    Columns = import_module(f"{base}.columns").Columns
+    Rule = import_module(f"{base}.rule").Rule
+    return Table, Text, Console, Columns, Rule
+
+
 def _make_tables(rich, rep: SubnetSignature):
-    table_cls = rich.table.Table
+    Table, _, _, _, _ = _rich_classes(rich)
+
     has_notes = any(bool(i.notes) for i in rep.inputs)
-    tin = table_cls(show_header=True, header_style="bold", pad_edge=False)
+    tin = Table(show_header=True, header_style="bold", pad_edge=False)
     tin.add_column("Input")
     tin.add_column("Shape")
     tin.add_column("Dtype", style="dim")
@@ -26,7 +43,7 @@ def _make_tables(rich, rep: SubnetSignature):
             row.append(" ".join(i.notes or []))
         tin.add_row(*row)
         in_count += 1
-    tout = table_cls(show_header=True, header_style="bold", pad_edge=False)
+    tout = Table(show_header=True, header_style="bold", pad_edge=False)
     tout.add_column("Output")
     out_count = 0
     for o in rep.outputs:
@@ -47,18 +64,18 @@ def _balance_tables(tin, tout, in_count: int, out_count: int, has_notes: bool):
 
 
 def _print_diffs(rich, console, groups):
-    text_cls = rich.text.Text
-    table_cls = rich.table.Table
+    Table, Text, _, _, _ = _rich_classes(rich)
+
     for gi in range(len(groups) - 1):
         stages_a, a = groups[gi]
         stages_b, b = groups[gi + 1]
         left = ",".join(s.value for s in stages_a)
         right = ",".join(s.value for s in stages_b)
-        console.print(text_cls(f"Diff: {left} → {right}", style="bold yellow"))
+        console.print(Text(f"Diff: {left} → {right}", style="bold yellow"))
         a_map = {i.name: i for i in a.inputs}
         b_map = {i.name: i for i in b.inputs}
         all_names = sorted(set(a_map.keys()) | set(b_map.keys()))
-        td = table_cls(show_header=True, header_style="bold")
+        td = Table(show_header=True, header_style="bold")
         td.add_column("Input")
         td.add_column(",".join(s.value for s in stages_a))
         td.add_column("")
@@ -117,19 +134,15 @@ def print_signatures_rich(
         raise RuntimeError(
             "rich module must be provided to print_signatures_rich"
         )
-    console_cls = rich.console.Console
-    columns_cls = rich.columns.Columns
-    rule_cls = rich.rule.Rule
-    text_cls = rich.text.Text
-
-    console = console_cls()
+    Table, Text, Console, Columns, Rule = _rich_classes(rich)
+    console = Console()
     if model_label:
-        console.print(rule_cls(text_cls(f"Model: {model_label}", style="bold")))
+        console.print(Rule(Text(f"Model: {model_label}", style="bold")))
 
     for subnet_name, entries in group_by_subnet(sigs).items():
         entries.sort(key=lambda e: e.stage.order)
         groups = group_consecutive(entries)
-        console.print(text_cls(f"Subnet: {subnet_name}", style="bold"))
+        console.print(Text(f"Subnet: {subnet_name}", style="bold"))
         for _, rep in groups:
             has_notes, tin, tout, in_count, out_count = _make_tables(rich, rep)
             _balance_tables(tin, tout, in_count, out_count, has_notes)
@@ -138,7 +151,7 @@ def print_signatures_rich(
             except AttributeError:
                 term_width = 80
             if term_width >= 100:
-                cols = columns_cls(
+                cols = Columns(
                     [tin, tout], equal=False, expand=False, padding=1
                 )
                 console.print(cols)

@@ -156,6 +156,7 @@ def dump_registry_from_signatures(
     symbols: dict[str, dict[int, str]] = {}
     ranks: dict[str, int] = {}
     outputs_keep_per_subnet: dict[str, list[str]] = {}
+    original_shapes: dict[str, list[T.Union[int, str]]] = {}
 
     for ss in signatures:
         outputs_keep_per_subnet[ss.name] = [o.name for o in (ss.outputs or [])]
@@ -164,6 +165,8 @@ def dump_registry_from_signatures(
             q = f"{ss.name}.{io.name}"
             if io.shape:
                 ranks[q] = len(io.shape)
+                # Preserve discovered dims (ints/strings) for template dump
+                original_shapes[q] = list(io.shape)
             if io.name in axes_map and axes_map[io.name]:
                 symbols[q] = {
                     int(ax): str(sym) for ax, sym in axes_map[io.name].items()
@@ -178,6 +181,7 @@ def dump_registry_from_signatures(
         input_collapse_dims={},
         renamed_symbols_per_subnet={},
         outputs_keep_per_subnet=outputs_keep_per_subnet,
+        original_shape_per_input=original_shapes,
     )
 
 

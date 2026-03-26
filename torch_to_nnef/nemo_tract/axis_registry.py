@@ -41,6 +41,9 @@ class AxisSymbolRegistry:
     renamed_symbols_per_subnet: T.Dict[str, T.Dict[str, T.List[str]]]
     # Optional per-subnet output selection: keep only these outputs
     outputs_keep_per_subnet: T.Dict[str, T.List[str]]
+    # Optional: discovered shapes with mixed ints/symbols per qualified input
+    # (used for template serialization; not required when loading config)
+    original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]]
 
     @staticmethod
     def empty() -> "AxisSymbolRegistry":
@@ -51,6 +54,7 @@ class AxisSymbolRegistry:
             input_collapse_dims={},
             renamed_symbols_per_subnet={},
             outputs_keep_per_subnet={},
+            original_shape_per_input={},
         )
 
 
@@ -82,6 +86,7 @@ def _validate_and_record(
     shape_val: T.Sequence[T.Union[str, int]],
     symbols: T.Dict[str, AxisSymbolMap],
     ranks: T.Dict[str, int],
+    orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
 ) -> None:
     """Validate a shape list and record into outputs.
 
@@ -90,6 +95,7 @@ def _validate_and_record(
         shape_val: Sequence of dim entries.
         symbols: Output map to axis symbols.
         ranks: Output map to ranks.
+        orig_shapes: Output map to original dims (ints/strings).
     """
     _validate_key(key)
     for i, v in enumerate(shape_val):
@@ -104,6 +110,9 @@ def _validate_and_record(
             )
     symbols[key] = _list_to_axis_map(shape_val)
     ranks[key] = len(shape_val)
+    orig_shapes[key] = [
+        int(v) if isinstance(v, int) else str(v) for v in shape_val
+    ]
 
 
 def _normalize_syms(seq: T.Sequence[str]) -> T.List[str]:
@@ -171,6 +180,7 @@ def _nts_handle_tuple_group(
     ranks: T.Dict[str, int],
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
+    orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
 ) -> None:
     """Handle tuple-group style input mapping (index -> sub-mapping)."""
     for idx_str, inner in group.items():
@@ -185,7 +195,7 @@ def _nts_handle_tuple_group(
                 raise T2NErrorInvalidArgument(
                     f"Invalid original_shape for '{qname}'"
                 )
-            _validate_and_record(qname, oshp, symbols, ranks)
+            _validate_and_record(qname, oshp, symbols, ranks, orig_shapes)
         if INPUT_FIELD_COLLAPSE_DIMS in inner:
             cdv = inner.get(INPUT_FIELD_COLLAPSE_DIMS)
             if not isinstance(cdv, (list, tuple)):
@@ -207,6 +217,7 @@ def _nts_handle_single_mapping(
     ranks: T.Dict[str, int],
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
+    orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
 ) -> None:
     """Handle single input mapping with optional shape/collapse/bind fields."""
     qbase = f"{top_key}.{inp_name}"
@@ -216,7 +227,7 @@ def _nts_handle_single_mapping(
             raise T2NErrorInvalidArgument(
                 f"Invalid original_shape for '{qbase}'"
             )
-        _validate_and_record(qbase, oshp, symbols, ranks)
+        _validate_and_record(qbase, oshp, symbols, ranks, orig_shapes)
     if INPUT_FIELD_COLLAPSE_DIMS in mapping:
         cdv = mapping.get(INPUT_FIELD_COLLAPSE_DIMS)
         if not isinstance(cdv, (list, tuple)):
@@ -238,6 +249,7 @@ def _parse_top_level(
     T.Dict[str, str],
     T.Dict[str, T.List[str]],
     T.Dict[str, T.List[str]],
+    T.Dict[str, T.List[T.Union[int, str]]],
 ]:
     """Parse top-level entries into symbols/ranks/binds/input_dims."""
     symbols: T.Dict[str, AxisSymbolMap] = {}
@@ -245,12 +257,13 @@ def _parse_top_level(
     binds: T.Dict[str, str] = {}
     input_dims: T.Dict[str, T.List[str]] = {}
     outputs_keep: T.Dict[str, T.List[str]] = {}
+    orig_shapes: T.Dict[str, T.List[T.Union[int, str]]] = {}
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
             _ = _parse_renamed_symbols(top_key, val.get(SHAPE_KEY_RENAMED))
             _parse_nested_subnet(
-                top_key, val, symbols, ranks, binds, input_dims
+                top_key, val, symbols, ranks, binds, input_dims, orig_shapes
             )
             if SHAPE_KEY_OUTPUTS_KEEP in val:
                 oks = val.get(SHAPE_KEY_OUTPUTS_KEEP)
@@ -264,14 +277,14 @@ def _parse_top_level(
                     raise T2NErrorInvalidArgument(msg)
                 outputs_keep[top_key] = [str(x) for x in oks]
         elif isinstance(val, (list, tuple)):
-            _validate_and_record(top_key, val, symbols, ranks)
+            _validate_and_record(top_key, val, symbols, ranks, orig_shapes)
         else:
             msg = (
                 f"Invalid value for '{top_key}': expected list/tuple or nested "
                 "mapping"
             )
             raise T2NErrorInvalidArgument(msg)
-    return symbols, ranks, binds, input_dims, outputs_keep
+    return symbols, ranks, binds, input_dims, outputs_keep, orig_shapes
 
 
 def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
@@ -294,6 +307,7 @@ def _parse_nested_subnet(
     ranks: T.Dict[str, int],
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
+    orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
 ) -> None:
     """Parse a nested subnet mapping into outputs.
 
@@ -304,6 +318,7 @@ def _parse_nested_subnet(
         ranks: Output ranks map.
         binds: Output binds mapping.
         input_dims: Output collapse-dims mapping.
+        orig_shapes: Output map to original dims (ints/strings).
     """
     if INPUT_FIELD_COLLAPSE_DIMS in val:
         raise T2NErrorInvalidArgument(
@@ -334,14 +349,30 @@ def _parse_nested_subnet(
             )
             if is_tuple_group:
                 _nts_handle_tuple_group(
-                    top_key, inp_name, shape, symbols, ranks, binds, input_dims
+                    top_key,
+                    inp_name,
+                    shape,
+                    symbols,
+                    ranks,
+                    binds,
+                    input_dims,
+                    orig_shapes,
                 )
             else:
                 _nts_handle_single_mapping(
-                    top_key, inp_name, shape, symbols, ranks, binds, input_dims
+                    top_key,
+                    inp_name,
+                    shape,
+                    symbols,
+                    ranks,
+                    binds,
+                    input_dims,
+                    orig_shapes,
                 )
         elif isinstance(shape, (list, tuple)):
-            _validate_and_record(f"{top_key}.{inp_name}", shape, symbols, ranks)
+            _validate_and_record(
+                f"{top_key}.{inp_name}", shape, symbols, ranks, orig_shapes
+            )
         else:
             raise T2NErrorInvalidArgument(
                 f"Invalid value for '{top_key}.{inp_name}': "
@@ -375,7 +406,9 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
             "input-name -> list of dims"
         )
     # Delegate detailed parsing to helpers to keep complexity low
-    symbols, ranks, binds, input_dims, outputs_keep = _parse_top_level(raw)
+    symbols, ranks, binds, input_dims, outputs_keep, orig_shapes = (
+        _parse_top_level(raw)
+    )
     if not symbols:
         raise T2NErrorInvalidArgument(
             "shape-config did not define any input shapes"
@@ -389,4 +422,5 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         input_collapse_dims=input_dims,
         renamed_symbols_per_subnet=renamed_per_subnet,
         outputs_keep_per_subnet=outputs_keep,
+        original_shape_per_input=orig_shapes,
     )

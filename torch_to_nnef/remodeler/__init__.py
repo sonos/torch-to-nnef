@@ -218,11 +218,19 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         entry: dict = {}
         # Reconstruct original_shape from rank map using axis positions
         rank = (getattr(reg, "rank_per_input", None) or {}).get(qname)
+        # Prefer captured original shapes (ints/strings) when available
+        orig_map = getattr(reg, "original_shape_per_input", None) or {}
+        orig_dims: list[T.Union[int, str]] = list(orig_map.get(qname, []) or [])
         if isinstance(rank, int) and rank >= 0:
             dims: list[T.Union[int, str]] = []
             for i in range(rank):
                 sym = (axis_map or {}).get(i)
-                dims.append(str(sym) if sym is not None else 1)
+                if sym is not None:
+                    dims.append(str(sym))
+                elif i < len(orig_dims):
+                    dims.append(orig_dims[i])
+                else:
+                    dims.append(1)
             entry[INPUT_FIELD_ORIGINAL_SHAPE] = dims
         else:
             entry[INPUT_FIELD_ORIGINAL_SHAPE] = []

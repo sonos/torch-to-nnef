@@ -479,59 +479,63 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
 
 def _write_config_header(fh, model_label: str, now: str, cmd: str) -> None:
     """Write the header section of the template file."""
-    header = f"""
-    # '{model_label}' shapes config generated on '{now}'
-    # Command:
-    #   {cmd}
-    # Edit dims/symbols as needed. Keys must match subnet/input names.
-    #
-    # Optional: per-subnet 'outputs_keep' filters exported outputs;
-    # if not set, all outputs declared by the subnet are kept.
-    """.strip()
-    fh.write(textwrap.dedent(header) + "\n")
+    header = textwrap.dedent(
+        f"""\
+# '{model_label}' shapes config generated on '{now}'
+# Command:
+#   {cmd}
+# Edit dims/symbols as needed. Keys must match subnet/input names.
+#
+# Optional: per-subnet 'outputs_keep' filters exported outputs;
+# if not set, all outputs declared by the subnet are kept.
+"""
+    )
+    fh.write(header + "\n")
 
 
 def _write_config_example_block(fh) -> None:
     """Write the example config block for guidance."""
-    example = f"""
-    # Config example (structured):
-    # encoder:
-    #   inputs:
-    #     audio_signal:
-    #       original_shape:
-    #         [AUDIO_SIGNAL{_SEP}BATCH, 128, AUDIO_SIGNAL{_SEP}TIME]
-    #       collapse_dims: [AUDIO_SIGNAL{_SEP}BATCH]
-    #     length:
-    #       original_shape: [LENGTH{_SEP}BATCH]
-    #       collapse_dims: [LENGTH{_SEP}BATCH]
-    #       bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL{_SEP}TIME
-    # decoder_joint:
-    #   inputs:
-    #     encoder_outputs:
-    #       original_shape:
-    #         [ENCODER_OUTPUTS{_SEP}BATCH, 1024, ENCODER_OUTPUTS{_SEP}TIME]
-    #       collapse_dims:
-    #         [ENCODER_OUTPUTS{_SEP}BATCH, ENCODER_OUTPUTS{_SEP}TIME]
+    example = textwrap.dedent(
+        f"""\
+# Config example (structured):
+# encoder:
+#   inputs:
+#     audio_signal:
+#       original_shape:
+#         [AUDIO_SIGNAL{_SEP}BATCH, 128, AUDIO_SIGNAL{_SEP}TIME]
+#       collapse_dims: [AUDIO_SIGNAL{_SEP}BATCH]
+#     length:
+#       original_shape: [LENGTH{_SEP}BATCH]
+#       collapse_dims: [LENGTH{_SEP}BATCH]
+#       bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL{_SEP}TIME
+# decoder_joint:
+#   inputs:
+#     encoder_outputs:
+#       original_shape:
+#         [ENCODER_OUTPUTS{_SEP}BATCH, 1024, ENCODER_OUTPUTS{_SEP}TIME]
+#       collapse_dims:
+#         [ENCODER_OUTPUTS{_SEP}BATCH, ENCODER_OUTPUTS{_SEP}TIME]
 
-    # decoder:
-    #   # Optionally unify symbols with 'renamed_symbols' if needed.
-    #   # Aliases in 'renamed_symbols' are accepted for any symbol.
-    #   # Optionally select exported outputs (default: keep all)
-    #   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]
-    #   inputs:
-    #     targets:
-    #       original_shape: [TARGETS{_SEP}BATCH, TARGETS{_SEP}TIME]
-    #       # Aliases are accepted when listed in renamed_symbols
-    #       collapse_dims: [BATCH]
-    #     states_0:
-    #       original_shape: [2, STATES_0{_SEP}BATCH, 640]
-    #       collapse_dims: [BATCH]
-    #     states_1:
-    #       original_shape: [2, STATES_1{_SEP}BATCH, 640]
-    #       collapse_dims: [BATCH]
-    #   # Binding can also use alias symbols listed in renamed_symbols
-    """.strip()
-    fh.write(textwrap.dedent(example) + "\n\n")
+# decoder:
+#   # Optionally unify symbols with 'renamed_symbols' if needed.
+#   # Aliases in 'renamed_symbols' are accepted for any symbol.
+#   # Optionally select exported outputs (default: keep all)
+#   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]
+#   inputs:
+#     targets:
+#       original_shape: [TARGETS{_SEP}BATCH, TARGETS{_SEP}TIME]
+#       # Aliases are accepted when listed in renamed_symbols
+#       collapse_dims: [BATCH]
+#     states_0:
+#       original_shape: [2, STATES_0{_SEP}BATCH, 640]
+#       collapse_dims: [BATCH]
+#     states_1:
+#       original_shape: [2, STATES_1{_SEP}BATCH, 640]
+#       collapse_dims: [BATCH]
+#   # Binding can also use alias symbols listed in renamed_symbols
+"""
+    )
+    fh.write(example + "\n\n")
 
 
 def _run_inspection_flow(
