@@ -73,7 +73,7 @@ Run `t2n_export_nemo --help` for the full list of options.
 
 ## Shape configuration (boundary remodeler)
 
-See also: the dedicated remodeler tutorial for broader, provider-agnostic usage and API details: ../tutos/11_remodeler.md
+See also: the [dedicated remodeler tutorial](../tutos/11_remodeler.md) for broader, provider-agnostic usage and API details
 
 In many cases you will want to control the symbolic shapes and boundary transforms used during export (e.g., set a stable `BATCH` symbol, collapse size-1 dims, bind a scalar to a dynamic size, or keep only a subset of outputs). You can manage this via a YAML shape config file passed to the CLI.
 
@@ -417,4 +417,4 @@ nemo_tract_eval_batch_align_checker \
     -o ~/SONOS/data/2026_02_05_debug_batched_metal \
     [--force-cpu]
 ```
- 
+
