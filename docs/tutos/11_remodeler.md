@@ -161,5 +161,5 @@ Exporting
   `--shape-config` is provided.
 
 See also
-- NeMo tutorial (integrates the remodeler): ../examples/nemo_asr/README.md
-- Export API overview: ../export_api.md
+- [NeMo tutorial](./10_nemo.md) (integrates the remodeler)
+- [Export API overview](../export_api.md)
