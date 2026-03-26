@@ -4,7 +4,6 @@ from torch_to_nnef.nemo_tract.model_loader import (
     FAST_CONFORMER_TDT_LARGE,
     MARBLENET_VAD,
     NEMOTRON_0_6B,
-    PARAKEET_110M_SLUG,
     QUARTZNET,
 )
 from torch_to_nnef.utils import SemanticVersion
