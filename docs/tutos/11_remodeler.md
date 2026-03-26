@@ -157,7 +157,7 @@ Validation
 - The remodeler validates configs early against discovered signatures:
   - Rejects unknown subnets/inputs
   - Ensures `outputs_keep` is a subset of outputs
-  - Verifies `bind_to_dim` sources and symbols exist among dynamic axes
+  - Verifies `bind_scalar_to_dim_size` sources and symbols exist among dynamic axes
   - Verifies `collapse_dims` symbols exist among dynamic axes per input
   - Verifies `renamed_symbols` sources exist among the subnet’s dynamic axes
 
