@@ -382,9 +382,16 @@ def _build_axis_registry_from_args(
 
     Returns None if no shape-config was provided.
     """
-    raw_sigs = _generate_raw_sigs(
-        args=args, asr_model=asr_model, inference_target=inference_target
+    provider = NemoProvider(
+        inference_target=inference_target,
+        skip_preprocessor=args.skip_preprocessor,
+        split_joint_decoder=args.split_joint_decoder,
+        float_dtype=(
+            torch.float16 if args.data_type == "float16" else torch.float32
+        ),
+        only_subnets=args.only_subnets,
     )
+    raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
     if args.shape_config is None:
         default_axis_reg = dump_registry_from_signatures(raw_sigs)
         # Auto-alias namespaced batch symbols to unified BATCH per subnet
@@ -418,25 +425,6 @@ def _init_logging_and_export_dir(args) -> Path:
     _prepare_export_dir_and_logging(args, export_dir)
     LOGGER.info("started nemo_tract export with args: %s", args)
     return export_dir
-
-
-def _generate_raw_sigs(
-    *,
-    args,
-    asr_model,
-    inference_target,
-) -> T.List[SubnetSignature]:
-    # Use provider-agnostic remodeler discovery (NeMo provider here)
-    provider = NemoProvider(
-        inference_target=inference_target,
-        skip_preprocessor=args.skip_preprocessor,
-        split_joint_decoder=args.split_joint_decoder,
-        float_dtype=(
-            torch.float16 if args.data_type == "float16" else torch.float32
-        ),
-        only_subnets=args.only_subnets,
-    )
-    return provider.discover_signatures(asr_model, Stage.RAW)
 
 
 def _dump_shape_config_template(
