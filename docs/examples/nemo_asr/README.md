@@ -61,8 +61,8 @@ Some NeMo preprocessing components are not yet fully supported by tract. In such
 - `-e, --export-dir`: Output directory (must not pre-exist).
 - `-s, --model-slug`: Explicit NeMo model slug; omit to choose interactively.
 - `-p, --model-path`: Explicit local path to .nemo file.
-- `--tract-specific-version` / `--tract-specific-path`: Select Tract version or binary.
-- `--tract-reify-sdpa`: Enable SDPA reification where supported by selected Tract.
+- `--tract-specific-version` / `--tract-specific-path`: Select tract version or binary.
+- `--tract-reify-sdpa`: Enable SDPA reification where supported by selected tract.
 - `-tt, --tract-check-io-tolerance`: IO check strictness (`exact`, `approximate`, `loose`, or `skip`).
 - `--skip-preprocessor`: Export only encoder/decoder/joint parts.
 - `--split-joint-decoder`: Split `decoder` and `joint` into separate subnets.
@@ -164,7 +164,9 @@ decoder:
 
 Notes:
 
-- Symbols are normalized to uppercase; `b`/`batch` become `BATCH`.
+- Use namespaced symbols: batch axes appear as `INPUT__BATCH` per input.
+- To expose a common tract-facing name (e.g., `BATCH`) across inputs, declare it via `renamed_symbols`.
+- Aliases listed in `renamed_symbols` are accepted anywhere a symbol is referenced (collapse/bind).
 - `renamed_symbols` targets cannot include themselves in sources.
 - `collapse_dims` requires the symbol to be dynamic on that input at the selected stage.
 - `bind_scalar_to_dim_size` binds a dynamic size as an `int64` scalar.
@@ -175,7 +177,7 @@ Boundary semantics
 - Inputs that are Python tuples in the module API are flattened at the boundary (e.g., RNNT `states` → `states_0`, `states_1`).
 - `collapse_dims` removes listed dynamic axes externally and reinserts them internally so inner modules see their expected rank.
 - `bind_scalar_to_dim_size` removes the bound input from the external IO and injects `shape(source)[axis]` as a dynamic `int64` tensor.
-- `renamed_symbols` only affects the Tract-facing dynamic axes; inspector views remain namespaced by input (e.g., `TARGETS__BATCH`).
+- `renamed_symbols` only affects the tract-facing dynamic axes; inspector views remain namespaced by input (e.g., `TARGETS__BATCH`).
 
 ### Quick commands
 
@@ -417,4 +419,3 @@ nemo_tract_eval_batch_align_checker \
     -o ~/SONOS/data/2026_02_05_debug_batched_metal \
     [--force-cpu]
 ```
-

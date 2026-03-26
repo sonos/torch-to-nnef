@@ -44,16 +44,12 @@ class AxisSymbolRegistry:
 def _list_to_axis_map(
     shape_list: T.Sequence[T.Union[str, int]],
 ) -> AxisSymbolMap:
+    """Convert a list of dims into an axis-index→symbol map (uppercased)."""
     axis: AxisSymbolMap = {}
     for idx, v in enumerate(shape_list):
         if isinstance(v, str) and v:
-            # Normalize to canonical forms: batch synonyms -> BATCH; else UPPER
             s = v.strip()
-            s_lower = s.lower()
-            if s_lower in ("b", "batch"):
-                axis[idx] = "BATCH"
-            else:
-                axis[idx] = s.upper()
+            axis[idx] = s.upper()
     return axis
 
 
@@ -97,14 +93,10 @@ def _validate_and_record(
 
 
 def _normalize_syms(seq: T.Sequence[str]) -> T.List[str]:
-    """Normalize a list of symbol strings to canonical uppercase tokens."""
+    """Uppercase a list of symbols without applying aliases."""
     out: T.List[str] = []
     for s in seq:
-        ss = s.strip()
-        if ss.lower() in ("b", "batch"):
-            out.append("BATCH")
-        else:
-            out.append(ss.upper())
+        out.append(str(s).strip().upper())
     return out
 
 

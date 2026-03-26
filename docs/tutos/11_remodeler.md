@@ -25,6 +25,12 @@ Core concepts
     symbol unification
   - `outputs_keep` (optional): list of outputs to keep (template pre-fills)
 
+Symbol conventions
+- Symbols are uppercased. Providers may namespace per input (e.g., `TARGETS__TIME`, `TARGETS__BATCH`).
+- Batch symbols end with `__BATCH`. To unify multiple batch-like symbols under a single tract-facing `BATCH`, declare:
+  `renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, ...] }`.
+- Aliases listed in `renamed_symbols` are honored wherever symbols are referenced (collapse/bind/validation).
+
 Provider‑agnostic Python workflow
 
 The remodeler API is provider‑agnostic. Any provider that can discover

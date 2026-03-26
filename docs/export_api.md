@@ -23,8 +23,8 @@ For details on the exported artifact (directory vs `.tar` vs `.tgz`) and how
 
 `torch_to_nnef` exports to an inference-target abstraction. The most common choice is `TractNNEF`.
 
-- Use `TractNNEF.latest()` for the most recent supported Tract.
-- Pin a specific Tract version: `TractNNEF(SemanticVersion.from_str("0.23.0"))`.
+- Use `TractNNEF.latest()` for the most recent supported tract.
+- Pin a specific tract version: `TractNNEF(SemanticVersion.from_str("0.23.0"))`.
 - Pass dynamic-axes constraints and feature toggles (e.g., SDPA reification) through the inference target when needed.
 
 Example

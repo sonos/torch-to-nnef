@@ -101,7 +101,7 @@ class WrapAudioPreprocessor(torch.nn.Module):
             for axis in axes:
                 axis_name = getattr(axis, "kind", axis)
                 axis_name = str(axis_name).lower()
-                if "batch" in axis_name or axis_name == "b":
+                if "batch" in axis_name:
                     shape.append(batch_size)
                 elif "time" in axis_name or axis_name == "t":
                     shape.append(default_time)

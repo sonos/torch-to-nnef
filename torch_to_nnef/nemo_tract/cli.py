@@ -253,7 +253,8 @@ def parser_cli():
         default=None,
         help=(
             "Optional YAML/JSON mapping of input name → symbolic dims\n"
-            "e.g. encoder.audio_signal: [B,128,S]"
+            "e.g. encoder.audio_signal: [AUDIO_SIGNAL__BATCH,128,"
+            "AUDIO_SIGNAL__TIME]"
         ),
     )
     parser.add_argument(
@@ -464,10 +465,7 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
                 if isinstance(d, int):
                     dims.append(int(d))
                 else:
-                    s = str(d)
-                    if s.upper() == "BATCH":
-                        s = f"{i.name.upper()}__BATCH"
-                    dims.append(s)
+                    dims.append(str(d))
             entry: dict = {}
             entry["original_shape"] = dims
             entry["collapse_dims"] = []
@@ -531,19 +529,18 @@ def _write_config_example_block(fh) -> None:
         "ENCODER_OUTPUTS__TIME]\n\n"
     )
     fh.write("# decoder:\n")
-    fh.write("#   # Unify batch symbols for Tract-facing dynamic axes\n")
     fh.write(
-        "#   renamed_symbols: { BATCH: [TARGETS__BATCH, STATES_0__BATCH, "
-        "STATES_1__BATCH] }\n"
+        "#   # Optionally unify symbols with 'renamed_symbols' if needed.\n"
+    )
+    fh.write(
+        "#   # Aliases in 'renamed_symbols' are accepted for any symbol.\n"
     )
     fh.write("#   # Optionally select exported outputs (default: keep all)\n")
     fh.write("#   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]\n")
     fh.write("#   inputs:\n")
     fh.write("#     targets:\n")
     fh.write("#       original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
-    fh.write(
-        "#       # Alias 'BATCH' is accepted when listed in renamed_symbols\n"
-    )
+    fh.write("#       # Aliases are accepted when listed in renamed_symbols\n")
     fh.write("#       collapse_dims: [BATCH]\n")
     fh.write("#     states_0:\n")
     fh.write("#       original_shape: [2, STATES_0__BATCH, 640]\n")
@@ -551,8 +548,9 @@ def _write_config_example_block(fh) -> None:
     fh.write("#     states_1:\n")
     fh.write("#       original_shape: [2, STATES_1__BATCH, 640]\n")
     fh.write("#       collapse_dims: [BATCH]\n")
-    fh.write("#   # Binding can also use alias symbols:\n")
-    fh.write("#   #   bind_scalar_to_dim_size: decoder.targets.BATCH\n\n")
+    fh.write(
+        "#   # Binding can also use alias symbols listed in renamed_symbols\n\n"
+    )
 
 
 def _run_inspection_flow(

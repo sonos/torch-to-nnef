@@ -9,7 +9,7 @@ class BoundaryAdapter(torch.nn.Module):
     """Boundary adapter applying tuple flattening and collapse at export time.
 
     - Flattens tuple inputs to name_0, name_1, ... for external IO.
-    - Applies per-input collapse of dynamic axes (batch-only for now).
+    - Applies per-input collapse of configured dynamic axes.
     - Re-inserts collapsed axes before invoking the inner module.
     - Recomputes dynamic input axes to match the external interface.
     """

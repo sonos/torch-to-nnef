@@ -316,26 +316,13 @@ def run_inspection(
             q_shapes,
         )
         all_sigs, q_to_axes = _overlay_symbols(all_sigs, resolved, reg)
-        cfg_collapse, cfg_binds_src, batch_alias = _derive_cfg_transforms(
+        cfg_collapse, cfg_binds_src = _derive_cfg_transforms(
             axis_registry, resolved, qualified, q_to_axes
         )
 
         all_sigs = _apply_stage_transforms(
-            all_sigs, cfg_collapse, cfg_binds_src, batch_alias
+            all_sigs, cfg_collapse, cfg_binds_src
         )
-
-        # Warnings when non-batch collapse is configured
-        non_batch = []
-        for q, syms in cfg_collapse.items():
-            for s in syms:
-                if s not in {"BATCH", "B"}:
-                    non_batch.append((q, s))
-        if non_batch:
-            LOGGER.warning(
-                "Non-batch collapse configured for %s; consider probing sizes "
-                "with representative inputs to validate correctness.",
-                ", ".join(f"{q}:{s}" for q, s in non_batch),
-            )
 
     _emit_output(fmt, all_sigs, to_path, diff, model_label)
 
@@ -392,7 +379,6 @@ def _apply_stage_transforms(
     all_sigs: list[SubnetSignature],
     cfg_collapse: dict[str, list[str]],
     cfg_binds_src: dict[str, tuple[str, str]],
-    batch_alias: dict[str, str],
 ) -> list[SubnetSignature]:
     transformed: list[SubnetSignature] = []
     for ss in all_sigs:
@@ -403,9 +389,7 @@ def _apply_stage_transforms(
         new_axes: dict[str, dict[int, str]] = {}
         applied = list(ss.applied_flags)
         for i in ss.inputs:
-            tr = _compute_input_transform(
-                ss, i, cfg_collapse, cfg_binds_src, batch_alias
-            )
+            tr = _compute_input_transform(ss, i, cfg_collapse, cfg_binds_src)
             if tr.bind_flag:
                 applied.append(tr.bind_flag)
             if tr.skip:
@@ -437,7 +421,6 @@ def _compute_input_transform(
     i: IODescriptor,
     cfg_collapse: dict[str, list[str]],
     cfg_binds_src: dict[str, tuple[str, str]],
-    batch_alias: dict[str, str],
 ) -> StageInputTransform:
     qname = f"{ss.name}.{i.name}"
     sym_map = ss.symbol_axes.get(i.name, {}) or {}
@@ -494,16 +477,6 @@ def _compute_input_transform(
             remap[ax - shift] = sym_map[ax]
     else:
         remap = {}
-    q_alias = batch_alias.get(qname)
-    if q_alias:
-        for pos, sym in list(remap.items()):
-            if str(sym).upper() == "BATCH":
-                remap[pos] = q_alias
-                if (
-                    pos < len(new_shape)
-                    and str(new_shape[pos]).upper() == "BATCH"
-                ):
-                    new_shape[pos] = q_alias
     notes = list(i.notes)
     if remove_syms:
         notes.append("collapsed:" + ",".join(sorted(remove_syms)))
@@ -661,7 +634,7 @@ def _derive_cfg_transforms(
     resolved: dict[str, str],
     qualified: set[str],
     q_to_axes: dict[str, dict[int, str]],
-) -> tuple[dict[str, list[str]], dict[str, tuple[str, str]], dict[str, str]]:
+) -> tuple[dict[str, list[str]], dict[str, tuple[str, str]]]:
     cfg_collapse: dict[str, list[str]] = {}
     raw_collapse = getattr(axis_registry, "input_collapse_dims", {}) or {}
     for key, seq in raw_collapse.items():
@@ -689,13 +662,7 @@ def _derive_cfg_transforms(
             )
         cfg_binds_src[qkey] = (src, str(sym).strip().upper())
 
-    batch_alias: dict[str, str] = {}
-    for q, amap in q_to_axes.items():
-        for _, sym in amap.items():
-            s = str(sym).upper()
-            if s != "BATCH" and (s.endswith("__BATCH") or "BATCH" in s):
-                batch_alias[q] = str(sym)
-    return cfg_collapse, cfg_binds_src, batch_alias
+    return cfg_collapse, cfg_binds_src
 
 
 def collect_signatures(

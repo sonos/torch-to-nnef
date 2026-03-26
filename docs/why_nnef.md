@@ -99,7 +99,7 @@ As of today, the only inference engine (excluding full training frameworks) that
     Last official update: **`v1.0.5` on 2022-02**
 
 
-## :rocket: NNEF Extensions in Tract
+## :rocket: NNEF Extensions in tract
 
 1. **Supports Text and Signal Models**
 

@@ -74,37 +74,38 @@ def _rewrite_assertions_with_renames(
     return out
 
 
-def _batch_equal_assertions_for_subnet(
-    subnet_name: str, dyn: T.Optional[dict[str, dict[int, str]]]
-) -> set[str]:
-    """Emit tract_assert equality constraints when batch-like symbols need it.
+def _rewrite_and_filter_assertions(
+    assertions: list[str],
+    rename_map: T.Optional[dict[str, list[str]]],
+    dyn: T.Optional[dict[str, dict[int, str]]],
+) -> list[str]:
+    """Rewrite assertions and drop those referencing removed symbols.
 
-    - For decoder-like subnets, batch dims across inputs must be equal; add
-      equality assertions to help Tract unify distinct symbols at typecheck.
-    - For other subnets, we stay hands-off to preserve independence unless the
-      model semantics require otherwise in the future.
+    - Applies symbol renames so source symbols map to their target alias
+      (e.g., TARGETS__BATCH -> BATCH).
+    - Computes the set of present symbols from the current dynamic axes
+      and discards any assertion that mentions a symbol not present after
+      rewriting.
+    - Returns de-duplicated assertions.
     """
-    if not dyn:
-        return set()
-    needs_tie = subnet_name in {"decoder", "decoder_joint"}
-    if not needs_tie:
-        return set()
-    # Collect batch-like symbols across inputs
-    batch_syms: list[str] = []
-    for axes in dyn.values():
+    rewritten = _rewrite_assertions_with_renames(assertions, rename_map)
+    present: set[str] = set()
+    for axes in (dyn or {}).values():
         for s in (axes or {}).values():
-            su = str(s).upper()
-            if su == "B" or "BATCH" in su:
-                batch_syms.append(str(s))
-    uniq = []
-    for s in batch_syms:
-        if s not in uniq:
-            uniq.append(s)
-    if len(uniq) <= 1:
-        return set()
-    ref = uniq[0]
-    # Use single '=' for compatibility with tract assertion parser
-    return {f"tract_assert {s} = {ref}" for s in uniq[1:]}
+            present.add(str(s).upper())
+
+    ident = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+    out: list[str] = []
+    for a in rewritten:
+        toks = [t.upper() for t in ident.findall(a)]
+        # Ignore the assertion keyword itself
+        syms = [t for t in toks if t not in {"TRACT_ASSERT"}]
+        # If any referenced symbol is not present, drop the assertion
+        if any(t not in present for t in syms):
+            continue
+        out.append(a)
+    # De-duplicate while preserving order
+    return list(dict.fromkeys(out))
 
 
 def _patch_encoder_output_types(
@@ -632,16 +633,15 @@ def build_preprocessor_export_params(
             dyn = model.dynamic_shapes_for_export()
             # Symbol renames are now applied by the BoundaryAdapter
 
-        # Augment custom extensions and consolidate with renames
-        custom_ext = set(custom_extensions)
-        custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
+        # Consolidate with renames and discard assertions on removed symbols
         custom_ext = set(
-            _rewrite_assertions_with_renames(
-                list(custom_ext),
+            _rewrite_and_filter_assertions(
+                list(custom_extensions),
                 (
                     getattr(axis_registry, "renamed_symbols_per_subnet", {})
                     or {}
                 ).get(subnet_name, {}),
+                dyn,
             )
         )
 
@@ -756,9 +756,17 @@ def iter_export_params_for_generic_nemo_asr_model(
             model = RenameOutputs(model, rename_map)
             output_names = [rename_map.get(n, n) for n in output_names]
 
-        # Augment custom extensions with decoder batch equalities where needed
-        custom_ext = set(custom_extensions)
-        custom_ext |= _batch_equal_assertions_for_subnet(subnet_name, dyn)
+        # Consolidate with renames and discard assertions on removed symbols
+        custom_ext = set(
+            _rewrite_and_filter_assertions(
+                list(custom_extensions),
+                (
+                    getattr(axis_registry, "renamed_symbols_per_subnet", {})
+                    or {}
+                ).get(subnet_name, {}),
+                dyn,
+            )
+        )
 
         yield ExportParameters(
             name=subnet_name,
