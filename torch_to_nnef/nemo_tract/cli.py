@@ -21,6 +21,9 @@ from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,
 )
+from torch_to_nnef.nemo_tract.constants import (
+    NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
+)
 from torch_to_nnef.nemo_tract.export import export_nemo_asr_model
 from torch_to_nnef.nemo_tract.inspect import (
     InspectFormat,
@@ -253,8 +256,8 @@ def parser_cli():
         default=None,
         help=(
             "Optional YAML/JSON mapping of input name → symbolic dims\n"
-            "e.g. encoder.audio_signal: [AUDIO_SIGNAL__BATCH,128,"
-            "AUDIO_SIGNAL__TIME]"
+            f"e.g. encoder.audio_signal: [AUDIO_SIGNAL{_SEP}BATCH,128,"
+            f"AUDIO_SIGNAL{_SEP}TIME]"
         ),
     )
     parser.add_argument(
@@ -475,7 +478,7 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
             for d in i.shape or []:
                 if (
                     isinstance(d, str)
-                    and d.upper().endswith("__BATCH")
+                    and d.upper().endswith(f"{_SEP}BATCH")
                     and d not in batch_syms
                 ):
                     batch_syms.append(d)
@@ -506,27 +509,27 @@ def _write_config_example_block(fh) -> None:
     fh.write("#   inputs:\n")
     fh.write("#     audio_signal:\n")
     fh.write(
-        "#       original_shape: [AUDIO_SIGNAL__BATCH, 128, "
-        "AUDIO_SIGNAL__TIME]\n"
+        f"#       original_shape: [AUDIO_SIGNAL{_SEP}BATCH, 128, "
+        f"AUDIO_SIGNAL{_SEP}TIME]\n"
     )
-    fh.write("#       collapse_dims: [AUDIO_SIGNAL__BATCH]\n")
+    fh.write(f"#       collapse_dims: [AUDIO_SIGNAL{_SEP}BATCH]\n")
     fh.write("#     length:\n")
-    fh.write("#       original_shape: [LENGTH__BATCH]\n")
-    fh.write("#       collapse_dims: [LENGTH__BATCH]\n")
+    fh.write(f"#       original_shape: [LENGTH{_SEP}BATCH]\n")
+    fh.write(f"#       collapse_dims: [LENGTH{_SEP}BATCH]\n")
     fh.write(
-        "#       bind_scalar_to_dim_size: encoder.audio_signal."
-        "AUDIO_SIGNAL__TIME\n"
+        f"#       bind_scalar_to_dim_size: encoder.audio_signal."
+        f"AUDIO_SIGNAL{_SEP}TIME\n"
     )
     fh.write("# decoder_joint:\n")
     fh.write("#   inputs:\n")
     fh.write("#     encoder_outputs:\n")
     fh.write(
-        "#       original_shape: [ENCODER_OUTPUTS__BATCH, 1024, "
-        "ENCODER_OUTPUTS__TIME]\n"
+        f"#       original_shape: [ENCODER_OUTPUTS{_SEP}BATCH, 1024, "
+        f"ENCODER_OUTPUTS{_SEP}TIME]\n"
     )
     fh.write(
-        "#       collapse_dims: [ENCODER_OUTPUTS__BATCH, "
-        "ENCODER_OUTPUTS__TIME]\n\n"
+        f"#       collapse_dims: [ENCODER_OUTPUTS{_SEP}BATCH, "
+        f"ENCODER_OUTPUTS{_SEP}TIME]\n\n"
     )
     fh.write("# decoder:\n")
     fh.write(
@@ -539,14 +542,16 @@ def _write_config_example_block(fh) -> None:
     fh.write("#   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]\n")
     fh.write("#   inputs:\n")
     fh.write("#     targets:\n")
-    fh.write("#       original_shape: [TARGETS__BATCH, TARGETS__TIME]\n")
+    fh.write(
+        f"#       original_shape: [TARGETS{_SEP}BATCH, TARGETS{_SEP}TIME]\n"
+    )
     fh.write("#       # Aliases are accepted when listed in renamed_symbols\n")
     fh.write("#       collapse_dims: [BATCH]\n")
     fh.write("#     states_0:\n")
-    fh.write("#       original_shape: [2, STATES_0__BATCH, 640]\n")
+    fh.write(f"#       original_shape: [2, STATES_0{_SEP}BATCH, 640]\n")
     fh.write("#       collapse_dims: [BATCH]\n")
     fh.write("#     states_1:\n")
-    fh.write("#       original_shape: [2, STATES_1__BATCH, 640]\n")
+    fh.write(f"#       original_shape: [2, STATES_1{_SEP}BATCH, 640]\n")
     fh.write("#       collapse_dims: [BATCH]\n")
     fh.write(
         "#   # Binding can also use alias symbols listed in renamed_symbols\n\n"

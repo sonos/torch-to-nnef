@@ -1,6 +1,7 @@
 import typing as T
 from pathlib import Path
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,
@@ -223,6 +224,7 @@ def validate_registry_against_signatures(
         subnet_dyn_syms=subnet_dyn_syms,
     )
     if problems:
-        raise ValueError(
-            "shape-config validation failed: " + "; ".join(problems)
+        details = "; ".join(problems)
+        raise T2NErrorInvalidArgument(
+            f"shape-config validation failed: {details}"
         )

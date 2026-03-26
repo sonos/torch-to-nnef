@@ -2,14 +2,18 @@
 
 import typing as T
 
+from torch_to_nnef.nemo_tract.constants import (
+    NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
+)
+
 
 def _is_batch_symbol(sym: str) -> bool:
     """Return True when symbol denotes a batch axis by name.
 
-    Only names ending with '__BATCH' are considered batch symbols.
+    Only names ending with f'{_SEP}BATCH' are considered batch symbols.
     """
     s = str(sym).upper()
-    return s.endswith("__BATCH")
+    return s.endswith(f"{_SEP}BATCH")
 
 
 def _collapse_axes_for_input(

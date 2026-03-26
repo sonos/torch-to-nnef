@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )
@@ -428,7 +429,7 @@ def _compute_input_transform(
     known_syms = {str(sym).upper() for sym in sym_map.values()}
     extra = [s for s in remove_syms if s not in known_syms]
     if remove_syms and extra and ss.stage != InspectStage.RAW:
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             f"Cannot collapse non-dynamic dims for {qname} at "
             f"stage {ss.stage.value}: requested {sorted(remove_syms)} "
             f"but dynamic symbols are {sorted(known_syms)}"
@@ -455,7 +456,7 @@ def _compute_input_transform(
                 f"Binding requires scalar input for {qname}; "
                 f"after collapse kept rank>0: {i.shape}"
             )
-            raise ValueError(msg)
+            raise T2NErrorInvalidArgument(msg)
         return StageInputTransform(
             skip=True,
             new_shape=[],
@@ -516,11 +517,10 @@ def _resolve_config_keys(
             if key not in qualified:
                 subnet, _, _ = key.partition(".")
                 if subnet not in subnets:
-                    raise ValueError(
-                        "Unknown subnet in --shape-config: '"
-                        + subnet
-                        + "'. Known subnets: "
-                        + ", ".join(sorted(subnets))
+                    known = ", ".join(sorted(subnets))
+                    raise T2NErrorInvalidArgument(
+                        f"Unknown subnet in --shape-config: '{subnet}'. "
+                        f"Known subnets: {known}"
                     )
                 inputs_in_subnet = sorted(
                     {
@@ -529,32 +529,26 @@ def _resolve_config_keys(
                         if q.startswith(subnet + ".")
                     }
                 )
-                raise ValueError(
-                    "Unknown qualified input '"
-                    + key
-                    + "' in --shape-config. Known inputs for subnet '"
-                    + subnet
-                    + "': "
-                    + ", ".join(inputs_in_subnet)
+                known = ", ".join(inputs_in_subnet)
+                raise T2NErrorInvalidArgument(
+                    f"Unknown qualified input '{key}' in --shape-config. "
+                    f"Known inputs for subnet '{subnet}': {known}"
                 )
             resolved[key] = key
         else:
             qlist = bare_to_qualified.get(key, [])
             if not qlist:
-                known_bare = sorted(set(bare_to_qualified.keys()))
-                raise ValueError(
-                    "Unknown input name in --shape-config: '"
-                    + key
-                    + "'. Known input names: "
-                    + ", ".join(known_bare)
+                known_bare = ", ".join(sorted(set(bare_to_qualified.keys())))
+                raise T2NErrorInvalidArgument(
+                    f"Unknown input name in --shape-config: '{key}'. "
+                    f"Known input names: {known_bare}"
                 )
             if len(qlist) > 1:
-                raise ValueError(
-                    "Ambiguous input name in --shape-config '"
-                    + key
-                    + "' appears in multiple subnets: "
-                    + ", ".join(sorted(qlist))
-                    + ". Qualify as 'subnet.input'"
+                alts = ", ".join(sorted(qlist))
+                raise T2NErrorInvalidArgument(
+                    "Ambiguous input name in --shape-config "
+                    f"'{key}' appears in multiple subnets: {alts}. "
+                    "Qualify as 'subnet.input'"
                 )
             resolved[key] = qlist[0]
     return resolved
@@ -581,8 +575,9 @@ def _validate_ranks(
             )
             mismatches.append(msg)
     if mismatches:
-        raise ValueError(
-            "Rank mismatch in --shape-config: " + "; ".join(mismatches)
+        details = "; ".join(mismatches)
+        raise T2NErrorInvalidArgument(
+            f"Rank mismatch in --shape-config: {details}"
         )
 
 
@@ -647,18 +642,16 @@ def _derive_cfg_transforms(
     for key, val in raw_binds.items():
         qkey = resolved.get(key, key)
         if not isinstance(val, str) or "." not in val:
-            raise ValueError(
-                "Invalid bind_scalar_to_dim_size for '"
-                + key
-                + "': expected 'subnet.input.SYMBOL'"
+            raise T2NErrorInvalidArgument(
+                f"Invalid bind_scalar_to_dim_size for '{key}': expected "
+                "'subnet.input.SYMBOL'"
             )
         src, _, sym = val.rpartition(".")
         if src not in qualified:
-            raise ValueError(
-                "Unknown source input in bind '"
-                + val
-                + "'. Known qualified inputs: "
-                + ", ".join(sorted(qualified))
+            known = ", ".join(sorted(qualified))
+            raise T2NErrorInvalidArgument(
+                f"Unknown source input in bind '{val}'. "
+                f"Known qualified inputs: {known}"
             )
         cfg_binds_src[qkey] = (src, str(sym).strip().upper())
 

@@ -5,6 +5,11 @@ from pathlib import Path
 
 import yaml
 
+from torch_to_nnef.exceptions import (
+    T2NErrorInvalidArgument,
+    T2NErrorNotFoundFile,
+)
+
 AxisSymbolMap = T.Dict[int, str]
 
 
@@ -44,13 +49,12 @@ class AxisSymbolRegistry:
 def _list_to_axis_map(
     shape_list: T.Sequence[T.Union[str, int]],
 ) -> AxisSymbolMap:
-    """Convert a list of dims into an axis-index→symbol map (uppercased)."""
-    axis: AxisSymbolMap = {}
-    for idx, v in enumerate(shape_list):
-        if isinstance(v, str) and v:
-            s = v.strip()
-            axis[idx] = s.upper()
-    return axis
+    """Convert dims into an axis-index→symbol map (uppercased)."""
+    return {
+        idx: str(v).strip().upper()
+        for idx, v in enumerate(shape_list)
+        if isinstance(v, str) and v
+    }
 
 
 def _validate_key(key: str) -> None:
@@ -60,7 +64,7 @@ def _validate_key(key: str) -> None:
         key: Key string from the config.
     """
     if not isinstance(key, str) or not key:
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             f"Invalid key in shape-config (expected non-empty string): {key!r}"
         )
 
@@ -82,12 +86,14 @@ def _validate_and_record(
     _validate_key(key)
     for i, v in enumerate(shape_val):
         if not isinstance(v, (str, int)):
-            raise ValueError(
+            raise T2NErrorInvalidArgument(
                 "Invalid dim at "
                 f"{key}[{i}]: {type(v).__name__}; expected str or int"
             )
         if isinstance(v, str) and not v.strip():
-            raise ValueError(f"Empty dim symbol at {key}[{i}] is not allowed")
+            raise T2NErrorInvalidArgument(
+                f"Empty dim symbol at {key}[{i}] is not allowed"
+            )
     symbols[key] = _list_to_axis_map(shape_val)
     ranks[key] = len(shape_val)
 
@@ -124,31 +130,24 @@ def _parse_renamed_symbols(
                 items_iter += list(elem.items())
             else:
                 msg = f"Invalid renamed_symbols entry for subnet '{top_key}'"
-                raise ValueError(msg)
+                raise T2NErrorInvalidArgument(msg)
     else:
-        msg = (
-            "renamed_symbols for subnet '"
-            + top_key
-            + "' must be mapping or list"
-        )
-        raise ValueError(msg)
+        msg = f"renamed_symbols for subnet '{top_key}' must be mapping or list"
+        raise T2NErrorInvalidArgument(msg)
     for tgt, srcs in items_iter:  # type: ignore[attr-defined]
         if not isinstance(tgt, str) or not isinstance(srcs, (list, tuple)):
             msg = (
                 f"Invalid renamed_symbols target/sources for subnet '{top_key}'"
             )
-            raise ValueError(msg)
+            raise T2NErrorInvalidArgument(msg)
         tnorm = str(tgt).strip().upper()
         snorm = [str(s).strip().upper() for s in srcs]
         if tnorm in snorm:
             msg = (
-                "renamed_symbols for subnet "
-                + top_key
-                + ": target '"
-                + tnorm
-                + "' cannot include itself"
+                f"renamed_symbols for subnet {top_key}: target '{tnorm}' "
+                "cannot include itself"
             )
-            raise ValueError(msg)
+            raise T2NErrorInvalidArgument(msg)
         mapping[tnorm] = snorm
     return mapping
 
@@ -166,18 +165,22 @@ def _nts_handle_tuple_group(
     for idx_str, inner in group.items():
         qname = f"{top_key}.{inp_name}_{idx_str}"
         if not isinstance(inner, dict):
-            raise ValueError(
+            raise T2NErrorInvalidArgument(
                 f"Invalid tuple entry for '{qname}': expected mapping"
             )
         if "original_shape" in inner:
             oshp = inner.get("original_shape")
             if not isinstance(oshp, (list, tuple)):
-                raise ValueError(f"Invalid original_shape for '{qname}'")
+                raise T2NErrorInvalidArgument(
+                    f"Invalid original_shape for '{qname}'"
+                )
             _validate_and_record(qname, oshp, symbols, ranks)
         if "collapse_dims" in inner:
             cdv = inner.get("collapse_dims")
             if not isinstance(cdv, (list, tuple)):
-                raise ValueError(f"Invalid collapse_dims for '{qname}'")
+                raise T2NErrorInvalidArgument(
+                    f"Invalid collapse_dims for '{qname}'"
+                )
             input_dims[qname] = _normalize_syms([str(x) for x in cdv])
         b = None
         if "bind_scalar_to_dim_size" in inner:
@@ -202,12 +205,16 @@ def _nts_handle_single_mapping(
     if "original_shape" in mapping:
         oshp = mapping.get("original_shape")
         if not isinstance(oshp, (list, tuple)):
-            raise ValueError(f"Invalid original_shape for '{qbase}'")
+            raise T2NErrorInvalidArgument(
+                f"Invalid original_shape for '{qbase}'"
+            )
         _validate_and_record(qbase, oshp, symbols, ranks)
     if "collapse_dims" in mapping:
         cdv = mapping.get("collapse_dims")
         if not isinstance(cdv, (list, tuple)):
-            raise ValueError(f"Invalid collapse_dims for '{qbase}'")
+            raise T2NErrorInvalidArgument(
+                f"Invalid collapse_dims for '{qbase}'"
+            )
         input_dims[qbase] = _normalize_syms([str(x) for x in cdv])
     b = None
     if "bind_scalar_to_dim_size" in mapping:
@@ -246,21 +253,19 @@ def _parse_top_level(
                     isinstance(x, str) and x for x in oks
                 ):
                     msg = (
-                        "Invalid outputs_keep for subnet '"
-                        + top_key
-                        + "' (list[str] expected)"
+                        f"Invalid outputs_keep for subnet '{top_key}' "
+                        "(list[str] expected)"
                     )
-                    raise ValueError(msg)
+                    raise T2NErrorInvalidArgument(msg)
                 outputs_keep[top_key] = [str(x) for x in oks]
         elif isinstance(val, (list, tuple)):
             _validate_and_record(top_key, val, symbols, ranks)
         else:
             msg = (
-                "Invalid value for '"
-                + top_key
-                + "': expected list/tuple or nested mapping"
+                f"Invalid value for '{top_key}': expected list/tuple or nested "
+                "mapping"
             )
-            raise ValueError(msg)
+            raise T2NErrorInvalidArgument(msg)
     return symbols, ranks, binds, input_dims, outputs_keep
 
 
@@ -296,12 +301,12 @@ def _parse_nested_subnet(
         input_dims: Output collapse-dims mapping.
     """
     if "collapse_dims" in val:
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             f"Do not set collapse_dims at subnet '{top_key}'. "
             "Define per-input collapse_dims instead."
         )
     if "collapse_batch_dim" in val:
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             f"Legacy collapse_batch_dim found at subnet '{top_key}'. "
             "Use per-input collapse_dims only."
         )
@@ -309,7 +314,7 @@ def _parse_nested_subnet(
     # Require new-style nested inputs mapping under key 'inputs'.
     input_section = val.get("inputs") if isinstance(val, dict) else None
     if not isinstance(input_section, dict):
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             "Each subnet must declare an 'inputs' mapping. Flat per-input "
             "keys at the subnet level are no longer supported."
         )
@@ -317,7 +322,7 @@ def _parse_nested_subnet(
     allowed = {"inputs", "renamed_symbols", "outputs_keep"}
     unknown = {k for k in val if k not in allowed}
     if unknown:
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             "Unknown keys in subnet config: " + ", ".join(sorted(unknown))
         )
     items = input_section.items()
@@ -338,7 +343,7 @@ def _parse_nested_subnet(
         elif isinstance(shape, (list, tuple)):
             _validate_and_record(f"{top_key}.{inp_name}", shape, symbols, ranks)
         else:
-            raise ValueError(
+            raise T2NErrorInvalidArgument(
                 f"Invalid value for '{top_key}.{inp_name}': "
                 "expected list/tuple or mapping"
             )
@@ -354,7 +359,7 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         joiner.decoder_outputs: [B, 640, U]
     """
     if not config_path.exists() or not config_path.is_file():
-        raise FileNotFoundError(
+        raise T2NErrorNotFoundFile(
             "--shape-config path does not exist or is not a file: "
             f"{config_path}"
         )
@@ -365,14 +370,16 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         raw = json.loads(text or "{}")
     # Validate structure upfront for clear, early feedback
     if not isinstance(raw, dict):
-        raise ValueError(
+        raise T2NErrorInvalidArgument(
             "shape-config must be a mapping (optionally nested) of "
             "input-name -> list of dims"
         )
     # Delegate detailed parsing to helpers to keep complexity low
     symbols, ranks, binds, input_dims, outputs_keep = _parse_top_level(raw)
     if not symbols:
-        raise ValueError("shape-config did not define any input shapes")
+        raise T2NErrorInvalidArgument(
+            "shape-config did not define any input shapes"
+        )
     renamed_per_subnet = _build_renamed_map(raw)
 
     return AxisSymbolRegistry(

@@ -82,7 +82,7 @@ def _rewrite_and_filter_assertions(
     """Rewrite assertions and drop those referencing removed symbols.
 
     - Applies symbol renames so source symbols map to their target alias
-      (e.g., TARGETS__BATCH -> BATCH).
+      (e.g., TARGETS{NEMO_INPUT_SYMBOL_SEPARATOR}BATCH -> BATCH).
     - Computes the set of present symbols from the current dynamic axes
       and discards any assertion that mentions a symbol not present after
       rewriting.
