@@ -5,6 +5,7 @@ import logging
 import os
 import shlex
 import sys
+import textwrap
 import typing as T
 from pathlib import Path
 
@@ -487,73 +488,59 @@ def _build_nested_template_dict(snaps, args) -> dict[str, dict]:
 
 def _write_config_header(fh, model_label: str, now: str, cmd: str) -> None:
     """Write the header section of the template file."""
-    fh.write(f"# '{model_label}' shapes config generated on '{now}'\n")
-    fh.write("# Command:\n")
-    fh.write(f"#   {cmd}\n")
-    fh.write(
-        "# Edit dims/symbols as needed. Keys must match subnet/input names.\n"
-    )
-    fh.write("#\n")
-    fh.write(
-        "# Optional: per-subnet 'outputs_keep' filters exported outputs;\n"
-    )
-    fh.write("# if not set, all outputs declared by the subnet are kept.\n")
+    header = f"""
+    # '{model_label}' shapes config generated on '{now}'
+    # Command:
+    #   {cmd}
+    # Edit dims/symbols as needed. Keys must match subnet/input names.
+    #
+    # Optional: per-subnet 'outputs_keep' filters exported outputs;
+    # if not set, all outputs declared by the subnet are kept.
+    """.strip()
+    fh.write(textwrap.dedent(header) + "\n")
 
 
 def _write_config_example_block(fh) -> None:
     """Write the example config block for guidance."""
-    fh.write("# Config example (structured):\n")
-    fh.write("# encoder:\n")
-    fh.write("#   inputs:\n")
-    fh.write("#     audio_signal:\n")
-    fh.write(
-        f"#       original_shape: [AUDIO_SIGNAL{_SEP}BATCH, 128, "
-        f"AUDIO_SIGNAL{_SEP}TIME]\n"
-    )
-    fh.write(f"#       collapse_dims: [AUDIO_SIGNAL{_SEP}BATCH]\n")
-    fh.write("#     length:\n")
-    fh.write(f"#       original_shape: [LENGTH{_SEP}BATCH]\n")
-    fh.write(f"#       collapse_dims: [LENGTH{_SEP}BATCH]\n")
-    fh.write(
-        f"#       bind_scalar_to_dim_size: "
-        f"encoder.audio_signal.AUDIO_SIGNAL{_SEP}TIME\n"
-    )
-    fh.write("# decoder_joint:\n")
-    fh.write("#   inputs:\n")
-    fh.write("#     encoder_outputs:\n")
-    fh.write(
-        f"#       original_shape: [ENCODER_OUTPUTS{_SEP}BATCH, 1024, "
-        f"ENCODER_OUTPUTS{_SEP}TIME]\n"
-    )
-    fh.write(
-        f"#       collapse_dims: [ENCODER_OUTPUTS{_SEP}BATCH, "
-        f"ENCODER_OUTPUTS{_SEP}TIME]\n\n"
-    )
-    fh.write("# decoder:\n")
-    fh.write(
-        "#   # Optionally unify symbols with 'renamed_symbols' if needed.\n"
-    )
-    fh.write(
-        "#   # Aliases in 'renamed_symbols' are accepted for any symbol.\n"
-    )
-    fh.write("#   # Optionally select exported outputs (default: keep all)\n")
-    fh.write("#   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]\n")
-    fh.write("#   inputs:\n")
-    fh.write("#     targets:\n")
-    fh.write(
-        f"#       original_shape: [TARGETS{_SEP}BATCH, TARGETS{_SEP}TIME]\n"
-    )
-    fh.write("#       # Aliases are accepted when listed in renamed_symbols\n")
-    fh.write("#       collapse_dims: [BATCH]\n")
-    fh.write("#     states_0:\n")
-    fh.write(f"#       original_shape: [2, STATES_0{_SEP}BATCH, 640]\n")
-    fh.write("#       collapse_dims: [BATCH]\n")
-    fh.write("#     states_1:\n")
-    fh.write(f"#       original_shape: [2, STATES_1{_SEP}BATCH, 640]\n")
-    fh.write("#       collapse_dims: [BATCH]\n")
-    fh.write(
-        "#   # Binding can also use alias symbols listed in renamed_symbols\n\n"
-    )
+    example = f"""
+    # Config example (structured):
+    # encoder:
+    #   inputs:
+    #     audio_signal:
+    #       original_shape:
+    #         [AUDIO_SIGNAL{_SEP}BATCH, 128, AUDIO_SIGNAL{_SEP}TIME]
+    #       collapse_dims: [AUDIO_SIGNAL{_SEP}BATCH]
+    #     length:
+    #       original_shape: [LENGTH{_SEP}BATCH]
+    #       collapse_dims: [LENGTH{_SEP}BATCH]
+    #       bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL{_SEP}TIME
+    # decoder_joint:
+    #   inputs:
+    #     encoder_outputs:
+    #       original_shape:
+    #         [ENCODER_OUTPUTS{_SEP}BATCH, 1024, ENCODER_OUTPUTS{_SEP}TIME]
+    #       collapse_dims:
+    #         [ENCODER_OUTPUTS{_SEP}BATCH, ENCODER_OUTPUTS{_SEP}TIME]
+
+    # decoder:
+    #   # Optionally unify symbols with 'renamed_symbols' if needed.
+    #   # Aliases in 'renamed_symbols' are accepted for any symbol.
+    #   # Optionally select exported outputs (default: keep all)
+    #   outputs_keep: [LOG_PROBS, STATES_0, STATES_1]
+    #   inputs:
+    #     targets:
+    #       original_shape: [TARGETS{_SEP}BATCH, TARGETS{_SEP}TIME]
+    #       # Aliases are accepted when listed in renamed_symbols
+    #       collapse_dims: [BATCH]
+    #     states_0:
+    #       original_shape: [2, STATES_0{_SEP}BATCH, 640]
+    #       collapse_dims: [BATCH]
+    #     states_1:
+    #       original_shape: [2, STATES_1{_SEP}BATCH, 640]
+    #       collapse_dims: [BATCH]
+    #   # Binding can also use alias symbols listed in renamed_symbols
+    """.strip()
+    fh.write(textwrap.dedent(example) + "\n\n")
 
 
 def _run_inspection_flow(
