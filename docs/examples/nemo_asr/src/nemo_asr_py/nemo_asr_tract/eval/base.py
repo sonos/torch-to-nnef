@@ -153,7 +153,7 @@ def parse_args() -> EvalConfig:
         required=True,
         help=(
             "Path to the exported ASR model directory. "
-            "This must be a NeMo-Tract-exported model ."
+            "This must be a NeMo-tract-exported model ."
         ),
     )
 

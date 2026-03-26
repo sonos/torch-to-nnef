@@ -846,14 +846,36 @@ def check_torch_ecosystem():
             continue
 
         mod_version = SemanticVersion.from_str(mod.__version__)
-        if not (
-            (mod_version.major == torch_mm.major)
-            and (mod_version.minor == torch_mm.minor)
-        ):
+        compatible = True
+        hint = None
+        if name == "torchaudio":
+            # torchaudio follows torch major.minor
+            compatible = (
+                mod_version.major == torch_mm.major
+                and mod_version.minor == torch_mm.minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchaudio=={torch_mm.major}.{torch_mm.minor}.*"
+            )
+        elif name == "torchvision":
+            # torchvision 0.(15 + torch_minor).x pairs with
+            # torch 2.torch_minor.x
+            # Examples: torch 2.6.x <-> torchvision 0.21.x;
+            # 2.9.x <-> 0.24.x
+            expected_major = 0
+            expected_minor = 15 + torch_mm.minor
+            compatible = (
+                mod_version.major == expected_major
+                and mod_version.minor == expected_minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchvision=={expected_major}.{expected_minor}.*"
+            )
+        if not compatible:
             raise T2NErrorMisuse(
-                f"{name} ({mod.__version__}) is incompatible with "
-                "torch ({torch.__version__}). "
-                f"Install matching versions, e.g.:\n"
-                f"  pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
-                f"{name}=={torch_mm.major}.{torch_mm.minor}.*"
+                f"{name} ({mod.__version__}) is incompatible with torch "
+                f"({torch.__version__}). Install matching versions, e.g.:\n"
+                f"  {hint}"
             )

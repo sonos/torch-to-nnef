@@ -17,13 +17,14 @@ For details on the exported artifact (directory vs `.tar` vs `.tgz`) and how
 
 - NeMo ASR export tutorial: [Export and run NeMo ASR](./examples/nemo_asr/README.md)
 - Transformers/LLM export tutorial: [LLM export guide](./tutos/5_llm.md)
+- Shapes remodeler tutorial: [Provider-agnostic remodeler](./tutos/11_remodeler.md)
 
 ## Choosing the Target Runtime
 
 `torch_to_nnef` exports to an inference-target abstraction. The most common choice is `TractNNEF`.
 
-- Use `TractNNEF.latest()` for the most recent supported Tract.
-- Pin a specific Tract version: `TractNNEF(SemanticVersion.from_str("0.23.0"))`.
+- Use `TractNNEF.latest()` for the most recent supported tract.
+- Pin a specific tract version: `TractNNEF(SemanticVersion.from_str("0.23.0"))`.
 - Pass dynamic-axes constraints and feature toggles (e.g., SDPA reification) through the inference target when needed.
 
 Example
@@ -50,3 +51,8 @@ export_model_to_nnef(
       heading_level: 3
       show_root_heading: true
       show_source: false
+
+## Remodeler
+
+For boundary‑only transforms (collapse, bind, alias, outputs_keep), see the
+dedicated tutorial: [Provider‑agnostic remodeler](./tutos/11_remodeler.md).

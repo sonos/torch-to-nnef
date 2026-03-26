@@ -66,7 +66,7 @@ class KhronosNNEF(InferenceTarget):
                     subprocess.check_output(cmd)
                 try:
                     nnef_mod = NNEFModule(td)
-                except Exception as exp:
+                except (RuntimeError, ValueError, OSError, TypeError) as exp:
                     self._maybe_dump_debug_bundle(
                         debug_bundle_path, td, exported_filepath
                     )

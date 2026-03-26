@@ -61,6 +61,7 @@ nemo-tract = [
     # torchaudio must match torch
     "torchaudio",
     "questionary",
+    "rich",
     # 'nemo-toolkit' is too loosy in deps tree management
     #  with not well packaged compat:
     #  numba/llvmlite deps conflict with "numpy>=2.1" (2026-01-09)
@@ -261,6 +262,17 @@ commands = [
         "torch_to_nnef",
     ],
 ]
+
+[tool.tox.env.py313]
+basepython = ["python3.13"]
+extras = ["test"]
+deps = [
+    "--index-url=https://download.pytorch.org/whl/cpu",
+    "torch==2.6.*",
+    "torchvision==0.21.*",
+    "torchaudio==2.6.*",
+]
+
 [tool.tox.env.torch_1_10]
 basepython = ["python3.9"]
 extras = ["test"]
@@ -393,7 +405,14 @@ commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 # some 'nemo-toolkit' deps not well packaged for "python3.13" (2026-01-09)
 basepython = ["python3.12"]
 extras = ["test", "nemo-tract"]
-deps = ["nemo_toolkit[asr]==2.5.3"]
+deps = [
+    "-i https://download.pytorch.org/whl/cpu",
+    "torch==2.5.*",
+    "torchvision==0.20.*",
+    "torchaudio==2.5.*",
+    # install nemo after torch stack to let it resolve against CPU wheels
+    "nemo_toolkit[asr]==2.5.3",
+]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.build]

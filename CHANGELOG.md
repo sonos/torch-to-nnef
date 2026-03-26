@@ -3,6 +3,29 @@
 
 ## Unreleased
 
+### Added
+- nemo remodeler: structured `shapes.yaml` per subnet (`original_shape`, `collapse_dims`, `bind_scalar_to_dim_size`, `renamed_symbols`) to control boundary-only transforms.
+- nemo remodeler: export-time `BoundaryAdapter` applying tuple flattening, alias-aware collapse (batch and other dynamic dims), dynamic scalar binding from `shape(source)[axis]`, and dynamic-axes recomputation.
+- inspector: `--inspect-signatures`, `--inspect-stage`, `--inspect-format`, `--inspect-output`, `--inspect-diff`; human/human-rich/JSON output; model header; tuple input expansion; config overlay; per-stage diffs.
+- template dump: nested YAML with header and inline lists; auto-suggest `renamed_symbols` for decoder/decoder_joint when multiple batch-like symbols are seen across inputs.
+
+### Changed
+- symbol generation: batch dims are now namespaced as `<INPUT>__BATCH` (e.g., `ENCODER_OUTPUTS__BATCH`) for clarity and consistency across inputs.
+- inspector: stricter config validation (qualified/bare name resolution, rank mismatches with discovered shapes); symbol overlay/substitution; clearer errors and warnings.
+- export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions are consolidated to alias targets to keep headers consistent.
+- remodeler: moved generic `BoundaryAdapter` and `RenameOutputs` to `torch_to_nnef.remodeler.adapter` (previously under `nemo_tract.wrappers`), and updated usages/tests accordingly.
+
+### Removed
+- legacy `--collapse-batch-dim` flag and its wrapper; use `shapes.yaml` (`collapse_dims`) instead.
+
+### Fixed
+- torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).
+- `AxisSymbolRegistry.empty()` defaults and loader edge cases (tuple inputs, nested schema); fixed leftover NameError in inspector.
+- binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
+
+### Docs
+- NeMo ASR guide updated with a Shapes config section: dump → edit → inspect → export, with examples for `collapse_dims`, `bind_scalar_to_dim_size`, and `renamed_symbols`.
+
 
 
 ## [0.21.0] - 2026-02-15
