@@ -59,7 +59,7 @@ class NemoProvider(Provider):
                     inputs=[
                         IODescriptor(
                             name=i.name,
-                            shape=list(i.shape or []),
+                            shape=list(i.shape),
                             dtype=i.dtype,
                             notes=list(i.notes or []),
                         )
@@ -68,7 +68,7 @@ class NemoProvider(Provider):
                     outputs=[
                         IODescriptor(
                             name=o.name,
-                            shape=list(o.shape or []),
+                            shape=list(o.shape),
                             dtype=o.dtype,
                             notes=list(o.notes or []),
                         )

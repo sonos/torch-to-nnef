@@ -180,7 +180,7 @@ class BoundaryAdapter(torch.nn.Module):
     def dynamic_shapes_for_export(self) -> dict[str, dict[int, str]]:
         ext_dyn: dict[str, dict[int, str]] = {}
         for ext in self._ext_names:
-            axes = dict(self._dyn_axes.get(ext, {}) or {})
+            axes = dict(self._dyn_axes.get(ext, {}))
             if not axes:
                 continue
             drop = set(self._collapse_idx.get(ext, []))
@@ -200,13 +200,13 @@ class BoundaryAdapter(torch.nn.Module):
         # Optionally apply symbol renames (alias sources -> target)
         if self._apply_syms and getattr(self, "_rename_map", None):
             inv: dict[str, str] = {}
-            for tgt, srcs in (self._rename_map or {}).items():
-                for s in srcs or []:
+            for tgt, srcs in self._rename_map.items():
+                for s in srcs:
                     inv[str(s).upper()] = str(tgt).upper()
             renamed: dict[str, dict[int, str]] = {}
-            for name, axes in (ext_dyn or {}).items():
+            for name, axes in ext_dyn.items():
                 mapped: dict[int, str] = {}
-                for i, s in (axes or {}).items():
+                for i, s in axes.items():
                     su = str(s).upper()
                     mapped[i] = inv.get(su, str(s))
                 renamed[name] = mapped
@@ -257,7 +257,7 @@ class BoundaryAdapter(torch.nn.Module):
                 )
             # Locate the axis in the (external) dynamic mapping, considering
             # aliasing via renamed symbols when relevant.
-            axes = self._dyn_axes.get(src_ext, {}) or {}
+            axes = self._dyn_axes.get(src_ext, {})
             old_ax = None
             for i, s in axes.items():
                 su = str(s).upper()
@@ -265,7 +265,7 @@ class BoundaryAdapter(torch.nn.Module):
                     old_ax = i
                     break
                 # Accept alias if symbol was renamed to target
-                srcs = (self._rename_map or {}).get(sym)
+                srcs = self._rename_map.get(sym)
                 if srcs and su in srcs:
                     old_ax = i
                     break

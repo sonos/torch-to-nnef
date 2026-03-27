@@ -37,7 +37,7 @@ def _make_tables(rich, rep: SubnetSignature):
         tin.add_column("Notes", style="yellow")
     in_count = 0
     for i in rep.inputs:
-        shp = ", ".join(str(d) for d in (i.shape or []))
+        shp = ", ".join(str(d) for d in i.shape)
         row = [i.name, f"[{shp}]" if shp else "", i.dtype or ""]
         if has_notes:
             row.append(" ".join(i.notes or []))
@@ -84,14 +84,12 @@ def _print_diffs(rich, console, groups):
             ai, bi = a_map.get(nm), b_map.get(nm)
             if ai and bi:
                 changed = (
-                    (ai.shape or []) != (bi.shape or [])
+                    ai.shape != bi.shape
                     or (ai.dtype or "") != (bi.dtype or "")
                     or (ai.notes or []) != (bi.notes or [])
                 )
                 if changed:
-                    td.add_row(
-                        nm, str(ai.shape or []), "→", str(bi.shape or [])
-                    )
+                    td.add_row(nm, str(ai.shape), "→", str(bi.shape))
             elif ai and not bi:
                 td.add_row(nm, "present", "→", "removed")
             elif bi and not ai:

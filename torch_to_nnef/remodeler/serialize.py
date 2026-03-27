@@ -8,7 +8,7 @@ from torch_to_nnef.remodeler import IODescriptor, SubnetSignature
 def _io_to_json(io: IODescriptor) -> dict:
     return {
         "name": io.name,
-        "shape": [str(d) for d in (io.shape or [])],
+        "shape": [str(d) for d in io.shape],
         "dtype": io.dtype,
         "notes": list(io.notes or []),
     }
@@ -25,10 +25,10 @@ def signatures_to_json_payload(
                 "stage": s.stage.value,
                 "inputs": [_io_to_json(i) for i in s.inputs],
                 "outputs": [_io_to_json(o) for o in s.outputs],
-                "applied_flags": list(getattr(s, "applied_flags", []) or []),
+                "applied_flags": list(s.applied_flags),
                 "symbol_axes": {
-                    k: {int(ax): str(sym) for ax, sym in (v or {}).items()}
-                    for k, v in (getattr(s, "symbol_axes", {}) or {}).items()
+                    k: {int(ax): str(sym) for ax, sym in v.items()}
+                    for k, v in (s.symbol_axes or {}).items()
                 },
             }
             for s in sigs

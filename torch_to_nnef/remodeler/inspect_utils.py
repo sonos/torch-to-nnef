@@ -83,9 +83,7 @@ def render_diffs_plain(
                     or ai.dtype != bi.dtype
                     or (ai.notes or []) != (bi.notes or [])
                 ):
-                    lines.append(
-                        f"    - {nm}: {ai.shape or []} -> {bi.shape or []}"
-                    )
+                    lines.append(f"    - {nm}: {ai.shape} -> {bi.shape}")
             elif ai and not bi:
                 lines.append(f"    - {nm}: present -> removed")
             elif bi and not ai:

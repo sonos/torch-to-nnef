@@ -423,10 +423,13 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     "useless to set output dynamic axes "
                     "since not interpreted by inference engines"
                 )
-            raise T2NErrorDynamicShapeValue(
-                f"Requested dynamic_axes on input named: '{node_name}', "
-                f"is not in graph inputs: {nnef_graph.inputs}"
+            LOGGER.warning(
+                "dynamic_axes references input '%s' which was pruned "
+                "during tracing (not in graph inputs: %s) — skipping",
+                node_name,
+                nnef_graph.inputs,
             )
+            continue
 
     LOGGER.debug("applied dynamic axes in NNEF")
     return dedup_list(custom_extensions)
