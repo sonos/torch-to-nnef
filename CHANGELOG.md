@@ -22,6 +22,16 @@
 - torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).
 - `AxisSymbolRegistry.empty()` defaults and loader edge cases (tuple inputs, nested schema); fixed leftover NameError in inspector.
 - binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
+- circular import: moved `InspectFormat` enum to `config.py` to break `config→inspect→export→config` cycle; `NamingPrecisionConfig.naming_scheme` and `InspectionConfig.inspect_format` now typed as enums.
+- `export_nemo_from_model`: dtype preparation (`.half()`, `WrapPreprocessorCast`) now handled internally based on `cfg.data_type`, so callers no longer need CLI-specific model prep.
+- `BoundaryAdapter` only triggered for structural transforms (collapse, bind, output filtering); symbol-only renames applied directly to dynamic axes via lightweight `_apply_symbol_renames_to_dyn`.
+- NeMo subnets with unused traced inputs (e.g. `length` on classification encoders): `check_io_names_qte_match=False` and dynamic-axes warning instead of crash.
+- VAD model loading: fallback to `EncDecClassificationModel.from_pretrained` when `ASRModel.from_pretrained` fails.
+
+### Tests
+- extended nemo export test suite: config variants (skip-preprocessor, float16, only-subnets, quantization, naming), shape config from YAML (parakeet full, VAD collapsed), programmatic batch-collapse with bind+strip, dry-run dump round-trip.
+- per-model tract IO tolerance (QuartzNet uses `VERY`).
+- NeMo log silencing fixture in conftest.
 
 ### Docs
 - NeMo ASR guide updated with a Shapes config section: dump → edit → inspect → export, with examples for `collapse_dims`, `bind_scalar_to_dim_size`, and `renamed_symbols`.

@@ -249,8 +249,7 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         bucket = nested.setdefault(subnet, {})
         if mapping:
             bucket[SHAPE_KEY_RENAMED] = {
-                str(t): [str(s) for s in srcs]
-                for t, srcs in mapping.items()
+                str(t): [str(s) for s in srcs] for t, srcs in mapping.items()
             }
     for subnet, keep in (
         getattr(reg, "outputs_keep_per_subnet", None) or {}
