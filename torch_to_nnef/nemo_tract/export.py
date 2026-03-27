@@ -650,8 +650,21 @@ def build_preprocessor_export_params(
                 outputs_keep
             ) != set(output_names)
 
+            # Per-output collapse dims for this subnet
+            out_collapse = {
+                qout.split(".", 1)[1]: axes
+                for qout, axes in axis_registry.output_collapse_dims.items()
+                if qout.startswith(f"{subnet_name}.")
+            }
+            has_out_collapse = bool(out_collapse)
+
             # Only wrap with BoundaryAdapter for structural transforms
-            if has_collapse or has_bind or has_outputs_filter:
+            if (
+                has_collapse
+                or has_bind
+                or has_outputs_filter
+                or has_out_collapse
+            ):
                 model = BoundaryAdapter(
                     model,
                     subnet_name,
@@ -664,6 +677,7 @@ def build_preprocessor_export_params(
                     axis_registry.bind_to_dim,
                     rename_map,
                     outputs_keep=outputs_keep,
+                    output_collapse_dims=out_collapse,
                 )
                 input_names = model.input_names
                 test_input = list(model.input_example())
@@ -784,8 +798,21 @@ def iter_export_params_for_generic_nemo_asr_model(
                 outputs_keep
             ) != set(output_names)
 
+            # Per-output collapse dims for this subnet
+            out_collapse = {
+                qout.split(".", 1)[1]: axes
+                for qout, axes in axis_registry.output_collapse_dims.items()
+                if qout.startswith(f"{subnet_name}.")
+            }
+            has_out_collapse = bool(out_collapse)
+
             # Only wrap with BoundaryAdapter for structural transforms
-            if has_collapse or has_bind or has_outputs_filter:
+            if (
+                has_collapse
+                or has_bind
+                or has_outputs_filter
+                or has_out_collapse
+            ):
                 model = BoundaryAdapter(
                     model,
                     subnet_name,
@@ -798,6 +825,7 @@ def iter_export_params_for_generic_nemo_asr_model(
                     axis_registry.bind_to_dim,
                     rename_map,
                     outputs_keep=outputs_keep,
+                    output_collapse_dims=out_collapse,
                 )
                 input_names = model.input_names
                 test_input = list(model.input_example())

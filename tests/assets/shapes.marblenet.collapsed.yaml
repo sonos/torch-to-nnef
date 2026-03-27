@@ -6,9 +6,10 @@
 #     --dry-run --dump-shape-config shapes.marblenet.yaml
 #
 # Then apply:
-#   - collapse_dims: all __BATCH symbols
+#   - collapse_dims: all __BATCH symbols (inputs and outputs)
 #   - bind_scalar_to_dim_size: length inputs → sibling TIME dim
 #   - outputs_keep: drop length outputs
+#   - outputs.collapse_dims: squeeze batch axis from kept outputs
 
 preprocessor:
   inputs:
@@ -20,6 +21,9 @@ preprocessor:
       collapse_dims: [LENGTH__BATCH]
       bind_scalar_to_dim_size: input_signal.INPUT_SIGNAL__TIME
   outputs_keep: [processed_signal]
+  outputs:
+    processed_signal:
+      collapse_dims: [0]
 encoder:
   inputs:
     audio_signal:
@@ -30,8 +34,14 @@ encoder:
       collapse_dims: [LENGTH__BATCH]
       bind_scalar_to_dim_size: audio_signal.AUDIO_SIGNAL__TIME
   outputs_keep: [outputs]
+  outputs:
+    outputs:
+      collapse_dims: [0]
 decoder:
   inputs:
     encoder_output:
       original_shape: [ENCODER_OUTPUT__BATCH, ENCODER_OUTPUT__CHANNEL, ENCODER_OUTPUT__TIME]
       collapse_dims: [ENCODER_OUTPUT__BATCH]
+  outputs:
+    logits:
+      collapse_dims: [0]

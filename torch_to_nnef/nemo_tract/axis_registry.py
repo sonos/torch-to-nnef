@@ -13,7 +13,9 @@ from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
     INPUT_FIELD_ORIGINAL_SHAPE,
+    OUTPUT_FIELD_COLLAPSE_DIMS,
     SHAPE_KEY_INPUTS,
+    SHAPE_KEY_OUTPUTS,
     SHAPE_KEY_OUTPUTS_KEEP,
     SHAPE_KEY_RENAMED,
 )
@@ -41,6 +43,9 @@ class AxisSymbolRegistry:
     renamed_symbols_per_subnet: T.Dict[str, T.Dict[str, T.List[str]]]
     # Optional per-subnet output selection: keep only these outputs
     outputs_keep_per_subnet: T.Dict[str, T.List[str]]
+    # Per-output collapse dims: qualified output name -> list of axis indices
+    # to squeeze (e.g., {"preprocessor.processed_signal": [0]})
+    output_collapse_dims: T.Dict[str, T.List[int]] = field(default_factory=dict)
     # Optional: discovered shapes with mixed ints/symbols per qualified input
     # (used for template serialization; not required when loading config)
     original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]] = field(
@@ -56,6 +61,7 @@ class AxisSymbolRegistry:
             input_collapse_dims={},
             renamed_symbols_per_subnet={},
             outputs_keep_per_subnet={},
+            output_collapse_dims={},
             original_shape_per_input={},
         )
 
@@ -251,6 +257,7 @@ def _parse_top_level(
     T.Dict[str, str],
     T.Dict[str, T.List[str]],
     T.Dict[str, T.List[str]],
+    T.Dict[str, T.List[int]],
     T.Dict[str, T.List[T.Union[int, str]]],
 ]:
     """Parse top-level entries into symbols/ranks/binds/input_dims."""
@@ -259,13 +266,21 @@ def _parse_top_level(
     binds: T.Dict[str, str] = {}
     input_dims: T.Dict[str, T.List[str]] = {}
     outputs_keep: T.Dict[str, T.List[str]] = {}
+    output_collapse: T.Dict[str, T.List[int]] = {}
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]] = {}
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
             _ = _parse_renamed_symbols(top_key, val.get(SHAPE_KEY_RENAMED))
             _parse_nested_subnet(
-                top_key, val, symbols, ranks, binds, input_dims, orig_shapes
+                top_key,
+                val,
+                symbols,
+                ranks,
+                binds,
+                input_dims,
+                output_collapse,
+                orig_shapes,
             )
             if SHAPE_KEY_OUTPUTS_KEEP in val:
                 oks = val.get(SHAPE_KEY_OUTPUTS_KEEP)
@@ -286,7 +301,15 @@ def _parse_top_level(
                 "mapping"
             )
             raise T2NErrorInvalidArgument(msg)
-    return symbols, ranks, binds, input_dims, outputs_keep, orig_shapes
+    return (
+        symbols,
+        ranks,
+        binds,
+        input_dims,
+        outputs_keep,
+        output_collapse,
+        orig_shapes,
+    )
 
 
 def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
@@ -302,6 +325,39 @@ def _build_renamed_map(raw: dict) -> dict[str, dict[str, list[str]]]:
     return out
 
 
+def _parse_output_collapse_section(
+    top_key: str,
+    outputs_section: dict,
+    output_collapse: T.Dict[str, T.List[int]],
+) -> None:
+    """Parse the ``outputs`` section of a subnet config.
+
+    Each entry maps an output name to ``{collapse_dims: [axis_indices]}``.
+    """
+    for out_name, out_cfg in outputs_section.items():
+        qname = f"{top_key}.{out_name}"
+        if not isinstance(out_cfg, dict):
+            raise T2NErrorInvalidArgument(
+                f"Invalid output config for '{qname}': expected mapping"
+            )
+        if OUTPUT_FIELD_COLLAPSE_DIMS in out_cfg:
+            cdv = out_cfg[OUTPUT_FIELD_COLLAPSE_DIMS]
+            if not isinstance(cdv, (list, tuple)) or not all(
+                isinstance(x, int) for x in cdv
+            ):
+                raise T2NErrorInvalidArgument(
+                    f"output collapse_dims for '{qname}' must be a list "
+                    "of int axis indices"
+                )
+            output_collapse[qname] = list(cdv)
+        unknown_keys = set(out_cfg.keys()) - {OUTPUT_FIELD_COLLAPSE_DIMS}
+        if unknown_keys:
+            raise T2NErrorInvalidArgument(
+                f"Unknown keys in output config for '{qname}': "
+                + ", ".join(sorted(unknown_keys))
+            )
+
+
 def _parse_nested_subnet(
     top_key: str,
     val: dict,
@@ -309,6 +365,7 @@ def _parse_nested_subnet(
     ranks: T.Dict[str, int],
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
+    output_collapse: T.Dict[str, T.List[int]],
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
 ) -> None:
     """Parse a nested subnet mapping into outputs.
@@ -320,6 +377,7 @@ def _parse_nested_subnet(
         ranks: Output ranks map.
         binds: Output binds mapping.
         input_dims: Output collapse-dims mapping.
+        output_collapse: Output per-output collapse axes.
         orig_shapes: Output map to original dims (ints/strings).
     """
     if INPUT_FIELD_COLLAPSE_DIMS in val:
@@ -336,12 +394,31 @@ def _parse_nested_subnet(
             "keys at the subnet level are no longer supported."
         )
     # Reject unknown top-level keys besides the allowed ones
-    allowed = {SHAPE_KEY_INPUTS, SHAPE_KEY_RENAMED, SHAPE_KEY_OUTPUTS_KEEP}
+    allowed = {
+        SHAPE_KEY_INPUTS,
+        SHAPE_KEY_OUTPUTS,
+        SHAPE_KEY_RENAMED,
+        SHAPE_KEY_OUTPUTS_KEEP,
+    }
     unknown = {k for k in val if k not in allowed}
     if unknown:
         raise T2NErrorInvalidArgument(
             "Unknown keys in subnet config: " + ", ".join(sorted(unknown))
         )
+
+    # Parse outputs section (per-output collapse_dims)
+    outputs_section = val.get(SHAPE_KEY_OUTPUTS)
+    if outputs_section is not None:
+        if not isinstance(outputs_section, dict):
+            raise T2NErrorInvalidArgument(
+                f"'outputs' for subnet '{top_key}' must be a mapping"
+            )
+        _parse_output_collapse_section(
+            top_key,
+            outputs_section,
+            output_collapse,
+        )
+
     items = input_section.items()
 
     for inp_name, shape in items:
@@ -408,9 +485,15 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
             "input-name -> list of dims"
         )
     # Delegate detailed parsing to helpers to keep complexity low
-    symbols, ranks, binds, input_dims, outputs_keep, orig_shapes = (
-        _parse_top_level(raw)
-    )
+    (
+        symbols,
+        ranks,
+        binds,
+        input_dims,
+        outputs_keep,
+        output_collapse,
+        orig_shapes,
+    ) = _parse_top_level(raw)
     if not symbols:
         raise T2NErrorInvalidArgument(
             "shape-config did not define any input shapes"
@@ -424,5 +507,6 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         input_collapse_dims=input_dims,
         renamed_symbols_per_subnet=renamed_per_subnet,
         outputs_keep_per_subnet=outputs_keep,
+        output_collapse_dims=output_collapse,
         original_shape_per_input=orig_shapes,
     )
