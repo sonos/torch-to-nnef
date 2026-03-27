@@ -1656,6 +1656,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.registry_utils.auto_populate_output_collapse_dims" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;auto_populate_output_collapse_dims
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.nemo_tract.registry_utils.tie_batch_symbols_in_registry" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tie_batch_symbols_in_registry
@@ -3526,6 +3535,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.registry_utils.auto_populate_output_collapse_dims" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;auto_populate_output_collapse_dims
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.nemo_tract.registry_utils.tie_batch_symbols_in_registry" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tie_batch_symbols_in_registry
@@ -3580,6 +3598,92 @@
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.registry_utils.auto_populate_output_collapse_dims" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">auto_populate_output_collapse_dims</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">auto_populate_output_collapse_dims</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">AxisSymbolRegistry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AxisSymbolRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Auto-add <code>collapse_dims: [0]</code> for batch collapse.</p>
+<p>For outputs of subnets with batch collapse on inputs.</p>
+<p>For each subnet where at least one input has a <code>collapse_dims</code> containing
+a <code>*__BATCH</code> symbol, add <code>collapse_dims: [0]</code> for every output of that
+subnet (taken from <code>outputs_keep_per_subnet</code>).  User-provided entries
+take precedence and are not overwritten.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>registry</code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            AxisSymbolRegistry
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry)" href="../axis_registry/#torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry">AxisSymbolRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Axis symbol registry (possibly loaded from config).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            AxisSymbolRegistry
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry)" href="../axis_registry/#torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry">AxisSymbolRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same registry instance with <code>output_collapse_dims</code> updated.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 

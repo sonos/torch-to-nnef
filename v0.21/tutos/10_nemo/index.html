@@ -3887,7 +3887,8 @@
 </span></code></pre></div>
 <p>The generated <code>shapes.yaml</code> uses a nested layout per subnet:</p>
 <ul>
-<li><code>inputs</code>: mapping of input-name → settings</li>
+<li><code>inputs</code>: mapping of input-name -&gt; settings</li>
+<li><code>outputs</code> (optional): mapping of output-name -&gt; settings</li>
 <li><code>renamed_symbols</code> (optional): <code>{ TARGET: [SOURCES...] }</code> aliasing of dynamic symbols</li>
 <li><code>outputs_keep</code> (always present in the template): ordered list of output names to keep (default if omitted: keep all)</li>
 </ul>
@@ -3896,6 +3897,10 @@
 <li><code>original_shape</code>: list of dims (ints or strings)</li>
 <li><code>collapse_dims</code> (optional): list of symbols to collapse at the boundary</li>
 <li><code>bind_scalar_to_dim_size</code> (optional): dynamic source as <code>subnet.input.SYMBOL</code></li>
+</ul>
+<p>Per-output settings under <code>outputs</code>:</p>
+<ul>
+<li><code>collapse_dims</code> (optional): list of axis indices to squeeze from the output tensor (e.g., <code>[0]</code> to remove the batch axis)</li>
 </ul>
 <p>Example (abbreviated):</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">encoder</span><span class="p">:</span>
@@ -3907,28 +3912,31 @@
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">LENGTH__BATCH</span><span class="p p-Indicator">]</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">LENGTH__BATCH</span><span class="p p-Indicator">]</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="nt">bind_scalar_to_dim_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">encoder.audio_signal.AUDIO_SIGNAL__TIME</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nt">decoder_joint</span><span class="p">:</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">encoder_outputs</span><span class="p">:</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ENCODER_OUTPUTS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1024</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ENCODER_OUTPUTS__TIME</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ENCODER_OUTPUTS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ENCODER_OUTPUTS__TIME</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="nt">decoder</span><span class="p">:</span>
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">  </span><span class="nt">renamed_symbols</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> BATCH</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">TARGETS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_0__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_1__BATCH</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
-</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">  </span><span class="c1"># Typical RNNT decoder outputs include: outputs, prednet_lengths, states_out</span>
-</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">  </span><span class="c1"># Keep only the ones you need (e.g., drop prednet_lengths)</span>
-</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">  </span><span class="nt">outputs_keep</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">outputs</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">states_out</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
-</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">    </span><span class="nt">targets</span><span class="p">:</span>
-</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">TARGETS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">TARGETS__TIME</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">BATCH</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="w">    </span><span class="nt">states_0</span><span class="p">:</span>
-</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_0__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">640</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">outputs</span><span class="p">:</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="nt">decoder_joint</span><span class="p">:</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">    </span><span class="nt">encoder_outputs</span><span class="p">:</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ENCODER_OUTPUTS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1024</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ENCODER_OUTPUTS__TIME</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ENCODER_OUTPUTS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ENCODER_OUTPUTS__TIME</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="nt">decoder</span><span class="p">:</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">  </span><span class="nt">renamed_symbols</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> BATCH</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">TARGETS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_0__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_1__BATCH</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">  </span><span class="c1"># Typical RNNT decoder outputs include: outputs, prednet_lengths, states_out</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">  </span><span class="c1"># Keep only the ones you need (e.g., drop prednet_lengths)</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">  </span><span class="nt">outputs_keep</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">outputs</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">states_out</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="w">    </span><span class="nt">targets</span><span class="p">:</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">TARGETS__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">TARGETS__TIME</span><span class="p p-Indicator">]</span>
 </span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">BATCH</span><span class="p p-Indicator">]</span>
-</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="w">    </span><span class="nt">states_1</span><span class="p">:</span>
-</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_1__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">640</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="w">    </span><span class="nt">states_0</span><span class="p">:</span>
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_0__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">640</span><span class="p p-Indicator">]</span>
 </span><span id="__span-3-31"><a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">BATCH</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-32"><a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a><span class="w">    </span><span class="nt">states_1</span><span class="p">:</span>
+</span><span id="__span-3-33"><a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a><span class="w">      </span><span class="nt">original_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">STATES_1__BATCH</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">640</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-34"><a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="w">      </span><span class="nt">collapse_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">BATCH</span><span class="p p-Indicator">]</span>
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Decoder: dropping prednet_lengths while keeping IO aligned</p>
@@ -3961,9 +3969,11 @@ boundary contract explicit: <code>target_length = size(targets, TIME)</code>.</p
 <li>To expose a common tract-facing name (e.g., <code>BATCH</code>) across inputs, declare it via <code>renamed_symbols</code>.</li>
 <li>Aliases listed in <code>renamed_symbols</code> are accepted anywhere a symbol is referenced (collapse/bind).</li>
 <li><code>renamed_symbols</code> targets cannot include themselves in sources.</li>
-<li><code>collapse_dims</code> requires the symbol to be dynamic on that input at the selected stage.</li>
+<li><code>collapse_dims</code> (inputs) requires the symbol to be dynamic on that input at the selected stage.</li>
+<li><code>collapse_dims</code> (outputs) takes axis indices (integers), not symbols. Only axes of size 1 are squeezed.</li>
 <li><code>bind_scalar_to_dim_size</code> binds a dynamic size as an <code>int64</code> scalar.</li>
 <li><code>outputs_keep</code> filters exported outputs; order follows the subnet’s original <code>output_names</code>. The template always includes it so you can easily trim.</li>
+<li>When batch collapse is detected on inputs, the NeMo registry auto-populates <code>outputs.collapse_dims: [0]</code> for all outputs of that subnet. Explicit config takes precedence.</li>
 </ul>
 <p>Boundary semantics</p>
 <ul>
@@ -4170,7 +4180,7 @@ Here is a sample usage (it needs extra eval to run properly).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 26, 2026 14:09:23 UTC">March 26, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 27, 2026 21:11:40 UTC">March 27, 2026</span>
   </span>
 
     
