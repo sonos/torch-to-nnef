@@ -61,7 +61,7 @@ from torch_to_nnef.nemo_tract.registry_utils import (
     tie_batch_symbols_in_registry,
     validate_registry_against_signatures,
 )
-from torch_to_nnef.nemo_tract.wrappers import WrapPreprocessorCast, use_pytorch_sdpa
+from torch_to_nnef.nemo_tract.wrappers import use_pytorch_sdpa
 from torch_to_nnef.remodeler import Stage, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
@@ -115,20 +115,15 @@ def setup_inference_target_from_cli_args(cfg: NemoTractConfig) -> TractNNEF:
     return inference_target
 
 
-def _prepare_model_dtype_and_wrappers(asr_model, cfg: NemoTractConfig):
-    """Apply dtype conversions and wrappers based on CLI configuration."""
+def _prepare_model_for_export(asr_model, cfg: NemoTractConfig):
+    """Apply CLI-specific model preparation (SDPA).
+
+    Dtype conversions (float16/mixed) and preprocessor wrapping are
+    handled by ``export_nemo_from_model`` based on ``NemoExportConfig``.
+    """
     if cfg.sdpa.force_sdpa_pytorch:
         use_pytorch_sdpa(asr_model)
     asr_model.eval()
-    if cfg.naming.data_type == "float16":
-        asr_model = asr_model.half()
-        asr_model.preprocessor.to(dtype=torch.float32)
-    if cfg.naming.data_type in ["float16", "mixed"] and hasattr(
-        asr_model, "preprocessor"
-    ):
-        asr_model.preprocessor = WrapPreprocessorCast(
-            asr_model.preprocessor, dtype=torch.float16
-        )
     return asr_model
 
 
@@ -351,7 +346,7 @@ def run_export(cfg: NemoTractConfig) -> None:
         if cfg.model.model_path is not None
         else load_asr_model_from_nemo_slug(cfg.model.model_slug)
     )
-    asr_model = _prepare_model_dtype_and_wrappers(asr_model, cfg)
+    asr_model = _prepare_model_for_export(asr_model, cfg)
     _normalize_tolerance(cfg)
     inference_target = setup_inference_target_from_cli_args(cfg)
     _maybe_dump_export_config(cfg, export_dir)

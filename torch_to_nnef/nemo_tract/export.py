@@ -27,6 +27,7 @@ from torch_to_nnef.nemo_tract.dynaxes import (
 )
 from torch_to_nnef.nemo_tract.wrappers import (
     WrapAudioPreprocessor,
+    WrapPreprocessorCast,
     decoder_fix_input_example_batch_size,
 )
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
@@ -916,12 +917,22 @@ def export_nemo_from_model(
     axis_reg: T.Optional[AxisSymbolRegistry] = None,
     cfg: NemoExportConfig,
 ) -> None:
-    """Export a prepared NeMo ASR model using a structured configuration.
+    """Export a NeMo ASR model using a structured configuration.
 
-    This is the public programmatic API. Derives the working dtype from
-    ``cfg.data_type`` and wraps the call in ``autocast`` when
-    ``data_type`` is ``"mixed"``.
+    This is the public programmatic API.  Handles dtype preparation
+    (``float16`` / ``mixed``) internally so callers don't need to
+    apply ``model.half()`` or ``WrapPreprocessorCast`` themselves.
     """
+    model.eval()
+    if cfg.data_type == "float16":
+        model = model.half()
+        if hasattr(model, "preprocessor"):
+            model.preprocessor.to(dtype=torch.float32)
+    if cfg.data_type in ("float16", "mixed") and hasattr(model, "preprocessor"):
+        model.preprocessor = WrapPreprocessorCast(
+            model.preprocessor, dtype=torch.float16
+        )
+
     float_dtype = (
         torch.float16 if cfg.data_type in ("float16", "mixed") else torch.float32
     )
