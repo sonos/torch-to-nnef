@@ -4,16 +4,54 @@
 ## Unreleased
 
 ### Added
+- nemo remodeler: structured `shapes.yaml` per subnet (`original_shape`, `collapse_dims`, `bind_scalar_to_dim_size`, `renamed_symbols`) to control boundary-only transforms.
+- nemo remodeler: export-time `BoundaryAdapter` applying tuple flattening, alias-aware collapse (batch and other dynamic dims), dynamic scalar binding from `shape(source)[axis]`, and dynamic-axes recomputation.
+- inspector: `--inspect-signatures`, `--inspect-stage`, `--inspect-format`, `--inspect-output`, `--inspect-diff`; human/human-rich/JSON output; model header; tuple input expansion; config overlay; per-stage diffs.
+- template dump: nested YAML with header and inline lists; auto-suggest `renamed_symbols` for decoder/decoder_joint when multiple batch-like symbols are seen across inputs.
+
+### Changed
+- symbol generation: batch dims are now namespaced as `<INPUT>__BATCH` (e.g., `ENCODER_OUTPUTS__BATCH`) for clarity and consistency across inputs.
+- inspector: stricter config validation (qualified/bare name resolution, rank mismatches with discovered shapes); symbol overlay/substitution; clearer errors and warnings.
+- export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions are consolidated to alias targets to keep headers consistent.
+- remodeler: moved generic `BoundaryAdapter` and `RenameOutputs` to `torch_to_nnef.remodeler.adapter` (previously under `nemo_tract.wrappers`), and updated usages/tests accordingly.
+
+### Removed
+- legacy `--collapse-batch-dim` flag and its wrapper; use `shapes.yaml` (`collapse_dims`) instead.
+
+### Fixed
+- torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).
+- `AxisSymbolRegistry.empty()` defaults and loader edge cases (tuple inputs, nested schema); fixed leftover NameError in inspector.
+- binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
+- circular import: moved `InspectFormat` enum to `config.py` to break `config→inspect→export→config` cycle; `NamingPrecisionConfig.naming_scheme` and `InspectionConfig.inspect_format` now typed as enums.
+- `export_nemo_from_model`: dtype preparation (`.half()`, `WrapPreprocessorCast`) now handled internally based on `cfg.data_type`, so callers no longer need CLI-specific model prep.
+- `BoundaryAdapter` only triggered for structural transforms (collapse, bind, output filtering); symbol-only renames applied directly to dynamic axes via lightweight `_apply_symbol_renames_to_dyn`.
+- NeMo subnets with unused traced inputs (e.g. `length` on classification encoders): `check_io_names_qte_match=False` and dynamic-axes warning instead of crash.
+- VAD model loading: fallback to `EncDecClassificationModel.from_pretrained` when `ASRModel.from_pretrained` fails.
+
+### Tests
+- extended nemo export test suite: config variants (skip-preprocessor, float16, only-subnets, quantization, naming), shape config from YAML (parakeet full, VAD collapsed), programmatic batch-collapse with bind+strip, dry-run dump round-trip.
+- per-model tract IO tolerance (QuartzNet uses `VERY`).
+- NeMo log silencing fixture in conftest.
+
+### Docs
+- NeMo ASR guide updated with a Shapes config section: dump → edit → inspect → export, with examples for `collapse_dims`, `bind_scalar_to_dim_size`, and `renamed_symbols`.
+
+
+
+## [0.21.0] - 2026-02-15
+
+### Added
 
 - NeMo ASR export via new `torch_to_nnef.nemo_tract` package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.
-- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, and `clean.sh` to streamline local setup and cleanup.
-- VAD demo rework: modular JS under `docs/html/vad/` with clearer separation of mic, plotting, session, and wasm glue code.
+- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, `bootstrap-rust.sh`, and `clean.sh` to streamline local setup and cleanup.
 - Tests: artifact packaging behavior (`tests/test_artifacts.py`) to validate `.nnef`/`.tar`/`.tgz` outputs.
+- Tests: expanded coverage around new features and edge cases, including cumsum (`tests/test_cumsum.py`), MaxPool2d with indices (`tests/test_pool_with_indices.py`), output renaming safeguards (`tests/test_rename_outputs.py`), and NeMo subnet iteration/splitting (`tests/test_nemo_iter_subnets.py`).
 - API: `export_model_to_nnef` now returns the exported artifact path for easier downstream use.
 - Ops: added support for `cumsum` (exported as `tract_cumsum`) and MaxPool2d with indices.
 - Export helpers: `iter_torch_tensors_from_disk(map_location=...)` to control device mapping; skips non‑tensor entries in state dicts.
 - Writer: pass‑through identity (input→output) renders as an assignment when targeting Tract; prevents silent aliasing.
 - Tract option: `--tract-reify-sdpa` to reify SDP attention for improved tract optimizations.
+- Versioning: new SemVer 2.0 utilities (`SemanticVersion`) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.
 
 ### Changed
 
@@ -24,7 +62,9 @@
 - RNN utils monkeypatching is now narrowly scoped and only applied for Tract targets; clearer error messages when unsupported.
 - Dynamic‑axes inference refined for unflatten/argsort/sort using `get_tract_dyn_axis_size_soc`.
 - Cumsum: initial simple implementation introduced and later renamed from `t2n_cumsum` to `tract_cumsum`; improved tract ONNX↔NNEF compare utility.
-- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); hardened Nemo ASR `run.sh`; minor doc clarifications.
+- Versioning: `torch_version()` now yields a semantic `SemanticVersion`; feature toggles (e.g., default SDPA reification) are gated semantically and auto‑enable reify for Tract > 0.22.0.
+- Docs/examples: added `docs/examples/nemo_asr/requirements.txt`, hardened NeMo ASR `run.sh`, and removed a stale YOLO TorchScript asset.
+- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); minor doc clarifications.
 
 ### Fixed
 

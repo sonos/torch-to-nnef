@@ -423,10 +423,13 @@ def apply_dynamic_shape_in_nnef(dynamic_axes, nnef_graph, tract_version):
                     "useless to set output dynamic axes "
                     "since not interpreted by inference engines"
                 )
-            raise T2NErrorDynamicShapeValue(
-                f"Requested dynamic_axes on input named: '{node_name}', "
-                f"is not in graph inputs: {nnef_graph.inputs}"
+            LOGGER.warning(
+                "dynamic_axes references input '%s' which was pruned "
+                "during tracing (not in graph inputs: %s) — skipping",
+                node_name,
+                nnef_graph.inputs,
             )
+            continue
 
     LOGGER.debug("applied dynamic axes in NNEF")
     return dedup_list(custom_extensions)
@@ -759,8 +762,7 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 opset_version=17,
             )
         # parametrized failure exception emission
-        # pylint: disable-next=broad-except
-        except Exception as exp:
+        except (RuntimeError, ValueError, TypeError) as exp:
             if raise_export_error:
                 raise T2NErrorOnnxExport(exp.args) from exp
             LOGGER.warning("ONNX export error: %s", exp)
@@ -772,8 +774,12 @@ def pytorch_to_onnx_to_tract_to_nnef(
                 nnef_path=nnef_path,
             )
         # parametrized failure exception emission
-        # pylint: disable-next=broad-except
-        except Exception as exp:
+        except (
+            subprocess.CalledProcessError,
+            OSError,
+            RuntimeError,
+            ValueError,
+        ) as exp:
             if raise_export_error:
                 raise T2NErrorTractOnnxToNNEF(exp.args) from exp
             error_msg = str(exp.args[-1])

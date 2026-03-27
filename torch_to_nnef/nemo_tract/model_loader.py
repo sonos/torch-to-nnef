@@ -3,6 +3,7 @@ import logging
 import sys
 import typing as T
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 
@@ -21,6 +22,9 @@ LOGGER = logging.getLogger(__name__)
 PARAKEET_V3_SLUG = "nvidia/parakeet-tdt-0.6b-v3"
 PARAKEET_110M_SLUG = "parakeet-tdt_ctc-110m"
 NEMOTRON_0_6B = "nvidia/nemotron-speech-streaming-en-0.6b"
+QUARTZNET = "QuartzNet15x5Base-En"
+MARBLENET_VAD = "vad_multilingual_marblenet"
+FAST_CONFORMER_TDT_LARGE = "nvidia/stt_en_fastconformer_tdt_large"
 
 
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="questionary")
@@ -150,3 +154,16 @@ def load_asr_model_from_nemo_slug(
             map_location=torch.device("cpu"),
         )
     return asr_model
+
+
+@require_extra_decorator(
+    extra=T2NExtra.NEMO_TRACT, module="nemo.collections.asr", kw="nemo_asr"
+)
+def load_asr_model_from_path(
+    model_path: Path,
+    *,
+    nemo_asr: InjectedNemoModule = INJECTED,
+):
+    return nemo_asr.models.ASRModel.restore_from(
+        restore_path=model_path, map_location=torch.device("cpu")
+    )

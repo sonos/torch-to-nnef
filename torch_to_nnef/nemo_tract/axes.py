@@ -2,10 +2,18 @@
 
 import typing as T
 
+from torch_to_nnef.nemo_tract.constants import (
+    NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
+)
+
 
 def _is_batch_symbol(sym: str) -> bool:
+    """Return True when symbol denotes a batch axis by name.
+
+    Only names ending with f'{_SEP}BATCH' are considered batch symbols.
+    """
     s = str(sym).upper()
-    return s == "B" or "BATCH" in s
+    return s.endswith(f"{_SEP}BATCH")
 
 
 def _collapse_axes_for_input(
@@ -14,7 +22,10 @@ def _collapse_axes_for_input(
     full_axes_spec: T.Optional[T.Sequence[str]] = None,
     assume_batch_at0: bool = True,
 ) -> T.Dict[int, str]:
-    """Collapse a single input axes mapping by removing 'B' and reindexing."""
+    """Collapse a single input axes mapping.
+
+    Removes batch-like dims and reindexes remaining axes.
+    """
     if full_axes_spec is not None:
         b_positions = [
             ix for ix, sym in enumerate(full_axes_spec) if _is_batch_symbol(sym)

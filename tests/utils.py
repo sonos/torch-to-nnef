@@ -163,6 +163,7 @@ def check_model_io_test(
     callback_post_export=None,
     unit_test_naming=None,
     allow_same_io_names=False,
+    check_io_names_qte_match=True,
 ):
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
@@ -224,6 +225,7 @@ def check_model_io_test(
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
             allow_same_io_names=True,
+            check_io_names_qte_match=check_io_names_qte_match,
         )
         export_path = exported_path
         if DUMP_DIRPATH:

@@ -7,6 +7,9 @@ wrappers to keep the main logic files focused.
 import re
 from typing import Any, Set
 
+# Separator between input name and symbol namespace in NeMo-generated symbols
+NEMO_INPUT_SYMBOL_SEPARATOR: str = "__"
+
 # Default time dimension used when fabricating audio-like examples
 DEFAULT_TIME: int = 16000
 
@@ -59,18 +62,21 @@ def _sanitize_name(name: str) -> str:
 
 
 def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
-    """Produce a readable axis symbol with intended sharing semantics.
+    """Produce a readable, namespaced axis symbol.
 
-    - Batch axis: always "BATCH" (shared globally across tensors).
-    - Known kinds (e.g., TIME, STREAM, LENGTH): use the full kind name to
-      intentionally share across tensors when they represent the same concept.
-    - Unknown kinds: namespace by input name to avoid false collisions,
-      using e.g. "AUDIO_SIGNAL_DIM0".
+    - Batch axis: namespaced as ``INPUT{SEP}BATCH`` (per-input), not a
+      global ``BATCH``; where ``SEP`` is ``NEMO_INPUT_SYMBOL_SEPARATOR``.
+    - Known kinds (e.g., TIME, STREAM, LENGTH): use full kind name and
+      namespace by input (e.g., ``AUDIO_SIGNAL{SEP}TIME``) to avoid
+      accidental cross-input collisions.
+    - Unknown kinds: fall back to a generic numbered dim also namespaced by
+      input (e.g., ``AUDIO_SIGNAL__DIM0``).
     """
     sym = axis_kind_to_symbol(axis_kind)
     up = sym.upper()
-    if up == "B" or "BATCH" in up:
-        return "BATCH"
+    if up == "BATCH":
+        # Always namespace batch by input to keep interfaces consistent
+        return f"{_sanitize_name(input_name)}{NEMO_INPUT_SYMBOL_SEPARATOR}BATCH"
     # Heuristic: NeMo RNN-T decoders expose recurrent states as
     #   states: [L, B, H] (or expanded to states_0/states_1)
     # Their axis-annotations may not always label the batch axis.
@@ -82,9 +88,9 @@ def make_axis_symbol(input_name: str, axis_kind: Any, axis_index: int) -> str:
         or in_up.startswith("STATES_")
         or in_up.startswith("INPUT_STATES_")
     ) and axis_index == 1:
-        return "BATCH"
+        return f"{_sanitize_name(input_name)}{NEMO_INPUT_SYMBOL_SEPARATOR}BATCH"
     base = up if up and up not in {"?", "D", "DIM"} else f"DIM{axis_index}"
-    return f"{_sanitize_name(input_name)}__{base}"
+    return f"{_sanitize_name(input_name)}{NEMO_INPUT_SYMBOL_SEPARATOR}{base}"
 
 
 def is_length_name(name: str) -> bool:

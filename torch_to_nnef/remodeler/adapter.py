@@ -1,0 +1,352 @@
+import typing as T
+
+import torch
+
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+
+
+class BoundaryAdapter(torch.nn.Module):
+    """Boundary adapter applying tuple flattening and collapse at export time.
+
+    - Flattens tuple inputs to name_0, name_1, ... for external IO.
+    - Applies per-input collapse of configured dynamic axes.
+    - Re-inserts collapsed axes before invoking the inner module.
+    - Recomputes dynamic input axes to match the external interface.
+    """
+
+    def __init__(
+        self,
+        module: torch.nn.Module,
+        subnet_name: str,
+        input_example: list,
+        dynamic_axes: T.Optional[dict[str, dict[int, str]]],
+        collapse_by_input: T.Optional[dict[str, set[str]]],
+        binds_by_input: T.Optional[dict[str, str]] = None,
+        renamed_map: T.Optional[dict[str, list[str]]] = None,
+        outputs_keep: T.Optional[list[str]] = None,
+        *,
+        apply_symbol_renames: bool = True,
+    ) -> None:
+        super().__init__()
+        self.module = module
+        self.subnet_name = subnet_name
+        self._orig_input_names = list(getattr(module, "input_names", []) or [])
+        self._orig_output_names = list(
+            getattr(module, "output_names", []) or []
+        )
+        self._orig_input_example = list(input_example or [])
+        self._dyn_axes = dict(dynamic_axes or {})
+        self._outputs_keep = list(outputs_keep or [])
+        self._apply_syms = bool(apply_symbol_renames)
+        (
+            initial_ext_names,
+            initial_ext_map,
+        ) = self._init_external_names()
+        self._init_collapse_indices(
+            initial_ext_names, collapse_by_input or {}, renamed_map or {}
+        )
+        self._init_bind_map(initial_ext_names, binds_by_input or {})
+        self._finalize_external_interface(initial_ext_names, initial_ext_map)
+
+    def _init_external_names(
+        self,
+    ) -> tuple[list[str], list[tuple[str, T.Optional[int]]]]:
+        names: list[str] = []
+        mapping: list[tuple[str, T.Optional[int]]] = []
+        for nm, val in zip(self._orig_input_names, self._orig_input_example):
+            if isinstance(val, (list, tuple)) and val:
+                for k, _ in enumerate(val):
+                    names.append(f"{nm}_{k}")
+                    mapping.append((nm, k))
+            else:
+                names.append(nm)
+                mapping.append((nm, None))
+        return names, mapping
+
+    def _init_collapse_indices(
+        self,
+        initial_ext_names: list[str],
+        collapse_by_input: dict[str, set[str]],
+        renamed_map: dict[str, list[str]],
+    ) -> None:
+        self._collapse_idx = {}
+        self._rename_map = {
+            str(t).upper(): [str(s).upper() for s in (srcs or [])]
+            for t, srcs in (renamed_map or {}).items()
+        }
+        for ext in initial_ext_names:
+            q = f"{self.subnet_name}.{ext}"
+            want = set(collapse_by_input.get(q, set()))
+            if not want:
+                continue
+            dyn = self._dyn_axes.get(ext, {})
+            drop: list[int] = []
+            for i, s in dyn.items():
+                su = str(s).upper()
+                if su in want:
+                    drop.append(i)
+                    continue
+                for w in want:
+                    srcs = self._rename_map.get(w)
+                    if srcs and su in srcs:
+                        drop.append(i)
+                        break
+            if drop:
+                self._collapse_idx[ext] = sorted(drop)
+
+    def _init_bind_map(
+        self, initial_ext_names: list[str], binds_by_input: dict[str, str]
+    ) -> None:
+        self._bind_for_ext = {}
+        for ext in list(initial_ext_names):
+            q = f"{self.subnet_name}.{ext}"
+            val = binds_by_input.get(q)
+            if not isinstance(val, str) or "." not in val:
+                continue
+            src_q, _, sym = val.rpartition(".")
+            src_ext = src_q.split(".", 1)[1] if "." in src_q else src_q
+            self._bind_for_ext[ext] = (src_ext, str(sym).strip().upper())
+
+    def _finalize_external_interface(
+        self,
+        initial_ext_names: list[str],
+        initial_ext_map: list[tuple[str, T.Optional[int]]],
+    ) -> None:
+        self._ext_names = []
+        self._ext_map = []
+        self._bound_targets = {}
+        for ext, mapping in zip(initial_ext_names, initial_ext_map):
+            if ext in self._bind_for_ext:
+                src_ext, sym = self._bind_for_ext[ext]
+                base, idx = mapping
+                self._bound_targets[ext] = (src_ext, sym, base, idx)
+                continue
+            self._ext_names.append(ext)
+            self._ext_map.append(mapping)
+
+    @property
+    def input_names(self) -> list[str]:
+        return list(self._ext_names)
+
+    @property
+    def output_names(self) -> list[str]:
+        if not self._outputs_keep:
+            return list(self._orig_output_names)
+        keep = set(self._outputs_keep)
+        return [n for n in self._orig_output_names if n in keep]
+
+    def _ext_example_for(self, name: str, val) -> object:
+        drop = set(self._collapse_idx.get(name, []))
+        t = val
+        if torch.is_tensor(t) and drop:
+            for ax in sorted(drop, reverse=True):
+                if 0 <= ax < t.dim():
+                    t = t.squeeze(ax) if t.size(ax) == 1 else t.select(ax, 0)
+        return t
+
+    def input_example(self):
+        out: list[object] = []
+        for (base, idx), ext in zip(self._ext_map, self._ext_names):
+            if idx is None:
+                val = next(
+                    (
+                        v
+                        for n, v in zip(
+                            self._orig_input_names, self._orig_input_example
+                        )
+                        if n == base
+                    ),
+                    None,
+                )
+            else:
+                base_val = next(
+                    (
+                        v
+                        for n, v in zip(
+                            self._orig_input_names, self._orig_input_example
+                        )
+                        if n == base
+                    ),
+                    None,
+                )
+                val = (
+                    base_val[idx]
+                    if isinstance(base_val, (list, tuple))
+                    else None
+                )
+            out.append(self._ext_example_for(ext, val))
+        return tuple(out)
+
+    def dynamic_shapes_for_export(self) -> dict[str, dict[int, str]]:
+        ext_dyn: dict[str, dict[int, str]] = {}
+        for ext in self._ext_names:
+            axes = dict(self._dyn_axes.get(ext, {}))
+            if not axes:
+                continue
+            drop = set(self._collapse_idx.get(ext, []))
+            if not drop:
+                ext_dyn[ext] = axes
+                continue
+            remap: dict[int, str] = {}
+            shift = 0
+            for ax in sorted(axes.keys()):
+                if ax in drop:
+                    shift += 1
+                    continue
+                remap[ax - shift] = axes[ax]
+            if remap:
+                ext_dyn[ext] = remap
+
+        # Optionally apply symbol renames (alias sources -> target)
+        if self._apply_syms and getattr(self, "_rename_map", None):
+            inv: dict[str, str] = {}
+            for tgt, srcs in self._rename_map.items():
+                for s in srcs:
+                    inv[str(s).upper()] = str(tgt).upper()
+            renamed: dict[str, dict[int, str]] = {}
+            for name, axes in ext_dyn.items():
+                mapped: dict[int, str] = {}
+                for i, s in axes.items():
+                    su = str(s).upper()
+                    mapped[i] = inv.get(su, str(s))
+                renamed[name] = mapped
+            ext_dyn = renamed
+        return ext_dyn
+
+    def _rebuild_internal_args(self, args) -> list:
+        ext_val_map: dict[str, object] = dict(zip(self._ext_names, args))
+        by_base = self._pack_by_base_from_args(args)
+        self._inject_bound_scalars(by_base, ext_val_map)
+        ordered: list = []
+        for nm in self._orig_input_names:
+            val = by_base.get(nm)
+            ordered.append(tuple(val) if isinstance(val, list) else val)
+        return ordered
+
+    def _pack_by_base_from_args(
+        self, args: list
+    ) -> dict[str, T.Union[object, list]]:
+        by_base: dict[str, T.Union[object, list]] = {}
+        for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
+            t = val
+            for ax in sorted(self._collapse_idx.get(ext, [])):
+                if torch.is_tensor(t):
+                    t = t.unsqueeze(ax)
+            if idx is None:
+                by_base[base] = t
+            else:
+                lst = by_base.get(base)
+                if not isinstance(lst, list):
+                    lst = []
+                while len(lst) <= idx:
+                    lst.append(None)
+                lst[idx] = t
+                by_base[base] = lst
+        return by_base
+
+    def _inject_bound_scalars(
+        self,
+        by_base: dict[str, T.Union[object, list]],
+        ext_val_map: dict[str, object],
+    ) -> None:
+        for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
+            src_val = ext_val_map.get(src_ext)
+            if not torch.is_tensor(src_val):
+                raise T2NErrorInvalidArgument(
+                    f"binding source '{src_ext}' is not a tensor"
+                )
+            # Locate the axis in the (external) dynamic mapping, considering
+            # aliasing via renamed symbols when relevant.
+            axes = self._dyn_axes.get(src_ext, {})
+            old_ax = None
+            for i, s in axes.items():
+                su = str(s).upper()
+                if su == sym:
+                    old_ax = i
+                    break
+                # Accept alias if symbol was renamed to target
+                srcs = self._rename_map.get(sym)
+                if srcs and su in srcs:
+                    old_ax = i
+                    break
+            if old_ax is None:
+                raise T2NErrorInvalidArgument(
+                    f"binding symbol '{sym}' not found on source '{src_ext}'"
+                )
+            # Adjust for collapsed dims on the source external input
+            drop = sorted(self._collapse_idx.get(src_ext, []))
+            shift = sum(1 for d in drop if d < old_ax)
+            new_ax = old_ax - shift
+            if not 0 <= new_ax < src_val.dim():
+                raise T2NErrorInvalidArgument(
+                    f"binding axis {new_ax} out of range for '{src_ext}'"
+                )
+            dim_val = src_val.size(new_ax)
+            # Build int64 scalar tensor on same device
+            if torch.is_tensor(dim_val):
+                bound_scalar = dim_val.to(
+                    dtype=torch.long, device=src_val.device
+                )
+            else:
+                bound_scalar = torch.scalar_tensor(
+                    dim_val, dtype=torch.long, device=src_val.device
+                )
+            # Reinsert collapsed dims on the target input so internal ranks
+            # remain consistent
+            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, []))
+            tval = bound_scalar
+            for ax in tgt_drop:
+                tval = tval.unsqueeze(ax)
+            if idx is None:
+                by_base[base] = tval
+            else:
+                lst = by_base.get(base)
+                if not isinstance(lst, list):
+                    lst = []
+                while len(lst) <= idx:
+                    lst.append(None)
+                lst[idx] = tval
+                by_base[base] = lst
+
+    def forward(self, *args, **kwargs):
+        assert not kwargs, "BoundaryAdapter expects positional args only"
+        rebuilt = self._rebuild_internal_args(list(args))
+        outs = self.module(*rebuilt)
+        if not self._outputs_keep:
+            return outs
+        if not isinstance(outs, tuple):
+            outs = (outs,)
+        keep = set(self._outputs_keep)
+        idx = [i for i, n in enumerate(self._orig_output_names) if n in keep]
+        return tuple(outs[i] for i in idx)
+
+
+class RenameOutputs(torch.nn.Module):
+    """Wrapper that renames output tensor names for export-time only.
+
+    Leaves computation unchanged and preserves input names.
+    Useful to avoid name collisions between inputs and outputs
+    (e.g., both named 'length').
+    """
+
+    def __init__(self, module: torch.nn.Module, rename_map: T.Dict[str, str]):
+        super().__init__()
+        self.module = module
+        self._rename_map = dict(rename_map or {})
+
+    @property
+    def input_names(self):
+        return getattr(self.module, "input_names", [])
+
+    @property
+    def output_names(self):
+        base = list(getattr(self.module, "output_names", []) or [])
+        return [self._rename_map.get(n, n) for n in base]
+
+    def dynamic_shapes_for_export(self, *args, **kwargs):
+        if hasattr(self.module, "dynamic_shapes_for_export"):
+            return self.module.dynamic_shapes_for_export(*args, **kwargs)
+        return {}
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)

@@ -459,7 +459,7 @@ class LLMExporter:
                 inputs_npz_path=prompt_with_past_in_npz,
                 outputs_npz_path=prompt_with_past_out_npz,
             )
-        except Exception as exp:  # pylint: disable=broad-except
+        except (RuntimeError, ValueError, OSError) as exp:
             LOGGER.error(
                 "Prompt with past, does not run in PyTorch "
                 "(likely modeling limit): %s",

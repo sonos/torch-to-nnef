@@ -8,7 +8,7 @@ from torch import nn
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
-from torch_to_nnef.nemo_tract.wrappers import RenameOutputs
+from torch_to_nnef.remodeler.adapter import RenameOutputs
 
 
 class _IdentityWithNames(nn.Module):

@@ -98,6 +98,35 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
     return new_lst
 
 
+def normalize_cli_list_option(
+    values: T.Optional[T.Iterable[T.Any]],
+) -> T.Optional[T.List[str]]:
+    """Normalize repeated/CSV CLI options into a list of unique strings.
+
+    Accepts values from argparse patterns like `action="append"` and also
+    tolerates a single string. Splits on commas, strips whitespace, removes
+    empty entries, and de-duplicates while preserving order. Returns None if
+    the input is falsy.
+    """
+    if not values:
+        return None
+    # Coerce a single string to an iterable interface
+    if isinstance(values, str):
+        values = [values]
+    flat: T.List[str] = []
+    for item in values:
+        text = item if isinstance(item, str) else str(item)
+        flat.extend(part.strip() for part in text.split(",") if part.strip())
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    out: T.List[str] = []
+    for s in flat:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def flatten_dict_tuple_or_list(
     obj: T.Any,
     collected_types: T.Optional[T.List[T.Type]] = None,
@@ -797,3 +826,56 @@ def blank_from_init(cls):
         setattr(obj, name, None)
 
     return obj
+
+
+def check_torch_ecosystem():
+    """Check that torch, torchaudio and torchvision versions are compatible.
+
+    This is a common source of runtime errors, so we proactively check and raise
+    a clear error message with instructions if we detect a mismatch.
+
+    (avoid cryptic symbol not found errors that can occur missmatched versions)
+
+    """
+    torch_mm = SemanticVersion.from_str(torch.__version__)
+
+    for name in ("torchaudio", "torchvision"):
+        try:
+            mod = __import__(name)
+        except ModuleNotFoundError:
+            continue
+
+        mod_version = SemanticVersion.from_str(mod.__version__)
+        compatible = True
+        hint = None
+        if name == "torchaudio":
+            # torchaudio follows torch major.minor
+            compatible = (
+                mod_version.major == torch_mm.major
+                and mod_version.minor == torch_mm.minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchaudio=={torch_mm.major}.{torch_mm.minor}.*"
+            )
+        elif name == "torchvision":
+            # torchvision 0.(15 + torch_minor).x pairs with
+            # torch 2.torch_minor.x
+            # Examples: torch 2.6.x <-> torchvision 0.21.x;
+            # 2.9.x <-> 0.24.x
+            expected_major = 0
+            expected_minor = 15 + torch_mm.minor
+            compatible = (
+                mod_version.major == expected_major
+                and mod_version.minor == expected_minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchvision=={expected_major}.{expected_minor}.*"
+            )
+        if not compatible:
+            raise T2NErrorMisuse(
+                f"{name} ({mod.__version__}) is incompatible with torch "
+                f"({torch.__version__}). Install matching versions, e.g.:\n"
+                f"  {hint}"
+            )
