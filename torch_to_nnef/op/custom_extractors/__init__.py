@@ -18,6 +18,7 @@ from torch_to_nnef.op.custom_extractors.base import (
 )
 
 # load default custom registries
+from torch_to_nnef.op.custom_extractors.moe import MoEFFN  # noqa: F401
 from torch_to_nnef.op.custom_extractors.rnn import (
     GRUExtractor,
     LSTMCellExtractor,
@@ -32,4 +33,5 @@ __all__ = [
     "LSTMExtractor",
     "LSTMCellExtractor",
     "GRUExtractor",
+    "MoEFFN",
 ]
