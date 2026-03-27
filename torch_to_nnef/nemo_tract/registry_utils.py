@@ -127,6 +127,33 @@ def _check_bind_refs(
                 )
 
 
+def _check_output_collapse_dims(
+    problems: list[str],
+    *,
+    registry: AxisSymbolRegistry,
+    disc_outputs: dict[str, set[str]],
+) -> None:
+    for qout, axes in registry.output_collapse_dims.items():
+        if "." not in qout:
+            problems.append(
+                f"output_collapse_dims key '{qout}' must be qualified "
+                "(subnet.output_name)"
+            )
+            continue
+        subnet, oname = qout.split(".", 1)
+        disc = disc_outputs.get(subnet, set())
+        if oname not in disc:
+            problems.append(
+                f"output_collapse_dims references unknown output '{oname}' "
+                f"for subnet '{subnet}'"
+            )
+        for ax in axes:
+            if not isinstance(ax, int) or ax < 0:
+                problems.append(
+                    f"output_collapse_dims for '{qout}' has invalid axis: {ax}"
+                )
+
+
 def _check_collapse_and_renames(
     problems: list[str],
     *,
@@ -188,6 +215,46 @@ def dump_registry_from_signatures(
         outputs_keep_per_subnet=outputs_keep_per_subnet,
         original_shape_per_input=original_shapes,
     )
+
+
+def auto_populate_output_collapse_dims(
+    registry: AxisSymbolRegistry,
+) -> AxisSymbolRegistry:
+    """Auto-add ``collapse_dims: [0]`` for batch collapse.
+
+    For outputs of subnets with batch collapse on inputs.
+
+    For each subnet where at least one input has a ``collapse_dims`` containing
+    a ``*__BATCH`` symbol, add ``collapse_dims: [0]`` for every output of that
+    subnet (taken from ``outputs_keep_per_subnet``).  User-provided entries
+    take precedence and are not overwritten.
+
+    Args:
+        registry: Axis symbol registry (possibly loaded from config).
+
+    Returns:
+        The same registry instance with ``output_collapse_dims`` updated.
+    """
+    subnets_with_batch_collapse: set[str] = set()
+    for qname, syms in registry.input_collapse_dims.items():
+        if "." not in qname:
+            continue
+        subnet = qname.split(".", 1)[0]
+        if any(str(s).upper().endswith(f"{_SEP}BATCH") for s in syms):
+            subnets_with_batch_collapse.add(subnet)
+
+    if not subnets_with_batch_collapse:
+        return registry
+
+    out_collapse = dict(registry.output_collapse_dims)
+    for subnet in subnets_with_batch_collapse:
+        output_names = registry.outputs_keep_per_subnet.get(subnet, [])
+        for oname in output_names:
+            qout = f"{subnet}.{oname}"
+            if qout not in out_collapse:
+                out_collapse[qout] = [0]
+    registry.output_collapse_dims = out_collapse
+    return registry
 
 
 def tie_batch_symbols_in_registry(
@@ -262,6 +329,9 @@ def validate_registry_against_signatures(
         disc_inputs=disc_inputs,
     )
     _check_outputs_keep(problems, registry=registry, disc_outputs=disc_outputs)
+    _check_output_collapse_dims(
+        problems, registry=registry, disc_outputs=disc_outputs
+    )
     _check_bind_refs(
         problems,
         registry=registry,
