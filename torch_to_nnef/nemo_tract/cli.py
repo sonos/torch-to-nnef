@@ -57,6 +57,7 @@ from torch_to_nnef.nemo_tract.model_loader import (
 )
 from torch_to_nnef.nemo_tract.provider import NemoProvider
 from torch_to_nnef.nemo_tract.registry_utils import (
+    auto_populate_output_collapse_dims,
     dump_registry_from_signatures,
     tie_batch_symbols_in_registry,
     validate_registry_against_signatures,
@@ -156,9 +157,13 @@ def _build_axis_registry(
     raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
     if cfg.inspect.shape_config is None:
         default_axis_reg = dump_registry_from_signatures(raw_sigs)
-        return tie_batch_symbols_in_registry(default_axis_reg)
+        default_axis_reg = tie_batch_symbols_in_registry(default_axis_reg)
+        return auto_populate_output_collapse_dims(default_axis_reg)
     axis_reg = load_axis_symbol_registry(cfg.inspect.shape_config)
     validate_registry_against_signatures(raw_sigs, axis_reg)
+    # Auto-populate output collapse for subnets with batch collapse when
+    # the user config doesn't explicitly declare outputs.collapse_dims
+    auto_populate_output_collapse_dims(axis_reg)
     return axis_reg
 
 

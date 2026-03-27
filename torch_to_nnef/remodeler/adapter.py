@@ -24,6 +24,7 @@ class BoundaryAdapter(torch.nn.Module):
         binds_by_input: T.Optional[dict[str, str]] = None,
         renamed_map: T.Optional[dict[str, list[str]]] = None,
         outputs_keep: T.Optional[list[str]] = None,
+        output_collapse_dims: T.Optional[dict[str, list[int]]] = None,
         *,
         apply_symbol_renames: bool = True,
     ) -> None:
@@ -37,6 +38,7 @@ class BoundaryAdapter(torch.nn.Module):
         self._orig_input_example = list(input_example or [])
         self._dyn_axes = dict(dynamic_axes or {})
         self._outputs_keep = list(outputs_keep or [])
+        self._output_collapse_dims = dict(output_collapse_dims or {})
         self._apply_syms = bool(apply_symbol_renames)
         (
             initial_ext_names,
@@ -308,10 +310,32 @@ class BoundaryAdapter(torch.nn.Module):
                 lst[idx] = tval
                 by_base[base] = lst
 
+    def _squeeze_outputs(self, outs):
+        """Squeeze configured axes from outputs."""
+        if not self._output_collapse_dims:
+            return outs
+        was_tuple = isinstance(outs, tuple)
+        items = outs if was_tuple else (outs,)
+        squeezed = list(items)
+        for i, name in enumerate(self._orig_output_names):
+            if i >= len(squeezed):
+                break
+            axes = self._output_collapse_dims.get(name)
+            if not axes:
+                continue
+            t = squeezed[i]
+            if torch.is_tensor(t):
+                for ax in sorted(axes, reverse=True):
+                    if 0 <= ax < t.dim() and t.size(ax) == 1:
+                        t = t.squeeze(ax)
+                squeezed[i] = t
+        return tuple(squeezed) if was_tuple else squeezed[0]
+
     def forward(self, *args, **kwargs):
         assert not kwargs, "BoundaryAdapter expects positional args only"
         rebuilt = self._rebuild_internal_args(list(args))
         outs = self.module(*rebuilt)
+        outs = self._squeeze_outputs(outs)
         if not self._outputs_keep:
             return outs
         if not isinstance(outs, tuple):

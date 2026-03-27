@@ -88,7 +88,8 @@ t2n_export_nemo \
 
 The generated `shapes.yaml` uses a nested layout per subnet:
 
-- `inputs`: mapping of input-name → settings
+- `inputs`: mapping of input-name -> settings
+- `outputs` (optional): mapping of output-name -> settings
 - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` aliasing of dynamic symbols
 - `outputs_keep` (always present in the template): ordered list of output names to keep (default if omitted: keep all)
 
@@ -97,6 +98,10 @@ Per-input settings under `inputs`:
 - `original_shape`: list of dims (ints or strings)
 - `collapse_dims` (optional): list of symbols to collapse at the boundary
 - `bind_scalar_to_dim_size` (optional): dynamic source as `subnet.input.SYMBOL`
+
+Per-output settings under `outputs`:
+
+- `collapse_dims` (optional): list of axis indices to squeeze from the output tensor (e.g., `[0]` to remove the batch axis)
 
 Example (abbreviated):
 
@@ -110,6 +115,9 @@ encoder:
       original_shape: [LENGTH__BATCH]
       collapse_dims: [LENGTH__BATCH]
       bind_scalar_to_dim_size: encoder.audio_signal.AUDIO_SIGNAL__TIME
+  outputs:
+    outputs:
+      collapse_dims: [0]
 
 decoder_joint:
   inputs:
@@ -168,9 +176,11 @@ Notes:
 - To expose a common tract-facing name (e.g., `BATCH`) across inputs, declare it via `renamed_symbols`.
 - Aliases listed in `renamed_symbols` are accepted anywhere a symbol is referenced (collapse/bind).
 - `renamed_symbols` targets cannot include themselves in sources.
-- `collapse_dims` requires the symbol to be dynamic on that input at the selected stage.
+- `collapse_dims` (inputs) requires the symbol to be dynamic on that input at the selected stage.
+- `collapse_dims` (outputs) takes axis indices (integers), not symbols. Only axes of size 1 are squeezed.
 - `bind_scalar_to_dim_size` binds a dynamic size as an `int64` scalar.
 - `outputs_keep` filters exported outputs; order follows the subnet’s original `output_names`. The template always includes it so you can easily trim.
+- When batch collapse is detected on inputs, the NeMo registry auto-populates `outputs.collapse_dims: [0]` for all outputs of that subnet. Explicit config takes precedence.
 
 Boundary semantics
 
