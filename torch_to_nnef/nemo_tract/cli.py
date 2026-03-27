@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-from enum import Enum
 import logging
 import os
 import shlex
@@ -18,6 +17,7 @@ import sys
 import textwrap
 import typing as T
 from dataclasses import asdict
+from enum import Enum
 from pathlib import Path
 
 import torch
@@ -34,6 +34,7 @@ from torch_to_nnef.nemo_tract.axis_registry import (
 )
 from torch_to_nnef.nemo_tract.config import (
     CompressionConfig,
+    InspectFormat,
     InspectionConfig,
     LogConfig,
     ModelSelectionConfig,
@@ -49,7 +50,6 @@ from torch_to_nnef.nemo_tract.constants import (
     NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
 )
 from torch_to_nnef.nemo_tract.export import export_nemo_from_model
-from torch_to_nnef.nemo_tract.config import InspectFormat
 from torch_to_nnef.nemo_tract.inspect import run_inspection
 from torch_to_nnef.nemo_tract.model_loader import (
     load_asr_model_from_nemo_slug,

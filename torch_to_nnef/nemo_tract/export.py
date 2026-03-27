@@ -31,7 +31,6 @@ from torch_to_nnef.nemo_tract.wrappers import (
     decoder_fix_input_example_batch_size,
 )
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import (
     INJECTED,
     T2NExtra,
@@ -40,7 +39,6 @@ from torch_to_nnef.utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
-
 
 
 def _apply_symbol_renames_to_dyn(
@@ -632,8 +630,12 @@ def build_preprocessor_export_params(
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
-            rename_map = axis_registry.renamed_symbols_per_subnet.get(subnet_name, {})
-            outputs_keep = axis_registry.outputs_keep_per_subnet.get(subnet_name, [])
+            rename_map = axis_registry.renamed_symbols_per_subnet.get(
+                subnet_name, {}
+            )
+            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+                subnet_name, []
+            )
 
             has_collapse = any(
                 q.startswith(f"{subnet_name}.")
@@ -644,10 +646,9 @@ def build_preprocessor_export_params(
                 for q in axis_registry.bind_to_dim
             )
             # outputs_keep that lists ALL outputs is a no-op
-            has_outputs_filter = (
-                bool(outputs_keep)
-                and set(outputs_keep) != set(output_names)
-            )
+            has_outputs_filter = bool(outputs_keep) and set(
+                outputs_keep
+            ) != set(output_names)
 
             # Only wrap with BoundaryAdapter for structural transforms
             if has_collapse or has_bind or has_outputs_filter:
@@ -656,7 +657,10 @@ def build_preprocessor_export_params(
                     subnet_name,
                     test_input,
                     dyn,
-                    {k: set(v) for k, v in axis_registry.input_collapse_dims.items()},
+                    {
+                        k: set(v)
+                        for k, v in axis_registry.input_collapse_dims.items()
+                    },
                     axis_registry.bind_to_dim,
                     rename_map,
                     outputs_keep=outputs_keep,
@@ -760,8 +764,12 @@ def iter_export_params_for_generic_nemo_asr_model(
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
-            rename_map = axis_registry.renamed_symbols_per_subnet.get(subnet_name, {})
-            outputs_keep = axis_registry.outputs_keep_per_subnet.get(subnet_name, [])
+            rename_map = axis_registry.renamed_symbols_per_subnet.get(
+                subnet_name, {}
+            )
+            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+                subnet_name, []
+            )
 
             has_collapse = any(
                 q.startswith(f"{subnet_name}.")
@@ -772,10 +780,9 @@ def iter_export_params_for_generic_nemo_asr_model(
                 for q in axis_registry.bind_to_dim
             )
             # outputs_keep that lists ALL outputs is a no-op
-            has_outputs_filter = (
-                bool(outputs_keep)
-                and set(outputs_keep) != set(output_names)
-            )
+            has_outputs_filter = bool(outputs_keep) and set(
+                outputs_keep
+            ) != set(output_names)
 
             # Only wrap with BoundaryAdapter for structural transforms
             if has_collapse or has_bind or has_outputs_filter:
@@ -784,7 +791,10 @@ def iter_export_params_for_generic_nemo_asr_model(
                     subnet_name,
                     test_input,
                     dyn,
-                    {k: set(v) for k, v in axis_registry.input_collapse_dims.items()},
+                    {
+                        k: set(v)
+                        for k, v in axis_registry.input_collapse_dims.items()
+                    },
                     axis_registry.bind_to_dim,
                     rename_map,
                     outputs_keep=outputs_keep,
@@ -934,7 +944,9 @@ def export_nemo_from_model(
         )
 
     float_dtype = (
-        torch.float16 if cfg.data_type in ("float16", "mixed") else torch.float32
+        torch.float16
+        if cfg.data_type in ("float16", "mixed")
+        else torch.float32
     )
 
     def _do_export() -> None:

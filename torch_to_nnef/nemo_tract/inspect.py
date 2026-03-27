@@ -280,7 +280,10 @@ def run_inspection(
             bare_to_qualified,
         ) = _build_signature_maps(all_sigs)
         resolved = _resolve_config_keys(
-            axis_registry.symbols_per_input, qualified, subnets, bare_to_qualified
+            axis_registry.symbols_per_input,
+            qualified,
+            subnets,
+            bare_to_qualified,
         )
         _validate_ranks(
             resolved,

@@ -76,7 +76,9 @@ class TractBinaryConfig:
 class NamingPrecisionConfig:
     """Naming scheme and precision."""
 
-    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL
+    naming_scheme: VariableNamingScheme = (
+        VariableNamingScheme.NATURAL_VERBOSE_CAMEL
+    )
     data_type: str = "float32"
 
 

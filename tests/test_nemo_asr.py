@@ -275,7 +275,7 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
             ),
             id="vad-quant-q4_0-all",
             marks=pytest.mark.xfail(
-                reason="quantized weights cause tract IO mismatch at default tolerance"
+                reason="quantized weights cause tract IO mismatch"
             ),
         ),
         pytest.param(
@@ -332,10 +332,10 @@ def test_nemo_export_shape_config(model_slug, shape_config, extra_cfg):
 
 @pytest.mark.ci_skip
 def test_nemo_export_vad_batch_collapsed():
-    """Export VAD with batch-collapsed dims, bound scalar lengths, stripped outputs.
+    """Export VAD with batch-collapsed dims, bound lengths.
 
-    Programmatically builds a collapsed registry from the discovered default,
-    exercises the full BoundaryAdapter pipeline (collapse + bind + output filter).
+    Builds a collapsed registry from the discovered default,
+    exercises BoundaryAdapter (collapse + bind + output filter).
     """
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     _skip_unless_nemo_tract(inference_target)
@@ -367,7 +367,7 @@ def test_nemo_export_vad_batch_collapsed():
     # Bind scalar: for each length input, bind to the time dim of the
     # corresponding signal input in the same subnet.
     bind_to_dim = {}
-    for qname, axes in default_reg.symbols_per_input.items():
+    for qname, _axes in default_reg.symbols_per_input.items():
         subnet, _, inp_name = qname.rpartition(".")
         if inp_name not in LENGTH_INPUT_NAMES:
             continue
@@ -386,7 +386,8 @@ def test_nemo_export_vad_batch_collapsed():
 
     # Verify every length input got a bind
     length_inputs = [
-        q for q in default_reg.symbols_per_input
+        q
+        for q in default_reg.symbols_per_input
         if q.rpartition(".")[2] in LENGTH_INPUT_NAMES
     ]
     assert set(length_inputs) <= set(bind_to_dim), (
@@ -430,7 +431,7 @@ def test_nemo_export_vad_batch_collapsed():
 # ---------------------------------------------------------------------------
 @pytest.mark.ci_skip
 def test_nemo_dump_shape_config_dry_run():
-    """Dump a shape config YAML for VAD via dry-run and verify it round-trips."""
+    """Dump shape config YAML for VAD and verify round-trip."""
     inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
     _skip_unless_nemo_tract(inference_target)
 
