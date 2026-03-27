@@ -376,7 +376,7 @@ def run_export(cfg: NemoTractConfig) -> None:
         axis_reg=axis_reg,
         cfg=NemoExportConfig(
             pretrained_name=cfg.model.model_slug,
-            naming_scheme=cfg.naming.naming_scheme,
+            naming_scheme=VariableNamingScheme(cfg.naming.naming_scheme),
             data_type=cfg.naming.data_type,
             subnet=cfg.subnet,
             compression=cfg.compression,

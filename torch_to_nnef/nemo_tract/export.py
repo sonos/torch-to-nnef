@@ -892,7 +892,7 @@ def export_nemo_from_model(
             model,
             target,
             export_dir,
-            nnef_variable_naming_scheme=VariableNamingScheme(cfg.naming_scheme),
+            nnef_variable_naming_scheme=cfg.naming_scheme,
             compress_registry=cfg.compression.compress_registry,
             compress_method=cfg.compression.compress_method,
             skip_preprocessor=cfg.subnet.skip_preprocessor,

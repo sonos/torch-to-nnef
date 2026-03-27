@@ -128,18 +128,23 @@ class NemoTractConfig:
 
 @dataclass
 class NemoExportConfig:
-    """Configuration for export_nemo_from_model API.
+    """Configuration for the export_nemo_from_model programmatic API.
+
+    All fields have sensible defaults so callers only specify what they
+    actually need to override.
 
     Attributes:
-        pretrained_name: Optional label for the model.
+        subnet: Subnet filtering and composition.
+        compression: Compression options for NNEF artifacts.
         naming_scheme: NNEF variable naming scheme.
-        data_type: Export dtype policy: float32|float16|mixed.
-        subnet: Subnet selection config.
-        compression: Compression config for NNEF artifacts.
+        data_type: Export dtype policy: float32 | float16 | mixed.
+        pretrained_name: Human-readable label embedded in export metadata.
     """
 
-    pretrained_name: str
-    naming_scheme: str
-    data_type: str
-    subnet: SubnetSelectionConfig
-    compression: CompressionConfig
+    subnet: SubnetSelectionConfig = field(default_factory=SubnetSelectionConfig)
+    compression: CompressionConfig = field(default_factory=CompressionConfig)
+    naming_scheme: VariableNamingScheme = (
+        VariableNamingScheme.NATURAL_VERBOSE_CAMEL
+    )
+    data_type: str = "float32"
+    pretrained_name: str = ""
