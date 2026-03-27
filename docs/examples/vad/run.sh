@@ -20,7 +20,7 @@ rm -rf ./model
 t2n_export_nemo -s "vad_multilingual_marblenet" \
     -e "./model" \
     --tract-specific-path $TRACT_PATH \
-    --collapse-batch-dim
+    --shape-config ../../../tests/assets/shapes.marblenet.collapsed.yaml
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."
