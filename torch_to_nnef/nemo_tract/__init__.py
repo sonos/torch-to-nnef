@@ -14,9 +14,9 @@ Programmatic (non-CLI) API:
 
 from torch_to_nnef.nemo_tract.cli import main  # CLI entry-point
 from torch_to_nnef.nemo_tract.config import NemoExportConfig
-from torch_to_nnef.nemo_tract.entry import export_nemo_from_model
 from torch_to_nnef.nemo_tract.export import (
     export_nemo_asr_model,
+    export_nemo_from_model,
     iter_export_params_for_generic_nemo_asr_model,
 )
 from torch_to_nnef.nemo_tract.model_loader import (
@@ -31,7 +31,7 @@ __all__ = [
     "NEMOTRON_0_6B",
     "iter_export_params_for_generic_nemo_asr_model",
     "export_nemo_asr_model",
-    "main",
     "export_nemo_from_model",
     "NemoExportConfig",
+    "main",
 ]

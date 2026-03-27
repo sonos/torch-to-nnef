@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
+from torch import autocast
 
 from torch_to_nnef._optional_types import (
     InjectedLightningModule,
@@ -19,6 +20,8 @@ from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import build_io
+from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
+from torch_to_nnef.nemo_tract.config import NemoExportConfig
 from torch_to_nnef.nemo_tract.dynaxes import (
     build_dynamic_axes as build_dynamic_axes_for_subnet,
 )
@@ -27,6 +30,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     decoder_fix_input_example_batch_size,
 )
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import (
     INJECTED,
     T2NExtra,
@@ -863,3 +867,49 @@ def export_nemo_asr_model(
             **kwargs,
         )
         LOGGER.info("exported subnet: %s with success", export_params.name)
+
+
+def export_nemo_from_model(
+    *,
+    model,
+    target: InferenceTarget,
+    export_dir: Path,
+    axis_reg: AxisSymbolRegistry,
+    cfg: NemoExportConfig,
+) -> None:
+    """Export a prepared NeMo ASR model using a structured configuration.
+
+    This is the public programmatic API. Derives the working dtype from
+    ``cfg.data_type`` and wraps the call in ``autocast`` when
+    ``data_type`` is ``"mixed"``.
+    """
+    float_dtype = (
+        torch.float16 if cfg.data_type in ("float16", "mixed") else torch.float32
+    )
+
+    def _do_export() -> None:
+        export_nemo_asr_model(
+            model,
+            target,
+            export_dir,
+            nnef_variable_naming_scheme=VariableNamingScheme(cfg.naming_scheme),
+            compress_registry=cfg.compression.compress_registry,
+            compress_method=cfg.compression.compress_method,
+            skip_preprocessor=cfg.subnet.skip_preprocessor,
+            split_joint_decoder=cfg.subnet.split_joint_decoder,
+            only_subnets=cfg.subnet.only_subnets,
+            extra_cfg={"pretrained_name": cfg.pretrained_name},
+            float_dtype=float_dtype,
+            dump_checked_io=cfg.compression.dump_checked_io,
+            axis_registry=axis_reg,
+        )
+
+    if cfg.data_type == "mixed":
+        LOGGER.info("exporting with mixed precision using autocast")
+        LOGGER.warning(
+            "mixed precision export is experimental (not supported by tract)"
+        )
+        with autocast(device_type="cpu", dtype=torch.float16):
+            _do_export()
+    else:
+        _do_export()
