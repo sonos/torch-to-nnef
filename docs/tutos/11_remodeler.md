@@ -21,6 +21,8 @@ Core concepts
     - `original_shape`: list of dims (ints or symbols)
     - `collapse_dims` (optional): symbols to drop at boundary
     - `bind_scalar_to_dim_size` (optional): `subnet.input.SYMBOL`
+  - `outputs` (optional): per-output settings
+    - `collapse_dims`: list of axis indices to squeeze from the output
   - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` for backend-facing
     symbol unification
   - `outputs_keep` (optional): list of outputs to keep (template pre-fills)
@@ -153,10 +155,35 @@ export_model_to_nnef(
 )
 ```
 
+Output collapse
+- When `collapse_dims` removes a batch axis from inputs, the internal module
+  still runs with that axis (size 1). The `outputs.collapse_dims` setting
+  squeezes configured axes from each output tensor so the exported model
+  produces batch-free tensors.
+- Each output can declare its own `collapse_dims` as a list of axis indices.
+- For NeMo models, the registry auto-populates `collapse_dims: [0]` for all
+  outputs when batch collapse is detected on inputs. Explicit config takes
+  precedence over auto-population.
+
+Example:
+
+```yaml
+encoder:
+  inputs:
+    audio_signal:
+      original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
+      collapse_dims: [AUDIO_SIGNAL__BATCH]
+  outputs_keep: [outputs]
+  outputs:
+    outputs:
+      collapse_dims: [0]
+```
+
 Validation
 - The remodeler validates configs early against discovered signatures:
   - Rejects unknown subnets/inputs
   - Ensures `outputs_keep` is a subset of outputs
+  - Ensures `outputs.collapse_dims` references known output names with valid axis indices
   - Verifies `bind_scalar_to_dim_size` sources and symbols exist among dynamic axes
   - Verifies `collapse_dims` symbols exist among dynamic axes per input
   - Verifies `renamed_symbols` sources exist among the subnet’s dynamic axes
