@@ -1,12 +1,12 @@
 import logging
 import typing as T
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
 import torch
 
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+from torch_to_nnef.nemo_tract.config import InspectFormat
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )
@@ -37,14 +37,6 @@ class StageInputTransform:
     remap: dict[int, str]
     notes: T.List[str]
     bind_flag: T.Optional[str]
-
-
-class InspectFormat(Enum):
-    """Output formats for inspection results."""
-
-    HUMAN = "human"
-    JSON = "json"
-    HUMAN_RICH = "human-rich"
 
 
 AxisSymbolMap = T.Dict[int, str]

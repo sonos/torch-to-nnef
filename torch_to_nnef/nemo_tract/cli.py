@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+from enum import Enum
 import logging
 import os
 import shlex
@@ -48,7 +49,8 @@ from torch_to_nnef.nemo_tract.constants import (
     NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
 )
 from torch_to_nnef.nemo_tract.export import export_nemo_from_model
-from torch_to_nnef.nemo_tract.inspect import InspectFormat, run_inspection
+from torch_to_nnef.nemo_tract.config import InspectFormat
+from torch_to_nnef.nemo_tract.inspect import run_inspection
 from torch_to_nnef.nemo_tract.model_loader import (
     load_asr_model_from_nemo_slug,
     load_asr_model_from_path,
@@ -194,6 +196,8 @@ def _maybe_dump_export_config(cfg: NemoTractConfig, export_dir: Path) -> None:
         def _coerce(o):
             if isinstance(o, Path):
                 return str(o)
+            if isinstance(o, Enum):
+                return o.value
             if isinstance(o, dict):
                 return {k: _coerce(v) for k, v in o.items()}
             if isinstance(o, list):
@@ -329,7 +333,7 @@ def _run_inspection_flow(
         ),
         only_subnets=cfg.subnet.only_subnets,
         stages=_normalize_inspect_stages(cfg),
-        fmt=InspectFormat(cfg.inspect.inspect_format),
+        fmt=cfg.inspect.inspect_format,
         to_path=cfg.inspect.inspect_output,
         diff=cfg.inspect.inspect_diff,
         axis_registry=axis_reg,
@@ -376,7 +380,7 @@ def run_export(cfg: NemoTractConfig) -> None:
         axis_reg=axis_reg,
         cfg=NemoExportConfig(
             pretrained_name=cfg.model.model_slug,
-            naming_scheme=VariableNamingScheme(cfg.naming.naming_scheme),
+            naming_scheme=cfg.naming.naming_scheme,
             data_type=cfg.naming.data_type,
             subnet=cfg.subnet,
             compression=cfg.compression,
@@ -408,8 +412,8 @@ def add_inspection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--inspect-format",
         dest="inspect_format",
-        default=InspectionConfig().inspect_format,
-        choices=["human", "human-rich", "json"],
+        default=InspectFormat.HUMAN_RICH.value,
+        choices=[f.value for f in InspectFormat],
         help="Inspection output format (human, human-rich, or json).",
     )
     parser.add_argument(
@@ -614,7 +618,7 @@ def parse_config() -> NemoTractConfig:
             tract_check_io_tolerance=ns.tract_check_io_tolerance,
         ),
         naming=NamingPrecisionConfig(
-            naming_scheme=ns.naming_scheme,
+            naming_scheme=VariableNamingScheme(ns.naming_scheme),
             data_type=ns.data_type,
         ),
         compression=CompressionConfig(
@@ -625,7 +629,7 @@ def parse_config() -> NemoTractConfig:
         inspect=InspectionConfig(
             inspect_signatures=ns.inspect_signatures,
             inspect_stages=inspect_stages,
-            inspect_format=ns.inspect_format,
+            inspect_format=InspectFormat(ns.inspect_format),
             inspect_output=ns.inspect_output,
             inspect_diff=ns.inspect_diff,
             shape_config=ns.shape_config,

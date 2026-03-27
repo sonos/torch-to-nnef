@@ -41,6 +41,29 @@ from torch_to_nnef.utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+
+def _apply_symbol_renames_to_dyn(
+    dyn: T.Dict[str, T.Dict[int, str]],
+    rename_map: T.Dict[str, T.List[str]],
+) -> T.Dict[str, T.Dict[int, str]]:
+    """Apply symbol renames directly to a dynamic axes mapping.
+
+    This is the lightweight alternative to BoundaryAdapter when only
+    symbol renames are needed (no collapse, bind, or output filtering).
+    """
+    if not rename_map:
+        return dyn
+    inv: dict[str, str] = {}
+    for tgt, srcs in rename_map.items():
+        t_u = str(tgt).upper()
+        for s in srcs or []:
+            inv[str(s).upper()] = t_u
+    return {
+        name: {i: inv.get(str(s).upper(), str(s)) for i, s in axes.items()}
+        for name, axes in dyn.items()
+    }
+
+
 def _rewrite_assertions_with_renames(
     assertions: list[str], rename_map: T.Optional[dict[str, list[str]]]
 ) -> list[str]:
@@ -606,13 +629,11 @@ def build_preprocessor_export_params(
         test_input = input_example
         dyn = dynamic_axes
         # Config-driven boundary adapter: apply tuple flattening, optional
-        # per-input collapse, binds, and symbol renames, even when only
-        # renames or output filtering are requested.
+        # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
             rename_map = axis_registry.renamed_symbols_per_subnet.get(subnet_name, {})
             outputs_keep = axis_registry.outputs_keep_per_subnet.get(subnet_name, [])
 
-            # Apply adapter if any transformation is requested for this subnet
             has_collapse = any(
                 q.startswith(f"{subnet_name}.")
                 for q in axis_registry.input_collapse_dims
@@ -621,9 +642,14 @@ def build_preprocessor_export_params(
                 q.startswith(f"{subnet_name}.")
                 for q in axis_registry.bind_to_dim
             )
-            has_rename = bool(rename_map)
-            has_outputs_keep = bool(outputs_keep)
-            if has_collapse or has_bind or has_rename or has_outputs_keep:
+            # outputs_keep that lists ALL outputs is a no-op
+            has_outputs_filter = (
+                bool(outputs_keep)
+                and set(outputs_keep) != set(output_names)
+            )
+
+            # Only wrap with BoundaryAdapter for structural transforms
+            if has_collapse or has_bind or has_outputs_filter:
                 model = BoundaryAdapter(
                     model,
                     subnet_name,
@@ -637,7 +663,10 @@ def build_preprocessor_export_params(
                 input_names = model.input_names
                 test_input = list(model.input_example())
                 dyn = model.dynamic_shapes_for_export()
-                # Symbol renames are now applied by the BoundaryAdapter
+            elif rename_map:
+                # Lightweight path: apply symbol renames to dynamic axes
+                # without wrapping the module
+                dyn = _apply_symbol_renames_to_dyn(dyn, rename_map)
 
         # Consolidate with renames and discard assertions on removed symbols
         custom_ext = set(
@@ -728,13 +757,11 @@ def iter_export_params_for_generic_nemo_asr_model(
         # Keep namespaced dims; we'll add targeted equality assertions below
 
         # Config-driven boundary adapter: apply tuple flattening, optional
-        # per-input collapse, binds, and symbol renames, even when only
-        # renames or output filtering are requested.
+        # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
             rename_map = axis_registry.renamed_symbols_per_subnet.get(subnet_name, {})
             outputs_keep = axis_registry.outputs_keep_per_subnet.get(subnet_name, [])
 
-            # Apply adapter if any transformation is requested for this subnet
             has_collapse = any(
                 q.startswith(f"{subnet_name}.")
                 for q in axis_registry.input_collapse_dims
@@ -743,9 +770,14 @@ def iter_export_params_for_generic_nemo_asr_model(
                 q.startswith(f"{subnet_name}.")
                 for q in axis_registry.bind_to_dim
             )
-            has_rename = bool(rename_map)
-            has_outputs_keep = bool(outputs_keep)
-            if has_collapse or has_bind or has_rename or has_outputs_keep:
+            # outputs_keep that lists ALL outputs is a no-op
+            has_outputs_filter = (
+                bool(outputs_keep)
+                and set(outputs_keep) != set(output_names)
+            )
+
+            # Only wrap with BoundaryAdapter for structural transforms
+            if has_collapse or has_bind or has_outputs_filter:
                 model = BoundaryAdapter(
                     model,
                     subnet_name,
@@ -759,7 +791,10 @@ def iter_export_params_for_generic_nemo_asr_model(
                 input_names = model.input_names
                 test_input = list(model.input_example())
                 dyn = model.dynamic_shapes_for_export()
-                # Symbol renames are now applied by the BoundaryAdapter
+            elif rename_map:
+                # Lightweight path: apply symbol renames to dynamic axes
+                # without wrapping the module
+                dyn = _apply_symbol_renames_to_dyn(dyn, rename_map)
 
         # Avoid name collisions between inputs and outputs (e.g., 'length').
         inter = set(input_names).intersection(set(output_names))
@@ -864,6 +899,10 @@ def export_nemo_asr_model(
             output_names=export_params.output_names,
             file_path_export=export_dir / f"{export_params.name}.nnef.tgz",
             custom_extensions=export_params.custom_extensions,
+            # NeMo subnets may declare inputs consumed via control flow
+            # that PyTorch tracing cannot capture (e.g. 'length' used
+            # for masking). Allow the pruned-input mismatch.
+            check_io_names_qte_match=False,
             **kwargs,
         )
         LOGGER.info("exported subnet: %s with success", export_params.name)
@@ -874,7 +913,7 @@ def export_nemo_from_model(
     model,
     target: InferenceTarget,
     export_dir: Path,
-    axis_reg: AxisSymbolRegistry,
+    axis_reg: T.Optional[AxisSymbolRegistry] = None,
     cfg: NemoExportConfig,
 ) -> None:
     """Export a prepared NeMo ASR model using a structured configuration.

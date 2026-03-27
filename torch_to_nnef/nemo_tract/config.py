@@ -4,18 +4,29 @@ Defines lightweight, structured containers for both the CLI
 (``NemoTractConfig`` and sub-configs) and the programmatic API
 (``NemoExportConfig``). Kept separate from runtime logic to minimise
 dependencies and improve clarity.
+
+Lightweight enums that other modules need at import time (e.g.
+``InspectFormat``) live here to avoid circular imports.
 """
 
 from __future__ import annotations
 
 import typing as T
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 from torch_to_nnef.compress import DEFAULT_COMPRESSION_REGISTRY
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-from torch_to_nnef.nemo_tract.inspect import InspectFormat
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+
+
+class InspectFormat(Enum):
+    """Output formats for inspection results."""
+
+    HUMAN = "human"
+    JSON = "json"
+    HUMAN_RICH = "human-rich"
 
 
 @dataclass
@@ -65,7 +76,7 @@ class TractBinaryConfig:
 class NamingPrecisionConfig:
     """Naming scheme and precision."""
 
-    naming_scheme: str = VariableNamingScheme.NATURAL_VERBOSE_CAMEL.value
+    naming_scheme: VariableNamingScheme = VariableNamingScheme.NATURAL_VERBOSE_CAMEL
     data_type: str = "float32"
 
 
@@ -84,7 +95,7 @@ class InspectionConfig:
 
     inspect_signatures: bool = False
     inspect_stages: T.Optional[T.List[str]] = None
-    inspect_format: str = InspectFormat.HUMAN_RICH.value
+    inspect_format: InspectFormat = InspectFormat.HUMAN_RICH
     inspect_output: T.Optional[Path] = None
     inspect_diff: bool = False
     shape_config: T.Optional[Path] = None
