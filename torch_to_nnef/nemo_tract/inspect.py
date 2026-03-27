@@ -287,9 +287,8 @@ def run_inspection(
             subnets,
             bare_to_qualified,
         ) = _build_signature_maps(all_sigs)
-        reg = axis_registry.symbols_per_input
         resolved = _resolve_config_keys(
-            reg, qualified, subnets, bare_to_qualified
+            axis_registry.symbols_per_input, qualified, subnets, bare_to_qualified
         )
         _validate_ranks(
             resolved,
@@ -297,7 +296,9 @@ def run_inspection(
             q_ranks,
             q_shapes,
         )
-        all_sigs, q_to_axes = _overlay_symbols(all_sigs, resolved, reg)
+        all_sigs, q_to_axes = _overlay_symbols(
+            all_sigs, resolved, axis_registry.symbols_per_input
+        )
         cfg_collapse, cfg_binds_src = _derive_cfg_transforms(
             axis_registry, resolved, qualified, q_to_axes
         )
@@ -611,15 +612,13 @@ def _derive_cfg_transforms(
     q_to_axes: dict[str, dict[int, str]],
 ) -> tuple[dict[str, list[str]], dict[str, tuple[str, str]]]:
     cfg_collapse: dict[str, list[str]] = {}
-    raw_collapse = axis_registry.input_collapse_dims
-    for key, seq in raw_collapse.items():
+    for key, seq in axis_registry.input_collapse_dims.items():
         q = resolved.get(key, key)
         syms = [str(s).strip().upper() for s in seq]
         cfg_collapse[q] = syms
 
     cfg_binds_src: dict[str, tuple[str, str]] = {}
-    raw_binds = axis_registry.bind_to_dim
-    for key, val in raw_binds.items():
+    for key, val in axis_registry.bind_to_dim.items():
         qkey = resolved.get(key, key)
         if not isinstance(val, str) or "." not in val:
             raise T2NErrorInvalidArgument(

@@ -89,9 +89,7 @@ def _print_diffs(rich, console, groups):
                     or (ai.notes or []) != (bi.notes or [])
                 )
                 if changed:
-                    td.add_row(
-                        nm, str(ai.shape), "→", str(bi.shape)
-                    )
+                    td.add_row(nm, str(ai.shape), "→", str(bi.shape))
             elif ai and not bi:
                 td.add_row(nm, "present", "→", "removed")
             elif bi and not ai:
