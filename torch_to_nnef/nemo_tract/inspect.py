@@ -159,7 +159,7 @@ def collect_signatures(
         # Outputs: list names only at this phase (no extra forward pass)
         outputs: T.List[IODescriptor] = [
             IODescriptor(name=nm, shape=[], dtype=None, notes=[])
-            for nm in (ep.output_names or [])
+            for nm in ep.output_names
         ]
 
         applied_flags: T.List[str] = []
@@ -293,7 +293,7 @@ def run_inspection(
         )
         _validate_ranks(
             resolved,
-            getattr(axis_registry, "rank_per_input", {}) or {},
+            axis_registry.rank_per_input,
             q_ranks,
             q_shapes,
         )
@@ -405,7 +405,7 @@ def _compute_input_transform(
     cfg_binds_src: dict[str, tuple[str, str]],
 ) -> StageInputTransform:
     qname = f"{ss.name}.{i.name}"
-    sym_map = ss.symbol_axes.get(i.name, {}) or {}
+    sym_map = ss.symbol_axes.get(i.name, {})
     remove_syms: set[str] = set(cfg_collapse.get(qname, []))
     known_syms = {str(sym).upper() for sym in sym_map.values()}
     extra = [s for s in remove_syms if s not in known_syms]
@@ -579,7 +579,7 @@ def _overlay_symbols(
                 merged_axes[i.name] = dict(q_to_axes[q])
         new_inputs: list[IODescriptor] = []
         for i in ss.inputs:
-            amap = merged_axes.get(i.name, {}) or {}
+            amap = merged_axes.get(i.name, {})
             if i.shape:
                 new_shape: list[T.Union[int, str]] = []
                 for ax, d in enumerate(i.shape):
@@ -611,14 +611,14 @@ def _derive_cfg_transforms(
     q_to_axes: dict[str, dict[int, str]],
 ) -> tuple[dict[str, list[str]], dict[str, tuple[str, str]]]:
     cfg_collapse: dict[str, list[str]] = {}
-    raw_collapse = getattr(axis_registry, "input_collapse_dims", {}) or {}
+    raw_collapse = axis_registry.input_collapse_dims
     for key, seq in raw_collapse.items():
         q = resolved.get(key, key)
-        syms = [str(s).strip().upper() for s in (seq or [])]
+        syms = [str(s).strip().upper() for s in seq]
         cfg_collapse[q] = syms
 
     cfg_binds_src: dict[str, tuple[str, str]] = {}
-    raw_binds = getattr(axis_registry, "bind_to_dim", {}) or {}
+    raw_binds = axis_registry.bind_to_dim
     for key, val in raw_binds.items():
         qkey = resolved.get(key, key)
         if not isinstance(val, str) or "." not in val:

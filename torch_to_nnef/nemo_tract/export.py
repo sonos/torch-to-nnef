@@ -605,17 +605,13 @@ def build_preprocessor_export_params(
         # per-input collapse, binds, and symbol renames, even when only
         # renames or output filtering are requested.
         if axis_registry is not None:
-            collapse_map = (
-                getattr(axis_registry, "input_collapse_dims", {}) or {}
-            )
-            binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            per_subnet_renames = (
-                getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
-            )
+            collapse_map = axis_registry.input_collapse_dims
+            binds_map = axis_registry.bind_to_dim
+            per_subnet_renames = axis_registry.renamed_symbols_per_subnet
             rename_map = per_subnet_renames.get(subnet_name, {})
-            outputs_keep = (
-                getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
-            ).get(subnet_name, [])
+            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+                subnet_name, []
+            )
 
             # Apply adapter if any transformation is requested for this subnet
             has_collapse = any(
@@ -645,8 +641,9 @@ def build_preprocessor_export_params(
             _rewrite_and_filter_assertions(
                 list(custom_extensions),
                 (
-                    getattr(axis_registry, "renamed_symbols_per_subnet", {})
-                    or {}
+                    axis_registry.renamed_symbols_per_subnet
+                    if axis_registry is not None
+                    else {}
                 ).get(subnet_name, {}),
                 dyn,
             )
@@ -731,17 +728,13 @@ def iter_export_params_for_generic_nemo_asr_model(
         # per-input collapse, binds, and symbol renames, even when only
         # renames or output filtering are requested.
         if axis_registry is not None:
-            collapse_map = (
-                getattr(axis_registry, "input_collapse_dims", {}) or {}
-            )
-            binds_map = getattr(axis_registry, "bind_to_dim", {}) or {}
-            per_subnet_renames = (
-                getattr(axis_registry, "renamed_symbols_per_subnet", {}) or {}
-            )
+            collapse_map = axis_registry.input_collapse_dims
+            binds_map = axis_registry.bind_to_dim
+            per_subnet_renames = axis_registry.renamed_symbols_per_subnet
             rename_map = per_subnet_renames.get(subnet_name, {})
-            outputs_keep = (
-                getattr(axis_registry, "outputs_keep_per_subnet", {}) or {}
-            ).get(subnet_name, [])
+            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+                subnet_name, []
+            )
 
             # Apply adapter if any transformation is requested for this subnet
             has_collapse = any(
@@ -778,8 +771,9 @@ def iter_export_params_for_generic_nemo_asr_model(
             _rewrite_and_filter_assertions(
                 list(custom_extensions),
                 (
-                    getattr(axis_registry, "renamed_symbols_per_subnet", {})
-                    or {}
+                    axis_registry.renamed_symbols_per_subnet
+                    if axis_registry is not None
+                    else {}
                 ).get(subnet_name, {}),
                 dyn,
             )

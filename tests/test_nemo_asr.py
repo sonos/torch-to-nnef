@@ -4,6 +4,7 @@ from torch_to_nnef.nemo_tract.model_loader import (
     FAST_CONFORMER_TDT_LARGE,
     MARBLENET_VAD,
     NEMOTRON_0_6B,
+    PARAKEET_V3_SLUG,
     QUARTZNET,
 )
 from torch_to_nnef.utils import SemanticVersion
@@ -19,7 +20,6 @@ try:
     import nemo.collections.asr as nemo_asr  # noqa: F401
 
     from torch_to_nnef.nemo_tract import (
-        PARAKEET_V3_SLUG,
         iter_export_params_for_generic_nemo_asr_model,
     )
 except ImportError as exp:
@@ -56,14 +56,11 @@ def check_export_asr_model(model_slug, skip_preprocessor=False):
         )
 
 
-def test_nemo_asr_parakeet_v3():
-    check_export_asr_model(PARAKEET_V3_SLUG)
-
-
 @pytest.mark.ci_skip
 @pytest.mark.parametrize(
     "model",
     [
+        pytest.param(PARAKEET_V3_SLUG, id=PARAKEET_V3_SLUG),
         pytest.param(NEMOTRON_0_6B, id=NEMOTRON_0_6B),
         pytest.param(QUARTZNET, id=QUARTZNET),
         pytest.param(MARBLENET_VAD, id=MARBLENET_VAD),

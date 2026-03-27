@@ -220,11 +220,11 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         rank = (getattr(reg, "rank_per_input", None) or {}).get(qname)
         # Prefer captured original shapes (ints/strings) when available
         orig_map = getattr(reg, "original_shape_per_input", None) or {}
-        orig_dims: list[T.Union[int, str]] = list(orig_map.get(qname, []) or [])
+        orig_dims: list[T.Union[int, str]] = list(orig_map.get(qname, []))
         if isinstance(rank, int) and rank >= 0:
             dims: list[T.Union[int, str]] = []
             for i in range(rank):
-                sym = (axis_map or {}).get(i)
+                sym = axis_map.get(i)
                 if sym is not None:
                     dims.append(str(sym))
                 elif i < len(orig_dims):
@@ -249,13 +249,13 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
         bucket = nested.setdefault(subnet, {})
         if mapping:
             bucket[SHAPE_KEY_RENAMED] = {
-                str(t): [str(s) for s in (srcs or [])]
+                str(t): [str(s) for s in srcs]
                 for t, srcs in mapping.items()
             }
     for subnet, keep in (
         getattr(reg, "outputs_keep_per_subnet", None) or {}
     ).items():
         bucket = nested.setdefault(subnet, {})
-        bucket[SHAPE_KEY_OUTPUTS_KEEP] = list(keep or [])
+        bucket[SHAPE_KEY_OUTPUTS_KEEP] = list(keep)
 
     return nested
