@@ -9,25 +9,25 @@
       
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../cli/">
       
       
-        <link rel="next" href="../compress/">
+        <link rel="next" href="../constants/">
       
       
-      <link rel="icon" href="../../../img/t2n_ico.png">
+      <link rel="icon" href="../../../../img/t2n_ico.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
     
     
       
-        <title>torch_to_nnef.collect_env - Torch → NNEF documentation</title>
+        <title>torch_to_nnef.nemo_tract.config - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.342714a4.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +46,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../style.css">
+      <link rel="stylesheet" href="../../../../style.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#torch_to_nnef.collect_env" class="md-skip">
+        <a href="#torch_to_nnef.nemo_tract.config" class="md-skip">
           Skip to content
         </a>
       
@@ -97,7 +97,7 @@
  - add "documentation" as fixed header topic
 -->
 
-<script type="text/javascript" src="../../../html/sync_sender_colorscheme.js"></script>
+<script type="text/javascript" src="../../../../html/sync_sender_colorscheme.js"></script>
 <!-- Determine classes -->
 
 
@@ -113,14 +113,14 @@
 
     <!-- Link to home -->
     <a
-      href="../../.."
+      href="../../../.."
       title="Torch → NNEF documentation"
       class="md-header__button md-logo"
       aria-label="Torch → NNEF documentation"
       data-md-component="logo"
     >
-      <img class="logo-img" src="../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+      <img class="logo-img" src="../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
 
     <!-- Button to open drawer -->
@@ -140,7 +140,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.collect_env
+              torch_to_nnef.nemo_tract.config
             
           </span>
         </div>
@@ -282,9 +282,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
-      <img class="logo-img" src="../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+    <a href="../../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
+      <img class="logo-img" src="../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
     Torch → NNEF documentation
   </label>
@@ -310,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../../../.." class="md-nav__link">
         
   
   
@@ -370,7 +370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/1_getting_started/" class="md-nav__link">
+      <a href="../../../../tutos/1_getting_started/" class="md-nav__link">
         
   
   
@@ -393,7 +393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/2_nnef_archive/" class="md-nav__link">
+      <a href="../../../../tutos/2_nnef_archive/" class="md-nav__link">
         
   
   
@@ -416,7 +416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
+      <a href="../../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
         
   
   
@@ -439,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/4_dynamic_axes/" class="md-nav__link">
+      <a href="../../../../tutos/4_dynamic_axes/" class="md-nav__link">
         
   
   
@@ -462,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/5_llm/" class="md-nav__link">
+      <a href="../../../../tutos/5_llm/" class="md-nav__link">
         
   
   
@@ -485,7 +485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/6_quantization/" class="md-nav__link">
+      <a href="../../../../tutos/6_quantization/" class="md-nav__link">
         
   
   
@@ -508,7 +508,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/7_offloaded_tensor/" class="md-nav__link">
+      <a href="../../../../tutos/7_offloaded_tensor/" class="md-nav__link">
         
   
   
@@ -531,7 +531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/8_custom_operator/" class="md-nav__link">
+      <a href="../../../../tutos/8_custom_operator/" class="md-nav__link">
         
   
   
@@ -554,7 +554,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/9_peft/" class="md-nav__link">
+      <a href="../../../../tutos/9_peft/" class="md-nav__link">
         
   
   
@@ -577,7 +577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/10_nemo/" class="md-nav__link">
+      <a href="../../../../tutos/10_nemo/" class="md-nav__link">
         
   
   
@@ -600,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutos/11_remodeler/" class="md-nav__link">
+      <a href="../../../../tutos/11_remodeler/" class="md-nav__link">
         
   
   
@@ -630,7 +630,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../export_api/" class="md-nav__link">
+      <a href="../../../../export_api/" class="md-nav__link">
         
   
   
@@ -732,7 +732,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   
@@ -752,30 +752,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>collect_env
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../collect_env/" class="md-nav__link">
         
   
   
@@ -786,183 +766,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;collect_env
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" collect_env">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.check_release_file" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;check_release_file
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.dump_environment_versions" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dump_environment_versions
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_gcc_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_gcc_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_hostname" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_hostname
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_lsb_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_lsb_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_mac_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_mac_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_os" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_os
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_pip_packages" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_pip_packages
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_platform" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_platform
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_uname" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_uname
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_user" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_user
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_windows_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_windows_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.python_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;python_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_and_parse_first_match" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_and_parse_first_match
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_and_read_all" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_and_read_all
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_lambda" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_lambda
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -975,7 +778,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../compress/" class="md-nav__link">
+      <a href="../../compress/" class="md-nav__link">
         
   
   
@@ -998,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../console/" class="md-nav__link">
+      <a href="../../console/" class="md-nav__link">
         
   
   
@@ -1021,7 +824,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dtypes/" class="md-nav__link">
+      <a href="../../dtypes/" class="md-nav__link">
         
   
   
@@ -1044,7 +847,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../exceptions/" class="md-nav__link">
+      <a href="../../exceptions/" class="md-nav__link">
         
   
   
@@ -1067,7 +870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../export/" class="md-nav__link">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -1128,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/" class="md-nav__link">
+      <a href="../../inference_target/" class="md-nav__link">
         
   
   
@@ -1151,7 +954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/base/" class="md-nav__link">
+      <a href="../../inference_target/base/" class="md-nav__link">
         
   
   
@@ -1174,7 +977,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/khronos/" class="md-nav__link">
+      <a href="../../inference_target/khronos/" class="md-nav__link">
         
   
   
@@ -1197,7 +1000,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inference_target/tract/" class="md-nav__link">
+      <a href="../../inference_target/tract/" class="md-nav__link">
         
   
   
@@ -1266,7 +1069,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/" class="md-nav__link">
+      <a href="../../llm_tract/" class="md-nav__link">
         
   
   
@@ -1289,7 +1092,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/cli/" class="md-nav__link">
+      <a href="../../llm_tract/cli/" class="md-nav__link">
         
   
   
@@ -1312,7 +1115,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/config/" class="md-nav__link">
+      <a href="../../llm_tract/config/" class="md-nav__link">
         
   
   
@@ -1335,7 +1138,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/exporter/" class="md-nav__link">
+      <a href="../../llm_tract/exporter/" class="md-nav__link">
         
   
   
@@ -1396,7 +1199,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/models/" class="md-nav__link">
+      <a href="../../llm_tract/models/" class="md-nav__link">
         
   
   
@@ -1419,7 +1222,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../llm_tract/models/base/" class="md-nav__link">
+      <a href="../../llm_tract/models/base/" class="md-nav__link">
         
   
   
@@ -1458,7 +1261,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../log/" class="md-nav__link">
+      <a href="../../log/" class="md-nav__link">
         
   
   
@@ -1481,7 +1284,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../model_wrapper/" class="md-nav__link">
+      <a href="../../model_wrapper/" class="md-nav__link">
         
   
   
@@ -1501,18 +1304,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" checked>
         
           
           <label class="md-nav__link" for="__nav_4_1_12" id="__nav_4_1_12_label" tabindex="0">
@@ -1528,7 +1333,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>nemo_tract
@@ -1542,7 +1347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -1565,7 +1370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/axes/" class="md-nav__link">
+      <a href="../axes/" class="md-nav__link">
         
   
   
@@ -1588,7 +1393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/axis_registry/" class="md-nav__link">
+      <a href="../axis_registry/" class="md-nav__link">
         
   
   
@@ -1611,7 +1416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/cli/" class="md-nav__link">
+      <a href="../cli/" class="md-nav__link">
         
   
   
@@ -1631,10 +1436,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../nemo_tract/config/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1645,6 +1470,147 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;config
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" config">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.CompressionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CompressionConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.InspectFormat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InspectFormat
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.InspectionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InspectionConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.LogConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LogConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.ModelSelectionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ModelSelectionConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.NamingPrecisionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NamingPrecisionConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.NemoExportConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NemoExportConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.NemoTractConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NemoTractConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.OutputConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OutputConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.SdpaConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SdpaConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.SubnetSelectionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SubnetSelectionConfig
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.config.TractBinaryConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TractBinaryConfig
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1657,7 +1623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/constants/" class="md-nav__link">
+      <a href="../constants/" class="md-nav__link">
         
   
   
@@ -1680,7 +1646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/dynaxes/" class="md-nav__link">
+      <a href="../dynaxes/" class="md-nav__link">
         
   
   
@@ -1703,7 +1669,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/export/" class="md-nav__link">
+      <a href="../export/" class="md-nav__link">
         
   
   
@@ -1726,7 +1692,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/inspect/" class="md-nav__link">
+      <a href="../inspect/" class="md-nav__link">
         
   
   
@@ -1749,7 +1715,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/model_loader/" class="md-nav__link">
+      <a href="../model_loader/" class="md-nav__link">
         
   
   
@@ -1772,7 +1738,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/provider/" class="md-nav__link">
+      <a href="../provider/" class="md-nav__link">
         
   
   
@@ -1795,7 +1761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/registry_utils/" class="md-nav__link">
+      <a href="../registry_utils/" class="md-nav__link">
         
   
   
@@ -1818,7 +1784,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/utils/" class="md-nav__link">
+      <a href="../utils/" class="md-nav__link">
         
   
   
@@ -1841,7 +1807,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nemo_tract/wrappers/" class="md-nav__link">
+      <a href="../wrappers/" class="md-nav__link">
         
   
   
@@ -1872,7 +1838,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../nnef_graph/" class="md-nav__link">
+      <a href="../../nnef_graph/" class="md-nav__link">
         
   
   
@@ -1933,7 +1899,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/" class="md-nav__link">
+      <a href="../../op/" class="md-nav__link">
         
   
   
@@ -1994,7 +1960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/" class="md-nav__link">
+      <a href="../../op/aten/" class="md-nav__link">
         
   
   
@@ -2017,7 +1983,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/activation/" class="md-nav__link">
+      <a href="../../op/aten/activation/" class="md-nav__link">
         
   
   
@@ -2040,7 +2006,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/attn/" class="md-nav__link">
+      <a href="../../op/aten/attn/" class="md-nav__link">
         
   
   
@@ -2063,7 +2029,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/axes_change/" class="md-nav__link">
+      <a href="../../op/aten/axes_change/" class="md-nav__link">
         
   
   
@@ -2086,7 +2052,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/complex/" class="md-nav__link">
+      <a href="../../op/aten/complex/" class="md-nav__link">
         
   
   
@@ -2109,7 +2075,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/concat/" class="md-nav__link">
+      <a href="../../op/aten/concat/" class="md-nav__link">
         
   
   
@@ -2132,7 +2098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/expand/" class="md-nav__link">
+      <a href="../../op/aten/expand/" class="md-nav__link">
         
   
   
@@ -2155,7 +2121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/fft/" class="md-nav__link">
+      <a href="../../op/aten/fft/" class="md-nav__link">
         
   
   
@@ -2178,7 +2144,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/math/" class="md-nav__link">
+      <a href="../../op/aten/math/" class="md-nav__link">
         
   
   
@@ -2201,7 +2167,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/matmul/" class="md-nav__link">
+      <a href="../../op/aten/matmul/" class="md-nav__link">
         
   
   
@@ -2224,7 +2190,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/norm/" class="md-nav__link">
+      <a href="../../op/aten/norm/" class="md-nav__link">
         
   
   
@@ -2247,7 +2213,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/other/" class="md-nav__link">
+      <a href="../../op/aten/other/" class="md-nav__link">
         
   
   
@@ -2270,7 +2236,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/pad/" class="md-nav__link">
+      <a href="../../op/aten/pad/" class="md-nav__link">
         
   
   
@@ -2293,7 +2259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/pool/" class="md-nav__link">
+      <a href="../../op/aten/pool/" class="md-nav__link">
         
   
   
@@ -2316,7 +2282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/qops/" class="md-nav__link">
+      <a href="../../op/aten/qops/" class="md-nav__link">
         
   
   
@@ -2339,7 +2305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/reducer/" class="md-nav__link">
+      <a href="../../op/aten/reducer/" class="md-nav__link">
         
   
   
@@ -2362,7 +2328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/selector/" class="md-nav__link">
+      <a href="../../op/aten/selector/" class="md-nav__link">
         
   
   
@@ -2385,7 +2351,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/split/" class="md-nav__link">
+      <a href="../../op/aten/split/" class="md-nav__link">
         
   
   
@@ -2408,7 +2374,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/tensor_build/" class="md-nav__link">
+      <a href="../../op/aten/tensor_build/" class="md-nav__link">
         
   
   
@@ -2431,7 +2397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/aten/unary/" class="md-nav__link">
+      <a href="../../op/aten/unary/" class="md-nav__link">
         
   
   
@@ -2500,7 +2466,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/" class="md-nav__link">
+      <a href="../../op/custom_extractors/" class="md-nav__link">
         
   
   
@@ -2523,7 +2489,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/base/" class="md-nav__link">
+      <a href="../../op/custom_extractors/base/" class="md-nav__link">
         
   
   
@@ -2546,7 +2512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/custom_extractors/rnn/" class="md-nav__link">
+      <a href="../../op/custom_extractors/rnn/" class="md-nav__link">
         
   
   
@@ -2577,7 +2543,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/fragment/" class="md-nav__link">
+      <a href="../../op/fragment/" class="md-nav__link">
         
   
   
@@ -2600,7 +2566,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/helper/" class="md-nav__link">
+      <a href="../../op/helper/" class="md-nav__link">
         
   
   
@@ -2623,7 +2589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../op/quantized/" class="md-nav__link">
+      <a href="../../op/quantized/" class="md-nav__link">
         
   
   
@@ -2692,7 +2658,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/" class="md-nav__link">
+      <a href="../../remodeler/" class="md-nav__link">
         
   
   
@@ -2715,7 +2681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/adapter/" class="md-nav__link">
+      <a href="../../remodeler/adapter/" class="md-nav__link">
         
   
   
@@ -2738,7 +2704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/inspect_utils/" class="md-nav__link">
+      <a href="../../remodeler/inspect_utils/" class="md-nav__link">
         
   
   
@@ -2761,7 +2727,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/rich_render/" class="md-nav__link">
+      <a href="../../remodeler/rich_render/" class="md-nav__link">
         
   
   
@@ -2784,7 +2750,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/schema/" class="md-nav__link">
+      <a href="../../remodeler/schema/" class="md-nav__link">
         
   
   
@@ -2807,7 +2773,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remodeler/serialize/" class="md-nav__link">
+      <a href="../../remodeler/serialize/" class="md-nav__link">
         
   
   
@@ -2876,7 +2842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/" class="md-nav__link">
+      <a href="../../tensor/" class="md-nav__link">
         
   
   
@@ -2899,7 +2865,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/named/" class="md-nav__link">
+      <a href="../../tensor/named/" class="md-nav__link">
         
   
   
@@ -2922,7 +2888,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/offload/" class="md-nav__link">
+      <a href="../../tensor/offload/" class="md-nav__link">
         
   
   
@@ -2945,7 +2911,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/opaque/" class="md-nav__link">
+      <a href="../../tensor/opaque/" class="md-nav__link">
         
   
   
@@ -3006,7 +2972,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/" class="md-nav__link">
+      <a href="../../tensor/quant/" class="md-nav__link">
         
   
   
@@ -3029,7 +2995,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/base/" class="md-nav__link">
+      <a href="../../tensor/quant/base/" class="md-nav__link">
         
   
   
@@ -3052,7 +3018,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/quant/qtract/" class="md-nav__link">
+      <a href="../../tensor/quant/qtract/" class="md-nav__link">
         
   
   
@@ -3083,7 +3049,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/updater/" class="md-nav__link">
+      <a href="../../tensor/updater/" class="md-nav__link">
         
   
   
@@ -3106,7 +3072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tensor/utils/" class="md-nav__link">
+      <a href="../../tensor/utils/" class="md-nav__link">
         
   
   
@@ -3175,7 +3141,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/" class="md-nav__link">
+      <a href="../../torch_graph/" class="md-nav__link">
         
   
   
@@ -3198,7 +3164,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_data/" class="md-nav__link">
+      <a href="../../torch_graph/ir_data/" class="md-nav__link">
         
   
   
@@ -3221,7 +3187,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_graph/" class="md-nav__link">
+      <a href="../../torch_graph/ir_graph/" class="md-nav__link">
         
   
   
@@ -3244,7 +3210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_helpers/" class="md-nav__link">
+      <a href="../../torch_graph/ir_helpers/" class="md-nav__link">
         
   
   
@@ -3267,7 +3233,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_module_tracer/" class="md-nav__link">
+      <a href="../../torch_graph/ir_module_tracer/" class="md-nav__link">
         
   
   
@@ -3290,7 +3256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_naming/" class="md-nav__link">
+      <a href="../../torch_graph/ir_naming/" class="md-nav__link">
         
   
   
@@ -3313,7 +3279,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/ir_op/" class="md-nav__link">
+      <a href="../../torch_graph/ir_op/" class="md-nav__link">
         
   
   
@@ -3336,7 +3302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch_graph/torch_const/" class="md-nav__link">
+      <a href="../../torch_graph/torch_const/" class="md-nav__link">
         
   
   
@@ -3367,7 +3333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../utils/" class="md-nav__link">
+      <a href="../../utils/" class="md-nav__link">
         
   
   
@@ -3443,7 +3409,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/guidelines/" class="md-nav__link">
+      <a href="../../../../contributing/guidelines/" class="md-nav__link">
         
   
   
@@ -3466,7 +3432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/internal_design/" class="md-nav__link">
+      <a href="../../../../contributing/internal_design/" class="md-nav__link">
         
   
   
@@ -3489,7 +3455,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/supported_operators/" class="md-nav__link">
+      <a href="../../../../contributing/supported_operators/" class="md-nav__link">
         
   
   
@@ -3512,7 +3478,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/add_new_aten_op/" class="md-nav__link">
+      <a href="../../../../contributing/add_new_aten_op/" class="md-nav__link">
         
   
   
@@ -3535,7 +3501,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../contributing/debugging/" class="md-nav__link">
+      <a href="../../../../contributing/debugging/" class="md-nav__link">
         
   
   
@@ -3565,7 +3531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../why_nnef/" class="md-nav__link">
+      <a href="../../../../why_nnef/" class="md-nav__link">
         
   
   
@@ -3587,7 +3553,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../backstory/" class="md-nav__link">
+      <a href="../../../../backstory/" class="md-nav__link">
         
   
   
@@ -3609,7 +3575,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../CHANGELOG/" class="md-nav__link">
+      <a href="../../../../CHANGELOG/" class="md-nav__link">
         
   
   
@@ -3649,154 +3615,118 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;collect_env
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;config
     </span>
   </a>
   
-    <nav class="md-nav" aria-label=" collect_env">
+    <nav class="md-nav" aria-label=" config">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.check_release_file" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.CompressionConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;check_release_file
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CompressionConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.dump_environment_versions" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.InspectFormat" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dump_environment_versions
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InspectFormat
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_gcc_version" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.InspectionConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_gcc_version
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InspectionConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_hostname" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.LogConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_hostname
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LogConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_lsb_version" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.ModelSelectionConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_lsb_version
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ModelSelectionConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_mac_version" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.NamingPrecisionConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_mac_version
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NamingPrecisionConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_os" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.NemoExportConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_os
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NemoExportConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_pip_packages" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.NemoTractConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_pip_packages
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;NemoTractConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_platform" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.OutputConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_platform
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OutputConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_uname" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.SdpaConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_uname
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SdpaConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_user" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.SubnetSelectionConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_user
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SubnetSelectionConfig
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.get_windows_version" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.config.TractBinaryConfig" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_windows_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.python_version" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;python_version
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_and_parse_first_match" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_and_parse_first_match
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_and_read_all" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_and_read_all
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.collect_env.run_lambda" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_lambda
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TractBinaryConfig
     </span>
   </a>
   
@@ -3823,21 +3753,60 @@
 
 
 
-  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>collect_env</h1>
+  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.collect_env" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.collect_env</span>
+<h3 id="torch_to_nnef.nemo_tract.config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.nemo_tract.config</span>
 
 
 </h3>
 
     <div class="doc doc-contents first">
 
-        <p>Used to collect environment status/versions for debuging purpose.</p>
+        <p>Configuration dataclasses for NeMo→NNEF export.</p>
+<p>Defines lightweight, structured containers for both the CLI
+(<code>NemoTractConfig</code> and sub-configs) and the programmatic API
+(<code>NemoExportConfig</code>). Kept separate from runtime logic to minimise
+dependencies and improve clarity.</p>
+<p>Lightweight enums that other modules need at import time (e.g.
+<code>InspectFormat</code>) live here to avoid circular imports.</p>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="torch_to_nnef.nemo_tract.config.CompressionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">CompressionConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">CompressionConfig</span><span class="p">(</span><span class="n">compress_registry</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">DEFAULT_COMPRESSION_REGISTRY</span><span class="p">,</span> <span class="n">compress_method</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dump_checked_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+        <p>Compression options for output artifacts.</p>
+
 
 
 
@@ -3851,311 +3820,712 @@
 
 
 
-<div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.collect_env.check_release_file" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">check_release_file</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">check_release_file</span><span class="p">()</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Read /etc/*-release file to get a pretty name for linux distros.</p>
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.dump_environment_versions" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">dump_environment_versions</span>
+
+<h4 id="torch_to_nnef.nemo_tract.config.InspectFormat" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">InspectFormat</span>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dump_environment_versions</span><span class="p">(</span><span class="n">pathdir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">tract_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span>
-</span></code></pre></div>
+
 
     <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.Enum">Enum</span></code></p>
 
-        <p>Dumps software versions to a file 'versions' in the given folder.</p>
+
+        <p>Output formats for inspection results.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_gcc_version" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_gcc_version</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.InspectionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">InspectionConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_gcc_version</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">InspectionConfig</span><span class="p">(</span><span class="n">inspect_signatures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">inspect_stages</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inspect_format</span><span class="p">:</span> <span class="n">InspectFormat</span> <span class="o">=</span> <span class="n">InspectFormat</span><span class="o">.</span><span class="n">HUMAN_RICH</span><span class="p">,</span> <span class="n">inspect_output</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inspect_diff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">shape_config</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dump_shape_config</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns the GCC version string, or None if gcc is not found.</p>
+
+        <p>Inspection and dry-run options.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_hostname" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_hostname</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.LogConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">LogConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_hostname</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">LogConfig</span><span class="p">(</span><span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns the system hostname.</p>
+
+        <p>Logging verbosity.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_lsb_version" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_lsb_version</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.ModelSelectionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ModelSelectionConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_lsb_version</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">ModelSelectionConfig</span><span class="p">(</span><span class="n">model_slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="n">model_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns lsb_release Description output like 'Ubuntu 20.04.6 LTS'.</p>
+
+        <p>Model selection arguments.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_mac_version" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_mac_version</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.NamingPrecisionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">NamingPrecisionConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_mac_version</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">NamingPrecisionConfig</span><span class="p">(</span><span class="n">naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">VariableNamingScheme</span><span class="o">.</span><span class="n">NATURAL_VERBOSE_CAMEL</span><span class="p">,</span> <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;float32&#39;</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns macOS version like '10.14.6'.</p>
+
+        <p>Naming scheme and precision.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_os" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_os</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.NemoExportConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">NemoExportConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_os</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">NemoExportConfig</span><span class="p">(</span><span class="n">subnet</span><span class="p">:</span> <span class="n">SubnetSelectionConfig</span> <span class="o">=</span> <span class="n">SubnetSelectionConfig</span><span class="p">(),</span> <span class="n">compression</span><span class="p">:</span> <span class="n">CompressionConfig</span> <span class="o">=</span> <span class="n">CompressionConfig</span><span class="p">(),</span> <span class="n">naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">VariableNamingScheme</span><span class="o">.</span><span class="n">NATURAL_VERBOSE_CAMEL</span><span class="p">,</span> <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;float32&#39;</span><span class="p">,</span> <span class="n">pretrained_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns a pretty string describing the OS.</p>
+
+        <p>Configuration for the export_nemo_from_model programmatic API.</p>
+<p>All fields have sensible defaults so callers only specify what they
+actually need to override.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoExportConfig.subnet">subnet</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            SubnetSelectionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.SubnetSelectionConfig)" href="#torch_to_nnef.nemo_tract.config.SubnetSelectionConfig">SubnetSelectionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subnet filtering and composition.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoExportConfig.compression">compression</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            CompressionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.CompressionConfig)" href="#torch_to_nnef.nemo_tract.config.CompressionConfig">CompressionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Compression options for NNEF artifacts.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoExportConfig.naming_scheme">naming_scheme</span></code></td>
+            <td>
+                  <code><span title="torch_to_nnef.torch_graph.ir_naming.VariableNamingScheme">VariableNamingScheme</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>NNEF variable naming scheme.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoExportConfig.data_type">data_type</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Export dtype policy: float32 | float16 | mixed.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoExportConfig.pretrained_name">pretrained_name</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Human-readable label embedded in export metadata.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_pip_packages" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_pip_packages</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.NemoTractConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">NemoTractConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_pip_packages</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">NemoTractConfig</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">ModelSelectionConfig</span> <span class="o">=</span> <span class="n">ModelSelectionConfig</span><span class="p">(),</span> <span class="n">output</span><span class="p">:</span> <span class="n">OutputConfig</span> <span class="o">=</span> <span class="n">OutputConfig</span><span class="p">(),</span> <span class="n">subnet</span><span class="p">:</span> <span class="n">SubnetSelectionConfig</span> <span class="o">=</span> <span class="n">SubnetSelectionConfig</span><span class="p">(),</span> <span class="n">sdpa</span><span class="p">:</span> <span class="n">SdpaConfig</span> <span class="o">=</span> <span class="n">SdpaConfig</span><span class="p">(),</span> <span class="n">tract</span><span class="p">:</span> <span class="n">TractBinaryConfig</span> <span class="o">=</span> <span class="n">TractBinaryConfig</span><span class="p">(),</span> <span class="n">naming</span><span class="p">:</span> <span class="n">NamingPrecisionConfig</span> <span class="o">=</span> <span class="n">NamingPrecisionConfig</span><span class="p">(),</span> <span class="n">compression</span><span class="p">:</span> <span class="n">CompressionConfig</span> <span class="o">=</span> <span class="n">CompressionConfig</span><span class="p">(),</span> <span class="n">inspect</span><span class="p">:</span> <span class="n">InspectionConfig</span> <span class="o">=</span> <span class="n">InspectionConfig</span><span class="p">(),</span> <span class="n">log</span><span class="p">:</span> <span class="n">LogConfig</span> <span class="o">=</span> <span class="n">LogConfig</span><span class="p">())</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns <code>pip list</code> output.</p>
-<p>Note: will also find conda-installed pytorch and numpy packages.</p>
+
+        <p>Container for CLI arguments for NeMo→NNEF export.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.model">model</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            ModelSelectionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.ModelSelectionConfig)" href="#torch_to_nnef.nemo_tract.config.ModelSelectionConfig">ModelSelectionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model selection arguments.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.output">output</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            OutputConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.OutputConfig)" href="#torch_to_nnef.nemo_tract.config.OutputConfig">OutputConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Export destination arguments.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.subnet">subnet</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            SubnetSelectionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.SubnetSelectionConfig)" href="#torch_to_nnef.nemo_tract.config.SubnetSelectionConfig">SubnetSelectionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subnet filtering arguments.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.sdpa">sdpa</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            SdpaConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.SdpaConfig)" href="#torch_to_nnef.nemo_tract.config.SdpaConfig">SdpaConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>SDPA-related export toggles.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.tract">tract</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            TractBinaryConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.TractBinaryConfig)" href="#torch_to_nnef.nemo_tract.config.TractBinaryConfig">TractBinaryConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tract binary path/version and IO-check.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.naming">naming</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            NamingPrecisionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.NamingPrecisionConfig)" href="#torch_to_nnef.nemo_tract.config.NamingPrecisionConfig">NamingPrecisionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Naming scheme and precision.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.compression">compression</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            CompressionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.CompressionConfig)" href="#torch_to_nnef.nemo_tract.config.CompressionConfig">CompressionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Compression options.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.inspect">inspect</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            InspectionConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.InspectionConfig)" href="#torch_to_nnef.nemo_tract.config.InspectionConfig">InspectionConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Inspection and dry-run options.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="torch_to_nnef.nemo_tract.config.NemoTractConfig.log">log</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            LogConfig
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.config.LogConfig)" href="#torch_to_nnef.nemo_tract.config.LogConfig">LogConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Logging verbosity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_platform" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_platform</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.OutputConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">OutputConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_platform</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">OutputConfig</span><span class="p">(</span><span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">))</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns a simplified platform name.</p>
+
+        <p>Output destination arguments.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_uname" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_uname</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.SdpaConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SdpaConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_uname</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">SdpaConfig</span><span class="p">(</span><span class="n">force_sdpa_pytorch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">tract_reify_sdpa</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns the output of <code>uname -a</code>.</p>
+
+        <p>SDPA-related export toggles.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_user" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_user</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.SubnetSelectionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SubnetSelectionConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_user</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">SubnetSelectionConfig</span><span class="p">(</span><span class="n">skip_preprocessor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">split_joint_decoder</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">only_subnets</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>OS current user name, or empty string if it cannot be determined.</p>
+
+        <p>Subnet filtering and composition.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
+<div class="doc doc-object doc-class">
 
 
-<h4 id="torch_to_nnef.collect_env.get_windows_version" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">get_windows_version</span>
 
+<h4 id="torch_to_nnef.nemo_tract.config.TractBinaryConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">TractBinaryConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_windows_version</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">TractBinaryConfig</span><span class="p">(</span><span class="n">tract_specific_version</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">tract_specific_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">tract_check_io_tolerance</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">TractCheckTolerance</span><span class="p">]</span> <span class="o">=</span> <span class="n">TractCheckTolerance</span><span class="o">.</span><span class="n">APPROXIMATE</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Returns Windows version like 'Microsoft Windows 10 Pro'.</p>
+
+        <p>Tract binary selection and IO-check policy.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.collect_env.python_version" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">python_version</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">python_version</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Returns a one-liner with python version and bitness.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.collect_env.run_and_parse_first_match" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">run_and_parse_first_match</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_and_parse_first_match</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">regex</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Runs command, returns the first regex match if it exists.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.collect_env.run_and_read_all" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">run_and_read_all</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_and_read_all</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Runs command; reads and returns entire output if rc is 0.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.collect_env.run_lambda" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">run_lambda</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_lambda</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Returns (return-code, stdout, stderr).</p>
-<p>And Strips trailing newlines.</p>
-
-    </div>
-
-</div>
 
 
 
@@ -4209,9 +4579,9 @@
         
           
           <a
-            href="../"
+            href="../cli/"
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: torch_to_nnef"
+            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;cli"
           >
             <div class="md-footer__button md-icon">
               
@@ -4222,7 +4592,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                torch_to_nnef
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>cli
               </div>
             </div>
           </a>
@@ -4232,16 +4602,16 @@
         
           
           <a
-            href="../compress/"
+            href="../constants/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;compress"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;constants"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>compress
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>constants
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -4258,7 +4628,7 @@
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
         <a href="https://www.sonos.com/">
-            <img src="../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
+            <img src="../../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
         </a>
       <div class="md-copyright">
   
@@ -4316,10 +4686,10 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
       
     
   </body>

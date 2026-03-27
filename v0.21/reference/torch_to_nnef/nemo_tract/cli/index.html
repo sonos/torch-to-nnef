@@ -12,7 +12,7 @@
         <link rel="prev" href="../axis_registry/">
       
       
-        <link rel="next" href="../constants/">
+        <link rel="next" href="../config/">
       
       
       <link rel="icon" href="../../../../img/t2n_ico.png">
@@ -1481,9 +1481,27 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.nemo_tract.cli.parser_cli" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.cli.main" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;parser_cli
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;main
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.cli.parse_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;parse_config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.cli.run_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_export
     </span>
   </a>
   
@@ -1507,6 +1525,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -3530,9 +3571,27 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.nemo_tract.cli.parser_cli" class="md-nav__link">
+  <a href="#torch_to_nnef.nemo_tract.cli.main" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;parser_cli
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;main
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.cli.parse_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;parse_config
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.cli.run_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;run_export
     </span>
   </a>
   
@@ -3582,6 +3641,11 @@
 
     <div class="doc doc-contents first">
 
+        <p>CLI for NeMo→NNEF export.</p>
+<p>This module owns the full CLI surface: argument parsing, runtime
+orchestration (<code>run_export</code>), and the <code>main</code> entry point.
+The programmatic export API lives in <code>export.py</code>.</p>
+
 
 
   <div class="doc doc-children">
@@ -3609,41 +3673,6 @@
 
         <p>Register inspection and dry-run arguments.</p>
 
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td><code>parser</code></td>
-            <td>
-                  <code><span title="argparse.ArgumentParser">ArgumentParser</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The CLI parser to augment with inspection flags.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<details class="notes" open>
-  <summary>Notes</summary>
-  <p>These flags enable signature inspection at various stages without
-affecting the actual export behavior (unless --dry-run is used).</p>
-</details>
     </div>
 
 </div>
@@ -3651,17 +3680,55 @@ affecting the actual export behavior (unless --dry-run is used).</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.nemo_tract.cli.parser_cli" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">parser_cli</span>
+<h4 id="torch_to_nnef.nemo_tract.cli.main" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">main</span>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">parser_cli</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Build the CLI parser for NeMo ASR model export to NNEF format.</p>
+        <p>CLI entry point: parse config and run export.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.cli.parse_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">parse_config</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">parse_config</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">NemoTractConfig</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Build and parse CLI args into a NemoTractConfig dataclass.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.cli.run_export" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">run_export</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_export</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">NemoTractConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Orchestrate a full NeMo→NNEF export from a CLI configuration.</p>
 
     </div>
 
@@ -3675,12 +3742,12 @@ affecting the actual export behavior (unless --dry-run is used).</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">setup_inference_target_from_cli_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TractNNEF</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">setup_inference_target_from_cli_args</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">NemoTractConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TractNNEF</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Setup TractNNEF inference target from CLI arguments.</p>
+        <p>Build a TractNNEF inference target from CLI configuration.</p>
 
     </div>
 
@@ -3761,16 +3828,16 @@ affecting the actual export behavior (unless --dry-run is used).</p>
         
           
           <a
-            href="../constants/"
+            href="../config/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;constants"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;config"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>constants
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
               </div>
             </div>
             <div class="md-footer__button md-icon">

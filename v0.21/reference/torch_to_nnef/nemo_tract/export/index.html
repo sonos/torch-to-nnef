@@ -1439,6 +1439,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../constants/" class="md-nav__link">
         
   
@@ -1562,6 +1585,15 @@
   <a href="#torch_to_nnef.nemo_tract.export.export_nemo_asr_model" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_nemo_asr_model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.export.export_nemo_from_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_nemo_from_model
     </span>
   </a>
   
@@ -3584,6 +3616,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.export.export_nemo_from_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;export_nemo_from_model
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.nemo_tract.export.exportable_nemo_net" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;exportable_nemo_net
@@ -3718,6 +3759,28 @@
     <div class="doc doc-contents ">
 
         <p>Export a generic NeMo ASR model to NNEF format using TractNNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.export.export_nemo_from_model" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">export_nemo_from_model</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_nemo_from_model</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">axis_reg</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">AxisSymbolRegistry</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">NemoExportConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Export a NeMo ASR model using a structured configuration.</p>
+<p>This is the public programmatic API.  Handles dtype preparation
+(<code>float16</code> / <code>mixed</code>) internally so callers don't need to
+apply <code>model.half()</code> or <code>WrapPreprocessorCast</code> themselves.</p>
 
     </div>
 

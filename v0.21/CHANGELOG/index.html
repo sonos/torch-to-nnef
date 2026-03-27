@@ -1431,6 +1431,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/torch_to_nnef/nemo_tract/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/torch_to_nnef/nemo_tract/constants/" class="md-nav__link">
         
   
@@ -3473,6 +3496,15 @@
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
       Fixed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tests
     </span>
   </a>
   
@@ -6966,6 +6998,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tests
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#docs" class="md-nav__link">
     <span class="md-ellipsis">
       Docs
@@ -10417,6 +10458,17 @@
 <li>torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).</li>
 <li><code>AxisSymbolRegistry.empty()</code> defaults and loader edge cases (tuple inputs, nested schema); fixed leftover NameError in inspector.</li>
 <li>binding keeps dynamism by tracing <code>aten::size</code> + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.</li>
+<li>circular import: moved <code>InspectFormat</code> enum to <code>config.py</code> to break <code>config→inspect→export→config</code> cycle; <code>NamingPrecisionConfig.naming_scheme</code> and <code>InspectionConfig.inspect_format</code> now typed as enums.</li>
+<li><code>export_nemo_from_model</code>: dtype preparation (<code>.half()</code>, <code>WrapPreprocessorCast</code>) now handled internally based on <code>cfg.data_type</code>, so callers no longer need CLI-specific model prep.</li>
+<li><code>BoundaryAdapter</code> only triggered for structural transforms (collapse, bind, output filtering); symbol-only renames applied directly to dynamic axes via lightweight <code>_apply_symbol_renames_to_dyn</code>.</li>
+<li>NeMo subnets with unused traced inputs (e.g. <code>length</code> on classification encoders): <code>check_io_names_qte_match=False</code> and dynamic-axes warning instead of crash.</li>
+<li>VAD model loading: fallback to <code>EncDecClassificationModel.from_pretrained</code> when <code>ASRModel.from_pretrained</code> fails.</li>
+</ul>
+<h3 id="tests">Tests</h3>
+<ul>
+<li>extended nemo export test suite: config variants (skip-preprocessor, float16, only-subnets, quantization, naming), shape config from YAML (parakeet full, VAD collapsed), programmatic batch-collapse with bind+strip, dry-run dump round-trip.</li>
+<li>per-model tract IO tolerance (QuartzNet uses <code>VERY</code>).</li>
+<li>NeMo log silencing fixture in conftest.</li>
 </ul>
 <h3 id="docs">Docs</h3>
 <ul>

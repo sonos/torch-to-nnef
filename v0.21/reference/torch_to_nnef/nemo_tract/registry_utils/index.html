@@ -1439,6 +1439,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../constants/" class="md-nav__link">
         
   
@@ -1628,6 +1651,21 @@
       <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;registry_utils
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" registry_utils">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.registry_utils.tie_batch_symbols_in_registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tie_batch_symbols_in_registry
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3484,6 +3522,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" registry_utils">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.nemo_tract.registry_utils.tie_batch_symbols_in_registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tie_batch_symbols_in_registry
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -3527,6 +3580,91 @@
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.nemo_tract.registry_utils.tie_batch_symbols_in_registry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">tie_batch_symbols_in_registry</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">tie_batch_symbols_in_registry</span><span class="p">(</span><span class="n">registry</span><span class="p">:</span> <span class="n">AxisSymbolRegistry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AxisSymbolRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Alias input-namespaced batch symbols to a unified <code>BATCH</code> per subnet.</p>
+<p>For each subnet, collects all dynamic symbols that end with
+<code>f"{_SEP}BATCH"</code> and records a rename mapping so they are presented to
+backends as a single <code>BATCH</code> symbol. This keeps provider-facing symbols
+namespaced while unifying them for tract-facing assertions and adapters.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>registry</code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            AxisSymbolRegistry
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry)" href="../axis_registry/#torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry">AxisSymbolRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Axis symbol registry discovered from signatures.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            AxisSymbolRegistry
+
+
+  
+      dataclass
+   (torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry)" href="../axis_registry/#torch_to_nnef.nemo_tract.axis_registry.AxisSymbolRegistry">AxisSymbolRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same registry instance with <code>renamed_symbols_per_subnet</code> updated.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
 
 
 
