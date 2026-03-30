@@ -1,7 +1,5 @@
-import pytest
 import torch
 
-from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter
 
 
@@ -149,19 +147,26 @@ def test_output_collapse_dims_selective():
 # ---------------------------------------------------------------------------
 
 
-def test_outputs_keep_unknown_name_raises():
-    """outputs_keep with a name not in output_names must raise."""
+def test_outputs_keep_unknown_name_silently_skipped():
+    """outputs_keep with a name not in flat outputs just skips it.
+
+    Validation is done upstream by validate_registry_against_signatures,
+    not by BoundaryAdapter itself (to avoid a forward pass at init).
+    """
     m = _TwoOutputs().eval()
     ex = [torch.zeros(2, 4)]
-    with pytest.raises(T2NErrorInvalidArgument, match="unknown output"):
-        BoundaryAdapter(
-            m,
-            "dec",
-            ex,
-            {},
-            collapse_by_input={},
-            outputs_keep=["feat", "bad_name"],
-        )
+    ba = BoundaryAdapter(
+        m,
+        "dec",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["feat", "bad_name"],
+    )
+    # bad_name is simply not matched — only feat is returned
+    result = ba(torch.zeros(2, 4))
+    assert isinstance(result, tuple)
+    assert len(result) == 1
 
 
 def test_outputs_keep_filters_output_names():
@@ -197,3 +202,77 @@ def test_outputs_keep_filters_forward():
     assert isinstance(result, tuple)
     assert len(result) == 1
     assert result[0].shape == (2, 4)
+
+
+# ---------------------------------------------------------------------------
+# Container output flattening via outputs_keep
+# ---------------------------------------------------------------------------
+
+
+class _TupleOutput(torch.nn.Module):
+    """Model returning (tensor, (tensor, tensor))."""
+
+    def __init__(self):
+        super().__init__()
+        self.input_names = ["x"]
+        self.output_names = ["logits", "states"]
+
+    def forward(self, x):
+        return x + 1, (x + 2, x + 3)
+
+
+def test_outputs_keep_flattens_container_outputs():
+    """outputs_keep should reference flattened names for container outputs."""
+    m = _TupleOutput().eval()
+    ex = [torch.zeros(2, 4)]
+    ba = BoundaryAdapter(
+        m,
+        "dec",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["logits", "states_0"],
+    )
+    assert ba.output_names == ["logits", "states_0"]
+    result = ba(torch.zeros(2, 4))
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+    # logits = x + 1, states_0 = x + 2
+    assert torch.allclose(result[0], torch.ones(2, 4))
+    assert torch.allclose(result[1], torch.full((2, 4), 2.0))
+
+
+def test_outputs_keep_flattens_all_container_elements():
+    """Keeping all flat names returns all flat tensors."""
+    m = _TupleOutput().eval()
+    ex = [torch.zeros(2, 4)]
+    ba = BoundaryAdapter(
+        m,
+        "dec",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["logits", "states_0", "states_1"],
+    )
+    assert ba.output_names == ["logits", "states_0", "states_1"]
+    result = ba(torch.zeros(2, 4))
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+
+def test_outputs_keep_raw_container_name_returns_nothing():
+    """Using raw container name 'states' (not flat) matches no output."""
+    m = _TupleOutput().eval()
+    ex = [torch.zeros(2, 4)]
+    ba = BoundaryAdapter(
+        m,
+        "dec",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["logits", "states"],
+    )
+    # 'states' is not a flat name — only 'logits' matches
+    result = ba(torch.zeros(2, 4))
+    assert isinstance(result, tuple)
+    assert len(result) == 1

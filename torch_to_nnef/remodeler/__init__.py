@@ -163,20 +163,25 @@ def save_config(
         _FlowSeqDumper.add_representer(list, _repr_seq)  # type: ignore[arg-type]
 
         payload = _registry_to_nested_mapping(registry)
-        raw_yaml = yaml.dump(
-            payload,
-            Dumper=_FlowSeqDumper,
-            sort_keys=False,
-            default_flow_style=None,
-        )
-        output_notes = getattr(registry, "_output_notes", {}) or {}
-        raw_yaml = _inject_outputs_keep_comment(raw_yaml, output_notes)
         if stream is not None:
-            stream.write(raw_yaml)
+            yaml.dump(
+                payload,
+                stream,
+                Dumper=_FlowSeqDumper,
+                sort_keys=False,
+                default_flow_style=None,
+            )
             return
         assert p is not None
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(raw_yaml, encoding="utf8")
+        with p.open("w", encoding="utf8") as fh:
+            yaml.dump(
+                payload,
+                fh,
+                Dumper=_FlowSeqDumper,
+                sort_keys=False,
+                default_flow_style=None,
+            )
         return
 
     # JSON
@@ -192,35 +197,6 @@ def save_config(
     assert p is not None
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(txt, encoding="utf8")
-
-
-def _inject_outputs_keep_comment(
-    raw_yaml: str,
-    output_notes: dict[str, dict[str, str]],
-) -> str:
-    """Insert per-output unfold comments on outputs_keep lines.
-
-    Produces e.g.::
-
-        outputs_keep: [outputs, states]  # states unfolds to: states_0, states_1
-    """
-    if not output_notes:
-        return raw_yaml
-    lines = raw_yaml.splitlines(keepends=True)
-    out: list[str] = []
-    current_subnet: T.Optional[str] = None
-    for line in lines:
-        stripped = line.lstrip()
-        # Track current top-level subnet key (no leading whitespace)
-        if not line[0:1].isspace() and ":" in line:
-            current_subnet = line.split(":", 1)[0].strip()
-        if stripped.startswith(f"{SHAPE_KEY_OUTPUTS_KEEP}:"):
-            notes = output_notes.get(current_subnet or "", {})
-            if notes:
-                parts = [f"{n} {v}" for n, v in notes.items()]
-                line = line.rstrip("\n") + "  # " + "; ".join(parts) + "\n"
-        out.append(line)
-    return "".join(out)
 
 
 def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
