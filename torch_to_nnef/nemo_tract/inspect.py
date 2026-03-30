@@ -149,34 +149,50 @@ def collect_signatures(
                 IODescriptor(name=name, shape=shp, dtype=dt, notes=[])
             )
 
-        # Outputs: run a forward pass to discover actual structure
-        # (tuple/list outputs are flattened, e.g. states_out -> states_out_0,
-        # states_out_1) so that dump-shape-config shows the real flat names.
+        # Outputs: use raw model output names (what outputs_keep
+        # references).  Run a forward pass to discover shapes/dtypes
+        # and annotate container outputs with their NNEF flat names.
         outputs: T.List[IODescriptor] = []
+        out_shape_map: dict[str, object] = {}
         try:
             with torch.no_grad():
                 test_outs = ep.model(
                     *(test_in if test_in else ep.test_input)
                 )
-            out_names, out_tensors = _flatten_outputs(
-                ep.output_names, test_outs
-            )
-            for nm, t in zip(out_names, out_tensors):
-                shp = _tensor_shape_with_symbols(t, {})
-                dt = _dtype_of(t)
-                outputs.append(
-                    IODescriptor(name=nm, shape=shp, dtype=dt, notes=[])
-                )
+            if isinstance(test_outs, torch.Tensor):
+                test_outs = (test_outs,)
+            if isinstance(test_outs, (tuple, list)):
+                for nm, val in zip(ep.output_names, test_outs):
+                    out_shape_map[nm] = val
         except Exception:
             LOGGER.debug(
                 "forward pass failed for '%s', using raw output names",
                 ep.name,
                 exc_info=True,
             )
-            outputs = [
-                IODescriptor(name=nm, shape=[], dtype=None, notes=[])
-                for nm in ep.output_names
-            ]
+        for nm in ep.output_names:
+            val = out_shape_map.get(nm)
+            notes: T.List[str] = []
+            if isinstance(val, (tuple, list)):
+                # Container output — show the flat names it expands to
+                flat_names, _ = _flatten_outputs([nm], (val,))
+                notes.append(
+                    f"unfolds to: {', '.join(flat_names)}"
+                )
+                first = next(
+                    (v for v in val if torch.is_tensor(v)), None
+                )
+                shp = _tensor_shape_with_symbols(first, {})
+                dt = _dtype_of(first)
+            elif torch.is_tensor(val):
+                shp = _tensor_shape_with_symbols(val, {})
+                dt = _dtype_of(val)
+            else:
+                shp = []
+                dt = None
+            outputs.append(
+                IODescriptor(name=nm, shape=shp, dtype=dt, notes=notes)
+            )
 
         applied_flags: T.List[str] = []
 

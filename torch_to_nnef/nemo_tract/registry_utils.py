@@ -190,8 +190,16 @@ def dump_registry_from_signatures(
     outputs_keep_per_subnet: dict[str, list[str]] = {}
     original_shapes: dict[str, list[T.Union[int, str]]] = {}
 
+    # Collect per-output unfold notes for YAML comment generation.
+    # e.g., {"decoder": {"states": "unfolds to: states_0, states_1"}}
+    output_notes: dict[str, dict[str, str]] = {}
     for ss in signatures:
         outputs_keep_per_subnet[ss.name] = [o.name for o in ss.outputs]
+        for o in ss.outputs:
+            if o.notes:
+                for note in o.notes:
+                    if note.startswith("unfolds to:"):
+                        output_notes.setdefault(ss.name, {})[o.name] = note
         axes_map = ss.symbol_axes or {}
         for io in ss.inputs:
             q = f"{ss.name}.{io.name}"
@@ -206,7 +214,7 @@ def dump_registry_from_signatures(
             else:
                 symbols.setdefault(q, {})
 
-    return AxisSymbolRegistry(
+    reg = AxisSymbolRegistry(
         symbols_per_input=symbols,
         rank_per_input=ranks,
         bind_to_dim={},
@@ -215,6 +223,10 @@ def dump_registry_from_signatures(
         outputs_keep_per_subnet=outputs_keep_per_subnet,
         original_shape_per_input=original_shapes,
     )
+    # Attach non-persisted output notes for YAML comment generation.
+    # Not a dataclass field — just an ad-hoc attribute used by save_config.
+    reg._output_notes = output_notes  # type: ignore[attr-defined]
+    return reg
 
 
 def auto_populate_output_collapse_dims(

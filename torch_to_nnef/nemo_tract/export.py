@@ -616,13 +616,6 @@ def build_preprocessor_export_params(
         model = asr_model.preprocessor
         input_names = model.input_names[: len(input_example)]
         output_names = model.output_names
-        # If any outputs share names with inputs, rename outputs
-        # to avoid collision
-        inter = set(input_names).intersection(set(output_names))
-        if inter:
-            rename_map = {n: f"{n}_out" for n in inter}
-            model = RenameOutputs(model, rename_map)
-            output_names = [rename_map.get(n, n) for n in output_names]
         # Use the context-provided input_example to ensure consistency between
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
@@ -837,13 +830,6 @@ def iter_export_params_for_generic_nemo_asr_model(
                 # without wrapping the module
                 dyn = _apply_symbol_renames_to_dyn(dyn, rename_map)
 
-        # Avoid name collisions between inputs and outputs (e.g., 'length').
-        inter = set(input_names).intersection(set(output_names))
-        if inter:
-            rename_map = {n: f"{n}_out" for n in inter}
-            model = RenameOutputs(model, rename_map)
-            output_names = [rename_map.get(n, n) for n in output_names]
-
         # Consolidate with renames and discard assertions on removed symbols
         custom_ext = set(
             _rewrite_and_filter_assertions(
@@ -917,27 +903,40 @@ def export_nemo_asr_model(
         axis_registry=axis_registry,
     ):
         LOGGER.info("start subnet export: %s", export_params.name)
+        model = export_params.model
+        input_names = export_params.input_names
+        output_names = export_params.output_names
+
+        # Avoid name collisions between inputs and outputs for NNEF
+        # (e.g., both named 'length').  This is an export-time concern
+        # and does not leak into inspection or shape-config generation.
+        inter = set(input_names).intersection(set(output_names))
+        if inter:
+            rename_map = {n: f"{n}_out" for n in inter}
+            model = RenameOutputs(model, rename_map)
+            output_names = [rename_map.get(n, n) for n in output_names]
+
         if dump_checked_io:
             test_dir = export_dir / "test"
             test_dir.mkdir(parents=True, exist_ok=True)
             build_io(
-                export_params.model,
+                model,
                 export_params.test_input,
                 input_bundle_path=test_dir
                 / f"{export_params.name}_inputs_checked.npz",
                 output_bundle_path=test_dir
                 / f"{export_params.name}_outputs_checked.npz",
-                input_names=export_params.input_names,
-                output_names=export_params.output_names,
+                input_names=input_names,
+                output_names=output_names,
             )
         export_model_to_nnef(
-            model=export_params.model,
+            model=model,
             args=export_params.test_input,
             inference_target=export_params.inference_target.with_specific_properties(
                 export_params.specific_tract_properties
             ),
-            input_names=export_params.input_names,
-            output_names=export_params.output_names,
+            input_names=input_names,
+            output_names=output_names,
             file_path_export=export_dir / f"{export_params.name}.nnef.tgz",
             custom_extensions=export_params.custom_extensions,
             # NeMo subnets may declare inputs consumed via control flow
