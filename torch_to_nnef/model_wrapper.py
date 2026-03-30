@@ -230,6 +230,22 @@ def build_new_names_and_elements(
         new_names.append(root_name + str_idxes if str_idxes else root_name)
         new_elms.append(elm)
         new_flat_elms.append((_, idxes, elm))
+
+    # Guard against duplicate flat names — they would produce a broken
+    # graph (ambiguous IO in NNEF, broken outputs_keep filtering, etc.).
+    seen: dict[str, int] = {}
+    for n in new_names:
+        seen[n] = seen.get(n, 0) + 1
+    dupes = sorted(n for n, c in seen.items() if c > 1)
+    if dupes:
+        raise T2NErrorNotImplemented(
+            "Flattening produced duplicate names: "
+            + ", ".join(f"'{d}'" for d in dupes)
+            + ". This happens when a raw name like 'x_0' collides with "
+            "a generated suffix from container 'x'. "
+            "Rename the model outputs/inputs to avoid the collision."
+        )
+
     return new_names, new_elms, flat_elms, new_flat_elms
 
 
