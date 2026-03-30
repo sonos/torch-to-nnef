@@ -1,5 +1,7 @@
+import pytest
 import torch
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter
 
 
@@ -140,3 +142,58 @@ def test_output_collapse_dims_selective():
     assert length.shape == (1, 1), (
         f"length should keep batch: got {length.shape}"
     )
+
+
+# ---------------------------------------------------------------------------
+# outputs_keep validation & filtering tests
+# ---------------------------------------------------------------------------
+
+
+def test_outputs_keep_unknown_name_raises():
+    """outputs_keep with a name not in output_names must raise."""
+    m = _TwoOutputs().eval()
+    ex = [torch.zeros(2, 4)]
+    with pytest.raises(T2NErrorInvalidArgument, match="unknown output"):
+        BoundaryAdapter(
+            m,
+            "dec",
+            ex,
+            {},
+            collapse_by_input={},
+            outputs_keep=["feat", "bad_name"],
+        )
+
+
+def test_outputs_keep_filters_output_names():
+    """output_names property must reflect outputs_keep filtering."""
+    m = _TwoOutputs().eval()
+    ex = [torch.zeros(2, 4)]
+    ba = BoundaryAdapter(
+        m,
+        "s",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["feat"],
+    )
+    assert ba.output_names == ["feat"]
+
+
+def test_outputs_keep_filters_forward():
+    """forward() must return only kept outputs."""
+    m = _TwoOutputs().eval()
+    ex = [torch.zeros(2, 4)]
+    ba = BoundaryAdapter(
+        m,
+        "s",
+        ex,
+        {},
+        collapse_by_input={},
+        outputs_keep=["feat"],
+        output_collapse_dims={"feat": [0]},
+    )
+    result = ba(torch.zeros(2, 4))
+    # Should return a single-element tuple (only feat, batch-squeezed)
+    assert isinstance(result, tuple)
+    assert len(result) == 1
+    assert result[0].shape == (2, 4)

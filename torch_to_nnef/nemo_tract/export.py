@@ -680,6 +680,7 @@ def build_preprocessor_export_params(
                     output_collapse_dims=out_collapse,
                 )
                 input_names = model.input_names
+                output_names = model.output_names
                 test_input = list(model.input_example())
                 dyn = model.dynamic_shapes_for_export()
             elif rename_map:
@@ -828,6 +829,7 @@ def iter_export_params_for_generic_nemo_asr_model(
                     output_collapse_dims=out_collapse,
                 )
                 input_names = model.input_names
+                output_names = model.output_names
                 test_input = list(model.input_example())
                 dyn = model.dynamic_shapes_for_export()
             elif rename_map:

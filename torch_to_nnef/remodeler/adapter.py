@@ -3,14 +3,21 @@ import typing as T
 import torch
 
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+from torch_to_nnef.model_wrapper import (
+    build_new_names_and_elements,
+    build_structured_inputs,
+)
 
 
 class BoundaryAdapter(torch.nn.Module):
     """Boundary adapter applying tuple flattening and collapse at export time.
 
-    - Flattens tuple inputs to name_0, name_1, ... for external IO.
+    - Flattens structured inputs (tuples, lists, dicts) to flat tensor IO
+      using :func:`build_new_names_and_elements`.
     - Applies per-input collapse of configured dynamic axes.
     - Re-inserts collapsed axes before invoking the inner module.
+    - Reconstructs the original input structure via
+      :func:`build_structured_inputs`.
     - Recomputes dynamic input axes to match the external interface.
     """
 
@@ -38,32 +45,42 @@ class BoundaryAdapter(torch.nn.Module):
         self._orig_input_example = list(input_example or [])
         self._dyn_axes = dict(dynamic_axes or {})
         self._outputs_keep = list(outputs_keep or [])
+        if self._outputs_keep:
+            unknown = sorted(
+                set(self._outputs_keep) - set(self._orig_output_names)
+            )
+            if unknown:
+                raise T2NErrorInvalidArgument(
+                    f"outputs_keep for '{subnet_name}' references unknown "
+                    f"output(s): {', '.join(unknown)}. "
+                    f"Available: {self._orig_output_names}"
+                )
         self._output_collapse_dims = dict(output_collapse_dims or {})
         self._apply_syms = bool(apply_symbol_renames)
+
+        # Flatten inputs using the shared helper (handles arbitrary nesting,
+        # dicts, etc.) and store the structure info for reconstruction.
         (
             initial_ext_names,
-            initial_ext_map,
-        ) = self._init_external_names()
+            flat_tensors,
+            all_flat,
+            _tensor_flat,
+        ) = build_new_names_and_elements(
+            self._orig_input_names,
+            self._orig_input_example,
+            default_element_name_tmpl="input_{}",
+        )
+        self._all_tensor_names: list[str] = list(initial_ext_names)
+        self._input_infos = all_flat
+        self._flat_example_map: dict[str, object] = dict(
+            zip(initial_ext_names, flat_tensors)
+        )
+
         self._init_collapse_indices(
             initial_ext_names, collapse_by_input or {}, renamed_map or {}
         )
         self._init_bind_map(initial_ext_names, binds_by_input or {})
-        self._finalize_external_interface(initial_ext_names, initial_ext_map)
-
-    def _init_external_names(
-        self,
-    ) -> tuple[list[str], list[tuple[str, T.Optional[int]]]]:
-        names: list[str] = []
-        mapping: list[tuple[str, T.Optional[int]]] = []
-        for nm, val in zip(self._orig_input_names, self._orig_input_example):
-            if isinstance(val, (list, tuple)) and val:
-                for k, _ in enumerate(val):
-                    names.append(f"{nm}_{k}")
-                    mapping.append((nm, k))
-            else:
-                names.append(nm)
-                mapping.append((nm, None))
-        return names, mapping
+        self._finalize_external_interface(initial_ext_names)
 
     def _init_collapse_indices(
         self,
@@ -71,7 +88,7 @@ class BoundaryAdapter(torch.nn.Module):
         collapse_by_input: dict[str, set[str]],
         renamed_map: dict[str, list[str]],
     ) -> None:
-        self._collapse_idx = {}
+        self._collapse_idx: dict[str, list[int]] = {}
         self._rename_map = {
             str(t).upper(): [str(s).upper() for s in (srcs or [])]
             for t, srcs in (renamed_map or {}).items()
@@ -99,7 +116,7 @@ class BoundaryAdapter(torch.nn.Module):
     def _init_bind_map(
         self, initial_ext_names: list[str], binds_by_input: dict[str, str]
     ) -> None:
-        self._bind_for_ext = {}
+        self._bind_for_ext: dict[str, tuple[str, str]] = {}
         for ext in list(initial_ext_names):
             q = f"{self.subnet_name}.{ext}"
             val = binds_by_input.get(q)
@@ -112,19 +129,15 @@ class BoundaryAdapter(torch.nn.Module):
     def _finalize_external_interface(
         self,
         initial_ext_names: list[str],
-        initial_ext_map: list[tuple[str, T.Optional[int]]],
     ) -> None:
-        self._ext_names = []
-        self._ext_map = []
-        self._bound_targets = {}
-        for ext, mapping in zip(initial_ext_names, initial_ext_map):
+        self._ext_names: list[str] = []
+        self._bound_targets: dict[str, tuple[str, str]] = {}
+        for ext in initial_ext_names:
             if ext in self._bind_for_ext:
                 src_ext, sym = self._bind_for_ext[ext]
-                base, idx = mapping
-                self._bound_targets[ext] = (src_ext, sym, base, idx)
+                self._bound_targets[ext] = (src_ext, sym)
                 continue
             self._ext_names.append(ext)
-            self._ext_map.append(mapping)
 
     @property
     def input_names(self) -> list[str]:
@@ -148,34 +161,8 @@ class BoundaryAdapter(torch.nn.Module):
 
     def input_example(self):
         out: list[object] = []
-        for (base, idx), ext in zip(self._ext_map, self._ext_names):
-            if idx is None:
-                val = next(
-                    (
-                        v
-                        for n, v in zip(
-                            self._orig_input_names, self._orig_input_example
-                        )
-                        if n == base
-                    ),
-                    None,
-                )
-            else:
-                base_val = next(
-                    (
-                        v
-                        for n, v in zip(
-                            self._orig_input_names, self._orig_input_example
-                        )
-                        if n == base
-                    ),
-                    None,
-                )
-                val = (
-                    base_val[idx]
-                    if isinstance(base_val, (list, tuple))
-                    else None
-                )
+        for ext in self._ext_names:
+            val = self._flat_example_map.get(ext)
             out.append(self._ext_example_for(ext, val))
         return tuple(out)
 
@@ -215,100 +202,72 @@ class BoundaryAdapter(torch.nn.Module):
             ext_dyn = renamed
         return ext_dyn
 
-    def _rebuild_internal_args(self, args) -> list:
-        ext_val_map: dict[str, object] = dict(zip(self._ext_names, args))
-        by_base = self._pack_by_base_from_args(args)
-        self._inject_bound_scalars(by_base, ext_val_map)
-        ordered: list = []
-        for nm in self._orig_input_names:
-            val = by_base.get(nm)
-            ordered.append(tuple(val) if isinstance(val, list) else val)
-        return ordered
+    # ------------------------------------------------------------------
+    # Forward: reconstruct structured inputs via shared helpers
+    # ------------------------------------------------------------------
 
-    def _pack_by_base_from_args(
-        self, args: list
-    ) -> dict[str, T.Union[object, list]]:
-        by_base: dict[str, T.Union[object, list]] = {}
-        for (base, idx), ext, val in zip(self._ext_map, self._ext_names, args):
-            t = val
-            for ax in sorted(self._collapse_idx.get(ext, [])):
-                if torch.is_tensor(t):
-                    t = t.unsqueeze(ax)
-            if idx is None:
-                by_base[base] = t
-            else:
-                lst = by_base.get(base)
-                if not isinstance(lst, list):
-                    lst = []
-                while len(lst) <= idx:
-                    lst.append(None)
-                lst[idx] = t
-                by_base[base] = lst
-        return by_base
-
-    def _inject_bound_scalars(
+    def _compute_bound_value(
         self,
-        by_base: dict[str, T.Union[object, list]],
+        src_ext: str,
+        sym: str,
         ext_val_map: dict[str, object],
-    ) -> None:
-        for tgt_ext, (src_ext, sym, base, idx) in self._bound_targets.items():
-            src_val = ext_val_map.get(src_ext)
-            if not torch.is_tensor(src_val):
-                raise T2NErrorInvalidArgument(
-                    f"binding source '{src_ext}' is not a tensor"
-                )
-            # Locate the axis in the (external) dynamic mapping, considering
-            # aliasing via renamed symbols when relevant.
-            axes = self._dyn_axes.get(src_ext, {})
-            old_ax = None
-            for i, s in axes.items():
-                su = str(s).upper()
-                if su == sym:
-                    old_ax = i
-                    break
-                # Accept alias if symbol was renamed to target
-                srcs = self._rename_map.get(sym)
-                if srcs and su in srcs:
-                    old_ax = i
-                    break
-            if old_ax is None:
-                raise T2NErrorInvalidArgument(
-                    f"binding symbol '{sym}' not found on source '{src_ext}'"
-                )
-            # Adjust for collapsed dims on the source external input
-            drop = sorted(self._collapse_idx.get(src_ext, []))
-            shift = sum(1 for d in drop if d < old_ax)
-            new_ax = old_ax - shift
-            if not 0 <= new_ax < src_val.dim():
-                raise T2NErrorInvalidArgument(
-                    f"binding axis {new_ax} out of range for '{src_ext}'"
-                )
-            dim_val = src_val.size(new_ax)
-            # Build int64 scalar tensor on same device
-            if torch.is_tensor(dim_val):
-                bound_scalar = dim_val.to(
-                    dtype=torch.long, device=src_val.device
-                )
+    ) -> torch.Tensor:
+        """Derive a scalar tensor from a dynamic axis of another input."""
+        src_val = ext_val_map.get(src_ext)
+        if not torch.is_tensor(src_val):
+            raise T2NErrorInvalidArgument(
+                f"binding source '{src_ext}' is not a tensor"
+            )
+        axes = self._dyn_axes.get(src_ext, {})
+        old_ax = None
+        for i, s in axes.items():
+            su = str(s).upper()
+            if su == sym:
+                old_ax = i
+                break
+            srcs = self._rename_map.get(sym)
+            if srcs and su in srcs:
+                old_ax = i
+                break
+        if old_ax is None:
+            raise T2NErrorInvalidArgument(
+                f"binding symbol '{sym}' not found on source '{src_ext}'"
+            )
+        drop = sorted(self._collapse_idx.get(src_ext, []))
+        shift = sum(1 for d in drop if d < old_ax)
+        new_ax = old_ax - shift
+        if not 0 <= new_ax < src_val.dim():
+            raise T2NErrorInvalidArgument(
+                f"binding axis {new_ax} out of range for '{src_ext}'"
+            )
+        dim_val = src_val.size(new_ax)
+        if torch.is_tensor(dim_val):
+            return dim_val.to(dtype=torch.long, device=src_val.device)
+        return torch.scalar_tensor(
+            dim_val, dtype=torch.long, device=src_val.device
+        )
+
+    def _build_flat_tensor_values(self, args: list) -> list:
+        """Map external args + bound scalars to a flat tensor list.
+
+        The returned list is ordered to match ``self._all_tensor_names``
+        (and thus ``self._input_infos``), ready for
+        :func:`build_structured_inputs`.
+        """
+        ext_val_map: dict[str, object] = dict(zip(self._ext_names, args))
+        tensor_vals: list = []
+        for name in self._all_tensor_names:
+            if name in self._bound_targets:
+                src_ext, sym = self._bound_targets[name]
+                val = self._compute_bound_value(src_ext, sym, ext_val_map)
             else:
-                bound_scalar = torch.scalar_tensor(
-                    dim_val, dtype=torch.long, device=src_val.device
-                )
-            # Reinsert collapsed dims on the target input so internal ranks
-            # remain consistent
-            tgt_drop = sorted(self._collapse_idx.get(tgt_ext, []))
-            tval = bound_scalar
-            for ax in tgt_drop:
-                tval = tval.unsqueeze(ax)
-            if idx is None:
-                by_base[base] = tval
-            else:
-                lst = by_base.get(base)
-                if not isinstance(lst, list):
-                    lst = []
-                while len(lst) <= idx:
-                    lst.append(None)
-                lst[idx] = tval
-                by_base[base] = lst
+                val = ext_val_map[name]
+            # Reverse collapse: re-insert squeezed axes
+            for ax in sorted(self._collapse_idx.get(name, [])):
+                if torch.is_tensor(val):
+                    val = val.unsqueeze(ax)
+            tensor_vals.append(val)
+        return tensor_vals
 
     def _squeeze_outputs(self, outs):
         """Squeeze configured axes from outputs."""
@@ -333,7 +292,8 @@ class BoundaryAdapter(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         assert not kwargs, "BoundaryAdapter expects positional args only"
-        rebuilt = self._rebuild_internal_args(list(args))
+        tensor_vals = self._build_flat_tensor_values(list(args))
+        rebuilt = build_structured_inputs(tensor_vals, self._input_infos)
         outs = self.module(*rebuilt)
         outs = self._squeeze_outputs(outs)
         if not self._outputs_keep:

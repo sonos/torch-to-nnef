@@ -6,6 +6,7 @@ from pathlib import Path
 import torch
 
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
+from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.nemo_tract.config import InspectFormat
 from torch_to_nnef.nemo_tract.export import (
     iter_export_params_for_generic_nemo_asr_model,
@@ -26,6 +27,23 @@ from torch_to_nnef.remodeler.serialize import write_signatures_json
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _flatten_outputs(
+    output_names: T.List[str],
+    outs: object,
+) -> tuple[T.List[str], T.List[torch.Tensor]]:
+    """Flatten structured outputs and generate corresponding names.
+
+    Delegates to :func:`build_new_names_and_elements` from
+    ``model_wrapper`` which handles tuple/list/dict expansion.
+    """
+    if isinstance(outs, torch.Tensor):
+        outs = (outs,)
+    names, tensors, _, _ = build_new_names_and_elements(
+        output_names, outs, default_element_name_tmpl="output_{}"
+    )
+    return names, tensors
 
 
 @dataclass(frozen=True)
@@ -107,52 +125,58 @@ def collect_signatures(
         remove_unused_inputs=True,
         only_subnets=only_subnets,
     ):
-        # Inputs: names, shapes, dtypes, notes
+        # Inputs: flatten structured inputs (tuples, lists, dicts) using
+        # the shared helper so that naming is consistent with export.
         inputs: T.List[IODescriptor] = []
-        # ep.test_input can be a list/tuple aligned with ep.input_names
         test_in = (
             list(ep.test_input)
             if isinstance(ep.test_input, (list, tuple))
             else []
         )
         dyn_axes = ep.inference_target.dynamic_axes or {}
-        for idx, name in enumerate(ep.input_names):
-            t = test_in[idx] if idx < len(test_in) else None
-            # Handle tuple/list inputs by expanding into
-            # name_0, name_1, ...
-            if isinstance(t, (list, tuple)) and len(t) > 0:
-                for k, tk in enumerate(t):
-                    ename = f"{name}_{k}"
-                    sym_map = (
-                        (dyn_axes.get(ename) or {})
-                        if isinstance(dyn_axes, dict)
-                        else {}
-                    )
-                    shp = _tensor_shape_with_symbols(tk, sym_map)
-                    dt = _dtype_of(tk)
-                    notes: T.List[str] = []
-                    inputs.append(
-                        IODescriptor(
-                            name=ename, shape=shp, dtype=dt, notes=notes
-                        )
-                    )
-                continue
-
+        flat_in_names, flat_in_tensors, _, _ = build_new_names_and_elements(
+            ep.input_names,
+            test_in,
+            default_element_name_tmpl="input_{}",
+        )
+        for name, t in zip(flat_in_names, flat_in_tensors):
             sym_map = (
                 (dyn_axes.get(name) or {}) if isinstance(dyn_axes, dict) else {}
             )
             shp = _tensor_shape_with_symbols(t, sym_map)
             dt = _dtype_of(t)
-            notes: T.List[str] = []
             inputs.append(
-                IODescriptor(name=name, shape=shp, dtype=dt, notes=notes)
+                IODescriptor(name=name, shape=shp, dtype=dt, notes=[])
             )
 
-        # Outputs: list names only at this phase (no extra forward pass)
-        outputs: T.List[IODescriptor] = [
-            IODescriptor(name=nm, shape=[], dtype=None, notes=[])
-            for nm in ep.output_names
-        ]
+        # Outputs: run a forward pass to discover actual structure
+        # (tuple/list outputs are flattened, e.g. states_out -> states_out_0,
+        # states_out_1) so that dump-shape-config shows the real flat names.
+        outputs: T.List[IODescriptor] = []
+        try:
+            with torch.no_grad():
+                test_outs = ep.model(
+                    *(test_in if test_in else ep.test_input)
+                )
+            out_names, out_tensors = _flatten_outputs(
+                ep.output_names, test_outs
+            )
+            for nm, t in zip(out_names, out_tensors):
+                shp = _tensor_shape_with_symbols(t, {})
+                dt = _dtype_of(t)
+                outputs.append(
+                    IODescriptor(name=nm, shape=shp, dtype=dt, notes=[])
+                )
+        except Exception:
+            LOGGER.debug(
+                "forward pass failed for '%s', using raw output names",
+                ep.name,
+                exc_info=True,
+            )
+            outputs = [
+                IODescriptor(name=nm, shape=[], dtype=None, notes=[])
+                for nm in ep.output_names
+            ]
 
         applied_flags: T.List[str] = []
 
