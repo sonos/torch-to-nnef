@@ -55,9 +55,7 @@ def build_structured_inputs(flat_args, input_infos):
     inps: list = []
     for (types, indexes, _), arg in zip(input_infos, full_args):
         cur_struct = inps
-        for typ, next_typ, idx in zip(
-            types, list(types[1:]) + [None], indexes
-        ):
+        for typ, next_typ, idx in zip(types, list(types[1:]) + [None], indexes):
             if typ in (list, tuple):
                 if idx >= len(cur_struct):
                     cur_struct += [None] * (idx + 1 - len(cur_struct))
@@ -72,9 +70,7 @@ def build_structured_inputs(flat_args, input_infos):
                 continue
             if cur_struct[idx] is None:
                 cur_struct[idx] = (
-                    blank_from_init(next_typ)
-                    if next_typ is not None
-                    else arg
+                    blank_from_init(next_typ) if next_typ is not None else arg
                 )
             cur_struct = cur_struct[idx]
 

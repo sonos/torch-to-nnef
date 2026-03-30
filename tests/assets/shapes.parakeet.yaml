@@ -49,6 +49,9 @@ preprocessor:
       original_shape: [LENGTH__BATCH]
       collapse_dims: [LENGTH__BATCH]
       bind_scalar_to_dim_size: input_signal.INPUT_SIGNAL__TIME
+  outputs:
+    processed_signal:
+      collapse_dims: [0]
   outputs_keep: [processed_signal]
 encoder:
   inputs:
@@ -59,6 +62,9 @@ encoder:
       original_shape: [LENGTH__BATCH]
       collapse_dims: [LENGTH__BATCH]
       bind_scalar_to_dim_size: audio_signal.AUDIO_SIGNAL__TIME
+  outputs:
+    outputs:
+      collapse_dims: [0]
   outputs_keep: [outputs]
 decoder:
   inputs:
@@ -75,7 +81,7 @@ decoder:
     states_1:
       original_shape: [2, STATES_1__BATCH, 640]
       collapse_dims: []
-  outputs_keep: [outputs, states_out]
+  outputs_keep: [outputs, states_0, states_1]
   renamed_symbols:
     BATCH: [TARGETS__BATCH, TARGET_LENGTH__BATCH, STATES_0__BATCH, STATES_1__BATCH]
 joint:

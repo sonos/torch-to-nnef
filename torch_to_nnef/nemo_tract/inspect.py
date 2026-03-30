@@ -155,9 +155,7 @@ def collect_signatures(
         outputs: T.List[IODescriptor] = []
         try:
             with torch.no_grad():
-                test_outs = ep.model(
-                    *(test_in if test_in else ep.test_input)
-                )
+                test_outs = ep.model(*(test_in if test_in else ep.test_input))
             out_names, out_tensors = _flatten_outputs(
                 ep.output_names, test_outs
             )
@@ -167,7 +165,7 @@ def collect_signatures(
                 outputs.append(
                     IODescriptor(name=nm, shape=shp, dtype=dt, notes=[])
                 )
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, IndexError):
             LOGGER.debug(
                 "forward pass failed for '%s', using raw output names",
                 ep.name,
