@@ -65,10 +65,14 @@ class BoundaryAdapter(torch.nn.Module):
         )
 
         self._init_collapse_indices(
-            subnet_name, initial_ext_names, collapse_by_input or {},
+            subnet_name,
+            initial_ext_names,
+            collapse_by_input or {},
             renamed_map or {},
         )
-        self._init_bind_map(subnet_name, initial_ext_names, binds_by_input or {})
+        self._init_bind_map(
+            subnet_name, initial_ext_names, binds_by_input or {}
+        )
         self._finalize_external_interface(initial_ext_names)
 
         # Output flattening is deferred to forward (zero init cost).
