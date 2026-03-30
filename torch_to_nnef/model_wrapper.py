@@ -20,11 +20,6 @@ from torch_to_nnef.utils import blank_from_init, flatten_dict_tuple_or_list
 LOGGER = log.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Standalone structure helpers — shared by WrapStructIO & BoundaryAdapter
-# ---------------------------------------------------------------------------
-
-
 def insert_fixed_nontraceable_args(flat_args, input_infos):
     """Re-insert non-tensor constant values into the flat args list.
 
@@ -132,11 +127,6 @@ def flatten_structured_outputs(struct_output, output_infos):
     ]
 
 
-# ---------------------------------------------------------------------------
-# WrapStructIO — thin nn.Module shell delegating to helpers above
-# ---------------------------------------------------------------------------
-
-
 class WrapStructIO(nn.Module):
     """Once traced it should be nop in final graph."""
 
@@ -150,11 +140,6 @@ class WrapStructIO(nn.Module):
         struct_args = build_structured_inputs(flat_args, self.input_infos)
         struct_outputs = self.model(*struct_args)
         return flatten_structured_outputs(struct_outputs, self.output_infos)
-
-
-# ---------------------------------------------------------------------------
-# Name expansion for flat IO
-# ---------------------------------------------------------------------------
 
 
 def build_new_names_and_elements(
