@@ -98,6 +98,7 @@ Per-input settings under `inputs`:
 - `original_shape`: list of dims (ints or strings)
 - `collapse_dims` (optional): list of symbols to collapse at the boundary
 - `bind_scalar_to_dim_size` (optional): dynamic source as `subnet.input.SYMBOL`
+- `eval_symbols` (optional): `{ SYMBOL: int_value }` -- pin dynamic symbols to concrete sizes in test inputs during export (e.g., `{TARGETS__TIME: 1}` for single-step decoding)
 
 Per-output settings under `outputs`:
 

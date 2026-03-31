@@ -21,6 +21,8 @@ Core concepts
     - `original_shape`: list of dims (ints or symbols)
     - `collapse_dims` (optional): symbols to drop at boundary
     - `bind_scalar_to_dim_size` (optional): `subnet.input.SYMBOL`
+    - `eval_symbols` (optional): `{ SYMBOL: int_value }` -- pin dynamic symbols
+      to concrete sizes in test inputs during export
   - `outputs` (optional): per-output settings
     - `collapse_dims`: list of axis indices to squeeze from the output
   - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` for backend-facing
@@ -154,6 +156,37 @@ export_model_to_nnef(
     nnef_variable_naming_scheme=VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
 )
 ```
+
+Eval symbols
+
+The `eval_symbols` field lets you pin dynamic symbols to concrete values in
+test inputs at export time. This resizes the test tensors that are traced
+through the model, which is useful when the default test-input size is not
+representative of the target inference scenario (e.g., single-step decoding
+where `TIME = 1`).
+
+- Values are per-input, mapping symbol names to integer sizes.
+- Symbols are automatically uppercased.
+- Dimensions smaller than the target are zero-padded; dimensions larger are
+  narrowed.
+
+Example:
+
+```yaml
+decoder:
+  inputs:
+    targets:
+      original_shape: [TARGETS__BATCH, TARGETS__TIME]
+      collapse_dims: []
+      eval_symbols: {TARGETS__TIME: 1}
+    states_0:
+      original_shape: [2, STATES_0__BATCH, 640]
+      collapse_dims: []
+      eval_symbols: {STATES_0__BATCH: 1}
+```
+
+In this example the `targets` tensor's TIME axis is pinned to 1 and the
+`states_0` tensor's BATCH axis is pinned to 1 before tracing.
 
 Output collapse
 - When `collapse_dims` removes a batch axis from inputs, the internal module

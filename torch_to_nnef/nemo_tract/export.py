@@ -912,6 +912,22 @@ def iter_export_params_for_generic_nemo_asr_model(
         )
 
 
+def _find_roots_to_rename(
+    inter: set[str], output_names: T.List[str]
+) -> set[str]:
+    """Map colliding flattened names back to their pre-flattened root names."""
+    roots: set[str] = set()
+    for flat_name in inter:
+        if flat_name in output_names:
+            roots.add(flat_name)
+        else:
+            for oname in output_names:
+                if flat_name.startswith(f"{oname}_"):
+                    roots.add(oname)
+                    break
+    return roots
+
+
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="omegaconf")
 def export_nemo_asr_model(
     asr_model,
@@ -981,19 +997,7 @@ def export_nemo_asr_model(
         )
         inter = set(input_names).intersection(set(flat_output_names))
         if inter:
-            # Map colliding flattened names back to their pre-flattened
-            # root names so RenameOutputs renames the container itself
-            # (e.g. "states" -> "states_out" which flattens to
-            # "states_out_0", "states_out_1").
-            roots_to_rename: set[str] = set()
-            for flat_name in inter:
-                if flat_name in output_names:
-                    roots_to_rename.add(flat_name)
-                else:
-                    for oname in output_names:
-                        if flat_name.startswith(f"{oname}_"):
-                            roots_to_rename.add(oname)
-                            break
+            roots_to_rename = _find_roots_to_rename(inter, output_names)
             rename_map = {n: f"{n}_out" for n in roots_to_rename}
             model = RenameOutputs(model, rename_map)
             output_names = [rename_map.get(n, n) for n in output_names]
