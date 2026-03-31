@@ -30,6 +30,7 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     decoder_fix_input_example_batch_size,
 )
+from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.utils import (
     INJECTED,
@@ -910,9 +911,36 @@ def export_nemo_asr_model(
         # Avoid name collisions between inputs and outputs for NNEF
         # (e.g., both named 'length').  This is an export-time concern
         # and does not leak into inspection or shape-config generation.
-        inter = set(input_names).intersection(set(output_names))
+        #
+        # output_names may still be pre-flattened (e.g. "states" for a
+        # tuple that becomes "states_0", "states_1" after flattening).
+        # We must check the *flattened* names to catch collisions that
+        # only appear after container expansion.
+        with torch.no_grad():
+            _test_outs = model(*export_params.test_input)
+        if isinstance(_test_outs, torch.Tensor):
+            _test_outs = (_test_outs,)
+        flat_output_names, _, _, _ = build_new_names_and_elements(
+            output_names,
+            _test_outs,
+            default_element_name_tmpl="output_{}",
+        )
+        inter = set(input_names).intersection(set(flat_output_names))
         if inter:
-            rename_map = {n: f"{n}_out" for n in inter}
+            # Map colliding flattened names back to their pre-flattened
+            # root names so RenameOutputs renames the container itself
+            # (e.g. "states" -> "states_out" which flattens to
+            # "states_out_0", "states_out_1").
+            roots_to_rename: set[str] = set()
+            for flat_name in inter:
+                if flat_name in output_names:
+                    roots_to_rename.add(flat_name)
+                else:
+                    for oname in output_names:
+                        if flat_name.startswith(f"{oname}_"):
+                            roots_to_rename.add(oname)
+                            break
+            rename_map = {n: f"{n}_out" for n in roots_to_rename}
             model = RenameOutputs(model, rename_map)
             output_names = [rename_map.get(n, n) for n in output_names]
 
