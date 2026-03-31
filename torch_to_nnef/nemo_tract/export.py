@@ -64,6 +64,44 @@ def _apply_symbol_renames_to_dyn(
     }
 
 
+def _apply_eval_symbols(
+    test_input: list,
+    input_names: list[str],
+    subnet_name: str,
+    dyn: T.Dict[str, T.Dict[int, str]],
+    eval_symbols: T.Dict[str, T.Dict[str, int]],
+) -> list:
+    """Resize test_input tensors so eval_symbols dimensions match the target sizes."""
+    result = list(test_input)
+    for i, name in enumerate(input_names):
+        if i >= len(result):
+            break
+        qname = f"{subnet_name}.{name}"
+        evals = eval_symbols.get(qname)
+        if not evals:
+            continue
+        t = result[i]
+        if not torch.is_tensor(t):
+            continue
+        axes = dyn.get(name, {})
+        for ax_idx, sym in axes.items():
+            target = evals.get(str(sym).upper())
+            if target is not None and 0 <= ax_idx < t.dim():
+                current = t.size(ax_idx)
+                if target < current:
+                    t = t.narrow(ax_idx, 0, target)
+                elif target > current:
+                    new_shape = list(t.shape)
+                    new_shape[ax_idx] = target
+                    new_t = t.new_zeros(new_shape)
+                    slices = [slice(None)] * t.dim()
+                    slices[ax_idx] = slice(0, current)
+                    new_t[tuple(slices)] = t
+                    t = new_t
+        result[i] = t
+    return result
+
+
 def _rewrite_assertions_with_renames(
     assertions: list[str], rename_map: T.Optional[dict[str, list[str]]]
 ) -> list[str]:
@@ -621,6 +659,11 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
+        if axis_registry is not None and axis_registry.eval_symbols_per_input:
+            test_input = _apply_eval_symbols(
+                test_input, input_names, subnet_name, dyn,
+                axis_registry.eval_symbols_per_input,
+            )
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
@@ -770,6 +813,11 @@ def iter_export_params_for_generic_nemo_asr_model(
         }
         # Keep namespaced dims; we'll add targeted equality assertions below
 
+        if axis_registry is not None and axis_registry.eval_symbols_per_input:
+            test_input = _apply_eval_symbols(
+                test_input, input_names, subnet_name, dyn,
+                axis_registry.eval_symbols_per_input,
+            )
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
