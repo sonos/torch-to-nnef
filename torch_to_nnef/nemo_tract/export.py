@@ -20,6 +20,7 @@ from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import build_io
+from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.nemo_tract.config import NemoExportConfig
 from torch_to_nnef.nemo_tract.dynaxes import (
@@ -30,7 +31,6 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     decoder_fix_input_example_batch_size,
 )
-from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.utils import (
     INJECTED,
@@ -71,7 +71,7 @@ def _apply_eval_symbols(
     dyn: T.Dict[str, T.Dict[int, str]],
     eval_symbols: T.Dict[str, T.Dict[str, int]],
 ) -> list:
-    """Resize test_input tensors so eval_symbols dimensions match the target sizes."""
+    """Resize test_input tensors for eval_symbols."""
     result = list(test_input)
     for i, name in enumerate(input_names):
         if i >= len(result):
@@ -661,7 +661,10 @@ def build_preprocessor_export_params(
         dyn = dynamic_axes
         if axis_registry is not None and axis_registry.eval_symbols_per_input:
             test_input = _apply_eval_symbols(
-                test_input, input_names, subnet_name, dyn,
+                test_input,
+                input_names,
+                subnet_name,
+                dyn,
                 axis_registry.eval_symbols_per_input,
             )
         # Config-driven boundary adapter: apply tuple flattening, optional
@@ -815,7 +818,10 @@ def iter_export_params_for_generic_nemo_asr_model(
 
         if axis_registry is not None and axis_registry.eval_symbols_per_input:
             test_input = _apply_eval_symbols(
-                test_input, input_names, subnet_name, dyn,
+                test_input,
+                input_names,
+                subnet_name,
+                dyn,
                 axis_registry.eval_symbols_per_input,
             )
         # Config-driven boundary adapter: apply tuple flattening, optional

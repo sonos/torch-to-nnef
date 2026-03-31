@@ -20,7 +20,9 @@ def test_parse_eval_symbols_from_yaml():
             },
         },
     }
-    with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as f:
         yaml.dump(cfg, f)
         f.flush()
         reg = load_axis_symbol_registry(Path(f.name))
@@ -40,7 +42,9 @@ def test_parse_eval_symbols_uppercased():
             },
         },
     }
-    with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        suffix=".yaml", mode="w", delete=False
+    ) as f:
         yaml.dump(cfg, f)
         f.flush()
         reg = load_axis_symbol_registry(Path(f.name))

@@ -413,6 +413,7 @@ def _parse_nested_subnet(
         input_dims: Output collapse-dims mapping.
         output_collapse: Output per-output collapse axes.
         orig_shapes: Output map to original dims (ints/strings).
+        eval_syms: Output eval-symbols mapping.
     """
     if INPUT_FIELD_COLLAPSE_DIMS in val:
         raise T2NErrorInvalidArgument(
