@@ -16,7 +16,10 @@ Structure::
 
 import typing as T
 
-from torch_to_nnef.nemo_tract.model_loader import NEMOTRON_0_6B, PARAKEET_V3_SLUG
+from torch_to_nnef.nemo_tract.model_loader import (
+    NEMOTRON_0_6B,
+    PARAKEET_V3_SLUG,
+)
 
 # -- registry ----------------------------------------------------------------
 # Extend this mapping as new models are validated for pulsified export.

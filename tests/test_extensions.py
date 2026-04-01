@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.nemo_tract.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,
@@ -53,8 +54,8 @@ def test_parse_extensions_invalid_type():
         f.flush()
         try:
             load_axis_symbol_registry(Path(f.name))
-            assert False, "should have raised"
-        except Exception as e:
+            raise AssertionError("should have raised")
+        except T2NErrorInvalidArgument as e:
             assert "extensions" in str(e).lower()
 
 

@@ -140,9 +140,7 @@ def _normalize_tolerance(cfg: NemoTractConfig) -> None:
         )
 
 
-def _merge_slug_extensions(
-    axis_reg: AxisSymbolRegistry, slug: str
-) -> None:
+def _merge_slug_extensions(axis_reg: AxisSymbolRegistry, slug: str) -> None:
     """Merge known slug extensions into the registry as defaults.
 
     Extensions already declared in the user config take precedence:
