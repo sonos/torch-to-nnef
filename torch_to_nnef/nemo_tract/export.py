@@ -30,13 +30,8 @@ from torch_to_nnef.nemo_tract.wrappers import (
     WrapPreprocessorCast,
     decoder_fix_input_example_batch_size,
 )
-from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
-from torch_to_nnef.remodeler.dyn_axes import (
-    apply_eval_symbols,
-    apply_symbol_renames_to_dyn,
-    remove_eval_symbols_from_dyn,
-    rewrite_and_filter_assertions,
-)
+from torch_to_nnef.remodeler import prepare_subnet_export
+from torch_to_nnef.remodeler.adapter import RenameOutputs
 from torch_to_nnef.utils import (
     INJECTED,
     T2NExtra,
@@ -529,120 +524,29 @@ def build_preprocessor_export_params(
         )
 
         subnet_name = "preprocessor"
-        model = asr_model.preprocessor
-        input_names = model.input_names[: len(input_example)]
-        output_names = model.output_names
-        # Use the context-provided input_example to ensure consistency between
-        # the dynamic axes and the actual IO used during export.
-        test_input = input_example
-        dyn = dynamic_axes
-        if axis_registry is not None and axis_registry.eval_symbols_per_input:
-            test_input = apply_eval_symbols(
-                test_input,
-                input_names,
-                subnet_name,
-                dyn,
-                axis_registry.eval_symbols_per_input,
-            )
-        # Config-driven boundary adapter: apply tuple flattening, optional
-        # per-input collapse, binds, and symbol renames.
-        if axis_registry is not None:
-            rename_map = axis_registry.renamed_symbols_per_subnet.get(
-                subnet_name, {}
-            )
-            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
-                subnet_name, []
-            )
-
-            has_collapse = any(
-                q.startswith(f"{subnet_name}.")
-                for q in axis_registry.input_collapse_dims
-            )
-            has_bind = any(
-                q.startswith(f"{subnet_name}.")
-                for q in axis_registry.bind_to_dim
-            )
-            # outputs_keep that lists ALL outputs is a no-op
-            has_outputs_filter = bool(outputs_keep) and set(
-                outputs_keep
-            ) != set(output_names)
-
-            # Per-output collapse dims for this subnet
-            out_collapse = {
-                qout.split(".", 1)[1]: axes
-                for qout, axes in axis_registry.output_collapse_dims.items()
-                if qout.startswith(f"{subnet_name}.")
-            }
-            has_out_collapse = bool(out_collapse)
-
-            # Only wrap with BoundaryAdapter for structural transforms
-            if (
-                has_collapse
-                or has_bind
-                or has_outputs_filter
-                or has_out_collapse
-            ):
-                model = BoundaryAdapter(
-                    model,
-                    subnet_name,
-                    test_input,
-                    dyn,
-                    {
-                        k: set(v)
-                        for k, v in axis_registry.input_collapse_dims.items()
-                    },
-                    axis_registry.bind_to_dim,
-                    rename_map,
-                    outputs_keep=outputs_keep,
-                    output_collapse_dims=out_collapse,
-                )
-                input_names = model.input_names
-                output_names = model.output_names
-                test_input = list(model.input_example())
-                dyn = model.dynamic_shapes_for_export()
-            elif rename_map:
-                # Lightweight path: apply symbol renames to dynamic axes
-                # without wrapping the module
-                dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
-
-        # Consolidate with renames and discard assertions on removed symbols
-        custom_ext = set(
-            rewrite_and_filter_assertions(
-                list(custom_extensions),
-                (
-                    axis_registry.renamed_symbols_per_subnet
-                    if axis_registry is not None
-                    else {}
-                ).get(subnet_name, {}),
-                dyn,
-            )
+        prepared = prepare_subnet_export(
+            model=asr_model.preprocessor,
+            test_input=input_example,
+            input_names=asr_model.preprocessor.input_names[
+                : len(input_example)
+            ],
+            output_names=asr_model.preprocessor.output_names,
+            subnet_name=subnet_name,
+            dyn=dynamic_axes,
+            custom_extensions=list(custom_extensions),
+            axis_registry=axis_registry,
         )
-        # Merge user-supplied extensions from the shape config
-        if axis_registry is not None:
-            custom_ext.update(
-                axis_registry.extensions_per_subnet.get(subnet_name, [])
-            )
-
-        # Remove eval-pinned symbols from dyn *after* BoundaryAdapter has
-        # consumed them, so tract sees the pinned dims as constant.
-        if axis_registry is not None and axis_registry.eval_symbols_per_input:
-            remove_eval_symbols_from_dyn(
-                input_names,
-                subnet_name,
-                dyn,
-                axis_registry.eval_symbols_per_input,
-            )
 
         yield ExportParameters(
             name=subnet_name,
-            model=model,
-            test_input=test_input,
-            inference_target=inference_target.with_dynamic_axes(dyn),
-            input_names=input_names,
-            output_names=output_names,
-            custom_extensions=list(custom_ext),
+            model=prepared.model,
+            test_input=prepared.test_input,
+            inference_target=inference_target.with_dynamic_axes(prepared.dyn),
+            input_names=prepared.input_names,
+            output_names=prepared.output_names,
+            custom_extensions=prepared.custom_extensions,
             specific_tract_properties=build_custom_subnet_tract_properties(
-                subnet_name, model
+                subnet_name, prepared.model
             ),
         )
 
@@ -685,8 +589,6 @@ def iter_export_params_for_generic_nemo_asr_model(
             subnet, nemo_dynamic_axes, input_example
         )
 
-        model = subnet
-        test_input = input_example
         input_names = subnet.input_names[: len(input_example)]
         output_names = subnet.output_names
 
@@ -706,115 +608,28 @@ def iter_export_params_for_generic_nemo_asr_model(
             for k, v in dynamic_axes.items()
             if (k in input_names) or (_base_name_of(k) in input_names)
         }
-        # Keep namespaced dims; we'll add targeted equality assertions below
 
-        if axis_registry is not None and axis_registry.eval_symbols_per_input:
-            test_input = apply_eval_symbols(
-                test_input,
-                input_names,
-                subnet_name,
-                dyn,
-                axis_registry.eval_symbols_per_input,
-            )
-        # Config-driven boundary adapter: apply tuple flattening, optional
-        # per-input collapse, binds, and symbol renames.
-        if axis_registry is not None:
-            rename_map = axis_registry.renamed_symbols_per_subnet.get(
-                subnet_name, {}
-            )
-            outputs_keep = axis_registry.outputs_keep_per_subnet.get(
-                subnet_name, []
-            )
-
-            has_collapse = any(
-                q.startswith(f"{subnet_name}.")
-                for q in axis_registry.input_collapse_dims
-            )
-            has_bind = any(
-                q.startswith(f"{subnet_name}.")
-                for q in axis_registry.bind_to_dim
-            )
-            # outputs_keep that lists ALL outputs is a no-op
-            has_outputs_filter = bool(outputs_keep) and set(
-                outputs_keep
-            ) != set(output_names)
-
-            # Per-output collapse dims for this subnet
-            out_collapse = {
-                qout.split(".", 1)[1]: axes
-                for qout, axes in axis_registry.output_collapse_dims.items()
-                if qout.startswith(f"{subnet_name}.")
-            }
-            has_out_collapse = bool(out_collapse)
-
-            # Only wrap with BoundaryAdapter for structural transforms
-            if (
-                has_collapse
-                or has_bind
-                or has_outputs_filter
-                or has_out_collapse
-            ):
-                model = BoundaryAdapter(
-                    model,
-                    subnet_name,
-                    test_input,
-                    dyn,
-                    {
-                        k: set(v)
-                        for k, v in axis_registry.input_collapse_dims.items()
-                    },
-                    axis_registry.bind_to_dim,
-                    rename_map,
-                    outputs_keep=outputs_keep,
-                    output_collapse_dims=out_collapse,
-                )
-                input_names = model.input_names
-                output_names = model.output_names
-                test_input = list(model.input_example())
-                dyn = model.dynamic_shapes_for_export()
-            elif rename_map:
-                # Lightweight path: apply symbol renames to dynamic axes
-                # without wrapping the module
-                dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
-
-        # Consolidate with renames and discard assertions on removed symbols
-        custom_ext = set(
-            rewrite_and_filter_assertions(
-                list(custom_extensions),
-                (
-                    axis_registry.renamed_symbols_per_subnet
-                    if axis_registry is not None
-                    else {}
-                ).get(subnet_name, {}),
-                dyn,
-            )
+        prepared = prepare_subnet_export(
+            model=subnet,
+            test_input=input_example,
+            input_names=input_names,
+            output_names=output_names,
+            subnet_name=subnet_name,
+            dyn=dyn,
+            custom_extensions=list(custom_extensions),
+            axis_registry=axis_registry,
         )
-        # Merge user-supplied extensions from the shape config
-        if axis_registry is not None:
-            custom_ext.update(
-                axis_registry.extensions_per_subnet.get(subnet_name, [])
-            )
-
-        # Remove eval-pinned symbols from dyn *after* BoundaryAdapter has
-        # consumed them, so tract sees the pinned dims as constant.
-        if axis_registry is not None and axis_registry.eval_symbols_per_input:
-            remove_eval_symbols_from_dyn(
-                input_names,
-                subnet_name,
-                dyn,
-                axis_registry.eval_symbols_per_input,
-            )
 
         yield ExportParameters(
             name=subnet_name,
-            model=model,
-            test_input=test_input,
-            inference_target=inference_target.with_dynamic_axes(dyn),
-            input_names=input_names,
-            output_names=output_names,
-            custom_extensions=list(custom_ext),
+            model=prepared.model,
+            test_input=prepared.test_input,
+            inference_target=inference_target.with_dynamic_axes(prepared.dyn),
+            input_names=prepared.input_names,
+            output_names=prepared.output_names,
+            custom_extensions=prepared.custom_extensions,
             specific_tract_properties=build_custom_subnet_tract_properties(
-                subnet_name, model
+                subnet_name, prepared.model
             ),
         )
 
