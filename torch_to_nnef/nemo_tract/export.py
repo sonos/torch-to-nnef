@@ -20,6 +20,7 @@ from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target.base import InferenceTarget
 from torch_to_nnef.inference_target.tract import build_io
+from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.nemo_tract.config import NemoExportConfig
 from torch_to_nnef.nemo_tract.dynaxes import (
@@ -61,6 +62,44 @@ def _apply_symbol_renames_to_dyn(
         name: {i: inv.get(str(s).upper(), str(s)) for i, s in axes.items()}
         for name, axes in dyn.items()
     }
+
+
+def _apply_eval_symbols(
+    test_input: list,
+    input_names: list[str],
+    subnet_name: str,
+    dyn: T.Dict[str, T.Dict[int, str]],
+    eval_symbols: T.Dict[str, T.Dict[str, int]],
+) -> list:
+    """Resize test_input tensors for eval_symbols."""
+    result = list(test_input)
+    for i, name in enumerate(input_names):
+        if i >= len(result):
+            break
+        qname = f"{subnet_name}.{name}"
+        evals = eval_symbols.get(qname)
+        if not evals:
+            continue
+        t = result[i]
+        if not torch.is_tensor(t):
+            continue
+        axes = dyn.get(name, {})
+        for ax_idx, sym in axes.items():
+            target = evals.get(str(sym).upper())
+            if target is not None and 0 <= ax_idx < t.dim():
+                current = t.size(ax_idx)
+                if target < current:
+                    t = t.narrow(ax_idx, 0, target)
+                elif target > current:
+                    new_shape = list(t.shape)
+                    new_shape[ax_idx] = target
+                    new_t = t.new_zeros(new_shape)
+                    slices = [slice(None)] * t.dim()
+                    slices[ax_idx] = slice(0, current)
+                    new_t[tuple(slices)] = t
+                    t = new_t
+        result[i] = t
+    return result
 
 
 def _rewrite_assertions_with_renames(
@@ -620,6 +659,14 @@ def build_preprocessor_export_params(
         # the dynamic axes and the actual IO used during export.
         test_input = input_example
         dyn = dynamic_axes
+        if axis_registry is not None and axis_registry.eval_symbols_per_input:
+            test_input = _apply_eval_symbols(
+                test_input,
+                input_names,
+                subnet_name,
+                dyn,
+                axis_registry.eval_symbols_per_input,
+            )
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
@@ -769,6 +816,14 @@ def iter_export_params_for_generic_nemo_asr_model(
         }
         # Keep namespaced dims; we'll add targeted equality assertions below
 
+        if axis_registry is not None and axis_registry.eval_symbols_per_input:
+            test_input = _apply_eval_symbols(
+                test_input,
+                input_names,
+                subnet_name,
+                dyn,
+                axis_registry.eval_symbols_per_input,
+            )
         # Config-driven boundary adapter: apply tuple flattening, optional
         # per-input collapse, binds, and symbol renames.
         if axis_registry is not None:
@@ -857,6 +912,22 @@ def iter_export_params_for_generic_nemo_asr_model(
         )
 
 
+def _find_roots_to_rename(
+    inter: set[str], output_names: T.List[str]
+) -> set[str]:
+    """Map colliding flattened names back to their pre-flattened root names."""
+    roots: set[str] = set()
+    for flat_name in inter:
+        if flat_name in output_names:
+            roots.add(flat_name)
+        else:
+            for oname in output_names:
+                if flat_name.startswith(f"{oname}_"):
+                    roots.add(oname)
+                    break
+    return roots
+
+
 @require_extra_decorator(extra=T2NExtra.NEMO_TRACT, module="omegaconf")
 def export_nemo_asr_model(
     asr_model,
@@ -910,9 +981,24 @@ def export_nemo_asr_model(
         # Avoid name collisions between inputs and outputs for NNEF
         # (e.g., both named 'length').  This is an export-time concern
         # and does not leak into inspection or shape-config generation.
-        inter = set(input_names).intersection(set(output_names))
+        #
+        # output_names may still be pre-flattened (e.g. "states" for a
+        # tuple that becomes "states_0", "states_1" after flattening).
+        # We must check the *flattened* names to catch collisions that
+        # only appear after container expansion.
+        with torch.no_grad():
+            _test_outs = model(*export_params.test_input)
+        if isinstance(_test_outs, torch.Tensor):
+            _test_outs = (_test_outs,)
+        flat_output_names, _, _, _ = build_new_names_and_elements(
+            output_names,
+            _test_outs,
+            default_element_name_tmpl="output_{}",
+        )
+        inter = set(input_names).intersection(set(flat_output_names))
         if inter:
-            rename_map = {n: f"{n}_out" for n in inter}
+            roots_to_rename = _find_roots_to_rename(inter, output_names)
+            rename_map = {n: f"{n}_out" for n in roots_to_rename}
             model = RenameOutputs(model, rename_map)
             output_names = [rename_map.get(n, n) for n in output_names]
 

@@ -12,6 +12,7 @@ from torch_to_nnef.exceptions import (
 from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
+    INPUT_FIELD_EVAL_SYMBOLS,
     INPUT_FIELD_ORIGINAL_SHAPE,
     OUTPUT_FIELD_COLLAPSE_DIMS,
     SHAPE_KEY_INPUTS,
@@ -46,6 +47,11 @@ class AxisSymbolRegistry:
     # Per-output collapse dims: qualified output name -> list of axis indices
     # to squeeze (e.g., {"preprocessor.processed_signal": [0]})
     output_collapse_dims: T.Dict[str, T.List[int]] = field(default_factory=dict)
+    # Optional: pin dynamic symbols to concrete values in test_input tensors
+    # qualified input -> { SYMBOL: int_value }
+    eval_symbols_per_input: T.Dict[str, T.Dict[str, int]] = field(
+        default_factory=dict
+    )
     # Optional: discovered shapes with mixed ints/symbols per qualified input
     # (used for template serialization; not required when loading config)
     original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]] = field(
@@ -62,6 +68,7 @@ class AxisSymbolRegistry:
             renamed_symbols_per_subnet={},
             outputs_keep_per_subnet={},
             output_collapse_dims={},
+            eval_symbols_per_input={},
             original_shape_per_input={},
         )
 
@@ -189,6 +196,7 @@ def _nts_handle_tuple_group(
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
+    eval_syms: T.Dict[str, T.Dict[str, int]],
 ) -> None:
     """Handle tuple-group style input mapping (index -> sub-mapping)."""
     for idx_str, inner in group.items():
@@ -215,6 +223,16 @@ def _nts_handle_tuple_group(
             b = inner.get(INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE)
             if isinstance(b, str) and b:
                 binds[qname] = b
+        if INPUT_FIELD_EVAL_SYMBOLS in inner:
+            es = inner.get(INPUT_FIELD_EVAL_SYMBOLS)
+            if not isinstance(es, dict):
+                raise T2NErrorInvalidArgument(
+                    f"eval_symbols for '{qname}' must be a mapping "
+                    "{{SYMBOL: int_value}}"
+                )
+            eval_syms[qname] = {
+                str(k).strip().upper(): int(v) for k, v in es.items()
+            }
 
 
 def _nts_handle_single_mapping(
@@ -226,6 +244,7 @@ def _nts_handle_single_mapping(
     binds: T.Dict[str, str],
     input_dims: T.Dict[str, T.List[str]],
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
+    eval_syms: T.Dict[str, T.Dict[str, int]],
 ) -> None:
     """Handle single input mapping with optional shape/collapse/bind fields."""
     qbase = f"{top_key}.{inp_name}"
@@ -247,6 +266,16 @@ def _nts_handle_single_mapping(
         b = mapping.get(INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE)
         if isinstance(b, str) and b:
             binds[qbase] = b
+    if INPUT_FIELD_EVAL_SYMBOLS in mapping:
+        es = mapping.get(INPUT_FIELD_EVAL_SYMBOLS)
+        if not isinstance(es, dict):
+            raise T2NErrorInvalidArgument(
+                f"eval_symbols for '{qbase}' must be a mapping "
+                "{{SYMBOL: int_value}}"
+            )
+        eval_syms[qbase] = {
+            str(k).strip().upper(): int(v) for k, v in es.items()
+        }
 
 
 def _parse_top_level(
@@ -259,6 +288,7 @@ def _parse_top_level(
     T.Dict[str, T.List[str]],
     T.Dict[str, T.List[int]],
     T.Dict[str, T.List[T.Union[int, str]]],
+    T.Dict[str, T.Dict[str, int]],
 ]:
     """Parse top-level entries into symbols/ranks/binds/input_dims."""
     symbols: T.Dict[str, AxisSymbolMap] = {}
@@ -268,6 +298,7 @@ def _parse_top_level(
     outputs_keep: T.Dict[str, T.List[str]] = {}
     output_collapse: T.Dict[str, T.List[int]] = {}
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]] = {}
+    eval_syms: T.Dict[str, T.Dict[str, int]] = {}
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
@@ -281,6 +312,7 @@ def _parse_top_level(
                 input_dims,
                 output_collapse,
                 orig_shapes,
+                eval_syms,
             )
             if SHAPE_KEY_OUTPUTS_KEEP in val:
                 oks = val.get(SHAPE_KEY_OUTPUTS_KEEP)
@@ -309,6 +341,7 @@ def _parse_top_level(
         outputs_keep,
         output_collapse,
         orig_shapes,
+        eval_syms,
     )
 
 
@@ -367,6 +400,7 @@ def _parse_nested_subnet(
     input_dims: T.Dict[str, T.List[str]],
     output_collapse: T.Dict[str, T.List[int]],
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]],
+    eval_syms: T.Dict[str, T.Dict[str, int]],
 ) -> None:
     """Parse a nested subnet mapping into outputs.
 
@@ -379,6 +413,7 @@ def _parse_nested_subnet(
         input_dims: Output collapse-dims mapping.
         output_collapse: Output per-output collapse axes.
         orig_shapes: Output map to original dims (ints/strings).
+        eval_syms: Output eval-symbols mapping.
     """
     if INPUT_FIELD_COLLAPSE_DIMS in val:
         raise T2NErrorInvalidArgument(
@@ -436,6 +471,7 @@ def _parse_nested_subnet(
                     binds,
                     input_dims,
                     orig_shapes,
+                    eval_syms,
                 )
             else:
                 _nts_handle_single_mapping(
@@ -447,6 +483,7 @@ def _parse_nested_subnet(
                     binds,
                     input_dims,
                     orig_shapes,
+                    eval_syms,
                 )
         elif isinstance(shape, (list, tuple)):
             _validate_and_record(
@@ -493,6 +530,7 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         outputs_keep,
         output_collapse,
         orig_shapes,
+        eval_syms,
     ) = _parse_top_level(raw)
     if not symbols:
         raise T2NErrorInvalidArgument(
@@ -508,5 +546,6 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         renamed_symbols_per_subnet=renamed_per_subnet,
         outputs_keep_per_subnet=outputs_keep,
         output_collapse_dims=output_collapse,
+        eval_symbols_per_input=eval_syms,
         original_shape_per_input=orig_shapes,
     )

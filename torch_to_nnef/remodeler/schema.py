@@ -15,6 +15,7 @@ INPUT_FIELD_ORIGINAL_SHAPE = "original_shape"
 INPUT_FIELD_COLLAPSE_DIMS = "collapse_dims"
 # Canonical bind key in user config (descriptive)
 INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE = "bind_scalar_to_dim_size"
+INPUT_FIELD_EVAL_SYMBOLS = "eval_symbols"
 
 # Per-output fields
 OUTPUT_FIELD_COLLAPSE_DIMS = "collapse_dims"
@@ -27,5 +28,6 @@ __all__ = [
     "INPUT_FIELD_ORIGINAL_SHAPE",
     "INPUT_FIELD_COLLAPSE_DIMS",
     "INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE",
+    "INPUT_FIELD_EVAL_SYMBOLS",
     "OUTPUT_FIELD_COLLAPSE_DIMS",
 ]
