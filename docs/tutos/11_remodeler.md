@@ -28,6 +28,8 @@ Core concepts
   - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` for backend-facing
     symbol unification
   - `outputs_keep` (optional): list of outputs to keep (template pre-fills)
+  - `extensions` (optional): list of custom extension strings injected into
+    the exported NNEF (e.g., `tract_assert` constraints for pulsification)
 
 Symbol conventions
 - Symbols are uppercased. Providers may namespace per input (e.g., `TARGETS__TIME`, `TARGETS__BATCH`).
@@ -187,6 +189,32 @@ decoder:
 
 In this example the `targets` tensor's TIME axis is pinned to 1 and the
 `states_0` tensor's BATCH axis is pinned to 1 before tracing.
+
+Custom extensions
+
+The `extensions` field lets you inject arbitrary extension strings into the
+exported NNEF subnet. This is typically used for `tract_assert` constraints
+that encode dimensionality limits implied by the model architecture (e.g.,
+max receptive field of a conv stack) which are required for correct
+pulsification.
+
+- Extensions are per-subnet, as a list of strings.
+- Each string is passed verbatim to the NNEF export.
+- For known NeMo pretrained models, the CLI auto-populates extensions from a
+  built-in registry (`slug_extensions.py`). User-provided extensions take
+  precedence.
+
+Example:
+
+```yaml
+encoder:
+  extensions:
+    - "tract_assert AUDIO_SIGNAL__TIME<=39993"
+  inputs:
+    audio_signal:
+      original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
+      collapse_dims: [AUDIO_SIGNAL__BATCH]
+```
 
 Output collapse
 - When `collapse_dims` removes a batch axis from inputs, the internal module

@@ -62,6 +62,7 @@ from torch_to_nnef.nemo_tract.registry_utils import (
     tie_batch_symbols_in_registry,
     validate_registry_against_signatures,
 )
+from torch_to_nnef.nemo_tract.slug_extensions import get_extensions_for_slug
 from torch_to_nnef.nemo_tract.wrappers import use_pytorch_sdpa
 from torch_to_nnef.remodeler import Stage, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
@@ -139,6 +140,29 @@ def _normalize_tolerance(cfg: NemoTractConfig) -> None:
         )
 
 
+def _merge_slug_extensions(
+    axis_reg: AxisSymbolRegistry, slug: str
+) -> None:
+    """Merge known slug extensions into the registry as defaults.
+
+    Extensions already declared in the user config take precedence:
+    if a subnet already has extensions, slug defaults are not added
+    for that subnet.
+    """
+    slug_exts = get_extensions_for_slug(slug)
+    if not slug_exts:
+        return
+    for subnet, exts in slug_exts.items():
+        if subnet not in axis_reg.extensions_per_subnet:
+            axis_reg.extensions_per_subnet[subnet] = list(exts)
+        else:
+            # Append slug entries that the user didn't already declare
+            existing = set(axis_reg.extensions_per_subnet[subnet])
+            axis_reg.extensions_per_subnet[subnet].extend(
+                e for e in exts if e not in existing
+            )
+
+
 def _build_axis_registry(
     cfg: NemoTractConfig, asr_model, inference_target
 ) -> AxisSymbolRegistry:
@@ -158,12 +182,15 @@ def _build_axis_registry(
     if cfg.inspect.shape_config is None:
         default_axis_reg = dump_registry_from_signatures(raw_sigs)
         default_axis_reg = tie_batch_symbols_in_registry(default_axis_reg)
-        return auto_populate_output_collapse_dims(default_axis_reg)
+        auto_populate_output_collapse_dims(default_axis_reg)
+        _merge_slug_extensions(default_axis_reg, cfg.model.model_slug)
+        return default_axis_reg
     axis_reg = load_axis_symbol_registry(cfg.inspect.shape_config)
     validate_registry_against_signatures(raw_sigs, axis_reg)
     # Auto-populate output collapse for subnets with batch collapse when
     # the user config doesn't explicitly declare outputs.collapse_dims
     auto_populate_output_collapse_dims(axis_reg)
+    _merge_slug_extensions(axis_reg, cfg.model.model_slug)
     return axis_reg
 
 
