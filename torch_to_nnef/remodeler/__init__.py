@@ -32,6 +32,7 @@ from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
     INPUT_FIELD_ORIGINAL_SHAPE,
+    SHAPE_KEY_EXTENSIONS,
     SHAPE_KEY_INPUTS,
     SHAPE_KEY_OUTPUTS_KEEP,
     SHAPE_KEY_RENAMED,
@@ -160,7 +161,13 @@ def save_config(
                 "tag:yaml.org,2002:seq", data, flow_style=flow_seq
             )
 
+        def _repr_quoted(dumper, data):  # type: ignore[no-untyped-def]
+            return dumper.represent_scalar(
+                "tag:yaml.org,2002:str", str(data), style='"'
+            )
+
         _FlowSeqDumper.add_representer(list, _repr_seq)  # type: ignore[arg-type]
+        _FlowSeqDumper.add_representer(_QuotedStr, _repr_quoted)  # type: ignore[arg-type]
 
         payload = _registry_to_nested_mapping(registry)
         if stream is not None:
@@ -197,6 +204,10 @@ def save_config(
     assert p is not None
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(txt, encoding="utf8")
+
+
+class _QuotedStr(str):
+    """Marker for strings that must be double-quoted in YAML output."""
 
 
 def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
@@ -256,5 +267,12 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
     ).items():
         bucket = nested.setdefault(subnet, {})
         bucket[SHAPE_KEY_OUTPUTS_KEEP] = list(keep)
+
+    for subnet, exts in (
+        getattr(reg, "extensions_per_subnet", None) or {}
+    ).items():
+        if exts:
+            bucket = nested.setdefault(subnet, {})
+            bucket[SHAPE_KEY_EXTENSIONS] = [_QuotedStr(e) for e in exts]
 
     return nested

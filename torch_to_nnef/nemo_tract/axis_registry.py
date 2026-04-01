@@ -15,6 +15,7 @@ from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_EVAL_SYMBOLS,
     INPUT_FIELD_ORIGINAL_SHAPE,
     OUTPUT_FIELD_COLLAPSE_DIMS,
+    SHAPE_KEY_EXTENSIONS,
     SHAPE_KEY_INPUTS,
     SHAPE_KEY_OUTPUTS,
     SHAPE_KEY_OUTPUTS_KEEP,
@@ -57,6 +58,11 @@ class AxisSymbolRegistry:
     original_shape_per_input: T.Dict[str, T.List[T.Union[int, str]]] = field(
         default_factory=dict
     )
+    # Optional: per-subnet custom extensions (e.g., tract_assert constraints)
+    # subnet -> list of extension strings
+    extensions_per_subnet: T.Dict[str, T.List[str]] = field(
+        default_factory=dict
+    )
 
     @staticmethod
     def empty() -> "AxisSymbolRegistry":
@@ -70,6 +76,7 @@ class AxisSymbolRegistry:
             output_collapse_dims={},
             eval_symbols_per_input={},
             original_shape_per_input={},
+            extensions_per_subnet={},
         )
 
 
@@ -289,6 +296,7 @@ def _parse_top_level(
     T.Dict[str, T.List[int]],
     T.Dict[str, T.List[T.Union[int, str]]],
     T.Dict[str, T.Dict[str, int]],
+    T.Dict[str, T.List[str]],
 ]:
     """Parse top-level entries into symbols/ranks/binds/input_dims."""
     symbols: T.Dict[str, AxisSymbolMap] = {}
@@ -299,6 +307,7 @@ def _parse_top_level(
     output_collapse: T.Dict[str, T.List[int]] = {}
     orig_shapes: T.Dict[str, T.List[T.Union[int, str]]] = {}
     eval_syms: T.Dict[str, T.Dict[str, int]] = {}
+    extensions: T.Dict[str, T.List[str]] = {}
     for top_key, val in dict(raw or {}).items():
         _validate_key(top_key)
         if isinstance(val, dict):
@@ -325,6 +334,17 @@ def _parse_top_level(
                     )
                     raise T2NErrorInvalidArgument(msg)
                 outputs_keep[top_key] = [str(x) for x in oks]
+            if SHAPE_KEY_EXTENSIONS in val:
+                exts = val.get(SHAPE_KEY_EXTENSIONS)
+                if not isinstance(exts, (list, tuple)) or not all(
+                    isinstance(x, str) and x for x in exts
+                ):
+                    msg = (
+                        f"Invalid extensions for subnet '{top_key}' "
+                        "(list[str] expected)"
+                    )
+                    raise T2NErrorInvalidArgument(msg)
+                extensions[top_key] = [str(x) for x in exts]
         elif isinstance(val, (list, tuple)):
             _validate_and_record(top_key, val, symbols, ranks, orig_shapes)
         else:
@@ -342,6 +362,7 @@ def _parse_top_level(
         output_collapse,
         orig_shapes,
         eval_syms,
+        extensions,
     )
 
 
@@ -434,6 +455,7 @@ def _parse_nested_subnet(
         SHAPE_KEY_OUTPUTS,
         SHAPE_KEY_RENAMED,
         SHAPE_KEY_OUTPUTS_KEEP,
+        SHAPE_KEY_EXTENSIONS,
     }
     unknown = {k for k in val if k not in allowed}
     if unknown:
@@ -531,6 +553,7 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         output_collapse,
         orig_shapes,
         eval_syms,
+        extensions,
     ) = _parse_top_level(raw)
     if not symbols:
         raise T2NErrorInvalidArgument(
@@ -548,4 +571,5 @@ def load_axis_symbol_registry(config_path: Path) -> AxisSymbolRegistry:
         output_collapse_dims=output_collapse,
         eval_symbols_per_input=eval_syms,
         original_shape_per_input=orig_shapes,
+        extensions_per_subnet=extensions,
     )

@@ -740,6 +740,11 @@ def build_preprocessor_export_params(
                 dyn,
             )
         )
+        # Merge user-supplied extensions from the shape config
+        if axis_registry is not None:
+            custom_ext.update(
+                axis_registry.extensions_per_subnet.get(subnet_name, [])
+            )
 
         yield ExportParameters(
             name=subnet_name,
@@ -897,6 +902,11 @@ def iter_export_params_for_generic_nemo_asr_model(
                 dyn,
             )
         )
+        # Merge user-supplied extensions from the shape config
+        if axis_registry is not None:
+            custom_ext.update(
+                axis_registry.extensions_per_subnet.get(subnet_name, [])
+            )
 
         yield ExportParameters(
             name=subnet_name,

@@ -54,6 +54,8 @@ preprocessor:
       collapse_dims: [0]
   outputs_keep: [processed_signal]
 encoder:
+  extensions:
+    - "tract_assert AUDIO_SIGNAL__TIME<=39993"
   inputs:
     audio_signal:
       original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
@@ -71,6 +73,8 @@ decoder:
     targets:
       original_shape: [TARGETS__BATCH, TARGETS__TIME]
       collapse_dims: []
+      eval_symbols:
+        TARGETS__TIME: 1
     target_length:
       original_shape: [TARGET_LENGTH__BATCH]
       collapse_dims: []
