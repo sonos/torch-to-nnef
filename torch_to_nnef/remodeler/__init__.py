@@ -28,6 +28,13 @@ if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
     # Reuse the validated nested schema and data container
     from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
+from torch_to_nnef.remodeler.dyn_axes import (
+    apply_eval_symbols,
+    apply_symbol_renames_to_dyn,
+    remove_eval_symbols_from_dyn,
+    rewrite_and_filter_assertions,
+    rewrite_assertions_with_renames,
+)
 from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
@@ -48,6 +55,11 @@ __all__ = [
     "save_config",
     "BoundaryAdapter",
     "RenameOutputs",
+    "apply_eval_symbols",
+    "apply_symbol_renames_to_dyn",
+    "remove_eval_symbols_from_dyn",
+    "rewrite_and_filter_assertions",
+    "rewrite_assertions_with_renames",
 ]
 
 
