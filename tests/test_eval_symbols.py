@@ -5,7 +5,10 @@ import torch
 import yaml
 
 from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
-from torch_to_nnef.nemo_tract.export import _apply_eval_symbols
+from torch_to_nnef.remodeler.dyn_axes import (
+    apply_eval_symbols,
+    remove_eval_symbols_from_dyn,
+)
 
 
 def test_parse_eval_symbols_from_yaml():
@@ -54,20 +57,23 @@ def test_parse_eval_symbols_uppercased():
 
 def test_apply_eval_symbols_shrink():
     t = torch.randn(3, 42)
-    result = _apply_eval_symbols(
+    dyn = {"targets": {0: "BATCH", 1: "TIME"}}
+    result = apply_eval_symbols(
         test_input=[t],
         input_names=["targets"],
         subnet_name="decoder",
-        dyn={"targets": {0: "BATCH", 1: "TIME"}},
+        dyn=dyn,
         eval_symbols={"decoder.targets": {"TIME": 1}},
     )
     assert result[0].shape == (3, 1)
     assert torch.equal(result[0], t[:, :1])
+    # _apply_eval_symbols does NOT mutate dyn (that happens later)
+    assert dyn == {"targets": {0: "BATCH", 1: "TIME"}}
 
 
 def test_apply_eval_symbols_expand():
     t = torch.randn(2, 3)
-    result = _apply_eval_symbols(
+    result = apply_eval_symbols(
         test_input=[t],
         input_names=["x"],
         subnet_name="enc",
@@ -81,7 +87,7 @@ def test_apply_eval_symbols_expand():
 
 def test_apply_eval_symbols_no_match():
     t = torch.randn(3, 10)
-    result = _apply_eval_symbols(
+    result = apply_eval_symbols(
         test_input=[t],
         input_names=["x"],
         subnet_name="enc",
@@ -93,7 +99,7 @@ def test_apply_eval_symbols_no_match():
 
 def test_apply_eval_symbols_noop_same_size():
     t = torch.randn(3, 10)
-    result = _apply_eval_symbols(
+    result = apply_eval_symbols(
         test_input=[t],
         input_names=["x"],
         subnet_name="enc",
@@ -106,7 +112,7 @@ def test_apply_eval_symbols_noop_same_size():
 def test_apply_eval_symbols_multiple_inputs():
     t1 = torch.randn(3, 42)
     t2 = torch.randn(3, 20)
-    result = _apply_eval_symbols(
+    result = apply_eval_symbols(
         test_input=[t1, t2],
         input_names=["a", "b"],
         subnet_name="sub",
@@ -118,3 +124,25 @@ def test_apply_eval_symbols_multiple_inputs():
     )
     assert result[0].shape == (3, 1)
     assert result[1].shape == (3, 5)
+
+
+def testremove_eval_symbols_from_dyn():
+    dyn = {"targets": {0: "BATCH", 1: "TIME"}, "x": {0: "B"}}
+    remove_eval_symbols_from_dyn(
+        input_names=["targets", "x"],
+        subnet_name="decoder",
+        dyn=dyn,
+        eval_symbols={"decoder.targets": {"TIME": 1}},
+    )
+    assert dyn == {"targets": {0: "BATCH"}, "x": {0: "B"}}
+
+
+def test_remove_eval_symbols_from_dyn_no_match():
+    dyn = {"x": {0: "B", 1: "T"}}
+    remove_eval_symbols_from_dyn(
+        input_names=["x"],
+        subnet_name="enc",
+        dyn=dyn,
+        eval_symbols={"enc.x": {"OTHER": 1}},
+    )
+    assert dyn == {"x": {0: "B", 1: "T"}}

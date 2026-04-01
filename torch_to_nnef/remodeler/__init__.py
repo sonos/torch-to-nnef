@@ -28,6 +28,13 @@ if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
     # Reuse the validated nested schema and data container
     from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
+from torch_to_nnef.remodeler.dyn_axes import (
+    apply_eval_symbols,
+    apply_symbol_renames_to_dyn,
+    remove_eval_symbols_from_dyn,
+    rewrite_and_filter_assertions,
+    rewrite_assertions_with_renames,
+)
 from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
@@ -48,6 +55,13 @@ __all__ = [
     "save_config",
     "BoundaryAdapter",
     "RenameOutputs",
+    "apply_eval_symbols",
+    "apply_symbol_renames_to_dyn",
+    "remove_eval_symbols_from_dyn",
+    "rewrite_and_filter_assertions",
+    "rewrite_assertions_with_renames",
+    "PreparedSubnet",
+    "prepare_subnet_export",
 ]
 
 
@@ -128,6 +142,129 @@ class Provider(T.Protocol):
 def plan_from_registry(registry: T.Any) -> RemodelPlan:
     """Build a remodel plan from a validated registry (provider-specific)."""
     return RemodelPlan(registry=registry)
+
+
+@dataclass(frozen=True)
+class PreparedSubnet:
+    """Result of applying registry-driven transforms to a raw subnet."""
+
+    model: torch.nn.Module
+    test_input: list
+    input_names: list[str]
+    output_names: list[str]
+    dyn: dict[str, dict[int, str]]
+    custom_extensions: list[str]
+
+
+def prepare_subnet_export(
+    model: torch.nn.Module,
+    test_input: list,
+    input_names: list[str],
+    output_names: list[str],
+    subnet_name: str,
+    dyn: dict[str, dict[int, str]],
+    custom_extensions: list[str],
+    axis_registry: T.Optional["AxisSymbolRegistry"] = None,
+) -> PreparedSubnet:
+    """Apply all registry-driven transforms and return export-ready data.
+
+    This consolidates eval-symbol resizing, boundary adaptation (collapse,
+    bind, rename, output filtering), assertion rewriting, extension
+    merging, and eval-symbol pinning into a single call.
+
+    Providers feed in raw subnet data; the remodeler returns everything
+    needed to build final export parameters.
+    """
+    if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        test_input = apply_eval_symbols(
+            test_input,
+            input_names,
+            subnet_name,
+            dyn,
+            axis_registry.eval_symbols_per_input,
+        )
+
+    rename_map: dict[str, list[str]] = {}
+    if axis_registry is not None:
+        rename_map = axis_registry.renamed_symbols_per_subnet.get(
+            subnet_name, {}
+        )
+        outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+            subnet_name, []
+        )
+
+        has_collapse = any(
+            q.startswith(f"{subnet_name}.")
+            for q in axis_registry.input_collapse_dims
+        )
+        has_bind = any(
+            q.startswith(f"{subnet_name}.") for q in axis_registry.bind_to_dim
+        )
+        has_outputs_filter = bool(outputs_keep) and set(outputs_keep) != set(
+            output_names
+        )
+
+        out_collapse = {
+            qout.split(".", 1)[1]: axes
+            for qout, axes in axis_registry.output_collapse_dims.items()
+            if qout.startswith(f"{subnet_name}.")
+        }
+        has_out_collapse = bool(out_collapse)
+
+        if has_collapse or has_bind or has_outputs_filter or has_out_collapse:
+            model = BoundaryAdapter(
+                model,
+                subnet_name,
+                test_input,
+                dyn,
+                {
+                    k: set(v)
+                    for k, v in axis_registry.input_collapse_dims.items()
+                },
+                axis_registry.bind_to_dim,
+                rename_map,
+                outputs_keep=outputs_keep,
+                output_collapse_dims=out_collapse,
+            )
+            input_names = model.input_names
+            output_names = model.output_names
+            test_input = list(model.input_example())
+            dyn = model.dynamic_shapes_for_export()
+        elif rename_map:
+            dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
+
+    custom_ext = set(
+        rewrite_and_filter_assertions(
+            list(custom_extensions),
+            (
+                axis_registry.renamed_symbols_per_subnet
+                if axis_registry is not None
+                else {}
+            ).get(subnet_name, {}),
+            dyn,
+        )
+    )
+    if axis_registry is not None:
+        custom_ext.update(
+            axis_registry.extensions_per_subnet.get(subnet_name, [])
+        )
+
+    if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        remove_eval_symbols_from_dyn(
+            input_names,
+            subnet_name,
+            dyn,
+            axis_registry.eval_symbols_per_input,
+        )
+
+    return PreparedSubnet(
+        model=model,
+        test_input=test_input,
+        input_names=input_names,
+        output_names=output_names,
+        dyn=dyn,
+        custom_extensions=list(custom_ext),
+    )
 
 
 def save_config(
