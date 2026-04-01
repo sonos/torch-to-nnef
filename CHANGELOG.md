@@ -1,37 +1,35 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
-## Unreleased
+## [0.22.0] - 2026-04-01
 
 ### Added
-- nemo remodeler: structured `shapes.yaml` per subnet (`original_shape`, `collapse_dims`, `bind_scalar_to_dim_size`, `renamed_symbols`) to control boundary-only transforms.
-- nemo remodeler: export-time `BoundaryAdapter` applying tuple flattening, alias-aware collapse (batch and other dynamic dims), dynamic scalar binding from `shape(source)[axis]`, and dynamic-axes recomputation.
-- inspector: `--inspect-signatures`, `--inspect-stage`, `--inspect-format`, `--inspect-output`, `--inspect-diff`; human/human-rich/JSON output; model header; tuple input expansion; config overlay; per-stage diffs.
+- remodeler (`torch_to_nnef.remodeler`): generic shape-remodeling pipeline extracted from NeMo-specific logic, reusable for any export workflow.
+  - structured `shapes.yaml` per subnet (`original_shape`, `collapse_dims`, `bind_scalar_to_dim_size`, `renamed_symbols`, `eval_symbols`) to control boundary-only transforms.
+  - per-output `collapse_dims` support in shape config.
+  - export-time `BoundaryAdapter` applying tuple flattening, alias-aware collapse (batch and other dynamic dims), dynamic scalar binding from `shape(source)[axis]`, and dynamic-axes recomputation; only triggered for structural transforms, symbol-only renames applied via lightweight `_apply_symbol_renames_to_dyn`.
+  - generic `BoundaryAdapter`, `RenameOutputs` in `torch_to_nnef.remodeler.adapter`; generic `prepare_subnet_export` helper.
+  - dedicated `dyn_axes` module (`torch_to_nnef.remodeler.dyn_axes`) for dynamic-axes evaluation logic.
+  - IO collision checker for `model_wrapper`; assert extensions for NeMo models.
+  - binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
+- inspector: `--inspect-signatures`, `--inspect-stage`, `--inspect-format`, `--inspect-output`, `--inspect-diff`; human/human-rich/JSON output; model header; tuple input expansion; config overlay; per-stage diffs; stricter config validation (qualified/bare name resolution, rank mismatches); symbol overlay/substitution.
 - template dump: nested YAML with header and inline lists; auto-suggest `renamed_symbols` for decoder/decoder_joint when multiple batch-like symbols are seen across inputs.
-
-### Changed
 - symbol generation: batch dims are now namespaced as `<INPUT>__BATCH` (e.g., `ENCODER_OUTPUTS__BATCH`) for clarity and consistency across inputs.
-- inspector: stricter config validation (qualified/bare name resolution, rank mismatches with discovered shapes); symbol overlay/substitution; clearer errors and warnings.
-- export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions are consolidated to alias targets to keep headers consistent.
-- remodeler: moved generic `BoundaryAdapter` and `RenameOutputs` to `torch_to_nnef.remodeler.adapter` (previously under `nemo_tract.wrappers`), and updated usages/tests accordingly.
+- NeMo export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions consolidated to alias targets; dtype preparation (`.half()`, `WrapPreprocessorCast`) handled internally based on `cfg.data_type`; subnets with unused traced inputs handled gracefully (`check_io_names_qte_match=False`).
 
 ### Removed
 - legacy `--collapse-batch-dim` flag and its wrapper; use `shapes.yaml` (`collapse_dims`) instead.
 
 ### Fixed
 - torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).
-- `AxisSymbolRegistry.empty()` defaults and loader edge cases (tuple inputs, nested schema); fixed leftover NameError in inspector.
-- binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
 - circular import: moved `InspectFormat` enum to `config.py` to break `config→inspect→export→config` cycle; `NamingPrecisionConfig.naming_scheme` and `InspectionConfig.inspect_format` now typed as enums.
-- `export_nemo_from_model`: dtype preparation (`.half()`, `WrapPreprocessorCast`) now handled internally based on `cfg.data_type`, so callers no longer need CLI-specific model prep.
-- `BoundaryAdapter` only triggered for structural transforms (collapse, bind, output filtering); symbol-only renames applied directly to dynamic axes via lightweight `_apply_symbol_renames_to_dyn`.
-- NeMo subnets with unused traced inputs (e.g. `length` on classification encoders): `check_io_names_qte_match=False` and dynamic-axes warning instead of crash.
 - VAD model loading: fallback to `EncDecClassificationModel.from_pretrained` when `ASRModel.from_pretrained` fails.
 
 ### Tests
 - extended nemo export test suite: config variants (skip-preprocessor, float16, only-subnets, quantization, naming), shape config from YAML (parakeet full, VAD collapsed), programmatic batch-collapse with bind+strip, dry-run dump round-trip.
 - per-model tract IO tolerance (QuartzNet uses `VERY`).
 - NeMo log silencing fixture in conftest.
+- `eval_symbols` test cases.
 
 ### Docs
 - NeMo ASR guide updated with a Shapes config section: dump → edit → inspect → export, with examples for `collapse_dims`, `bind_scalar_to_dim_size`, and `renamed_symbols`.
