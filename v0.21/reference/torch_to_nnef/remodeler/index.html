@@ -3783,12 +3783,13 @@ renames), plus helpers to load/save a strict nested config.</p>
 
 
         <p>Boundary adapter applying tuple flattening and collapse at export time.</p>
-<ul>
-<li>Flattens tuple inputs to name_0, name_1, ... for external IO.</li>
-<li>Applies per-input collapse of configured dynamic axes.</li>
-<li>Re-inserts collapsed axes before invoking the inner module.</li>
-<li>Recomputes dynamic input axes to match the external interface.</li>
-</ul>
+<p>Both inputs AND outputs are flattened to flat tensor IO using
+:func:<code>build_new_names_and_elements</code>, so that the external interface
+(names, examples, dynamic axes) is always in terms of flat tensors.</p>
+<p>When <em>outputs_keep</em> is set the adapter runs one forward pass at
+construction time to discover the output structure, then validates
+<em>outputs_keep</em> against the <strong>flattened</strong> output names and filters
+accordingly.</p>
 
 
 

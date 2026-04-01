@@ -1357,6 +1357,51 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.build_new_names_and_elements" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;build_new_names_and_elements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.build_structured_inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;build_structured_inputs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.flatten_structured_outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flatten_structured_outputs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.insert_fixed_nontraceable_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;insert_fixed_nontraceable_args
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.tupleize_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tupleize_structure
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3550,6 +3595,51 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.build_new_names_and_elements" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;build_new_names_and_elements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.build_structured_inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;build_structured_inputs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.flatten_structured_outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flatten_structured_outputs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.insert_fixed_nontraceable_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;insert_fixed_nontraceable_args
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.model_wrapper.tupleize_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tupleize_structure
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3685,6 +3775,202 @@
 
 </div>
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.model_wrapper.build_new_names_and_elements" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">build_new_names_and_elements</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_new_names_and_elements</span><span class="p">(</span><span class="n">original_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">elms</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Iterable</span><span class="p">,</span> <span class="n">default_element_name_tmpl</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Build names of elements based on containers parents.</p>
+<p>Usecase 1:.
+    provide:
+        original_names: ['input', "a"]
+        elms: [[tensor, tensor, tensor], {"arm": tensor, "head": tensor}]
+Expected output names:
+    ["input_0", input_1", "input_2", "a", "head"]</p>
+
+
+<details class="usecase-2" open>
+  <summary>(undefined names)</summary>
+  <p>provide:
+    original_names: ['plop']
+    elms: [[tensor, tensor, tensor], tensor, tensor]</p>
+</details>        <p>Expected output names:
+    ["plop_0", plop_1", "plop_2",
+      default_element_name_tmpl %ix=1,
+      default_element_name_tmpl %ix=2
+    ]</p>
+
+
+<details class="usecase-3" open>
+  <summary>(dict with prefix)</summary>
+  <p>provide:
+    original_names: ['a', 'dic']
+    elms: [tensor, {"arm": tensor, "head": tensor}]</p>
+</details>        <p>Expected output names:
+    ["a", "dic_arm", "dic_head"]</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.model_wrapper.build_structured_inputs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">build_structured_inputs</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_structured_inputs</span><span class="p">(</span><span class="n">flat_args</span><span class="p">,</span> <span class="n">input_infos</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Rebuild structured inputs from a flat args sequence.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>flat_args</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Flat sequence of tensor values (non-tensor constants are
+automatically re-inserted from <em>input_infos</em>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>input_infos</code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Flattened element descriptors produced by
+:func:<code>flatten_dict_tuple_or_list</code> — each entry is
+<code>(types, indexes, original_value)</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tuple of structured arguments matching the original model signature.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.model_wrapper.flatten_structured_outputs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">flatten_structured_outputs</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">flatten_structured_outputs</span><span class="p">(</span><span class="n">struct_output</span><span class="p">,</span> <span class="n">output_infos</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Flatten structured model outputs to a flat list of tensors.</p>
+<p>If the output is already a simple tuple of tensors, it is returned as-is.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.model_wrapper.insert_fixed_nontraceable_args" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">insert_fixed_nontraceable_args</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">insert_fixed_nontraceable_args</span><span class="p">(</span><span class="n">flat_args</span><span class="p">,</span> <span class="n">input_infos</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Re-insert non-tensor constant values into the flat args list.</p>
+<p>During flattening, non-tensor elements (ints, bools, …) are recorded in
+<em>input_infos</em> but excluded from the dynamic <em>flat_args</em>.  This function
+splices them back at the correct positions so that <em>flat_args</em> aligns 1-1
+with <em>input_infos</em> again.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.model_wrapper.tupleize_structure" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">tupleize_structure</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">tupleize_structure</span><span class="p">(</span><span class="n">inps</span><span class="p">,</span> <span class="n">input_infos</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Convert mutable lists back to tuples where the original had tuples.</p>
+<p>During reconstruction lists are used because tuples are immutable.
+This pass converts them back based on the type information recorded in
+<em>input_infos</em>.</p>
+
+    </div>
+
+</div>
 
 
 
