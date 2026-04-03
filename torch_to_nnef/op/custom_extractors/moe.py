@@ -178,7 +178,10 @@ class _QwenMoEAdapter(_MoEWeightAdapter):
         return m.experts.gate_up_proj.detach()[:, half:, :].transpose(-1, -2)
 
     def top_k(self, m: nn.Module) -> int:
-        return m.top_k
+        # transformers <5.x: m.top_k, >=5.x: m.gate.top_k
+        if hasattr(m, "top_k"):
+            return m.top_k
+        return m.gate.top_k
 
 
 # ---------------------------------------------------------------------------
