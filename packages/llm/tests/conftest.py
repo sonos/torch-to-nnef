@@ -1,6 +1,15 @@
+"""LLM test configuration."""
+
 import logging
+import sys
+from pathlib import Path
 
 import pytest
+
+# Add the repo root so that ``from tests.utils import ...`` works.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def pytest_configure(config):

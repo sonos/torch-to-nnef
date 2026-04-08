@@ -59,11 +59,11 @@ from torch_to_nnef.remodeler import (
   plan_from_registry,
   save_config,
 )
-from torch_to_nnef.nemo_tract.registry_utils import (
+from torch_to_nnef_nemo.registry_utils import (
   dump_registry_from_signatures,
   validate_registry_against_signatures,
 )
-from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
+from torch_to_nnef_nemo.axis_registry import load_axis_symbol_registry
 
 # 1) Discover RAW signatures (provider-specific model omitted here)
 signatures = provider.discover_signatures(model, Stage.RAW)
@@ -98,18 +98,18 @@ import torch
 from pathlib import Path
 
 from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
-from torch_to_nnef.nemo_tract.provider import NemoProvider
+from torch_to_nnef_nemo.model_loader import load_asr_model_from_nemo_slug
+from torch_to_nnef_nemo.provider import NemoProvider
 from torch_to_nnef.remodeler import (
     Stage,
     plan_from_registry,
     save_config,
 )
-from torch_to_nnef.nemo_tract.registry_utils import (
+from torch_to_nnef_nemo.registry_utils import (
     dump_registry_from_signatures,
     validate_registry_against_signatures,
 )
-from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
+from torch_to_nnef_nemo.axis_registry import load_axis_symbol_registry
 
 # Discover and dump a starter config
 asr = load_asr_model_from_nemo_slug("<your-nemo-asr-model>").eval()
