@@ -7,23 +7,22 @@ Usage:
     cd /path/to/t2n_main
     .venv/bin/python scripts/export_moe_test_asset.py /path/to/output_dir
 """
-import sys
-import shutil
 import logging
+import shutil
+import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from transformers.models.qwen3_moe.modeling_qwen3_moe import (
+    Qwen3MoeConfig,
+    Qwen3MoeSparseMoeBlock,
+)
 
 from torch_to_nnef import export_model_to_nnef, TractNNEF
-from transformers.models.qwen3_moe.modeling_qwen3_moe import (
-    Qwen3MoeSparseMoeBlock,
-    Qwen3MoeConfig,
-)
+from torch_to_nnef.exceptions import T2NError
 
 
 class Qwen3TinyMoE(nn.Module):
@@ -77,7 +76,7 @@ def main():
                 compression_level=None,
                 log_level=logging.INFO,
             )
-        except Exception as e:
+        except T2NError as e:
             exported = export_path
             if not exported.exists():
                 raise RuntimeError(f"Export failed: {e}") from e
