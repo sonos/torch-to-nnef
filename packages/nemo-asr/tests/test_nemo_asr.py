@@ -216,11 +216,6 @@ def test_nemo_asr_marblenet_vad():
             id=QUARTZNET,
         ),
         pytest.param(
-            MARBLENET_VAD,
-            TractCheckTolerance.APPROXIMATE,
-            id=MARBLENET_VAD,
-        ),
-        pytest.param(
             FAST_CONFORMER_TDT_LARGE,
             TractCheckTolerance.APPROXIMATE,
             id=FAST_CONFORMER_TDT_LARGE,
@@ -236,7 +231,6 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
 # ---------------------------------------------------------------------------
 # Config variant tests — VAD-heavy for fast iteration
 # ---------------------------------------------------------------------------
-@pytest.mark.ci_skip
 @pytest.mark.parametrize(
     "model_slug, cfg",
     [
@@ -304,6 +298,7 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
                 subnet=SubnetSelectionConfig(split_joint_decoder=True),
             ),
             id="fast-conformer-split-decoder",
+            marks=pytest.mark.ci_skip,
         ),
     ],
 )
