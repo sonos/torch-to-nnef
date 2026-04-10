@@ -70,6 +70,10 @@ include = ["torch_to_nnef_llm"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -p no:warnings -s"
+markers = [
+    "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
+    "serial",
+]
 
 [tool.ruff]
 line-length = 80
