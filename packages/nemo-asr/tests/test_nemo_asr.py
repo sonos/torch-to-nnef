@@ -188,8 +188,17 @@ def check_export_asr_model(
 # ---------------------------------------------------------------------------
 # Default export for each model (legacy per-subnet path)
 # ---------------------------------------------------------------------------
+@pytest.mark.ci_skip
 def test_nemo_asr_parakeet_v3():
     check_export_asr_model_legacy(PARAKEET_V3_SLUG)
+
+
+def test_nemo_asr_marblenet_vad():
+    """Lightweight CI smoke test using MarbleNet VAD (~5 MB)."""
+    check_export_asr_model_legacy(
+        MARBLENET_VAD,
+        check_io_tolerance=TractCheckTolerance.APPROXIMATE,
+    )
 
 
 @pytest.mark.ci_skip

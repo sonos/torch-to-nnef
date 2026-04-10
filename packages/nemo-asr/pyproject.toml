@@ -114,7 +114,7 @@ commands_pre = [
         "nemo_toolkit[asr]==2.5.3",
     ],
 ]
-commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
+commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.nemo_tract_2_7_2]
 basepython = ["python3.13"]
@@ -129,4 +129,4 @@ commands_pre = [
     ["uv", "pip", "install", "{toxinidir}/../.."],
     ["uv", "pip", "install", "--no-deps", "{toxinidir}"],
 ]
-commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
+commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
