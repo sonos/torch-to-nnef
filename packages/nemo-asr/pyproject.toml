@@ -34,7 +34,7 @@ dependencies = [
     "numpy<2.4",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 test = [
     "pytest>=8.3.3,<9",
     "pytest-cov>=6.0.0,<7",
@@ -90,7 +90,7 @@ envlist = ["nemo_tract_2_5_3"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.tox.env_run_base]
-extras = ["test"]
+dependency_groups = ["test"]
 passenv = ["*"]
 constrain_package_deps = true
 
@@ -101,7 +101,7 @@ MODELS = "1"
 
 [tool.tox.env.nemo_tract_2_0_0]
 basepython = ["python3.13", "python3.12"]
-extras = ["test"]
+dependency_groups = ["test"]
 deps = ["matplotlib"]
 allowlist_externals = ["uv"]
 commands_pre = [
@@ -111,7 +111,7 @@ commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.nemo_tract_2_5_3]
 basepython = ["python3.12"]
-extras = ["test"]
+dependency_groups = ["test"]
 allowlist_externals = ["uv"]
 commands_pre = [
     [

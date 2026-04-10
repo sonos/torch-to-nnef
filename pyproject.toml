@@ -48,6 +48,13 @@ llm-tract-accelerate = ["torch_to_nnef_llm[accelerate]"]
 peft = ["torch_to_nnef_llm[peft]"]
 nemo-tract = ["torch_to_nnef_nemo_asr"]
 safetensors = ["safetensors"]
+[project.urls]
+Homepage = "https://github.com/sonos/torch-to-nnef"
+
+[project.entry-points."pygments.lexers"]
+nnef = "docs.nnef_lexer:NNEFLexer"
+
+[dependency-groups]
 test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
@@ -57,13 +64,6 @@ test = [
     "coverage[toml]",
     "prospector",
 ]
-[project.urls]
-Homepage = "https://github.com/sonos/torch-to-nnef"
-
-[project.entry-points."pygments.lexers"]
-nnef = "docs.nnef_lexer:NNEFLexer"
-
-[dependency-groups]
 dev = [
     "bump2version>=1.0.1,<2",
     "ipdb>=0.13.9,<0.14",
@@ -232,7 +232,7 @@ exclude_lines = [
 # -- shared base for all envs ------------------------------------------------
 
 [tool.tox.env_run_base]
-extras = ["test"]
+dependency_groups = ["test"]
 passenv = ["*"]
 constrain_package_deps = true
 

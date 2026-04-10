@@ -39,6 +39,8 @@ dependencies = [
 accelerate = ["accelerate"]
 peft = ["peft"]
 safetensors = ["safetensors"]
+
+[dependency-groups]
 test = [
     "pytest>=8.3.3,<9",
     "pytest-cov>=6.0.0,<7",
@@ -95,7 +97,7 @@ envlist = ["cli_transformers_4_55_0"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.tox.env_run_base]
-extras = ["test"]
+dependency_groups = ["test"]
 passenv = ["*"]
 constrain_package_deps = true
 
@@ -106,21 +108,21 @@ MODELS = "1"
 
 [tool.tox.env.cli_transformers_4_50_0]
 basepython = ["python3.12", "python3.13"]
-extras = ["test"]
+dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.50.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.cli_transformers_4_52_0]
 basepython = ["python3.12", "python3.13"]
-extras = ["test"]
+dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.52.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.cli_transformers_4_55_0]
 basepython = ["python3.12", "python3.13"]
-extras = ["test"]
+dependency_groups = ["test"]
 constrain_package_deps = false
 deps = ["transformers==4.55.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]

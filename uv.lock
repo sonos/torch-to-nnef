@@ -5752,15 +5752,6 @@ peft = [
 safetensors = [
     { name = "safetensors" },
 ]
-test = [
-    { name = "coverage", extra = ["toml"] },
-    { name = "mypy" },
-    { name = "prospector" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "safetensors" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -5780,22 +5771,24 @@ dev = [
     { name = "twine" },
     { name = "virtualenv" },
 ]
+test = [
+    { name = "coverage", extra = ["toml"] },
+    { name = "mypy" },
+    { name = "prospector" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "safetensors" },
+]
 
 [package.metadata]
 requires-dist = [
-    { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
     { name = "mako", specifier = ">=1.0.0,<2.0" },
-    { name = "mypy", marker = "extra == 'test'", specifier = "~=1.13" },
     { name = "nnef", specifier = ">=1.0.7,<2" },
     { name = "nnef-tools", specifier = ">=1.0.7,<2" },
     { name = "numpy", specifier = ">=1.26.0,<3" },
-    { name = "prospector", marker = "extra == 'test'" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3,<9" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7" },
     { name = "pyyaml", specifier = ">=5.0" },
-    { name = "ruff", marker = "extra == 'test'", specifier = "<1.0" },
     { name = "safetensors", marker = "extra == 'safetensors'" },
-    { name = "safetensors", marker = "extra == 'test'" },
     { name = "torch", specifier = ">=1.8.0,<3" },
     { name = "torch-to-nnef-llm", marker = "extra == 'llm-tract'", editable = "packages/llm" },
     { name = "torch-to-nnef-llm", extras = ["accelerate"], marker = "extra == 'llm-tract-accelerate'", editable = "packages/llm" },
@@ -5803,7 +5796,7 @@ requires-dist = [
     { name = "torch-to-nnef-nemo-asr", marker = "extra == 'nemo-tract'", editable = "packages/nemo-asr" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
-provides-extras = ["llm-tract", "llm-tract-accelerate", "peft", "nemo-tract", "safetensors", "test"]
+provides-extras = ["llm-tract", "llm-tract-accelerate", "peft", "nemo-tract", "safetensors"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -5822,6 +5815,15 @@ dev = [
     { name = "tox", specifier = ">=4.23.2,<5" },
     { name = "twine", specifier = ">=3.3.0,<4" },
     { name = "virtualenv", specifier = ">=20.2.2,<21" },
+]
+test = [
+    { name = "coverage", extras = ["toml"] },
+    { name = "mypy", specifier = "~=1.13" },
+    { name = "prospector" },
+    { name = "pytest", specifier = ">=8.3.3,<9" },
+    { name = "pytest-cov", specifier = ">=6.0.0,<7" },
+    { name = "ruff", specifier = "<1.0" },
+    { name = "safetensors" },
 ]
 
 [[package]]
@@ -5847,6 +5849,8 @@ peft = [
 safetensors = [
     { name = "safetensors" },
 ]
+
+[package.dev-dependencies]
 test = [
     { name = "coverage", extra = ["toml"] },
     { name = "peft" },
@@ -5858,21 +5862,25 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'accelerate'" },
-    { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
     { name = "huggingface-hub", specifier = ">0.24" },
     { name = "peft", marker = "extra == 'peft'" },
-    { name = "peft", marker = "extra == 'test'" },
     { name = "protobuf", specifier = ">5" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3,<9" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7" },
-    { name = "ruff", marker = "extra == 'test'", specifier = "<1.0" },
     { name = "safetensors", marker = "extra == 'safetensors'" },
     { name = "sentencepiece", specifier = ">=0.2.0,<0.3" },
     { name = "tokenizers", specifier = ">=0.13.3" },
     { name = "torch-to-nnef", editable = "." },
     { name = "transformers", specifier = ">=4.35.2,<5" },
 ]
-provides-extras = ["accelerate", "peft", "safetensors", "test"]
+provides-extras = ["accelerate", "peft", "safetensors"]
+
+[package.metadata.requires-dev]
+test = [
+    { name = "coverage", extras = ["toml"] },
+    { name = "peft" },
+    { name = "pytest", specifier = ">=8.3.3,<9" },
+    { name = "pytest-cov", specifier = ">=6.0.0,<7" },
+    { name = "ruff", specifier = "<1.0" },
+]
 
 [[package]]
 name = "torch-to-nnef-nemo-asr"
@@ -5887,7 +5895,7 @@ dependencies = [
     { name = "torchaudio" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 test = [
     { name = "coverage", extra = ["toml"] },
     { name = "matplotlib" },
@@ -5898,19 +5906,22 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
-    { name = "matplotlib", marker = "extra == 'test'" },
     { name = "nemo-toolkit", extras = ["asr"], specifier = ">=2.0.0,<2.8.0" },
     { name = "numpy", specifier = "<2.4" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3,<9" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7" },
     { name = "questionary" },
     { name = "rich" },
-    { name = "ruff", marker = "extra == 'test'", specifier = "<1.0" },
     { name = "torch-to-nnef", editable = "." },
     { name = "torchaudio" },
 ]
-provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+test = [
+    { name = "coverage", extras = ["toml"] },
+    { name = "matplotlib" },
+    { name = "pytest", specifier = ">=8.3.3,<9" },
+    { name = "pytest-cov", specifier = ">=6.0.0,<7" },
+    { name = "ruff", specifier = "<1.0" },
+]
 
 [[package]]
 name = "torchaudio"
