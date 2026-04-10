@@ -6,8 +6,18 @@ from pathlib import Path
 
 import pytest
 
-# Add the repo root so that ``from tests.utils import ...`` works.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+def _find_repo_root() -> Path:
+    """Walk up from this file to find the repo root (contains tests/utils.py)."""
+    p = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (p / "tests" / "utils.py").exists():
+            return p
+        p = p.parent
+    raise FileNotFoundError("cannot locate repo root with tests/utils.py")
+
+
+_REPO_ROOT = _find_repo_root()
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
