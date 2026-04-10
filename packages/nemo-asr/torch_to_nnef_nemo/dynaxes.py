@@ -38,7 +38,10 @@ def expand_input_names(
     expand_map: T.Dict[str, T.List[str]] = {}
     ranks: T.Dict[str, int] = {}
     if isinstance(input_example, (list, tuple)):
-        for name, val in zip(input_names, input_example, strict=True):
+        # Truncate to example length: NeMo >= 2.6 may list optional inputs
+        # (e.g. bypass_pre_encode) that have no corresponding example tensor.
+        input_names = input_names[: len(input_example)]
+        for name, val in zip(input_names, input_example):
             if isinstance(val, (list, tuple)) and len(val) > 0:
                 tnames: T.List[str] = []
                 for i, elem in enumerate(val):
