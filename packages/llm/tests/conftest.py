@@ -8,7 +8,7 @@ import pytest
 
 
 def _find_repo_root() -> Path:
-    """Walk up from this file to find the repo root (contains tests/utils.py)."""
+    """Walk up to find the repo root (contains tests/utils.py)."""
     p = Path(__file__).resolve().parent
     for _ in range(10):
         if (p / "tests" / "utils.py").exists():

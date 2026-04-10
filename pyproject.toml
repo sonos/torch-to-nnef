@@ -189,6 +189,7 @@ disable = [
     "unused-argument",
     "unused-wildcard-import",
     "wrong-import-position",
+    "wrong-import-order",            # ruff/isort handles this with correct first-party config
     "import-error",                  # prospector have trouble with nnef, nnef_tools
     "cyclic-import",                 # false trigger in prospector
 ]
