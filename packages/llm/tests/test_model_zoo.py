@@ -24,7 +24,7 @@ with contextlib.suppress(ImportError):
 
 from torch_to_nnef.inference_target import TractNNEF
 
-from .utils import (  # noqa: E402
+from tests.utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,

@@ -355,7 +355,7 @@ class LLMExporter:
         else:
             err_check("logits", wrapped_outs[0], outs["logits"])
             for kv_name, ref, cand in zip(
-                out_cache_names, out_pkv, wrapped_outs[1:]
+                out_cache_names, out_pkv, wrapped_outs[1:], strict=True
             ):
                 err_check(kv_name, ref, cand)
             LOGGER.info(

@@ -139,7 +139,7 @@ def collect_signatures(
             test_in,
             default_element_name_tmpl="input_{}",
         )
-        for name, t in zip(flat_in_names, flat_in_tensors):
+        for name, t in zip(flat_in_names, flat_in_tensors, strict=True):
             sym_map = (
                 (dyn_axes.get(name) or {}) if isinstance(dyn_axes, dict) else {}
             )
@@ -159,7 +159,7 @@ def collect_signatures(
             out_names, out_tensors = _flatten_outputs(
                 ep.output_names, test_outs
             )
-            for nm, t in zip(out_names, out_tensors):
+            for nm, t in zip(out_names, out_tensors, strict=True):
                 shp = _tensor_shape_with_symbols(t, {})
                 dt = _dtype_of(t)
                 outputs.append(

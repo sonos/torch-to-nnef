@@ -53,6 +53,7 @@ test = [
     "pytest-cov>=6.0.0,<7",
     "pytest>=8.3.3,<9",
     "ruff<1.0",
+    "safetensors",
     "torchaudio>=0.9.0,<3",
     "torchvision>=0.10.0,<0.25",
     "librosa==0.11.0",
@@ -154,6 +155,9 @@ markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
 ]
+
+[tool.isort]
+known_first_party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
 
 [tool.pylint.master]
 py-version = "3.10"

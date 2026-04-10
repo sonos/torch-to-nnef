@@ -332,7 +332,7 @@ class DecoderWithoutTargetLength(torch.nn.Module):
         self, inputs: T.List[torch.Tensor]
     ) -> T.List[torch.Tensor]:
         filtered_inputs = []
-        for name, tensor in zip(self.decoder.input_names, inputs):
+        for name, tensor in zip(self.decoder.input_names, inputs, strict=True):
             if name != self.FILTER_ARGUMENT:
                 filtered_inputs.append(tensor)
         return filtered_inputs
@@ -412,7 +412,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         ex = self._get_module_input_example()
         if not isinstance(ex, (list, tuple)):
             return
-        for name, t in zip(self._orig_input_names, ex):
+        for name, t in zip(self._orig_input_names, ex, strict=True):
             if is_length_name(name):
                 continue
             if (
@@ -465,7 +465,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
 
     def _process_input_example(self, ex) -> T.Tuple[torch.Tensor, ...]:
         out: T.List[T.Any] = []
-        for name, t in zip(self._orig_input_names, ex):
+        for name, t in zip(self._orig_input_names, ex, strict=True):
             if is_length_name(name):
                 continue
             # Proactively squeeze batch axes wherever they may be located
@@ -501,7 +501,7 @@ class CollapseBatchDimWrapper(torch.nn.Module):
         ex = self.input_example()
         ranks = {
             n: (t.dim() if torch.is_tensor(t) else 0)
-            for n, t in zip(self.input_names, ex or ())  # type: ignore[arg-type]
+            for n, t in zip(self.input_names, ex or (), strict=True)  # type: ignore[arg-type]
         }
         return filter_dynamic_axes_by_ranks(self._collapsed_axes or {}, ranks)
 
