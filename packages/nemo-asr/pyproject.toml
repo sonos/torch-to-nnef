@@ -98,6 +98,7 @@ constrain_package_deps = true
 PYTHONPATH = "{toxinidir}/../.."
 PYTHONWARNINGS = "ignore"
 MODELS = "1"
+T2N_TEST_TRACT_VERSION = "0.23.0-dev.3"
 
 [tool.tox.env.nemo_tract_2_0_0]
 basepython = ["python3.13", "python3.12"]
