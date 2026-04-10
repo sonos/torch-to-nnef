@@ -98,19 +98,25 @@ MODELS = "1"
 [tool.tox.env.nemo_tract_2_0_0]
 basepython = ["python3.13", "python3.12"]
 extras = ["test"]
-constrain_package_deps = false
-deps = ["nemo_toolkit[asr]==2.0.0", "matplotlib"]
+deps = ["matplotlib"]
+allowlist_externals = ["uv"]
+commands_pre = [
+    ["uv", "pip", "install", "nemo_toolkit[asr]==2.0.0"],
+]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
 
 [tool.tox.env.nemo_tract_2_5_3]
 basepython = ["python3.12"]
 extras = ["test"]
-constrain_package_deps = false
-deps = [
-    "-i https://download.pytorch.org/whl/cpu",
-    "torch==2.5.*",
-    "torchvision==0.20.*",
-    "torchaudio==2.5.*",
-    "nemo_toolkit[asr]==2.5.3",
+allowlist_externals = ["uv"]
+commands_pre = [
+    [
+        "uv", "pip", "install",
+        "-i", "https://download.pytorch.org/whl/cpu",
+        "torch==2.5.*",
+        "torchvision==0.20.*",
+        "torchaudio==2.5.*",
+        "nemo_toolkit[asr]==2.5.3",
+    ],
 ]
 commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
