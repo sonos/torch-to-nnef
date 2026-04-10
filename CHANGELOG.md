@@ -1,6 +1,29 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
+## [0.23.0] - 2026-04-10
+
+### Changed
+- Split into 3 independent packages in a uv workspace monorepo:
+  - `torch_to_nnef` (core) -- base export library, Python >=3.9
+  - `torch_to_nnef_llm` (LLM + PEFT) -- transformers-based export, Python >=3.10
+  - `torch_to_nnef_nemo_asr` (NeMo ASR) -- NeMo ASR export, Python >=3.10
+- `requires-python = ">=3.9"` now enabled on core (was disabled due to nemo constraints).
+- `pyyaml` added to core dependencies (was transitive via nemo).
+- Decouple `remodeler` from nemo: use `T.Any` for registry types instead of importing `AxisSymbolRegistry`.
+- Each sub-package manages its own `_optional_types.py` for dependency-injection type stubs.
+- Test dependencies moved from extras to dependency-groups (PEP 735) -- `pip install torch_to_nnef[test]` no longer works; use `uv sync --group test` instead.
+- Core test suite split into lightweight core envs and heavy zoo envs (torchvision/torchaudio/librosa) with matched version pins per torch version.
+- Release workflow builds and publishes all 3 packages (core first, then LLM and NeMo).
+
+### Migration
+- CLI commands unchanged: `t2n_export_llm_to_tract`, `t2n_export_peft_to_nnef`, `t2n_export_nemo` work as before.
+- Install: `pip install torch_to_nnef[llm-tract]` still works (backward-compat redirect extras).
+- Python imports changed:
+  - `from torch_to_nnef.llm_tract.X` becomes `from torch_to_nnef_llm.X`
+  - `from torch_to_nnef.nemo_tract.X` becomes `from torch_to_nnef_nemo.X`
+  - `from torch_to_nnef.peft.X` becomes `from torch_to_nnef_llm.peft.X`
+
 ## [0.22.0] - 2026-04-01
 
 ### Added
