@@ -5,8 +5,8 @@ and boundary-only transforms (collapse, bind, and backend-facing symbol
 renames), plus helpers to load/save a strict nested config.
 
 Notes:
-- The concrete YAML/JSON schema is identical to the NeMo remodeler and is
-  parsed by the shared AxisSymbolRegistry loader used in the NeMo path.
+- The concrete YAML/JSON schema is parsed by domain-specific loaders
+  (e.g. AxisSymbolRegistry in the NeMo package).
 - Providers are expected to discover per-subnet signatures, and to apply a
   remodel plan by wrapping inner modules with an adapter that enforces the
   external boundary while preserving the internal contract.
@@ -19,14 +19,10 @@ import typing as T
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import torch
 import yaml
 
-if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
-    # Reuse the validated nested schema and data container
-    from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
 from torch_to_nnef.remodeler.dyn_axes import (
     apply_eval_symbols,
@@ -110,13 +106,15 @@ class SubnetSignature:
 
 @dataclass(frozen=True)
 class RemodelPlan:
-    """A remodel plan built from a validated AxisSymbolRegistry.
+    """A remodel plan built from a validated axis-symbol registry.
 
     Attributes:
     - registry: The validated, parsed axis registry (nested schema).
+        Typically an ``AxisSymbolRegistry`` instance provided by a
+        domain package (e.g. ``torch_to_nnef_nemo``).
     """
 
-    registry: "AxisSymbolRegistry"
+    registry: T.Any
 
 
 class Provider(T.Protocol):
@@ -164,7 +162,7 @@ def prepare_subnet_export(
     subnet_name: str,
     dyn: dict[str, dict[int, str]],
     custom_extensions: list[str],
-    axis_registry: T.Optional["AxisSymbolRegistry"] = None,
+    axis_registry: T.Optional[T.Any] = None,
 ) -> PreparedSubnet:
     """Apply all registry-driven transforms and return export-ready data.
 
@@ -269,7 +267,7 @@ def prepare_subnet_export(
 
 def save_config(
     path: T.Union[Path, str, None],
-    registry: "AxisSymbolRegistry",
+    registry: T.Any,
     *,
     flow_seq: bool = True,
     stream: T.Optional[T.TextIO] = None,

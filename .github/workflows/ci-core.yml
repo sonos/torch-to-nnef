@@ -1,0 +1,57 @@
+name: core CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "torch_to_nnef/**"
+      - "tests/**"
+      - "pyproject.toml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "torch_to_nnef/**"
+      - "tests/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create matrix
+        id: create_matrix
+        uses: fabiocaccamo/create-matrix-action@v3
+        with:
+          matrix: |
+            python-version {3.9}, tox-env {"py39", "torch_1_10", "torch_1_13", "zoo_py39", "zoo_torch_1_10", "zoo_torch_1_13"}
+            python-version {3.12}, tox-env {"torch_2_2", "zoo_torch_2_2"}
+            python-version {3.13}, tox-env {"py313", "zoo_py313", "format_check", "static_check"}
+
+    outputs:
+      matrix: ${{ steps.create_matrix.outputs.matrix }}
+
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.prepare.outputs.matrix)}}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox==4.23.2
+
+      - name: test with tox
+        run: tox run -e ${{ matrix.tox-env }}

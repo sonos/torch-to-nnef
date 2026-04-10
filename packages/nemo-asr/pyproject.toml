@@ -1,0 +1,126 @@
+[project]
+name = "torch_to_nnef_nemo_asr"
+version = "0.22.0"
+description = "NeMo ASR export to NNEF via torch-to-nnef."
+authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+license = "MIT AND Apache-2.0"
+license-files = []
+requires-python = ">=3.10"
+readme = {text = "NeMo ASR export to NNEF. See [torch-to-nnef](https://github.com/sonos/torch-to-nnef) for details.", content-type = "text/markdown"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = [
+    "nnef",
+    "pytorch",
+    "torch",
+    "nemo",
+    "asr",
+    "export",
+]
+dependencies = [
+    "torch_to_nnef>=0.22.0",
+    "nemo_toolkit[asr]>=2.0.0,<2.8.0",
+    "torchaudio",
+    "questionary",
+    "rich",
+    "numpy<2.4",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=8.3.3,<9",
+    "pytest-cov>=6.0.0,<7",
+    "ruff<1.0",
+    "matplotlib",
+    "coverage[toml]",
+]
+
+[project.scripts]
+t2n_export_nemo = "torch_to_nnef_nemo.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sonos/torch-to-nnef"
+
+[tool.uv.sources]
+torch_to_nnef = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.20"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["torch_to_nnef_nemo"]
+
+[tool.hatch.build.targets.wheel]
+include = ["torch_to_nnef_nemo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers -p no:warnings -s"
+markers = [
+    "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
+    "serial",
+]
+
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "SIM", "I", "G", "D"]
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.tox]
+isolated_build = true
+envlist = ["nemo_tract_2_5_3"]
+requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
+
+[tool.tox.env_run_base]
+dependency_groups = ["test"]
+passenv = ["*"]
+constrain_package_deps = true
+
+[[tool.tox.env_run_base.setenv]]
+PYTHONPATH = "{toxinidir}/../.."
+PYTHONWARNINGS = "ignore"
+MODELS = "1"
+
+[tool.tox.env.nemo_tract_2_0_0]
+basepython = ["python3.13", "python3.12"]
+dependency_groups = ["test"]
+deps = ["matplotlib"]
+allowlist_externals = ["uv"]
+commands_pre = [
+    ["uv", "pip", "install", "nemo_toolkit[asr]==2.0.0"],
+]
+commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
+
+[tool.tox.env.nemo_tract_2_5_3]
+basepython = ["python3.12"]
+dependency_groups = ["test"]
+allowlist_externals = ["uv"]
+commands_pre = [
+    [
+        "uv", "pip", "install",
+        "-i", "https://download.pytorch.org/whl/cpu",
+        "torch==2.5.*",
+        "torchvision==0.20.*",
+        "torchaudio==2.5.*",
+        "nemo_toolkit[asr]==2.5.3",
+    ],
+]
+commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]

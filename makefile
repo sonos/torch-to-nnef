@@ -1,4 +1,4 @@
-sources = torch_to_nnef
+sources = torch_to_nnef packages/llm/torch_to_nnef_llm packages/nemo-asr/torch_to_nnef_nemo
 
 .PHONY: test format lint unittest coverage pre-commit clean
 test: format lint unittest
