@@ -12,7 +12,6 @@ import torchaudio
 import torchvision
 from torch.jit._trace import TracerWarning
 from torchaudio import models as audio_mdl
-from transformers import AlbertModel, AlbertTokenizer
 
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
@@ -24,7 +23,7 @@ with contextlib.suppress(ImportError):
 
 from torch_to_nnef.inference_target import TractNNEF
 
-from tests.utils import (  # noqa: E402
+from .utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
     check_model_io_test,
@@ -190,20 +189,6 @@ test_suite.add(
 # albert {
 
 
-class ALBERTModel(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = AlbertModel.from_pretrained("albert-base-v2")
-
-    def forward(self, *args):
-        outputs = self.model(*args)
-        last_hidden_states = outputs.last_hidden_state
-        return last_hidden_states
-
-
-# }
-
-
 def inference_modifier_tract_tol_arm(inference_target):
     inference_target = deepcopy(inference_target)
     if (
@@ -222,6 +207,18 @@ def tract_upper_than_21_7_or_not_arm(inference_target):
 
 
 try:
+    from transformers import AlbertModel, AlbertTokenizer
+
+    class ALBERTModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.model = AlbertModel.from_pretrained("albert-base-v2")
+
+        def forward(self, *args):
+            outputs = self.model(*args)
+            last_hidden_states = outputs.last_hidden_state
+            return last_hidden_states
+
     tokenizer = AlbertTokenizer.from_pretrained("albert-base-v2")
     inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 
@@ -234,6 +231,8 @@ try:
     )
 except ImportError:
     print("missing deps to test on albert model")
+
+# }
 
 
 @pytest.mark.parametrize(
