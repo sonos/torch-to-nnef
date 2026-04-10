@@ -2881,6 +2881,39 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#0230-2026-04-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      [0.23.0] - 2026-04-10
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.23.0] - 2026-04-10">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#0220-2026-04-01" class="md-nav__link">
     <span class="md-ellipsis">
       [0.22.0] - 2026-04-01
@@ -2960,7 +2993,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -3002,7 +3035,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6368,6 +6401,39 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#0230-2026-04-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      [0.23.0] - 2026-04-10
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.23.0] - 2026-04-10">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#0220-2026-04-01" class="md-nav__link">
     <span class="md-ellipsis">
       [0.22.0] - 2026-04-01
@@ -6447,7 +6513,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed" class="md-nav__link">
+  <a href="#changed_1" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -6489,7 +6555,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       Changed
     </span>
@@ -9841,6 +9907,30 @@
 
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 <h1 id="changelog">Changelog</h1>
+<h2 id="0230-2026-04-10">[0.23.0] - 2026-04-10</h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>Split into 3 independent packages in a uv workspace monorepo:</li>
+<li><code>torch_to_nnef</code> (core) -- base export library, Python &gt;=3.9</li>
+<li><code>torch_to_nnef_llm</code> (LLM + PEFT) -- transformers-based export, Python &gt;=3.10</li>
+<li><code>torch_to_nnef_nemo_asr</code> (NeMo ASR) -- NeMo ASR export, Python &gt;=3.10</li>
+<li><code>requires-python = "&gt;=3.9"</code> now enabled on core (was disabled due to nemo constraints).</li>
+<li><code>pyyaml</code> added to core dependencies (was transitive via nemo).</li>
+<li>Decouple <code>remodeler</code> from nemo: use <code>T.Any</code> for registry types instead of importing <code>AxisSymbolRegistry</code>.</li>
+<li>Each sub-package manages its own <code>_optional_types.py</code> for dependency-injection type stubs.</li>
+<li>Test dependencies moved from extras to dependency-groups (PEP 735) -- <code>pip install torch_to_nnef[test]</code> no longer works; use <code>uv sync --group test</code> instead.</li>
+<li>Core test suite split into lightweight core envs and heavy zoo envs (torchvision/torchaudio/librosa) with matched version pins per torch version.</li>
+<li>Release workflow builds and publishes all 3 packages (core first, then LLM and NeMo).</li>
+</ul>
+<h3 id="migration">Migration</h3>
+<ul>
+<li>CLI commands unchanged: <code>t2n_export_llm_to_tract</code>, <code>t2n_export_peft_to_nnef</code>, <code>t2n_export_nemo</code> work as before.</li>
+<li>Install: <code>pip install torch_to_nnef[llm-tract]</code> still works (backward-compat redirect extras).</li>
+<li>Python imports changed:</li>
+<li><code>from torch_to_nnef.llm_tract.X</code> becomes <code>from torch_to_nnef_llm.X</code></li>
+<li><code>from torch_to_nnef.nemo_tract.X</code> becomes <code>from torch_to_nnef_nemo.X</code></li>
+<li><code>from torch_to_nnef.peft.X</code> becomes <code>from torch_to_nnef_llm.peft.X</code></li>
+</ul>
 <h2 id="0220-2026-04-01">[0.22.0] - 2026-04-01</h2>
 <h3 id="added">Added</h3>
 <ul>
@@ -9892,7 +9982,7 @@
 <li>Tract option: <code>--tract-reify-sdpa</code> to reify SDP attention for improved tract optimizations.</li>
 <li>Versioning: new SemVer 2.0 utilities (<code>SemanticVersion</code>) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li>NNEF export artifacts: honoring <code>.nnef.tgz</code> as an intent for the final archive while always writing to the base <code>.nnef</code> path internally; consistent selection of directory (<code>compression=None</code>), <code>.tar</code> (<code>0</code>), or <code>.tgz</code> (<code>1..9</code>).</li>
 <li>Writer: explicit <code>archive_format</code> for predictable <code>.tar</code> vs <code>.tgz</code> emission; avoids unnecessary fragment extensions for Tract targets.</li>
@@ -9920,7 +10010,7 @@
 <li>Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior</li>
 <li>Support for runtime config in nemo tract rust example to better control the runner.</li>
 </ul>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li>Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations</li>
 <li>NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities</li>
