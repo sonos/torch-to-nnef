@@ -100,16 +100,6 @@ PYTHONWARNINGS = "ignore"
 MODELS = "1"
 T2N_TEST_TRACT_VERSION = "0.23.0-dev.3"
 
-[tool.tox.env.nemo_tract_2_0_0]
-basepython = ["python3.13", "python3.12"]
-dependency_groups = ["test"]
-deps = ["matplotlib"]
-allowlist_externals = ["uv"]
-commands_pre = [
-    ["uv", "pip", "install", "nemo_toolkit[asr]==2.0.0"],
-]
-commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
-
 [tool.tox.env.nemo_tract_2_5_3]
 basepython = ["python3.12"]
 dependency_groups = ["test"]
