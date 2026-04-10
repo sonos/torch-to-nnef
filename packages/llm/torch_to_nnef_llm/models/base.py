@@ -6,13 +6,13 @@ from contextlib import contextmanager
 from functools import partial, wraps
 
 import torch
+
 from torch_to_nnef.utils import (
     INJECTED,
     SemanticVersion,
     T2NExtra,
     require_extra_decorator,
 )
-
 from torch_to_nnef_llm._optional_types import (
     InjectedTransformersCacheUtilsModule,
     InjectedTransformersModule,

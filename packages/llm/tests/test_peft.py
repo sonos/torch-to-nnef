@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch_to_nnef.utils import cd
 from transformers import AutoModelForCausalLM
 
+from torch_to_nnef.utils import cd
 from torch_to_nnef_llm.config import LlamaSlugs
 from torch_to_nnef_llm.peft.cli import (
     NAME_PLACEHOLDER,

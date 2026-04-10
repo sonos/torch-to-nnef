@@ -1,5 +1,4 @@
 from torch_to_nnef.remodeler import IODescriptor, Stage, SubnetSignature
-
 from torch_to_nnef_nemo.axis_registry import AxisSymbolRegistry
 from torch_to_nnef_nemo.registry_utils import (
     validate_registry_against_signatures,

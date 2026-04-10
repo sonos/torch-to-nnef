@@ -142,6 +142,9 @@ ignore = [
 ]
 
 
+[tool.ruff.lint.isort]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

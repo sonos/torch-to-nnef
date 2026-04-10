@@ -14,7 +14,6 @@ from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 from torch_to_nnef.log import init_log
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-
 from torch_to_nnef_llm.config import (
     DtypeStr,
     ExportDirStruct,

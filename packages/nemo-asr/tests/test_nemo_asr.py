@@ -3,21 +3,21 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch_to_nnef.utils import SemanticVersion
-
 from tests.utils import (
     TRACT_INFERENCES_TO_TESTS_APPROX,
     check_model_io_test,
     cond_tract_gt_0_22_0,
 )
 
+from torch_to_nnef.utils import SemanticVersion
+
 try:
     import nemo
     import nemo.collections.asr as nemo_asr  # noqa: F401
+
     from torch_to_nnef.inference_target.tract import TractCheckTolerance
     from torch_to_nnef.remodeler import Stage, save_config
     from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-
     from torch_to_nnef_nemo import (
         PARAKEET_V3_SLUG,
         iter_export_params_for_generic_nemo_asr_model,

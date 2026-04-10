@@ -5,8 +5,9 @@ Help with dependency injection for transformers, huggingface-hub, and peft.
 
 from typing import TYPE_CHECKING, Any, Protocol, Union
 
-from torch_to_nnef.utils import Injected
 from typing_extensions import TypeAlias
+
+from torch_to_nnef.utils import Injected
 
 
 class _TransformersCacheUtilsProto(Protocol):

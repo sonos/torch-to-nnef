@@ -2,6 +2,7 @@ import typing as T
 from dataclasses import dataclass
 
 import torch
+
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.remodeler import (
     IODescriptor,
@@ -10,7 +11,6 @@ from torch_to_nnef.remodeler import (
     Stage,
     SubnetSignature,
 )
-
 from torch_to_nnef_nemo.export import (
     iter_export_params_for_generic_nemo_asr_model,
 )

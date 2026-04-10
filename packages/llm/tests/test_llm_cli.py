@@ -6,16 +6,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from torch_to_nnef.compress import DEFAULT_COMPRESSION
-from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
-from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
-from torch_to_nnef.utils import torch_version
-
 from tests.utils import (
     IS_DEBUG,
     TRACT_INFERENCES_TO_TESTS_APPROX,
     transformers_tract_export_test_condition,
 )
+
+from torch_to_nnef.compress import DEFAULT_COMPRESSION
+from torch_to_nnef.inference_target.tract import TractCheckTolerance, TractNNEF
+from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
+from torch_to_nnef.utils import torch_version
 from torch_to_nnef_llm.config import (
     ExportDirStruct,
     Gemma3Slugs,

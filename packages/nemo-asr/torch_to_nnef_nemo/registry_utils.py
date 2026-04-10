@@ -2,7 +2,6 @@ import typing as T
 
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.remodeler import SubnetSignature
-
 from torch_to_nnef_nemo.axis_registry import (
     AxisSymbolRegistry,
 )

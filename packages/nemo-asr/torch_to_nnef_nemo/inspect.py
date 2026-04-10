@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
+
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.model_wrapper import build_new_names_and_elements
 from torch_to_nnef.remodeler import (
@@ -20,7 +21,6 @@ from torch_to_nnef.remodeler.inspect_utils import (
 from torch_to_nnef.remodeler.rich_render import print_signatures_rich
 from torch_to_nnef.remodeler.serialize import write_signatures_json
 from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
-
 from torch_to_nnef_nemo.config import InspectFormat
 from torch_to_nnef_nemo.export import (
     iter_export_params_for_generic_nemo_asr_model,

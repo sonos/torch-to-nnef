@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
 from torch import nn
-from torch_to_nnef.export import export_model_to_nnef
 from transformers.generation.utils import DynamicCache
 
-from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX
+from torch_to_nnef.export import export_model_to_nnef
 
 MISSING_PHI = False
 try:

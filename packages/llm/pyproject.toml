@@ -79,6 +79,9 @@ target-version = "py310"
 select = ["E", "F", "B", "SIM", "I", "G", "D"]
 ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -100,17 +103,20 @@ MODELS = "1"
 [tool.tox.env.cli_transformers_4_50_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
+constrain_package_deps = false
 deps = ["transformers==4.50.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.cli_transformers_4_52_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
+constrain_package_deps = false
 deps = ["transformers==4.52.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
 [tool.tox.env.cli_transformers_4_55_0]
 basepython = ["python3.12", "python3.13"]
 extras = ["test"]
+constrain_package_deps = false
 deps = ["transformers==4.55.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]

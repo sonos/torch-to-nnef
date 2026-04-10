@@ -2,10 +2,9 @@ from copy import deepcopy
 
 import pytest
 import torch
+from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 from torch import nn
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
-
-from tests.utils import TRACT_INFERENCES_TO_TESTS_APPROX, check_model_io_test
 
 
 class MyModel(nn.Module):

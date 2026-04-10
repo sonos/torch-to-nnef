@@ -2,9 +2,9 @@ import tempfile
 from pathlib import Path
 
 import yaml
+
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.remodeler import save_config
-
 from torch_to_nnef_nemo.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,

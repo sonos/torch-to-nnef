@@ -21,6 +21,7 @@ from enum import Enum
 from pathlib import Path
 
 import torch
+
 from torch_to_nnef.inference_target.tract import (
     TractCheckTolerance,
     TractCli,
@@ -30,7 +31,6 @@ from torch_to_nnef.log import init_log, set_lib_log_level
 from torch_to_nnef.remodeler import Stage, save_config
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import SemanticVersion, normalize_cli_list_option
-
 from torch_to_nnef_nemo.axis_registry import (
     AxisSymbolRegistry,
     load_axis_symbol_registry,

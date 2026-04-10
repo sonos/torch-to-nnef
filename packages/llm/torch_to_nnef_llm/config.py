@@ -5,9 +5,9 @@ from enum import Enum
 from functools import partial
 
 import torch
-from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from transformers import AutoConfig, AutoTokenizer
 
+from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef_llm.models.base import (
     BaseCausal,
     BaseCausalWithDynCacheAndTriu,

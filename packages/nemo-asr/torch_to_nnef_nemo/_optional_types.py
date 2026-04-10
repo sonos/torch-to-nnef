@@ -6,8 +6,9 @@ questionary, torchaudio, and huggingface-hub.
 
 from typing import TYPE_CHECKING, Any, Union
 
-from torch_to_nnef.utils import Injected
 from typing_extensions import TypeAlias
+
+from torch_to_nnef.utils import Injected
 
 if TYPE_CHECKING:
     import huggingface_hub

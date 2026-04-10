@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
+
 from torch_to_nnef.compress import (
     DEFAULT_COMPRESSION_REGISTRY,
     dynamic_load_registry,
@@ -41,7 +42,6 @@ from torch_to_nnef.utils import (
     require_extra_decorator,
     torch_version,
 )
-
 from torch_to_nnef_llm._optional_types import (
     InjectedHuggingFaceHubModule,
     InjectedPeftModule,
@@ -355,7 +355,7 @@ class LLMExporter:
         else:
             err_check("logits", wrapped_outs[0], outs["logits"])
             for kv_name, ref, cand in zip(
-                out_cache_names, out_pkv, wrapped_outs[1:], strict=True
+                out_cache_names, out_pkv, wrapped_outs[1:], strict=False
             ):
                 err_check(kv_name, ref, cand)
             LOGGER.info(

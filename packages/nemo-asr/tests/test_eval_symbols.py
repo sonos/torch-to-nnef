@@ -3,11 +3,11 @@ from pathlib import Path
 
 import torch
 import yaml
+
 from torch_to_nnef.remodeler.dyn_axes import (
     apply_eval_symbols,
     remove_eval_symbols_from_dyn,
 )
-
 from torch_to_nnef_nemo.axis_registry import load_axis_symbol_registry
 
 

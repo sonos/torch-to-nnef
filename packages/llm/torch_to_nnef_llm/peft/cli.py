@@ -11,6 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import torch
+
 from torch_to_nnef.exceptions import T2NErrorMisuse
 from torch_to_nnef.export import (
     export_tensors_from_disk_to_nnef,

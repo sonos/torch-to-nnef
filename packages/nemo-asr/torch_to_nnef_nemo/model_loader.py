@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
-from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 
+from torch_to_nnef.utils import INJECTED, T2NExtra, require_extra_decorator
 from torch_to_nnef_nemo._optional_types import (
     HuggingFaceHubModule,
     InjectedHuggingFaceHubModule,

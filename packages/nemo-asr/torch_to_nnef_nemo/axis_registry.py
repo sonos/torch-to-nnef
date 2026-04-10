@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
 from torch_to_nnef.exceptions import (
     T2NErrorInvalidArgument,
     T2NErrorNotFoundFile,

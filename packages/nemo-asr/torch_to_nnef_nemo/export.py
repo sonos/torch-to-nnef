@@ -8,6 +8,7 @@ from pathlib import Path
 
 import torch
 from torch import autocast
+
 from torch_to_nnef.compress import dynamic_load_registry
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
@@ -22,7 +23,6 @@ from torch_to_nnef.utils import (
     check_torch_ecosystem,
     require_extra_decorator,
 )
-
 from torch_to_nnef_nemo._optional_types import (
     InjectedLightningModule,
     InjectedNemoModule,
