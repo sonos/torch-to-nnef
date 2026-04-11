@@ -1,3 +1,5 @@
+import os
+import string
 import tempfile
 from pathlib import Path
 
@@ -14,6 +16,8 @@ from torch_to_nnef.utils import SemanticVersion
 try:
     import nemo
     import nemo.collections.asr as nemo_asr  # noqa: F401
+    import sentencepiece as spm
+    from omegaconf import DictConfig, OmegaConf
 
     from torch_to_nnef.inference_target.tract import TractCheckTolerance
     from torch_to_nnef.remodeler import Stage, save_config
@@ -106,6 +110,136 @@ def _build_axis_registry(
 
 
 # ---------------------------------------------------------------------------
+# Random-weight model helpers
+# ---------------------------------------------------------------------------
+def _create_minimal_tokenizer(tokenizer_dir: str):
+    """Train a tiny sentencepiece BPE tokenizer in *tokenizer_dir*.
+
+    Creates ``tokenizer.model``, ``tokenizer.vocab`` and ``vocab.txt``
+    (the latter is expected by NeMo's BPE mixin).
+    """
+    corpus_path = os.path.join(tokenizer_dir, "corpus.txt")
+    with open(corpus_path, "w") as fh:
+        for ch in string.ascii_lowercase + string.digits:
+            fh.write((ch + " ") * 50 + "\n")
+        for i in range(100):
+            fh.write(f"hello world foo bar baz {i}\n")
+
+    spm.SentencePieceTrainer.train(
+        input=corpus_path,
+        model_prefix=os.path.join(tokenizer_dir, "tokenizer"),
+        vocab_size=128,
+        model_type="bpe",
+        character_coverage=1.0,
+        pad_id=0,
+        unk_id=1,
+        bos_id=2,
+        eos_id=3,
+    )
+
+    sp = spm.SentencePieceProcessor()
+    sp.Load(os.path.join(tokenizer_dir, "tokenizer.model"))
+    with open(os.path.join(tokenizer_dir, "vocab.txt"), "w") as fh:
+        for i in range(sp.GetPieceSize()):
+            fh.write(sp.IdToPiece(i) + "\n")
+
+
+def _create_parakeet_v3_random_weights(tokenizer_dir: str):
+    """Instantiate a Parakeet V3-like model with random weights.
+
+    Uses the same key dimensions as ``nvidia/parakeet-tdt-0.6b-v3``
+    (128 mel features, 1024 encoder dim, 640 decoder dim, 2 LSTM layers)
+    but only 2 conformer encoder layers for speed.
+    """
+    cfg = OmegaConf.create(
+        {
+            "sample_rate": 16000,
+            "labels": [],
+            "preprocessor": {
+                "_target_": (
+                    "nemo.collections.asr.modules"
+                    ".AudioToMelSpectrogramPreprocessor"
+                ),
+                "sample_rate": 16000,
+                "normalize": "per_feature",
+                "window_size": 0.025,
+                "window_stride": 0.01,
+                "window": "hann",
+                "features": 128,
+                "n_fft": 512,
+                "frame_splicing": 1,
+                "dither": 1e-5,
+                "pad_to": 0,
+            },
+            "encoder": {
+                "_target_": ("nemo.collections.asr.modules.ConformerEncoder"),
+                "feat_in": 128,
+                "feat_out": -1,
+                "n_layers": 2,
+                "d_model": 1024,
+                "subsampling": "striding",
+                "subsampling_factor": 4,
+                "subsampling_conv_channels": 1024,
+                "ff_expansion_factor": 4,
+                "self_attention_model": "rel_pos",
+                "n_heads": 8,
+                "xscaling": True,
+                "untie_biases": True,
+                "pos_emb_max_len": 5000,
+                "conv_kernel_size": 31,
+                "dropout": 0.0,
+                "dropout_emb": 0.0,
+                "dropout_att": 0.0,
+            },
+            "decoder": {
+                "_target_": ("nemo.collections.asr.modules.RNNTDecoder"),
+                "normalization_mode": None,
+                "random_state_sampling": False,
+                "blank_as_pad": True,
+                "prednet": {
+                    "pred_hidden": 640,
+                    "pred_rnn_layers": 2,
+                },
+                "vocab_size": 0,
+            },
+            "joint": {
+                "_target_": "nemo.collections.asr.modules.RNNTJoint",
+                "log_softmax": None,
+                "preserve_memory": False,
+                "fused_batch_size": 8,
+                "jointnet": {
+                    "joint_hidden": 640,
+                    "activation": "relu",
+                    "encoder_hidden": 1024,
+                    "pred_hidden": 640,
+                },
+                "num_classes": 0,
+                "vocabulary": [],
+            },
+            "tokenizer": {"dir": tokenizer_dir, "type": "bpe"},
+            "model_defaults": {
+                "enc_hidden": 1024,
+                "pred_hidden": 640,
+                "joint_hidden": 640,
+            },
+            "loss": {
+                "loss_name": "default",
+                "warprnnt_numba_kwargs": {"fastemit_lambda": 0.0},
+            },
+            "decoding": {
+                "strategy": "greedy_batch",
+                "greedy": {"max_symbols": 10},
+            },
+        }
+    )
+    model = nemo_asr.models.EncDecRNNTBPEModel(
+        cfg=DictConfig(cfg), trainer=None
+    )
+    model.eval()
+    return model
+
+
+# ---------------------------------------------------------------------------
 # Legacy helper: per-subnet check via iter_export_params (no axis registry)
 # ---------------------------------------------------------------------------
 def check_export_asr_model_legacy(
@@ -188,8 +322,17 @@ def check_export_asr_model(
 # ---------------------------------------------------------------------------
 # Default export for each model (legacy per-subnet path)
 # ---------------------------------------------------------------------------
+@pytest.mark.ci_skip
 def test_nemo_asr_parakeet_v3():
     check_export_asr_model_legacy(PARAKEET_V3_SLUG)
+
+
+def test_nemo_asr_marblenet_vad():
+    """Lightweight CI smoke test using MarbleNet VAD (~5 MB)."""
+    check_export_asr_model_legacy(
+        MARBLENET_VAD,
+        check_io_tolerance=TractCheckTolerance.APPROXIMATE,
+    )
 
 
 @pytest.mark.ci_skip
@@ -207,11 +350,6 @@ def test_nemo_asr_parakeet_v3():
             id=QUARTZNET,
         ),
         pytest.param(
-            MARBLENET_VAD,
-            TractCheckTolerance.APPROXIMATE,
-            id=MARBLENET_VAD,
-        ),
-        pytest.param(
             FAST_CONFORMER_TDT_LARGE,
             TractCheckTolerance.APPROXIMATE,
             id=FAST_CONFORMER_TDT_LARGE,
@@ -227,7 +365,6 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
 # ---------------------------------------------------------------------------
 # Config variant tests — VAD-heavy for fast iteration
 # ---------------------------------------------------------------------------
-@pytest.mark.ci_skip
 @pytest.mark.parametrize(
     "model_slug, cfg",
     [
@@ -295,6 +432,7 @@ def test_nemo_model_export(model_slug, check_io_tolerance):
                 subnet=SubnetSelectionConfig(split_joint_decoder=True),
             ),
             id="fast-conformer-split-decoder",
+            marks=pytest.mark.ci_skip,
         ),
     ],
 )
@@ -327,6 +465,43 @@ def test_nemo_export_config_variants(model_slug, cfg):
 )
 def test_nemo_export_shape_config(model_slug, shape_config, extra_cfg):
     check_export_asr_model(model_slug, cfg=extra_cfg, shape_config=shape_config)
+
+
+def test_nemo_export_parakeet_v3_random_weights():
+    """Export Parakeet V3 architecture with random weights + shape config.
+
+    Same key dimensions as nvidia/parakeet-tdt-0.6b-v3 (128 mel, 1024
+    encoder, 640 decoder) but only 2 conformer layers and a tiny BPE
+    tokenizer -- no pretrained download required.
+    """
+    inference_target = TRACT_INFERENCES_TO_TESTS_APPROX[0]
+    _skip_unless_nemo_tract(inference_target)
+
+    cfg = NemoExportConfig(
+        subnet=SubnetSelectionConfig(split_joint_decoder=True),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tokenizer_dir = os.path.join(tmpdir, "tokenizer")
+        os.makedirs(tokenizer_dir)
+        _create_minimal_tokenizer(tokenizer_dir)
+
+        asr_model = _create_parakeet_v3_random_weights(tokenizer_dir)
+
+        shape_config = ASSETS_DIR / "shapes.parakeet.yaml"
+        axis_reg = _build_axis_registry(
+            asr_model, inference_target, cfg, shape_config=shape_config
+        )
+
+        export_dir = Path(tmpdir) / "export"
+        export_dir.mkdir()
+        export_nemo_from_model(
+            model=asr_model,
+            target=inference_target,
+            export_dir=export_dir,
+            axis_reg=axis_reg,
+            cfg=cfg,
+        )
 
 
 @pytest.mark.ci_skip
