@@ -49,10 +49,11 @@ except ImportError as exp:
 
 
 # test all tract supported version
+# skip 0.21.x: precision issues on GH Actions CI runners (no F16 hw)
 SUPPORT_LLM_CLI_OPTS = [
     {"tract_specific_version": _.version}
     for _ in TRACT_INFERENCES_TO_TESTS_APPROX
-    if _.version > "0.21.5"
+    if _.version >= "0.22.0"
 ]
 
 # test all compression version
