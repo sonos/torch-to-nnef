@@ -313,7 +313,7 @@ def transformers_tract_export_test_condition(
 
 
 def cond_tract_gt_0_22_0(inference_target: InferenceTarget) -> bool:
-    """Condition to enable tests only for tract versions > 0.22.0."""
+    """Condition to enable tests only for tract versions > 0.22.1."""
     return isinstance(inference_target, TractNNEF) and (
-        inference_target.version > "0.22.0"
+        inference_target.version > "0.22.1"
     )

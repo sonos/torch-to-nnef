@@ -99,7 +99,11 @@ def _read_graph_nnef_from_archive(path: Path) -> str:
 def check_contains_f32_upcast_attn(inference_target, path):
     assert path.exists()
     graph_content = _read_graph_nnef_from_archive(path)
-    if inference_target.force_attention_inner_in_f32:
+    if inference_target.reify_sdpa_operator:
+        assert "tract_transformers_sdpa(" in graph_content
+        if inference_target.force_attention_inner_in_f32:
+            assert "acc_datum_type = 'f32'" in graph_content
+    elif inference_target.force_attention_inner_in_f32:
         assert (
             "fragment scaled_dot_product_attention_3d_f16_df32("
             in graph_content

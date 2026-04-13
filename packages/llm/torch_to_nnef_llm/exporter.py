@@ -59,6 +59,7 @@ from torch_to_nnef_llm.config import (
 from torch_to_nnef_llm.models.base import (
     build_past_kv_dyn_cache,
     build_past_kv_list,
+    dyn_cache_to_legacy,
     use_dtype_dyn_cache,
 )
 
@@ -324,7 +325,7 @@ class LLMExporter:
 
         pkv = outs["past_key_values"]
         if self.wrapped_model.with_dyn_cache:
-            pkv = pkv.to_legacy_cache()
+            pkv = dyn_cache_to_legacy(pkv)
         out_pkv = [t for kv in pkv for t in kv]
 
         def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):

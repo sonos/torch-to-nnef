@@ -18,7 +18,10 @@ test_suite = TestSuiteInferenceExactnessBuilder(
 
 
 def cond_tract_gt_0_21_13(i) -> bool:
-    return isinstance(i, TractNNEF) and i.version > "0.21.13"
+    """Skip tract 0.21.14/0.21.15 -- slice-fusion bug corrupts STFT."""
+    return isinstance(i, TractNNEF) and (
+        i.version > "0.21.13" and not ("0.21.14" <= i.version <= "0.21.15")
+    )
 
 
 def add_test(*args, inference_modifier=None):

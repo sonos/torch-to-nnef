@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os
+import platform
 import tempfile
 from pathlib import Path
 
@@ -48,10 +49,11 @@ except ImportError as exp:
 
 
 # test all tract supported version
+# skip 0.21.x: precision issues on GH Actions CI runners (no F16 hw)
 SUPPORT_LLM_CLI_OPTS = [
     {"tract_specific_version": _.version}
     for _ in TRACT_INFERENCES_TO_TESTS_APPROX
-    if _.version > "0.21.5"
+    if _.version >= "0.22.0"
 ]
 
 # test all compression version
@@ -181,6 +183,14 @@ TESTS_SPECS = init_test_spec()
     ],
 )
 def test_export_from_llmexporter(model_slug, cli_kwargs):
+    # tract 0.22.1 on linux x86 has a PackedF16 bug when force_f32_attention
+    # is used (tries to pack F32 tensors as F16).
+    if (
+        cli_kwargs.get("force_f32_attention")
+        and platform.system() == "Linux"
+        and TractNNEF.latest_version() == "0.22.1"
+    ):
+        pytest.skip("tract 0.22.1 PackedF16 bug on linux x86")
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         export_dirpath = td / "dump_here"

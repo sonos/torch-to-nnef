@@ -296,10 +296,9 @@ def init_on_device(
         old_register_parameter(module, name, param)
         if param is not None:
             param_cls = type(module._parameters[name])
-            kwargs = module._parameters[name].__dict__
-            kwargs["requires_grad"] = param.requires_grad
             module._parameters[name] = param_cls(
-                module._parameters[name].to(device), **kwargs
+                module._parameters[name].to(device),
+                requires_grad=param.requires_grad,
             )
 
     def register_empty_buffer(module, name, buffer, persistent=True):

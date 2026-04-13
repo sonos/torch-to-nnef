@@ -26,7 +26,7 @@ jobs:
         with:
           matrix: |
             python-version {3.12}, tox-env {"cli_transformers_4_50_0", "cli_transformers_4_52_0"}
-            python-version {3.13}, tox-env {"cli_transformers_4_55_0"}
+            python-version {3.13}, tox-env {"cli_transformers_5_0_0", "cli_transformers_5_5_0"}
 
     outputs:
       matrix: ${{ steps.create_matrix.outputs.matrix }}

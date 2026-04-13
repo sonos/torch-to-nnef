@@ -81,8 +81,8 @@ class TractNNEF(InferenceTarget):
     OFFICIAL_SUPPORTED_VERSIONS = [
         SemanticVersion.from_str(version)
         for version in [
-            "0.22.0",
-            "0.21.13",
+            "0.22.1",
+            "0.21.15",
         ]
     ]
 
