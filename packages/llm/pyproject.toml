@@ -32,7 +32,7 @@ dependencies = [
     "protobuf>5",
     "sentencepiece>=0.2.0,<0.3",
     "tokenizers>=0.13.3",
-    "transformers>=4.35.2,<5",
+    "transformers>=4.35.2,<6",
 ]
 
 [project.optional-dependencies]
@@ -93,7 +93,7 @@ convention = "google"
 
 [tool.tox]
 isolated_build = true
-envlist = ["cli_transformers_4_55_0"]
+envlist = ["cli_transformers_5_5_0"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.tox.env_run_base]
@@ -120,9 +120,16 @@ constrain_package_deps = false
 deps = ["transformers==4.52.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
 
-[tool.tox.env.cli_transformers_4_55_0]
+[tool.tox.env.cli_transformers_5_0_0]
 basepython = ["python3.12", "python3.13"]
 dependency_groups = ["test"]
 constrain_package_deps = false
-deps = ["transformers==4.55.0"]
+deps = ["transformers==5.0.0"]
+commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
+
+[tool.tox.env.cli_transformers_5_5_0]
+basepython = ["python3.12", "python3.13"]
+dependency_groups = ["test"]
+constrain_package_deps = false
+deps = ["transformers==5.5.0"]
 commands = [["pytest", "-s", "tests/test_llm_cli.py"]]

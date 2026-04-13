@@ -55,7 +55,18 @@ def build_past_kv_dyn_cache(
     *,
     cu: InjectedTransformersCacheUtilsModule = INJECTED,
 ) -> TransformersCacheUtils.DynamicCache:
-    return cu.DynamicCache.from_legacy_cache(tuple(build_past_kv_list(args)))
+    legacy = tuple(build_past_kv_list(args))
+    if hasattr(cu.DynamicCache, "from_legacy_cache"):
+        return cu.DynamicCache.from_legacy_cache(legacy)
+    return cu.DynamicCache(ddp_cache_data=legacy)
+
+
+def dyn_cache_to_legacy(
+    cache: TransformersCacheUtils.DynamicCache,
+) -> T.List[T.Tuple[torch.Tensor, torch.Tensor]]:
+    if hasattr(cache, "to_legacy_cache"):
+        return cache.to_legacy_cache()
+    return [(kv[0], kv[1]) for kv in cache]
 
 
 def _force_dyn_layer_update_ge4_56(
@@ -354,7 +365,7 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         )
 
         # Extract cache {
-        kv_cache_flat_list = [t for kv in cache.to_legacy_cache() for t in kv]
+        kv_cache_flat_list = [t for kv in dyn_cache_to_legacy(cache) for t in kv]
         # }
         return [logits] + kv_cache_flat_list
 
@@ -461,7 +472,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         )
 
         if self.with_dyn_cache:
-            kvs = [t for kv in past_key_values.to_legacy_cache() for t in kv]
+            kvs = [t for kv in dyn_cache_to_legacy(past_key_values) for t in kv]
         else:
             kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
 
