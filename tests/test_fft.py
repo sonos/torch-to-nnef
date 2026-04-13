@@ -75,15 +75,24 @@ def cond_tract_gt_0_20_7(i) -> bool:
     return isinstance(i, TractNNEF) and i.version > "0.20.7"
 
 
-def add_test(*args):
+def _cond_stft_supported(i) -> bool:
+    """Skip tract 0.21.14/0.21.15 -- slice-fusion bug corrupts STFT."""
+    return cond_tract_gt_0_20_7(i) and not (
+        isinstance(i, TractNNEF) and "0.21.14" <= i.version <= "0.21.15"
+    )
+
+
+def add_test(*args, stft=False):
     global test_suite
-    test_suite.add(*args, inference_conditions=cond_tract_gt_0_20_7)
+    cond = _cond_stft_supported if stft else cond_tract_gt_0_20_7
+    test_suite.add(*args, inference_conditions=cond)
 
 
 add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
 add_test(
     torch.arange(12).float(),
     MySTFT(window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1])),
+    stft=True,
 )
 
 add_test(
@@ -91,6 +100,7 @@ add_test(
     MySTFT(
         window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1]), normalized=True
     ),
+    stft=True,
 )
 
 
@@ -101,11 +111,13 @@ add_test(
 add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.Spectrogram(),
+    stft=True,
 )
 
 add_test(
     torch.arange(400 * 2).float() / 200,
     transforms.MelSpectrogram(),
+    stft=True,
 )
 
 
@@ -115,15 +127,16 @@ def change_tol_close(it):
     return it
 
 
-def cond_tract_gt_0_21_14(i) -> bool:
-    return isinstance(i, TractNNEF) and i.version >= "0.21.14"
+def _cond_stft_ge_0_22(i) -> bool:
+    """STFT with win_length < n_fft needs >= 0.22 (skip 0.21.14/0.21.15)."""
+    return isinstance(i, TractNNEF) and i.version >= "0.22.0"
 
 
 if torch_version() >= "1.11.0":
     test_suite.add(
         torch.arange(400 * 2).float() / 400,
         transforms.MFCC(),
-        inference_conditions=cond_tract_gt_0_21_14,
+        inference_conditions=_cond_stft_ge_0_22,
         inference_modifier=change_tol_close,
     )
 
@@ -136,7 +149,7 @@ test_suite.add(
         normalized=False,
         onesided=False,
     ),
-    inference_conditions=cond_tract_gt_0_21_14,
+    inference_conditions=_cond_stft_ge_0_22,
 )
 
 test_suite.add(
@@ -148,7 +161,7 @@ test_suite.add(
         normalized=False,
         onesided=False,
     ),
-    inference_conditions=cond_tract_gt_0_21_14,
+    inference_conditions=_cond_stft_ge_0_22,
 )
 test_suite.add(
     torch.arange(12).float(),
@@ -159,7 +172,7 @@ test_suite.add(
         normalized=False,
         center=True,
     ),
-    inference_conditions=cond_tract_gt_0_21_14,
+    inference_conditions=_cond_stft_ge_0_22,
 )
 
 
