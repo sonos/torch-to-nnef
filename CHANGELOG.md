@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
-## [0.23.1] - 2026-04-13
+## [Unreleased]
 
 ### Added
 - **transformers 5.x support** (LLM): relax dependency from `<5` to `<6`, tested with 5.0.0 and 5.5.0.
