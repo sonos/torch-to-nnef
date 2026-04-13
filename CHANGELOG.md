@@ -1,6 +1,30 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
+## [0.23.1] - 2026-04-13
+
+### Added
+- **transformers 5.x support** (LLM): relax dependency from `<5` to `<6`, tested with 5.0.0 and 5.5.0.
+- **NeMo 2.7.2 / Python 3.13 support**: new tox env, fix optional input handling.
+- Parakeet V3 and MarbleNet VAD export tests for NeMo.
+- Runtime warning when STFT is used with tract 0.21.14/0.21.15 (known slice-fusion bug).
+
+### Changed
+- Officially supported tract versions bumped to 0.22.1 and 0.21.15.
+- LLM CI matrix now tests transformers 5.0.0 and 5.5.0 on Python 3.13 (replaces 4.55.0).
+- SDPA test updated for tract 0.22.1 `reify_sdpa_operator` (`tract_transformers_sdpa` op).
+- `isnan`/`isinf` tests gated to tract > 0.22.1 (ops landed in tract 0.23).
+
+### Fixed
+- `DynamicCache.from_legacy_cache()` / `to_legacy_cache()` removed in transformers 5.x -- version-aware helpers added.
+- `Parameter.__new__()` rejecting HF `_is_hf_initialized` kwarg in transformers 5.x.
+- `strict=True` added to `zip` in `expand_input_names` (ruff B905).
+- Handle v-prefixed tract release tags.
+
+### Known tract issues (upstream)
+- tract 0.21.14/0.21.15: slice-fusion optimization corrupts STFT results (`8b8f4537c`).
+- tract 0.22.1 on linux x86_64: `OptMatMulPack` tries to pack F32 tensors as PackedF16 when `force_f32_attention=True`.
+
 ## [0.23.0] - 2026-04-10
 
 ### Changed
