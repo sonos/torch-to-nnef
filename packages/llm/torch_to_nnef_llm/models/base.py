@@ -365,7 +365,9 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         )
 
         # Extract cache {
-        kv_cache_flat_list = [t for kv in dyn_cache_to_legacy(cache) for t in kv]
+        kv_cache_flat_list = [
+            t for kv in dyn_cache_to_legacy(cache) for t in kv
+        ]
         # }
         return [logits] + kv_cache_flat_list
 
