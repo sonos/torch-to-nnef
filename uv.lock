@@ -5724,7 +5724,7 @@ wheels = [
 
 [[package]]
 name = "torch-to-nnef"
-version = "0.22.0"
+version = "0.23.1"
 source = { editable = "." }
 dependencies = [
     { name = "mako" },
@@ -5828,7 +5828,7 @@ test = [
 
 [[package]]
 name = "torch-to-nnef-llm"
-version = "0.22.0"
+version = "0.23.1"
 source = { editable = "packages/llm" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -5869,7 +5869,7 @@ requires-dist = [
     { name = "sentencepiece", specifier = ">=0.2.0,<0.3" },
     { name = "tokenizers", specifier = ">=0.13.3" },
     { name = "torch-to-nnef", editable = "." },
-    { name = "transformers", specifier = ">=4.35.2,<5" },
+    { name = "transformers", specifier = ">=4.35.2,<6" },
 ]
 provides-extras = ["accelerate", "peft", "safetensors"]
 
@@ -5884,7 +5884,7 @@ test = [
 
 [[package]]
 name = "torch-to-nnef-nemo-asr"
-version = "0.22.0"
+version = "0.23.1"
 source = { editable = "packages/nemo-asr" }
 dependencies = [
     { name = "nemo-toolkit", extra = ["asr"] },
