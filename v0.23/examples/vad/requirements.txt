@@ -1,0 +1,2 @@
+nemo_toolkit[asr]==2.2.1
+-e ../../../[nemo-tract]
