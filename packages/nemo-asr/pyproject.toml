@@ -6,7 +6,7 @@ authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
 license-files = []
 requires-python = ">=3.10"
-readme = {text = "NeMo ASR export to NNEF. See [torch-to-nnef](https://github.com/sonos/torch-to-nnef) for details.", content-type = "text/markdown"}
+readme = { text = "NeMo ASR export to NNEF. See [torch-to-nnef](https://github.com/sonos/torch-to-nnef) for details.", content-type = "text/markdown" }
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -17,14 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-keywords = [
-    "nnef",
-    "pytorch",
-    "torch",
-    "nemo",
-    "asr",
-    "export",
-]
+keywords = ["nnef", "pytorch", "torch", "nemo", "asr", "export"]
 dependencies = [
     "torch_to_nnef>=0.22.0",
     "nemo_toolkit[asr]>=2.0.0,<2.8.0",
@@ -106,8 +99,11 @@ dependency_groups = ["test"]
 allowlist_externals = ["uv"]
 commands_pre = [
     [
-        "uv", "pip", "install",
-        "-i", "https://download.pytorch.org/whl/cpu",
+        "uv",
+        "pip",
+        "install",
+        "-i",
+        "https://download.pytorch.org/whl/cpu",
         "torch==2.5.*",
         "torchvision==0.20.*",
         "torchaudio==2.5.*",
@@ -124,9 +120,28 @@ allowlist_externals = ["uv", "bash"]
 commands_pre = [
     # kaldialign 0.8.0 bundles pybind11 2.10.2 whose cmake_minimum_required is
     # rejected by CMake >= 4.  Work around by wrapping cmake to inject the compat flag.
-    ["bash", "-c", "real=$(command -v cmake) && mkdir -p {envtmpdir}/bin && printf '#!/bin/bash\\nexec \"%s\" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \"$@\"\\n' \"$real\" > {envtmpdir}/bin/cmake && chmod +x {envtmpdir}/bin/cmake"],
-    ["bash", "-c", "export PATH={envtmpdir}/bin:$PATH && uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.* 'nemo_toolkit[asr]==2.7.2'"],
-    ["uv", "pip", "install", "{toxinidir}/../.."],
-    ["uv", "pip", "install", "--no-deps", "{toxinidir}"],
+    [
+        "bash",
+        "-c",
+        "real=$(command -v cmake) && mkdir -p {envtmpdir}/bin && printf '#!/bin/bash\\nexec \"%s\" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \"$@\"\\n' \"$real\" > {envtmpdir}/bin/cmake && chmod +x {envtmpdir}/bin/cmake",
+    ],
+    [
+        "bash",
+        "-c",
+        "export PATH={envtmpdir}/bin:$PATH && uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.* 'nemo_toolkit[asr]==2.7.2'",
+    ],
+    [
+        "uv",
+        "pip",
+        "install",
+        "{toxinidir}/../..",
+    ],
+    [
+        "uv",
+        "pip",
+        "install",
+        "--no-deps",
+        "{toxinidir}",
+    ],
 ]
 commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
