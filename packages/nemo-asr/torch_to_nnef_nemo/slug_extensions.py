@@ -217,7 +217,7 @@ def load_slug_fingerprints() -> T.Dict[str, EncoderFingerprint]:
     """
     if not FINGERPRINTS_PATH.exists():
         return {}
-    raw = json.loads(FINGERPRINTS_PATH.read_text())
+    raw = json.loads(FINGERPRINTS_PATH.read_text(encoding="utf-8"))
     return {slug: EncoderFingerprint.from_dict(v) for slug, v in raw.items()}
 
 

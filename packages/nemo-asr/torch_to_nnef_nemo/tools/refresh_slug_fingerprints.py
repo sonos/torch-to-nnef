@@ -40,7 +40,8 @@ def main() -> int:
         LOGGER.info("  -> %s", fp)
         out[slug] = fp.to_dict()
     FINGERPRINTS_PATH.write_text(
-        json.dumps(out, indent=2, sort_keys=True) + "\n"
+        json.dumps(out, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     LOGGER.info("wrote %s", FINGERPRINTS_PATH)
     return 0

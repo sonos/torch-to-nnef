@@ -6,12 +6,14 @@ on:
     paths:
       - "torch_to_nnef/**"
       - "tests/**"
+      - "packages/**"
       - "pyproject.toml"
   pull_request:
     branches: [main]
     paths:
       - "torch_to_nnef/**"
       - "tests/**"
+      - "packages/**"
       - "pyproject.toml"
   workflow_dispatch:
 
