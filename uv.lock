@@ -6172,7 +6172,7 @@ wheels = [
 
 [[package]]
 name = "wandb"
-version = "0.23.2"
+version = "0.23.1"
 source = { registry = "https://pypi.org/simple/" }
 dependencies = [
     { name = "click" },
