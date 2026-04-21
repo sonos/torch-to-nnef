@@ -1,6 +1,18 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
+## [0.23.2] - 2026-04-21
+
+### Added
+- **Auto slug resolution** (NeMo ASR): resolve pretrained slug from encoder architecture fingerprint, so local `.nemo` finetunes (which don't store the slug) inherit the pretrained's tract extensions.
+  - `slug_fingerprints.json` registry mapping known slugs to `EncoderFingerprint`.
+  - `python -m torch_to_nnef_nemo.tools.refresh_slug_fingerprints` tool to regenerate the JSON from `ASRModel.from_pretrained`.
+- **Derived tract extensions** (NeMo ASR): compute `tract_assert` bounds from encoder architecture (`pos_emb_max_len`, subsampling factor, attention variant) instead of hand-maintaining per-slug strings. Manual `SLUG_EXTENSIONS` registry remains as an overrides path; both are merged at export time with deduplication.
+
+### Fixed
+- NeMo fingerprint/deriver now guard against models without an `encoder` submodule.
+- `uv.lock` restored in `.bumpversion.cfg` (dropped during the 0.23.0 monorepo split).
+
 ## [0.23.1] - 2026-04-13
 
 ### Added
