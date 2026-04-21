@@ -289,3 +289,24 @@ def test_derived_empty_for_unknown_attention():
     cfg.encoder.self_attention_model = "rotary"
     m = _patched_model(cfg)
     assert derive_extensions(m) == {}
+
+
+def test_derived_empty_for_model_without_encoder():
+    """Models that aren't encoder/decoder ASR should bail gracefully."""
+
+    class _NoEncoderModel:
+        pass
+
+    m = _NoEncoderModel()
+    m.cfg = OmegaConf.create({"foo": "bar"})
+    assert derive_extensions(m) == {}
+
+
+def test_fingerprint_none_for_model_without_encoder():
+    class _NoEncoderModel:
+        pass
+
+    m = _NoEncoderModel()
+    m.cfg = OmegaConf.create({"foo": "bar"})
+    assert fingerprint_from_asr_model(m) is None
+    assert resolve_slug_from_asr_model(m) is None

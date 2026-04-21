@@ -187,12 +187,25 @@ def fingerprint_from_model_cfg(
     )
 
 
-def fingerprint_from_asr_model(asr_model: T.Any) -> EncoderFingerprint:
-    """Build a fingerprint from a loaded NeMo ``ASRModel``."""
+def fingerprint_from_asr_model(
+    asr_model: T.Any,
+) -> T.Optional[EncoderFingerprint]:
+    """Build a fingerprint from a loaded NeMo ``ASRModel``.
+
+    Returns ``None`` when the model has no ``encoder`` submodule or its
+    cfg lacks an ``encoder`` section -- the fingerprint targets Conformer
+    encoder architectures specifically.
+    """
+    encoder = getattr(asr_model, "encoder", None)
+    if encoder is None:
+        return None
+    cfg = asr_model.cfg
+    if not hasattr(cfg, "encoder"):
+        return None
     return fingerprint_from_model_cfg(
-        asr_model.cfg,
+        cfg,
         model_class=type(asr_model).__name__,
-        encoder_class=type(asr_model.encoder).__name__,
+        encoder_class=type(encoder).__name__,
     )
 
 
@@ -216,6 +229,8 @@ def resolve_slug_from_asr_model(asr_model: T.Any) -> T.Optional[str]:
     regen when adding a new slug.
     """
     fp = fingerprint_from_asr_model(asr_model)
+    if fp is None:
+        return None
     for slug, known in load_slug_fingerprints().items():
         if known == fp:
             return slug

@@ -89,9 +89,13 @@ def derive_encoder_time_bound(encoder_cfg: T.Any) -> T.Optional[int]:
 def derive_extensions(asr_model: T.Any) -> T.Dict[str, T.List[str]]:
     """Per-subnet tract extensions derived from a loaded ``ASRModel``.
 
-    Empty dict when the encoder architecture has no derivable bounds.
+    Empty dict when the model has no ``encoder`` section or the encoder
+    architecture has no derivable bounds.
     """
-    bound = derive_encoder_time_bound(asr_model.cfg.encoder)
+    cfg = getattr(asr_model, "cfg", None)
+    if cfg is None or not hasattr(cfg, "encoder"):
+        return {}
+    bound = derive_encoder_time_bound(cfg.encoder)
     if bound is None:
         return {}
     return {"encoder": [f"tract_assert AUDIO_SIGNAL__TIME<={bound}"]}
