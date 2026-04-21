@@ -52,6 +52,7 @@ from torch_to_nnef_nemo.config import (
 from torch_to_nnef_nemo.constants import (
     NEMO_INPUT_SYMBOL_SEPARATOR as _SEP,
 )
+from torch_to_nnef_nemo.derived_constraints import derive_extensions
 from torch_to_nnef_nemo.export import export_nemo_from_model
 from torch_to_nnef_nemo.inspect import run_inspection
 from torch_to_nnef_nemo.model_loader import (
@@ -65,7 +66,10 @@ from torch_to_nnef_nemo.registry_utils import (
     tie_batch_symbols_in_registry,
     validate_registry_against_signatures,
 )
-from torch_to_nnef_nemo.slug_extensions import get_extensions_for_slug
+from torch_to_nnef_nemo.slug_extensions import (
+    get_extensions_for_slug,
+    resolve_slug_from_asr_model,
+)
 from torch_to_nnef_nemo.wrappers import use_pytorch_sdpa
 
 LOGGER = logging.getLogger(__name__)
@@ -140,25 +144,60 @@ def _normalize_tolerance(cfg: NemoTractConfig) -> None:
         )
 
 
-def _merge_slug_extensions(axis_reg: AxisSymbolRegistry, slug: str) -> None:
-    """Merge known slug extensions into the registry as defaults.
+def _merge_extension_map(
+    axis_reg: AxisSymbolRegistry,
+    ext_map: T.Mapping[str, T.Sequence[str]],
+) -> None:
+    """Merge a per-subnet extension map into the registry as defaults.
 
     Extensions already declared in the user config take precedence:
-    if a subnet already has extensions, slug defaults are not added
-    for that subnet.
+    duplicates are skipped so the same assertion string is not added
+    twice when the slug registry and the architecture deriver produce
+    the same bound.
     """
-    slug_exts = get_extensions_for_slug(slug)
-    if not slug_exts:
+    if not ext_map:
         return
-    for subnet, exts in slug_exts.items():
+    for subnet, exts in ext_map.items():
         if subnet not in axis_reg.extensions_per_subnet:
             axis_reg.extensions_per_subnet[subnet] = list(exts)
         else:
-            # Append slug entries that the user didn't already declare
             existing = set(axis_reg.extensions_per_subnet[subnet])
             axis_reg.extensions_per_subnet[subnet].extend(
                 e for e in exts if e not in existing
             )
+
+
+def _merge_slug_extensions(axis_reg: AxisSymbolRegistry, slug: str) -> None:
+    """Merge slug-registry overrides into the registry as defaults."""
+    _merge_extension_map(axis_reg, get_extensions_for_slug(slug))
+
+
+def _merge_derived_extensions(axis_reg: AxisSymbolRegistry, asr_model) -> None:
+    """Merge architecture-derived extensions into the registry."""
+    _merge_extension_map(axis_reg, derive_extensions(asr_model))
+
+
+def _resolve_effective_slug(cfg: NemoTractConfig, asr_model) -> str:
+    """Pick the slug used for extension lookup.
+
+    When the model was loaded from a local ``.nemo`` file, ``model_slug``
+    is still the ``"*"`` default; try to recover the pretrained slug by
+    matching the loaded model's encoder architecture against the
+    committed fingerprint map.  Falls back to ``model_slug`` unchanged
+    so unknown finetunes resolve to an empty extension set (today's
+    behavior for unknown slugs).
+    """
+    slug = cfg.model.model_slug
+    if cfg.model.model_path is None or slug not in ("", "*", None):
+        return slug
+    resolved = resolve_slug_from_asr_model(asr_model)
+    if resolved is None:
+        return slug
+    LOGGER.info(
+        "local .nemo encoder fingerprint matched pretrained slug %s",
+        resolved,
+    )
+    return resolved
 
 
 def _build_axis_registry(
@@ -177,18 +216,21 @@ def _build_axis_registry(
         only_subnets=cfg.subnet.only_subnets,
     )
     raw_sigs = provider.discover_signatures(asr_model, Stage.RAW)
+    effective_slug = _resolve_effective_slug(cfg, asr_model)
     if cfg.inspect.shape_config is None:
         default_axis_reg = dump_registry_from_signatures(raw_sigs)
         default_axis_reg = tie_batch_symbols_in_registry(default_axis_reg)
         auto_populate_output_collapse_dims(default_axis_reg)
-        _merge_slug_extensions(default_axis_reg, cfg.model.model_slug)
+        _merge_slug_extensions(default_axis_reg, effective_slug)
+        _merge_derived_extensions(default_axis_reg, asr_model)
         return default_axis_reg
     axis_reg = load_axis_symbol_registry(cfg.inspect.shape_config)
     validate_registry_against_signatures(raw_sigs, axis_reg)
     # Auto-populate output collapse for subnets with batch collapse when
     # the user config doesn't explicitly declare outputs.collapse_dims
     auto_populate_output_collapse_dims(axis_reg)
-    _merge_slug_extensions(axis_reg, cfg.model.model_slug)
+    _merge_slug_extensions(axis_reg, effective_slug)
+    _merge_derived_extensions(axis_reg, asr_model)
     return axis_reg
 
 
