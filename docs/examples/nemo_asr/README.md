@@ -92,12 +92,14 @@ The generated `shapes.yaml` uses a nested layout per subnet:
 - `outputs` (optional): mapping of output-name -> settings
 - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` aliasing of dynamic symbols
 - `outputs_keep` (always present in the template): ordered list of output names to keep (default if omitted: keep all)
+- `extensions` (optional): list of custom extension strings (e.g., `tract_assert` constraints for pulsification). For known pretrained models, these are auto-populated from a built-in registry
 
 Per-input settings under `inputs`:
 
 - `original_shape`: list of dims (ints or strings)
 - `collapse_dims` (optional): list of symbols to collapse at the boundary
 - `bind_scalar_to_dim_size` (optional): dynamic source as `subnet.input.SYMBOL`
+- `eval_symbols` (optional): `{ SYMBOL: int_value }` -- pin dynamic symbols to concrete sizes in test inputs during export (e.g., `{TARGETS__TIME: 1}` for single-step decoding)
 
 Per-output settings under `outputs`:
 

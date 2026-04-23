@@ -21,11 +21,15 @@ Core concepts
     - `original_shape`: list of dims (ints or symbols)
     - `collapse_dims` (optional): symbols to drop at boundary
     - `bind_scalar_to_dim_size` (optional): `subnet.input.SYMBOL`
+    - `eval_symbols` (optional): `{ SYMBOL: int_value }` -- pin dynamic symbols
+      to concrete sizes in test inputs during export
   - `outputs` (optional): per-output settings
     - `collapse_dims`: list of axis indices to squeeze from the output
   - `renamed_symbols` (optional): `{ TARGET: [SOURCES...] }` for backend-facing
     symbol unification
   - `outputs_keep` (optional): list of outputs to keep (template pre-fills)
+  - `extensions` (optional): list of custom extension strings injected into
+    the exported NNEF (e.g., `tract_assert` constraints for pulsification)
 
 Symbol conventions
 - Symbols are uppercased. Providers may namespace per input (e.g., `TARGETS__TIME`, `TARGETS__BATCH`).
@@ -55,11 +59,11 @@ from torch_to_nnef.remodeler import (
   plan_from_registry,
   save_config,
 )
-from torch_to_nnef.nemo_tract.registry_utils import (
+from torch_to_nnef_nemo.registry_utils import (
   dump_registry_from_signatures,
   validate_registry_against_signatures,
 )
-from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
+from torch_to_nnef_nemo.axis_registry import load_axis_symbol_registry
 
 # 1) Discover RAW signatures (provider-specific model omitted here)
 signatures = provider.discover_signatures(model, Stage.RAW)
@@ -94,18 +98,18 @@ import torch
 from pathlib import Path
 
 from torch_to_nnef.inference_target.tract import TractNNEF
-from torch_to_nnef.nemo_tract.model_loader import load_asr_model_from_nemo_slug
-from torch_to_nnef.nemo_tract.provider import NemoProvider
+from torch_to_nnef_nemo.model_loader import load_asr_model_from_nemo_slug
+from torch_to_nnef_nemo.provider import NemoProvider
 from torch_to_nnef.remodeler import (
     Stage,
     plan_from_registry,
     save_config,
 )
-from torch_to_nnef.nemo_tract.registry_utils import (
+from torch_to_nnef_nemo.registry_utils import (
     dump_registry_from_signatures,
     validate_registry_against_signatures,
 )
-from torch_to_nnef.nemo_tract.axis_registry import load_axis_symbol_registry
+from torch_to_nnef_nemo.axis_registry import load_axis_symbol_registry
 
 # Discover and dump a starter config
 asr = load_asr_model_from_nemo_slug("<your-nemo-asr-model>").eval()
@@ -153,6 +157,63 @@ export_model_to_nnef(
     output_names=getattr(enc, "output_names", []),
     nnef_variable_naming_scheme=VariableNamingScheme.NATURAL_VERBOSE_CAMEL,
 )
+```
+
+Eval symbols
+
+The `eval_symbols` field lets you pin dynamic symbols to concrete values in
+test inputs at export time. This resizes the test tensors that are traced
+through the model, which is useful when the default test-input size is not
+representative of the target inference scenario (e.g., single-step decoding
+where `TIME = 1`).
+
+- Values are per-input, mapping symbol names to integer sizes.
+- Symbols are automatically uppercased.
+- Dimensions smaller than the target are zero-padded; dimensions larger are
+  narrowed.
+
+Example:
+
+```yaml
+decoder:
+  inputs:
+    targets:
+      original_shape: [TARGETS__BATCH, TARGETS__TIME]
+      collapse_dims: []
+      eval_symbols: {TARGETS__TIME: 1}
+    states_0:
+      original_shape: [2, STATES_0__BATCH, 640]
+      collapse_dims: []
+      eval_symbols: {STATES_0__BATCH: 1}
+```
+
+In this example the `targets` tensor's TIME axis is pinned to 1 and the
+`states_0` tensor's BATCH axis is pinned to 1 before tracing.
+
+Custom extensions
+
+The `extensions` field lets you inject arbitrary extension strings into the
+exported NNEF subnet. This is typically used for `tract_assert` constraints
+that encode dimensionality limits implied by the model architecture (e.g.,
+max receptive field of a conv stack) which are required for correct
+pulsification.
+
+- Extensions are per-subnet, as a list of strings.
+- Each string is passed verbatim to the NNEF export.
+- For known NeMo pretrained models, the CLI auto-populates extensions from a
+  built-in registry (`slug_extensions.py`). User-provided extensions take
+  precedence.
+
+Example:
+
+```yaml
+encoder:
+  extensions:
+    - "tract_assert AUDIO_SIGNAL__TIME<=39993"
+  inputs:
+    audio_signal:
+      original_shape: [AUDIO_SIGNAL__BATCH, 128, AUDIO_SIGNAL__TIME]
+      collapse_dims: [AUDIO_SIGNAL__BATCH]
 ```
 
 Output collapse

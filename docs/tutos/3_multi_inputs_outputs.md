@@ -186,7 +186,7 @@ The same logic would apply if you wish to ignore some `inputs`, you can set thos
 the `__init__` and reference them in the `forward` pass.
 
 A concrete example of this is available in the `torch_to_nnef` codebase with regard
-to LLM wrappers that need to handle the KV-cache properly: [here](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract/models/base.py).
+to LLM wrappers that need to handle the KV-cache properly: [here](https://github.com/sonos/torch-to-nnef/tree/main/packages/llm/torch_to_nnef_llm/models/base.py).
 
 ### Working around limitations
 

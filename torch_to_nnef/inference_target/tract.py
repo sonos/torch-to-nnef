@@ -81,8 +81,8 @@ class TractNNEF(InferenceTarget):
     OFFICIAL_SUPPORTED_VERSIONS = [
         SemanticVersion.from_str(version)
         for version in [
-            "0.22.0",
-            "0.21.13",
+            "0.22.1",
+            "0.21.15",
         ]
     ]
 
@@ -677,12 +677,15 @@ class TractBinaryDownloader:
     def archive_name(self):
         return f"tract-{self.arch}-{self.version}"
 
-    @property
-    def binary_url(self):
+    def _binary_url(self, tag: str):
         return (
             "https://github.com/sonos/tract/releases/download/"
-            f"{self.version}/{self.archive_name}.tgz"
+            f"{tag}/{self.archive_name}.tgz"
         )
+
+    @property
+    def binary_url(self):
+        return self._binary_url(str(self.version))
 
     @property
     def tract_filepath(self) -> Path:
@@ -694,12 +697,19 @@ class TractBinaryDownloader:
         with cd(self.extract_dir):
             archive_path = self.extract_dir / self.archive_name
             archive_gz_path = archive_path.with_suffix(".tgz")
+            # Try without then with "v" prefix -- tract tags are inconsistent.
+            url = self.binary_url
             try:
-                urllib.request.urlretrieve(self.binary_url, archive_gz_path)
-            except urllib.error.HTTPError as exc:
-                raise T2NErrorTractDownload(
-                    f"Error downloading tract at URL {self.binary_url}"
-                ) from exc
+                urllib.request.urlretrieve(url, archive_gz_path)
+            except urllib.error.HTTPError:
+                url = self._binary_url(f"v{self.version}")
+                try:
+                    urllib.request.urlretrieve(url, archive_gz_path)
+                except urllib.error.HTTPError as exc:
+                    raise T2NErrorTractDownload(
+                        f"Error downloading tract at URL {self.binary_url}"
+                        f" (also tried {url})"
+                    ) from exc
             # Tract binary release is always a gzipped tarball.
             subprocess.check_output(["tar", "-xzf", str(archive_gz_path)])
             shutil.move(archive_path / "tract", self.extract_dir)

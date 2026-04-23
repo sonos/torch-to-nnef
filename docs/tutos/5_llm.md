@@ -182,7 +182,7 @@ main module all states (like KV-cache) ?
 - If not is it easy to transform the library internal modeling to approach this architecture ?
 
 If you can answer yes to one of those 2 questions congratulation, you should be able
-to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract).
+to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/packages/llm/torch_to_nnef_llm).
 
 Else if state management is internal to specific modules you will likely need to write
 [custom operator exporter](./8_custom_operator.md) to express those IO at export time

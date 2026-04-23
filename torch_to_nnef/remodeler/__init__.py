@@ -5,8 +5,8 @@ and boundary-only transforms (collapse, bind, and backend-facing symbol
 renames), plus helpers to load/save a strict nested config.
 
 Notes:
-- The concrete YAML/JSON schema is identical to the NeMo remodeler and is
-  parsed by the shared AxisSymbolRegistry loader used in the NeMo path.
+- The concrete YAML/JSON schema is parsed by domain-specific loaders
+  (e.g. AxisSymbolRegistry in the NeMo package).
 - Providers are expected to discover per-subnet signatures, and to apply a
   remodel plan by wrapping inner modules with an adapter that enforces the
   external boundary while preserving the internal contract.
@@ -19,19 +19,23 @@ import typing as T
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import torch
 import yaml
 
-if TYPE_CHECKING:  # only for type checkers; avoids import-time cycles
-    # Reuse the validated nested schema and data container
-    from torch_to_nnef.nemo_tract.axis_registry import AxisSymbolRegistry
 from torch_to_nnef.remodeler.adapter import BoundaryAdapter, RenameOutputs
+from torch_to_nnef.remodeler.dyn_axes import (
+    apply_eval_symbols,
+    apply_symbol_renames_to_dyn,
+    remove_eval_symbols_from_dyn,
+    rewrite_and_filter_assertions,
+    rewrite_assertions_with_renames,
+)
 from torch_to_nnef.remodeler.schema import (
     INPUT_FIELD_BIND_SCALAR_TO_DIM_SIZE,
     INPUT_FIELD_COLLAPSE_DIMS,
     INPUT_FIELD_ORIGINAL_SHAPE,
+    SHAPE_KEY_EXTENSIONS,
     SHAPE_KEY_INPUTS,
     SHAPE_KEY_OUTPUTS_KEEP,
     SHAPE_KEY_RENAMED,
@@ -47,6 +51,13 @@ __all__ = [
     "save_config",
     "BoundaryAdapter",
     "RenameOutputs",
+    "apply_eval_symbols",
+    "apply_symbol_renames_to_dyn",
+    "remove_eval_symbols_from_dyn",
+    "rewrite_and_filter_assertions",
+    "rewrite_assertions_with_renames",
+    "PreparedSubnet",
+    "prepare_subnet_export",
 ]
 
 
@@ -95,13 +106,15 @@ class SubnetSignature:
 
 @dataclass(frozen=True)
 class RemodelPlan:
-    """A remodel plan built from a validated AxisSymbolRegistry.
+    """A remodel plan built from a validated axis-symbol registry.
 
     Attributes:
     - registry: The validated, parsed axis registry (nested schema).
+        Typically an ``AxisSymbolRegistry`` instance provided by a
+        domain package (e.g. ``torch_to_nnef_nemo``).
     """
 
-    registry: "AxisSymbolRegistry"
+    registry: T.Any
 
 
 class Provider(T.Protocol):
@@ -129,9 +142,132 @@ def plan_from_registry(registry: T.Any) -> RemodelPlan:
     return RemodelPlan(registry=registry)
 
 
+@dataclass(frozen=True)
+class PreparedSubnet:
+    """Result of applying registry-driven transforms to a raw subnet."""
+
+    model: torch.nn.Module
+    test_input: list
+    input_names: list[str]
+    output_names: list[str]
+    dyn: dict[str, dict[int, str]]
+    custom_extensions: list[str]
+
+
+def prepare_subnet_export(
+    model: torch.nn.Module,
+    test_input: list,
+    input_names: list[str],
+    output_names: list[str],
+    subnet_name: str,
+    dyn: dict[str, dict[int, str]],
+    custom_extensions: list[str],
+    axis_registry: T.Optional[T.Any] = None,
+) -> PreparedSubnet:
+    """Apply all registry-driven transforms and return export-ready data.
+
+    This consolidates eval-symbol resizing, boundary adaptation (collapse,
+    bind, rename, output filtering), assertion rewriting, extension
+    merging, and eval-symbol pinning into a single call.
+
+    Providers feed in raw subnet data; the remodeler returns everything
+    needed to build final export parameters.
+    """
+    if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        test_input = apply_eval_symbols(
+            test_input,
+            input_names,
+            subnet_name,
+            dyn,
+            axis_registry.eval_symbols_per_input,
+        )
+
+    rename_map: dict[str, list[str]] = {}
+    if axis_registry is not None:
+        rename_map = axis_registry.renamed_symbols_per_subnet.get(
+            subnet_name, {}
+        )
+        outputs_keep = axis_registry.outputs_keep_per_subnet.get(
+            subnet_name, []
+        )
+
+        has_collapse = any(
+            q.startswith(f"{subnet_name}.")
+            for q in axis_registry.input_collapse_dims
+        )
+        has_bind = any(
+            q.startswith(f"{subnet_name}.") for q in axis_registry.bind_to_dim
+        )
+        has_outputs_filter = bool(outputs_keep) and set(outputs_keep) != set(
+            output_names
+        )
+
+        out_collapse = {
+            qout.split(".", 1)[1]: axes
+            for qout, axes in axis_registry.output_collapse_dims.items()
+            if qout.startswith(f"{subnet_name}.")
+        }
+        has_out_collapse = bool(out_collapse)
+
+        if has_collapse or has_bind or has_outputs_filter or has_out_collapse:
+            model = BoundaryAdapter(
+                model,
+                subnet_name,
+                test_input,
+                dyn,
+                {
+                    k: set(v)
+                    for k, v in axis_registry.input_collapse_dims.items()
+                },
+                axis_registry.bind_to_dim,
+                rename_map,
+                outputs_keep=outputs_keep,
+                output_collapse_dims=out_collapse,
+            )
+            input_names = model.input_names
+            output_names = model.output_names
+            test_input = list(model.input_example())
+            dyn = model.dynamic_shapes_for_export()
+        elif rename_map:
+            dyn = apply_symbol_renames_to_dyn(dyn, rename_map)
+
+    custom_ext = set(
+        rewrite_and_filter_assertions(
+            list(custom_extensions),
+            (
+                axis_registry.renamed_symbols_per_subnet
+                if axis_registry is not None
+                else {}
+            ).get(subnet_name, {}),
+            dyn,
+        )
+    )
+    if axis_registry is not None:
+        custom_ext.update(
+            axis_registry.extensions_per_subnet.get(subnet_name, [])
+        )
+
+    if axis_registry is not None and axis_registry.eval_symbols_per_input:
+        remove_eval_symbols_from_dyn(
+            input_names,
+            subnet_name,
+            dyn,
+            axis_registry.eval_symbols_per_input,
+        )
+
+    return PreparedSubnet(
+        model=model,
+        test_input=test_input,
+        input_names=input_names,
+        output_names=output_names,
+        dyn=dyn,
+        custom_extensions=list(custom_ext),
+    )
+
+
 def save_config(
     path: T.Union[Path, str, None],
-    registry: "AxisSymbolRegistry",
+    registry: T.Any,
     *,
     flow_seq: bool = True,
     stream: T.Optional[T.TextIO] = None,
@@ -160,7 +296,13 @@ def save_config(
                 "tag:yaml.org,2002:seq", data, flow_style=flow_seq
             )
 
+        def _repr_quoted(dumper, data):  # type: ignore[no-untyped-def]
+            return dumper.represent_scalar(
+                "tag:yaml.org,2002:str", str(data), style='"'
+            )
+
         _FlowSeqDumper.add_representer(list, _repr_seq)  # type: ignore[arg-type]
+        _FlowSeqDumper.add_representer(_QuotedStr, _repr_quoted)  # type: ignore[arg-type]
 
         payload = _registry_to_nested_mapping(registry)
         if stream is not None:
@@ -197,6 +339,10 @@ def save_config(
     assert p is not None
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(txt, encoding="utf8")
+
+
+class _QuotedStr(str):
+    """Marker for strings that must be double-quoted in YAML output."""
 
 
 def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
@@ -256,5 +402,12 @@ def _registry_to_nested_mapping(reg: T.Any) -> dict[str, dict]:
     ).items():
         bucket = nested.setdefault(subnet, {})
         bucket[SHAPE_KEY_OUTPUTS_KEEP] = list(keep)
+
+    for subnet, exts in (
+        getattr(reg, "extensions_per_subnet", None) or {}
+    ).items():
+        if exts:
+            bucket = nested.setdefault(subnet, {})
+            bucket[SHAPE_KEY_EXTENSIONS] = [_QuotedStr(e) for e in exts]
 
     return nested

@@ -1,39 +1,29 @@
-# Publish package on main branch if it's tagged with 'v*'
+# Publish packages on main branch if it's tagged with 'v*'
 
 name: release & publish workflow
 
-# Controls when the action will run.
 on:
-  # Triggers the workflow on push events but only for the master branch
   push:
     tags:
       - 'v*'
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "release"
   release:
     name: Create Release
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Get version from tag
         id: tag_name
         run: |
-          echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
+          echo "current_version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v5
 
       - name: Get Changelog Entry
         id: changelog_reader
-        #  do not use latest that come with node 20.0 and need GLIB: 2.28 not availlable
-        #  in targeted host
         uses: mindsers/changelog-reader-action@v2.2.0
         with:
           validation_depth: 10
@@ -49,13 +39,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install uv
 
-      - name: Build wheels and source tarball
-        run: >-
+      - name: Build all packages
+        run: |
           uv build
+          uv build --package torch_to_nnef_llm
+          uv build --package torch_to_nnef_nemo_asr
 
-      - name: show temporary files
-        run: >-
-          ls -l
+      - name: show built artifacts
+        run: ls -l dist/
 
       - name: create github release
         id: create_release
@@ -68,9 +59,23 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: publish to SONOS python registry
+      - name: publish core to PyPI (must be first)
         shell: bash
         env:
-            PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
-          uv publish --token $PYPI_TOKEN
+          uv publish --token $PYPI_TOKEN dist/torch_to_nnef-*
+
+      - name: publish LLM package to PyPI
+        shell: bash
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv publish --token $PYPI_TOKEN dist/torch_to_nnef_llm-*
+
+      - name: publish NeMo ASR package to PyPI
+        shell: bash
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv publish --token $PYPI_TOKEN dist/torch_to_nnef_nemo_asr-*
