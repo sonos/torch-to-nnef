@@ -1,11 +1,10 @@
 use anyhow::ensure;
-use tract_rs::prelude::{
-    tract_ndarray::{Array1, Array2, s},
-    *,
-};
+use ndarray::{Array1, Array2, s};
+use tract_rs::prelude::*;
 
 use crate::Res;
 use crate::audio::{clog, select_enc_block};
+use crate::{Ndarray as _, Tract as _};
 
 #[cfg(test)]
 #[derive(Default, Clone)]
@@ -68,7 +67,7 @@ pub(crate) trait VadSessionCommon {
         self.stable_frames_ready() >= self.warmup_needed_frames()
     }
 
-    fn slide_window_append(&mut self, block: &Array2<f32>, step_frames: usize) -> Res<Vec<Value>> {
+    fn slide_window_append(&mut self, block: &Array2<f32>, step_frames: usize) -> Res<Vec<Tensor>> {
         let n: i32 = step_frames.try_into()?;
         {
             let win = self.encoder_frame_buffer_mut();
@@ -77,13 +76,13 @@ pub(crate) trait VadSessionCommon {
             win.slice_mut(s![.., -n..]).assign(block);
         }
         self.add_stable_frames(step_frames);
-        let val: Value = self.encoder_frame_buffer().clone().try_into()?;
+        let val: Tensor = self.encoder_frame_buffer().clone().tract()?;
         Ok(vec![val])
     }
 
-    fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Value>> {
+    fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Tensor>> {
         let Some(block) = select_enc_block(enc_all, self.pulse_frames(), self.pulse_delay(), self.enc_align_shift()) else {
-            let val: Value = self.encoder_frame_buffer().clone().try_into()?;
+            let val: Tensor = self.encoder_frame_buffer().clone().tract()?;
             return Ok(vec![val]);
         };
         #[cfg(test)]
@@ -97,11 +96,10 @@ pub(crate) trait VadSessionCommon {
         Ok(dec_in)
     }
 
-    fn decode_from_input(&mut self, decoder_input: Vec<Value>) -> Res<f32> {
+    fn decode_from_input(&mut self, decoder_input: Vec<Tensor>) -> Res<f32> {
         clog("DEC run");
         let dec_result = self.decoder_model().run(decoder_input)?;
-        let dec_view = dec_result[0].view::<f32>()?;
-        let logits: Array1<f32> = dec_view.into_dimensionality()?.to_owned();
+        let logits: Array1<f32> = dec_result[0].ndarray1::<f32>()?.to_owned();
         ensure!(logits.len() == 2, "Decoder output must have 2 logits");
         let mut l0 = logits[0];
         let mut l1 = logits[1];

@@ -45,8 +45,8 @@ def _encoder_frame_bound(encoder_cfg: T.Any) -> T.Optional[int]:
     NNEF graph, so tract requires ``encoder_frames <= pos_emb_max_len``.
     Returns ``None`` if the attention variant is not in the bounded set.
     """
-    sa = str(encoder_cfg.self_attention_model)
-    if sa not in _REL_POS_ATTENTIONS:
+    sa = getattr(encoder_cfg, "self_attention_model", None)
+    if sa is None or str(sa) not in _REL_POS_ATTENTIONS:
         return None
     return int(encoder_cfg.pos_emb_max_len)
 

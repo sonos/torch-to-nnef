@@ -10,7 +10,9 @@ use wasm_bindgen::JsValue;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use tract_rs::prelude::{tract_ndarray::IndexLonger, *};
+use tract_rs::prelude::*;
+
+tract_rs::impl_ndarray_interop!();
 
 use audio::clog;
 use session_batch::VadSessionBatch;
@@ -63,9 +65,8 @@ impl VadClassifier {
             "pulsifying encoder model (derived from batch): pulse_frames={}",
             pulse_frames
         ));
-        pulsed_encoder.pulse(
-            "AUDIO_SIGNAL__TIME",
-            pulse_frames.max(1).to_string().as_str(),
+        pulsed_encoder.transform(
+            Pulse::new(pulse_frames.max(1).to_string()).symbol("AUDIO_SIGNAL__TIME"),
         )?;
         let encoder_model_pulsed = rt.prepare(pulsed_encoder)?;
 
@@ -86,14 +87,12 @@ impl VadClassifier {
     }
 
     fn compute_pulse_delay_from_encoder(&self) -> usize {
-        match self.encoder_model_pulsed.property("pulse.delay") {
-            Ok(d) => d
-                .view::<i64>()
-                .ok()
-                .map(|v| v.index(0).to_owned() as usize)
-                .unwrap_or(0usize),
-            Err(_) => 0usize,
-        }
+        self.encoder_model_pulsed
+            .property("pulse.delay")
+            .ok()
+            .and_then(|t| t.as_slice::<i64>().ok().and_then(|s| s.first().copied()))
+            .map(|v| v as usize)
+            .unwrap_or(0usize)
     }
 
     fn ensure_pulsed_session(&mut self) -> Res<&mut VadSessionPulsed> {
@@ -223,7 +222,7 @@ impl VadClassifier {
 mod tests {
     use super::*;
     use audio::run_preprocessor;
-    use tract_rs::prelude::tract_ndarray::{Array1, Array2};
+    use ndarray::{Array1, Array2};
 
     use std::fs::{self, File};
     use std::io::Write;

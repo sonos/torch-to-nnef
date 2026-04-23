@@ -1,12 +1,11 @@
 use anyhow::ensure;
+use ndarray::{Array1, Array2};
 #[cfg(test)]
-use tract_rs::prelude::tract_ndarray::s;
-use tract_rs::prelude::{
-    tract_ndarray::{Array1, Array2},
-    *,
-};
+use ndarray::s;
+use tract_rs::prelude::*;
 
 use crate::Res;
+use crate::{Ndarray as _, Tract as _};
 use crate::audio::{clog, roll_into_ring, run_preprocessor, validate_audio_range_11};
 #[cfg(test)]
 use crate::session::SessionDebug;
@@ -148,12 +147,9 @@ impl VadSessionBatch {
 
     fn encode_full(&mut self, pre_feat: &Array2<f32>) -> Res<Array2<f32>> {
         clog("BATCH ENC run");
-        let pre_val_2d: Value = pre_feat.clone().try_into()?;
+        let pre_val_2d: Tensor = pre_feat.clone().tract()?;
         let enc_result = self.encoder_model.run(vec![pre_val_2d])?;
-        let enc_all = enc_result[0]
-            .view::<f32>()?
-            .into_dimensionality::<tract_rs::prelude::tract_ndarray::Ix2>()?
-            .to_owned();
+        let enc_all = enc_result[0].ndarray2::<f32>()?.to_owned();
         #[cfg(test)]
         {
             self.dbg.set_enc_out(&enc_all);

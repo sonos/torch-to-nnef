@@ -1,16 +1,12 @@
-use tract_rs::{
-    State,
-    prelude::{
-        tract_ndarray::{Array1, Array2, s},
-        *,
-    },
-};
+use ndarray::{Array1, Array2, s};
+use tract_rs::{State, prelude::*};
 
 use crate::audio::{clog, roll_into_ring, run_preprocessor, validate_audio_range_11};
 use crate::session::VadSessionCommon;
 #[cfg(test)]
 use crate::session::SessionDebug;
 use crate::Res;
+use crate::{Ndarray as _, Tract as _};
 use anyhow::ensure;
 
 pub(crate) struct VadSessionPulsed {
@@ -80,11 +76,11 @@ impl VadSessionCommon for VadSessionPulsed {
     // For pulsed, select from the encoder output timeline using the same
     // pulse_delay and a 1-frame align shift as batch to target the same
     // temporal slice post-warmup.
-    fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Value>> {
+    fn build_dec_input(&mut self, enc_all: &Array2<f32>) -> Res<Vec<Tensor>> {
         use crate::audio::select_enc_block;
         let eff_delay = self.pulse_delay().saturating_add(self.enc_center_frames);
         let Some(block) = select_enc_block(enc_all, self.pulse_frames(), eff_delay, 1) else {
-            let val: Value = self.encoder_frame_buffer().clone().try_into()?;
+            let val: Tensor = self.encoder_frame_buffer().clone().tract()?;
             return Ok(vec![val]);
         };
         #[cfg(test)]
@@ -148,7 +144,7 @@ impl VadSessionPulsed {
 
         let pre_full = self.preprocess_full()?;
         let pre_slice = self.select_pre_slice(&pre_full);
-        let sliced_value: Value = pre_slice.try_into()?;
+        let sliced_value: Tensor = pre_slice.tract()?;
 
         let enc_result = self.encoder_state.run(vec![sliced_value])?;
         let decoder_input = self.slide_encoder_window(enc_result)?;
@@ -203,12 +199,9 @@ impl VadSessionPulsed {
         sliced
     }
 
-    fn slide_encoder_window(&mut self, enc_result: Vec<Value>) -> Res<Vec<Value>> {
+    fn slide_encoder_window(&mut self, enc_result: Vec<Tensor>) -> Res<Vec<Tensor>> {
         clog("SLIDE start");
-        let enc_all = enc_result[0]
-            .view::<f32>()?
-            .into_dimensionality::<tract_rs::prelude::tract_ndarray::Ix2>()?
-            .to_owned();
+        let enc_all = enc_result[0].ndarray2::<f32>()?.to_owned();
         clog(&format!(
             "ENC features={}, frames={}",
             enc_all.shape()[0],

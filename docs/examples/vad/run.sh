@@ -7,7 +7,7 @@ source ../bootstrap-wasm-pack.sh
 source ../bootstrap-uv.sh
 source .venv/bin/activate
 
-TRACT_VERSION="0.23.0-dev.2"
+TRACT_VERSION="0.23.0-dev.5"
 python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
 TRACT_PATH=$HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
 
@@ -20,7 +20,7 @@ rm -rf ./model
 t2n_export_nemo -s "vad_multilingual_marblenet" \
     -e "./model" \
     --tract-specific-path $TRACT_PATH \
-    --shape-config ../../../tests/assets/shapes.marblenet.collapsed.yaml
+    --shape-config ../../../packages/nemo-asr/tests/assets/shapes.marblenet.collapsed.yaml
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."

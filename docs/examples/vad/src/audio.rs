@@ -1,8 +1,6 @@
 use anyhow::bail;
-use tract_rs::prelude::{
-    tract_ndarray::{Array1, Array2, s},
-    *,
-};
+use ndarray::{Array1, Array2, s};
+use tract_rs::prelude::*;
 
 use crate::Res;
 
@@ -72,11 +70,9 @@ pub(crate) fn select_enc_block(
 }
 
 pub(crate) fn run_preprocessor(preprocessor: &Runnable, audio: &[f32]) -> Res<Array2<f32>> {
-    let audio_val_1d: Value = Array1::from_vec(audio.to_vec()).try_into()?;
+    use crate::{Ndarray as _, Tract as _};
+    let audio_val_1d: Tensor = Array1::from_vec(audio.to_vec()).tract()?;
     let pre_result = preprocessor.run(vec![audio_val_1d])?;
-    let pre_feat = pre_result[0]
-        .view::<f32>()?
-        .into_dimensionality::<tract_rs::prelude::tract_ndarray::Ix2>()?
-        .to_owned();
+    let pre_feat = pre_result[0].ndarray2::<f32>()?.to_owned();
     Ok(pre_feat)
 }
