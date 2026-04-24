@@ -235,6 +235,12 @@ test_suite.add(
     UnaryPrimitive(torch.bitwise_not),
     inference_conditions=skip_khronos_interpreter,
 )
+# Integer variant exercises the tract_core_bitnot branch (bit-level inversion).
+test_suite.add(
+    torch.tensor([0, 1, -1, 127], dtype=torch.int8),
+    UnaryPrimitive(torch.bitwise_not),
+    inference_conditions=skip_khronos_interpreter,
+)
 
 for op in [
     (lambda x, y: x & y),  # and
