@@ -240,7 +240,15 @@ def mul(node, op_helper, torch_graph, **kwargs):
     other_node = node.inputs[1]
 
     if input_node.data is not None and other_node.data is not None:
-        node.outputs[0].set_data(input_node.data * other_node.data)
+        # When one operand is a float scalar (e.g. 1/sqrt(d) attention scaling)
+        # and the other an int64 shape value, torch promotes to float, but the
+        # traced output dtype may still be int64 -- set_data's dtype validation
+        # would then fail. Cast to the declared dtype for tensor results;
+        # Python scalars (int * int -> int) are passed through as-is.
+        result = input_node.data * other_node.data
+        if isinstance(result, torch.Tensor):
+            result = result.to(node.outputs[0].dtype)
+        node.outputs[0].set_data(result)
         return
     if remap_if_neutral_op(
         torch_graph, node, input_node, other_node
