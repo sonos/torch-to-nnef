@@ -16,8 +16,10 @@ export class WasmVAD {
     }
     predictPulsed(block) { return this.classifier.predict_speech_presence(block); }
     predictBatch(block) { return this.classifier.predict_speech_presence_batch(block); }
-    getPulseDelay() { try { return this.classifier.get_pulse_delay(); } catch { return 0; } }
-    getDecoderPoolLen() { try { return this.classifier.get_decoder_pool_len(); } catch { return 0; } }
+    // FSMN-VAD is causal (rorder=0) and has no decoder stage, so the old
+    // marblenet-era pulse delay / decoder pool accessors are now constants.
+    getPulseDelay() { return 0; }
+    getDecoderPoolLen() { return this.getPulseFrames(); }
     isPulsedReady() { try { return this.classifier.is_pulsed_ready(); } catch { return false; } }
     getPulseFrames() { try { return this.classifier.get_pulse_frames?.(); } catch { return 4; } }
     getFrameSize() { try { return this.classifier.get_frame_size?.(); } catch { return 160; } }

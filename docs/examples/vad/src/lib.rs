@@ -20,8 +20,7 @@ use session_pulsed::VadSessionPulsed;
 
 pub(crate) type Res<T> = anyhow::Result<T>;
 
-// Preprocessor window: 1 second of 16 kHz audio. The FSMN-VAD preprocessor
-// graph was exported with this fixed input shape.
+// Preprocessor window: 1 second of 16 kHz audio (fixed input shape in NNEF).
 pub(crate) const PREPROCESSOR_INPUT_SAMPLES: usize = 16000;
 // Samples per LFR'd feature frame (10 ms at 16 kHz).
 const VAD_ENCODER_INPUT_FRAME_SIZE: usize = 160;
@@ -58,10 +57,7 @@ impl VadClassifier {
         let mut enc_pulsed = enc_model.clone();
         clog("preparing encoder model (batch)");
         let encoder_model_batch = rt.prepare(enc_model)?;
-        clog(&format!(
-            "pulsifying encoder model (derived from batch): pulse_frames={}",
-            pulse_frames
-        ));
+        clog(&format!("pulsifying encoder: pulse_frames={}", pulse_frames));
         enc_pulsed.transform(
             Pulse::new(pulse_frames.max(1).to_string()).symbol("ENCODER__TIME"),
         )?;
@@ -105,13 +101,14 @@ impl VadClassifier {
     }
 
     fn predict_speech_presence_internal(&mut self, raw_audio_data: Vec<f32>) -> Res<f32> {
-        let session = self.ensure_pulsed_session()?;
-        session.predict_speech_presence(raw_audio_data)
+        self.ensure_pulsed_session()?
+            .predict_speech_presence(raw_audio_data)
     }
 }
 
-// JS-facing API exposed only on wasm32. Signatures match the previous marblenet
-// demo so the HTML page consuming vad_wasm.js keeps working as a drop-in.
+// JS-facing API (wasm32 only). Kept minimal; the old pulse-delay / decoder
+// pool accessors disappeared with the decoder stage and are no longer needed
+// — the JS already handles their absence via optional-chaining fallbacks.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl VadClassifier {
@@ -120,8 +117,9 @@ impl VadClassifier {
         &mut self,
         js_raw_audio_data: &web_sys::js_sys::Float32Array,
     ) -> Result<JsValue, JsError> {
-        let prediction_res = self.predict_speech_presence_internal(js_raw_audio_data.to_vec());
-        let pred = prediction_res.map_err(|err| JsError::new(format!("{:?}", err).as_str()))?;
+        let pred = self
+            .predict_speech_presence_internal(js_raw_audio_data.to_vec())
+            .map_err(|err| JsError::new(&format!("{:?}", err)))?;
         Ok(pred.into())
     }
 
@@ -131,11 +129,9 @@ impl VadClassifier {
         js_raw_audio_data: &web_sys::js_sys::Float32Array,
     ) -> Result<JsValue, JsError> {
         console_error_panic_hook::set_once();
-        let session = self
+        let pred = self
             .ensure_batch_session()
-            .map_err(|err| JsError::new(&format!("{:?}", err)))?;
-        let pred = session
-            .predict_speech_presence(js_raw_audio_data.to_vec())
+            .and_then(|s| s.predict_speech_presence(js_raw_audio_data.to_vec()))
             .map_err(|err| JsError::new(&format!("{:?}", err)))?;
         Ok(pred.into())
     }
@@ -143,7 +139,6 @@ impl VadClassifier {
     #[wasm_bindgen]
     pub fn load() -> Result<VadClassifier, JsError> {
         console_error_panic_hook::set_once();
-        clog("try loading");
         VadClassifier::load_internal(4).map_err(|err| JsError::new(&format!("{:?}", err)))
     }
 
@@ -169,23 +164,8 @@ impl VadClassifier {
         self.vad_session_batch = None;
     }
 
-    // FSMN-VAD is strictly causal (rorder=0), so the pulsed encoder has no
-    // intrinsic delay versus the batch encoder. Kept for API compat.
-    #[wasm_bindgen]
-    pub fn get_pulse_delay(&mut self) -> Result<usize, JsError> {
-        Ok(0)
-    }
-
-    // No decoder pool in FSMN-VAD (per-frame posteriors). Kept for API compat;
-    // return the pulse step used on the encoder input.
-    #[wasm_bindgen]
-    pub fn get_decoder_pool_len(&mut self) -> Result<usize, JsError> {
-        Ok(self.pulse_frames)
-    }
-
     #[wasm_bindgen]
     pub fn is_pulsed_ready(&mut self) -> Result<bool, JsError> {
-        use crate::session::VadSessionCommon;
         let s = self
             .ensure_pulsed_session()
             .map_err(|err| JsError::new(&format!("{:?}", err)))?;
@@ -196,21 +176,12 @@ impl VadClassifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::{Array1, Array2};
-
-    use std::fs::{self, File};
-    use std::io::Write;
     use std::path::Path;
 
     fn read_wav_mono_16k(path: &Path) -> anyhow::Result<Vec<f32>> {
         let mut reader = hound::WavReader::open(path)?;
         let spec = reader.spec();
-        assert_eq!(
-            spec.sample_rate, 16_000,
-            "{} must be 16kHz mono; got {} Hz",
-            path.display(),
-            spec.sample_rate
-        );
+        assert_eq!(spec.sample_rate, 16_000, "{} must be 16kHz mono", path.display());
         let mut samples: Vec<f32> = Vec::with_capacity(reader.duration() as usize);
         if spec.sample_format == hound::SampleFormat::Int {
             for s in reader.samples::<i16>() {
@@ -255,10 +226,8 @@ mod tests {
         while i < samples.len() {
             let end = (i + step).min(samples.len());
             let chunk = samples[i..end].to_vec();
-            let p_pulsed = pulsed.predict_speech_presence(chunk.clone())?;
-            let p_batch = batch.predict_speech_presence(chunk)?;
-            pulsed_scores.push(p_pulsed);
-            batch_scores.push(p_batch);
+            pulsed_scores.push(pulsed.predict_speech_presence(chunk.clone())?);
+            batch_scores.push(batch.predict_speech_presence(chunk)?);
             i = end;
         }
         Ok((pulsed_scores, batch_scores))
@@ -269,49 +238,11 @@ mod tests {
     }
 
     fn tail<'a>(v: &'a [f32], n: usize) -> &'a [f32] {
-        let start = v.len().saturating_sub(n);
-        &v[start..]
-    }
-
-    fn write_npy_f32(path: &std::path::Path, data: &[f32], shape: &[usize]) -> std::io::Result<()> {
-        let mut f = File::create(path)?;
-        f.write_all(b"\x93NUMPY")?;
-        f.write_all(&[1, 0])?;
-        let shape_str = if shape.len() == 1 {
-            format!("({},)", shape[0])
-        } else {
-            let dims: Vec<String> = shape.iter().map(|d| d.to_string()).collect();
-            format!("({})", dims.join(", "))
-        };
-        let mut header_dict = format!(
-            "{{'descr': '<f4', 'fortran_order': False, 'shape': {}, }}",
-            shape_str
-        );
-        let preamble_len = 10 + 2;
-        let mut header_len = header_dict.len() + 1;
-        let padding = (16 - ((preamble_len + header_len) % 16)) % 16;
-        header_dict.push_str(&" ".repeat(padding));
-        header_dict.push('\n');
-        header_len = header_dict.len();
-        if header_len > u16::MAX as usize {
-            panic!("npy header too large");
-        }
-        let hlen_le = (header_len as u16).to_le_bytes();
-        f.write_all(&hlen_le)?;
-        f.write_all(header_dict.as_bytes())?;
-        for &v in data {
-            f.write_all(&v.to_le_bytes())?;
-        }
-        Ok(())
-    }
-
-    fn write_npy_arr2(path: &std::path::Path, a: &Array2<f32>) -> std::io::Result<()> {
-        let buf: Vec<f32> = a.iter().copied().collect();
-        write_npy_f32(path, &buf, a.shape())
+        &v[v.len().saturating_sub(n)..]
     }
 
     #[test]
-    fn silence_pulsed_vs_batch_probs_below_6_percent() -> anyhow::Result<()> {
+    fn silence_pulsed_vs_batch_below_threshold() -> anyhow::Result<()> {
         let wav_path = Path::new("assets/audio/silence_16k.wav");
         assert!(wav_path.exists(), "silence wav not found at {:?}", wav_path);
 
@@ -319,20 +250,16 @@ mod tests {
         let (mut pulsed, mut batch, step) = build_sessions(4)?;
         let (pulsed_scores, batch_scores) = stream_scores(&samples, &mut pulsed, &mut batch, step)?;
 
-        let pulsed_finite: Vec<f32> = filter_finite(&pulsed_scores);
-        let batch_finite: Vec<f32> = filter_finite(&batch_scores);
+        let pulsed_finite = filter_finite(&pulsed_scores);
+        let batch_finite = filter_finite(&batch_scores);
+        assert!(!pulsed_finite.is_empty() && !batch_finite.is_empty());
 
-        assert!(!pulsed_finite.is_empty(), "no finite pulsed predictions observed");
-        assert!(!batch_finite.is_empty(), "no finite batch predictions observed");
-
-        let n_print = 20usize;
-        println!("pulsed last {} p(speech): {:?}", n_print, tail(&pulsed_finite, n_print));
-        println!("batch  last {} p(speech): {:?}", n_print, tail(&batch_finite, n_print));
+        println!("pulsed last 20 p(speech): {:?}", tail(&pulsed_finite, 20));
+        println!("batch  last 20 p(speech): {:?}", tail(&batch_finite, 20));
 
         // FSMN-VAD + MelSpectrogram featurizer has a higher silence baseline
-        // than marblenet + kaldi fbank did (no preemphasis, different log
-        // semantics). Threshold is chosen well below typical speech score
-        // (>0.95) so misdetection on real speech is still caught.
+        // than marblenet + kaldi fbank; threshold chosen well below typical
+        // speech score (>0.95) so misdetection is still caught.
         let thr = 0.3f32;
         for (idx, v) in pulsed_finite.iter().enumerate() {
             assert!(*v <= thr, "pulsed p(speech) at step {} = {:.5} exceeds {}", idx, v, thr);
@@ -344,95 +271,32 @@ mod tests {
     }
 
     #[test]
-    fn silence_debug_dump_pulsed_vs_batch() -> anyhow::Result<()> {
-        let wav_path = Path::new("assets/audio/silence_16k.wav");
-        assert!(wav_path.exists(), "missing silence wav");
-        let samples = read_wav_mono_16k(wav_path)?;
-        fs::create_dir_all("target/vad_dumps")?;
-        write_npy_f32(
-            Path::new("target/vad_dumps/silence_samples.npy"),
-            &samples,
-            &[samples.len()],
-        )?;
-        let (mut pulsed, mut batch, step) = build_sessions(4)?;
-        let base = Path::new("target/vad_dumps/silence");
-        fs::create_dir_all(base)?;
-        let mut i = 0usize;
-        let mut step_idx = 0usize;
-        while i < samples.len() {
-            let end = (i + step).min(samples.len());
-            let chunk = samples[i..end].to_vec();
-            let _ = pulsed.predict_speech_presence(chunk.clone())?;
-            let _ = batch.predict_speech_presence(chunk)?;
-            let step_dir = base.join(format!("step_{:04}", step_idx));
-            fs::create_dir_all(&step_dir)?;
-            if let Some(a) = &pulsed.dbg.last_pre_feat {
-                write_npy_arr2(&step_dir.join("pulsed_pre_full.npy"), a)?;
-            }
-            if let Some(a) = &pulsed.dbg.last_pre_sliced {
-                write_npy_arr2(&step_dir.join("pulsed_pre_sliced.npy"), a)?;
-            }
-            if let Some(a) = &pulsed.dbg.last_probs {
-                write_npy_arr2(&step_dir.join("pulsed_probs.npy"), a)?;
-            }
-            if let Some(p) = pulsed.dbg.last_prob {
-                write_npy_f32(&step_dir.join("pulsed_prob.npy"), &[p], &[1])?;
-            }
-            if let Some(a) = &batch.dbg.last_pre_feat {
-                write_npy_arr2(&step_dir.join("batch_pre_full.npy"), a)?;
-            }
-            if let Some(a) = &batch.dbg.last_probs {
-                write_npy_arr2(&step_dir.join("batch_probs.npy"), a)?;
-            }
-            if let Some(p) = batch.dbg.last_prob {
-                write_npy_f32(&step_dir.join("batch_prob.npy"), &[p], &[1])?;
-            }
-            if let (Some(a), Some(b)) = (&pulsed.dbg.last_pre_feat, &batch.dbg.last_pre_feat)
-                && a.shape() == b.shape()
-            {
-                let mae = a.iter().zip(b.iter()).map(|(x, y)| (x - y).abs()).sum::<f32>()
-                    / a.len() as f32;
-                println!("step {} diff pre_feat: mae={:.6}", step_idx, mae);
-            }
-            i = end;
-            step_idx += 1;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn speech_pulsed_vs_batch_probs_above_95_percent() -> anyhow::Result<()> {
+    fn speech_pulsed_vs_batch_above_95_percent() -> anyhow::Result<()> {
         let wav_path = Path::new("assets/audio/speech.wav");
         assert!(wav_path.exists(), "missing speech wav at {:?}", wav_path);
         let samples = read_wav_mono_16k(wav_path)?;
         let (mut pulsed, mut batch, step) = build_sessions(4)?;
         let (pulsed_scores, batch_scores) = stream_scores(&samples, &mut pulsed, &mut batch, step)?;
 
-        let pulsed_finite: Vec<f32> = filter_finite(&pulsed_scores);
-        let batch_finite: Vec<f32> = filter_finite(&batch_scores);
-        assert!(!pulsed_finite.is_empty());
-        assert!(!batch_finite.is_empty());
+        let pulsed_finite = filter_finite(&pulsed_scores);
+        let batch_finite = filter_finite(&batch_scores);
+        assert!(!pulsed_finite.is_empty() && !batch_finite.is_empty());
 
-        let (idx_max_pulsed, &max_pulsed) = pulsed_finite
+        let argmax = |v: &[f32]| v
             .iter()
             .enumerate()
             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-            .unwrap_or((0, &0.0));
-        let (idx_max_batch, &max_batch) = batch_finite
-            .iter()
-            .enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-            .unwrap_or((0, &0.0));
-        println!(
-            "peak pulsed: {:.4} @{} | peak batch: {:.4} @{}",
-            max_pulsed, idx_max_pulsed, max_batch, idx_max_batch
-        );
-        assert!(max_pulsed >= 0.95, "pulsed peak {:.5} below 95%", max_pulsed);
-        assert!(max_batch >= 0.95, "batch peak {:.5} below 95%", max_batch);
-        let idx_diff = idx_max_pulsed.abs_diff(idx_max_batch);
-        // Peak is plateau'd at ~1.0 over a range of frames, so argmax is
-        // sensitive to tiny feature/warmup differences between pulsed and
-        // batch. Allow up to 5 frames drift.
+            .map(|(i, &x)| (i, x))
+            .unwrap_or((0, 0.0));
+        let (idx_p, max_p) = argmax(&pulsed_finite);
+        let (idx_b, max_b) = argmax(&batch_finite);
+        println!("peak pulsed: {:.4} @{} | peak batch: {:.4} @{}", max_p, idx_p, max_b, idx_b);
+
+        assert!(max_p >= 0.95, "pulsed peak {:.5} below 95%", max_p);
+        assert!(max_b >= 0.95, "batch peak {:.5} below 95%", max_b);
+        // Peak plateaus at ~1.0 over a range of frames; argmax is sensitive to
+        // tiny feature/warmup differences between pulsed and batch.
+        let idx_diff = idx_p.abs_diff(idx_b);
         assert!(idx_diff <= 5, "peak index mismatch too large: diff={}", idx_diff);
         Ok(())
     }

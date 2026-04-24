@@ -21,29 +21,9 @@ export class VadClassifier {
     /**
      * @returns {number}
      */
-    get_decoder_pool_len() {
-        const ret = wasm.vadclassifier_get_decoder_pool_len(this.__wbg_ptr);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return ret[0] >>> 0;
-    }
-    /**
-     * @returns {number}
-     */
     get_frame_size() {
         const ret = wasm.vadclassifier_get_frame_size(this.__wbg_ptr);
         return ret >>> 0;
-    }
-    /**
-     * @returns {number}
-     */
-    get_pulse_delay() {
-        const ret = wasm.vadclassifier_get_pulse_delay(this.__wbg_ptr);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return ret[0] >>> 0;
     }
     /**
      * @returns {number}

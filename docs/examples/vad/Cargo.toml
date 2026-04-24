@@ -7,17 +7,15 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-# tract-rs = { git = "https://github.com/sonos/tract.git", rev = "a9b3989" }
 tract-rs = { package = "tract", git = "https://github.com/sonos/tract.git", rev = "f74446b6", default-features = false }
-tract-onnx-opl = { git = "https://github.com/sonos/tract.git", rev = "f74446b6", features = [
-    "getrandom-js",
-] }
-getrandom = { version = "0.2", features = ["js"] }
+# Activate the wasm rng backend on all getrandom versions that tract pulls
+# transitively (0.3 via rand 0.9 / half, 0.4 via rand 0.10 / rand_distr).
+# Without these, the wasm32 build fails with `backends::inner_u64 not found`
+# because the crate cannot pick a backend.
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 ndarray = "0.17"
 wasm-bindgen = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde-wasm-bindgen = "0.6"
 web-sys = { version = "0.3", features = ["console"] }
 anyhow = "1.0"
 console_error_panic_hook = "0.1"
