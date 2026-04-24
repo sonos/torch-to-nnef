@@ -119,5 +119,9 @@ site/
 *.wav
 *.npz
 *.nnef.tgz
+*.nnef.tar
 graph.nnef
 *.dat
+*.json
+!packages/nemo-asr/torch_to_nnef_nemo/slug_fingerprints.json
+*.out

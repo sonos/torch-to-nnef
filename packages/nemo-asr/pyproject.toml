@@ -1,0 +1,147 @@
+[project]
+name = "torch_to_nnef_nemo_asr"
+version = "0.23.2"
+description = "NeMo ASR export to NNEF via torch-to-nnef."
+authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
+license = "MIT AND Apache-2.0"
+license-files = []
+requires-python = ">=3.10"
+readme = { text = "NeMo ASR export to NNEF. See [torch-to-nnef](https://github.com/sonos/torch-to-nnef) for details.", content-type = "text/markdown" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = ["nnef", "pytorch", "torch", "nemo", "asr", "export"]
+dependencies = [
+    "torch_to_nnef>=0.22.0",
+    "nemo_toolkit[asr]>=2.0.0,<2.8.0",
+    "torchaudio",
+    "questionary",
+    "rich",
+    "numpy<2.4",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=8.3.3,<9",
+    "pytest-cov>=6.0.0,<7",
+    "ruff<1.0",
+    "matplotlib",
+    "coverage[toml]",
+]
+
+[project.scripts]
+t2n_export_nemo = "torch_to_nnef_nemo.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sonos/torch-to-nnef"
+
+[tool.uv.sources]
+torch_to_nnef = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.20"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["torch_to_nnef_nemo"]
+
+[tool.hatch.build.targets.wheel]
+include = ["torch_to_nnef_nemo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers -p no:warnings -s"
+markers = [
+    "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
+    "serial",
+]
+
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "SIM", "I", "G", "D"]
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.tox]
+isolated_build = true
+envlist = ["nemo_tract_2_5_3", "nemo_tract_2_7_2"]
+requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
+
+[tool.tox.env_run_base]
+dependency_groups = ["test"]
+passenv = ["*"]
+constrain_package_deps = true
+
+[[tool.tox.env_run_base.setenv]]
+PYTHONPATH = "{toxinidir}/../.."
+PYTHONWARNINGS = "ignore"
+MODELS = "1"
+T2N_TEST_TRACT_VERSION = "0.23.0-dev.3"
+
+[tool.tox.env.nemo_tract_2_5_3]
+basepython = ["python3.12"]
+dependency_groups = ["test"]
+allowlist_externals = ["uv"]
+commands_pre = [
+    [
+        "uv",
+        "pip",
+        "install",
+        "-i",
+        "https://download.pytorch.org/whl/cpu",
+        "torch==2.5.*",
+        "torchvision==0.20.*",
+        "torchaudio==2.5.*",
+        "nemo_toolkit[asr]==2.5.3",
+    ],
+]
+commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]
+
+[tool.tox.env.nemo_tract_2_7_2]
+basepython = ["python3.13"]
+skip_install = true
+dependency_groups = ["test"]
+allowlist_externals = ["uv", "bash"]
+commands_pre = [
+    # kaldialign 0.8.0 bundles pybind11 2.10.2 whose cmake_minimum_required is
+    # rejected by CMake >= 4.  Work around by wrapping cmake to inject the compat flag.
+    [
+        "bash",
+        "-c",
+        "real=$(command -v cmake) && mkdir -p {envtmpdir}/bin && printf '#!/bin/bash\\nexec \"%s\" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \"$@\"\\n' \"$real\" > {envtmpdir}/bin/cmake && chmod +x {envtmpdir}/bin/cmake",
+    ],
+    [
+        "bash",
+        "-c",
+        "export PATH={envtmpdir}/bin:$PATH && uv pip install -i https://download.pytorch.org/whl/cpu torch==2.6.* torchaudio==2.6.* 'nemo_toolkit[asr]==2.7.2'",
+    ],
+    [
+        "uv",
+        "pip",
+        "install",
+        "{toxinidir}/../..",
+    ],
+    [
+        "uv",
+        "pip",
+        "install",
+        "--no-deps",
+        "{toxinidir}",
+    ],
+]
+commands = [["pytest", "-s", "-m", "not ci_skip", "tests/test_nemo_asr.py"]]

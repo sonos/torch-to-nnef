@@ -1,6 +1,6 @@
 from ctypes import byref, c_char_p, c_size_t, c_void_p
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel as PydanticModel
 from pydantic import RootModel
@@ -32,6 +32,13 @@ class NemoAsrConfig(PydanticModel):
     labels: List[str]
 
 
+class RuntimeConfig(PydanticModel):
+    max_n_tokens_per_step: Optional[int] = None
+    force_cpu: bool = False
+    encoder_per_batch: bool = True
+    dump_intermediate_io_path: Optional[Path] = None
+
+
 MODEL_CONFIG_FILENAME = "model_config.json"
 
 
@@ -60,6 +67,28 @@ class NemoAsrModel:
             lib.nemo_asr_from_dir(
                 byref(ptr),
                 c_char_p(str(Path(path).absolute()).encode("utf-8")),
+            ),
+            "Error while creating NemoAsrModel",
+        )
+        return cls(ptr, path)
+
+    @classmethod
+    def from_dir_with_runtime_config(
+        cls, path: Union[str, Path], config: RuntimeConfig
+    ):
+        assert Path(path).is_dir(), f"Expected directory path, got: {path}"
+        assert (Path(path) / MODEL_CONFIG_FILENAME).is_file(), (
+            f"Expected '{MODEL_CONFIG_FILENAME}' file in directory: {path}"
+        )
+        assert isinstance(config, RuntimeConfig), (
+            f"Expected RuntimeConfig instance, got: {type(config)}"
+        )
+        ptr = c_void_p()
+        check_ffi_error(
+            lib.nemo_asr_from_dir_with_runtime_config(
+                byref(ptr),
+                c_char_p(str(Path(path).absolute()).encode("utf-8")),
+                c_char_p(config.json().encode("utf-8")),
             ),
             "Error while creating NemoAsrModel",
         )

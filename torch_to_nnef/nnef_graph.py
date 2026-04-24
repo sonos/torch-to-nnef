@@ -9,7 +9,6 @@ from nnef_tools.model import Graph as NGraph
 from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import (
-    T2NError,
     T2NErrorIoQuantity,
     T2NErrorIR,
     T2NErrorNotImplemented,
@@ -21,6 +20,7 @@ from torch_to_nnef.op.custom_extractors import (
     CUSTOMOP_KIND,
     ModuleInfoExtractor,
 )
+from torch_to_nnef.op.helper import add_nnef_operation
 from torch_to_nnef.op.quantized import quantized_node_to_nnef_tensor_and_ops
 from torch_to_nnef.torch_graph import (
     MAP_TO_NOP,
@@ -110,7 +110,7 @@ class TorchToNGraphExtractor:
             )
 
         raise T2NErrorNotImplemented(
-            f"NNEF Operation for {node} NOT implmented"
+            f"NNEF operation for {node} not implemented"
         )
 
     def _if_dyn_shape_may_remove_resolved_dim(self, operators_nodes):
@@ -223,6 +223,7 @@ class TorchToNGraphExtractor:
             if self._check_io_names_qte_match and len(
                 self._forced_inputs_names
             ) != len(self.g.inputs):
+                self._torch_ir_graph.printall()
                 raise T2NErrorIoQuantity(
                     "miss-aligned quantity of `input_names`: "
                     f"{len(self._forced_inputs_names)}"
@@ -261,12 +262,33 @@ class TorchToNGraphExtractor:
                 if onode.name == new_name:
                     continue
                 if onode.name in self._forced_inputs_names:
-                    raise T2NError(
-                        f"input tensor named: '{onode.name}' tryied to "
-                        f"be replaced by output named: '{new_name}'."
-                        "This is forbidden as it leads to nop for this tensor"
+                    # Create an explicit pass-through op so the output becomes
+                    # a distinct named tensor without changing the input name.
+                    LOGGER.info(
+                        "Output name '%s' collides with input. "
+                        "Adding identity alias '%s' to avoid shadowing.",
+                        onode.name,
+                        new_name,
                     )
-                onode.name = new_name
+                    alias = NTensor(
+                        self.g,
+                        name=new_name,
+                        shape=onode.shape,
+                        dtype=onode.dtype,
+                    )
+                    add_nnef_operation(
+                        graph=self.g,
+                        type="identity",
+                        inputs=(onode,),
+                        outputs=(alias,),
+                        attribs={},
+                    )
+                    # (ListView not assignable)
+                    self.g.outputs = [
+                        (alias if t is onode else t) for t in self.g.outputs
+                    ]
+                else:
+                    onode.name = new_name
         LOGGER.info("translated internal IR to NNEF Graph object sucessfully")
 
     def parse(self) -> NGraph:

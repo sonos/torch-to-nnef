@@ -1,1 +1,8 @@
 *.nnef.tgz
+.crates*
+target
+.venv
+*.mp3
+*.wav
+hf_cache/
+model/

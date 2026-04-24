@@ -1,4 +1,13 @@
+import logging
+
 import pytest
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "experimental: mark test as experimental to run"
+    )
+    logging.getLogger("torch_to_nnef").setLevel(logging.WARNING)
 
 
 def pytest_addoption(parser):
@@ -7,12 +16,6 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="run experimental tests",
-    )
-
-
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "experimental: mark test as experimental to run"
     )
 
 

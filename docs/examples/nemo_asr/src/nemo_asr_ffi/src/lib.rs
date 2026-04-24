@@ -143,8 +143,8 @@ pub struct FFINemoAsrModel(NemoAsrModel);
 /// `nemo_asr_model_destroy`.
 ///
 /// # Arguments
-///  - `model_dir`: path to model directory
 ///  - `asr`: Pointer to the NemoAsrModel to create
+///  - `model_dir`: path to model directory
 ///
 /// # Return type
 /// Returns `ASR_FFI_RESULT_OK` if the function has run successfully.
@@ -162,6 +162,41 @@ pub unsafe extern "C" fn nemo_asr_from_dir(
     crate::wrap(|| {
         let model_dir = unsafe { CStr::raw_borrow(model_dir) }?.as_rust()?;
         let asr = FFINemoAsrModel(NemoAsrModel::from_dir(model_dir.into())?);
+        unsafe { *ptr = asr.into_raw_pointer_mut() };
+        Ok(())
+    })
+}
+
+/// Load FFINemoAsrModel from a directory path with runtime config. Destroy it using
+/// `nemo_asr_model_destroy`.
+///
+/// # Arguments
+///  - `asr`: Pointer to the NemoAsrModel to create
+///  - `model_dir`: path to model directory
+///  - `runtime_config`: Pointer to runtime_config as bytes
+///
+/// # Return type
+/// Returns `ASR_FFI_RESULT_OK` if the function has run successfully.
+///
+/// If `SVC_LLM_FFI_RESULT_KO` is returned, you can get more information on the error using the
+/// `nemo_asr_get_last_error` function.
+///
+/// # Safety
+/// Make sure that the passed in pointer is safe to be dereferenced.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nemo_asr_from_dir_with_runtime_config(
+    ptr: *mut *const FFINemoAsrModel,
+    model_dir: *const c_char,
+    runtime_config: *const c_char,
+) -> NEMO_ASR_FFI_RESULT {
+    crate::wrap(|| {
+        let model_dir = unsafe { CStr::raw_borrow(model_dir) }?.as_rust()?;
+        let runtime_config = unsafe { CStr::raw_borrow(runtime_config) }?.as_rust()?;
+
+        let asr = FFINemoAsrModel(NemoAsrModel::from_dir_with_runtime_config(
+            model_dir.into(),
+            Some(runtime_config.as_bytes().to_vec()),
+        )?);
         unsafe { *ptr = asr.into_raw_pointer_mut() };
         Ok(())
     })

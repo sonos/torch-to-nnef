@@ -4,6 +4,7 @@ import importlib
 import inspect
 import logging
 import os
+import re
 import typing as T
 from abc import ABC
 from collections.abc import MutableMapping
@@ -27,6 +28,31 @@ C = T.TypeVar("C")
 def cache(func: T.Callable[..., C]) -> C:
     """LRU cache helper that avoid pylint complains."""
     return functools.lru_cache()(func)  # type: ignore
+
+
+def ensure_tuple_io(value: T.Any) -> T.Tuple[T.Any, ...]:
+    """Normalize inputs/outputs into a tuple.
+
+    Behavior:
+    - If already a tuple, return as-is.
+    - If a list or other finite sequence, return tuple(value).
+    - If a single Tensor, number, bool, or mapping-like (has items and
+      __getitem__), wrap into a 1-tuple.
+    - Otherwise, return (value,).
+    """
+    if isinstance(value, tuple):
+        return value
+    # Preserve common containers
+    if isinstance(value, list):
+        return tuple(value)
+    # Torch tensor or primitive
+    if isinstance(value, (torch.Tensor, int, float, bool)):
+        return (value,)
+    # Dicts are preserved as single entries; other custom containers are not
+    # treated specially to avoid surprising wrapping heuristics.
+    if isinstance(value, dict):
+        return (value,)
+    return (value,)
 
 
 def fullname(o) -> str:
@@ -70,6 +96,35 @@ def dedup_list(lst: T.List[T.Any]) -> T.List[T.Any]:
         if item not in new_lst:
             new_lst.append(item)
     return new_lst
+
+
+def normalize_cli_list_option(
+    values: T.Optional[T.Iterable[T.Any]],
+) -> T.Optional[T.List[str]]:
+    """Normalize repeated/CSV CLI options into a list of unique strings.
+
+    Accepts values from argparse patterns like `action="append"` and also
+    tolerates a single string. Splits on commas, strips whitespace, removes
+    empty entries, and de-duplicates while preserving order. Returns None if
+    the input is falsy.
+    """
+    if not values:
+        return None
+    # Coerce a single string to an iterable interface
+    if isinstance(values, str):
+        values = [values]
+    flat: T.List[str] = []
+    for item in values:
+        text = item if isinstance(item, str) else str(item)
+        flat.extend(part.strip() for part in text.split(",") if part.strip())
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    out: T.List[str] = []
+    for s in flat:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
 
 
 def flatten_dict_tuple_or_list(
@@ -241,10 +296,9 @@ def init_on_device(
         old_register_parameter(module, name, param)
         if param is not None:
             param_cls = type(module._parameters[name])
-            kwargs = module._parameters[name].__dict__
-            kwargs["requires_grad"] = param.requires_grad
             module._parameters[name] = param_cls(
-                module._parameters[name].to(device), **kwargs
+                module._parameters[name].to(device),
+                requires_grad=param.requires_grad,
             )
 
     def register_empty_buffer(module, name, buffer, persistent=True):
@@ -292,11 +346,17 @@ def init_on_device(
 
 @total_ordering
 class SemanticVersion:
-    """Helper to check a version is higher than another.
+    """SemVer 2.0 compatible version class.
 
-    Attributes:
-        TAGS: each versions level (should not be modified in most cases)
-            ordering being done from left to right.
+    Supports:
+        1.2.3
+        1.2.3-alpha
+        1.2.3-alpha.1
+        1.2.3-rc.1
+        1.2.3+build.5  (build metadata ignored in ordering)
+
+    Allows symmetric comparison with strings:
+        "1.2.0" < SemanticVersion.from_str("1.3.0")
 
     Example:
         >>> version = SemanticVersion.from_str("1.2.13")
@@ -308,53 +368,117 @@ class SemanticVersion:
         True
     """
 
-    TAGS = ["major", "minor", "patch"]
+    __slots__ = (
+        "major",
+        "minor",
+        "patch",
+        "prerelease",
+        "build",
+        "_cmp_key",
+    )
 
-    def __init__(self, **kwargs):
-        """Init.
+    _SEMVER_RE = re.compile(
+        r"""
+        ^
+        (?P<major>0|[1-9]\d*)\.
+        (?P<minor>0|[1-9]\d*)\.
+        (?P<patch>0|[1-9]\d*)
+        (?:-(?P<prerelease>[0-9A-Za-z.-]+))?
+        (?:\+(?P<build>[0-9A-Za-z.-]+))?
+        $
+        """,
+        re.VERBOSE,
+    )
 
-        Args: (depends on TAGS but default is:)
-            major: int
-            minor: int
-            patch: int
-        """
-        for t in self.TAGS:
-            assert isinstance(kwargs[t], int), kwargs[t]
-            assert kwargs[t] >= 0, kwargs[t]
+    def __init__(self, major, minor, patch, prerelease=None, build=None):
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+        self.prerelease = tuple(prerelease or ())
+        self.build = build
 
-        self.version = {t: kwargs[t] for t in self.TAGS}
+        # Precompute comparison key (critical for performance)
+        self._cmp_key = self._build_cmp_key()
 
     @classmethod
-    def from_str(cls, version_str, sep="."):
-        version_chunks = version_str.strip().split(sep)
-        if "-" in version_chunks[-1]:
-            version_chunks[-1] = version_chunks[-1].split("-")[0]
-        vtags = list(map(int, version_chunks))
-        assert len(vtags) == len(cls.TAGS)
-        return cls(**dict(zip(cls.TAGS, vtags)))
+    def from_str(cls, version: str) -> "SemanticVersion":
+        m = cls._SEMVER_RE.match(version.strip())
+        if not m:
+            raise ValueError(f"Invalid semantic version: {version}")
 
-    def __eq__(self, other: object):
+        major = int(m.group("major"))
+        minor = int(m.group("minor"))
+        patch = int(m.group("patch"))
+
+        prerelease_raw = m.group("prerelease")
+        if prerelease_raw:
+            parsed = []
+            for part in prerelease_raw.split("."):
+                if part.isdigit():
+                    parsed.append(int(part))
+                else:
+                    parsed.append(part)
+            prerelease = tuple(parsed)
+        else:
+            prerelease = ()
+
+        return cls(
+            major=major,
+            minor=minor,
+            patch=patch,
+            prerelease=prerelease,
+            build=m.group("build"),
+        )
+
+    def _build_cmp_key(self):
+        """Build a tuple usable for correct SemVer precedence comparison."""
+        # Core version
+        core = (self.major, self.minor, self.patch)
+
+        # Pre-release ordering:
+        # No prerelease > prerelease
+        if not self.prerelease:
+            pre_key = (1,)  # higher than any prerelease
+        else:
+            normalized = []
+            for identifier in self.prerelease:
+                if isinstance(identifier, int):
+                    normalized.append((0, identifier))
+                else:
+                    normalized.append((1, identifier))
+            pre_key = (0, tuple(normalized))
+
+        return core + (pre_key,)
+
+    def _coerce_other(self, other):
         if isinstance(other, str):
-            other = SemanticVersion.from_str(other)
-        assert isinstance(other, SemanticVersion), other
-        return all(self.version[t] == other.version[t] for t in self.TAGS)
+            return SemanticVersion.from_str(other)
+        if isinstance(other, SemanticVersion):
+            return other
+        raise TypeError(f"Cannot compare SemanticVersion with {type(other)}")
 
-    def __lt__(self, other: object):
-        if isinstance(other, str):
-            other = SemanticVersion.from_str(other)
-        assert isinstance(other, SemanticVersion), other
-        for t in self.TAGS:
-            if self.version[t] < other.version[t]:
-                return True
-            if self.version[t] > other.version[t]:
-                return False
-        return False
+    def __eq__(self, other):
+        other = self._coerce_other(other)
+        return self._cmp_key == other._cmp_key
 
-    def to_str(self):
-        return ".".join(str(self.version[t]) for t in self.TAGS)
+    def __lt__(self, other):
+        other = self._coerce_other(other)
+        return self._cmp_key < other._cmp_key
 
-    def __repr__(self) -> str:
-        return f"<Version {self.to_str()}>"
+    def to_str(self) -> str:
+        """Return canonical SemVer string."""
+        return str(self)
+
+    def __str__(self):
+        base = f"{self.major}.{self.minor}.{self.patch}"
+        if self.prerelease:
+            base += "-" + ".".join(str(p) for p in self.prerelease)
+        if self.build:
+            base += f"+{self.build}"
+        return base
+
+    def __repr__(self):
+        return f"<SemanticVersion {self}>"
 
 
 def torch_version() -> SemanticVersion:
@@ -509,7 +633,10 @@ class ReactiveNamedItemDict:
     def contains(self, item: NamedItem, strict: bool = False):
         name_exists = item.name in self._map
         if name_exists and strict:
-            return self._map[item.name] == item
+            # Strict mode means the exact same object instance must be stored.
+            # Using identity avoids fragile __eq__ implementations (e.g.,
+            # tensors with NaNs that are not equal to themselves).
+            return self._map[item.name] is item
         return name_exists
 
     def append(self, item: NamedItem):
@@ -698,3 +825,56 @@ def blank_from_init(cls):
         setattr(obj, name, None)
 
     return obj
+
+
+def check_torch_ecosystem():
+    """Check that torch, torchaudio and torchvision versions are compatible.
+
+    This is a common source of runtime errors, so we proactively check and raise
+    a clear error message with instructions if we detect a mismatch.
+
+    (avoid cryptic symbol not found errors that can occur missmatched versions)
+
+    """
+    torch_mm = SemanticVersion.from_str(torch.__version__)
+
+    for name in ("torchaudio", "torchvision"):
+        try:
+            mod = __import__(name)
+        except ModuleNotFoundError:
+            continue
+
+        mod_version = SemanticVersion.from_str(mod.__version__)
+        compatible = True
+        hint = None
+        if name == "torchaudio":
+            # torchaudio follows torch major.minor
+            compatible = (
+                mod_version.major == torch_mm.major
+                and mod_version.minor == torch_mm.minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchaudio=={torch_mm.major}.{torch_mm.minor}.*"
+            )
+        elif name == "torchvision":
+            # torchvision 0.(15 + torch_minor).x pairs with
+            # torch 2.torch_minor.x
+            # Examples: torch 2.6.x <-> torchvision 0.21.x;
+            # 2.9.x <-> 0.24.x
+            expected_major = 0
+            expected_minor = 15 + torch_mm.minor
+            compatible = (
+                mod_version.major == expected_major
+                and mod_version.minor == expected_minor
+            )
+            hint = (
+                f"pip install torch=={torch_mm.major}.{torch_mm.minor}.* "
+                f"torchvision=={expected_major}.{expected_minor}.*"
+            )
+        if not compatible:
+            raise T2NErrorMisuse(
+                f"{name} ({mod.__version__}) is incompatible with torch "
+                f"({torch.__version__}). Install matching versions, e.g.:\n"
+                f"  {hint}"
+            )

@@ -1,0 +1,47 @@
+# MarbleNet VAD shapes config: batch-collapsed, scalar-bound lengths,
+# length outputs stripped.
+#
+# Generate the base template with:
+#   t2n_export_nemo -s vad_multilingual_marblenet -e /tmp/noop \
+#     --dry-run --dump-shape-config shapes.marblenet.yaml
+#
+# Then apply:
+#   - collapse_dims: all __BATCH symbols (inputs and outputs)
+#   - bind_scalar_to_dim_size: length inputs → sibling TIME dim
+#   - outputs_keep: drop length outputs
+#   - outputs.collapse_dims: squeeze batch axis from kept outputs
+
+preprocessor:
+  inputs:
+    input_signal:
+      original_shape: [INPUT_SIGNAL__BATCH, INPUT_SIGNAL__TIME]
+      collapse_dims: [INPUT_SIGNAL__BATCH]
+    length:
+      original_shape: [LENGTH__BATCH]
+      collapse_dims: [LENGTH__BATCH]
+      bind_scalar_to_dim_size: input_signal.INPUT_SIGNAL__TIME
+  outputs_keep: [processed_signal]
+  outputs:
+    processed_signal:
+      collapse_dims: [0]
+encoder:
+  inputs:
+    audio_signal:
+      original_shape: [AUDIO_SIGNAL__BATCH, AUDIO_SIGNAL__CHANNEL, AUDIO_SIGNAL__TIME]
+      collapse_dims: [AUDIO_SIGNAL__BATCH]
+    length:
+      original_shape: [LENGTH__BATCH]
+      collapse_dims: [LENGTH__BATCH]
+      bind_scalar_to_dim_size: audio_signal.AUDIO_SIGNAL__TIME
+  outputs_keep: [outputs]
+  outputs:
+    outputs:
+      collapse_dims: [0]
+decoder:
+  inputs:
+    encoder_output:
+      original_shape: [ENCODER_OUTPUT__BATCH, ENCODER_OUTPUT__CHANNEL, ENCODER_OUTPUT__TIME]
+      collapse_dims: [ENCODER_OUTPUT__BATCH]
+  outputs:
+    logits:
+      collapse_dims: [0]

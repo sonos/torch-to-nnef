@@ -78,10 +78,12 @@ Looking at what we just exported we see in the folder just created `$HOME/llama3
 │   └── [2.3G]  model.nnef.tgz
 ├── [  78]  modes.json
 ├── [4.0M]  tests
-│   ├── [838K]  export_io.npz
-│   ├── [902K]  prompt_io.npz
-│   ├── [1.1M]  prompt_with_past_io.npz
-│   └── [1.2M]  text_generation_io.npz
+│   ├── [902K]  prompt_inputs.npz
+│   ├── [902K]  prompt_outputs.npz
+│   ├── [1.1M]  prompt_with_past_inputs.npz
+│   ├── [1.1M]  prompt_with_past_outputs.npz
+│   ├── [1.2M]  text_generation_inputs.npz
+│   └── [1.2M]  text_generation_outputs.npz
 └── [ 16M]  tokenizer
     ├── [3.7K]  chat_template.jinja
     ├── [ 296]  special_tokens_map.json
@@ -180,7 +182,7 @@ main module all states (like KV-cache) ?
 - If not is it easy to transform the library internal modeling to approach this architecture ?
 
 If you can answer yes to one of those 2 questions congratulation, you should be able
-to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/torch_to_nnef/llm_tract).
+to easily adapt [these transformers specific torch_to_nnef modules](https://github.com/sonos/torch-to-nnef/tree/main/packages/llm/torch_to_nnef_llm).
 
 Else if state management is internal to specific modules you will likely need to write
 [custom operator exporter](./8_custom_operator.md) to express those IO at export time

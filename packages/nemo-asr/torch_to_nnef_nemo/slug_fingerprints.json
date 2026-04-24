@@ -1,0 +1,50 @@
+{
+  "nvidia/nemotron-speech-streaming-en-0.6b": {
+    "att_context_size": [
+      [
+        70,
+        13
+      ],
+      [
+        70,
+        6
+      ],
+      [
+        70,
+        1
+      ],
+      [
+        70,
+        0
+      ]
+    ],
+    "conv_kernel_size": 9,
+    "d_model": 1024,
+    "encoder_class": "ConformerEncoder",
+    "feat_in": 128,
+    "model_class": "EncDecRNNTBPEModel",
+    "n_layers": 24,
+    "num_tdt_durations": null,
+    "self_attention_model": "rel_pos",
+    "subsampling": "dw_striding",
+    "subsampling_factor": 8
+  },
+  "nvidia/parakeet-tdt-0.6b-v3": {
+    "att_context_size": [
+      [
+        -1,
+        -1
+      ]
+    ],
+    "conv_kernel_size": 9,
+    "d_model": 1024,
+    "encoder_class": "ConformerEncoder",
+    "feat_in": 128,
+    "model_class": "EncDecRNNTBPEModel",
+    "n_layers": 24,
+    "num_tdt_durations": 5,
+    "self_attention_model": "rel_pos",
+    "subsampling": "dw_striding",
+    "subsampling_factor": 8
+  }
+}

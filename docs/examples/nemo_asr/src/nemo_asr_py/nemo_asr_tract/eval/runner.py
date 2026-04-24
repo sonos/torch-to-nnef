@@ -82,7 +82,7 @@ class AsrRunner(ABC):
 
 
 class ExportedNemoRunner(AsrRunner):
-    """Exported Nemo-Tract model ran with tract.
+    """Exported Nemo-tract model ran with tract.
 
     Does NOT batch internally → chunking handled here.
     """
@@ -110,13 +110,13 @@ class ExportedNemoRunner(AsrRunner):
         model = NemoAsrModel.from_dir(cfg.model_dir)
         if dtype != torch.float32:
             logging.warning(
-                "Exported Nemo-Tract models provide not "
+                "Exported Nemo-tract models provide not "
                 "control for dtype; ignoring dtype=%s",
                 dtype,
             )
         if cfg.decoding_stragegy != DecodingStragegy.GREEDY:
             raise NotImplementedError(
-                "Nemo-Tract exported models currently only "
+                "Nemo-tract exported models currently only "
                 "support greedy decoding."
             )
         return cls(model, batch_size=cfg.dataset.batch_size)

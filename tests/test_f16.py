@@ -1,4 +1,4 @@
-import subprocess
+import tarfile
 from copy import deepcopy
 from pathlib import Path
 
@@ -82,24 +82,34 @@ except ImportError as exp:
     print("not yet weight_norm import:", exp)
 
 
+def _read_graph_nnef_from_archive(path: Path) -> str:
+    with tarfile.open(path, "r:*") as tf:
+        member = None
+        for m in tf.getmembers():
+            if m.name.endswith("graph.nnef"):
+                member = m
+                break
+        if member is None:
+            raise AssertionError("graph.nnef not found in exported archive")
+        f = tf.extractfile(member)
+        assert f is not None
+        return f.read().decode("utf-8")
+
+
 def check_contains_f32_upcast_attn(inference_target, path):
     assert path.exists()
-    graph_filename = "graph.nnef"
-    subprocess.check_call(["tar", "-xzf", path, graph_filename])
-    graph_filepath = Path(graph_filename)
-    graph_content = graph_filepath.read_text()
-    try:
+    graph_content = _read_graph_nnef_from_archive(path)
+    if inference_target.reify_sdpa_operator:
+        assert "tract_transformers_sdpa(" in graph_content
         if inference_target.force_attention_inner_in_f32:
-            assert (
-                "fragment scaled_dot_product_attention_3d_f16_df32("
-                in graph_content
-            )
-        else:
-            assert (
-                "fragment scaled_dot_product_attention_3d_f16(" in graph_content
-            )
-    finally:
-        graph_filepath.unlink()
+            assert "acc_datum_type = 'f32'" in graph_content
+    elif inference_target.force_attention_inner_in_f32:
+        assert (
+            "fragment scaled_dot_product_attention_3d_f16_df32("
+            in graph_content
+        )
+    else:
+        assert "fragment scaled_dot_product_attention_3d_f16(" in graph_content
 
 
 @pytest.mark.parametrize(
@@ -119,21 +129,15 @@ def test_upcast_f32_attn(id, test_input, model, inference_target):
 
 def check_contains_f32_upcast_norm(inference_target, path):
     assert path.exists()
-    graph_filename = "graph.nnef"
-    subprocess.check_call(["tar", "-xzf", path, graph_filename])
-    graph_filepath = Path(graph_filename)
-    graph_content = graph_filepath.read_text()
-    try:
-        elms_to_be_found = ["to = 'f32'", "to = 'f16'"]
-        if inference_target.force_norm_in_f32:
-            assert all(
-                elm in graph_content
-                for elm in elms_to_be_found + ["tract_core_cast"]
-            )
-        else:
-            assert not any(elm in graph_content for elm in elms_to_be_found)
-    finally:
-        graph_filepath.unlink()
+    graph_content = _read_graph_nnef_from_archive(path)
+    elms_to_be_found = ["to = 'f32'", "to = 'f16'"]
+    if inference_target.force_norm_in_f32:
+        assert all(
+            elm in graph_content
+            for elm in elms_to_be_found + ["tract_core_cast"]
+        )
+    else:
+        assert not any(elm in graph_content for elm in elms_to_be_found)
 
 
 @pytest.mark.skipif(

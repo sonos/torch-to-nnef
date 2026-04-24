@@ -1,3 +1,5 @@
+import logging
+
 import nnef
 import torch
 
@@ -11,6 +13,8 @@ from torch_to_nnef.op.helper import (
 )
 from torch_to_nnef.torch_graph import PythonConstant
 from torch_to_nnef.utils import torch_version
+
+LOGGER = logging.getLogger(__name__)
 
 OP_REGISTRY = AtenOpRegistry()
 
@@ -131,6 +135,13 @@ def stft(
         or inference_target.version < "0.20.7"
     ):
         raise T2NErrorNotImplemented(inference_target)
+    if "0.21.14" <= inference_target.version <= "0.21.15":
+        LOGGER.warning(
+            "tract %s has a known slice-fusion bug that corrupts STFT "
+            "results (https://github.com/sonos/tract/commit/8b8f4537c). "
+            "Use tract 0.21.13 or >= 0.22.0 instead.",
+            inference_target.version.to_str(),
+        )
     if torch_version() < "2.7.0":
         (
             input_node,  # Tensor

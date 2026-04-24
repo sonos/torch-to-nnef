@@ -1,0 +1,30 @@
+extension tract_registry tract_core;
+
+
+fragment scan_body_add(
+    scan_input: tensor<scalar>,
+    acc_input: tensor<scalar>
+) -> ( added: tensor<scalar> )
+{
+    added = scan_input + acc_input;
+}
+
+
+fragment tract_cumsum(
+    input: tensor<scalar>,
+    init: tensor<scalar>,
+    axis: integer
+) -> ( output: tensor<scalar> )
+{
+    output = tract_core_scan(
+        body = "scan_body_add",
+        scan = [
+            ("scan_input", input, axis, 1)
+        ],
+        full = [],
+        state = [("acc_input", init, "added")],
+        output = [("added", "full", axis, 1)],
+        skip = 0,
+        reset_every_turn = false
+    );
+}

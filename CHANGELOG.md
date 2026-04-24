@@ -1,7 +1,156 @@
 <!-- markdownlint-disable-file MD001 MD013 MD024 -->
 # Changelog
 
-## Unreleased
+## [0.23.2] - 2026-04-21
+
+### Added
+- **Auto slug resolution** (NeMo ASR): resolve pretrained slug from encoder architecture fingerprint, so local `.nemo` finetunes (which don't store the slug) inherit the pretrained's tract extensions.
+  - `slug_fingerprints.json` registry mapping known slugs to `EncoderFingerprint`.
+  - `python -m torch_to_nnef_nemo.tools.refresh_slug_fingerprints` tool to regenerate the JSON from `ASRModel.from_pretrained`.
+- **Derived tract extensions** (NeMo ASR): compute `tract_assert` bounds from encoder architecture (`pos_emb_max_len`, subsampling factor, attention variant) instead of hand-maintaining per-slug strings. Manual `SLUG_EXTENSIONS` registry remains as an overrides path; both are merged at export time with deduplication.
+
+### Fixed
+- NeMo fingerprint/deriver now guard against models without an `encoder` submodule.
+- `uv.lock` restored in `.bumpversion.cfg` (dropped during the 0.23.0 monorepo split).
+
+## [0.23.1] - 2026-04-13
+
+### Added
+- **transformers 5.x support** (LLM): relax dependency from `<5` to `<6`, tested with 5.0.0 and 5.5.0.
+- **NeMo 2.7.2 / Python 3.13 support**: new tox env, fix optional input handling.
+- Parakeet V3 and MarbleNet VAD export tests for NeMo.
+- Runtime warning when STFT is used with tract 0.21.14/0.21.15 (known slice-fusion bug).
+
+### Changed
+- Officially supported tract versions bumped to 0.22.1 and 0.21.15.
+- LLM CI matrix now tests transformers 5.0.0 and 5.5.0 on Python 3.13 (replaces 4.55.0).
+- SDPA test updated for tract 0.22.1 `reify_sdpa_operator` (`tract_transformers_sdpa` op).
+- `isnan`/`isinf` tests gated to tract > 0.22.1 (ops landed in tract 0.23).
+
+### Fixed
+- `DynamicCache.from_legacy_cache()` / `to_legacy_cache()` removed in transformers 5.x -- version-aware helpers added.
+- `Parameter.__new__()` rejecting HF `_is_hf_initialized` kwarg in transformers 5.x.
+- `strict=True` added to `zip` in `expand_input_names` (ruff B905).
+- Handle v-prefixed tract release tags.
+
+### Known tract issues (upstream)
+- tract 0.21.14/0.21.15: slice-fusion optimization corrupts STFT results (`8b8f4537c`).
+- tract 0.22.1 on linux x86_64: `OptMatMulPack` tries to pack F32 tensors as PackedF16 when `force_f32_attention=True`.
+
+## [0.23.0] - 2026-04-10
+
+### Changed
+- Split into 3 independent packages in a uv workspace monorepo:
+  - `torch_to_nnef` (core) -- base export library, Python >=3.9
+  - `torch_to_nnef_llm` (LLM + PEFT) -- transformers-based export, Python >=3.10
+  - `torch_to_nnef_nemo_asr` (NeMo ASR) -- NeMo ASR export, Python >=3.10
+- `requires-python = ">=3.9"` now enabled on core (was disabled due to nemo constraints).
+- `pyyaml` added to core dependencies (was transitive via nemo).
+- Decouple `remodeler` from nemo: use `T.Any` for registry types instead of importing `AxisSymbolRegistry`.
+- Each sub-package manages its own `_optional_types.py` for dependency-injection type stubs.
+- Test dependencies moved from extras to dependency-groups (PEP 735) -- `pip install torch_to_nnef[test]` no longer works; use `uv sync --group test` instead.
+- Core test suite split into lightweight core envs and heavy zoo envs (torchvision/torchaudio/librosa) with matched version pins per torch version.
+- Release workflow builds and publishes all 3 packages (core first, then LLM and NeMo).
+
+### Migration
+- CLI commands unchanged: `t2n_export_llm_to_tract`, `t2n_export_peft_to_nnef`, `t2n_export_nemo` work as before.
+- Install: `pip install torch_to_nnef[llm-tract]` still works (backward-compat redirect extras).
+- Python imports changed:
+  - `from torch_to_nnef.llm_tract.X` becomes `from torch_to_nnef_llm.X`
+  - `from torch_to_nnef.nemo_tract.X` becomes `from torch_to_nnef_nemo.X`
+  - `from torch_to_nnef.peft.X` becomes `from torch_to_nnef_llm.peft.X`
+
+## [0.22.0] - 2026-04-01
+
+### Added
+- remodeler (`torch_to_nnef.remodeler`): generic shape-remodeling pipeline extracted from NeMo-specific logic, reusable for any export workflow.
+  - structured `shapes.yaml` per subnet (`original_shape`, `collapse_dims`, `bind_scalar_to_dim_size`, `renamed_symbols`, `eval_symbols`) to control boundary-only transforms.
+  - per-output `collapse_dims` support in shape config.
+  - export-time `BoundaryAdapter` applying tuple flattening, alias-aware collapse (batch and other dynamic dims), dynamic scalar binding from `shape(source)[axis]`, and dynamic-axes recomputation; only triggered for structural transforms, symbol-only renames applied via lightweight `_apply_symbol_renames_to_dyn`.
+  - generic `BoundaryAdapter`, `RenameOutputs` in `torch_to_nnef.remodeler.adapter`; generic `prepare_subnet_export` helper.
+  - dedicated `dyn_axes` module (`torch_to_nnef.remodeler.dyn_axes`) for dynamic-axes evaluation logic.
+  - IO collision checker for `model_wrapper`; assert extensions for NeMo models.
+  - binding keeps dynamism by tracing `aten::size` + cast (no baked constants), and reinserts target-collapsed axes for correct internal ranks.
+- inspector: `--inspect-signatures`, `--inspect-stage`, `--inspect-format`, `--inspect-output`, `--inspect-diff`; human/human-rich/JSON output; model header; tuple input expansion; config overlay; per-stage diffs; stricter config validation (qualified/bare name resolution, rank mismatches); symbol overlay/substitution.
+- template dump: nested YAML with header and inline lists; auto-suggest `renamed_symbols` for decoder/decoder_joint when multiple batch-like symbols are seen across inputs.
+- symbol generation: batch dims are now namespaced as `<INPUT>__BATCH` (e.g., `ENCODER_OUTPUTS__BATCH`) for clarity and consistency across inputs.
+- NeMo export: Tract-facing dynamic axes honor subnet `renamed_symbols`; assertions consolidated to alias targets; dtype preparation (`.half()`, `WrapPreprocessorCast`) handled internally based on `cfg.data_type`; subnets with unused traced inputs handled gracefully (`check_io_names_qte_match=False`).
+
+### Removed
+- legacy `--collapse-batch-dim` flag and its wrapper; use `shapes.yaml` (`collapse_dims`) instead.
+
+### Fixed
+- torchvision compatibility check: correctly map torch 2.x to torchvision 0.(15+minor).x (e.g., torch 2.9.x ↔ torchvision 0.24.x).
+- circular import: moved `InspectFormat` enum to `config.py` to break `config→inspect→export→config` cycle; `NamingPrecisionConfig.naming_scheme` and `InspectionConfig.inspect_format` now typed as enums.
+- VAD model loading: fallback to `EncDecClassificationModel.from_pretrained` when `ASRModel.from_pretrained` fails.
+
+### Tests
+- extended nemo export test suite: config variants (skip-preprocessor, float16, only-subnets, quantization, naming), shape config from YAML (parakeet full, VAD collapsed), programmatic batch-collapse with bind+strip, dry-run dump round-trip.
+- per-model tract IO tolerance (QuartzNet uses `VERY`).
+- NeMo log silencing fixture in conftest.
+- `eval_symbols` test cases.
+
+### Docs
+- NeMo ASR guide updated with a Shapes config section: dump → edit → inspect → export, with examples for `collapse_dims`, `bind_scalar_to_dim_size`, and `renamed_symbols`.
+
+
+
+## [0.21.0] - 2026-02-15
+
+### Added
+
+- NeMo ASR export via new `torch_to_nnef.nemo_tract` package: CLI, wrappers, dynamic-axes utilities, and model loader helpers.
+- Example scripts for docs/examples: `bootstrap-uv.sh`, `bootstrap-wasm-pack.sh`, `bootstrap-rust.sh`, and `clean.sh` to streamline local setup and cleanup.
+- Tests: artifact packaging behavior (`tests/test_artifacts.py`) to validate `.nnef`/`.tar`/`.tgz` outputs.
+- Tests: expanded coverage around new features and edge cases, including cumsum (`tests/test_cumsum.py`), MaxPool2d with indices (`tests/test_pool_with_indices.py`), output renaming safeguards (`tests/test_rename_outputs.py`), and NeMo subnet iteration/splitting (`tests/test_nemo_iter_subnets.py`).
+- API: `export_model_to_nnef` now returns the exported artifact path for easier downstream use.
+- Ops: added support for `cumsum` (exported as `tract_cumsum`) and MaxPool2d with indices.
+- Export helpers: `iter_torch_tensors_from_disk(map_location=...)` to control device mapping; skips non‑tensor entries in state dicts.
+- Writer: pass‑through identity (input→output) renders as an assignment when targeting Tract; prevents silent aliasing.
+- Tract option: `--tract-reify-sdpa` to reify SDP attention for improved tract optimizations.
+- Versioning: new SemVer 2.0 utilities (`SemanticVersion`) and helpers integrated; enables correct prerelease/build handling and consistent version comparisons across the codebase.
+
+### Changed
+
+- NNEF export artifacts: honoring `.nnef.tgz` as an intent for the final archive while always writing to the base `.nnef` path internally; consistent selection of directory (`compression=None`), `.tar` (`0`), or `.tgz` (`1..9`).
+- Writer: explicit `archive_format` for predictable `.tar` vs `.tgz` emission; avoids unnecessary fragment extensions for Tract targets.
+- Export robustness: normalized mapping-like/single outputs via `ensure_tuple_io`; stricter IO name collision checks with opt-in `allow_same_io_names` (kept False by default).
+- NeMo export pipeline: improved subnet iteration (optional split of decoder/joint), batch-dimension collapse option, safer preprocessor export, and automatic output renaming to avoid input/output name collisions.
+- RNN utils monkeypatching is now narrowly scoped and only applied for Tract targets; clearer error messages when unsupported.
+- Dynamic‑axes inference refined for unflatten/argsort/sort using `get_tract_dyn_axis_size_soc`.
+- Cumsum: initial simple implementation introduced and later renamed from `t2n_cumsum` to `tract_cumsum`; improved tract ONNX↔NNEF compare utility.
+- Versioning: `torch_version()` now yields a semantic `SemanticVersion`; feature toggles (e.g., default SDPA reification) are gated semantically and auto‑enable reify for Tract > 0.22.0.
+- Docs/examples: added `docs/examples/nemo_asr/requirements.txt`, hardened NeMo ASR `run.sh`, and removed a stale YOLO TorchScript asset.
+- Tooling/build: clarified pip 23.2 dependency constraints; pinned/adjusted setuptools for older torch toolchains (e.g., 1.10); minor doc clarifications.
+
+### Fixed
+
+- `.nnef.tgz` target path now produces a `.nnef` directory when `compression_level=None` (base-path semantics), matching tests and documentation.
+- Dynamic-axes propagation and rank filtering across NeMo subnets to better reflect actual exposed IO.
+- Minor linting and config tweaks (prospector rule, gitignore patterns).
+
+## [0.20.4] -  2026-02-06
+
+### Added
+
+- Completed NeMo ASR export and evaluation system CLI tooling (t2n_export_nemo) with novel options
+- Shape inference for conv and test suite validating IR operation shape/dtype correctness with approximate and exact tracing modes
+- Comprehensive NeMo model subnet with improved batch alignment checks for encoder/decoder/joint export
+- Analysis tooling for debugging batch-mode encoder issues and SDPA operator behavior
+- Support for runtime config in nemo tract rust example to better control the runner.
+
+### Changed
+
+- Export performance significantly improved via shape inference speculation system - avoiding redundant model executions during export by guessing shapes for common operations
+- NeMo evaluation framework restructured with modular dataset handling, manifest comparison tools, and batch alignment verification utilities
+- Model wrapper now handles complex input/output structures (nested tuples, dicts, custom objects) more robustly with better constantization support
+
+### Fixed
+
+- Nemo export - removed useless parameters from model exports via wrappers
+- Named tensor operations now avoid unnecessary clones and properly handle dtype/shape access during graph parsing (improved speedups)
+- Reducer operations (sum, mean, etc.) now better handle boolean dtype inputs (improved support in tract)
+- Model zoo tests refactored for better isolation and legacy quantization compatibility
 
 ## [0.20.3] - 2026-01-26
 

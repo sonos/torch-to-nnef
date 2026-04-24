@@ -3,6 +3,7 @@ from ctypes import c_size_t
 from .nemo_asr import (
     NemoAsrConfig,
     NemoAsrModel,
+    RuntimeConfig,
     Transcript,
     TranscriptItem,
     Transcripts,
@@ -28,4 +29,5 @@ __all__ = [
     "TranscriptItem",
     "Transcripts",
     "load_config_from_dir",
+    "RuntimeConfig",
 ]

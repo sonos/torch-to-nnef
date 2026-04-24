@@ -1,15 +1,12 @@
 [project]
 name = "torch_to_nnef"
-version = "0.20.3"
+version = "0.23.2"
 description = "Any PyTorch Model to NNEF file format."
 authors = [{ name = "Julien Balian", email = "julien.balian@sonos.com" }]
 license = "MIT AND Apache-2.0"
 license-files = ["LICENSE"]
 
-# too anoying with python version constraints
-# with optional deps (some nemo require > 3.10, etc.)
-#
-# requires-python = ">=3.9.0,<4"
+requires-python = ">=3.9"
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -21,7 +18,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
 ]
 keywords = [
     "nnef",
@@ -40,50 +36,34 @@ dependencies = [
     "nnef>=1.0.7,<2",
     "nnef_tools>=1.0.7,<2",
     "numpy>=1.26.0,<3",
+    "pyyaml>=5.0",
     "torch>=1.8.0,<3",
     "typing-extensions>=4.0.0",
 ]
 
 [project.optional-dependencies]
-# recall that _ are not supported in extras names on PyPI
-# and auto converted to - (so better to avoid them)
-llm-tract = [
-    "huggingface-hub>0.24",
-    "protobuf>5",
-    "sentencepiece>=0.2.0,<0.3",
-    "tokenizers>=0.13.3",
-    "transformers>=4.35.2,<5",
-]
-llm-tract-accelerate = ["accelerate"]
+# Backward-compat redirect extras (install the split packages)
+llm-tract = ["torch_to_nnef_llm"]
+llm-tract-accelerate = ["torch_to_nnef_llm[accelerate]"]
+peft = ["torch_to_nnef_llm[peft]"]
+nemo-tract = ["torch_to_nnef_nemo_asr"]
 safetensors = ["safetensors"]
-peft = ["peft"]
-nemo-tract = ["nemo_toolkit[asr]>=2.0.0,<2.7.0", "questionary"]
-test = [
-    "mypy~=1.13",
-    "pytest-cov>=6.0.0,<7",
-    "pytest>=8.3.3,<9",
-    "ruff<1.0",
-    "sentencepiece>=0.2.0,<0.3",
-    "tokenizers>=0.13.3",
-    "torchaudio>=0.9.0,<3",
-    "torchvision>=0.10.0,<0.25",
-    "transformers>=4.35.2,<5",
-    "librosa==0.11.0",
-    "coverage[toml]",
-    "prospector",
-]
 [project.urls]
 Homepage = "https://github.com/sonos/torch-to-nnef"
-
-[project.scripts]
-t2n_export_llm_to_tract = "torch_to_nnef.llm_tract.cli:main"
-t2n_export_peft_to_nnef = "torch_to_nnef.peft.cli:main"
-t2n_export_nemo = "torch_to_nnef.nemo_tract:main"
 
 [project.entry-points."pygments.lexers"]
 nnef = "docs.nnef_lexer:NNEFLexer"
 
 [dependency-groups]
+test = [
+    "mypy~=1.13",
+    "pytest-cov>=6.0.0,<7",
+    "pytest>=8.3.3,<9",
+    "ruff<1.0",
+    "safetensors",
+    "coverage[toml]",
+    "prospector",
+]
 dev = [
     "bump2version>=1.0.1,<2",
     "ipdb>=0.13.9,<0.14",
@@ -104,23 +84,33 @@ dev = [
 
 [tool.uv]
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+torch_to_nnef_llm = { workspace = true }
+torch_to_nnef_nemo_asr = { workspace = true }
+
 [[tool.uv.index]]
 name = "pypi-public"
 url = "https://pypi.org/simple/"
 
 [tool.hatch.build.targets.sdist]
 include = ["torch_to_nnef", "CHANGELOG.md"]
+exclude = ["packages"]
 
 [tool.hatch.build.targets.wheel]
 include = ["torch_to_nnef", "CHANGELOG.md"]
+exclude = ["packages"]
 
 [build-system]
-requires = ["hatchling", "setuptools>42"]
+# be sure to install pip >= 23.2 to avoid build issues
+requires = ["setuptools>42", "hatchling>=1.20", "packaging>=24.0"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 80
-target-version = 'py310'
+target-version = 'py39'
 
 [tool.ruff.lint]
 select = [
@@ -140,7 +130,6 @@ select = [
     "D",
 ]
 ignore = [
-    "B905", # support zip without strict check
     # if a docstring then ensure consistency but if it is missing do not raise issue {
     "D100",
     "D101",
@@ -153,6 +142,9 @@ ignore = [
 ]
 
 
+[tool.ruff.lint.isort]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -164,16 +156,24 @@ markers = [
     "serial",
 ]
 
+[tool.isort]
+known_first_party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
+[tool.pylint.imports]
+known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
+
 [tool.pylint.master]
-extension-pkg-whitelist = ["torch", "numpy"]
+py-version = "3.10"
+extension-pkg-allow-list = ["torch", "numpy", "peft"]
 
 [tool.pylint.typecheck]
 ignored-modules = ["torch", "numpy"]
 ignored-classes = ["torch", "numpy"]
-generated-members = ["torch.*"]
+generated-members = ["torch.*", "peft.*"]
 
 [tool.pylint.format]
 max-module-lines = 2000
+
 
 [tool.pylint."MESSAGE CONTROL"]
 disable = [
@@ -192,6 +192,7 @@ disable = [
     "unused-argument",
     "unused-wildcard-import",
     "wrong-import-position",
+    "wrong-import-order",            # ruff/isort handles this with correct first-party config
     "import-error",                  # prospector have trouble with nnef, nnef_tools
     "cyclic-import",                 # false trigger in prospector
 ]
@@ -212,7 +213,7 @@ follow_imports_for_stubs = true
 
 [tool.tox]
 isolated_build = true
-envlist = ["py310", "py314", "format", "lint", "build"]
+envlist = ["py39", "py313", "format", "lint", "build"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.coverage.report]
@@ -228,11 +229,21 @@ exclude_lines = [
     "def main",
 ]
 
+# -- shared base for all envs ------------------------------------------------
+
 [tool.tox.env_run_base]
-extras = ["test", "peft"]
+dependency_groups = ["test"]
 passenv = ["*"]
 constrain_package_deps = true
-deps = ["torchvision==0.24.1"]
+
+[[tool.tox.env_run_base.setenv]]
+PYTHONPATH = "{toxinidir}"
+PYTHONWARNINGS = "ignore"
+MODELS = "1"
+
+# -- core envs (lightweight, no torchvision/torchaudio/librosa) ---------------
+
+[tool.tox.env.py39]
 commands = [
     [
         "pytest",
@@ -243,6 +254,10 @@ commands = [
         "--cov-branch",
         "--cov-report=xml",
         "--cov-report=term-missing",
+        "--ignore=tests/test_model_zoo.py",
+        "--ignore=tests/test_dynamic_axes.py",
+        "--ignore=tests/test_fft.py",
+        "--ignore=tests/test_mod.py",
         "tests",
     ],
     [
@@ -251,48 +266,208 @@ commands = [
         "torch_to_nnef",
     ],
 ]
-[tool.tox.env.py39]
-deps = ["torchvision==0.22.1"]
+
+[tool.tox.env.py313]
+basepython = ["python3.13"]
+deps = ["--index-url=https://download.pytorch.org/whl/cpu", "torch==2.6.*"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
+        "--ignore=tests/test_model_zoo.py",
+        "--ignore=tests/test_dynamic_axes.py",
+        "--ignore=tests/test_fft.py",
+        "--ignore=tests/test_mod.py",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
 
 [tool.tox.env.torch_1_10]
 basepython = ["python3.9"]
-extras = ["test"]
+deps = ["torch==1.10.1", "safetensors<=0.4.2", "numpy<2.0.0", "setuptools<70"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--ignore=tests/test_model_zoo.py",
+        "--ignore=tests/test_dynamic_axes.py",
+        "--ignore=tests/test_fft.py",
+        "--ignore=tests/test_mod.py",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+[tool.tox.env.torch_1_13]
+basepython = ["python3.9"]
+deps = ["torch==1.13.1", "safetensors<=0.4.2", "numpy<2.0.0"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--ignore=tests/test_model_zoo.py",
+        "--ignore=tests/test_dynamic_axes.py",
+        "--ignore=tests/test_fft.py",
+        "--ignore=tests/test_mod.py",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+[tool.tox.env.torch_2_2]
+basepython = ["python3.12"]
+deps = ["torch==2.2.2", "numpy<2.0.0", "safetensors<=0.4.2"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "--ignore=tests/test_model_zoo.py",
+        "--ignore=tests/test_dynamic_axes.py",
+        "--ignore=tests/test_fft.py",
+        "--ignore=tests/test_mod.py",
+        "tests",
+    ],
+    [
+        "pytest",
+        "--doctest-modules",
+        "torch_to_nnef",
+    ],
+]
+
+# -- zoo envs (heavy deps, model export validation) --------------------------
+# Zoo tests: test_model_zoo.py, test_dynamic_axes.py, test_fft.py, test_mod.py
+
+[tool.tox.env.zoo_py39]
+deps = ["torchvision==0.22.1", "torchaudio==2.7.*", "librosa==0.11.0"]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "tests/test_model_zoo.py",
+        "tests/test_dynamic_axes.py",
+        "tests/test_fft.py",
+        "tests/test_mod.py",
+    ],
+]
+
+[tool.tox.env.zoo_py313]
+basepython = ["python3.13"]
+deps = [
+    "--index-url=https://download.pytorch.org/whl/cpu",
+    "torch==2.6.*",
+    "torchvision==0.21.*",
+    "torchaudio==2.6.*",
+    "librosa==0.11.0",
+]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "tests/test_model_zoo.py",
+        "tests/test_dynamic_axes.py",
+        "tests/test_fft.py",
+        "tests/test_mod.py",
+    ],
+]
+
+[tool.tox.env.zoo_torch_1_10]
+basepython = ["python3.9"]
 deps = [
     "torch==1.10.1",
     "torchvision==0.11.2",
     "torchaudio==0.10.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
-    "setuptools>0.70",
+    "setuptools<70",
+    "librosa==0.11.0",
+]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "tests/test_model_zoo.py",
+        "tests/test_dynamic_axes.py",
+        "tests/test_fft.py",
+        "tests/test_mod.py",
+    ],
 ]
 
-[tool.tox.env.torch_1_13]
+[tool.tox.env.zoo_torch_1_13]
 basepython = ["python3.9"]
-extras = ["test"]
 deps = [
     "torch==1.13.1",
     "torchvision==0.14.1",
     "torchaudio==0.13.1",
     "safetensors<=0.4.2",
     "numpy<2.0.0",
+    "librosa==0.11.0",
+]
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "tests/test_model_zoo.py",
+        "tests/test_dynamic_axes.py",
+        "tests/test_fft.py",
+        "tests/test_mod.py",
+    ],
 ]
 
-
-[tool.tox.env.torch_2_2]
+[tool.tox.env.zoo_torch_2_2]
 basepython = ["python3.12"]
-extras = ["test"]
 deps = [
     "torch==2.2.2",
     "torchvision==0.17.2",
     "torchaudio==2.2.2",
     "numpy<2.0.0",
     "safetensors<=0.4.2",
+    "librosa==0.11.0",
 ]
-
-[[tool.tox.env_run_base.setenv]]
-PYTHONPATH = "{toxinidir}"
-PYTHONWARNINGS = "ignore"
-MODELS = "1"
+commands = [
+    [
+        "pytest",
+        "-m",
+        "not ci_skip",
+        "-x",
+        "tests/test_model_zoo.py",
+        "tests/test_dynamic_axes.py",
+        "tests/test_fft.py",
+        "tests/test_mod.py",
+    ],
+]
 
 
 [tool.tox.env.format]
@@ -304,6 +479,7 @@ commands = [
         "format",
         "torch_to_nnef",
         "tests",
+        "packages",
     ],
     [
         "ruff",
@@ -311,6 +487,7 @@ commands = [
         "--fix",
         "torch_to_nnef",
         "tests",
+        "packages",
     ],
 ]
 
@@ -324,19 +501,21 @@ commands = [
         "--check",
         "torch_to_nnef",
         "tests",
+        "packages",
     ],
     [
         "ruff",
         "check",
         "torch_to_nnef",
         "tests",
+        "packages",
     ],
 ]
 
 [tool.tox.env.lint]
 skip_install = true
 deps = ["ruff"]
-commands = [["ruff", "check", "-q", "torch_to_nnef", "tests"]]
+commands = [["ruff", "check", "-q", "torch_to_nnef", "tests", "packages"]]
 
 [tool.tox.env.static_check]
 deps = ["prospector[with_dodgy]", "pyroma"]
@@ -348,50 +527,8 @@ commands = [
         "-n",
         # minimum score:
         "8",
-        # requires-python is disabled for now
-        # to avoid deps conflict with 'nemo-toolkit'
-        # from feature 'nemo-tract'
     ],
 ]
-
-# testing llm_tract cli on legacy transformers
-[tool.tox.env.cli_transformers_4_50_0]
-basepython = ["python3.14", "python3.13", "python3.12"]
-extras = ["test"]
-deps = ["transformers==4.50.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
-
-# testing llm_tract cli on 3m old transformers
-[tool.tox.env.cli_transformers_4_52_0]
-basepython = ["python3.12", "python3.13"]
-extras = ["test"]
-deps = ["transformers==4.52.0"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
-
-# testing llm_tract cli on recent transformers
-[tool.tox.env.cli_transformers_4_57_3]
-basepython = ["python3.14", "python3.13", "python3.12"]
-extras = ["test"]
-deps = ["transformers==4.57.3"]
-passenv = ["*"]
-commands = [["pytest", "-s", "tests/test_llm_cli.py"]]
-
-# testing nemo-toolkit
-[tool.tox.env.nemo_tract_2_0_0]
-basepython = ["python3.13", "python3.12"]
-extras = ["test", "nemo-tract"]
-deps = ["nemo_toolkit[asr]==2.0.0", "matplotlib"]
-commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
-
-[tool.tox.env.nemo_tract_2_5_3]
-# some 'nemo-toolkit' deps not well packaged for "python3.13" (2026-01-09)
-basepython = ["python3.12"]
-extras = ["test", "nemo-tract"]
-deps = ["nemo_toolkit[asr]==2.5.3"]
-commands = [["pytest", "-s", "tests/test_nemo_asr.py"]]
-
-[tool.tox.env.py314]
-basepython = ["python3.14"]
 
 [tool.tox.env.build]
 allowlist_externals = ["uv"]

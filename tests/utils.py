@@ -163,6 +163,7 @@ def check_model_io_test(
     callback_post_export=None,
     unit_test_naming=None,
     allow_same_io_names=False,
+    check_io_names_qte_match=True,
 ):
     unittest_slug = datetime.now().strftime("%Y_%m_%d")
     if unit_test_naming:
@@ -190,7 +191,8 @@ def check_model_io_test(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         export_path = Path(tmpdir) / "model.nnef"
-        io_npz_path = Path(tmpdir) / "io.npz"
+        inputs_npz_path = Path(tmpdir) / "inputs.npz"
+        outputs_npz_path = Path(tmpdir) / "outputs.npz"
 
         if not hasattr(model, "eval"):
             model = ModelWrapper(model)
@@ -200,14 +202,21 @@ def check_model_io_test(
         input_names, output_names = build_io(
             model,
             test_input,
-            io_npz_path=io_npz_path,
+            input_bundle_path=inputs_npz_path,
+            output_bundle_path=outputs_npz_path,
             input_names=input_names,
             output_names=output_names,
         )
-        export_model_to_nnef(
+        # For Khronos checks, export as .tgz to
+        # satisfy nnef-tools decompression.
+        # Otherwise, keep deterministic tar (0)
+        # for other targets.
+        comp_level = 1 if isinstance(inference_target, KhronosNNEF) else 0
+        exported_path = export_model_to_nnef(
             model=model,
             args=test_input,
             file_path_export=export_path,
+            compression_level=comp_level,
             input_names=input_names,
             output_names=output_names,
             log_level=log.INFO,
@@ -216,16 +225,19 @@ def check_model_io_test(
             nnef_variable_naming_scheme=nnef_variable_naming_scheme,
             custom_extensions=custom_extensions,
             allow_same_io_names=True,
+            check_io_names_qte_match=check_io_names_qte_match,
         )
-        export_path = export_path.with_suffix(".nnef.tgz")
+        export_path = exported_path
         if DUMP_DIRPATH:
             shutil.copy(
                 export_path,
                 dump_test_tz_path,
             )
             shutil.copy(
-                io_npz_path,
-                dump_test_tz_path.with_suffix(".io.npz"),
+                inputs_npz_path, dump_test_tz_path.with_suffix(".inputs.npz")
+            )
+            shutil.copy(
+                outputs_npz_path, dump_test_tz_path.with_suffix(".outputs.npz")
             )
         if callback_post_export is not None:
             callback_post_export(inference_target, export_path)
@@ -301,7 +313,7 @@ def transformers_tract_export_test_condition(
 
 
 def cond_tract_gt_0_22_0(inference_target: InferenceTarget) -> bool:
-    """Condition to enable tests only for tract versions > 0.22.0."""
+    """Condition to enable tests only for tract versions > 0.22.1."""
     return isinstance(inference_target, TractNNEF) and (
-        inference_target.version > "0.22.0"
+        inference_target.version > "0.22.1"
     )

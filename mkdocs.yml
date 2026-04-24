@@ -128,6 +128,7 @@ nav:
     - '8. Custom operators': "tutos/8_custom_operator.md"
     - '9. Tensors only export': "tutos/9_peft.md"
     - '10. Nemo ASR export & eval': "tutos/10_nemo.md"
+    - '11. Shapes remodeler': "tutos/11_remodeler.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:

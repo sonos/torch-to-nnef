@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file MD001 MD013 MD014 MD024 -->
-# ![Torch to NNEF](./docs/img/torch_to_nnef.png)
+# <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/img/torch_to_nnef_black.png"><source media="(prefers-color-scheme: light)" srcset="./docs/img/torch_to_nnef.png"><img alt="Torch to NNEF" src="./docs/img/torch_to_nnef.png"></picture>
 
-[![dev workflow](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/dev.yml) ![python](https://img.shields.io/badge/python-%3E=3.9-green)[![documentation](https://img.shields.io/badge/torch_to_nnef-documentation-blue)]( https://sonos.github.io/torch-to-nnef/) ![MIT/Apache 2](https://img.shields.io/badge/license-MIT_OR_Apache_2.0-blue)
+[![core CI](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-core.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-core.yml) [![LLM CI](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-llm.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-llm.yml) [![NeMo CI](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-nemo.yml/badge.svg?branch=main)](https://github.com/sonos/torch-to-nnef/actions/workflows/ci-nemo.yml) ![python](https://img.shields.io/badge/python-%3E=3.9-green)[![documentation](https://img.shields.io/badge/torch_to_nnef-documentation-blue)]( https://sonos.github.io/torch-to-nnef/) ![MIT/Apache 2](https://img.shields.io/badge/license-MIT_OR_Apache_2.0-blue)
 
 Export PyTorch models in a way that is auditable, debuggable, and stable across runtimes
 

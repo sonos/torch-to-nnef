@@ -1,6 +1,6 @@
-torch_to_nnef
+torch>=2.0
+torchaudio>=2.0
+huggingface_hub>=0.20
+pyyaml>=6.0
 numpy
-librosa
-matplotlib
-nemo_toolkit[asr]
-rich
+-e ../../../
