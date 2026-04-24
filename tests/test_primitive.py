@@ -306,7 +306,7 @@ for layer in [
     test_suite.add(torch.rand(1, 10, 100), layer)
 
 for layer in [
-    nn.BatchNorm1d(10, eps=0, momentum=0.1),
+    nn.BatchNorm1d(10, eps=1e-10, momentum=0.1),
     nn.ConvTranspose1d(10, 20, 3),
     nn.ConvTranspose1d(10, 20, 3, padding=2, dilation=4),
 ]:
@@ -438,7 +438,7 @@ test_suite.add(
 
 
 #
-mdl = nn.GroupNorm(num_groups=3, num_channels=6, eps=0.0)
+mdl = nn.GroupNorm(num_groups=3, num_channels=6, eps=1e-10)
 mdl.requires_grad_ = False
 mdl.eval()
 test_suite.add(
