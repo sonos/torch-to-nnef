@@ -147,7 +147,7 @@ export class VADPlot {
         if (this.u) this.u.setData(this.data);
     }
     setTitle(hz) {
-        this.opts = { ...this.opts, title: `VAD detection with Nvidia MarbleNet @ ${hz}hz:` };
+        this.opts = { ...this.opts, title: `VAD detection with FunASR FSMN-VAD @ ${hz}hz:` };
         // Reapply title on next reset; uPlot doesn’t support live title updates directly without full opts rebuild.
     }
 

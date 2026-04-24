@@ -36,13 +36,13 @@ export async function initVAD() {
             { label: 'detection', stroke: '#e53935', width: 2, fill: '#e5393520', spanGaps: false },
         ],
     };
-    const plot = new VADPlot(container, baseOpts, 256, 0.95);
+    const plot = new VADPlot(container, baseOpts, 256, 0.8);
 
     // Wire controls
     // Make page visible before initializing plot (to get correct width)
     setVisible('page', true);
     setVisible('loading', false);
-    plot.init(60, 200);
+    plot.init(60, 500);
     const sess = new VadSession(wasm, plot, modes, stats);
     const mic = new MicRunner(wasm, plot, modes, controls);
     controls.onRunFile(async () => { await mic.stop(); sess.handleRunFileClick(); });

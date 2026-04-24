@@ -1,8 +1,9 @@
 use anyhow::bail;
-use ndarray::{Array1, Array2, s};
+use ndarray::Array3;
 use tract_rs::prelude::*;
 
 use crate::Res;
+use crate::{Ndarray as _, Tract as _};
 
 #[inline]
 #[cfg(all(feature = "log-vad", target_arch = "wasm32"))]
@@ -28,8 +29,6 @@ pub(crate) fn roll_into_ring(buf: &mut [f32], incoming: &[f32]) {
 pub(crate) fn validate_audio_range_11(buf: &[f32]) -> Res<()> {
     let max = buf.iter().copied().map(f32::abs).fold(0.0f32, f32::max);
     if max > 1.0 {
-        // In the browser path, resampling and filtering may produce minor overshoot.
-        // Treat it as a warning instead of a hard error to avoid breaking the demo.
         #[cfg(target_arch = "wasm32")]
         {
             clog(&format!(
@@ -49,30 +48,15 @@ pub(crate) fn validate_audio_range_11(buf: &[f32]) -> Res<()> {
     Ok(())
 }
 
-// Select `pulse_frames` columns from a 2D encoder output [features, frames].
-// `align_shift` shifts the window back from the tail (0 for pulsed, 1 for batch).
-// Returns None when the encoder has not yet produced enough frames.
-pub(crate) fn select_enc_block(
-    enc_all: &Array2<f32>,
-    pulse_frames: usize,
-    pulse_delay: usize,
-    align_shift: usize,
-) -> Option<Array2<f32>> {
-    let frames = enc_all.shape()[1];
-    if frames >= pulse_delay + pulse_frames + align_shift {
-        let start = frames - pulse_delay - pulse_frames - align_shift;
-        Some(enc_all.slice(s![.., start..start + pulse_frames]).to_owned())
-    } else if frames >= pulse_frames {
-        Some(enc_all.slice(s![.., frames - pulse_frames..]).to_owned())
-    } else {
-        None
-    }
-}
-
-pub(crate) fn run_preprocessor(preprocessor: &Runnable, audio: &[f32]) -> Res<Array2<f32>> {
-    use crate::{Ndarray as _, Tract as _};
-    let audio_val_1d: Tensor = Array1::from_vec(audio.to_vec()).tract()?;
-    let pre_result = preprocessor.run(vec![audio_val_1d])?;
-    let pre_feat = pre_result[0].ndarray2::<f32>()?.to_owned();
-    Ok(pre_feat)
+/// Run the FSMN-VAD preprocessor on a fixed-length audio buffer.
+///
+/// Input: `audio` of length `PREPROCESSOR_INPUT_SAMPLES` (1 second at 16 kHz).
+/// Output: `(1, T, lfr_m * n_mels)` = `(1, ~95, 400)` LFR'd + CMVN'd features.
+pub(crate) fn run_preprocessor(preprocessor: &Runnable, audio: &[f32]) -> Res<Array3<f32>> {
+    let arr = ndarray::Array2::from_shape_vec((1, audio.len()), audio.to_vec())?;
+    let tensor: Tensor = arr.tract()?;
+    let out = preprocessor.run(vec![tensor])?;
+    let view = out[0].ndarray::<f32>()?;
+    let arr3: Array3<f32> = view.into_dimensionality()?.to_owned();
+    Ok(arr3)
 }

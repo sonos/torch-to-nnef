@@ -1,0 +1,7 @@
+.venv/
+hf_cache/
+model/
+debug/
+debug_*/
+*.nnef.tgz
+*.tgz
