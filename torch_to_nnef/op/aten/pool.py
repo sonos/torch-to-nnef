@@ -210,6 +210,7 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         for axis_offset, pool_val in zip(
             range(start_ix, input_node.rank),
             pool_values,
+            strict=False,
         ):
             axis = start_ix + axis_offset
             soc = get_tract_dyn_axis_size_soc(op_helper, input_node, axis=axis)
@@ -238,7 +239,7 @@ def _adaptive_pool(nnef_op_name: str, op_helper, node):
         stride = [
             int(in_tensor_dim // pool_val)
             for pool_val, in_tensor_dim in zip(
-                pool_values, input_node.shape[-len(pool_values) :]
+                pool_values, input_node.shape[-len(pool_values) :], strict=False
             )
         ]
 

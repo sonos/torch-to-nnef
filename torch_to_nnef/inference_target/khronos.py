@@ -80,7 +80,7 @@ class KhronosNNEF(InferenceTarget):
                 if not isinstance(reference_outs, tuple):
                     reference_outs = (reference_outs,)
                 for idx, (ref, obs) in enumerate(
-                    zip(reference_outs, interpreter_outs)
+                    zip(reference_outs, interpreter_outs, strict=False)
                 ):
                     if not torch.allclose(ref, obs, equal_nan=True):
                         self._maybe_dump_debug_bundle(

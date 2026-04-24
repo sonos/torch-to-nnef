@@ -169,7 +169,7 @@ def _append_repeats_on_existing_dims(
 ):
     repeats = []
     for idx, (input_dim, shape_dim) in enumerate(
-        zip(input_node.shape, shapes[-len(input_node.shape) :])
+        zip(input_node.shape, shapes[-len(input_node.shape) :], strict=False)
     ):
         if not inference_target.has_dynamic_axes:
             assert isinstance(shape_dim, int), shape_dim

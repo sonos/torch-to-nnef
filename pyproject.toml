@@ -13,11 +13,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = [
     "nnef",
@@ -110,7 +110,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 80
-target-version = 'py39'
+target-version = 'py310'
 
 [tool.ruff.lint]
 select = [
@@ -213,7 +213,7 @@ follow_imports_for_stubs = true
 
 [tool.tox]
 isolated_build = true
-envlist = ["py39", "py313", "format", "lint", "build"]
+envlist = ["py313", "py314", "format", "lint", "build"]
 requires = ["tox>=4", "virtualenv>20.2", "tox-uv>1.27.0"]
 
 [tool.coverage.report]
@@ -243,30 +243,6 @@ MODELS = "1"
 
 # -- core envs (lightweight, no torchvision/torchaudio/librosa) ---------------
 
-[tool.tox.env.py39]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-x",
-        "--cov=torch_to_nnef",
-        "--cov-branch",
-        "--cov-report=xml",
-        "--cov-report=term-missing",
-        "--ignore=tests/test_model_zoo.py",
-        "--ignore=tests/test_dynamic_axes.py",
-        "--ignore=tests/test_fft.py",
-        "--ignore=tests/test_mod.py",
-        "tests",
-    ],
-    [
-        "pytest",
-        "--doctest-modules",
-        "torch_to_nnef",
-    ],
-]
-
 [tool.tox.env.py313]
 basepython = ["python3.13"]
 deps = ["--index-url=https://download.pytorch.org/whl/cpu", "torch==2.6.*"]
@@ -293,9 +269,9 @@ commands = [
     ],
 ]
 
-[tool.tox.env.torch_1_10]
-basepython = ["python3.9"]
-deps = ["torch==1.10.1", "safetensors<=0.4.2", "numpy<2.0.0", "setuptools<70"]
+[tool.tox.env.torch_1_13]
+basepython = ["python3.10"]
+deps = ["torch==1.13.1", "safetensors<=0.4.2", "numpy<2.0.0"]
 commands = [
     [
         "pytest",
@@ -315,15 +291,19 @@ commands = [
     ],
 ]
 
-[tool.tox.env.torch_1_13]
-basepython = ["python3.9"]
-deps = ["torch==1.13.1", "safetensors<=0.4.2", "numpy<2.0.0"]
+[tool.tox.env.py314]
+basepython = ["python3.14"]
+deps = ["torch==2.11.*"]
 commands = [
     [
         "pytest",
         "-m",
         "not ci_skip",
         "-x",
+        "--cov=torch_to_nnef",
+        "--cov-branch",
+        "--cov-report=xml",
+        "--cov-report=term-missing",
         "--ignore=tests/test_model_zoo.py",
         "--ignore=tests/test_dynamic_axes.py",
         "--ignore=tests/test_fft.py",
@@ -362,21 +342,6 @@ commands = [
 # -- zoo envs (heavy deps, model export validation) --------------------------
 # Zoo tests: test_model_zoo.py, test_dynamic_axes.py, test_fft.py, test_mod.py
 
-[tool.tox.env.zoo_py39]
-deps = ["torchvision==0.22.1", "torchaudio==2.7.*", "librosa==0.11.0"]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-x",
-        "tests/test_model_zoo.py",
-        "tests/test_dynamic_axes.py",
-        "tests/test_fft.py",
-        "tests/test_mod.py",
-    ],
-]
-
 [tool.tox.env.zoo_py313]
 basepython = ["python3.13"]
 deps = [
@@ -399,38 +364,12 @@ commands = [
     ],
 ]
 
-[tool.tox.env.zoo_torch_1_10]
-basepython = ["python3.9"]
+[tool.tox.env.zoo_py314]
+basepython = ["python3.14"]
 deps = [
-    "torch==1.10.1",
-    "torchvision==0.11.2",
-    "torchaudio==0.10.1",
-    "safetensors<=0.4.2",
-    "numpy<2.0.0",
-    "setuptools<70",
-    "librosa==0.11.0",
-]
-commands = [
-    [
-        "pytest",
-        "-m",
-        "not ci_skip",
-        "-x",
-        "tests/test_model_zoo.py",
-        "tests/test_dynamic_axes.py",
-        "tests/test_fft.py",
-        "tests/test_mod.py",
-    ],
-]
-
-[tool.tox.env.zoo_torch_1_13]
-basepython = ["python3.9"]
-deps = [
-    "torch==1.13.1",
-    "torchvision==0.14.1",
-    "torchaudio==0.13.1",
-    "safetensors<=0.4.2",
-    "numpy<2.0.0",
+    "torch==2.11.*",
+    "torchvision==0.26.*",
+    "torchaudio==2.11.*",
     "librosa==0.11.0",
 ]
 commands = [

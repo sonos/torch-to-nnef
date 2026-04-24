@@ -61,7 +61,7 @@ class BoundaryAdapter(torch.nn.Module):
         self._all_tensor_names: list[str] = list(initial_ext_names)
         self._input_infos = all_flat
         self._flat_example_map: dict[str, object] = dict(
-            zip(initial_ext_names, flat_tensors)
+            zip(initial_ext_names, flat_tensors, strict=False)
         )
 
         self._init_collapse_indices(
@@ -249,7 +249,9 @@ class BoundaryAdapter(torch.nn.Module):
 
     def _build_flat_tensor_values(self, args: list) -> list:
         """Map external args + bound scalars to a flat tensor list."""
-        ext_val_map: dict[str, object] = dict(zip(self._ext_names, args))
+        ext_val_map: dict[str, object] = dict(
+            zip(self._ext_names, args, strict=False)
+        )
         tensor_vals: list = []
         for name in self._all_tensor_names:
             if name in self._bound_targets:
@@ -306,7 +308,7 @@ class BoundaryAdapter(torch.nn.Module):
         )
         kept = [
             t
-            for n, t in zip(flat_names, flat_tensors)
+            for n, t in zip(flat_names, flat_tensors, strict=False)
             if n in self._outputs_keep
         ]
         return tuple(kept)

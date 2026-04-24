@@ -628,7 +628,7 @@ class TorchOp:
                 f"in tracing simulation len({len(output_values)}) "
                 f"for {self.op_ref}"
             )
-        for data_node, result in zip(output_nodes, output_values):
+        for data_node, result in zip(output_nodes, output_values, strict=False):
             if self.has_constant_inputs:
                 try:
                     if data_node.data is None or not (

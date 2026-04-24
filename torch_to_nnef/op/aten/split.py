@@ -30,7 +30,9 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
     assert isinstance(ratio_node, PythonConstant)
     current_dim_elm_idx = 0
     inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-    for out_node, n_elements in zip(node.outputs, ratio_node.data):
+    for out_node, n_elements in zip(
+        node.outputs, ratio_node.data, strict=False
+    ):
         out = add_tensor_variable_node_as_nnef_tensor(
             g,
             out_node,

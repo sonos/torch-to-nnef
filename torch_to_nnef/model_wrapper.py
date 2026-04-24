@@ -53,9 +53,11 @@ def build_structured_inputs(flat_args, input_infos):
 
     full_args = insert_fixed_nontraceable_args(flat_args, input_infos)
     inps: list = []
-    for (types, indexes, _), arg in zip(input_infos, full_args):
+    for (types, indexes, _), arg in zip(input_infos, full_args, strict=False):
         cur_struct = inps
-        for typ, next_typ, idx in zip(types, list(types[1:]) + [None], indexes):
+        for typ, next_typ, idx in zip(
+            types, list(types[1:]) + [None], indexes, strict=False
+        ):
             if typ in (list, tuple):
                 if idx >= len(cur_struct):
                     cur_struct += [None] * (idx + 1 - len(cur_struct))
@@ -302,7 +304,7 @@ class UnfoldModelInfo:
 
         payload = {
             name: (cast(t) if tract_compat else t)
-            for name, t in zip(names, tensors)
+            for name, t in zip(names, tensors, strict=False)
         }
         np.savez(filepath, **payload)
 

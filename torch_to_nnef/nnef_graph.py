@@ -234,7 +234,7 @@ class TorchToNGraphExtractor:
                 )
             # still needed since some .remap_node in ._add_operators may araise
             for inode, new_name in zip(
-                self.g.inputs, self._forced_inputs_names
+                self.g.inputs, self._forced_inputs_names, strict=False
             ):
                 inode.name = new_name
 
@@ -257,7 +257,7 @@ class TorchToNGraphExtractor:
                 )
             # still needed since some .remap_node in ._add_operators may araise
             for onode, new_name in zip(
-                self.g.outputs, self._forced_outputs_names
+                self.g.outputs, self._forced_outputs_names, strict=False
             ):
                 if onode.name == new_name:
                     continue

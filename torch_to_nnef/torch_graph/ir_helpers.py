@@ -515,7 +515,9 @@ def _rerouted_parsing(
     if kind.startswith(PRIM_STARTID):
         if kind == TUPLEUNPACK_KIND:
             dnodes = _find_data_node(data_nodes, node.input().debugName()).data
-            for dnode, o_node_c_value in zip(dnodes, node.outputs()):
+            for dnode, o_node_c_value in zip(
+                dnodes, node.outputs(), strict=False
+            ):
                 o_type = o_node_c_value.type()
                 if o_type.kind() == "TensorType":
                     stype = o_type.scalarType()
