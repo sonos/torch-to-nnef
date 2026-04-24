@@ -621,8 +621,19 @@ def bitwise_and(node, op_helper, inference_target, **kwargs):
 
 @OP_REGISTRY.register(["bitwise_not", "bitwise_not_cpu"])
 def bitwise_not(node, op_helper, inference_target, **kwargs):
-    """Map PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF."""
+    """Map PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF.
+
+    On bool inputs, PyTorch's ``~`` is semantically a logical not, so we emit
+    the standard NNEF ``not`` op (keeps the graph portable and self-documenting,
+    rather than relying on tract's bitnot happening to do the right thing on
+    bool). For integer inputs, emit ``tract_core_bitnot`` for true bitwise
+    inversion.
+    """
     assert len(node.outputs) == 1
+    input_node = node.inputs[0]
+    if getattr(input_node, "dtype", None) == torch.bool:
+        op_helper.unary_output_op_without_attr(nnef_op_type="not", node=node)
+        return []
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
     op_helper.unary_output_op_without_attr(
