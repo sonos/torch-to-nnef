@@ -19,11 +19,13 @@
           <div class="card-content">
             <span class="card-title">👀 <span style="color:#6666aa">Live Demo: </span> Voice Activity Detection</span>
             <p>
-              This demo runs a Voice Activity Detection (VAD) model based on NVIDIA
-              <a href="https://arxiv.org/pdf/2010.13886" target="_blank" rel="noopener noreferrer">MarbleNet</a>.
-              VAD estimates the probability that speech is present in short audio frames. MarbleNet is a
-              lightweight convolutional architecture designed for accurate, low‑latency speech/no‑speech
-              detection.
+              This demo runs a Voice Activity Detection (VAD) model based on FunASR
+              <a href="https://huggingface.co/funasr/fsmn-vad" target="_blank" rel="noopener noreferrer">FSMN-VAD</a>
+              (<a href="https://arxiv.org/abs/1803.05030" target="_blank" rel="noopener noreferrer">Deep-FSMN paper</a>).
+              VAD estimates the probability that speech is present in short audio frames. FSMN-VAD is a
+              lightweight (0.4M params) strictly causal architecture: its "memory" is a depthwise
+              convolution over past frames (no lookahead), making it a natural fit for streaming and for
+              tract's <em>pulse</em> transform.
             </p>
             <div class="card-panel teal lighten-5" style="margin-top:8px;">
               <span class="black-text">

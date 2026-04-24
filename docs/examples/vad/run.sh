@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -ex
 
 source ../bootstrap-rust.sh
@@ -7,20 +6,14 @@ source ../bootstrap-wasm-pack.sh
 source ../bootstrap-uv.sh
 source .venv/bin/activate
 
-TRACT_VERSION="0.23.0-dev.5"
-python -c "from torch_to_nnef.inference_target.tract import TractNNEF; TractNNEF('$TRACT_VERSION'); print('TractNNEF $TRACT_VERSION is available')"
-TRACT_PATH=$HOME"/.cache/svc/tract/"$TRACT_VERSION"/tract"
-
 # Silence unexpected_cfg warnings from downstream crates referring to
 # `#[cfg(feature = "inventory-registry")]` used inside macros.
-# This registers the cfg value without enabling the feature.
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inventory-registry\"))"
 
+# Export preprocessor + encoder NNEF graphs from the HF funasr/fsmn-vad weights
+# using the Python script shared with the fsmn_vad example.
 rm -rf ./model
-t2n_export_nemo -s "vad_multilingual_marblenet" \
-    -e "./model" \
-    --tract-specific-path $TRACT_PATH \
-    --shape-config ../../../packages/nemo-asr/tests/assets/shapes.marblenet.collapsed.yaml
+python ../fsmn_vad/export.py --out-dir ./model
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."
@@ -42,7 +35,6 @@ else
     echo "Warning: neither curl nor wget available; skipping asset download"
 fi
 
-# Convert silence mp3 to 16kHz mono WAV if ffmpeg available; else synthesize silence WAV via Python
 if [ -f "$SILENCE_MP3" ]; then
     if command -v ffmpeg >/dev/null 2>&1; then
         ffmpeg -y -hide_banner -loglevel error -i "$SILENCE_MP3" -ac 1 -ar 16000 "$SILENCE_WAV" || true
@@ -51,7 +43,7 @@ if [ -f "$SILENCE_MP3" ]; then
 fi
 if [ ! -f "$SILENCE_WAV" ]; then
     python - <<'PY'
-import wave, struct, os
+import wave, os
 path = os.path.join('assets','audio','silence_16k.wav')
 os.makedirs(os.path.dirname(path), exist_ok=True)
 sr = 16000
@@ -66,10 +58,7 @@ print('Synthesized', path)
 PY
 fi
 
-echo "Running Rust unit tests..."
-# RUST_BACKTRACE=full cargo test -- --nocapture
-
 RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../html -- --features "log-vad"
 
-rm ../../html/.gitignore ../../html/*.ts
-find ../../html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete
+rm -f ../../html/.gitignore ../../html/*.ts 2>/dev/null || true
+find ../../html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete 2>/dev/null || true
