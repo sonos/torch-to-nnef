@@ -236,7 +236,7 @@ class OffloadedTensor(OpaqueTensor):
     def to(self, *args, **kwargs):
         """Change the target device when reloaded in memory."""
         if len(args) > 1:
-            kwargs.update(zip(["device", "dtype"], args))
+            kwargs.update(zip(["device", "dtype"], args, strict=False))
         else:
             # unfortunately arg order is not guarantied
             # in torch .to ...

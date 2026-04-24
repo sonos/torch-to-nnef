@@ -329,7 +329,7 @@ def _types_str(names, items, tensor):
         + ": "
         + (f"tensor<{type}>" if tensor else type)
         + ("[]" if repeated else "")
-        for name, (type, repeated) in zip(names, items)
+        for name, (type, repeated) in zip(names, items, strict=False)
     )
 
 

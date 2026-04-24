@@ -201,7 +201,7 @@ class TorchModuleIRGraph:
         )
 
         for idx, (node_c_value, original_input, arg) in enumerate(
-            zip(graph_inputs, provided_inputs, self._tracer.args)
+            zip(graph_inputs, provided_inputs, self._tracer.args, strict=False)
         ):
             if self._omit_useless_nodes and len(node_c_value.uses()) == 0:
                 # number of user of the node_c_value
@@ -311,7 +311,9 @@ class TorchModuleIRGraph:
                 raise T2NErrorTorchCheck(
                     f"{len(outputs)} == {len(original_outputs)}"
                 )
-            for original_output, output in zip(original_outputs, outputs):
+            for original_output, output in zip(
+                original_outputs, outputs, strict=False
+            ):
                 if original_output.is_container and output.is_container:
                     # can be safely explored
                     continue
@@ -441,10 +443,10 @@ class TorchModuleIRGraph:
             )
         )
         if which == "inputs":
-            for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+            for snode, ref_node in zip(subgraph_nodes, ref_nodes, strict=False):
                 submodule_graph.remap_node(from_node=snode, to_node=ref_node)
         else:
-            for snode, ref_node in zip(subgraph_nodes, ref_nodes):
+            for snode, ref_node in zip(subgraph_nodes, ref_nodes, strict=False):
                 self.remap_node(from_node=ref_node, to_node=snode)
 
     def _rewrite_subgraph_scope(
@@ -692,11 +694,15 @@ class TorchModuleIRGraph:
 
         if self.is_root_module:
             if forced_inputs_names:
-                for inode, new_name in zip(self.inputs, forced_inputs_names):
+                for inode, new_name in zip(
+                    self.inputs, forced_inputs_names, strict=False
+                ):
                     inode.name = new_name
                     assert inode.name == inode.export_name
             if forced_outputs_names:
-                for onode, new_name in zip(self.outputs, forced_outputs_names):
+                for onode, new_name in zip(
+                    self.outputs, forced_outputs_names, strict=False
+                ):
                     onode.name = new_name
                     assert onode.name == onode.export_name
             # need to repeat the if's:
