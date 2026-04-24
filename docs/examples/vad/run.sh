@@ -10,10 +10,9 @@ source .venv/bin/activate
 # `#[cfg(feature = "inventory-registry")]` used inside macros.
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inventory-registry\"))"
 
-# Export preprocessor + encoder NNEF graphs from the HF funasr/fsmn-vad weights
-# using the Python script shared with the fsmn_vad example.
+# Export preprocessor + encoder NNEF graphs from the HF funasr/fsmn-vad weights.
 rm -rf ./model
-python ../fsmn_vad/export.py --out-dir ./model
+python ./py/export.py --out-dir ./model
 
 # Prepare test audio assets (speech + silence)
 echo "Preparing test audio assets..."
