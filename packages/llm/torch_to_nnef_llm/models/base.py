@@ -397,13 +397,19 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
         self,
         model,
-        handler: ArchitectureHandler,
+        handler: T.Optional[ArchitectureHandler] = None,
         with_dyn_cache: bool = True,
         num_logits_to_keep: int = 1,
         force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
+        if handler is None:
+            from torch_to_nnef_llm.models.handlers.default import (
+                DefaultArchitectureHandler,
+            )
+
+            handler = DefaultArchitectureHandler()
         self.handler = handler
         self.with_dyn_cache = with_dyn_cache
         self.num_logits_to_keep = num_logits_to_keep

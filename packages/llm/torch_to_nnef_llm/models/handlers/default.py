@@ -57,7 +57,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         wrapper,
     ) -> T.Dict[str, T.Any]:
         attention_mask = None
-        if wrapper.force_causal_mask:
+        if getattr(wrapper, "force_causal_mask", False):
             attn_mask_dtype = torch.float32
             seq_length = inputs[1].shape[0]
             attention_mask = (
