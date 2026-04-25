@@ -2,16 +2,12 @@
 import logging
 import typing as T
 from enum import Enum
-from functools import partial
 
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
-from torch_to_nnef_llm.models.base import (
-    BaseCausal,
-    BaseCausalWithDynCacheAndTriu,
-)
+from torch_to_nnef_llm.models import handlers
 
 LOGGER = logging.getLogger(__name__)
 
@@ -163,21 +159,19 @@ class HFConfigHelper:
 
     def __init__(self, conf):
         self.conf = conf
+        handler_class = handlers.get_hander(conf.model_type)
+        self.handler = handler_class()
+        self.wrapper_class = self.handler.get_wrapper_class()
         if conf.model_type == "openelm":
             self.max_position_embeddings = conf.max_context_length
         else:
             self.max_position_embeddings = conf.max_position_embeddings
 
-        if conf.model_type in ["phi"]:
-            self.wrapper_class = BaseCausalWithDynCacheAndTriu
-        elif conf.model_type in ["openelm"]:
-            self.wrapper_class = partial(BaseCausal, with_dyn_cache=False)
-        else:
-            self.wrapper_class = BaseCausal
         LOGGER.info(
-            "detected arch:'%s' using wrapper '%s'",
+            "detected arch:'%s' using wrapper '%s' from handler '%s'",
             conf.model_type,
             self.wrapper_class,
+            handler_class.__name__,
         )
 
     def get_head_dim(self):
