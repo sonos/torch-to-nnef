@@ -21,6 +21,11 @@ class ArchitectureHandler(ABC):
     ARCH_NAMES: T.Tuple[str, ...] = ()
     with_dyn_cache: bool = True
 
+    @staticmethod
+    def get_auto_model_class(transformers):
+        """Return the HF model class to load for this architecture."""
+        return transformers.AutoModelForCausalLM
+
     @abstractmethod
     def build_input_spec(
         self,
