@@ -56,6 +56,21 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
     ) -> T.Dict[str, T.Any]:
+        attention_mask = None
+        if wrapper.force_causal_mask:
+            attn_mask_dtype = torch.float32
+            seq_length = inputs[1].shape[0]
+            attention_mask = (
+                torch.triu(
+                    torch.full(
+                        [seq_length, seq_length],
+                        torch.finfo(attn_mask_dtype).min,
+                    ),
+                    diagonal=1,
+                )
+                .unsqueeze(0)
+                .unsqueeze(0)
+            ).to(attn_mask_dtype)
         if wrapper.with_dyn_cache:
             past_key_values = build_past_kv_dyn_cache(inputs[1:])
         else:
@@ -64,4 +79,5 @@ class DefaultArchitectureHandler(ArchitectureHandler):
             "input_ids": inputs[0],
             "past_key_values": past_key_values,
             "use_cache": True,
+            "attention_mask": attention_mask,
         }

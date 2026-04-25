@@ -19,6 +19,7 @@ from torch_to_nnef_llm._optional_types import (
     TransformersCacheUtils,
     TransformersModule,
 )
+from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -294,6 +295,7 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         self,
         model: TransformersModule.AutoModelForCausalLM,
         num_logits_to_keep: int = 1,
+        **_,
     ):
         super().__init__()
         self.model = model
@@ -395,12 +397,14 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
         self,
         model,
+        handler: ArchitectureHandler,
         with_dyn_cache: bool = True,
         num_logits_to_keep: int = 1,
         force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
+        self.handler = handler
         self.with_dyn_cache = with_dyn_cache
         self.num_logits_to_keep = num_logits_to_keep
         sign = inspect.signature(model.forward)
@@ -440,41 +444,20 @@ class BaseCausal(TorchToNNEFWrappedLLM):
 
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
-        # input_ids: [1, S] with torch.int64
-        # past_key_values: Optional[List[torch.FloatTensor]] = None
-        # # type annotation in code WRONG
-        if self.with_dyn_cache:
-            past_key_values = build_past_kv_dyn_cache(args)
-        else:
-            past_key_values = build_past_kv_list(args)
-
-        if self.force_causal_mask:
-            attn_mask_dtype = torch.float32
-            seq_length = args[0].shape[0]
-            attention_mask = (
-                torch.triu(
-                    torch.full(
-                        [seq_length, seq_length],
-                        torch.finfo(attn_mask_dtype).min,
-                    ),
-                    diagonal=1,
-                )
-                .unsqueeze(0)
-                .unsqueeze(0)
-            ).to(attn_mask_dtype)
-        else:
-            attention_mask = None
-
+        inputs = (input_ids, *args)
+        model_inputs = self.handler.prepare_inputs_for_model(
+            inputs=inputs,
+            wrapper=self,
+        )
         out_dic = self.model(
-            input_ids,
-            past_key_values=past_key_values,
-            use_cache=True,
-            attention_mask=attention_mask,
+            **model_inputs,
             **self.forward_kwargs,
         )
 
         if self.with_dyn_cache:
-            kvs = [t for kv in dyn_cache_to_legacy(past_key_values) for t in kv]
+            kvs = [
+                t for kv in dyn_cache_to_legacy(model_inputs["past_key_values"]) for t in kv
+            ]
         else:
             kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
 

@@ -194,7 +194,9 @@ class LLMExporter:
         self.model_infos = HFConfigHelper(self.hf_model_causal.config)
 
         self.wrapped_model = self.model_infos.wrapper_class(
-            self.hf_model_causal, num_logits_to_keep=num_logits_to_keep
+            self.hf_model_causal,
+            handler=self.model_infos.handler,
+            num_logits_to_keep=num_logits_to_keep
         )
         force_module_dtype = (
             DtypeStr(force_module_dtype) if force_module_dtype else None
