@@ -500,10 +500,24 @@ class LLMExporter:
                 kept = wrapped_outs[0].shape[1]
                 ref_logits = ref_logits[:, -kept:, :]
             err_check("logits", wrapped_outs[0], ref_logits)
+            extra_outputs = self.model_infos.handler.prepare_additional_outputs(
+                inputs=inputs,
+                prepared_inputs=model_inputs,
+                hf_outputs=outs,
+                wrapper=self.wrapped_model,
+            )
+            wrapped_extra_outputs = wrapped_outs[1 + len(out_pkv) :]
             for kv_name, ref, cand in zip(
                 out_cache_names, out_pkv, wrapped_outs[1:], strict=False
             ):
                 err_check(kv_name, ref, cand)
+            for state_name, ref, cand in zip(
+                out_cache_names[1 + len(out_pkv) :],
+                extra_outputs,
+                wrapped_extra_outputs,
+                strict=False,
+            ):
+                err_check(state_name, ref, cand)
             LOGGER.info(
                 "In PyTorch wrapped_model:%s provide same results as %s",
                 self.wrapped_model.__class__,
@@ -521,10 +535,16 @@ class LLMExporter:
             n_past_input_tokens=n_past_input_tokens,
             real_kv_cache=real_kv_cache,
         )
-        inputs = input_spec.inputs
-        input_names = input_spec.input_names
-        output_names = input_spec.output_names
-        dynamic_axes = input_spec.dynamic_axes
+        state_spec = self.model_infos.handler.build_decoder_state_spec(
+            config_helper=self.model_infos,
+            inputs_dtype=self.inputs_dtype,
+            n_input_tokens=n_input_tokens,
+            n_past_input_tokens=n_past_input_tokens,
+        )
+        inputs = input_spec.inputs + state_spec.inputs
+        input_names = input_spec.input_names + state_spec.input_names
+        output_names = input_spec.output_names + state_spec.output_names
+        dynamic_axes = {**input_spec.dynamic_axes, **state_spec.dynamic_axes}
         # dynamic logits_to_keep adds one extra input with no matching output
         n_extra_inputs = (
             1

@@ -15,6 +15,16 @@ class InputSpec:
     dynamic_axes: T.Dict[str, T.Dict[int, str]]
 
 
+@dataclass
+class DecoderStateSpec:
+    """Defines additional state tensors for decoder exports."""
+
+    inputs: T.Tuple[torch.Tensor, ...]
+    input_names: T.List[str]
+    output_names: T.List[str]
+    dynamic_axes: T.Dict[str, T.Dict[int, str]]
+
+
 class ArchitectureHandler(ABC):
     """Base type for architecture-specific export behavior."""
 
@@ -39,6 +49,22 @@ class ArchitectureHandler(ABC):
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ) -> InputSpec:
         """Build exported inputs plus names/dynamic axes for the decoder."""
+
+    def build_decoder_state_spec(
+        self,
+        *,
+        config_helper,
+        inputs_dtype: torch.dtype,
+        n_input_tokens: int,
+        n_past_input_tokens: int,
+    ) -> DecoderStateSpec:
+        """Build any additional decoder state tensors."""
+        return DecoderStateSpec(
+            inputs=(),
+            input_names=[],
+            output_names=[],
+            dynamic_axes={},
+        )
 
     @abstractmethod
     def build_forward_inputs(
@@ -86,3 +112,14 @@ class ArchitectureHandler(ABC):
                 for k_or_v in kv
             ]
         return [model_outputs["logits"]] + kvs
+
+    def prepare_additional_outputs(
+        self,
+        *,
+        inputs: T.Tuple[torch.Tensor, ...],
+        prepared_inputs: T.Dict[str, T.Any],
+        hf_outputs,
+        wrapper,
+    ) -> T.List[torch.Tensor]:
+        """Return additional output state tensors beyond logits and KV cache."""
+        return []

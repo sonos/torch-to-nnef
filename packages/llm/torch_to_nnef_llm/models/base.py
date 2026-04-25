@@ -288,6 +288,7 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.forward_kwargs = {}
+        self.num_kv_tensors = 0
 
 
 def _slice_hidden_state_to_lasts(
@@ -341,6 +342,15 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self.num_logits_to_keep = (
             0 if self.dynamic_logits_to_keep else int(num_logits_to_keep)
         )
+        helper = None
+        try:
+            from torch_to_nnef_llm.config import HFConfigHelper
+
+            helper = HFConfigHelper(self.model.config)
+        except Exception:
+            helper = None
+        if helper is not None:
+            self.num_kv_tensors = helper.get_num_transformer_layers() * 2
         sign = inspect.signature(model.forward)
         fkwargs = {}
         if "logits_to_keep" in sign.parameters:
