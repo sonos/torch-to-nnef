@@ -6,18 +6,8 @@ import torch
 
 
 @dataclass
-class InputSpec:
-    """Define the exported input/output signature for one decoder graph."""
-
-    inputs: T.Tuple[torch.Tensor, ...]
-    input_names: T.List[str]
-    output_names: T.List[str]
-    dynamic_axes: T.Dict[str, T.Dict[int, str]]
-
-
-@dataclass
-class DecoderStateSpec:
-    """Defines additional state tensors for decoder exports."""
+class IOSpec:
+    """Defines exported inputs/outputs for one graph or graph state bundle."""
 
     inputs: T.Tuple[torch.Tensor, ...]
     input_names: T.List[str]
@@ -47,7 +37,7 @@ class ArchitectureHandler(ABC):
         n_input_tokens: int,
         n_past_input_tokens: int,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
-    ) -> InputSpec:
+    ) -> IOSpec:
         """Build exported inputs plus names/dynamic axes for the decoder."""
 
     def build_decoder_state_spec(
@@ -57,9 +47,9 @@ class ArchitectureHandler(ABC):
         inputs_dtype: torch.dtype,
         n_input_tokens: int,
         n_past_input_tokens: int,
-    ) -> DecoderStateSpec:
+    ) -> IOSpec:
         """Build any additional decoder state tensors."""
-        return DecoderStateSpec(
+        return IOSpec(
             inputs=(),
             input_names=[],
             output_names=[],
@@ -96,7 +86,7 @@ class ArchitectureHandler(ABC):
         model_inputs: T.Dict[str, T.Any],
         num_logits_to_keep: int,
     ) -> T.List[torch.Tensor]:
-        """Build exported outputs matching InputSpec.output_names."""
+        """Build exported outputs matching IOSpec.output_names."""
         del model, num_logits_to_keep
         if self.with_dyn_cache:
             past_key_values = model_inputs["past_key_values"]

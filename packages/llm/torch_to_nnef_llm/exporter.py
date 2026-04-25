@@ -250,6 +250,7 @@ class LLMExporter:
         self.wrapped_model = BaseCausal(
             self.hf_model_causal,
             handler=self.model_infos.handler,
+            num_kv_tensors=self.model_infos.get_num_transformer_layers() * 2,
             with_dyn_cache=self.model_infos.handler.with_dyn_cache,
             num_logits_to_keep=num_logits_to_keep,
         )

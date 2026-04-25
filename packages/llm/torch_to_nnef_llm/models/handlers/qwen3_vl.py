@@ -4,7 +4,7 @@ import torch
 
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
-from .base import DecoderStateSpec, InputSpec
+from .base import IOSpec
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
 
@@ -14,6 +14,21 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Qwen3-VL models."""
 
     ARCH_NAMES = ("qwen3_vl",)
+    STATE_INPUT_NAMES = [
+        "in_image_embeddings",
+        "in_video_embeddings",
+        "in_image_grid_thw",
+        "in_video_grid_thw",
+        "in_rope_deltas",
+    ]
+    STATE_OUTPUT_NAMES = [
+        "out_image_embeddings",
+        "out_video_embeddings",
+        "out_image_grid_thw",
+        "out_video_grid_thw",
+        "out_rope_deltas",
+    ]
+    SAMPLE_IMAGE_GRID_THW = (1, 4, 4)
 
     def __init__(self):
         super().__init__()
@@ -59,6 +74,18 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         )
         mask = mask.masked_fill(visible, 0)
         return mask.unsqueeze(1).expand(batch_size, -1, -1, -1)
+
+    @staticmethod
+    def _build_mm_token_type_ids(
+        input_ids: torch.Tensor,
+        *,
+        image_token_id: int,
+        video_token_id: int,
+    ) -> torch.Tensor:
+        mm_token_type_ids = torch.zeros_like(input_ids, dtype=torch.int)
+        mm_token_type_ids[input_ids == image_token_id] = 1
+        mm_token_type_ids[input_ids == video_token_id] = 2
+        return mm_token_type_ids
 
     @staticmethod
     def _inject_token_features(
@@ -107,6 +134,25 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         token_mask = token_mask.unsqueeze(-1).to(inputs_embeds.dtype)
         return inputs_embeds * (1 - token_mask) + gathered * token_mask
 
+    @staticmethod
+    def _build_cached_position_ids(
+        *,
+        rope_deltas: torch.Tensor,
+        past_seq_len: int,
+        seq_length: int,
+        batch_size: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        if rope_deltas.ndim == 1:
+            rope_deltas = rope_deltas.unsqueeze(-1)
+
+        base_positions = torch.arange(
+            seq_length, device=device, dtype=torch.long
+        ).view(1, 1, -1)
+        base_positions = base_positions.repeat(3, batch_size, 1)
+        delta = (past_seq_len + rope_deltas).view(1, batch_size, 1)
+        return (base_positions + delta).to(dtype=torch.long)
+
     def build_input_spec(
         self,
         *,
@@ -117,9 +163,11 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         n_input_tokens: int,
         n_past_input_tokens: int,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
-    ) -> InputSpec:
-        image_grid = torch.tensor([[1, 4, 4]], dtype=torch.long)
+    ) -> IOSpec:
         vision_conf = config_helper.conf.vision_config
+        image_grid = torch.tensor(
+            [self.SAMPLE_IMAGE_GRID_THW], dtype=torch.long
+        )
         num_image_tokens = int(
             (image_grid.prod(-1) // (vision_conf.spatial_merge_size**2)).item()
         )
@@ -170,11 +218,13 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         inputs_dtype: torch.dtype,
         n_input_tokens: int,
         n_past_input_tokens: int,
-    ) -> DecoderStateSpec:
+    ) -> IOSpec:
         hidden_size = config_helper.decoder_conf.hidden_size
         vision_conf = config_helper.conf.vision_config
 
-        image_grid = torch.tensor([[1, 4, 4]], dtype=torch.long)
+        image_grid = torch.tensor(
+            [self.SAMPLE_IMAGE_GRID_THW], dtype=torch.long
+        )
         num_image_tokens = int(
             (image_grid.prod(-1) // (vision_conf.spatial_merge_size**2)).item()
         )
@@ -182,32 +232,16 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             (num_image_tokens, hidden_size), dtype=inputs_dtype
         )
 
-        video_grid = torch.zeros((0, 3), dtype=torch.long)
-        video_embeddings = torch.zeros((0, hidden_size), dtype=inputs_dtype)
-        rope_deltas = torch.zeros((1, 1), dtype=torch.long)
-
-        return DecoderStateSpec(
+        return IOSpec(
             inputs=(
                 image_embeddings,
-                video_embeddings,
+                torch.zeros((0, hidden_size), dtype=inputs_dtype),
                 image_grid,
-                video_grid,
-                rope_deltas,
+                torch.zeros((0, 3), dtype=torch.long),
+                torch.zeros((1, 1), dtype=torch.long),
             ),
-            input_names=[
-                "in_image_embeddings",
-                "in_video_embeddings",
-                "in_image_grid_thw",
-                "in_video_grid_thw",
-                "in_rope_deltas",
-            ],
-            output_names=[
-                "out_image_embeddings",
-                "out_video_embeddings",
-                "out_image_grid_thw",
-                "out_video_grid_thw",
-                "out_rope_deltas",
-            ],
+            input_names=self.STATE_INPUT_NAMES,
+            output_names=self.STATE_OUTPUT_NAMES,
             dynamic_axes={
                 "in_image_embeddings": {0: "IMG_STATE"},
                 "in_video_embeddings": {0: "VID_STATE"},
@@ -223,20 +257,17 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         wrapper,
     ) -> T.Dict[str, T.Any]:
         hf_model = wrapper.model
+
         input_ids = inputs[0]
-        num_kv_tensors = wrapper.num_kv_tensors
-        cache_tensors = inputs[1 : 1 + num_kv_tensors]
-        state_tensors = inputs[1 + num_kv_tensors :]
-
-        past_key_values = build_past_kv_dyn_cache(cache_tensors)
-
+        cache_tensors = inputs[1 : 1 + wrapper.num_kv_tensors]
         (
             image_embeddings,
             video_embeddings,
             image_grid_thw,
             video_grid_thw,
             rope_deltas_state,
-        ) = state_tensors
+        ) = inputs[1 + wrapper.num_kv_tensors :]
+        past_key_values = build_past_kv_dyn_cache(cache_tensors)
         self._last_state_outputs = (
             image_embeddings,
             video_embeddings,
@@ -249,9 +280,11 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
 
         image_token_id = hf_model.config.image_token_id
         video_token_id = hf_model.config.video_token_id
-        mm_token_type_ids = torch.zeros_like(input_ids, dtype=torch.int)
-        mm_token_type_ids[input_ids == image_token_id] = 1
-        mm_token_type_ids[input_ids == video_token_id] = 2
+        mm_token_type_ids = self._build_mm_token_type_ids(
+            input_ids,
+            image_token_id=image_token_id,
+            video_token_id=video_token_id,
+        )
 
         image_mask = input_ids == image_token_id
         video_mask = input_ids == video_token_id
@@ -279,14 +312,12 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             dtype=inputs_embeds.dtype,
             device=input_ids.device,
         )
-        cache_position = torch.arange(
-            past_seq_len,
-            past_seq_len + input_ids.shape[1],
-            device=input_ids.device,
+        image_grid_arg = (
+            image_grid_thw if image_grid_thw.numel() else None
         )
-
-        image_grid_arg = image_grid_thw if image_grid_thw.numel() else None
-        video_grid_arg = video_grid_thw if video_grid_thw.numel() else None
+        video_grid_arg = (
+            video_grid_thw if video_grid_thw.numel() else None
+        )
 
         if past_seq_len == 0 or rope_deltas_state.numel() == 0:
             position_ids, rope_deltas_current = hf_model.model.get_rope_index(
@@ -301,25 +332,16 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 device=input_ids.device, dtype=torch.long
             )
         else:
-            batch_size = input_ids.shape[0]
-            seq_length = input_ids.shape[1]
-
             rope_deltas_current = rope_deltas_state.to(
                 device=input_ids.device, dtype=torch.long
             )
-            if rope_deltas_current.ndim == 1:
-                rope_deltas_current = rope_deltas_current.unsqueeze(-1)
-
-            base_positions = torch.arange(
-                seq_length, device=input_ids.device, dtype=torch.long
-            ).view(1, 1, -1)
-            base_positions = base_positions.repeat(3, batch_size, 1)
-
-            cache_offset = cache_position[0] if cache_position.numel() else 0
-            delta = cache_offset + rope_deltas_current
-            delta = delta.view(1, batch_size, 1)
-
-            position_ids = (base_positions + delta).to(dtype=torch.long)
+            position_ids = self._build_cached_position_ids(
+                rope_deltas=rope_deltas_current,
+                past_seq_len=past_seq_len,
+                seq_length=input_ids.shape[1],
+                batch_size=input_ids.shape[0],
+                device=input_ids.device,
+            )
 
         prev_rope = getattr(hf_model.model, "rope_deltas", None)
         hf_model.model.rope_deltas = rope_deltas_current
@@ -372,6 +394,13 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         hf_outputs,
         wrapper,
     ) -> T.List[torch.Tensor]:
+        (
+            image_embeddings,
+            video_embeddings,
+            image_grid_thw,
+            video_grid_thw,
+            _,
+        ) = inputs[1 + wrapper.num_kv_tensors :]
         rope_deltas = getattr(hf_outputs, "rope_deltas", None)
         if rope_deltas is None:
             rope_deltas = self._last_rope_deltas
@@ -384,4 +413,10 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         if rope_deltas is None and self._last_rope_deltas is not None:
             rope_deltas = self._last_rope_deltas
 
-        return list(inputs[-5:-1]) + [rope_deltas]
+        return [
+            image_embeddings,
+            video_embeddings,
+            image_grid_thw,
+            video_grid_thw,
+            rope_deltas,
+        ]

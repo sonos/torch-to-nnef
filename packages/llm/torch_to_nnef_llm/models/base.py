@@ -315,6 +315,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self,
         model,
         handler: ArchitectureHandler,
+        num_kv_tensors: T.Optional[int] = None,
         with_dyn_cache: bool = True,
         num_logits_to_keep: T.Union[int, str] = 1,
         force_causal_mask: T.Optional[bool] = None,
@@ -342,15 +343,14 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self.num_logits_to_keep = (
             0 if self.dynamic_logits_to_keep else int(num_logits_to_keep)
         )
-        helper = None
-        try:
+        if num_kv_tensors is None and hasattr(self.model, "config"):
             from torch_to_nnef_llm.config import HFConfigHelper
 
-            helper = HFConfigHelper(self.model.config)
-        except Exception:
-            helper = None
-        if helper is not None:
-            self.num_kv_tensors = helper.get_num_transformer_layers() * 2
+            num_kv_tensors = (
+                HFConfigHelper(self.model.config).get_num_transformer_layers()
+                * 2
+            )
+        self.num_kv_tensors = num_kv_tensors or 0
         sign = inspect.signature(model.forward)
         fkwargs = {}
         if "logits_to_keep" in sign.parameters:
