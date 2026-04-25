@@ -1,4 +1,3 @@
-"""Architecture handler registry"""
 from typing import Dict, Type
 
 from .base import ArchitectureHandler
@@ -17,7 +16,7 @@ _HANDLER_REGISTRY: Dict[str, Type[ArchitectureHandler]] = {
 }
 
 def get_handler(model_type: str) -> Type[ArchitectureHandler]:
-    """Return the registered handler for a model_type."""
+    """Return the registered handler for a model_type"""
     return _HANDLER_REGISTRY.get(model_type, DefaultArchitectureHandler)
 
 __all__ = [

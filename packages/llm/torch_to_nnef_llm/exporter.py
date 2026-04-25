@@ -263,6 +263,85 @@ class LLMExporter:
     def model_n_params(self) -> int:
         return sum(_.numel() for _ in self.hf_model_causal.parameters())
 
+    def _build_model_input_spec(
+        self,
+        n_input_tokens: int = 1,
+        n_past_input_tokens: int = 2,
+        real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
+    ):
+        return self.model_infos.handler.build_input_spec(
+            tokenizer=self.tokenizer,
+            config_helper=self.model_infos,
+            inputs_dtype=self.inputs_dtype,
+            sample_text=EN_SAMPLE_TEXT,
+            n_input_tokens=n_input_tokens,
+            n_past_input_tokens=n_past_input_tokens,
+            real_kv_cache=real_kv_cache,
+        )
+
+    def _prepare_hf_model_inputs(
+        self,
+        inputs: T.Tuple[torch.Tensor, ...],
+    ) -> T.Dict[str, T.Any]:
+        return self.model_infos.handler.prepare_inputs_for_model(
+            inputs=inputs,
+            wrapper=self.wrapped_model,
+        )
+
+    def _export_layout_dirs(
+        self,
+        export_dirpath: Path,
+        export_dir_struct: ExportDirStruct,
+    ) -> T.Tuple[Path, Path]:
+        if export_dir_struct == ExportDirStruct.DEEP:
+            model_dir = export_dirpath / "model"
+            tok_dir = export_dirpath / "tokenizer"
+            model_dir.mkdir(parents=True, exist_ok=True)
+            tok_dir.mkdir(parents=True, exist_ok=True)
+            return model_dir, tok_dir
+        if export_dir_struct == ExportDirStruct.FLAT:
+            export_dirpath.mkdir(parents=True, exist_ok=True)
+            return export_dirpath, export_dirpath
+        raise T2NErrorNotImplemented()
+
+    def _dump_modes_json(
+        self,
+        export_dirpath: Path,
+        test_dir: Path,
+        sample_generation_total_size: int,
+    ) -> None:
+        if sample_generation_total_size <= 0:
+            LOGGER.info("'inference mode' evaluation skipped")
+            return
+
+        LOGGER.info(
+            "'inference mode' evaluation started with "
+            "sample_generation_total_size=%d",
+            sample_generation_total_size,
+        )
+        pairs = self.dump_all_io_npz_kind(
+            test_dir, size=sample_generation_total_size
+        )
+        modes = []
+        for in_p, _ in pairs:
+            base = in_p.stem
+            for suff in ("_inputs", "_outputs", "_io"):
+                if base.endswith(suff):
+                    base = base[: -len(suff)]
+                    break
+            modes.append(base)
+        with (export_dirpath / "modes.json").open("w", encoding="utf8") as fh:
+            json.dump({"pytorch_supported_modes": modes}, fh)
+        LOGGER.info("'inference mode' evaluation data generated")
+
+    def _normalize_dump_kwargs(self, kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
+        dump_kwargs = dict(kwargs)
+        if isinstance(dump_kwargs.get("tract_check_io_tolerance"), str):
+            dump_kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
+                dump_kwargs["tract_check_io_tolerance"]
+            )
+        return dump_kwargs
+
     @staticmethod
     @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
     def load(
@@ -301,10 +380,7 @@ class LLMExporter:
             _,
         ) = self.generate_inputs_io_names_and_dynaxes()
         wrapped_outs = self.wrapped_model(*inputs)
-        model_inputs = self.model_infos.handler.prepare_inputs_for_model(
-            inputs=inputs,
-            wrapper=self.wrapped_model,
-        )
+        model_inputs = self._prepare_hf_model_inputs(inputs)
         outs = self.hf_model_causal(
             return_dict=True,
             **model_inputs,
@@ -359,11 +435,7 @@ class LLMExporter:
         n_past_input_tokens: int = 2,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
-        input_spec = self.model_infos.handler.build_input_spec(
-            tokenizer=self.tokenizer,
-            config_helper=self.model_infos,
-            inputs_dtype=self.inputs_dtype,
-            sample_text=EN_SAMPLE_TEXT,
+        input_spec = self._build_model_input_spec(
             n_input_tokens=n_input_tokens,
             n_past_input_tokens=n_past_input_tokens,
             real_kv_cache=real_kv_cache,
@@ -601,42 +673,16 @@ class LLMExporter:
             test_dir = export_dirpath / "tests"
             test_dir.mkdir(parents=True)
 
-            if check_inference_modes and sample_generation_total_size > 0:
-                LOGGER.info(
-                    "'inference mode' evaluation started with "
-                    "sample_generation_total_size=%d",
-                    sample_generation_total_size,
+            if check_inference_modes:
+                self._dump_modes_json(
+                    export_dirpath, test_dir, sample_generation_total_size
                 )
-                pairs = self.dump_all_io_npz_kind(
-                    test_dir, size=sample_generation_total_size
-                )
-                modes = []
-                for in_p, _ in pairs:
-                    base = in_p.stem
-                    for suff in ("_inputs", "_outputs", "_io"):
-                        if base.endswith(suff):
-                            base = base[: -len(suff)]
-                            break
-                    modes.append(base)
-                with (export_dirpath / "modes.json").open(
-                    "w", encoding="utf8"
-                ) as fh:
-                    json.dump({"pytorch_supported_modes": modes}, fh)
-                LOGGER.info("'inference mode' evaluation data generated")
             else:
                 LOGGER.info("'inference mode' evaluation skipped")
 
-            if export_dir_struct == ExportDirStruct.DEEP:
-                model_dir = export_dirpath / "model"
-                model_dir.mkdir(parents=True, exist_ok=True)
-                tok_dir = export_dirpath / "tokenizer"
-                tok_dir.mkdir(parents=True, exist_ok=True)
-            elif export_dir_struct == ExportDirStruct.FLAT:
-                model_dir = export_dirpath
-                tok_dir = export_dirpath
-                tok_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                raise T2NErrorNotImplemented()
+            model_dir, tok_dir = self._export_layout_dirs(
+                export_dirpath, export_dir_struct
+            )
 
             if dump_with_tokenizer_and_conf:
                 # export_dir_struct
@@ -939,12 +985,9 @@ def dump_llm(
         num_logits_to_keep=num_logits_to_keep,
         device_map=device_map,
     )
-    if isinstance(kwargs.get("tract_check_io_tolerance"), str):
-        kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
-            kwargs["tract_check_io_tolerance"]
-        )
-    exporter.dump(**kwargs)
-    export_path = kwargs.get("export_dirpath")
+    dump_kwargs = exporter._normalize_dump_kwargs(kwargs)
+    exporter.dump(**dump_kwargs)
+    export_path = dump_kwargs.get("export_dirpath")
     return (
         Path(export_path) if export_path else None,
         exporter,

@@ -5,7 +5,7 @@ from torch_to_nnef_llm.models.base import BaseCausal
 from .default import DefaultArchitectureHandler
 
 class OpenELMArchitectureHandler(DefaultArchitectureHandler):
-    """Handler for OpenELM models."""
+    """Handler for OpenELM models"""
 
     ARCH_NAMES = ("openelm",)
 
