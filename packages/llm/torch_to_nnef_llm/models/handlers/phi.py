@@ -1,9 +1,9 @@
 from torch_to_nnef_llm.models.base import BaseCausalWithDynCacheAndTriu
 
-from .base import ArchitectureHandler
+from .default import DefaultArchitectureHandler
 
 
-class PhiArchitectureHandler(ArchitectureHandler):
+class PhiArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Phi-family models"""
 
     ARCH_NAMES = ("phi",)

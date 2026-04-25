@@ -2,10 +2,9 @@ from functools import partial
 
 from torch_to_nnef_llm.models.base import BaseCausal
 
-from .base import ArchitectureHandler
+from .default import DefaultArchitectureHandler
 
-
-class OpenELMArchitectureHandler(ArchitectureHandler):
+class OpenELMArchitectureHandler(DefaultArchitectureHandler):
     """Handler for OpenELM models."""
 
     ARCH_NAMES = ("openelm",)

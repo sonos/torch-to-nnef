@@ -47,8 +47,6 @@ from torch_to_nnef_llm.config import (
 )
 from torch_to_nnef_llm.loader import load_model, load_tokenizer
 from torch_to_nnef_llm.models.base import (
-    build_past_kv_dyn_cache,
-    build_past_kv_list,
     dyn_cache_to_legacy,
     use_dtype_dyn_cache,
 )
@@ -301,15 +299,13 @@ class LLMExporter:
             _,
         ) = self.generate_inputs_io_names_and_dynaxes()
         wrapped_outs = self.wrapped_model(*inputs)
-        if self.wrapped_model.with_dyn_cache:
-            past_key_values = build_past_kv_dyn_cache(inputs[1:])
-        else:
-            past_key_values = build_past_kv_list(inputs[1:])
+        model_inputs = self.model_infos.handler.prepare_inputs_for_model(
+            inputs=inputs,
+            wrapper=self.wrapped_model,
+        )
         outs = self.hf_model_causal(
-            input_ids=inputs[0],
-            past_key_values=past_key_values,
-            use_cache=True,
             return_dict=True,
+            **model_inputs,
             **self.wrapped_model.forward_kwargs,
         )
 
@@ -361,24 +357,19 @@ class LLMExporter:
         n_past_input_tokens: int = 2,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
-        test_input = self.tokenizer(EN_SAMPLE_TEXT, return_tensors="pt")
-        assert test_input.input_ids.shape[1] >= n_input_tokens
-        (
-            in_cache_names,
-            out_cache_names,
-            past_key_values,
-            dynamic_axes,
-        ) = self.model_infos.build_kv_cache_infos(
+        input_spec = self.model_infos.handler.build_input_spec(
+            tokenizer=self.tokenizer,
+            config_helper=self.model_infos,
+            inputs_dtype=self.inputs_dtype,
+            sample_text=EN_SAMPLE_TEXT,
+            n_input_tokens=n_input_tokens,
             n_past_input_tokens=n_past_input_tokens,
-            force_inputs_dtype=self.inputs_dtype,
             real_kv_cache=real_kv_cache,
         )
-
-        input_names = ["input_ids"] + in_cache_names
-        output_names = ["outputs"] + out_cache_names
-        inputs = tuple(
-            [test_input.input_ids[:, :n_input_tokens]] + past_key_values
-        )
+        inputs = input_spec.inputs
+        input_names = input_spec.input_names
+        output_names = input_spec.output_names
+        dynamic_axes = input_spec.dynamic_axes
         assert len(inputs) == len(input_names) == len(output_names), (
             f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
         )

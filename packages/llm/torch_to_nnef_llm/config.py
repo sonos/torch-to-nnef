@@ -159,7 +159,7 @@ class HFConfigHelper:
 
     def __init__(self, conf):
         self.conf = conf
-        handler_class = handlers.get_hander(conf.model_type)
+        handler_class = handlers.get_handler(conf.model_type)
         self.handler = handler_class()
         self.wrapper_class = self.handler.get_wrapper_class()
         if conf.model_type == "openelm":
