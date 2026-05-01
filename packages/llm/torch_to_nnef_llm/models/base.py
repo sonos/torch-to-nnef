@@ -238,26 +238,24 @@ def use_dtype_dyn_cache(f):
     return wrapped
 
 
-def update_forward_signature(self):
+def update_forward_signature(self, io_spec=None):
     """Trickery to help torch > 2.0 new export API tracing."""
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef_llm.config import HFConfigHelper
-
-    # {
-    sign = inspect.signature(self.forward)
-    kv_inames = HFConfigHelper(self.model.config).build_kv_cache_infos(0)[0]
+    base_forward = getattr(self, "_forward", self.forward)
+    sign = inspect.signature(base_forward)
     new_params = OrderedDict()
-
-    # POSITIONAL_ONLY would have been more accurate BUT
-    # torch._dynamo.eval_frame l1372 signature_to_fullargspec
-    # expect only POSITIONAL_OR_KEYWORD ...
     kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
-    new_params["input_ids"] = inspect.Parameter(
-        "input_ids", kind, annotation=torch.Tensor
-    )
-    for kv_iname in kv_inames:
-        new_params[kv_iname] = inspect.Parameter(
-            kv_iname, kind, annotation=torch.Tensor
+    if io_spec is None:
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef_llm.config import HFConfigHelper
+
+        input_names = ["input_ids"] + HFConfigHelper(
+            self.model.config
+        ).build_kv_cache_infos(0)[0]
+    else:
+        input_names = io_spec.input_names
+    for input_name in input_names:
+        new_params[input_name] = inspect.Parameter(
+            input_name, kind, annotation=torch.Tensor
         )
     if getattr(self, "dynamic_logits_to_keep", False):
         # runtime scalar driving the all-position logits gather; must be the
@@ -266,7 +264,7 @@ def update_forward_signature(self):
             "logits_to_keep", kind, annotation=torch.Tensor
         )
 
-    self._forward = self.forward
+    self._forward = base_forward
 
     @wraps(self._forward)
     def wrapped_forward(*args, **kwargs):
@@ -274,7 +272,6 @@ def update_forward_signature(self):
 
     wrapped_forward.__signature__ = sign.replace(parameters=new_params.values())
     self.forward = wrapped_forward
-    # }
 
 
 class TorchToNNEFWrappedLLM(torch.nn.Module):
@@ -396,19 +393,19 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             *args, logits_to_keep = args
             args = tuple(args)
         inputs = (input_ids, *args)
-        model_inputs = self.handler.build_forward_inputs(
+        state_context = self.handler.build_forward_inputs(
             inputs=inputs,
             wrapper=self,
         )
         model_outputs = self.handler.call_model(
             model=self.model,
-            model_inputs=model_inputs,
+            state_context=state_context,
             wrapper=self,
         )
         outputs = self.handler.build_forward_outputs(
             model=self.model,
             model_outputs=model_outputs,
-            model_inputs=model_inputs,
+            state_context=state_context,
             num_logits_to_keep=self.num_logits_to_keep,
         )
         if logits_to_keep is not None:
@@ -419,7 +416,9 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             seq = logits.shape[1]
             idx = torch.arange(seq - logits_to_keep, seq, device=logits.device)
             outputs = (logits.index_select(1, idx), *outputs[1:])
-        kvs = outputs[1:]
-        assert len(args) == len(kvs), f"{len(args)} == {len(kvs)}"
+        kvs = outputs[1 : 1 + self.num_kv_tensors]
+        assert len(args[: self.num_kv_tensors]) == len(kvs), (
+            f"{len(args[: self.num_kv_tensors])} == {len(kvs)}"
+        )
         # key values, (32 tensors) of shape (1, 3, S, 64)
         return outputs

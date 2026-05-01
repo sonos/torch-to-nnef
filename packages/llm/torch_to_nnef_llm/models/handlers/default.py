@@ -7,7 +7,7 @@ from torch_to_nnef_llm.models.base import (
     build_past_kv_list,
 )
 
-from .base import ArchitectureHandler, IOSpec
+from .base import ArchitectureHandler, IOSpec, StateContext
 from .registry import register_handler
 
 
@@ -57,7 +57,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         *,
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
-    ) -> T.Dict[str, T.Any]:
+    ) -> StateContext:
         attention_mask = None
         position_ids = None
         cache_position = None
@@ -105,4 +105,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
         if position_ids is not None:
             model_inputs["position_ids"] = position_ids
             model_inputs["cache_position"] = cache_position
-        return model_inputs
+        return StateContext(
+            model_inputs=model_inputs,
+            state={},
+        )

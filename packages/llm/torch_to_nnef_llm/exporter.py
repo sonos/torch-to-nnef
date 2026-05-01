@@ -49,7 +49,7 @@ from torch_to_nnef_llm.config import (
 from torch_to_nnef_llm.loader import load_model, load_tokenizer
 from torch_to_nnef_llm.models.base import (
     BaseCausal,
-    dyn_cache_to_legacy,
+    update_forward_signature,
     use_dtype_dyn_cache,
 )
 
@@ -344,10 +344,10 @@ class LLMExporter:
             input_spec.input_names = [*input_spec.input_names, "logits_to_keep"]
         return input_spec
 
-    def _prepare_hf_model_inputs(
+    def _build_state_context(
         self,
         inputs: T.Tuple[torch.Tensor, ...],
-    ) -> T.Dict[str, T.Any]:
+    ):
         return self.model_infos.handler.build_forward_inputs(
             inputs=inputs,
             wrapper=self.wrapped_model,
@@ -467,17 +467,12 @@ class LLMExporter:
             # drop the trailing logits_to_keep scalar; the HF model builds its
             # kv cache from input_ids + caches only.
             hf_inputs = inputs[:-1]
-        model_inputs = self._prepare_hf_model_inputs(hf_inputs)
-        outs = self.hf_model_causal(
-            return_dict=True,
-            **model_inputs,
-            **self.wrapped_model.forward_kwargs,
+        state_context = self._build_state_context(hf_inputs)
+        outs = self.model_infos.handler.call_model(
+            model=self.hf_model_causal,
+            state_context=state_context,
+            wrapper=self.wrapped_model,
         )
-
-        pkv = outs["past_key_values"]
-        if self.wrapped_model.with_dyn_cache:
-            pkv = dyn_cache_to_legacy(pkv)
-        out_pkv = [t for kv in pkv for t in kv]
 
         def err_check(output_name: str, ref: torch.Tensor, cand: torch.Tensor):
             ref = ref.float()
@@ -505,31 +500,25 @@ class LLMExporter:
                 "(which copied graph and could have been quantized in meantime)"
             )
         else:
-            ref_logits = outs["logits"]
+            expected_outputs = self.model_infos.handler.build_forward_outputs(
+                model=self.hf_model_causal,
+                model_outputs=outs,
+                state_context=state_context,
+                num_logits_to_keep=self.wrapped_model.num_logits_to_keep,
+            )
             if getattr(self.wrapped_model, "dynamic_logits_to_keep", False):
                 # wrapped output gathered the last rows; HF emitted all of
                 # them, so compare against the matching tail.
                 kept = wrapped_outs[0].shape[1]
-                ref_logits = ref_logits[:, -kept:, :]
-            err_check("logits", wrapped_outs[0], ref_logits)
-            extra_outputs = self.model_infos.handler.prepare_additional_outputs(
-                inputs=inputs,
-                prepared_inputs=model_inputs,
-                hf_outputs=outs,
-                wrapper=self.wrapped_model,
-            )
-            wrapped_extra_outputs = wrapped_outs[1 + len(out_pkv) :]
-            for kv_name, ref, cand in zip(
-                out_cache_names, out_pkv, wrapped_outs[1:], strict=False
-            ):
-                err_check(kv_name, ref, cand)
-            for state_name, ref, cand in zip(
-                out_cache_names[1 + len(out_pkv) :],
-                extra_outputs,
-                wrapped_extra_outputs,
+                expected_outputs[0] = expected_outputs[0][:, -kept:, :]
+            for output_name, ref, cand in zip(
+                out_cache_names,
+                expected_outputs[1:],
+                wrapped_outs[1:],
                 strict=False,
             ):
-                err_check(state_name, ref, cand)
+                err_check(output_name, ref, cand)
+            err_check("logits", expected_outputs[0], wrapped_outs[0])
             LOGGER.info(
                 "In PyTorch wrapped_model:%s provide same results as %s",
                 self.wrapped_model.__class__,
@@ -547,16 +536,11 @@ class LLMExporter:
             n_past_input_tokens=n_past_input_tokens,
             real_kv_cache=real_kv_cache,
         )
-        state_spec = self.model_infos.handler.build_decoder_state_spec(
-            config_helper=self.model_infos,
-            inputs_dtype=self.inputs_dtype,
-            n_input_tokens=n_input_tokens,
-            n_past_input_tokens=n_past_input_tokens,
-        )
-        inputs = input_spec.inputs + state_spec.inputs
-        input_names = input_spec.input_names + state_spec.input_names
-        output_names = input_spec.output_names + state_spec.output_names
-        dynamic_axes = {**input_spec.dynamic_axes, **state_spec.dynamic_axes}
+        update_forward_signature(self.wrapped_model, input_spec)
+        inputs = input_spec.inputs
+        input_names = input_spec.input_names
+        output_names = input_spec.output_names
+        dynamic_axes = input_spec.dynamic_axes
         # dynamic logits_to_keep adds one extra input with no matching output
         n_extra_inputs = (
             1

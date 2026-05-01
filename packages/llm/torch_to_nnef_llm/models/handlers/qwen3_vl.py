@@ -4,7 +4,7 @@ import torch
 
 from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
-from .base import IOSpec
+from .base import IOSpec, StateContext
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
 
@@ -100,9 +100,7 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         batch_size, seq_length = token_mask.shape
         token_counts = token_mask.to(torch.long).sum(dim=-1)
         total_tokens = int(token_counts.sum().item())
-        if total_tokens == 0:
-            return inputs_embeds
-        if total_tokens != features.shape[0]:
+        if total_tokens == 0 or total_tokens != features.shape[0]:
             return inputs_embeds
 
         start_offsets = torch.cumsum(token_counts, dim=0) - token_counts
@@ -153,75 +151,14 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         delta = (past_seq_len + rope_deltas).view(1, batch_size, 1)
         return (base_positions + delta).to(dtype=torch.long)
 
-    def build_input_spec(
-        self,
-        *,
-        tokenizer,
-        config_helper,
-        inputs_dtype: torch.dtype,
-        sample_text: str,
-        n_input_tokens: int,
-        n_past_input_tokens: int,
-        real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
-    ) -> IOSpec:
-        vision_conf = config_helper.conf.vision_config
-        image_grid = torch.tensor(
-            [self.SAMPLE_IMAGE_GRID_THW], dtype=torch.long
-        )
-        num_image_tokens = int(
-            (image_grid.prod(-1) // (vision_conf.spatial_merge_size**2)).item()
-        )
-        num_video_tokens = 0
-        effective_seq_len = self._ensure_seq_length(
-            n_input_tokens, num_image_tokens, num_video_tokens
-        )
-
-        spec = super().build_input_spec(
-            tokenizer=tokenizer,
-            config_helper=config_helper,
-            inputs_dtype=inputs_dtype,
-            sample_text=sample_text,
-            n_input_tokens=effective_seq_len,
-            n_past_input_tokens=n_past_input_tokens,
-            real_kv_cache=real_kv_cache,
-        )
-
-        input_ids = spec.inputs[0]
-        vocab_size = config_helper.decoder_conf.vocab_size
-        vision_start_token_id = getattr(
-            config_helper.conf,
-            "vision_start_token_id",
-            config_helper.conf.image_token_id - 1,
-        )
-        image_token_id = config_helper.conf.image_token_id
-        video_token_id = config_helper.conf.video_token_id
-
-        input_ids.random_(0, vocab_size)
-        if vocab_size > 10:
-            input_ids[input_ids == image_token_id] = 1
-            input_ids[input_ids == video_token_id] = 2
-
-        if effective_seq_len >= 1:
-            input_ids[:, 0] = vision_start_token_id
-        if effective_seq_len >= 1 + num_image_tokens:
-            for idx in range(num_image_tokens):
-                position = 1 + idx
-                if position < effective_seq_len:
-                    input_ids[:, position] = image_token_id
-
-        return spec
-
-    def build_decoder_state_spec(
+    def _build_state_spec(
         self,
         *,
         config_helper,
         inputs_dtype: torch.dtype,
-        n_input_tokens: int,
-        n_past_input_tokens: int,
     ) -> IOSpec:
         hidden_size = config_helper.decoder_conf.hidden_size
         vision_conf = config_helper.conf.vision_config
-
         image_grid = torch.tensor(
             [self.SAMPLE_IMAGE_GRID_THW], dtype=torch.long
         )
@@ -250,12 +187,75 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             },
         )
 
+    def build_input_spec(
+        self,
+        *,
+        tokenizer,
+        config_helper,
+        inputs_dtype: torch.dtype,
+        sample_text: str,
+        n_input_tokens: int,
+        n_past_input_tokens: int,
+        real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
+    ) -> IOSpec:
+        vision_conf = config_helper.conf.vision_config
+        image_grid = torch.tensor(
+            [self.SAMPLE_IMAGE_GRID_THW], dtype=torch.long
+        )
+        num_image_tokens = int(
+            (image_grid.prod(-1) // (vision_conf.spatial_merge_size**2)).item()
+        )
+        effective_seq_len = self._ensure_seq_length(
+            n_input_tokens, num_image_tokens, 0
+        )
+
+        base_spec = super().build_input_spec(
+            tokenizer=tokenizer,
+            config_helper=config_helper,
+            inputs_dtype=inputs_dtype,
+            sample_text=sample_text,
+            n_input_tokens=effective_seq_len,
+            n_past_input_tokens=n_past_input_tokens,
+            real_kv_cache=real_kv_cache,
+        )
+        state_spec = self._build_state_spec(
+            config_helper=config_helper,
+            inputs_dtype=inputs_dtype,
+        )
+
+        input_ids = base_spec.inputs[0]
+        vocab_size = config_helper.decoder_conf.vocab_size
+        vision_start_token_id = getattr(
+            config_helper.conf,
+            "vision_start_token_id",
+            config_helper.conf.image_token_id - 1,
+        )
+        image_token_id = config_helper.conf.image_token_id
+        video_token_id = config_helper.conf.video_token_id
+
+        input_ids.random_(0, vocab_size)
+        if vocab_size > 10:
+            input_ids[input_ids == image_token_id] = 1
+            input_ids[input_ids == video_token_id] = 2
+        input_ids[:, 0] = vision_start_token_id
+        for idx in range(num_image_tokens):
+            position = 1 + idx
+            if position < effective_seq_len:
+                input_ids[:, position] = image_token_id
+
+        return IOSpec(
+            inputs=base_spec.inputs + state_spec.inputs,
+            input_names=base_spec.input_names + state_spec.input_names,
+            output_names=base_spec.output_names + state_spec.output_names,
+            dynamic_axes={**base_spec.dynamic_axes, **state_spec.dynamic_axes},
+        )
+
     def build_forward_inputs(
         self,
         *,
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
-    ) -> T.Dict[str, T.Any]:
+    ) -> StateContext:
         hf_model = wrapper.model
 
         input_ids = inputs[0]
@@ -275,9 +275,7 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             video_grid_thw,
         )
 
-        embed_layer = hf_model.get_input_embeddings()
-        inputs_embeds = embed_layer(input_ids)
-
+        inputs_embeds = hf_model.get_input_embeddings()(input_ids)
         image_token_id = hf_model.config.image_token_id
         video_token_id = hf_model.config.video_token_id
         mm_token_type_ids = self._build_mm_token_type_ids(
@@ -286,16 +284,14 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             video_token_id=video_token_id,
         )
 
-        image_mask = input_ids == image_token_id
-        video_mask = input_ids == video_token_id
         inputs_embeds = self._inject_token_features(
             inputs_embeds=inputs_embeds,
-            token_mask=image_mask,
+            token_mask=input_ids == image_token_id,
             features=image_embeddings,
         )
         inputs_embeds = self._inject_token_features(
             inputs_embeds=inputs_embeds,
-            token_mask=video_mask,
+            token_mask=input_ids == video_token_id,
             features=video_embeddings,
         )
 
@@ -312,12 +308,8 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
             dtype=inputs_embeds.dtype,
             device=input_ids.device,
         )
-        image_grid_arg = (
-            image_grid_thw if image_grid_thw.numel() else None
-        )
-        video_grid_arg = (
-            video_grid_thw if video_grid_thw.numel() else None
-        )
+        image_grid_arg = image_grid_thw if image_grid_thw.numel() else None
+        video_grid_arg = video_grid_thw if video_grid_thw.numel() else None
 
         if past_seq_len == 0 or rope_deltas_state.numel() == 0:
             position_ids, rope_deltas_current = hf_model.model.get_rope_index(
@@ -343,80 +335,72 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 device=input_ids.device,
             )
 
-        prev_rope = getattr(hf_model.model, "rope_deltas", None)
-        hf_model.model.rope_deltas = rope_deltas_current
-        self._prev_rope_deltas = prev_rope
+        self._prev_rope_deltas = getattr(hf_model.model, "rope_deltas", None)
         self._last_rope_deltas = rope_deltas_current.detach().clone()
+        hf_model.model.rope_deltas = rope_deltas_current
 
-        return {
-            "input_ids": None,
-            "inputs_embeds": inputs_embeds,
-            "attention_mask": attention_mask,
-            "past_key_values": past_key_values,
-            "use_cache": True,
-            "pixel_values": None,
-            "pixel_values_videos": None,
-            "image_grid_thw": image_grid_arg,
-            "video_grid_thw": video_grid_arg,
-            "mm_token_type_ids": mm_token_type_ids,
-            "position_ids": position_ids,
-        }
+        return StateContext(
+            model_inputs={
+                "input_ids": None,
+                "inputs_embeds": inputs_embeds,
+                "attention_mask": attention_mask,
+                "past_key_values": past_key_values,
+                "use_cache": True,
+                "pixel_values": None,
+                "pixel_values_videos": None,
+                "image_grid_thw": image_grid_arg,
+                "video_grid_thw": video_grid_arg,
+                "mm_token_type_ids": mm_token_type_ids,
+                "position_ids": position_ids,
+            },
+            state={
+                "image_embeddings": image_embeddings,
+                "video_embeddings": video_embeddings,
+                "image_grid_thw": image_grid_thw,
+                "video_grid_thw": video_grid_thw,
+                "rope_deltas_state": rope_deltas_state,
+            },
+        )
+
+    def call_model(
+        self,
+        *,
+        model,
+        state_context: StateContext,
+        wrapper,
+    ) -> T.Any:
+        return model(
+            **state_context.model_inputs,
+            **wrapper.forward_kwargs,
+        )
 
     def build_forward_outputs(
         self,
         *,
         model,
         model_outputs: T.Any,
-        model_inputs: T.Dict[str, T.Any],
+        state_context: StateContext,
         num_logits_to_keep: int,
     ) -> T.List[torch.Tensor]:
         outputs = super().build_forward_outputs(
             model=model,
             model_outputs=model_outputs,
-            model_inputs=model_inputs,
+            state_context=state_context,
             num_logits_to_keep=num_logits_to_keep,
         )
         rope_deltas = getattr(model_outputs, "rope_deltas", None)
         if rope_deltas is None:
             rope_deltas = self._last_rope_deltas
-
         if hasattr(model.model, "rope_deltas"):
             model.model.rope_deltas = self._prev_rope_deltas
         self._prev_rope_deltas = None
-
-        return outputs + list(self._last_state_outputs) + [rope_deltas]
-
-    def prepare_additional_outputs(
-        self,
-        *,
-        inputs: T.Tuple[torch.Tensor, ...],
-        prepared_inputs: T.Dict[str, T.Any],
-        hf_outputs,
-        wrapper,
-    ) -> T.List[torch.Tensor]:
-        (
-            image_embeddings,
-            video_embeddings,
-            image_grid_thw,
-            video_grid_thw,
-            _,
-        ) = inputs[1 + wrapper.num_kv_tensors :]
-        rope_deltas = getattr(hf_outputs, "rope_deltas", None)
-        if rope_deltas is None:
-            rope_deltas = self._last_rope_deltas
-
-        hf_model = wrapper.model
-        if hasattr(hf_model.model, "rope_deltas"):
-            hf_model.model.rope_deltas = self._prev_rope_deltas
-        self._prev_rope_deltas = None
-
         if rope_deltas is None and self._last_rope_deltas is not None:
             rope_deltas = self._last_rope_deltas
 
-        return [
-            image_embeddings,
-            video_embeddings,
-            image_grid_thw,
-            video_grid_thw,
+        return outputs + [
+            state_context.state["image_embeddings"],
+            state_context.state["video_embeddings"],
+            state_context.state["image_grid_thw"],
+            state_context.state["video_grid_thw"],
             rope_deltas,
         ]
