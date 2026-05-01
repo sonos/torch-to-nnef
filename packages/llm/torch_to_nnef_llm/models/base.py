@@ -356,7 +356,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
         inputs = (input_ids, *args)
-        model_inputs = self.handler.prepare_inputs_for_model(
+        model_inputs = self.handler.build_forward_inputs(
             inputs=inputs,
             wrapper=self,
         )
@@ -365,7 +365,7 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             model_inputs=model_inputs,
             wrapper=self,
         )
-        outputs = self.handler.prepare_outputs_for_export(
+        outputs = self.handler.build_forward_outputs(
             model=self.model,
             model_outputs=model_outputs,
             model_inputs=model_inputs,

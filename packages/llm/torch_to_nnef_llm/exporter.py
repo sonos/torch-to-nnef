@@ -296,7 +296,7 @@ class LLMExporter:
         self,
         inputs: T.Tuple[torch.Tensor, ...],
     ) -> T.Dict[str, T.Any]:
-        return self.model_infos.handler.prepare_inputs_for_model(
+        return self.model_infos.handler.build_forward_inputs(
             inputs=inputs,
             wrapper=self.wrapped_model,
         )

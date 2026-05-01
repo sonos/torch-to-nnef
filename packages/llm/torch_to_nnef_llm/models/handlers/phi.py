@@ -14,7 +14,7 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
 
     ARCH_NAMES = ("phi",)
 
-    def prepare_inputs_for_model(
+    def build_forward_inputs(
         self,
         *,
         inputs: T.Tuple[torch.Tensor, ...],
@@ -62,7 +62,7 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
     ) -> T.Any:
         return model.model(**model_inputs)
 
-    def prepare_outputs_for_export(
+    def build_forward_outputs(
         self,
         *,
         model,

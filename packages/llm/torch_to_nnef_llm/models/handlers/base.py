@@ -35,7 +35,7 @@ class ArchitectureHandler(ABC):
         """Build exported inputs plus names/dynamic axes for the decoder."""
 
     @abstractmethod
-    def prepare_inputs_for_model(
+    def build_forward_inputs(
         self,
         *,
         inputs: T.Tuple[torch.Tensor, ...],
@@ -56,7 +56,7 @@ class ArchitectureHandler(ABC):
             **wrapper.forward_kwargs,
         )
 
-    def prepare_outputs_for_export(
+    def build_forward_outputs(
         self,
         *,
         model,

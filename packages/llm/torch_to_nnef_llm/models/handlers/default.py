@@ -52,7 +52,7 @@ class DefaultArchitectureHandler(ArchitectureHandler):
             dynamic_axes=dynamic_axes,
         )
 
-    def prepare_inputs_for_model(
+    def build_forward_inputs(
         self,
         *,
         inputs: T.Tuple[torch.Tensor, ...],
