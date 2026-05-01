@@ -105,6 +105,17 @@ def is_forced_half_precision_model(
     )
 
 
+def _normalize_dump_kwargs(
+    kwargs: T.Dict[str, T.Any]
+) -> T.Dict[str, T.Any]:
+    dump_kwargs = dict(kwargs)
+    if isinstance(dump_kwargs.get("tract_check_io_tolerance"), str):
+        dump_kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
+            dump_kwargs["tract_check_io_tolerance"]
+        )
+    return dump_kwargs
+
+
 def _load_exporter_from(
     hf_model_slug: T.Optional[str] = None,
     local_dir: T.Optional[Path] = None,
@@ -333,14 +344,6 @@ class LLMExporter:
         with (export_dirpath / "modes.json").open("w", encoding="utf8") as fh:
             json.dump({"pytorch_supported_modes": modes}, fh)
         LOGGER.info("'inference mode' evaluation data generated")
-
-    def _normalize_dump_kwargs(self, kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
-        dump_kwargs = dict(kwargs)
-        if isinstance(dump_kwargs.get("tract_check_io_tolerance"), str):
-            dump_kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
-                dump_kwargs["tract_check_io_tolerance"]
-            )
-        return dump_kwargs
 
     @staticmethod
     @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
@@ -985,7 +988,7 @@ def dump_llm(
         num_logits_to_keep=num_logits_to_keep,
         device_map=device_map,
     )
-    dump_kwargs = exporter._normalize_dump_kwargs(kwargs)
+    dump_kwargs = _normalize_dump_kwargs(kwargs)
     exporter.dump(**dump_kwargs)
     export_path = dump_kwargs.get("export_dirpath")
     return (
