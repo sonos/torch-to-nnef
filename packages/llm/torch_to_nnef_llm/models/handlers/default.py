@@ -3,7 +3,6 @@ import typing as T
 import torch
 
 from torch_to_nnef_llm.models.base import (
-    BaseCausal,
     build_past_kv_dyn_cache,
     build_past_kv_list,
 )
@@ -17,10 +16,6 @@ class DefaultArchitectureHandler(ArchitectureHandler):
     """Fallback handler for standard causal decoder models."""
 
     ARCH_NAMES = ("default",)
-
-    @staticmethod
-    def get_wrapper_class():
-        return BaseCausal
 
     def build_input_spec(
         self,

@@ -2,10 +2,7 @@ import typing as T
 
 import torch
 
-from torch_to_nnef_llm.models.base import (
-    BaseCausalWithDynCacheAndTriu,
-    build_past_kv_dyn_cache,
-)
+from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
@@ -16,10 +13,6 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
     """Handler for Phi-family models."""
 
     ARCH_NAMES = ("phi",)
-
-    @staticmethod
-    def get_wrapper_class():
-        return BaseCausalWithDynCacheAndTriu
 
     def prepare_inputs_for_model(
         self,
@@ -59,3 +52,31 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
             "use_cache": True,
             "cache_position": cache_position,
         }
+
+    def call_model(
+        self,
+        *,
+        model,
+        model_inputs: T.Dict[str, T.Any],
+        wrapper,
+    ) -> T.Any:
+        return model.model(**model_inputs)
+
+    def prepare_outputs_for_export(
+        self,
+        *,
+        model,
+        model_outputs: T.Any,
+        model_inputs: T.Dict[str, T.Any],
+        num_logits_to_keep: int,
+    ) -> T.List[torch.Tensor]:
+        hidden_states = model_outputs[0]
+        logits = model.lm_head(
+            hidden_states[:, -num_logits_to_keep:, :]
+        )
+        kvs = [
+            t
+            for kv in model_inputs["past_key_values"].to_legacy_cache()
+            for t in kv
+        ]
+        return [logits] + kvs

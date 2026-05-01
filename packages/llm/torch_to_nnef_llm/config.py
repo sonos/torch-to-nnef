@@ -161,16 +161,14 @@ class HFConfigHelper:
         self.conf = conf
         handler_class = handlers.get_handler(conf.model_type)
         self.handler = handler_class()
-        self.wrapper_class = self.handler.get_wrapper_class()
         if conf.model_type == "openelm":
             self.max_position_embeddings = conf.max_context_length
         else:
             self.max_position_embeddings = conf.max_position_embeddings
 
         LOGGER.info(
-            "detected arch:'%s' using wrapper '%s' from handler '%s'",
+            "detected arch:'%s' using handler '%s'",
             conf.model_type,
-            self.wrapper_class,
             handler_class.__name__,
         )
 

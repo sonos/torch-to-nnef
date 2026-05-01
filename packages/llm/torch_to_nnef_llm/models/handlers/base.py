@@ -18,11 +18,7 @@ class ArchitectureHandler(ABC):
     """Base type for architecture-specific export behavior."""
 
     ARCH_NAMES: T.Tuple[str, ...] = ()
-
-    @staticmethod
-    @abstractmethod
-    def get_wrapper_class():
-        """Return the wrapper class or factory for this architecture."""
+    with_dyn_cache: bool = True
 
     @abstractmethod
     def build_input_spec(
@@ -46,3 +42,40 @@ class ArchitectureHandler(ABC):
         wrapper,
     ) -> T.Dict[str, T.Any]:
         """Convert exported inputs into kwargs expected by the HF model."""
+
+    def call_model(
+        self,
+        *,
+        model,
+        model_inputs: T.Dict[str, T.Any],
+        wrapper,
+    ) -> T.Any:
+        """Run the underlying model with prepared inputs."""
+        return model(
+            **model_inputs,
+            **wrapper.forward_kwargs,
+        )
+
+    def prepare_outputs_for_export(
+        self,
+        *,
+        model,
+        model_outputs: T.Any,
+        model_inputs: T.Dict[str, T.Any],
+        num_logits_to_keep: int,
+    ) -> T.List[torch.Tensor]:
+        """Build exported outputs matching InputSpec.output_names."""
+        del model, num_logits_to_keep
+        if self.with_dyn_cache:
+            kvs = [
+                t
+                for kv in model_inputs["past_key_values"].to_legacy_cache()
+                for t in kv
+            ]
+        else:
+            kvs = [
+                k_or_v
+                for kv in model_outputs["past_key_values"]
+                for k_or_v in kv
+            ]
+        return [model_outputs["logits"]] + kvs

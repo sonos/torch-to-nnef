@@ -3,6 +3,8 @@ from functools import partial
 
 import pytest
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from tests.utils import (  # noqa: E402
     TRACT_INFERENCES_TO_TESTS_APPROX,
     TestSuiteInferenceExactnessBuilder,
@@ -11,13 +13,9 @@ from tests.utils import (  # noqa: E402
     set_seed,
     transformers_tract_export_test_condition,
 )
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from torch_to_nnef.utils import torch_version
 from torch_to_nnef_llm.config import LlamaSlugs
-from torch_to_nnef_llm.models.base import (
-    BaseCausalWithDynCacheAndTriu,
-)
+from torch_to_nnef_llm.models.base import BaseCausal
 
 set_seed(int(os.environ.get("SEED", 25)))
 
@@ -36,7 +34,7 @@ if torch_version() > "1.13.0":
     DEFAULT_MODEL_SLUG = os.environ.get("LLAMA_SLUG", LlamaSlugs.DUMMY.value)
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_SLUG)
     causal_llama = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_SLUG)
-    striped_model = BaseCausalWithDynCacheAndTriu(causal_llama)
+    striped_model = BaseCausal(causal_llama)
     inputs = tokenizer("Hello, I am happy", return_tensors="pt")
 
     S = 10

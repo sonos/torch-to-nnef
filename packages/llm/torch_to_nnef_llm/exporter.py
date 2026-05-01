@@ -47,6 +47,7 @@ from torch_to_nnef_llm.config import (
 )
 from torch_to_nnef_llm.loader import load_model, load_tokenizer
 from torch_to_nnef_llm.models.base import (
+    BaseCausal,
     dyn_cache_to_legacy,
     use_dtype_dyn_cache,
 )
@@ -204,9 +205,10 @@ class LLMExporter:
 
         self.model_infos = HFConfigHelper(self.hf_model_causal.config)
 
-        self.wrapped_model = self.model_infos.wrapper_class(
+        self.wrapped_model = BaseCausal(
             self.hf_model_causal,
             handler=self.model_infos.handler,
+            with_dyn_cache=self.model_infos.handler.with_dyn_cache,
             num_logits_to_keep=num_logits_to_keep
         )
         force_module_dtype = (

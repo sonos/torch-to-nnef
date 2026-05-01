@@ -17,7 +17,6 @@ from torch_to_nnef_llm._optional_types import (
     InjectedTransformersCacheUtilsModule,
     InjectedTransformersModule,
     TransformersCacheUtils,
-    TransformersModule,
 )
 from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
@@ -280,74 +279,6 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
         self.forward_kwargs = {}
 
 
-class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
-    """Assume common AutoModelForCausalLM arch.
-
-    with :
-    - .model
-    - .lm_head
-
-    """
-
-    with_dyn_cache: bool = True
-
-    def __init__(
-        self,
-        model: TransformersModule.AutoModelForCausalLM,
-        handler: T.Optional[ArchitectureHandler] = None,
-        num_logits_to_keep: int = 1,
-    ):
-        super().__init__()
-        self.model = model
-        if handler is None:
-            from torch_to_nnef_llm.models.handlers.phi import (
-                PhiArchitectureHandler,
-            )
-
-            handler = PhiArchitectureHandler()
-        self.handler = handler
-        self.num_logits_to_keep = num_logits_to_keep
-        update_forward_signature(self)
-
-    @property
-    def device(self):
-        return self.model.device
-
-    def tie_weights(self):
-        return self.model.tie_weights()
-
-    @use_dtype_dyn_cache
-    def forward(self, input_ids: torch.Tensor, *args):
-        """Forward of BaseCausalWithDynCacheAndTriu.
-
-        Same as calling without any smart caching mechanism
-        self.model.model+lm_head and softmax.
-
-        This export module is extremly ineficient because
-        no caching can be provided ...
-
-        """
-        inputs = (input_ids, *args)
-        model_inputs = self.handler.prepare_inputs_for_model(
-            inputs=inputs,
-            wrapper=self,
-        )
-        outputs = self.model.model(**model_inputs)
-        hidden_states = outputs[0]
-        logits = self.model.lm_head(
-            hidden_states[:, -self.num_logits_to_keep :, :]
-        )
-
-        # Extract cache {
-        kv_cache_flat_list = [
-            t
-            for kv in dyn_cache_to_legacy(model_inputs["past_key_values"])
-            for t in kv
-        ]
-        # }
-        return [logits] + kv_cache_flat_list
-
-
 def _slice_hidden_state_to_lasts(
     mod, inputs, outputs, num_logits_to_keep: int = 1
 ):
@@ -429,22 +360,18 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             inputs=inputs,
             wrapper=self,
         )
-        out_dic = self.model(
-            **model_inputs,
-            **self.forward_kwargs,
+        model_outputs = self.handler.call_model(
+            model=self.model,
+            model_inputs=model_inputs,
+            wrapper=self,
         )
-
-        if self.with_dyn_cache:
-            kvs = [
-                t
-                for kv in dyn_cache_to_legacy(
-                    model_inputs["past_key_values"]
-                )
-                for t in kv
-            ]
-        else:
-            kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
-
-        assert len(args) == len(kvs), f"{len(args) * 2} == {len(kvs)}"
+        outputs = self.handler.prepare_outputs_for_export(
+            model=self.model,
+            model_outputs=model_outputs,
+            model_inputs=model_inputs,
+            num_logits_to_keep=self.num_logits_to_keep,
+        )
+        kvs = outputs[1:]
+        assert len(args) == len(kvs), f"{len(args)} == {len(kvs)}"
         # key values, (32 tensors) of shape (1, 3, S, 64)
-        return [out_dic["logits"]] + kvs
+        return outputs
