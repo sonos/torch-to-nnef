@@ -2,14 +2,19 @@ import typing as T
 
 import torch
 
-from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache, build_past_kv_list
-from torch_to_nnef_llm.models.base import BaseCausal
+from torch_to_nnef_llm.models.base import (
+    BaseCausal,
+    build_past_kv_dyn_cache,
+    build_past_kv_list,
+)
 
 from .base import ArchitectureHandler, InputSpec
+from .registry import register_handler
 
 
+@register_handler
 class DefaultArchitectureHandler(ArchitectureHandler):
-    """Fallback handler for standard causal decoder models"""
+    """Fallback handler for standard causal decoder models."""
 
     ARCH_NAMES = ("default",)
 
@@ -40,7 +45,9 @@ class DefaultArchitectureHandler(ArchitectureHandler):
             force_inputs_dtype=inputs_dtype,
             real_kv_cache=real_kv_cache,
         )
-        inputs = tuple([test_input.input_ids[:, :n_input_tokens]] + past_key_values)
+        inputs = tuple(
+            [test_input.input_ids[:, :n_input_tokens]] + past_key_values
+        )
         input_names = ["input_ids"] + in_cache_names
         output_names = ["outputs"] + out_cache_names
         return InputSpec(

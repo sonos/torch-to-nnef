@@ -1,12 +1,13 @@
-from dataclasses import dataclass
 import typing as T
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import torch
 
+
 @dataclass
 class InputSpec:
-    """Defines the exported input/output signature for one decoder graph"""
+    """Define the exported input/output signature for one decoder graph."""
 
     inputs: T.Tuple[torch.Tensor, ...]
     input_names: T.List[str]
@@ -14,14 +15,14 @@ class InputSpec:
     dynamic_axes: T.Dict[str, T.Dict[int, str]]
 
 class ArchitectureHandler(ABC):
-    """Base type for architecture-specific export behavior"""
+    """Base type for architecture-specific export behavior."""
 
     ARCH_NAMES: T.Tuple[str, ...] = ()
 
     @staticmethod
     @abstractmethod
     def get_wrapper_class():
-        """Return the wrapper class or factory for this architecture"""
+        """Return the wrapper class or factory for this architecture."""
 
     @abstractmethod
     def build_input_spec(
@@ -35,7 +36,7 @@ class ArchitectureHandler(ABC):
         n_past_input_tokens: int,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ) -> InputSpec:
-        """Build exported inputs plus names/dynamic axes for the decoder"""
+        """Build exported inputs plus names/dynamic axes for the decoder."""
 
     @abstractmethod
     def prepare_inputs_for_model(
@@ -44,4 +45,4 @@ class ArchitectureHandler(ABC):
         inputs: T.Tuple[torch.Tensor, ...],
         wrapper,
     ) -> T.Dict[str, T.Any]:
-        """Convert exported inputs into kwargs expected by the HF model"""
+        """Convert exported inputs into kwargs expected by the HF model."""
