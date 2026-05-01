@@ -294,11 +294,18 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
     def __init__(
         self,
         model: TransformersModule.AutoModelForCausalLM,
+        handler: T.Optional[ArchitectureHandler] = None,
         num_logits_to_keep: int = 1,
-        **_,
     ):
         super().__init__()
         self.model = model
+        if handler is None:
+            from torch_to_nnef_llm.models.handlers.phi import (
+                PhiArchitectureHandler,
+            )
+
+            handler = PhiArchitectureHandler()
+        self.handler = handler
         self.num_logits_to_keep = num_logits_to_keep
         update_forward_signature(self)
 
@@ -320,47 +327,12 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
         no caching can be provided ...
 
         """
-        _, seq_length = input_ids.shape[:2]
-
-        # BUILD cache {
-        cache = build_past_kv_dyn_cache(args)
-        # }
-        past_key_values_length = cache.get_seq_length()
-
-        # get pos ids {
-        cache_position = torch.arange(
-            past_key_values_length,
-            seq_length + past_key_values_length,
-            dtype=torch.long,
-            device=input_ids.device,
+        inputs = (input_ids, *args)
+        model_inputs = self.handler.prepare_inputs_for_model(
+            inputs=inputs,
+            wrapper=self,
         )
-        position_ids = cache_position.unsqueeze(0)
-        inputs_embeds = self.model.model.embed_tokens(input_ids)
-
-        attention_mask = (
-            torch.triu(
-                torch.full(
-                    [seq_length, seq_length],
-                    torch.finfo(inputs_embeds.dtype).min,
-                ),
-                diagonal=1,
-            )
-            .unsqueeze(0)
-            .unsqueeze(0)
-        ).to(inputs_embeds.dtype)
-        # }
-
-        hidden_states = inputs_embeds
-
-        outputs = self.model.model(
-            inputs_embeds=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=cache,
-            output_attentions=False,
-            use_cache=True,
-            cache_position=cache_position,
-        )
+        outputs = self.model.model(**model_inputs)
         hidden_states = outputs[0]
         logits = self.model.lm_head(
             hidden_states[:, -self.num_logits_to_keep :, :]
@@ -368,7 +340,9 @@ class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
 
         # Extract cache {
         kv_cache_flat_list = [
-            t for kv in dyn_cache_to_legacy(cache) for t in kv
+            t
+            for kv in dyn_cache_to_legacy(model_inputs["past_key_values"])
+            for t in kv
         ]
         # }
         return [logits] + kv_cache_flat_list
@@ -462,7 +436,11 @@ class BaseCausal(TorchToNNEFWrappedLLM):
 
         if self.with_dyn_cache:
             kvs = [
-                t for kv in dyn_cache_to_legacy(model_inputs["past_key_values"]) for t in kv
+                t
+                for kv in dyn_cache_to_legacy(
+                    model_inputs["past_key_values"]
+                )
+                for t in kv
             ]
         else:
             kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
