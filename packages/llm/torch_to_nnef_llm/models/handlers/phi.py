@@ -2,7 +2,10 @@ import typing as T
 
 import torch
 
-from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
+from torch_to_nnef_llm.models.base import (
+    build_past_kv_dyn_cache,
+    dyn_cache_to_legacy,
+)
 
 from .default import DefaultArchitectureHandler
 from .registry import register_handler
@@ -76,7 +79,9 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
         )
         kvs = [
             t
-            for kv in model_inputs["past_key_values"].to_legacy_cache()
+            for kv in dyn_cache_to_legacy(
+                model_inputs["past_key_values"]
+            )
             for t in kv
         ]
         return [logits] + kvs

@@ -430,7 +430,7 @@ class LLMExporter:
                 err_check(kv_name, ref, cand)
             LOGGER.info(
                 "In PyTorch wrapped_model:%s provide same results as %s",
-                self.model_infos.wrapper_class,
+                self.wrapped_model.__class__,
                 self.hf_model_causal.__class__,
             )
 

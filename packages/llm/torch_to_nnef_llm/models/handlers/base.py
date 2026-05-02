@@ -67,9 +67,13 @@ class ArchitectureHandler(ABC):
         """Build exported outputs matching InputSpec.output_names."""
         del model, num_logits_to_keep
         if self.with_dyn_cache:
+            from torch_to_nnef_llm.models.base import dyn_cache_to_legacy
+
             kvs = [
                 t
-                for kv in model_inputs["past_key_values"].to_legacy_cache()
+                for kv in dyn_cache_to_legacy(
+                    model_inputs["past_key_values"]
+                )
                 for t in kv
             ]
         else:
