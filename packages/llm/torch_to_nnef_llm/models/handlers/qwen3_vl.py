@@ -1,3 +1,4 @@
+import inspect
 import typing as T
 
 import torch
@@ -48,6 +49,15 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
     ) -> int:
         minimal = 1 + num_image_tokens + num_video_tokens + 1
         return max(sequence_length, minimal)
+
+    @staticmethod
+    def _get_rope_index_kwargs(
+        hf_model, mm_token_type_ids: torch.Tensor
+    ) -> T.Dict[str, torch.Tensor]:
+        signature = inspect.signature(hf_model.model.get_rope_index)
+        if "mm_token_type_ids" in signature.parameters:
+            return {"mm_token_type_ids": mm_token_type_ids}
+        return {}
 
     @classmethod
     def _split_inputs(
@@ -327,7 +337,7 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
                 image_grid_thw=image_grid_arg,
                 video_grid_thw=video_grid_arg,
                 attention_mask=rope_attention_mask,
-                mm_token_type_ids=mm_token_type_ids,
+                **self._get_rope_index_kwargs(hf_model, mm_token_type_ids),
             )
             position_ids = position_ids.to(device=input_ids.device)
             rope_deltas_current = rope_deltas_current.to(
