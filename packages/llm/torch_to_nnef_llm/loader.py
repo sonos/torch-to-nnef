@@ -47,6 +47,7 @@ TYPE_OPTIONAL_DEVICE_MAP = T.Optional[
     ]
 ]
 
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def resolve_auto_model_class(
     model_type: str,
@@ -504,6 +505,7 @@ def _from_pretrained(
         return model
     return auto_model_class.from_pretrained(slug_or_dir, **kwargs)
 
+
 @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
 def load_model(
     hf_model_slug: T.Optional[str] = None,
@@ -569,9 +571,7 @@ def load_model(
 
     if custom_config is not None:
         auto_model_class = resolve_auto_model_class(custom_config.model_type)
-        hf_model_causal = auto_model_class.from_config(
-            custom_config, **kwargs
-        )
+        hf_model_causal = auto_model_class.from_config(custom_config, **kwargs)
         LOGGER.info(
             "load custom config: '%s', un-initialized weights", hf_model_slug
         )

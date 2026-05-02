@@ -2,10 +2,7 @@ import typing as T
 
 import torch
 
-from torch_to_nnef_llm.models.base import (
-    build_past_kv_dyn_cache,
-    dyn_cache_to_legacy,
-)
+from torch_to_nnef_llm.models.base import build_past_kv_dyn_cache
 
 from .base import StateContext
 from .default import DefaultArchitectureHandler
@@ -80,11 +77,10 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
     ) -> T.List[torch.Tensor]:
         hidden_states = model_outputs[0]
         logits = model.lm_head(hidden_states[:, -num_logits_to_keep:, :])
-        kvs = [
-            t
-            for kv in dyn_cache_to_legacy(
-                state_context.model_inputs["past_key_values"]
-            )
-            for t in kv
-        ]
+        past_key_values = state_context.model_inputs["past_key_values"]
+        if hasattr(past_key_values, "to_legacy_cache"):
+            legacy_cache = past_key_values.to_legacy_cache()
+        else:
+            legacy_cache = [(kv[0], kv[1]) for kv in past_key_values]
+        kvs = [t for kv in legacy_cache for t in kv]
         return [logits] + kvs
