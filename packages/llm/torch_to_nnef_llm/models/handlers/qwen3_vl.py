@@ -49,6 +49,16 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         minimal = 1 + num_image_tokens + num_video_tokens + 1
         return max(sequence_length, minimal)
 
+    @classmethod
+    def _split_inputs(
+        cls, inputs: T.Tuple[torch.Tensor, ...]
+    ) -> T.Tuple[T.Tuple[torch.Tensor, ...], T.Tuple[torch.Tensor, ...]]:
+        state_input_count = len(cls.STATE_INPUT_NAMES)
+        return (
+            inputs[1:-state_input_count],
+            inputs[-state_input_count:],
+        )
+
     @staticmethod
     def _build_causal_attention_mask(
         *,
@@ -259,14 +269,14 @@ class Qwen3VLArchitectureHandler(DefaultArchitectureHandler):
         hf_model = wrapper.model
 
         input_ids = inputs[0]
-        cache_tensors = inputs[1 : 1 + wrapper.num_kv_tensors]
+        cache_tensors, state_inputs = self._split_inputs(inputs)
         (
             image_embeddings,
             video_embeddings,
             image_grid_thw,
             video_grid_thw,
             rope_deltas_state,
-        ) = inputs[1 + wrapper.num_kv_tensors :]
+        ) = state_inputs
         past_key_values = build_past_kv_dyn_cache(cache_tensors)
         self._last_state_outputs = (
             image_embeddings,

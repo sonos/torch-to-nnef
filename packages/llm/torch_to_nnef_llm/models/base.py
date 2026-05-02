@@ -285,7 +285,6 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.forward_kwargs = {}
-        self.num_kv_tensors = 0
 
 
 def _slice_hidden_state_to_lasts(
@@ -312,7 +311,6 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self,
         model,
         handler: ArchitectureHandler,
-        num_kv_tensors: T.Optional[int] = None,
         with_dyn_cache: bool = True,
         num_logits_to_keep: T.Union[int, str] = 1,
         force_causal_mask: T.Optional[bool] = None,
@@ -340,14 +338,6 @@ class BaseCausal(TorchToNNEFWrappedLLM):
         self.num_logits_to_keep = (
             0 if self.dynamic_logits_to_keep else int(num_logits_to_keep)
         )
-        if num_kv_tensors is None and hasattr(self.model, "config"):
-            from torch_to_nnef_llm.config import HFConfigHelper
-
-            num_kv_tensors = (
-                HFConfigHelper(self.model.config).get_num_transformer_layers()
-                * 2
-            )
-        self.num_kv_tensors = num_kv_tensors or 0
         sign = inspect.signature(model.forward)
         fkwargs = {}
         if "logits_to_keep" in sign.parameters:
@@ -416,9 +406,4 @@ class BaseCausal(TorchToNNEFWrappedLLM):
             seq = logits.shape[1]
             idx = torch.arange(seq - logits_to_keep, seq, device=logits.device)
             outputs = (logits.index_select(1, idx), *outputs[1:])
-        kvs = outputs[1 : 1 + self.num_kv_tensors]
-        assert len(args[: self.num_kv_tensors]) == len(kvs), (
-            f"{len(args[: self.num_kv_tensors])} == {len(kvs)}"
-        )
-        # key values, (32 tensors) of shape (1, 3, S, 64)
         return outputs
