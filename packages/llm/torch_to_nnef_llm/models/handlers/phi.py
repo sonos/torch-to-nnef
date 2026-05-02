@@ -74,14 +74,10 @@ class PhiArchitectureHandler(DefaultArchitectureHandler):
         num_logits_to_keep: int,
     ) -> T.List[torch.Tensor]:
         hidden_states = model_outputs[0]
-        logits = model.lm_head(
-            hidden_states[:, -num_logits_to_keep:, :]
-        )
+        logits = model.lm_head(hidden_states[:, -num_logits_to_keep:, :])
         kvs = [
             t
-            for kv in dyn_cache_to_legacy(
-                model_inputs["past_key_values"]
-            )
+            for kv in dyn_cache_to_legacy(model_inputs["past_key_values"])
             for t in kv
         ]
         return [logits] + kvs

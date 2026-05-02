@@ -182,9 +182,7 @@ def _from_pretrained(
         else:
             hf_repo_files = huggingface_hub.list_repo_files(slug_or_dir)
             weights_location = Path(
-                huggingface_hub.hf_hub_download(
-                    slug_or_dir, hf_repo_files[-1]
-                )
+                huggingface_hub.hf_hub_download(slug_or_dir, hf_repo_files[-1])
             ).parent
 
         with init_empty_weights():
@@ -198,7 +196,10 @@ def _from_pretrained(
 
             device_map = accelerate.infer_auto_device_map(model)
             LOGGER.info("device map selected: %s", device_map)
-        if any(_ in device_map for _ in [AUTO_DEVICE_MAP_KEY, ON_DISK_DEVICE_MAP_KEY]):
+        if any(
+            _ in device_map
+            for _ in [AUTO_DEVICE_MAP_KEY, ON_DISK_DEVICE_MAP_KEY]
+        ):
             t2n_load_checkpoint_and_dispatch(
                 model,
                 weights_location,

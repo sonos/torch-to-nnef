@@ -106,9 +106,7 @@ def is_forced_half_precision_model(
     )
 
 
-def _normalize_dump_kwargs(
-    kwargs: T.Dict[str, T.Any]
-) -> T.Dict[str, T.Any]:
+def _normalize_dump_kwargs(kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
     dump_kwargs = dict(kwargs)
     if isinstance(dump_kwargs.get("tract_check_io_tolerance"), str):
         dump_kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
@@ -209,7 +207,7 @@ class LLMExporter:
             self.hf_model_causal,
             handler=self.model_infos.handler,
             with_dyn_cache=self.model_infos.handler.with_dyn_cache,
-            num_logits_to_keep=num_logits_to_keep
+            num_logits_to_keep=num_logits_to_keep,
         )
         force_module_dtype = (
             DtypeStr(force_module_dtype) if force_module_dtype else None
@@ -942,6 +940,7 @@ class LLMExporter:
             export_dir_struct=export_dir_struct,
             debug_bundle_path=debug_bundle_path,
         )
+
 
 class StateLessF32LayerNorm(nn.Module):
     def forward(  # pylint: disable=too-many-positional-arguments

@@ -14,6 +14,7 @@ class InputSpec:
     output_names: T.List[str]
     dynamic_axes: T.Dict[str, T.Dict[int, str]]
 
+
 class ArchitectureHandler(ABC):
     """Base type for architecture-specific export behavior."""
 
@@ -67,15 +68,12 @@ class ArchitectureHandler(ABC):
         """Build exported outputs matching InputSpec.output_names."""
         del model, num_logits_to_keep
         if self.with_dyn_cache:
-            from torch_to_nnef_llm.models.base import dyn_cache_to_legacy
-
-            kvs = [
-                t
-                for kv in dyn_cache_to_legacy(
-                    model_inputs["past_key_values"]
-                )
-                for t in kv
-            ]
+            past_key_values = model_inputs["past_key_values"]
+            if hasattr(past_key_values, "to_legacy_cache"):
+                pkv = past_key_values.to_legacy_cache()
+            else:
+                pkv = [(kv[0], kv[1]) for kv in past_key_values]
+            kvs = [t for kv in pkv for t in kv]
         else:
             kvs = [
                 k_or_v
