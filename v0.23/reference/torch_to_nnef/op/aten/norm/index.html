@@ -1524,6 +1524,24 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.prefer_native_tract_rms_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;prefer_native_tract_rms_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.rms_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rms_norm
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3015,6 +3033,24 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.prefer_native_tract_rms_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;prefer_native_tract_rms_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.rms_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rms_norm
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3147,6 +3183,56 @@ with variance and mean being tensor</p>
     <div class="doc doc-contents ">
 
         <p>NOTE this is only the normed vector.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.norm.prefer_native_tract_rms_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">prefer_native_tract_rms_norm</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">prefer_native_tract_rms_norm</span><span class="p">(</span><span class="n">inference_target</span><span class="p">,</span> <span class="n">mean_axes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return True when we should emit tract's native rms_norm primitive.</p>
+<p>Native <code>tract_transformers_rms_norm</code> is registered through tract's
+transformers extension, which t2n only auto-enables (via the
+<code>--nnef-tract-transformers</code> CLI flag) for tract &gt;= 0.22.0. The native
+op also takes a single integer <code>axis</code>, so multi-axis
+<code>normalized_shape</code> keeps the fragment fallback.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.norm.rms_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">rms_norm</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">rms_norm</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:rms_norm' to NNEF.</p>
+<p>Signature from <code>torch.nn.functional.rms_norm</code>:
+    <code>rms_norm(input, normalized_shape, weight, eps)</code></p>
+<p>On tract &gt;= 0.22.0 with a single normalized dim, emit the native
+<code>tract_transformers_rms_norm</code> op (gives tract access to its optimized
+GPU kernels and rewrite rules) and chain a <code>mul</code> for elementwise affine.
+Multi-axis <code>normalized_shape</code> and non-tract targets fall back to the
+custom <code>rms_norm{,_with_affine}</code> fragments.</p>
 
     </div>
 

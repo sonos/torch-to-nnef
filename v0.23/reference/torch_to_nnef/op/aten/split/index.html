@@ -3077,13 +3077,11 @@
     <div class="doc doc-contents ">
 
         <p>Translate <code>aten::split_with_sizes</code> to NNEF.</p>
-<p>We are aware that.
-split&lt;?&gt;(
-    value: tensor&lt;?&gt;,
-    axis: integer,
-    ratios: integer[]
-) -&gt; ( values: tensor&lt;?&gt;[] )</p>
-<p>exists but since tract does not support it, we reexpress it with slice</p>
+<p>NNEF spec has a <code>split</code> op (value, axis, ratios -&gt; tensor[]) but tract
+does not register it, so we re-express each output as a <code>slice</code>.</p>
+<p><code>ratio_node</code> may be a <code>PythonConstant</code> (literal sizes from the trace)
+or a <code>TensorVariable</code> whose data is shape-derived (e.g. fused-qkv
+splits like <code>x.shape[-1] // 3</code>); both cases are unwrapped to plain ints.</p>
 
     </div>
 
