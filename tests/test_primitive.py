@@ -417,7 +417,7 @@ for layer in [
     )
 
 
-for layer in [
+_norm_layers = [
     # test slice
     UnaryPrimitive(lambda x: x[:, 2:, :]),
     UnaryPrimitive(lambda x: x[..., 1::2]),
@@ -425,10 +425,15 @@ for layer in [
     torch.nn.LayerNorm(10),
     torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
     torch.nn.LayerNorm(10, elementwise_affine=False),
-    torch.nn.RMSNorm(10),
-    torch.nn.RMSNorm(10, elementwise_affine=False),
     torch.nn.GLU(),
-]:
+]
+# torch.nn.RMSNorm landed in PyTorch 2.4.
+if hasattr(torch.nn, "RMSNorm"):
+    _norm_layers += [
+        torch.nn.RMSNorm(10),
+        torch.nn.RMSNorm(10, elementwise_affine=False),
+    ]
+for layer in _norm_layers:
     test_suite.add(
         torch.rand(1, 3, 10),
         layer,
