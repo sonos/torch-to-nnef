@@ -109,10 +109,8 @@ class NemoAsrModel:
         c_string_wavs = [
             str(Path(path).absolute()).encode("utf-8") for path in wavs
         ]
-        # Build array type
-        ArrayType = c_char_p * len(c_string_wavs)
-        # Instantiate array
-        c_array = ArrayType(*c_string_wavs)
+        # Build the ctypes array type (a class) and instantiate it.
+        c_array = (c_char_p * len(c_string_wavs))(*c_string_wavs)
 
         check_ffi_error(
             lib.infer_from_wav_paths(

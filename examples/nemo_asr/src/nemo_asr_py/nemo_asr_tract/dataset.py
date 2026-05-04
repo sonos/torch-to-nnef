@@ -107,11 +107,11 @@ def collect_dataset(dataset, remap_keys: dict | None = None):
     all_data = {AUDIO_FILEPATHS_KEY: [], DURATION_KEY: [], REFERENCES_KEY: []}
 
     for sample in tqdm(iter(dataset), desc="Preparing samples"):
-        for k in all_data:
+        for k, bucket in all_data.items():
             if remap_keys is None:
-                all_data[k].append(sample[k])
+                bucket.append(sample[k])
             else:
-                all_data[k].append(sample[remap_keys.get(k, k)])
+                bucket.append(sample[remap_keys.get(k, k)])
 
     return all_data
 

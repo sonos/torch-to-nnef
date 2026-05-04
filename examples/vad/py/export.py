@@ -16,11 +16,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torchaudio.transforms as tat
 import yaml
 from fsmn_encoder import FSMN
 from huggingface_hub import hf_hub_download
+from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 

@@ -69,22 +69,21 @@ def global_export_nnef(self, prefix=PREFIX_DEFAULT):
     return f, None
 
 
-def export_nnef(model, im, filepath, input_names, output_names, dynamic):
+def export_nnef(mdl, im, filepath, input_names, output_names, dynamic):
     inference_target = deepcopy(tract_target)
     inference_target.dynamic_axes = dynamic or {}
-    start_time = perf_counter()
+    t0 = perf_counter()
     torch_to_nnef.export_model_to_nnef(
-        model=model,
+        model=mdl,
         args=im,
         file_path_export=filepath,
         inference_target=inference_target,
         input_names=input_names,
         output_names=output_names,
     )
-    end_time = perf_counter()
     LOGGER.info(
         f"{colorstr('NNEF:')} export success "
-        f"in {end_time - start_time:.3f}s, saved as {filepath}"
+        f"in {perf_counter() - t0:.3f}s, saved as {filepath}"
     )
 
 

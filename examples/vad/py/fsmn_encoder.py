@@ -9,8 +9,8 @@ are replaced by an optional explicit cache argument to keep tracing friendly.
 from typing import Optional
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class LinearTransform(nn.Module):
@@ -124,10 +124,7 @@ class BasicBlock(nn.Module):
 
 
 class FsmnStack(nn.Sequential):
-    def forward(self, x):
-        for m in self._modules.values():
-            x = m(x)
-        return x
+    """Sequence of FSMN blocks. Inherits ``nn.Sequential.forward`` directly."""
 
 
 class FSMN(nn.Module):
