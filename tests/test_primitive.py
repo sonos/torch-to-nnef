@@ -502,9 +502,10 @@ test_suite.add(
 
 
 # torch.outer: 1-D x 1-D -> 2-D outer product. Lowered as two unsqueezes +
-# broadcasting mul.
+# broadcasting mul. Both operands start at 1 so every entry of the output
+# is non-zero and would catch a sign or value error in any row.
 test_suite.add(
-    (torch.arange(4).float(), torch.arange(3).float() + 1),
+    (torch.arange(4).float() + 1, torch.arange(3).float() + 1),
     BinaryPrimitive(torch.outer),
     inference_conditions=skip_khronos_interpreter,
 )

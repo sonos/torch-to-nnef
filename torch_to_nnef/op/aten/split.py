@@ -25,9 +25,6 @@ def split_with_sizes(g, node, name_to_tensor, **kwargs):
     """
     (input_node, ratio_node, axis_node) = node.inputs
     assert isinstance(axis_node, PythonConstant)
-    # ratio_node may be a PythonConstant or a TensorVariable whose data was
-    # shape-derived (e.g. ``x.shape[-1] // 3``); what matters is that we can
-    # pull concrete integer sizes out of it at trace time.
     if ratio_node.data is None:
         raise T2NErrorNotImplemented(
             "split_with_sizes requires statically-known sizes"

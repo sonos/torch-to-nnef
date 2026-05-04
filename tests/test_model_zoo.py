@@ -247,12 +247,7 @@ except ImportError:
 
 
 class _MiniVAEMidBlock(torch.nn.Module):
-    """GroupNorm + self-attention with 1/sqrt(d) scaling (AttnBlock-like).
-
-    Uses the Python-int ``self.channels`` instead of ``x.shape[1]`` so the
-    reshape shape stays a concrete integer vector: SD VAE does the same, and
-    feeding a symbolic dim into reshape trips tract during NNEF deserialization.
-    """
+    """GroupNorm + self-attention with 1/sqrt(d) scaling (AttnBlock-like)."""
 
     def __init__(self, channels: int = 8):
         super().__init__()
