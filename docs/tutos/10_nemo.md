@@ -1,1 +1,1 @@
-../examples/nemo_asr/README.md
+../../examples/nemo_asr/README.md
