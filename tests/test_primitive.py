@@ -432,6 +432,10 @@ if hasattr(torch.nn, "RMSNorm"):
     _norm_layers += [
         torch.nn.RMSNorm(10),
         torch.nn.RMSNorm(10, elementwise_affine=False),
+        # Multi-axis normalized_shape: forces the fragment fallback even on
+        # tract 0.22+ (native tract_transformers_rms_norm only takes a single
+        # integer ``axis``).
+        torch.nn.RMSNorm((3, 10)),
     ]
 for layer in _norm_layers:
     test_suite.add(

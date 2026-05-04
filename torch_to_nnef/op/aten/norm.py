@@ -291,10 +291,10 @@ def prefer_native_tract_rms_norm(inference_target, mean_axes) -> bool:
     """Return True when we should emit tract's native rms_norm primitive.
 
     Native ``tract_transformers_rms_norm`` is registered through tract's
-    transformers extension, which t2n only auto-enables for tract >= 0.22.0
-    (see ``TractNNEF.assert_outputs_are_in_pytorch_tolerance``). It also takes
-    a single integer ``axis``, so we keep the multi-axis case on the fragment
-    fallback.
+    transformers extension, which t2n only auto-enables (via the
+    ``--nnef-tract-transformers`` CLI flag) for tract >= 0.22.0. The native
+    op also takes a single integer ``axis``, so multi-axis
+    ``normalized_shape`` keeps the fragment fallback.
     """
     return (
         isinstance(inference_target, TractNNEF)
