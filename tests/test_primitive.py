@@ -74,8 +74,8 @@ for op in [
     torch.zeros_like,
     torch.ones_like,
     partial(torch.full_like, fill_value=2.0),
+    torch.reciprocal,
     # unimplemented tract {
-    # torch.reciprocal,
     # torch.clone,
     # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
     # }
@@ -417,15 +417,27 @@ for layer in [
     )
 
 
-for layer in [
+_norm_layers = [
     # test slice
     UnaryPrimitive(lambda x: x[:, 2:, :]),
     UnaryPrimitive(lambda x: x[..., 1::2]),
     UnaryPrimitive(lambda x: x[..., :2, 1::2]),
     torch.nn.LayerNorm(10),
     torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
+    torch.nn.LayerNorm(10, elementwise_affine=False),
     torch.nn.GLU(),
-]:
+]
+# torch.nn.RMSNorm landed in PyTorch 2.4.
+if hasattr(torch.nn, "RMSNorm"):
+    _norm_layers += [
+        torch.nn.RMSNorm(10),
+        torch.nn.RMSNorm(10, elementwise_affine=False),
+        # Multi-axis normalized_shape: forces the fragment fallback even on
+        # tract 0.22+ (native tract_transformers_rms_norm only takes a single
+        # integer ``axis``).
+        torch.nn.RMSNorm((3, 10)),
+    ]
+for layer in _norm_layers:
     test_suite.add(
         torch.rand(1, 3, 10),
         layer,
@@ -472,6 +484,53 @@ test_suite.add(
     torch.arange(6).reshape(1, 2, 3).float(),
     UnaryPrimitive(torch.erf),
     inference_conditions=skip_khronos_interpreter,  # unssuported by interpreter
+)
+
+
+# torch.arange with dtype=float64 -- shows up in RoPE-style position embeds.
+# NNEF runtimes run it as f32 which is fine for integer-range / position math.
+class _ArangeF64Add(nn.Module):
+    def forward(self, x):
+        return x + torch.arange(x.shape[-1], dtype=torch.float64).to(x.dtype)
+
+
+test_suite.add(
+    torch.rand(1, 4),
+    _ArangeF64Add(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+# torch.outer: 1-D x 1-D -> 2-D outer product. Lowered as two unsqueezes +
+# broadcasting mul. Both operands start at 1 so every entry of the output
+# is non-zero and would catch a sign or value error in any row.
+test_suite.add(
+    (torch.arange(4).float() + 1, torch.arange(3).float() + 1),
+    BinaryPrimitive(torch.outer),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+# split_with_sizes with shape-derived sizes (fused-qkv-style split). The
+# ratio list comes from a tensor expression, not a Python literal; this
+# exercises the TensorVariable unwrapping in split_with_sizes.
+class _FusedQKVSplit(nn.Module):
+    def __init__(self, dim: int = 9):
+        super().__init__()
+        # 9 -> three (3,) chunks for q / k / v
+        self.proj = nn.Linear(dim, dim)
+
+    def forward(self, x):
+        h = self.proj(x)
+        size = h.shape[-1] // 3
+        q, k, v = torch.split(h, [size, size, size], dim=-1)
+        return q + k * v
+
+
+test_suite.add(
+    torch.rand(2, 9),
+    _FusedQKVSplit(),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 

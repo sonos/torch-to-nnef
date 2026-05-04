@@ -185,22 +185,54 @@ def trunc(node, op_helper, **kwargs):
     return ["trunc"]
 
 
+@OP_REGISTRY.register()
+def outer(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:outer' to NNEF.
+
+    ``torch.outer(a, b)`` over 1-D inputs is ``a[:, None] * b[None, :]``.
+    Lower to two unsqueezes and a broadcasting ``mul``.
+
+    Axes are kept positive. Tract's NNEF unsqueeze deserializer
+    (``tract_core::ops::change_axes::AxisOp::change_shape``) does not
+    normalize negative axes and panics with ``smallvec: index exceeds
+    length``; verified across tract 0.20.22 through 0.23.0-dev.5. This
+    matches the wider t2n convention -- the dedicated ``unsqueeze`` op
+    handler also normalizes via ``pick_axis``.
+    """
+    a_node, b_node = node.inputs
+    a = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    a_col = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=a,
+        attrs={"axes": [1]},
+        output_tensor_name_suffix="_col",
+    )
+    b_row = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=b,
+        attrs={"axes": [0]},
+        output_tensor_name_suffix="_row",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=(a_col, b_row),
+    )
+
+
 @OP_REGISTRY.register(torch_op_ids=["pow"])
 def pow_(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:pow' to NNEF."""
     (input_node, exponent_node) = node.inputs
     inputs = [op_helper.get_or_add_tensor_variable_in_nnef(input_node)]
-    if exponent_node.data:
-        exponent = exponent_node.data
-        if exponent == 2:
-            op_type = "sqr"
-        elif exponent == -2:
-            op_type = "rsqr"
-        else:
-            op_type = "pow"
-            inputs += [
-                op_helper.get_or_add_tensor_variable_in_nnef(exponent_node)
-            ]
+    # Scalar 2 / -2 only -- isinstance check skips the truthiness branch on
+    # tensor-valued exponents (which would raise "ambiguous").
+    exp_data = exponent_node.data
+    if isinstance(exp_data, (int, float)) and exp_data in (2, -2):
+        op_type = "sqr" if exp_data == 2 else "rsqr"
     else:
         op_type = "pow"
         inputs += [op_helper.get_or_add_tensor_variable_in_nnef(exponent_node)]

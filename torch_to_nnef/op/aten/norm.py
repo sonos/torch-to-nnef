@@ -250,10 +250,17 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
         input_tensor_node.rank - r - 1
         for r, _ in enumerate(normalized_shape_node.data)
     )
-    has_affine = elementwise_affine_node.data and (
-        (bias_node.data is None or weight_node.data is None)
-        or not (
-            # check affine as any use
+    # has_affine is only true when both weight and bias are real tensors and
+    # at least one is non-identity (not all-1 / all-0). ``LayerNorm(...,
+    # elementwise_affine=False)`` leaves both at None -- the affine path would
+    # then crash trying to materialize None as an NNEF tensor.
+    weight_defined = weight_node.data is not None
+    bias_defined = bias_node.data is not None
+    has_affine = (
+        bool(elementwise_affine_node.data)
+        and weight_defined
+        and bias_defined
+        and not (
             (bias_node.data == 0).all().tolist()
             and (weight_node.data == 1).all().tolist()
         )
@@ -277,6 +284,96 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
         attrs={"mean_axes": mean_axes, "eps": eps_node.data},
     )
 
+    return [op_name]
+
+
+def prefer_native_tract_rms_norm(inference_target, mean_axes) -> bool:
+    """Return True when we should emit tract's native rms_norm primitive.
+
+    Native ``tract_transformers_rms_norm`` is registered through tract's
+    transformers extension, which t2n only auto-enables (via the
+    ``--nnef-tract-transformers`` CLI flag) for tract >= 0.22.0. The native
+    op also takes a single integer ``axis``, so multi-axis
+    ``normalized_shape`` keeps the fragment fallback.
+    """
+    return (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.version >= "0.22.0"
+        and len(mean_axes) == 1
+    )
+
+
+@OP_REGISTRY.register(["rms_norm"])
+def rms_norm(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
+    """Map PyTorch: 'aten:rms_norm' to NNEF.
+
+    Signature from ``torch.nn.functional.rms_norm``:
+        ``rms_norm(input, normalized_shape, weight, eps)``
+
+    On tract >= 0.22.0 with a single normalized dim, emit the native
+    ``tract_transformers_rms_norm`` op (gives tract access to its optimized
+    GPU kernels and rewrite rules) and chain a ``mul`` for elementwise affine.
+    Multi-axis ``normalized_shape`` and non-tract targets fall back to the
+    custom ``rms_norm{,_with_affine}`` fragments.
+    """
+    (
+        input_tensor_node,
+        normalized_shape_node,
+        weight_node,
+        eps_node,
+    ) = node.inputs
+    mean_axes = sorted(
+        input_tensor_node.rank - r - 1
+        for r, _ in enumerate(normalized_shape_node.data)
+    )
+    eps = 1e-6 if eps_node.data is None else float(eps_node.data)
+    weight_defined = weight_node.data is not None
+    has_affine = weight_defined and not (weight_node.data == 1).all().tolist()
+
+    if prefer_native_tract_rms_norm(inference_target, mean_axes):
+        input_ref = get_or_add_tensor_variable_in_nnef(
+            g, input_tensor_node, name_to_tensor
+        )
+        rms_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="tract_transformers_rms_norm",
+            inputs=[input_ref],
+            attrs={"axis": mean_axes[0], "eps": eps},
+            output_tensor_name_suffix="_rms" if has_affine else "",
+        )
+        if has_affine:
+            weight_ref = get_or_add_tensor_variable_in_nnef(
+                g, weight_node, name_to_tensor
+            )
+            add_single_output_op(
+                g,
+                node,
+                name_to_tensor,
+                nnef_op_type="mul",
+                inputs=[rms_ref, weight_ref],
+            )
+        return ["tract_transformers"]
+
+    # Fragment fallback: tract < 0.22.0, multi-axis normalized_shape, or
+    # non-tract targets (Khronos etc.).
+    inputs = [input_tensor_node]
+    op_name = "rms_norm"
+    if has_affine:
+        op_name = "rms_norm_with_affine"
+        inputs += [weight_node]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type=op_name,
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in inputs
+        ],
+        attrs={"mean_axes": mean_axes, "eps": eps},
+    )
     return [op_name]
 
 

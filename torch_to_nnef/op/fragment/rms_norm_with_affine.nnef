@@ -1,0 +1,10 @@
+fragment rms_norm_with_affine(
+    x: tensor<scalar>,
+    gamma: tensor<scalar>,
+    mean_axes: integer[],
+    eps: scalar
+) -> ( y: tensor<scalar> )
+{
+    inv_stdvar = rsqrt(sum_reduce(sqr(x), axes=mean_axes, normalize=true) + eps);
+    y = x * inv_stdvar * gamma;
+}
