@@ -118,6 +118,7 @@ def write_manifest(
                 transcriptions,
                 audio_length,
                 transcription_time,
+                strict=False,
             )
         ):
             datum = {

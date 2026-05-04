@@ -67,7 +67,7 @@ def download_audio_files_factory(cache_dir: str):
     def fn(batch):
         audio_paths, durations = [], []
 
-        for sample_id, sample in zip(batch["id"], batch["audio"]):
+        for sample_id, sample in zip(batch["id"], batch["audio"], strict=False):
             sample_id = sample_id.replace("/", "_").removesuffix(".wav")
             audio_path = os.path.join(cache_dir, f"{sample_id}.wav")
 

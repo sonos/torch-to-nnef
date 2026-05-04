@@ -334,6 +334,7 @@ class BatchBugReproducer:
             original_transcriptions[0],
             (_.text for _ in safe_transcriptions),
             (_.text for _ in fail_transcriptions),
+            strict=False,
         ):
             err_case = ErrorCase(
                 dataset=dataset_config.name,
@@ -449,7 +450,7 @@ def compare_tensors(
         max_diff_per_sample = diff.reshape(diff.shape[0], -1).max(axis=1)
         mean_diff_per_sample = diff.reshape(diff.shape[0], -1).mean(axis=1)
         for i, (max_d, mean_d) in enumerate(
-            zip(max_diff_per_sample, mean_diff_per_sample)
+            zip(max_diff_per_sample, mean_diff_per_sample, strict=False)
         ):
             if max_d > 0 or mean_d > 0:
                 display_diff_stats(
@@ -598,14 +599,16 @@ def analyze_npy_dumps(
     # 4. Optional: big batch analysis
     if generate_big_batch:
         console.print(
-            f"\n[bold underline]Big batch analysis (sensitivity on the {batch_size} first samples of in batches)[/]"
+            "\n[bold underline]Big batch analysis "
+            f"(sensitivity on the {batch_size} first samples of in batches)[/]"
         )
 
         for ref_ix in range(3):
             if ref_ix > 0:
                 console.print("-" * 40)
             console.print(
-                f"* Comparing reference batch (*_{ref_ix}.npy) vs other batch (*_n.npy) "
+                f"* Comparing reference batch (*_{ref_ix}.npy)"
+                " vs other batch (*_n.npy) "
             )
             for base_file in sorted(b_out_dir.glob(f"*_{ref_ix}.npy")):
                 other_ix = 0
@@ -636,9 +639,9 @@ def analyze_npy_dumps(
                             lengths=lens,
                             console=console,
                         )
-                        if (
-                            ref_ix == 0
-                        ):  # only compare with big batch when reference is the original batch
+                        # Only compare with big batch when reference is the
+                        # original batch.
+                        if ref_ix == 0:
                             compare_tensors(
                                 " > ",
                                 base,
@@ -731,9 +734,11 @@ def main():
     """Idxes are collected from.
 
     nemo_tract_eval_compare_manifest \
-        --results-dir $HOME/SONOS/data/dump_parakeet_test_libri_batched_new_model/librispeech/test.clean \
+        --results-dir <DUMP_PARAKEET_DIR>/librispeech/test.clean \
         --max-items 3
 
+    where ``<DUMP_PARAKEET_DIR>`` is e.g.
+    ``$HOME/SONOS/data/dump_parakeet_test_libri_batched_new_model``.
     """
     args = parse_args()
     init_log(

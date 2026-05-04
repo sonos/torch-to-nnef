@@ -19,11 +19,10 @@ import torch
 import torch.nn as nn
 import torchaudio.transforms as tat
 import yaml
+from fsmn_encoder import FSMN
 from huggingface_hub import hf_hub_download
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
-
-from fsmn_encoder import FSMN
 
 HF_REPO = "funasr/fsmn-vad"
 
@@ -64,8 +63,10 @@ def parse_am_mvn(path: Path) -> tuple[torch.Tensor, torch.Tensor]:
     return means, rescales
 
 
-def apply_lfr(feats: torch.Tensor, lfr_m: int = 5, lfr_n: int = 1) -> torch.Tensor:
-    """Stack `lfr_m` consecutive frames with stride `lfr_n` (slicing, no unfold).
+def apply_lfr(
+    feats: torch.Tensor, lfr_m: int = 5, lfr_n: int = 1
+) -> torch.Tensor:
+    """Stack `lfr_m` consecutive frames with stride `lfr_n`, no unfold.
 
     feats: (T, F). Returns (T_out, lfr_m * F) where T_out = T - (lfr_m - 1) +
     (lfr_m - 1) // 2.  Left-pad with (lfr_m - 1) // 2 copies of the first frame
@@ -145,7 +146,7 @@ class FsmnVadPreprocessor(nn.Module):
         )
 
     def forward(self, audio: torch.Tensor) -> torch.Tensor:
-        """audio: (1, N_samples) float32 in [-1, 1]. Returns (1, T', lfr_m * n_mels)."""
+        """audio: (1, N) float32 in [-1, 1]. Returns (1, T', lfr_m * n_mels)."""
         wav = audio * (1 << 15)
         # Preemphasis: y[n] = x[n] - coef * x[n-1]; preserve x[0] on the first
         # sample to mirror Kaldi's behavior on the window boundary.
@@ -167,7 +168,7 @@ class FsmnVadEncoder(nn.Module):
         self.encoder = encoder
 
     def forward(self, feats: torch.Tensor) -> torch.Tensor:
-        """feats: (B, T', input_dim). Returns (B, T', output_dim) softmax probs."""
+        """feats: (B, T', input_dim). Returns (B, T', output_dim) softmax."""
         return self.encoder(feats)
 
 
@@ -191,9 +192,9 @@ def build_encoder(cfg: dict) -> FSMN:
 
 def load_encoder_weights(encoder: FSMN, model_pt: Path) -> None:
     state = torch.load(model_pt, map_location="cpu", weights_only=True)
-    # FunASR's FsmnVADStreaming stores the FSMN under `encoder.`; strip that prefix.
+    # FsmnVADStreaming stores the FSMN under `encoder.`; strip that prefix.
     stripped = {
-        (k[len("encoder."):] if k.startswith("encoder.") else k): v
+        (k[len("encoder.") :] if k.startswith("encoder.") else k): v
         for k, v in state.items()
     }
     missing, unexpected = encoder.load_state_dict(stripped, strict=False)

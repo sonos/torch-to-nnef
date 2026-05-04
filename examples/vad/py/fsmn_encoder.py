@@ -6,7 +6,7 @@ FunASR stack. Only the non-streaming forward path is kept; streaming cache dicts
 are replaced by an optional explicit cache argument to keep tracing friendly.
 """
 
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -41,7 +41,15 @@ class RectifiedLinear(nn.Module):
 
 
 class FSMNBlock(nn.Module):
-    def __init__(self, input_dim, output_dim, lorder=None, rorder=None, lstride=1, rstride=1):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        lorder=None,
+        rorder=None,
+        lstride=1,
+        rstride=1,
+    ):
         super().__init__()
         self.dim = input_dim
         if lorder is None:
@@ -51,11 +59,21 @@ class FSMNBlock(nn.Module):
         self.lstride = lstride
         self.rstride = rstride
         self.conv_left = nn.Conv2d(
-            self.dim, self.dim, [lorder, 1], dilation=[lstride, 1], groups=self.dim, bias=False
+            self.dim,
+            self.dim,
+            [lorder, 1],
+            dilation=[lstride, 1],
+            groups=self.dim,
+            bias=False,
         )
         if self.rorder > 0:
             self.conv_right = nn.Conv2d(
-                self.dim, self.dim, [rorder, 1], dilation=[rstride, 1], groups=self.dim, bias=False
+                self.dim,
+                self.dim,
+                [rorder, 1],
+                dilation=[rstride, 1],
+                groups=self.dim,
+                bias=False,
             )
         else:
             self.conv_right = None
@@ -71,7 +89,7 @@ class FSMNBlock(nn.Module):
         out = x_per + y_left
         if self.conv_right is not None:
             y_right = F.pad(x_per, [0, 0, 0, self.rorder * self.rstride])
-            y_right = y_right[:, :, self.rstride:, :]
+            y_right = y_right[:, :, self.rstride :, :]
             y_right = self.conv_right(y_right)
             out = out + y_right
         out_per = out.permute(0, 3, 2, 1)
@@ -79,11 +97,22 @@ class FSMNBlock(nn.Module):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, linear_dim, proj_dim, lorder, rorder, lstride, rstride, stack_layer):
+    def __init__(
+        self,
+        linear_dim,
+        proj_dim,
+        lorder,
+        rorder,
+        lstride,
+        rstride,
+        stack_layer,
+    ):
         super().__init__()
         self.stack_layer = stack_layer
         self.linear = LinearTransform(linear_dim, proj_dim)
-        self.fsmn_block = FSMNBlock(proj_dim, proj_dim, lorder, rorder, lstride, rstride)
+        self.fsmn_block = FSMNBlock(
+            proj_dim, proj_dim, lorder, rorder, lstride, rstride
+        )
         self.affine = AffineTransform(proj_dim, linear_dim)
         self.relu = RectifiedLinear(linear_dim, linear_dim)
 
@@ -123,7 +152,9 @@ class FSMN(nn.Module):
         self.relu = RectifiedLinear(linear_dim, linear_dim)
         self.fsmn = FsmnStack(
             *[
-                BasicBlock(linear_dim, proj_dim, lorder, rorder, lstride, rstride, i)
+                BasicBlock(
+                    linear_dim, proj_dim, lorder, rorder, lstride, rstride, i
+                )
                 for i in range(fsmn_layers)
             ]
         )
