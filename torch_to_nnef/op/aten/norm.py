@@ -250,10 +250,17 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
         input_tensor_node.rank - r - 1
         for r, _ in enumerate(normalized_shape_node.data)
     )
-    has_affine = elementwise_affine_node.data and (
-        (bias_node.data is None or weight_node.data is None)
-        or not (
-            # check affine as any use
+    # has_affine is only true when both weight and bias are real tensors and
+    # at least one is non-identity (not all-1 / all-0). ``LayerNorm(...,
+    # elementwise_affine=False)`` leaves both at None -- the affine path would
+    # then crash trying to materialize None as an NNEF tensor.
+    weight_defined = weight_node.data is not None
+    bias_defined = bias_node.data is not None
+    has_affine = (
+        bool(elementwise_affine_node.data)
+        and weight_defined
+        and bias_defined
+        and not (
             (bias_node.data == 0).all().tolist()
             and (weight_node.data == 1).all().tolist()
         )
