@@ -17,8 +17,8 @@ from torch_to_nnef_llm._optional_types import (
     InjectedTransformersCacheUtilsModule,
     InjectedTransformersModule,
     TransformersCacheUtils,
-    TransformersModule,
 )
+from torch_to_nnef_llm.models.handlers.base import ArchitectureHandler
 
 LOGGER = logging.getLogger(__name__)
 
@@ -279,99 +279,6 @@ class TorchToNNEFWrappedLLM(torch.nn.Module):
         self.forward_kwargs = {}
 
 
-class BaseCausalWithDynCacheAndTriu(TorchToNNEFWrappedLLM):
-    """Assume common AutoModelForCausalLM arch.
-
-    with :
-    - .model
-    - .lm_head
-
-    """
-
-    with_dyn_cache: bool = True
-
-    def __init__(
-        self,
-        model: TransformersModule.AutoModelForCausalLM,
-        num_logits_to_keep: int = 1,
-    ):
-        super().__init__()
-        self.model = model
-        self.num_logits_to_keep = num_logits_to_keep
-        update_forward_signature(self)
-
-    @property
-    def device(self):
-        return self.model.device
-
-    def tie_weights(self):
-        return self.model.tie_weights()
-
-    @use_dtype_dyn_cache
-    def forward(self, input_ids: torch.Tensor, *args):
-        """Forward of BaseCausalWithDynCacheAndTriu.
-
-        Same as calling without any smart caching mechanism
-        self.model.model+lm_head and softmax.
-
-        This export module is extremly ineficient because
-        no caching can be provided ...
-
-        """
-        _, seq_length = input_ids.shape[:2]
-
-        # BUILD cache {
-        cache = build_past_kv_dyn_cache(args)
-        # }
-        past_key_values_length = cache.get_seq_length()
-
-        # get pos ids {
-        cache_position = torch.arange(
-            past_key_values_length,
-            seq_length + past_key_values_length,
-            dtype=torch.long,
-            device=input_ids.device,
-        )
-        position_ids = cache_position.unsqueeze(0)
-        inputs_embeds = self.model.model.embed_tokens(input_ids)
-
-        attention_mask = (
-            torch.triu(
-                torch.full(
-                    [seq_length, seq_length],
-                    torch.finfo(inputs_embeds.dtype).min,
-                ),
-                diagonal=1,
-            )
-            .unsqueeze(0)
-            .unsqueeze(0)
-        ).to(inputs_embeds.dtype)
-        # }
-
-        hidden_states = inputs_embeds
-
-        outputs = self.model.model(
-            inputs_embeds=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=cache,
-            output_attentions=False,
-            use_cache=True,
-            cache_position=cache_position,
-        )
-        hidden_states = outputs[0]
-        logits = self.model.lm_head(
-            hidden_states[:, -self.num_logits_to_keep :, :]
-        )
-
-        # Extract cache {
-        kv_cache_flat_list = [
-            t for kv in dyn_cache_to_legacy(cache) for t in kv
-        ]
-        # }
-        return [logits] + kv_cache_flat_list
-
-
 def _slice_hidden_state_to_lasts(
     mod, inputs, outputs, num_logits_to_keep: int = 1
 ):
@@ -395,12 +302,14 @@ class BaseCausal(TorchToNNEFWrappedLLM):
     def __init__(
         self,
         model,
+        handler: ArchitectureHandler,
         with_dyn_cache: bool = True,
         num_logits_to_keep: int = 1,
         force_causal_mask: T.Optional[bool] = None,
     ):
         super().__init__()
         self.model = model
+        self.handler = handler
         self.with_dyn_cache = with_dyn_cache
         self.num_logits_to_keep = num_logits_to_keep
         sign = inspect.signature(model.forward)
@@ -440,44 +349,23 @@ class BaseCausal(TorchToNNEFWrappedLLM):
 
     @use_dtype_dyn_cache
     def forward(self, input_ids: torch.Tensor, *args):
-        # input_ids: [1, S] with torch.int64
-        # past_key_values: Optional[List[torch.FloatTensor]] = None
-        # # type annotation in code WRONG
-        if self.with_dyn_cache:
-            past_key_values = build_past_kv_dyn_cache(args)
-        else:
-            past_key_values = build_past_kv_list(args)
-
-        if self.force_causal_mask:
-            attn_mask_dtype = torch.float32
-            seq_length = args[0].shape[0]
-            attention_mask = (
-                torch.triu(
-                    torch.full(
-                        [seq_length, seq_length],
-                        torch.finfo(attn_mask_dtype).min,
-                    ),
-                    diagonal=1,
-                )
-                .unsqueeze(0)
-                .unsqueeze(0)
-            ).to(attn_mask_dtype)
-        else:
-            attention_mask = None
-
-        out_dic = self.model(
-            input_ids,
-            past_key_values=past_key_values,
-            use_cache=True,
-            attention_mask=attention_mask,
-            **self.forward_kwargs,
+        inputs = (input_ids, *args)
+        model_inputs = self.handler.build_forward_inputs(
+            inputs=inputs,
+            wrapper=self,
         )
-
-        if self.with_dyn_cache:
-            kvs = [t for kv in dyn_cache_to_legacy(past_key_values) for t in kv]
-        else:
-            kvs = [k_or_v for kv in out_dic["past_key_values"] for k_or_v in kv]
-
-        assert len(args) == len(kvs), f"{len(args) * 2} == {len(kvs)}"
+        model_outputs = self.handler.call_model(
+            model=self.model,
+            model_inputs=model_inputs,
+            wrapper=self,
+        )
+        outputs = self.handler.build_forward_outputs(
+            model=self.model,
+            model_outputs=model_outputs,
+            model_inputs=model_inputs,
+            num_logits_to_keep=self.num_logits_to_keep,
+        )
+        kvs = outputs[1:]
+        assert len(args) == len(kvs), f"{len(args)} == {len(kvs)}"
         # key values, (32 tensors) of shape (1, 3, S, 64)
-        return [out_dic["logits"]] + kvs
+        return outputs

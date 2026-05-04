@@ -1,7 +1,5 @@
 import json
 import logging
-import os
-import tempfile
 import typing as T
 from collections import Counter
 from pathlib import Path
@@ -17,7 +15,6 @@ from torch_to_nnef.compress import (
 from torch_to_nnef.exceptions import (
     T2NErrorConsistency,
     T2NErrorMisuse,
-    T2NErrorNotFoundFile,
     T2NErrorNotImplemented,
     T2NErrorRuntime,
 )
@@ -28,17 +25,11 @@ from torch_to_nnef.inference_target.tract import (
     TractNNEF,
     build_io,
 )
-from torch_to_nnef.tensor.offload import (
-    AUTO_DEVICE_MAP_KEY,
-    ON_DISK_DEVICE_MAP_KEY,
-    t2n_load_checkpoint_and_dispatch,
-)
 from torch_to_nnef.torch_graph.ir_naming import VariableNamingScheme
 from torch_to_nnef.utils import (
     INJECTED,
     SemanticVersion,
     T2NExtra,
-    init_empty_weights,
     require_extra_decorator,
     torch_version,
 )
@@ -50,15 +41,13 @@ from torch_to_nnef_llm._optional_types import (
     TransformersModule,
 )
 from torch_to_nnef_llm.config import (
-    CUSTOM_CONFIGS,
-    REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG,
     DtypeStr,
     ExportDirStruct,
     HFConfigHelper,
 )
+from torch_to_nnef_llm.loader import load_model, load_tokenizer
 from torch_to_nnef_llm.models.base import (
-    build_past_kv_dyn_cache,
-    build_past_kv_list,
+    BaseCausal,
     dyn_cache_to_legacy,
     use_dtype_dyn_cache,
 )
@@ -115,6 +104,15 @@ def is_forced_half_precision_model(
         force_module_dtype is not None
         and DtypeStr(force_module_dtype).torch_dtype in HALF_TYPES
     )
+
+
+def _normalize_dump_kwargs(kwargs: T.Dict[str, T.Any]) -> T.Dict[str, T.Any]:
+    dump_kwargs = dict(kwargs)
+    if isinstance(dump_kwargs.get("tract_check_io_tolerance"), str):
+        dump_kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
+            dump_kwargs["tract_check_io_tolerance"]
+        )
+    return dump_kwargs
 
 
 def _load_exporter_from(
@@ -205,8 +203,11 @@ class LLMExporter:
 
         self.model_infos = HFConfigHelper(self.hf_model_causal.config)
 
-        self.wrapped_model = self.model_infos.wrapper_class(
-            self.hf_model_causal, num_logits_to_keep=num_logits_to_keep
+        self.wrapped_model = BaseCausal(
+            self.hf_model_causal,
+            handler=self.model_infos.handler,
+            with_dyn_cache=self.model_infos.handler.with_dyn_cache,
+            num_logits_to_keep=num_logits_to_keep,
         )
         force_module_dtype = (
             DtypeStr(force_module_dtype) if force_module_dtype else None
@@ -273,6 +274,77 @@ class LLMExporter:
     def model_n_params(self) -> int:
         return sum(_.numel() for _ in self.hf_model_causal.parameters())
 
+    def _build_model_input_spec(
+        self,
+        n_input_tokens: int = 1,
+        n_past_input_tokens: int = 2,
+        real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
+    ):
+        return self.model_infos.handler.build_input_spec(
+            tokenizer=self.tokenizer,
+            config_helper=self.model_infos,
+            inputs_dtype=self.inputs_dtype,
+            sample_text=EN_SAMPLE_TEXT,
+            n_input_tokens=n_input_tokens,
+            n_past_input_tokens=n_past_input_tokens,
+            real_kv_cache=real_kv_cache,
+        )
+
+    def _prepare_hf_model_inputs(
+        self,
+        inputs: T.Tuple[torch.Tensor, ...],
+    ) -> T.Dict[str, T.Any]:
+        return self.model_infos.handler.build_forward_inputs(
+            inputs=inputs,
+            wrapper=self.wrapped_model,
+        )
+
+    def _export_layout_dirs(
+        self,
+        export_dirpath: Path,
+        export_dir_struct: ExportDirStruct,
+    ) -> T.Tuple[Path, Path]:
+        if export_dir_struct == ExportDirStruct.DEEP:
+            model_dir = export_dirpath / "model"
+            tok_dir = export_dirpath / "tokenizer"
+            model_dir.mkdir(parents=True, exist_ok=True)
+            tok_dir.mkdir(parents=True, exist_ok=True)
+            return model_dir, tok_dir
+        if export_dir_struct == ExportDirStruct.FLAT:
+            export_dirpath.mkdir(parents=True, exist_ok=True)
+            return export_dirpath, export_dirpath
+        raise T2NErrorNotImplemented()
+
+    def _dump_modes_json(
+        self,
+        export_dirpath: Path,
+        test_dir: Path,
+        sample_generation_total_size: int,
+    ) -> None:
+        if sample_generation_total_size <= 0:
+            LOGGER.info("'inference mode' evaluation skipped")
+            return
+
+        LOGGER.info(
+            "'inference mode' evaluation started with "
+            "sample_generation_total_size=%d",
+            sample_generation_total_size,
+        )
+        pairs = self.dump_all_io_npz_kind(
+            test_dir, size=sample_generation_total_size
+        )
+        modes = []
+        for in_p, _ in pairs:
+            base = in_p.stem
+            for suff in ("_inputs", "_outputs", "_io"):
+                if base.endswith(suff):
+                    base = base[: -len(suff)]
+                    break
+            modes.append(base)
+        with (export_dirpath / "modes.json").open("w", encoding="utf8") as fh:
+            json.dump({"pytorch_supported_modes": modes}, fh)
+        LOGGER.info("'inference mode' evaluation data generated")
+
     @staticmethod
     @require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
     def load(
@@ -311,15 +383,10 @@ class LLMExporter:
             _,
         ) = self.generate_inputs_io_names_and_dynaxes()
         wrapped_outs = self.wrapped_model(*inputs)
-        if self.wrapped_model.with_dyn_cache:
-            past_key_values = build_past_kv_dyn_cache(inputs[1:])
-        else:
-            past_key_values = build_past_kv_list(inputs[1:])
+        model_inputs = self._prepare_hf_model_inputs(inputs)
         outs = self.hf_model_causal(
-            input_ids=inputs[0],
-            past_key_values=past_key_values,
-            use_cache=True,
             return_dict=True,
+            **model_inputs,
             **self.wrapped_model.forward_kwargs,
         )
 
@@ -361,7 +428,7 @@ class LLMExporter:
                 err_check(kv_name, ref, cand)
             LOGGER.info(
                 "In PyTorch wrapped_model:%s provide same results as %s",
-                self.model_infos.wrapper_class,
+                self.wrapped_model.__class__,
                 self.hf_model_causal.__class__,
             )
 
@@ -371,24 +438,15 @@ class LLMExporter:
         n_past_input_tokens: int = 2,
         real_kv_cache: T.Optional[T.List[torch.Tensor]] = None,
     ):
-        test_input = self.tokenizer(EN_SAMPLE_TEXT, return_tensors="pt")
-        assert test_input.input_ids.shape[1] >= n_input_tokens
-        (
-            in_cache_names,
-            out_cache_names,
-            past_key_values,
-            dynamic_axes,
-        ) = self.model_infos.build_kv_cache_infos(
+        input_spec = self._build_model_input_spec(
+            n_input_tokens=n_input_tokens,
             n_past_input_tokens=n_past_input_tokens,
-            force_inputs_dtype=self.inputs_dtype,
             real_kv_cache=real_kv_cache,
         )
-
-        input_names = ["input_ids"] + in_cache_names
-        output_names = ["outputs"] + out_cache_names
-        inputs = tuple(
-            [test_input.input_ids[:, :n_input_tokens]] + past_key_values
-        )
+        inputs = input_spec.inputs
+        input_names = input_spec.input_names
+        output_names = input_spec.output_names
+        dynamic_axes = input_spec.dynamic_axes
         assert len(inputs) == len(input_names) == len(output_names), (
             f"{len(inputs)} == {len(input_names)} == {len(output_names)}"
         )
@@ -618,42 +676,16 @@ class LLMExporter:
             test_dir = export_dirpath / "tests"
             test_dir.mkdir(parents=True)
 
-            if check_inference_modes and sample_generation_total_size > 0:
-                LOGGER.info(
-                    "'inference mode' evaluation started with "
-                    "sample_generation_total_size=%d",
-                    sample_generation_total_size,
+            if check_inference_modes:
+                self._dump_modes_json(
+                    export_dirpath, test_dir, sample_generation_total_size
                 )
-                pairs = self.dump_all_io_npz_kind(
-                    test_dir, size=sample_generation_total_size
-                )
-                modes = []
-                for in_p, _ in pairs:
-                    base = in_p.stem
-                    for suff in ("_inputs", "_outputs", "_io"):
-                        if base.endswith(suff):
-                            base = base[: -len(suff)]
-                            break
-                    modes.append(base)
-                with (export_dirpath / "modes.json").open(
-                    "w", encoding="utf8"
-                ) as fh:
-                    json.dump({"pytorch_supported_modes": modes}, fh)
-                LOGGER.info("'inference mode' evaluation data generated")
             else:
                 LOGGER.info("'inference mode' evaluation skipped")
 
-            if export_dir_struct == ExportDirStruct.DEEP:
-                model_dir = export_dirpath / "model"
-                model_dir.mkdir(parents=True, exist_ok=True)
-                tok_dir = export_dirpath / "tokenizer"
-                tok_dir.mkdir(parents=True, exist_ok=True)
-            elif export_dir_struct == ExportDirStruct.FLAT:
-                model_dir = export_dirpath
-                tok_dir = export_dirpath
-                tok_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                raise T2NErrorNotImplemented()
+            model_dir, tok_dir = self._export_layout_dirs(
+                export_dirpath, export_dir_struct
+            )
 
             if dump_with_tokenizer_and_conf:
                 # export_dir_struct
@@ -910,265 +942,6 @@ class LLMExporter:
         )
 
 
-def find_subdir_with_filename_in(dirpath: Path, filename: str) -> Path:
-    """Find a subdir with filename in it."""
-    found_dirs = {p.parent for p in dirpath.glob(f"**/{filename}")}
-    if not 0 < len(found_dirs) < 2:
-        raise T2NErrorNotFoundFile(
-            f"Found {len(found_dirs)} dirs for with '{filename}' file. "
-            f"found_dirs={found_dirs}. "
-            + (
-                "Unable to decide which one should selected..."
-                if len(found_dirs) > 1
-                else "Is it a valid model directory ?"
-            )
-        )
-    return found_dirs.pop()
-
-
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
-def load_tokenizer(
-    config,
-    hf_model_slug: T.Optional[str] = None,
-    local_dir: T.Optional[Path] = None,
-    *,
-    transformers: InjectedTransformersModule = INJECTED,
-):
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    tokenizer_slug = REMAP_MODEL_TYPE_TO_TOKENIZER_SLUG.get(
-        config.model_type, hf_model_slug
-    )
-    if tokenizer_slug is None:
-        assert local_dir is not None
-    if local_dir is not None:
-        local_dir = find_subdir_with_filename_in(local_dir, "tokenizer.json")
-    return transformers.AutoTokenizer.from_pretrained(
-        local_dir or tokenizer_slug, trust_remote_code=True
-    )
-
-
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
-@require_extra_decorator(extra=T2NExtra.PEFT, module="peft")
-def _try_load_peft(
-    dir_path,
-    kwargs,
-    exp,
-    *,
-    transformers: InjectedTransformersModule = INJECTED,
-    peft: InjectedPeftModule = INJECTED,
-):
-    # likely an embedding issue with added tokens
-    with (dir_path / "adapter_config.json").open("r", encoding="utf8") as fh:
-        dic = json.load(fh)
-    hf_model_causal = transformers.AutoModelForCausalLM.from_pretrained(
-        dic["base_model_name_or_path"], **kwargs
-    )
-    msg = "Error(s) in loading state_dict for"
-    if exp.args[0].startswith(msg) and "size mismatch for" in exp.args[0]:
-        new_tokenizer_len = int(exp.args[0].split("[")[1].split(",")[0])
-        hf_model_causal.resize_token_embeddings(new_tokenizer_len)
-        print("new_tokenizer_len:", new_tokenizer_len)
-
-    hf_model_causal = peft.PeftModel.from_pretrained(hf_model_causal, dir_path)
-    LOGGER.info("loaded a PEFT model with resized token embeddings")
-    return hf_model_causal
-
-
-def assert_model_safetensors_exists(dir_path):
-    assert (
-        "model" in p.name and p.name.endswith(".safetensors")
-        for p in dir_path.iterdir()
-    ), dir_path
-
-
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
-def load_peft_model(
-    local_dir,
-    kwargs,
-    *,
-    transformers: InjectedTransformersModule = INJECTED,
-):
-    """Load PEFT adapted models.
-
-    Try to avoid direct reference to tokenizer object/config
-    to limit dependencies of the function
-
-    While also trying to be robust to 'wrong' key/values
-
-    """
-    dir_path = find_subdir_with_filename_in(local_dir, "adapter_config.json")
-    assert dir_path.is_dir(), dir_path
-    assert_model_safetensors_exists(dir_path)
-
-    while True:
-        try:
-            hf_model_causal = transformers.AutoModelForCausalLM.from_pretrained(
-                dir_path, **kwargs
-            )
-        except ValueError as exp:
-            msg = "Should have a `model_type` key in its config.json,"
-            if msg in exp.args[0]:
-                return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMisuse(msg) from exp
-        except RuntimeError as exp:
-            msg = "Error(s) in loading state_dict for"
-            if (
-                exp.args[0].startswith(msg)
-                and "size mismatch for" in exp.args[0]
-            ):
-                return _try_load_peft(dir_path, kwargs, exp)
-            raise T2NErrorMisuse(msg) from exp
-        except TypeError as exp:
-            msg = "__init__() got an unexpected keyword argument '"
-            if exp.args[0].startswith(msg):
-                with (dir_path / "adapter_config.json").open(
-                    "r", encoding="utf8"
-                ) as fh:
-                    dic = json.load(fh)
-                key = exp.args[0].split(msg)[-1][:-1]
-                del dic[key]
-                with (dir_path / "adapter_config.json").open(
-                    "w", encoding="utf8"
-                ) as fh:
-                    json.dump(dic, fh, indent=2)
-                continue
-            raise T2NErrorMisuse(msg) from exp
-        return hf_model_causal
-
-
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="huggingface_hub")
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
-def _from_pretrained(
-    slug_or_dir: T.Union[str, Path],
-    *,
-    huggingface_hub: InjectedHuggingFaceHubModule = INJECTED,
-    transformers: InjectedTransformersModule = INJECTED,
-    **kwargs,
-):
-    if "device_map" in kwargs and kwargs["device_map"] is not None:
-        device_map = kwargs.pop("device_map")
-        if Path(slug_or_dir).exists():
-            weights_location = Path(slug_or_dir)
-        else:
-            hf_repo_files = huggingface_hub.list_repo_files(slug_or_dir)
-            weights_location = Path(
-                huggingface_hub.hf_hub_download(
-                    slug_or_dir, hf_repo_files[-1]
-                )  # assume at least 1 file is in targeted repo
-            ).parent
-
-        # use 'local' init_empty_weights to init weights devices
-        # to avoid 'accelerate' deps if un-needed
-        with init_empty_weights():
-            model = transformers.AutoModelForCausalLM.from_pretrained(
-                slug_or_dir, **kwargs
-            )
-
-        if device_map == "auto":
-            # pylint: disable-next=import-outside-toplevel
-            import accelerate
-
-            device_map = accelerate.infer_auto_device_map(model)
-            LOGGER.info("device map selected: %s", device_map)
-        if any(
-            _ in device_map
-            for _ in [
-                AUTO_DEVICE_MAP_KEY,
-                ON_DISK_DEVICE_MAP_KEY,
-            ]
-        ):
-            t2n_load_checkpoint_and_dispatch(
-                model,
-                weights_location,
-                device_map=device_map,
-                offload_dir=Path(tempfile.mkdtemp(suffix="offload_t2n")),
-            )
-        elif device_map:
-            # pylint: disable-next=import-outside-toplevel
-            import accelerate
-
-            model = accelerate.load_checkpoint_and_dispatch(
-                model,
-                weights_location,
-                device_map=device_map,
-                offload_folder=tempfile.mkdtemp(suffix="offload_accelerate"),
-            )
-        return model
-    return transformers.AutoModelForCausalLM.from_pretrained(
-        slug_or_dir, **kwargs
-    )
-
-
-@require_extra_decorator(extra=T2NExtra.LLM_TRACT, module="transformers")
-def load_model(
-    hf_model_slug: T.Optional[str] = None,
-    local_dir: T.Optional[Path] = None,
-    force_module_dtype: T.Optional[DtypeStr] = None,
-    merge_peft: T.Optional[bool] = None,
-    device_map: TYPE_OPTIONAL_DEVICE_MAP = None,
-    *,
-    transformers: InjectedTransformersModule = INJECTED,
-):
-    kwargs: T.Dict[str, T.Any] = {"trust_remote_code": True}
-    if force_module_dtype is not None:
-        key = "torch_dtype"
-        if SemanticVersion.from_str(transformers.__version__) >= "4.57.0":
-            key = "dtype"
-        kwargs[key] = DtypeStr(force_module_dtype).torch_dtype
-
-    if device_map is not None:
-        kwargs["device_map"] = device_map
-
-    custom_config = CUSTOM_CONFIGS.get(hf_model_slug or "")
-    if custom_config is not None:
-        hf_model_causal = transformers.AutoModelForCausalLM.from_config(
-            custom_config, **kwargs
-        )
-        LOGGER.info(
-            "load custom config: '%s', un-initialized weights", hf_model_slug
-        )
-    elif local_dir:
-        try:
-            dir_path = find_subdir_with_filename_in(local_dir, "config.json")
-            assert dir_path.is_dir(), dir_path
-            assert_model_safetensors_exists(dir_path)
-            hf_model_causal = _from_pretrained(dir_path, **kwargs)
-            LOGGER.info(
-                "load '%s' from local directory: %s",
-                hf_model_causal.config.model_type,
-                dir_path,
-            )
-        except (T2NErrorNotFoundFile, OSError):
-            hf_model_causal = load_peft_model(local_dir, kwargs)
-
-    elif hf_model_slug is not None:
-        hf_model_causal = _from_pretrained(hf_model_slug, **kwargs)
-        LOGGER.info(
-            "load default trained model from huggingface: '%s'", hf_model_slug
-        )
-    else:
-        raise T2NErrorNotImplemented(
-            "No local nor Huggingface slug, nor custom conf ?"
-        )
-    if merge_peft:
-        # pylint: disable-next=import-outside-toplevel
-        from peft import PeftModel
-
-        if isinstance(hf_model_causal, PeftModel):
-            hf_model_causal = hf_model_causal.merge_and_unload()
-        else:
-            LOGGER.warning(
-                "no 'Peft' model found: %s (so no merge applied)",
-                hf_model_causal.__class__,
-            )
-
-    if force_module_dtype is not None:
-        force_dtype = DtypeStr(force_module_dtype).torch_dtype
-        hf_model_causal = hf_model_causal.to(force_dtype)
-        LOGGER.info("force casted model internals to: '%s'", force_module_dtype)
-    return hf_model_causal
-
-
 class StateLessF32LayerNorm(nn.Module):
     def forward(  # pylint: disable=too-many-positional-arguments
         self,
@@ -1216,12 +989,9 @@ def dump_llm(
         num_logits_to_keep=num_logits_to_keep,
         device_map=device_map,
     )
-    if isinstance(kwargs.get("tract_check_io_tolerance"), str):
-        kwargs["tract_check_io_tolerance"] = TractCheckTolerance(
-            kwargs["tract_check_io_tolerance"]
-        )
-    exporter.dump(**kwargs)
-    export_path = kwargs.get("export_dirpath")
+    dump_kwargs = _normalize_dump_kwargs(kwargs)
+    exporter.dump(**dump_kwargs)
+    export_path = dump_kwargs.get("export_dirpath")
     return (
         Path(export_path) if export_path else None,
         exporter,
