@@ -34,6 +34,7 @@ jobs:
           exit $fail
 
       - name: Shellcheck
-        uses: ludeeus/action-shellcheck@master
+        # Pinned to v2.0.0 SHA: third-party action, don't track @master.
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38
         with:
           scandir: examples

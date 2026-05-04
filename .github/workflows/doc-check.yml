@@ -21,6 +21,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,7 +37,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
       - name: Build docs
-        # No --strict yet: the api-autonav / griffe plugins emit warnings on
-        # missing type annotations that pre-date this PR. We still fail on
-        # mkdocs errors (exit code != 0).
-        run: uv run mkdocs build
+        # No --strict yet: api-autonav / griffe plugins emit pre-existing
+        # warnings about missing type annotations that we don't want to gate
+        # PRs on. The next step targets only the broken-link warnings.
+        run: uv run mkdocs build 2>&1 | tee mkdocs-build.log
+      - name: Fail on broken links
+        # mkdocs emits "WARNING -  Doc file '...' contains a link '...', but
+        # the target ... is not found" when an internal link / symlink dangles.
+        # Catches the symlink retarget bug PR #72 almost shipped.
+        run: |
+          if grep -E "WARNING -.*contains a link.*not found" mkdocs-build.log; then
+            echo "::error::mkdocs found broken internal links (see log above)"
+            exit 1
+          fi
