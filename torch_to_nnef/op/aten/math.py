@@ -189,9 +189,15 @@ def trunc(node, op_helper, **kwargs):
 def outer(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:outer' to NNEF.
 
-    ``torch.outer(a, b)`` over 1D inputs is ``a[:, None] * b[None, :]``. Lower
-    to two unsqueezes and a broadcasting ``mul``. Use positive axes -- some
-    tract versions panic on negative ``unsqueeze`` axes during NNEF deser.
+    ``torch.outer(a, b)`` over 1-D inputs is ``a[:, None] * b[None, :]``.
+    Lower to two unsqueezes and a broadcasting ``mul``.
+
+    Axes are kept positive. Tract's NNEF unsqueeze deserializer
+    (``tract_core::ops::change_axes::AxisOp::change_shape``) does not
+    normalize negative axes and panics with ``smallvec: index exceeds
+    length``; verified across tract 0.20.22 through 0.23.0-dev.5. This
+    matches the wider t2n convention -- the dedicated ``unsqueeze`` op
+    handler also normalizes via ``pick_axis``.
     """
     a_node, b_node = node.inputs
     a = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
@@ -222,11 +228,8 @@ def pow_(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:pow' to NNEF."""
     (input_node, exponent_node) = node.inputs
     inputs = [op_helper.get_or_add_tensor_variable_in_nnef(input_node)]
-    # Special-case scalar 2 / -2 exponents only; anything else (tensor
-    # exponent, float, etc.) falls through to the generic ``pow`` op. Guard
-    # with a scalar-type check so tensor-valued exponents do not trigger
-    # Python's "Boolean value of Tensor ... is ambiguous" on the truthiness
-    # test below.
+    # Scalar 2 / -2 only -- isinstance check skips the truthiness branch on
+    # tensor-valued exponents (which would raise "ambiguous").
     exp_data = exponent_node.data
     if isinstance(exp_data, (int, float)) and exp_data in (2, -2):
         op_type = "sqr" if exp_data == 2 else "rsqr"

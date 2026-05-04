@@ -16,14 +16,12 @@ OP_REGISTRY = AtenOpRegistry()
 def split_with_sizes(g, node, name_to_tensor, **kwargs):
     """Translate `aten::split_with_sizes` to NNEF.
 
-    We are aware that.
-    split<?>(
-        value: tensor<?>,
-        axis: integer,
-        ratios: integer[]
-    ) -> ( values: tensor<?>[] )
+    NNEF spec has a `split` op (value, axis, ratios -> tensor[]) but tract
+    does not register it, so we re-express each output as a `slice`.
 
-    exists but since tract does not support it, we reexpress it with slice
+    ``ratio_node`` may be a ``PythonConstant`` (literal sizes from the trace)
+    or a ``TensorVariable`` whose data is shape-derived (e.g. fused-qkv
+    splits like ``x.shape[-1] // 3``); both cases are unwrapped to plain ints.
     """
     (input_node, ratio_node, axis_node) = node.inputs
     assert isinstance(axis_node, PythonConstant)

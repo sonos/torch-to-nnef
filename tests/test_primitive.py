@@ -497,6 +497,38 @@ test_suite.add(
 )
 
 
+# torch.outer: 1-D x 1-D -> 2-D outer product. Lowered as two unsqueezes +
+# broadcasting mul.
+test_suite.add(
+    (torch.arange(4).float(), torch.arange(3).float() + 1),
+    BinaryPrimitive(torch.outer),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+# split_with_sizes with shape-derived sizes (fused-qkv-style split). The
+# ratio list comes from a tensor expression, not a Python literal; this
+# exercises the TensorVariable unwrapping in split_with_sizes.
+class _FusedQKVSplit(nn.Module):
+    def __init__(self, dim: int = 9):
+        super().__init__()
+        # 9 -> three (3,) chunks for q / k / v
+        self.proj = nn.Linear(dim, dim)
+
+    def forward(self, x):
+        h = self.proj(x)
+        size = h.shape[-1] // 3
+        q, k, v = torch.split(h, [size, size, size], dim=-1)
+        return q + k * v
+
+
+test_suite.add(
+    torch.rand(2, 9),
+    _FusedQKVSplit(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 # mha basic
 hidden_dim = 4
 n_heads = 2

@@ -17,11 +17,6 @@ tensors are not all loaded at once:
 - `sdxl/` -- Stable Diffusion XL: two text encoders, larger UNet, VAE
 - `sd3/` -- Stable Diffusion 3 (DiT architecture)
 
-Flux-Schnell (DiT, 12B) is a planned follow-up: it currently exports cleanly
-but fails on the tract side (SDPA + reshape deserializer panics on Flux's
-RoPE'd shapes), so it is held out of this directory until the upstream tract
-fixes land.
-
 ## Status
 
 Early exploration. First targets are the SD 1.5 VAE decoder and UNet, both

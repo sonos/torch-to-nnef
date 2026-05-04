@@ -366,6 +366,7 @@ class MiniUNetLike(torch.nn.Module):
     def __init__(self, ch: int = 8, ctx_dim: int = 16):
         super().__init__()
         time_dim = 4 * ch
+        self.ch = ch
         self.time_mlp = torch.nn.Sequential(
             torch.nn.Linear(ch, time_dim),
             torch.nn.SiLU(),
@@ -379,10 +380,9 @@ class MiniUNetLike(torch.nn.Module):
         self.up_res = _MiniResBlock(ch * 2, ch, time_dim)
         self.up_attn = _MiniCrossAttn(ch, ctx_dim)
         self.out_conv = torch.nn.Conv2d(ch, 4, 3, padding=1)
-        self._time_in_dim = ch
 
     def forward(self, sample, timestep, encoder_hidden_states):
-        t_emb = _sin_timestep_embedding(timestep, self._time_in_dim)
+        t_emb = _sin_timestep_embedding(timestep, self.ch)
         if t_emb.dim() == 1:
             t_emb = t_emb.unsqueeze(0)
         t_emb = self.time_mlp(t_emb)
