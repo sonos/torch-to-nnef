@@ -1,0 +1,6 @@
+# SC1091: "Not following: <path> was not specified as input."
+# shellcheck cannot statically resolve sourced files like ../bootstrap-*.sh,
+# .venv/bin/activate, or .cargo/env -- they exist at runtime, not lint time.
+# Disabling this note repo-wide rather than scattering `# shellcheck source=...`
+# directives across every example.
+disable=SC1091
