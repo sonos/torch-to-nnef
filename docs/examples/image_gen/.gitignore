@@ -1,0 +1,8 @@
+.venv/
+hf_cache/
+__pycache__/
+*.nnef.tgz
+*.tgz
+debug/
+debug_*/
+model/

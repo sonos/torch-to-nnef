@@ -1,6 +1,7 @@
 """Tests canonical models."""
 
 import contextlib
+import math
 import os
 import platform
 import warnings
@@ -8,6 +9,7 @@ from copy import deepcopy
 
 import pytest
 import torch
+import torch.nn.functional as F
 import torchaudio
 import torchvision
 from torch.jit._trace import TracerWarning
@@ -233,6 +235,181 @@ except ImportError:
     print("missing deps to test on albert model")
 
 # }
+
+
+# --- Mini image-generation architectures ------------------------------------
+# Reproduce the operator mix of Stable Diffusion components (GroupNorm +
+# self-attention with 1/sqrt(d) scaling + F.interpolate upsample + conv, plus
+# sinusoidal timestep embedding + cross-attention for the UNet) on tiny
+# models. Guards the work unblocked by tract's ``resize`` op and t2n's
+# ``mul`` constant-fold dtype handling, without pulling diffusers or
+# downloading the full SD weights.
+
+
+class _MiniVAEMidBlock(torch.nn.Module):
+    """GroupNorm + self-attention with 1/sqrt(d) scaling (AttnBlock-like).
+
+    Uses the Python-int ``self.channels`` instead of ``x.shape[1]`` so the
+    reshape shape stays a concrete integer vector: SD VAE does the same, and
+    feeding a symbolic dim into reshape trips tract during NNEF deserialization.
+    """
+
+    def __init__(self, channels: int = 8):
+        super().__init__()
+        self.channels = channels
+        self.norm = torch.nn.GroupNorm(4, channels)
+        self.q = torch.nn.Linear(channels, channels)
+        self.k = torch.nn.Linear(channels, channels)
+        self.v = torch.nn.Linear(channels, channels)
+        self.proj_out = torch.nn.Linear(channels, channels)
+
+    def forward(self, x):
+        c = self.channels
+        h_ = self.norm(x)
+        b, _, h, w = x.shape
+        h_ = h_.permute(0, 2, 3, 1).reshape(b, h * w, c)
+        q, k, v = self.q(h_), self.k(h_), self.v(h_)
+        scale = c**-0.5
+        attn = torch.softmax(q @ k.transpose(-1, -2) * scale, dim=-1)
+        out = self.proj_out(attn @ v).reshape(b, h, w, c).permute(0, 3, 1, 2)
+        return x + out
+
+
+class MiniVAEDecoderLike(torch.nn.Module):
+    """Mid-block attention then two F.interpolate upsample + conv steps."""
+
+    def __init__(self):
+        super().__init__()
+        self.mid = _MiniVAEMidBlock(channels=8)
+        self.upconv1 = torch.nn.Conv2d(8, 8, 3, padding=1)
+        self.upconv2 = torch.nn.Conv2d(8, 4, 3, padding=1)
+
+    def forward(self, x):
+        x = self.mid(x)
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        x = self.upconv1(x)
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        return self.upconv2(x)
+
+
+test_suite.add(
+    (torch.randn(1, 8, 4, 4),),
+    MiniVAEDecoderLike(),
+    test_name="mini_vae_decoder_like",
+)
+
+
+def _sin_timestep_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
+    """Sinusoidal timestep embedding (same recipe as diffusers Timesteps)."""
+    half = dim // 2
+    freqs = torch.exp(
+        -math.log(10000.0) * torch.arange(half, dtype=torch.float32) / half
+    )
+    args = t.float().unsqueeze(-1) * freqs
+    return torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+
+
+class _MiniResBlock(torch.nn.Module):
+    """Conv + GroupNorm + SiLU + inject time emb + Conv + skip."""
+
+    def __init__(self, in_ch: int, out_ch: int, time_dim: int):
+        super().__init__()
+        self.norm1 = torch.nn.GroupNorm(4, in_ch)
+        self.conv1 = torch.nn.Conv2d(in_ch, out_ch, 3, padding=1)
+        self.time_proj = torch.nn.Linear(time_dim, out_ch)
+        self.norm2 = torch.nn.GroupNorm(4, out_ch)
+        self.conv2 = torch.nn.Conv2d(out_ch, out_ch, 3, padding=1)
+        self.skip = (
+            torch.nn.Identity()
+            if in_ch == out_ch
+            else torch.nn.Conv2d(in_ch, out_ch, 1)
+        )
+
+    def forward(self, x, t_emb):
+        h = self.conv1(F.silu(self.norm1(x)))
+        h = h + self.time_proj(F.silu(t_emb))[:, :, None, None]
+        h = self.conv2(F.silu(self.norm2(h)))
+        return h + self.skip(x)
+
+
+class _MiniCrossAttn(torch.nn.Module):
+    """Cross-attention of a 2D feature map against an encoder hidden state."""
+
+    def __init__(self, channels: int, ctx_dim: int):
+        super().__init__()
+        self.channels = channels
+        self.norm = torch.nn.GroupNorm(4, channels)
+        self.q = torch.nn.Linear(channels, channels)
+        self.k = torch.nn.Linear(ctx_dim, channels)
+        self.v = torch.nn.Linear(ctx_dim, channels)
+        self.proj_out = torch.nn.Linear(channels, channels)
+
+    def forward(self, x, ctx):
+        c = self.channels
+        b, _, h, w = x.shape
+        h_ = self.norm(x).permute(0, 2, 3, 1).reshape(b, h * w, c)
+        q = self.q(h_)
+        k = self.k(ctx)
+        v = self.v(ctx)
+        attn = torch.softmax(q @ k.transpose(-1, -2) * (c**-0.5), dim=-1)
+        out = self.proj_out(attn @ v).reshape(b, h, w, c).permute(0, 3, 1, 2)
+        return x + out
+
+
+class MiniUNetLike(torch.nn.Module):
+    """UNet with timestep conditioning, one down + mid + one up block.
+
+    Not shape-invariant to SD 1.5 but exercises the same operator mix: time
+    embedding, cross-attn, resnet blocks, strided downsample, upsample.
+    """
+
+    def __init__(self, ch: int = 8, ctx_dim: int = 16):
+        super().__init__()
+        time_dim = 4 * ch
+        self.time_mlp = torch.nn.Sequential(
+            torch.nn.Linear(ch, time_dim),
+            torch.nn.SiLU(),
+            torch.nn.Linear(time_dim, time_dim),
+        )
+        self.down_res = _MiniResBlock(4, ch, time_dim)
+        self.down_attn = _MiniCrossAttn(ch, ctx_dim)
+        self.downsample = torch.nn.Conv2d(ch, ch, 3, stride=2, padding=1)
+        self.mid_res = _MiniResBlock(ch, ch, time_dim)
+        self.mid_attn = _MiniCrossAttn(ch, ctx_dim)
+        self.up_res = _MiniResBlock(ch * 2, ch, time_dim)
+        self.up_attn = _MiniCrossAttn(ch, ctx_dim)
+        self.out_conv = torch.nn.Conv2d(ch, 4, 3, padding=1)
+        self._time_in_dim = ch
+
+    def forward(self, sample, timestep, encoder_hidden_states):
+        t_emb = _sin_timestep_embedding(timestep, self._time_in_dim)
+        if t_emb.dim() == 1:
+            t_emb = t_emb.unsqueeze(0)
+        t_emb = self.time_mlp(t_emb)
+        # Down
+        h1 = self.down_res(sample, t_emb)
+        h1 = self.down_attn(h1, encoder_hidden_states)
+        h2 = self.downsample(h1)
+        # Mid
+        h2 = self.mid_res(h2, t_emb)
+        h2 = self.mid_attn(h2, encoder_hidden_states)
+        # Up
+        h2 = F.interpolate(h2, scale_factor=2, mode="nearest")
+        h = torch.cat([h2, h1], dim=1)
+        h = self.up_res(h, t_emb)
+        h = self.up_attn(h, encoder_hidden_states)
+        return self.out_conv(h)
+
+
+test_suite.add(
+    (
+        torch.randn(1, 4, 8, 8),
+        torch.tensor([10.0]),
+        torch.randn(1, 4, 16),
+    ),
+    MiniUNetLike(),
+    test_name="mini_unet_like",
+)
 
 
 @pytest.mark.parametrize(
