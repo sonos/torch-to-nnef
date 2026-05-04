@@ -16,6 +16,8 @@ tensors are not all loaded at once:
 - `sd15/` -- Stable Diffusion 1.5: VAE decoder, UNet, CLIP text encoder
 - `sdxl/` -- Stable Diffusion XL: two text encoders, larger UNet, VAE
 - `sd3/` -- Stable Diffusion 3 (DiT architecture)
+- `flux_schnell/` -- Flux-Schnell (DiT, 12B); export currently emits cleanly
+  but `check_io` is blocked on upstream tract deserializer panics.
 
 ## Status
 

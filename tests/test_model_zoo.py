@@ -407,6 +407,81 @@ test_suite.add(
 )
 
 
+# Mini Flux-Schnell MM-DiT: same architecture as Flux-Schnell / SD3 (double-
+# stream + single-stream transformer blocks, RoPE positions, fused qkv split)
+# with a tiny config so it runs in the zoo env. Gated on diffusers import.
+# ``check_io`` is disabled because tract panics during NNEF deser on Flux's
+# RoPE'd shapes (SDPA + reshape deserializers); we only validate that the
+# t2n side emits a clean NNEF graph. Re-enable check_io once the upstream
+# tract bugs are fixed.
+try:
+    from diffusers import FluxTransformer2DModel
+
+    class MiniFluxTransformer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.t = (
+                FluxTransformer2DModel(
+                    patch_size=1,
+                    in_channels=64,
+                    num_layers=2,
+                    num_single_layers=2,
+                    attention_head_dim=16,
+                    num_attention_heads=4,
+                    joint_attention_dim=64,
+                    pooled_projection_dim=32,
+                    guidance_embeds=False,
+                    axes_dims_rope=(8, 4, 4),
+                )
+                .to(torch.float32)
+                .eval()
+            )
+
+        def forward(
+            self,
+            hidden_states,
+            encoder_hidden_states,
+            pooled_projections,
+            timestep,
+            img_ids,
+            txt_ids,
+        ):
+            return self.t(
+                hidden_states=hidden_states,
+                encoder_hidden_states=encoder_hidden_states,
+                pooled_projections=pooled_projections,
+                timestep=timestep,
+                img_ids=img_ids,
+                txt_ids=txt_ids,
+                return_dict=False,
+            )[0]
+
+    def _flux_inference_modifier(inference_target):
+        inference_target = deepcopy(inference_target)
+        if isinstance(inference_target, TractNNEF):
+            # tract 0.22 / 0.23 panic on native SDPA with Flux RoPE shapes.
+            inference_target.reify_sdpa_operator = False
+            # Deser also panics on Flux's reshape pattern; only validate emit.
+            inference_target.check_io = False
+        return inference_target
+
+    test_suite.add(
+        (
+            torch.randn(1, 8, 64),
+            torch.randn(1, 8, 64),
+            torch.randn(1, 32),
+            torch.tensor([10.0]),
+            torch.zeros(8, 3),
+            torch.zeros(8, 3),
+        ),
+        MiniFluxTransformer(),
+        test_name="mini_flux_mm_dit",
+        inference_modifier=_flux_inference_modifier,
+    )
+except ImportError:
+    print("missing diffusers to test Flux mini transformer")
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
