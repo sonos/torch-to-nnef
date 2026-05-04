@@ -119,7 +119,7 @@ print(f"exported {file_path_export.absolute()}")
 2. See [Artifacts and Compression](./2_nnef_archive.md#artifacts-and-compression) to control whether export writes a directory, `.tar`, or `.tgz`.
 2. Full Class documentation available [here](../../reference/torch_to_nnef/inference_target/tract/#torch_to_nnef.inference_target.tract.TractNNEF)
 
-And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/main/docs/examples/getting_started_py/export.py))
+And that's it if we now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/main/examples/getting_started_py/export.py))
 
 ```bash
 source.venv/bin/activate
@@ -203,7 +203,7 @@ This already tell us about how the network is composed and which specialized ope
 Then we have the list of custom properties that have been exported by `torch_to_nnef`:
 
 ```json title="Exported properties"
-* export_cmd: ,String docs/examples/getting_started.py
+* export_cmd: ,String examples/getting_started.py
 * export_date: ,String 2025-07-08 ...
 * exported_py_class: ,String VisionTransformer
 * hostname: ,String ...
@@ -310,7 +310,7 @@ print(
 )
 ```
 
-And that's it, we can now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/main/docs/examples/getting_started_py/run.py)).
+And that's it, we can now run our little snippet (full code [here](https://github.com/sonos/torch-to-nnef/blob/main/examples/getting_started_py/run.py)).
 
 !!! success end "Congratulation"
 
@@ -418,7 +418,7 @@ Let's now get the index of classified class for the image and print it:
     println!("result: {best:?}");
 ```
 
-That's it our code is complete, (your code should now [look like this](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/getting_started_rs))
+That's it our code is complete, (your code should now [look like this](https://github.com/sonos/torch-to-nnef/tree/main/examples/getting_started_rs))
 
 You can now rebuild and run the code with cargo:
 
@@ -464,7 +464,7 @@ window.addEventListener('message', (event) => {
     This model is not trained by SONOS so prediction accuracy is responsibility of original [torchvision](https://docs.pytorch.org/vision/stable/index.html) authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient (no SIMD WASM, no WebGPU kernels),
     this demo is for demonstration purpose.
 
-Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_image_classifier.html).
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/examples/imageclass-wasm) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_image_classifier.html).
 
 ## <span style="color:#6666aa">**:material-step-forward:  Demo 2:**</span> :fontawesome-brands-rust: Yolo Human Pose Estimator
 
@@ -488,4 +488,4 @@ window.addEventListener('message', (event) => {
 
 </iframe>
 
-Again the [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/yolo) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_pose_estimation.html).
+Again the [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/examples/yolo) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_pose_estimation.html).
