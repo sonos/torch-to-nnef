@@ -1,3 +1,4 @@
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op import helper
 
 REMAP_ATEN_OP_NAMES = {
@@ -14,6 +15,12 @@ REMAP_ATEN_OP_NAMES = {
     "reciprocal": "rcp",
     "minimum": "min",
     "maximum": "max",
+}
+
+# Ops whose standard NNEF spec name differs from tract's registered op name.
+TRACT_OP_ALIASES = {
+    # NNEF spec: ``rcp``; tract registers ``recip`` (ops::math::Recip).
+    "rcp": "recip",
 }
 
 GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
@@ -78,6 +85,9 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
         'aten:logical_or', 'aten:reciprocal', 'aten:minimum', 'aten:maximum'
     """
     aten_op_id = REMAP_ATEN_OP_NAMES.get(aten_op_id, aten_op_id)
+    inference_target = kwargs.get("inference_target")
+    if isinstance(inference_target, TractNNEF):
+        aten_op_id = TRACT_OP_ALIASES.get(aten_op_id, aten_op_id)
     return op_helper.unary_output_op_without_attr(
         nnef_op_type=aten_op_id,
         node=node,

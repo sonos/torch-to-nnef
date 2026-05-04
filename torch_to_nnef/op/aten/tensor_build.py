@@ -45,8 +45,11 @@ def arange(g, node, name_to_tensor, inference_target, **kwargs):
             f"arange with {len(node.inputs)} inputs (see `ir_helpers` module)"
         )
 
-    if dtype_node.data not in [6, None, 4, 3]:  # accept float, int64, int
-        # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index
+    # see SCALAR_TYPE_TO_PYTORCH_TYPE for reference index:
+    #   3 = int32, 4 = int64, 6 = float32, 7 = float64
+    # float64 shows up in RoPE-style position embeds; NNEF runtimes execute
+    # the arange as f32 which is fine for integer-range / position math.
+    if dtype_node.data not in [6, None, 4, 3, 7]:
         raise T2NErrorNotImplemented(
             f"dtype {dtype_node} not implemented for arange"
         )

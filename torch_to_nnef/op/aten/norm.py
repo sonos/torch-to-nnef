@@ -287,6 +287,45 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     return [op_name]
 
 
+@OP_REGISTRY.register(["rms_norm"])
+def rms_norm(g, node, name_to_tensor, null_ref, **kwargs):
+    """Map PyTorch: 'aten:rms_norm' to a custom NNEF ``rms_norm`` fragment.
+
+    Signature from ``torch.nn.functional.rms_norm``:
+        ``rms_norm(input, normalized_shape, weight, eps)``
+    """
+    (
+        input_tensor_node,
+        normalized_shape_node,
+        weight_node,
+        eps_node,
+    ) = node.inputs
+    mean_axes = sorted(
+        input_tensor_node.rank - r - 1
+        for r, _ in enumerate(normalized_shape_node.data)
+    )
+    eps = 1e-6 if eps_node.data is None else float(eps_node.data)
+    weight_defined = weight_node.data is not None
+    has_affine = weight_defined and not (weight_node.data == 1).all().tolist()
+    inputs = [input_tensor_node]
+    op_name = "rms_norm"
+    if has_affine:
+        op_name = "rms_norm_with_affine"
+        inputs += [weight_node]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type=op_name,
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
+            for _ in inputs
+        ],
+        attrs={"mean_axes": mean_axes, "eps": eps},
+    )
+    return [op_name]
+
+
 @OP_REGISTRY.register(["group_norm", "native_group_norm"])
 def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
     """Translate operators `aten::group_norm` to NNEF.

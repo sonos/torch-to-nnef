@@ -74,8 +74,8 @@ for op in [
     torch.zeros_like,
     torch.ones_like,
     partial(torch.full_like, fill_value=2.0),
+    torch.reciprocal,
     # unimplemented tract {
-    # torch.reciprocal,
     # torch.clone,
     # partial(nn.functional.pad, pad=(0, 1), mode="replicate"),
     # }
@@ -424,6 +424,9 @@ for layer in [
     UnaryPrimitive(lambda x: x[..., :2, 1::2]),
     torch.nn.LayerNorm(10),
     torch.nn.LayerNorm((3, 10), eps=1e-5, elementwise_affine=True),
+    torch.nn.LayerNorm(10, elementwise_affine=False),
+    torch.nn.RMSNorm(10),
+    torch.nn.RMSNorm(10, elementwise_affine=False),
     torch.nn.GLU(),
 ]:
     test_suite.add(
@@ -472,6 +475,20 @@ test_suite.add(
     torch.arange(6).reshape(1, 2, 3).float(),
     UnaryPrimitive(torch.erf),
     inference_conditions=skip_khronos_interpreter,  # unssuported by interpreter
+)
+
+
+# torch.arange with dtype=float64 -- shows up in RoPE-style position embeds.
+# NNEF runtimes run it as f32 which is fine for integer-range / position math.
+class _ArangeF64Add(nn.Module):
+    def forward(self, x):
+        return x + torch.arange(x.shape[-1], dtype=torch.float64).to(x.dtype)
+
+
+test_suite.add(
+    torch.rand(1, 4),
+    _ArangeF64Add(),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 
