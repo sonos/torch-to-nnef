@@ -468,6 +468,56 @@ except ImportError:
     print("missing diffusers to test Flux mini transformer")
 
 
+# Mini Sana DiT: NVIDIA's efficient text-to-image transformer with linear
+# (ReLU) attention and Mix-FFN. Architecturally distinct from Flux/SD3 -- the
+# self-attention block does Q @ (Kᵀ @ V) / Q @ sum(K) instead of softmax SDPA,
+# which exercises a different graph through tract.
+try:
+    from diffusers import SanaTransformer2DModel
+
+    class MiniSanaTransformer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.t = (
+                SanaTransformer2DModel(
+                    in_channels=4,
+                    out_channels=4,
+                    num_attention_heads=2,
+                    attention_head_dim=8,
+                    num_layers=2,
+                    num_cross_attention_heads=2,
+                    cross_attention_head_dim=8,
+                    cross_attention_dim=16,
+                    caption_channels=24,
+                    mlp_ratio=2.0,
+                    sample_size=8,
+                    patch_size=1,
+                )
+                .to(torch.float32)
+                .eval()
+            )
+
+        def forward(self, hidden_states, encoder_hidden_states, timestep):
+            return self.t(
+                hidden_states=hidden_states,
+                encoder_hidden_states=encoder_hidden_states,
+                timestep=timestep,
+                return_dict=False,
+            )[0]
+
+    test_suite.add(
+        (
+            torch.randn(1, 4, 8, 8),
+            torch.randn(1, 4, 24),
+            torch.tensor([10.0]),
+        ),
+        MiniSanaTransformer(),
+        test_name="mini_sana_dit",
+    )
+except ImportError:
+    print("missing diffusers to test Sana mini transformer")
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
