@@ -410,10 +410,6 @@ test_suite.add(
 # Mini Flux-Schnell MM-DiT: same architecture as Flux-Schnell / SD3 (double-
 # stream + single-stream transformer blocks, RoPE positions, fused qkv split)
 # with a tiny config so it runs in the zoo env. Gated on diffusers import.
-# ``check_io`` is disabled because tract panics during NNEF deser on Flux's
-# RoPE'd shapes (SDPA + reshape deserializers); we only validate that the
-# t2n side emits a clean NNEF graph. Re-enable check_io once the upstream
-# tract bugs are fixed.
 try:
     from diffusers import FluxTransformer2DModel
 
@@ -456,15 +452,6 @@ try:
                 return_dict=False,
             )[0]
 
-    def _flux_inference_modifier(inference_target):
-        inference_target = deepcopy(inference_target)
-        if isinstance(inference_target, TractNNEF):
-            # tract 0.22 / 0.23 panic on native SDPA with Flux RoPE shapes.
-            inference_target.reify_sdpa_operator = False
-            # Deser also panics on Flux's reshape pattern; only validate emit.
-            inference_target.check_io = False
-        return inference_target
-
     test_suite.add(
         (
             torch.randn(1, 8, 64),
@@ -476,7 +463,6 @@ try:
         ),
         MiniFluxTransformer(),
         test_name="mini_flux_mm_dit",
-        inference_modifier=_flux_inference_modifier,
     )
 except ImportError:
     print("missing diffusers to test Flux mini transformer")

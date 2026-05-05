@@ -178,9 +178,6 @@ def main():
         inference_target=TractNNEF(
             version=tract_version,
             check_io=check_io,
-            # tract 0.22.1's native SDPA chokes on Flux's RoPE'd Q/K shapes
-            # ("Undetermined symbol"); fall back to the primitive fragment.
-            reify_sdpa_operator=False,
         ),
         input_names=[
             "hidden_states",
