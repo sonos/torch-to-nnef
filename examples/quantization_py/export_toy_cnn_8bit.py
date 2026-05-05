@@ -9,6 +9,11 @@ from torch_to_nnef import TractNNEF, export_model_to_nnef
 class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        # ``qconfig`` is the per-module quantization config that PyTorch's
+        # quantization API later attaches via ``m.qconfig = ...`` before
+        # ``prepare``. Pre-declare here as ``None`` so it's not flagged as
+        # defined-outside-init when set on the instance below.
+        self.qconfig = None
         self.quant = torch.ao.quantization.QuantStub()
         self.cnn1 = nn.Conv1d(10, 10, 3)
         self.relu1 = nn.ReLU()

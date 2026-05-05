@@ -16,7 +16,8 @@ import argparse
 from pathlib import Path
 
 import torch
-import torch.nn as nn
+from diffusers import AutoencoderKL
+from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
@@ -53,8 +54,6 @@ def main():
         "the NNEF graph writes out at all).",
     )
     args = parser.parse_args()
-
-    from diffusers import AutoencoderKL
 
     print(f"Loading VAE from {HF_REPO}")
     vae = AutoencoderKL.from_pretrained(

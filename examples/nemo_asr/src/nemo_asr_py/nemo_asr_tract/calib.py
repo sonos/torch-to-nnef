@@ -20,8 +20,7 @@ def iter_calibration_data(cfg: DatasetConfig) -> Iterable[List[str]]:
     dataset = prepare_dataset(cfg, cache_dir)
     all_data = sort_by_duration(collect_dataset(dataset))
 
-    for batch in chunks(all_data[AUDIO_FILEPATHS_KEY], cfg.batch_size):
-        yield batch
+    yield from chunks(all_data[AUDIO_FILEPATHS_KEY], cfg.batch_size)
 
 
 LIBRISPEECH_CLEAN_16_TRAIN_CONFIG = DatasetConfig(

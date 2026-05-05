@@ -24,7 +24,8 @@ import argparse
 from pathlib import Path
 
 import torch
-import torch.nn as nn
+from diffusers import UNet2DConditionModel
+from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
@@ -68,8 +69,6 @@ def main():
         "the NNEF graph writes out at all).",
     )
     args = parser.parse_args()
-
-    from diffusers import UNet2DConditionModel
 
     print(f"Loading UNet from {HF_REPO}")
     unet = UNet2DConditionModel.from_pretrained(

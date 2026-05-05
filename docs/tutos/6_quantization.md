@@ -14,7 +14,7 @@
     - [ ] 10 min to read this page
 
 <figure markdown="span">
-    ![quant ilu](../../img/quant_ilu.png)
+    ![quant ilu](../img/quant_ilu.png)
     <figcaption>*Illustration by Maarten Grootendorst*</figcaption>
 </figure>
 
@@ -149,7 +149,7 @@ Let's take an example step by step:
 
 2. Let's create a custom register on our own module `super_quant.py` where we will implement a scale grid search based on [Mean Square Error calibration](https://en.wikipedia.org/wiki/Mean_square_quantization_error) for the demo.
 
-3. we first copy almost same function as `quantize_weights_min_max_Q4_0` and rename it `quantize_weights_grid_mse_Q40` and adapt it slightly
+3. we first copy almost same function as `quantize_weights_min_max_Q4_0` and rename it `quantize_weights_grid_mse_q40` and adapt it slightly
 
 ```python title="super_quant.py"
 from functools import partial
@@ -170,7 +170,7 @@ def fp_to_tract_q4_0_with_grid_mse_calibration(weight, grid_size=100, maxshrink=
     pass
 
 
-def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
+def quantize_weights_grid_mse_q40(model: nn.Module, **kwargs):
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -236,7 +236,7 @@ def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
 
 EXAMPLE_REGISTRY = {
     "grid_mse_q4_0_all": partial(
-        quantize_weights_grid_mse_Q40,
+        quantize_weights_grid_mse_q40,
         grid_size=100,
         to_quantize_module_classes=(
             nn.Linear,

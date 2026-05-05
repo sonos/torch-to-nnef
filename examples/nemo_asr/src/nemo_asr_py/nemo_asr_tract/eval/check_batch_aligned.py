@@ -3,6 +3,7 @@
 Only work on Open ASR Leaderboard datasets for now.
 """
 
+import argparse
 import inspect
 import logging
 import os
@@ -334,6 +335,7 @@ class BatchBugReproducer:
             original_transcriptions[0],
             (_.text for _ in safe_transcriptions),
             (_.text for _ in fail_transcriptions),
+            strict=False,
         ):
             err_case = ErrorCase(
                 dataset=dataset_config.name,
@@ -373,23 +375,23 @@ def make_length_mask(
     assert a.shape[0] == lengths.shape[0]
     assert 0 <= len_dim < a.ndim
 
-    B = a.shape[0]
-    L = a.shape[len_dim]
+    batch = a.shape[0]
+    seq_len = a.shape[len_dim]
 
     # Build base arange mask on len_dim
-    arange = np.arange(L)
+    arange = np.arange(seq_len)
 
-    # Reshape to (1, ..., 1, L, 1, ..., 1)
+    # Reshape to (1, ..., 1, seq_len, 1, ..., 1)
     shape = [1] * a.ndim
-    shape[len_dim] = L
+    shape[len_dim] = seq_len
     arange = arange.reshape(shape)
 
     # Broadcast lengths to full rank
     len_shape = [1] * a.ndim
-    len_shape[0] = B
+    len_shape[0] = batch
     lengths_b = lengths.reshape(len_shape)
 
-    base_mask = arange < lengths_b  # (B, ..., L, ...)
+    base_mask = arange < lengths_b  # (batch, ..., seq_len, ...)
 
     # Explicitly expand all other dimensions to a.shape
     mask = np.broadcast_to(base_mask, a.shape)
@@ -435,8 +437,7 @@ def compare_tensors(
         def color_str(value, threshold):
             if value > threshold:
                 return f"[red]{value:.2e}[/]"
-            else:
-                return f"[green]{value:.2e}[/]"
+            return f"[green]{value:.2e}[/]"
 
         max_d_str = color_str(max_d, color_tol)
         mean_d_str = color_str(mean_d, color_tol)
@@ -449,7 +450,7 @@ def compare_tensors(
         max_diff_per_sample = diff.reshape(diff.shape[0], -1).max(axis=1)
         mean_diff_per_sample = diff.reshape(diff.shape[0], -1).mean(axis=1)
         for i, (max_d, mean_d) in enumerate(
-            zip(max_diff_per_sample, mean_diff_per_sample)
+            zip(max_diff_per_sample, mean_diff_per_sample, strict=False)
         ):
             if max_d > 0 or mean_d > 0:
                 display_diff_stats(
@@ -461,6 +462,160 @@ def compare_tensors(
         display_diff_stats(name, max_d, mean_d, color_tol=color_tol)
 
 
+def _load_npy(path: Path) -> np.ndarray:
+    return np.load(path)
+
+
+def _maybe_load_lengths(ub_file: Path, assume_io_one_is_lengths: bool):
+    if not assume_io_one_is_lengths:
+        return None
+    return _load_npy(ub_file.parent / "tensor_1_0.npy")
+
+
+def _compare_dirs(
+    ub_dir: Path,
+    b_dir: Path,
+    label_prefix: str,
+    *,
+    assume_io_one_is_lengths: bool,
+    console: Console,
+    per_sample: bool = False,
+):
+    """Compare every ``*.npy`` file in ``ub_dir`` against ``b_dir``."""
+    for ub_file in sorted(ub_dir.glob("*.npy")):
+        b_file = b_dir / ub_file.name
+        if not b_file.exists():
+            console.print(f"[yellow]Missing {label_prefix}:[/] {ub_file.name}")
+            continue
+
+        ub = _load_npy(ub_file)
+        b = _load_npy(b_file)
+        lens = _maybe_load_lengths(ub_file, assume_io_one_is_lengths)
+        compare_tensors(
+            f"{label_prefix}/{ub_file.name}",
+            ub,
+            b,
+            lengths=lens,
+            console=console,
+        )
+        if per_sample:
+            compare_tensors(
+                " > ",
+                ub,
+                b,
+                lengths=lens,
+                console=console,
+                per_sample=True,
+            )
+
+
+def _compare_nemo_vs_unbatched(
+    ub_dir: Path,
+    nemo_dir_inner: Path,
+    label_prefix: str,
+    *,
+    assume_io_one_is_lengths: bool,
+    console: Console,
+):
+    """Sanity-check exported unbatched outputs against original NeMo dumps."""
+    for ub_file in sorted(ub_dir.glob("*.npy")):
+        # convention: nemo_encoder_step_0_output_{i}.npy
+        idx = ub_file.stem.split("_", maxsplit=1)[-1]
+        nemo_file = nemo_dir_inner / ub_file.name
+        if not nemo_file.exists():
+            continue
+        nemo = _load_npy(nemo_file)
+        ub = _load_npy(ub_file)
+        lens = _maybe_load_lengths(ub_file, assume_io_one_is_lengths)
+        compare_tensors(
+            f"{label_prefix}_{idx}",
+            nemo,
+            ub,
+            lengths=lens,
+            console=console,
+        )
+
+
+def _compare_one_big_batch_pair(
+    base_file: Path,
+    other_file: Path,
+    *,
+    ref_ix: int,
+    other_ix: int,
+    batch_size: int,
+    assume_io_one_is_lengths: bool,
+    console: Console,
+):
+    """Single ref-vs-other comparison, sliced to ``batch_size``."""
+    base = _load_npy(base_file)
+    other = _load_npy(other_file)
+    if base.ndim == 0 or other.ndim == 0:
+        return
+    base_batch_size = base.shape[0]
+    other_batch_size = other.shape[0]
+    base = base[:batch_size]
+    other_sliced = other[:batch_size]
+    lens = _maybe_load_lengths(base_file, assume_io_one_is_lengths)
+    compare_tensors(
+        f"base_{base_batch_size}_vs_other_{other_batch_size}/{base_file.name}",
+        base,
+        other_sliced,
+        lengths=lens,
+        console=console,
+    )
+    # Only compare per-sample when reference is the original batch.
+    if ref_ix == 0:
+        compare_tensors(
+            " > ",
+            base,
+            other_sliced,
+            lengths=lens,
+            console=console,
+            per_sample=True,
+        )
+
+
+def _analyze_big_batch(
+    b_out_dir: Path,
+    *,
+    batch_size: int,
+    assume_io_one_is_lengths: bool,
+    console: Console,
+):
+    """Compare the reference batch against alternative batchings."""
+    console.print(
+        "\n[bold underline]Big batch analysis "
+        f"(sensitivity on the {batch_size} first samples of in batches)[/]"
+    )
+    for ref_ix in range(3):
+        if ref_ix > 0:
+            console.print("-" * 40)
+        console.print(
+            f"* Comparing reference batch (*_{ref_ix}.npy)"
+            " vs other batch (*_n.npy) "
+        )
+        for base_file in sorted(b_out_dir.glob(f"*_{ref_ix}.npy")):
+            other_ix = 0
+            other_file = b_out_dir / base_file.name.replace(
+                f"_{ref_ix}.npy", f"_{other_ix}.npy"
+            )
+            while other_file.exists():
+                if ref_ix != other_ix:
+                    _compare_one_big_batch_pair(
+                        base_file,
+                        other_file,
+                        ref_ix=ref_ix,
+                        other_ix=other_ix,
+                        batch_size=batch_size,
+                        assume_io_one_is_lengths=assume_io_one_is_lengths,
+                        console=console,
+                    )
+                other_ix += 1
+                other_file = b_out_dir / base_file.name.replace(
+                    f"_{ref_ix}.npy", f"_{other_ix}.npy"
+                )
+
+
 def analyze_npy_dumps(
     dump_dir: T.Union[str, Path],
     generate_big_batch: bool = False,
@@ -470,194 +625,79 @@ def analyze_npy_dumps(
 ):
     """Analyze dumped npy files to find potential causes of the batch bug.
 
-    check absolute difference max/mean between unbatched and
-    batched intermediate tensors, especially for encoder outputs
-    (still check inputs are aligned).
-
-    if generate_big_batch is enabled,
-    also check if the difference becomes larger when batch size goes beyond 32,
-    by comparing results to the big batch with duplicated samples
-    (by removing the duplicate).
-
+    Compares absolute max/mean diff between unbatched and batched
+    intermediate tensors (encoder inputs, encoder outputs), then optionally
+    sanity-checks against the original NeMo dumps. With
+    ``generate_big_batch`` enabled, also checks whether differences grow
+    when batch size goes beyond 32 (compare slices of large batches against
+    the reference batch).
     """
     if console is None:
         console = Console()
     dump_dir = Path(dump_dir)
 
-    def load_npy(path: Path) -> np.ndarray:
-        return np.load(path)
-
     console.print("[bold]Analyzing dumped intermediate tensors[/]\n")
 
-    # 1. Compare encoder inputs
+    # 1. Encoder inputs (batched vs unbatched).
     console.print("[bold underline]Encoder inputs (batched vs unbatched)[/]")
     ub_in_dir = dump_dir / "unbatched" / "encoder_inputs"
     b_in_dir = dump_dir / "batched" / "encoder_inputs"
     nemo_in_dir = dump_dir / "nemo" / "encoder_inputs"
+    _compare_dirs(
+        ub_in_dir,
+        b_in_dir,
+        "encoder_inputs",
+        assume_io_one_is_lengths=assume_io_one_is_lengths,
+        console=console,
+    )
 
-    for ub_file in sorted(ub_in_dir.glob("*.npy")):
-        b_file = b_in_dir / ub_file.name
-        if not b_file.exists():
-            console.print(f"[yellow]Missing batched input:[/] {ub_file.name}")
-            continue
-
-        ub = load_npy(ub_file)
-        b = load_npy(b_file)
-        lens = None
-        if assume_io_one_is_lengths:
-            lens = load_npy(ub_file.parent / "tensor_1_0.npy")
-        compare_tensors(
-            f"encoder_inputs/{ub_file.name}",
-            ub,
-            b,
-            lengths=lens,
-            console=console,
-        )
-
-    # 2. Compare encoder outputs
+    # 2. Encoder outputs (batched vs unbatched, also per-sample).
     console.print("\n[bold underline]Encoder outputs (batched vs unbatched)[/]")
     ub_out_dir = dump_dir / "unbatched" / "encoder_outputs"
     b_out_dir = dump_dir / "batched" / "encoder_outputs"
     nemo_out_dir = dump_dir / "nemo" / "encoder_outputs"
+    _compare_dirs(
+        ub_out_dir,
+        b_out_dir,
+        "encoder_outputs",
+        assume_io_one_is_lengths=assume_io_one_is_lengths,
+        console=console,
+        per_sample=True,
+    )
 
-    for ub_file in sorted(ub_out_dir.glob("*.npy")):
-        b_file = b_out_dir / ub_file.name
-        if not b_file.exists():
-            console.print(f"[yellow]Missing batched output:[/] {ub_file.name}")
-            continue
-
-        ub = load_npy(ub_file)
-        b = load_npy(b_file)
-        lens = None
-        if assume_io_one_is_lengths:
-            lens = load_npy(ub_file.parent / "tensor_1_0.npy")
-        compare_tensors(
-            f"encoder_outputs/{ub_file.name}",
-            ub,
-            b,
-            lengths=lens,
-            console=console,
-        )
-        compare_tensors(
-            " > ",
-            ub,
-            b,
-            lengths=lens,
-            console=console,
-            per_sample=True,
-        )
-
-    # 3. Compare against original NeMo encoder (sanity check)
-    nemo_dir = dump_dir / "nemo"
-    if nemo_dir.exists():
+    # 3. Sanity-check exported unbatched against NeMo (when available).
+    if (dump_dir / "nemo").exists():
         console.print(
             "\n[bold underline]NeMo encoder vs exported (unbatched)[/]"
         )
-        for ub_file in sorted(ub_in_dir.glob("*.npy")):
-            # convention: nemo_encoder_step_0_output_{i}.npy
-            idx = ub_file.stem.split("_", maxsplit=1)[-1]
-            nemo_file = nemo_in_dir / ub_file.name
-
-            if not nemo_file.exists():
-                continue
-
-            nemo = load_npy(nemo_file)
-            ub = load_npy(ub_file)
-            lens = None
-            if assume_io_one_is_lengths:
-                lens = load_npy(ub_file.parent / "tensor_1_0.npy")
-            compare_tensors(
-                f"nemo_vs_unbatched/input_{idx}",
-                nemo,
-                ub,
-                lengths=lens,
-                console=console,
-            )
-
-        for ub_file in sorted(ub_out_dir.glob("*.npy")):
-            # convention: nemo_encoder_step_0_output_{i}.npy
-            idx = ub_file.stem.split("_", maxsplit=1)[-1]
-            nemo_file = nemo_out_dir / ub_file.name
-
-            if not nemo_file.exists():
-                continue
-
-            nemo = load_npy(nemo_file)
-            ub = load_npy(ub_file)
-            lens = None
-            if assume_io_one_is_lengths:
-                lens = load_npy(ub_file.parent / "tensor_1_0.npy")
-            compare_tensors(
-                f"nemo_vs_unbatched/output_{idx}",
-                nemo,
-                ub,
-                lengths=lens,
-                console=console,
-            )
-
-    # 4. Optional: big batch analysis
-    if generate_big_batch:
-        console.print(
-            f"\n[bold underline]Big batch analysis (sensitivity on the {batch_size} first samples of in batches)[/]"
+        _compare_nemo_vs_unbatched(
+            ub_in_dir,
+            nemo_in_dir,
+            "nemo_vs_unbatched/input",
+            assume_io_one_is_lengths=assume_io_one_is_lengths,
+            console=console,
+        )
+        _compare_nemo_vs_unbatched(
+            ub_out_dir,
+            nemo_out_dir,
+            "nemo_vs_unbatched/output",
+            assume_io_one_is_lengths=assume_io_one_is_lengths,
+            console=console,
         )
 
-        for ref_ix in range(3):
-            if ref_ix > 0:
-                console.print("-" * 40)
-            console.print(
-                f"* Comparing reference batch (*_{ref_ix}.npy) vs other batch (*_n.npy) "
-            )
-            for base_file in sorted(b_out_dir.glob(f"*_{ref_ix}.npy")):
-                other_ix = 0
-                other_file = b_out_dir / base_file.name.replace(
-                    f"_{ref_ix}.npy", f"_{other_ix}.npy"
-                )
-                while other_file.exists():
-                    if ref_ix != other_ix:
-                        base = load_npy(base_file)
-                        other = load_npy(other_file)
-
-                        if base.ndim == 0 or other.ndim == 0:
-                            continue
-
-                        # Slice other batch to match original batch size
-                        base_batch_size = base.shape[0]
-                        other_batch_size = other.shape[0]
-                        base = base[:batch_size]
-                        other_sliced = other[:batch_size]
-                        lens = None
-                        if assume_io_one_is_lengths:
-                            lens = load_npy(base_file.parent / "tensor_1_0.npy")
-
-                        compare_tensors(
-                            f"base_{base_batch_size}_vs_other_{other_batch_size}/{base_file.name}",
-                            base,
-                            other_sliced,
-                            lengths=lens,
-                            console=console,
-                        )
-                        if (
-                            ref_ix == 0
-                        ):  # only compare with big batch when reference is the original batch
-                            compare_tensors(
-                                " > ",
-                                base,
-                                other_sliced,
-                                lengths=lens,
-                                console=console,
-                                per_sample=True,
-                            )
-                    other_ix += 1
-                    other_file = b_out_dir / base_file.name.replace(
-                        f"_{ref_ix}.npy", f"_{other_ix}.npy"
-                    )
+    # 4. Optional: big-batch sensitivity analysis.
+    if generate_big_batch:
+        _analyze_big_batch(
+            b_out_dir,
+            batch_size=batch_size,
+            assume_io_one_is_lengths=assume_io_one_is_lengths,
+            console=console,
+        )
 
     console.print("\n[green]Analysis complete.[/]")
 
 
 def parse_args():
-    import argparse
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--model-dir",
@@ -668,13 +708,13 @@ def parse_args():
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=set([_[0] for _ in ESB_DATASETS]),
+        choices={_[0] for _ in ESB_DATASETS},
         help="Dataset to use for reproduction.",
     )
     parser.add_argument(
         "--split",
         type=str,
-        choices=set([_[1] for _ in ESB_DATASETS]),
+        choices={_[1] for _ in ESB_DATASETS},
         default="test",
         help="Dataset split to use.",
     )
@@ -731,9 +771,11 @@ def main():
     """Idxes are collected from.
 
     nemo_tract_eval_compare_manifest \
-        --results-dir $HOME/SONOS/data/dump_parakeet_test_libri_batched_new_model/librispeech/test.clean \
+        --results-dir <DUMP_PARAKEET_DIR>/librispeech/test.clean \
         --max-items 3
 
+    where ``<DUMP_PARAKEET_DIR>`` is e.g.
+    ``$HOME/SONOS/data/dump_parakeet_test_libri_batched_new_model``.
     """
     args = parse_args()
     init_log(
@@ -777,7 +819,9 @@ def main():
             console.print(
                 f"Intermediate I/O tensors are dumped to: {args.output_dir}"
             )
-            with open(args.output_dir / "error_cases.jsonl", "w") as f:
+            with open(
+                args.output_dir / "error_cases.jsonl", "w", encoding="utf-8"
+            ) as f:
                 for err in error_cases:
                     f.write(err.model_dump_json() + "\n")
             analyze_npy_dumps(

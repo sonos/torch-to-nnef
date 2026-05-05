@@ -186,11 +186,11 @@ class NemoRunner(AsrRunner):
             )
         model.change_decoding_strategy(model.cfg.decoding)
 
-        kwargs = dict(
-            batch_size=cfg.dataset.batch_size,
-            verbose=False,
-            num_workers=0,
-        )
+        kwargs = {
+            "batch_size": cfg.dataset.batch_size,
+            "verbose": False,
+            "num_workers": 0,
+        }
 
         desc = "with nemo"
 
@@ -240,13 +240,13 @@ def measure_transcription_time(
 
 
 def load_runner_from_config(cfg: EvalConfig) -> AsrRunner:
-    RunnerCls = import_class_from_string(cfg.model_runner_class)
-    assert issubclass(RunnerCls, AsrRunner), (
-        f"Provided model runner class {RunnerCls} "
+    runner_cls = import_class_from_string(cfg.model_runner_class)
+    assert issubclass(runner_cls, AsrRunner), (
+        f"Provided model runner class {runner_cls} "
         "is not a subclass of AsrRunner"
     )
     device, dtype = setup_device(cfg.device_id)
-    return RunnerCls.load_from_eval_config(
+    return runner_cls.load_from_eval_config(
         cfg=cfg,
         device=device,
         dtype=dtype,

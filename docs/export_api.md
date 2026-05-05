@@ -15,7 +15,7 @@ For details on the exported artifact (directory vs `.tar` vs `.tgz`) and how
 
 ### See Also
 
-- NeMo ASR export tutorial: [Export and run NeMo ASR](./examples/nemo_asr/README.md)
+- NeMo ASR export tutorial: [Export and run NeMo ASR](./tutos/10_nemo.md)
 - Transformers/LLM export tutorial: [LLM export guide](./tutos/5_llm.md)
 - Shapes remodeler tutorial: [Provider-agnostic remodeler](./tutos/11_remodeler.md)
 

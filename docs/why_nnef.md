@@ -5,15 +5,15 @@
 NNEF stands for Neural Network Exchange Format.
 
 <figure markdown="span">
-    ![NNEF Idea](../img/nnef_idea.jpg){ align=center }
+    ![NNEF Idea](img/nnef_idea.jpg){ align=center }
 </figure>
 
-Introduced in 2018—just a year after ![ONNX](../img/onnx.png){: style="width: 100px;margin:0;"}.
+Introduced in 2018—just a year after ![ONNX](img/onnx.png){: style="width: 100px;margin:0;"}.
 
 NNEF addresses the same core challenge as ONNX: providing a standardized way to exchange neural network models across different tools and frameworks.
 
 <figure markdown="span">
-    ![Khronos group](../img/khronos.png){: style="width: 360px;margin:0;" align=center}
+    ![Khronos group](img/khronos.png){: style="width: 360px;margin:0;" align=center}
 </figure>
 
 It is specified by the Khronos Group, an open, non-profit consortium of around 170 member organizations, better known for defining major graphics and compute standards such as WebGL, OpenCL, and Vulkan.

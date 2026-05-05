@@ -156,9 +156,6 @@ markers = [
     "serial",
 ]
 
-[tool.isort]
-known_first_party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
-
 [tool.pylint.imports]
 known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
 
@@ -419,6 +416,7 @@ commands = [
         "torch_to_nnef",
         "tests",
         "packages",
+        "examples",
     ],
     [
         "ruff",
@@ -427,6 +425,7 @@ commands = [
         "torch_to_nnef",
         "tests",
         "packages",
+        "examples",
     ],
 ]
 
@@ -441,6 +440,7 @@ commands = [
         "torch_to_nnef",
         "tests",
         "packages",
+        "examples",
     ],
     [
         "ruff",
@@ -448,13 +448,16 @@ commands = [
         "torch_to_nnef",
         "tests",
         "packages",
+        "examples",
     ],
 ]
 
 [tool.tox.env.lint]
 skip_install = true
 deps = ["ruff"]
-commands = [["ruff", "check", "-q", "torch_to_nnef", "tests", "packages"]]
+commands = [
+    ["ruff", "check", "-q", "torch_to_nnef", "tests", "packages", "examples"],
+]
 
 [tool.tox.env.static_check]
 deps = ["prospector[with_dodgy]", "pyroma"]

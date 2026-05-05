@@ -23,7 +23,7 @@ class T2NErrorInvalidArgument(ValueError, T2NError):
 
 
 class T2NErrorNotFoundFile(ValueError, T2NError):
-    """missing exit for file path."""
+    """Expected file path does not exist."""
 
 
 class T2NErrorRuntime(RuntimeError, T2NError):
