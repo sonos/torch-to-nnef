@@ -3446,7 +3446,7 @@ Others are not guaranteed to work as is, but contributions are welcome!</p>
 </div>
 <hr />
 <h2 id="example-running-a-nemo-asr-model-with-tract">Example: Running a NeMo ASR model with tract</h2>
-<p><a href="https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/nemo_asr">in this example directory</a>
+<p><a href="https://github.com/sonos/torch-to-nnef/tree/main/examples/nemo_asr">in this example directory</a>
 The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perform inference using the exported NNEF artifacts.</p>
 <h2 id="run-the-exported-model-in-rust">Run the exported model in Rust</h2>
 <p>To run the exported NeMo ASR model from Rust, add the tract-nemo crate to your Cargo.toml:</p>
@@ -3454,7 +3454,7 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">tract-nemo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="n">git</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://github.com/sonos/torch-to-nnef.git&quot;</span><span class="err">,</span>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="n">branch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;main&quot;</span><span class="err">,</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="n">subdir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;docs/examples/nemo_asr/&quot;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="n">subdir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;examples/nemo_asr/&quot;</span>
 </span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="err">}</span>
 </span></code></pre></div>
 <p>Rust inference example
@@ -3489,7 +3489,7 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
 <h2 id="run-the-exported-model-in-python">Run the exported model in Python</h2>
 <p>The exported NeMo ASR model can also be executed from Python using the tract-nemo Python bindings.</p>
 <p>First, install the Python package:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&amp;subdirectory=docs/examples/nemo_asr/src/nemo_asr_py&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&amp;subdirectory=examples/nemo_asr/src/nemo_asr_py&quot;</span>
 </span></code></pre></div>
 <p>Python inference example
 <div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">nemo_asr_tract</span>
@@ -3517,7 +3517,7 @@ The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perfo
 </span></code></pre></div></p>
 <h2 id="evaluation">Evaluation</h2>
 <p>If not already installed you need to setup the same python package, as the one for running tract model, <strong>with the <code>eval</code> extra</strong> for evaluation:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&amp;subdirectory=docs/examples/nemo_asr/src/nemo_asr_py&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&amp;subdirectory=examples/nemo_asr/src/nemo_asr_py&quot;</span>
 </span></code></pre></div>
 <p>The Python tooling also supports evaluation of the exported model using standard ASR benchmarks and WER metrics.</p>
 <h3 id="run-an-asr-open-leaderboard-evaluation">Run an ASR Open Leaderboard evaluation</h3>
@@ -3607,7 +3607,7 @@ Here is a sample usage (it needs extra eval to run properly).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 1, 2026 09:46:23 UTC">April 1, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 4, 2026 10:41:26 UTC">May 4, 2026</span>
   </span>
 
     
