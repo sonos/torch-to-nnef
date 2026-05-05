@@ -19,6 +19,8 @@ tensors are not all loaded at once:
 - `flux_schnell/` -- Flux-Schnell (DiT, 12B): tiny `--mini` config validated
   end-to-end via `check_io` against tract; full 12B checkpoint export needs
   a gated HF download.
+- `sana/` -- NVIDIA Sana (DiT, 1.6B / 4.8B): linear-attention DiT with Mix-FFN
+  and DC-AE VAE; tiny `--mini` config validated end-to-end via `check_io`.
 
 ## Status
 
