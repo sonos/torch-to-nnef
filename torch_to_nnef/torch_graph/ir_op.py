@@ -329,18 +329,24 @@ def _infer_shape_linear_output(x, w) -> torch.Size:
 
 
 def _infer_shape_convolution_output(*args) -> torch.Size:
-    """Infer output tensor shape of convolution without executing it."""
-    (
-        x,
-        w,
-        _,
-        stride,
-        padding,
-        dilation,
-    ) = args
+    """Infer output tensor shape of convolution without executing it.
 
-    # Input shape: (N, Cin, *spatial)
-    # Weight shape: (Cout, Cin/groups, *kernel)
+    Handles both regular and transposed convolutions. ``aten::convolution`` is
+    the unified op for both, with the ``transposed`` flag at arg 6 and an
+    ``output_padding`` at arg 7. Callers pass at least ``(x, w, bias, stride,
+    padding, dilation)``; the optional 7th/8th args are read when present.
+    """
+    x = args[0]
+    w = args[1]
+    stride = args[3]
+    padding = args[4]
+    dilation = args[5]
+    transposed = args[6] if len(args) > 6 else False
+    output_padding = args[7] if len(args) > 7 else 0
+
+    # Input shape: (N, Cin, *spatial). Weight shape:
+    #   regular conv     -> (Cout, Cin/groups, *kernel)
+    #   transposed conv  -> (Cin, Cout/groups, *kernel)  (PyTorch convention)
     x_shape = list(x.shape)
     w_shape = list(w.shape)
 
@@ -348,8 +354,6 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     assert len(w_shape) >= 3, "convolution weight rank mismatch"
 
     n = x_shape[0]
-    cout = w_shape[0]
-
     spatial_rank = len(x_shape) - 2
     kernel_shape = w_shape[2:]
 
@@ -361,21 +365,37 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     stride = _normalize(stride, spatial_rank)
     padding = _normalize(padding, spatial_rank)
     dilation = _normalize(dilation, spatial_rank)
+    output_padding = _normalize(output_padding, spatial_rank)
 
-    out_spatial = []
-    for i in range(spatial_rank):
-        in_size = x_shape[2 + i]
-        k = kernel_shape[i]
-        s = stride[i]
-        p = padding[i]
-        d = dilation[i]
-
-        # PyTorch formula:
-        # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
-        out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
-
-        assert out_dim > 0, "invalid convolution output size"
-        out_spatial.append(out_dim)
+    if transposed:
+        # PyTorch transposed conv: weight is (Cin, Cout/groups, *kernel).
+        cout = w_shape[1]
+        out_spatial = []
+        for i in range(spatial_rank):
+            in_size = x_shape[2 + i]
+            k = kernel_shape[i]
+            s = stride[i]
+            p = padding[i]
+            d = dilation[i]
+            op = output_padding[i]
+            # out = (in - 1) * s - 2p + d*(k-1) + output_padding + 1
+            out_dim = (in_size - 1) * s - 2 * p + d * (k - 1) + op + 1
+            assert out_dim > 0, "invalid transposed convolution output size"
+            out_spatial.append(out_dim)
+    else:
+        cout = w_shape[0]
+        out_spatial = []
+        for i in range(spatial_rank):
+            in_size = x_shape[2 + i]
+            k = kernel_shape[i]
+            s = stride[i]
+            p = padding[i]
+            d = dilation[i]
+            # PyTorch formula:
+            # out = floor((in + 2p - d*(k-1) - 1) / s + 1)
+            out_dim = ((in_size + 2 * p - d * (k - 1) - 1) // s) + 1
+            assert out_dim > 0, "invalid convolution output size"
+            out_spatial.append(out_dim)
 
     return torch.Size([n, cout, *out_spatial])
 
@@ -404,8 +424,11 @@ INFER_RULES = {
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
     ATEN_CONVOLUTION_MODE: InferRule(_infer_shape_convolution_output, 6),
-    ATEN_CONVOLUTION_BARE: InferRule(_infer_shape_convolution_output, 6),
-    ATEN_CONVOLUTION: InferRule(_infer_shape_convolution_output, 6),
+    # ``aten::_convolution`` / ``aten::convolution`` carry ``transposed``
+    # (arg 6) and ``output_padding`` (arg 7); pass them so the shape inference
+    # picks the transposed-conv formula when needed.
+    ATEN_CONVOLUTION_BARE: InferRule(_infer_shape_convolution_output, 8),
+    ATEN_CONVOLUTION: InferRule(_infer_shape_convolution_output, 8),
     ATEN_CONV1D: InferRule(_infer_shape_convolution_output, 6),
     ATEN_CONV2D: InferRule(_infer_shape_convolution_output, 6),
     ATEN_CONV3D: InferRule(_infer_shape_convolution_output, 6),
