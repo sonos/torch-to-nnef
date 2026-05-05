@@ -201,7 +201,12 @@ def squeeze(g, node, name_to_tensor, **kwargs):
 def flatten(g, node, name_to_tensor, inference_target, **kwargs):
     """Translate operator: `aten::flatten` to NNEF.
 
-    Using NNEF:.
+    PyTorch ``flatten(start_dim, end_dim)`` flattens dims in
+    ``[start_dim, end_dim]`` *inclusive*; NNEF reshape uses ``axis_count``
+    (number of axes to replace), so convert as
+    ``axis_count = end_dim - start_dim + 1`` after normalizing negative
+    indices via :func:`pick_axis`.
+
     fragment reshape<?>(
         input: tensor<?>,
         shape: integer[],
@@ -217,8 +222,11 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
         raise T2NErrorNotImplemented(
             "complex flatten without tract complex feature flag"
         )
-    axis_start = start_dim.data or 0
-    axis_end = end_dim.data or -1
+    raw_start = start_dim.data if start_dim.data is not None else 0
+    raw_end = end_dim.data if end_dim.data is not None else -1
+    axis_start = pick_axis(input_node, raw_start)
+    axis_end = pick_axis(input_node, raw_end)
+    axis_count = axis_end - axis_start + 1
     add_single_output_op(
         g,
         node,
@@ -231,7 +239,7 @@ def flatten(g, node, name_to_tensor, inference_target, **kwargs):
             "dtype": onode.np_dtype,
             "shape": [-1],
             "axis_start": axis_start,
-            "axis_count": axis_end,
+            "axis_count": axis_count,
         },
     )
 

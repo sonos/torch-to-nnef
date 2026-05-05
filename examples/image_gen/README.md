@@ -16,6 +16,9 @@ tensors are not all loaded at once:
 - `sd15/` -- Stable Diffusion 1.5: VAE decoder, UNet, CLIP text encoder
 - `sdxl/` -- Stable Diffusion XL: two text encoders, larger UNet, VAE
 - `sd3/` -- Stable Diffusion 3 (DiT architecture)
+- `flux_schnell/` -- Flux-Schnell (DiT, 12B): tiny `--mini` config validated
+  end-to-end via `check_io` against tract; full 12B checkpoint export needs
+  a gated HF download.
 
 ## Status
 
