@@ -150,14 +150,11 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers -p no:warnings -s"
+addopts = "--strict-markers -p no:warnings"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
 ]
-
-[tool.isort]
-known_first_party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
 
 [tool.pylint.imports]
 known-first-party = ["torch_to_nnef", "torch_to_nnef_llm", "torch_to_nnef_nemo"]
