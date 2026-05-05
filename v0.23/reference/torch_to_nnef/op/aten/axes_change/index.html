@@ -3148,8 +3148,12 @@
     <div class="doc doc-contents ">
 
         <p>Translate operator: <code>aten::flatten</code> to NNEF.</p>
-<p>Using NNEF:.
-fragment reshape&lt;?&gt;(
+<p>PyTorch <code>flatten(start_dim, end_dim)</code> flattens dims in
+<code>[start_dim, end_dim]</code> <em>inclusive</em>; NNEF reshape uses <code>axis_count</code>
+(number of axes to replace), so convert as
+<code>axis_count = end_dim - start_dim + 1</code> after normalizing negative
+indices via :func:<code>pick_axis</code>.</p>
+<p>fragment reshape&lt;?&gt;(
     input: tensor&lt;?&gt;,
     shape: integer[],
     axis_start: integer = 0,
