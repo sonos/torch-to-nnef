@@ -136,11 +136,13 @@ def slice_(
         )
         return [fragment_name, "within_bound_index"]
 
+    dim_size = input_node.shape[dim]
     end = min(
-        end,
-        input_node.shape[dim],
+        end + dim_size if isinstance(end, int) and end < 0 else end, dim_size
     )
-    begin = max(begin, 0)
+    begin = max(
+        begin + dim_size if isinstance(begin, int) and begin < 0 else begin, 0
+    )
 
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
