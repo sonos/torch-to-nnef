@@ -33,7 +33,8 @@ import argparse
 from pathlib import Path
 
 import torch
-import torch.nn as nn
+from diffusers import FluxTransformer2DModel
+from torch import nn
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
@@ -99,8 +100,6 @@ def main():
         "a few M params. Useful for exploring export without gated HF auth.",
     )
     args = parser.parse_args()
-
-    from diffusers import FluxTransformer2DModel
 
     if args.mini:
         print("Instantiating mini FluxTransformer2DModel (random weights)")
