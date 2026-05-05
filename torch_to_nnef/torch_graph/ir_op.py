@@ -613,6 +613,13 @@ class TorchOp:
         """Trace output and try to find type shape and constant realisation."""
         if self.kind == CALL_KIND:
             return False
+        # nn.LSTMCell carries an `(input, hx)` Python signature where `hx` is
+        # a tuple. The IR flattens that to `(input, h, c)` (and reorders
+        # them positionally), so calling `op_ref(*self.args)` to infer
+        # shapes raises a TypeError. The LSTMCellExtractor sets shapes on
+        # its outputs explicitly so this fallback is unnecessary anyway.
+        if self.kind == "wired_custom::LSTMCell":
+            return False
 
         if not all(_.tracable for _ in self.inputs):
             return False

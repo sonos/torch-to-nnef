@@ -996,3 +996,328 @@ class RNNExtractor(_RNNMixin, ModuleInfoExtractor):
             ],
             **tensor_params_kwargs,
         )
+
+
+class LSTMCellExtractor(ModuleInfoExtractor):
+    """Decompose `nn.LSTMCell` into primitive NNEF ops.
+
+    Unlike `nn.LSTM`, an LSTMCell carries a single time-step. We emit:
+        preact = matmul(input, w_ih, T) + matmul(h, w_hh, T) + b_ih + b_hh
+        i, f, g, o = chunk(preact, 4, axis=-1)
+        c_new = sigmoid(f) * c + sigmoid(i) * tanh(g)
+        h_new = sigmoid(o) * tanh(c_new)
+
+    Input order from the user-facing wrapper is `(input, h, c)` -- the
+    internal nn.LSTMCell call expects `(input, (h, c))` which is handled by
+    `_call_original_mod_with_args`.
+    """
+
+    MODULE_CLASS = nn.LSTMCell
+
+    def ordered_args(self, torch_graph):
+        """Reorder args so the first one is `input` (shape (B, input_size)).
+
+        t2n's IR sometimes reorders the cell's inputs after FixedTensorList /
+        tuple expansion, surfacing them as e.g. (h, input, c). The cell's
+        `input_size` (= weight_ih.shape[1]) lets us pick the input tensor by
+        shape; the relative order of (h, c) follows the JIT graph's
+        prim::ListConstruct that builds hx.
+        """
+        cell = torch_graph.tracer.mod
+        in_size = cell.input_size
+        args = list(torch_graph.tracer.args)
+        if len(args) != 3:
+            return args
+        input_idx = next(
+            (
+                i
+                for i, a in enumerate(args)
+                if hasattr(a, "shape")
+                and len(a.shape) == 2
+                and a.shape[1] == in_size
+            ),
+            None,
+        )
+        if input_idx is None:
+            return args
+        input_arg = args.pop(input_idx)
+        return [input_arg, *args]
+
+    @staticmethod
+    def _reorder_cell_inputs(inputs, cell: nn.LSTMCell):
+        """Identify `input` and the (h, c) state tensors among the IR inputs.
+
+        When `input_size != hidden_size`, shape uniquely identifies `input`.
+        When they are equal (e.g. Silero-VAD's 128/128 cell), we rely on
+        the empirically-observed JIT trace ordering: PyTorch's tracer
+        emits the cell-call args as `(h, input, c)` because the `hx`
+        tuple's first element is spliced before the `input` slot during
+        positional flattening.
+
+        After picking `input`, the other two inputs are returned as (h, c)
+        in their IR list order.
+        """
+        in_size = cell.input_size
+        h_size = cell.hidden_size
+        if len(inputs) != 3:
+            return (
+                inputs[0],
+                inputs[1] if len(inputs) > 1 else None,
+                (inputs[2] if len(inputs) > 2 else None),
+            )
+
+        if in_size != h_size:
+            input_idx = next(
+                (
+                    i
+                    for i, t in enumerate(inputs)
+                    if t.shape and t.shape[-1] == in_size
+                ),
+                None,
+            )
+            if input_idx is None:
+                input_idx = 0
+        else:
+            # Ambiguous shapes -- use position 1 (the empirical (h, input, c)
+            # ordering of the trace).
+            input_idx = 1
+
+        rest = [t for i, t in enumerate(inputs) if i != input_idx]
+        return inputs[input_idx], rest[0], rest[1]
+
+    @staticmethod
+    def _call_original_mod_with_args(mod, *args):
+        return mod(args[0], (args[1], args[2]))
+
+    def _extract_outputs(self, torch_graph, provided_outputs, results):
+        """Override base behavior.
+
+        Base `_extract_outputs` computes `used_outputs_order` from the
+        cell-graph outputs' SSA offsets within their producer nodes; that
+        assumes a single multi-output op (lstm/lstm_cell). nn.LSTMCell
+        traces actually decompose into separate sigmoid/tanh/mul nodes, so
+        offsets all collapse to 0 and the duplicated index corrupts the
+        output mapping. We have a fixed signature `(h_new, c_new)`, so
+        identity mapping is correct.
+        """
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef import torch_graph as tg
+
+        if (
+            provided_outputs is not None
+            and isinstance(provided_outputs[0], tg.ir_data.TupleTensors)
+            and len(provided_outputs) == 1
+        ):
+            provided_outputs = provided_outputs[0].data
+        expanded_results = self._expand_results(results)
+        outputs = []
+        for idx, result in enumerate(expanded_results):
+            if provided_outputs and idx < len(provided_outputs):
+                tv = provided_outputs[idx]
+            else:
+                tv = tg.TensorVariable(
+                    name=f"{self._cname_slug}_output_{idx}",
+                    shape=list(result.shape),
+                    dtype=result.dtype,
+                    quant=None,
+                    data=None,
+                )
+            outputs.append(tv)
+        return outputs, outputs
+
+    def convert_to_nnef(
+        self,
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        torch_graph,
+        inference_target,
+        **kwargs,
+    ):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op import helper
+
+        cell: nn.LSTMCell = node.op_ref
+        if len(node.inputs) != 3:
+            raise T2NErrorNotImplemented(
+                "LSTMCellExtractor requires (input, h, c); "
+                f"got {len(node.inputs)} inputs"
+            )
+        if len(node.outputs) != 2:
+            raise T2NErrorNotImplemented(
+                "LSTMCellExtractor expects 2 outputs (h_new, c_new); "
+                f"got {len(node.outputs)}"
+            )
+
+        # The t2n IR may surface (input, h, c) in any order after tuple
+        # expansion at the call site. Identify `input` by shape and order
+        # the rest positionally (relying on `_extract_outputs` having mapped
+        # provided_outputs[0] = h_new, [1] = c_new).
+        input_tv, h_prev_tv, c_prev_tv = self._reorder_cell_inputs(
+            node.inputs, cell
+        )
+        h_new_tv, c_new_tv = node.outputs
+
+        hidden = cell.hidden_size
+
+        input_ref = helper.get_or_add_tensor_variable_in_nnef(
+            g, input_tv, name_to_tensor
+        )
+        h_prev_ref = helper.get_or_add_tensor_variable_in_nnef(
+            g, h_prev_tv, name_to_tensor
+        )
+        c_prev_ref = helper.get_or_add_tensor_variable_in_nnef(
+            g, c_prev_tv, name_to_tensor
+        )
+
+        base = node.outputs[0].export_name
+        nnef_dtype = input_ref.dtype
+
+        def add_weight(t: torch.Tensor, name: str) -> NTensor:
+            tv = helper.TensorVariable(
+                name=getattr(t, "nnef_name", f"{base}_{name}"),
+                data=t.detach(),
+                shape=list(t.shape),
+                dtype=t.dtype,
+            )
+            return helper.get_or_add_tensor_variable_in_nnef(
+                g, tv, name_to_tensor, name_suffix=name
+            )
+
+        w_ih_ref = add_weight(cell.weight_ih, "weight_ih")
+        w_hh_ref = add_weight(cell.weight_hh, "weight_hh")
+
+        if cell.bias and cell.bias_ih is not None and cell.bias_hh is not None:
+            # Pre-sum the two biases (PyTorch adds them) and unsqueeze to
+            # (1, 4H) so it broadcasts across the (B, 4H) preactivation.
+            b_combined = (cell.bias_ih + cell.bias_hh).unsqueeze(0)
+            b_ref = add_weight(b_combined, "bias")
+        else:
+            b_ref = None
+
+        def new_tensor(suffix: str, shape: T.Sequence[int]) -> NTensor:
+            t = NTensor(
+                g, name=f"{base}_{suffix}", dtype=nnef_dtype, shape=tuple(shape)
+            )
+            name_to_tensor[t.name] = t
+            return t
+
+        def emit(op_type: str, inputs, attribs, suffix: str, shape):
+            out = new_tensor(suffix, shape)
+            NOperation(
+                graph=g,
+                type=op_type,
+                inputs=inputs if isinstance(inputs, tuple) else tuple(inputs),
+                outputs=out,
+                attribs=attribs,
+            )
+            return out
+
+        batch_dim = (
+            input_tv.shape[0]
+            if input_tv.shape and input_tv.shape[0] is not None
+            else 1
+        )
+        four_h = 4 * hidden
+
+        preact_x = emit(
+            "matmul",
+            (input_ref, w_ih_ref),
+            {"transposeA": False, "transposeB": True},
+            "preact_x",
+            [batch_dim, four_h],
+        )
+        preact_h = emit(
+            "matmul",
+            (h_prev_ref, w_hh_ref),
+            {"transposeA": False, "transposeB": True},
+            "preact_h",
+            [batch_dim, four_h],
+        )
+        if b_ref is not None:
+            preact_xh = emit(
+                "add",
+                (preact_x, preact_h),
+                {},
+                "preact_xh",
+                [batch_dim, four_h],
+            )
+            preact = emit(
+                "add",
+                (preact_xh, b_ref),
+                {},
+                "preact",
+                [batch_dim, four_h],
+            )
+        else:
+            preact = emit(
+                "add",
+                (preact_x, preact_h),
+                {},
+                "preact",
+                [batch_dim, four_h],
+            )
+
+        def slice_gate(idx: int, suffix: str) -> NTensor:
+            return emit(
+                "slice",
+                (preact,),
+                {
+                    "axes": [1],
+                    "begin": [idx * hidden],
+                    "end": [(idx + 1) * hidden],
+                    "stride": [1],
+                },
+                suffix,
+                [batch_dim, hidden],
+            )
+
+        i_pre = slice_gate(0, "i_pre")
+        f_pre = slice_gate(1, "f_pre")
+        g_pre = slice_gate(2, "g_pre")
+        o_pre = slice_gate(3, "o_pre")
+
+        i_t = emit("sigmoid", (i_pre,), {}, "i", [batch_dim, hidden])
+        f_t = emit("sigmoid", (f_pre,), {}, "f", [batch_dim, hidden])
+        g_t = emit("tanh", (g_pre,), {}, "g", [batch_dim, hidden])
+        o_t = emit("sigmoid", (o_pre,), {}, "o", [batch_dim, hidden])
+
+        f_c = emit(
+            "mul", (f_t, c_prev_ref), {}, "f_times_c", [batch_dim, hidden]
+        )
+        i_g = emit("mul", (i_t, g_t), {}, "i_times_g", [batch_dim, hidden])
+
+        # Final outputs: bind to the IR's expected names so downstream graph
+        # consumers wire up correctly.
+        c_new_ref = helper.add_tensor_variable_node_as_nnef_tensor(
+            g,
+            c_new_tv,
+            name_to_tensor,
+            prevent_variable=True,
+        )
+        NOperation(
+            graph=g,
+            type="add",
+            inputs=(f_c, i_g),
+            outputs=c_new_ref,
+            attribs={},
+        )
+
+        tanh_c = emit(
+            "tanh", (c_new_ref,), {}, "tanh_c_new", [batch_dim, hidden]
+        )
+        h_new_ref = helper.add_tensor_variable_node_as_nnef_tensor(
+            g,
+            h_new_tv,
+            name_to_tensor,
+            prevent_variable=True,
+        )
+        NOperation(
+            graph=g,
+            type="mul",
+            inputs=(o_t, tanh_c),
+            outputs=h_new_ref,
+            attribs={},
+        )
+        return []

@@ -30,6 +30,7 @@ from torch_to_nnef.torch_graph.ir_graph import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.ir_op import TorchOp
+from torch_to_nnef.torch_graph.jit_passes import strip_assertion_ifs
 from torch_to_nnef.torch_graph.torch_const import MAP_TO_NOP
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "MAP_TO_NOP",
     "module_tracer_into_ir_graph",
     "TorchModuleIRGraph",
+    "strip_assertion_ifs",
 ]

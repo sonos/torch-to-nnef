@@ -254,14 +254,34 @@ def _find_data_node(data_nodes: ReactiveNamedItemDict, name: str):
 
 
 def _parse_getattr_tensor(node: torch._C.Node, module, data_nodes):
-    data_state = _unfold_graph_getattr_by_node(module, node)[1].data
-    data_nodes.append(
-        TensorVariable(
-            name=node.output().debugName(),
-            shape=list(data_state.shape),
-            dtype=data_state.dtype,
-            data=data_state,
+    """Resolve a `prim::GetAttr` node into a Data entry.
+
+    Inlined JIT graphs (see `torch._C._jit_pass_inline`) surface attribute
+    accesses for both tensors (parameters/buffers) and Python scalars
+    (e.g. an int field like `context_size_samples` registered on the module).
+    Tensors become a TensorVariable; bool/int/float/str/None attrs become a
+    PythonConstant. Anything else is rejected.
+    """
+    name = node.output().debugName()
+    attr = _unfold_graph_getattr_by_node(module, node)[1]
+    if isinstance(attr, torch.Tensor):
+        data_nodes.append(
+            TensorVariable(
+                name=name,
+                shape=list(attr.shape),
+                dtype=attr.dtype,
+                data=attr,
+            )
         )
+        return
+    # Order matters: bool subclasses int in Python, but isinstance against the
+    # tuple still returns True so the PythonConstant carries the original value.
+    if attr is None or isinstance(attr, (bool, int, float, str)):
+        data_nodes.append(PythonConstant(name=name, data=attr))
+        return
+    raise T2NErrorNotImplemented(
+        f"prim::GetAttr resolves to unsupported type "
+        f"{type(attr).__name__} for {name}"
     )
 
 
@@ -307,6 +327,12 @@ def _parse_constant(node: torch._C.Node, data_nodes) -> T.Optional[Data]:
         # Device will not be useful info for us but we pass it to avoid
         # dereferencing it from full graph
         pass
+    elif dtype.startswith("List["):
+        # Inlined/frozen JIT graphs may carry list constants
+        # (e.g. dilation=[1] baked into aten::conv1d) that would otherwise
+        # come from a prim::ListConstruct.
+        ivalue = node.output().toIValue()
+        data = list(ivalue) if ivalue is not None else []
     else:
         raise T2NErrorNotImplemented(dtype)
     data_nodes.append(PythonConstant(name=name, data=data))
