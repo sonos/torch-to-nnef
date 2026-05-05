@@ -384,14 +384,12 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         for inp in inputs
         if not isinstance(inp, Data)
     ]
-    if kind in [
-        "aten::sub",
-        "aten::sub_",
-        "aten::add",
-        "aten::add_",
-    ]:
-        # remove useless ref to scaling (probably never used)
-        abstracted_inputs = abstracted_inputs[:2]
+    # Note: we used to truncate aten::{add,sub}'s inputs to the first two,
+    # discarding ``alpha``. That broke any model calling
+    # ``torch.add(a, b, alpha=k)`` with k != 1, because the emitter never
+    # saw alpha and silently produced ``a + b``. The dedicated add/sub
+    # emitters in ``torch_to_nnef/op/aten/math.py`` now read alpha when
+    # present, so we forward the full input list here.
 
     if kind in ["aten::mean", "aten::sum"]:
         abstracted_inputs = abstracted_inputs[:3]

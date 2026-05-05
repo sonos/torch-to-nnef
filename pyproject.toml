@@ -59,6 +59,7 @@ test = [
     "mypy~=1.13",
     "pytest-cov>=6.0.0,<7",
     "pytest>=8.3.3,<9",
+    "hypothesis>=6.100,<7",
     "ruff<1.0",
     "safetensors",
     "coverage[toml]",
@@ -154,6 +155,7 @@ addopts = "--strict-markers -p no:warnings -s"
 markers = [
     "ci_skip: marks tests as slow (deselect with '-m \"not ci_skip\"')",
     "serial",
+    "proptest: hypothesis-driven property-based tests (run with '-m proptest')",
 ]
 
 [tool.pylint.imports]
@@ -257,6 +259,7 @@ commands = [
         "--ignore=tests/test_dynamic_axes.py",
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
+        "--ignore=tests/test_primitive_proptest.py",
         "tests",
     ],
     [
@@ -279,6 +282,7 @@ commands = [
         "--ignore=tests/test_dynamic_axes.py",
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
+        "--ignore=tests/test_primitive_proptest.py",
         "tests",
     ],
     [
@@ -305,6 +309,7 @@ commands = [
         "--ignore=tests/test_dynamic_axes.py",
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
+        "--ignore=tests/test_primitive_proptest.py",
         "tests",
     ],
     [
@@ -327,6 +332,7 @@ commands = [
         "--ignore=tests/test_dynamic_axes.py",
         "--ignore=tests/test_fft.py",
         "--ignore=tests/test_mod.py",
+        "--ignore=tests/test_primitive_proptest.py",
         "tests",
     ],
     [
@@ -405,6 +411,39 @@ commands = [
     ],
 ]
 
+
+# -- proptest envs (hypothesis-driven primitive sweeps) ----------------------
+# proptest:        ci profile (25 examples, derandomized), runs on every PR
+# proptest_nightly: nightly profile (200 examples), run on demand / scheduled
+[tool.tox.env.proptest]
+basepython = ["python3.13"]
+deps = ["--index-url=https://download.pytorch.org/whl/cpu", "torch==2.6.*"]
+set_env = { T2N_HYP_PROFILE = "ci" }
+commands = [
+    [
+        "pytest",
+        "-m",
+        "proptest",
+        "-v",
+        "--hypothesis-show-statistics",
+        "tests/test_primitive_proptest.py",
+    ],
+]
+
+[tool.tox.env.proptest_nightly]
+basepython = ["python3.13"]
+deps = ["--index-url=https://download.pytorch.org/whl/cpu", "torch==2.6.*"]
+set_env = { T2N_HYP_PROFILE = "nightly" }
+commands = [
+    [
+        "pytest",
+        "-m",
+        "proptest",
+        "-v",
+        "--hypothesis-show-statistics",
+        "tests/test_primitive_proptest.py",
+    ],
+]
 
 [tool.tox.env.format]
 skip_install = true

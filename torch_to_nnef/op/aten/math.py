@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, dtype_is_whole_number
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
@@ -9,6 +10,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import tract_complex_support
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
+    cast_and_add_nnef_operation,
     pick_axis,
     unary_input_output_op_with_constant,
 )
@@ -78,10 +80,22 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
 
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
-        if isinstance(inference_target, TractNNEF):
-            # Tract expects I64 for dimensions; avoid producing U64 here.
-            io_casting_with_dtype = np.int64
-        suffix_div_op_output = "div"
+        # `rounding_mode` may be None even with 3 inputs (PyTorch passes the
+        # literal None when called as ``div(a, b, rounding_mode=None)``).
+        # In that case the result is true float division and we must NOT
+        # cast the output to int64.
+        if rounding_mode is not None and isinstance(
+            inference_target, TractNNEF
+        ):
+            # PyTorch preserves input dtype across rounded division:
+            # ``div(float, float, trunc) -> float``,
+            # ``div(int, int, trunc) -> int64``.
+            # We cast to int64 only when the traced output is integer
+            # (originally added to dodge U64 propagation for dim math).
+            output_torch_dtype = node.outputs[0].dtype
+            if not output_torch_dtype.is_floating_point:
+                io_casting_with_dtype = np.int64
+                suffix_div_op_output = "div"
 
     out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
@@ -325,6 +339,115 @@ def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
         ],
     )
     return ["remainder"]
+
+
+def _add_or_sub_with_alpha(
+    nnef_op_name: str,
+    node,
+    op_helper,
+    **_,
+):
+    """Shared body for ``aten:add`` and ``aten:sub`` (both honor ``alpha``).
+
+    PyTorch's signatures are::
+
+        add(input, other, *, alpha=1) -> input + alpha * other
+        sub(input, other, *, alpha=1) -> input - alpha * other
+
+    For the default ``alpha == 1`` we emit a single NNEF ``add`` / ``sub``
+    op (no behavior change vs the historical generic_unary path). For
+    non-default alpha we decompose to ``mul(other, alpha)`` then
+    ``nnef_op_name(input, scaled_other)`` -- this avoids needing a custom
+    NNEF op variant that takes ``alpha`` as an attribute.
+
+    Without this, alpha was silently dropped because aten:add and aten:sub
+    were routed through ``unary.generic_unary`` which calls
+    ``unary_output_op_without_attr`` (see torch_to_nnef/op/aten/unary.py
+    in the GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES list).
+    """
+    if len(node.inputs) == 3:
+        input_node, other_node, alpha_node = node.inputs
+    else:
+        # Some aten variants don't carry alpha (e.g. add.Scalar without it
+        # being explicitly emitted). Behave like the historical fast path.
+        input_node, other_node = node.inputs
+        alpha_node = None
+
+    alpha_is_default = alpha_node is None or (
+        isinstance(alpha_node, PythonConstant)
+        and alpha_node.data is not None
+        and float(alpha_node.data) == 1.0
+    )
+
+    operands = [
+        op_helper.get_or_add_tensor_variable_in_nnef(
+            c_node.into_tensor_variable()
+            if isinstance(c_node, PythonConstant)
+            else c_node
+        )
+        for c_node in (input_node, other_node)
+    ]
+    input_tensor = operands[0]
+    other_tensor = operands[1]
+
+    if alpha_is_default:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_name,
+            inputs=(input_tensor, other_tensor),
+        )
+        return
+
+    # Materialize alpha as a tensor and scale ``other`` before combining.
+    # The intermediate ``mul(other, alpha)`` keeps ``other``'s shape (alpha
+    # is a scalar). We declare the intermediate NNEF tensor with that shape
+    # explicitly: the high-level
+    # ``add_single_output_op_from_nnef_tensors`` would reuse
+    # ``node.outputs[0].shape`` (which is the FINAL broadcast shape after
+    # ``add(input, scaled)``), and tract refuses to broadcast a tensor of
+    # ``other.shape`` declared with the final-broadcast shape.
+    if isinstance(alpha_node, PythonConstant):
+        alpha_node.set_data(float(alpha_node.data))
+        alpha_tensor_var = alpha_node.into_tensor_variable()
+        alpha_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
+            alpha_tensor_var
+        )
+    else:
+        alpha_tensor = op_helper.get_or_add_tensor_variable_in_nnef(alpha_node)
+    scaled_name = f"{node.outputs[0].export_name}_alpha_scaled"
+    scaled_other = NTensor(
+        op_helper.g,
+        scaled_name,
+        dtype=other_tensor.dtype,
+        shape=other_tensor.shape,
+    )
+    op_helper.name_to_tensor[scaled_name] = scaled_other
+    cast_and_add_nnef_operation(
+        graph=op_helper.g,
+        name_to_tensor=op_helper.name_to_tensor,
+        type="mul",
+        name=scaled_name,
+        inputs=(other_tensor, alpha_tensor),
+        outputs=(scaled_other,),
+        attribs={},
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        nnef_op_name,
+        inputs=(input_tensor, scaled_other),
+    )
+
+
+@OP_REGISTRY.register(torch_op_ids=["add"])
+def add(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:add' to NNEF, honoring the ``alpha`` parameter."""
+    _add_or_sub_with_alpha("add", node, op_helper, **kwargs)
+
+
+@OP_REGISTRY.register(torch_op_ids=["sub"])
+def sub(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:sub' to NNEF, honoring the ``alpha`` parameter."""
+    _add_or_sub_with_alpha("sub", node, op_helper, **kwargs)
 
 
 @OP_REGISTRY.register()

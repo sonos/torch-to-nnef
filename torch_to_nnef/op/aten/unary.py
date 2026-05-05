@@ -51,8 +51,9 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
     "not",
     "eq",
     "ne",
-    "add",
-    "sub",
+    # `add` and `sub` deliberately left out: PyTorch passes a third input
+    # (`alpha`) that this generic handler would silently drop. They have
+    # dedicated emitters in ``torch_to_nnef/op/aten/math.py``.
     "lt",
     "gt",
     "le",
@@ -78,7 +79,7 @@ def generic_unary(aten_op_id, node, op_helper, **kwargs):
         'aten:sinh', 'aten:cosh', 'aten:tanh', 'aten:asinh', 'aten:acosh',
         'aten:atanh', 'aten:sign', 'aten:neg', 'aten:floor', 'aten:ceil',
         'aten:sqrt', 'aten:rsqrt', 'aten:log2', 'aten:rcp', 'aten:not',
-        'aten:eq', 'aten:ne', 'aten:add', 'aten:sub', 'aten:lt', 'aten:gt',
+        'aten:eq', 'aten:ne', 'aten:lt', 'aten:gt',
         'aten:le', 'aten:ge', 'aten:and', 'aten:or', 'aten:__and__',
         'aten:__or__', 'aten:_relu', 'aten:greater', 'aten:greater_equal',
         'aten:less', 'aten:less_equal', 'aten:logical_not', 'aten:logical_and',

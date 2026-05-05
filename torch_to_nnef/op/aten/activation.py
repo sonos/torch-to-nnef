@@ -8,6 +8,7 @@ from torch_to_nnef.op.helper import (
     unary_input_output_op_with_constant,
     unary_output_op_without_attr,
 )
+from torch_to_nnef.tensor.quant import QTensorTract
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
@@ -56,10 +57,30 @@ def softplus(**kwargs):
 
 @OP_REGISTRY.register()
 def elu(**kwargs):
-    """Map PyTorch: 'aten:elu' to NNEF."""
+    """Map PyTorch: 'aten:elu' to NNEF.
+
+    NNEF/tract's ``elu`` op treats ``alpha`` as an attribute, but the
+    current emitter passes it as a graph-level tensor input via
+    ``unary_input_output_op_with_constant``. tract silently ignores the
+    tensor and uses its default ``alpha=1``, producing wrong outputs for
+    any non-default alpha. Until that is fixed end-to-end (either by
+    routing alpha through an attribute or by decomposing
+    ``elu(x, alpha) = where(x >= 0, x, alpha * (exp(x) - 1))``), we
+    raise NotImplementedError to fail loudly rather than silently
+    miscompute. Same pattern as ``softplus`` above for ``beta != 1``.
+    """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
+    alpha_node = node.inputs[1]
+    if isinstance(alpha_node, PythonConstant):
+        alpha_value = alpha_node.data
+        if alpha_value is not None and float(alpha_value) != 1.0:
+            raise T2NErrorNotImplemented(
+                "elu with alpha != 1.0 is not supported yet "
+                f"(got alpha={alpha_value!r}); see this emitter's "
+                "docstring for the fix scope."
+            )
     node.inputs = node.inputs[:2]  # remove inplace param
     return unary_input_output_op_with_constant("elu", **kwargs)
 
@@ -76,11 +97,41 @@ def leaky_relu(**kwargs):
 
 @OP_REGISTRY.register()
 def prelu(**kwargs):
-    """Map PyTorch: 'aten:prelu' to NNEF."""
+    """Map PyTorch: 'aten:prelu' to NNEF.
+
+    PyTorch's ``PReLU(num_parameters=C)`` stores the slope as a 1-D tensor
+    of shape ``(C,)`` and applies it along the channel axis (dim=1) of an
+    input shaped ``(B, C, *spatial)``. NNEF broadcasts left-aligned
+    (prepends 1s), so a raw ``(C,)`` weight would broadcast to the
+    *trailing* axis instead of the channel axis -- i.e. wrong.
+
+    Pre-unsqueeze the weight to ``(C, 1, 1, ...)`` so left-alignment
+    yields ``(1, C, 1, 1, ...)`` and broadcast lands on the channel axis.
+    Same pattern as group_norm/batch_norm scale/offset. The single-slope
+    case (``num_parameters=1`` -> shape ``(1,)``) is left untouched
+    since broadcasting is then trivially correct.
+    """
     # avoid unpack/pack {
     node = kwargs["node"]
     # }
     node.inputs = node.inputs[:2]  # remove inplace param
+    input_node, weight_node = node.inputs
+    weight_data = weight_node.data
+    if (
+        weight_data is not None
+        and getattr(weight_data, "ndim", 0) == 1
+        and weight_data.shape[0] > 1
+        and input_node.rank is not None
+        and input_node.rank > 2
+    ):
+        if isinstance(weight_data, QTensorTract):
+            raise T2NErrorNotImplemented(
+                "prelu with quantized multi-parameter weight"
+            )
+        for _ in range(input_node.rank - weight_node.rank - 1):
+            weight_node.set_data(
+                weight_node.data.unsqueeze(-1), force_shape=True
+            )
     return unary_input_output_op_with_constant("prelu", **kwargs)
 
 
@@ -103,6 +154,48 @@ def relu6(**kwargs):
     """Map PyTorch: 'aten:relu6' to NNEF."""
     unary_input_output_op_with_constant("relu6", **kwargs)
     return ["relu6"]
+
+
+@OP_REGISTRY.register()
+def threshold(**kwargs):
+    """Map PyTorch: 'aten:threshold' to NNEF.
+
+    PyTorch ref: ``y = x if x > threshold else value``.
+    """
+    node = kwargs["node"]
+    node.inputs = node.inputs[:3]  # (input, threshold, value)
+    for inode in node.inputs[1:]:
+        if isinstance(inode, PythonConstant):
+            inode.set_data(float(inode.data))
+    unary_input_output_op_with_constant("threshold", **kwargs)
+    return ["threshold"]
+
+
+@OP_REGISTRY.register()
+def mish(**kwargs):
+    """Map PyTorch: 'aten:mish' to NNEF.
+
+    PyTorch ref: ``y = x * tanh(softplus(x))``. Tract has no native
+    op so we emit a fragment built from ``softplus``/``tanh``/``mul``.
+    """
+    node = kwargs["node"]
+    node.inputs = node.inputs[:1]  # drop the inplace flag if present
+    unary_output_op_without_attr("mish", **kwargs)
+    return ["mish"]
+
+
+@OP_REGISTRY.register()
+def hardsigmoid(**kwargs):
+    """Map PyTorch: 'aten:hardsigmoid' to NNEF.
+
+    PyTorch ref: ``y = clamp((x + 3) / 6, 0, 1)``. Tract has no native
+    op for this, so we emit a custom fragment built from ``min``/``max``
+    and arithmetic primitives.
+    """
+    node = kwargs["node"]
+    node.inputs = node.inputs[:1]  # drop the inplace flag if present
+    unary_output_op_without_attr("hardsigmoid", **kwargs)
+    return ["hardsigmoid"]
 
 
 @OP_REGISTRY.register()
@@ -255,13 +348,23 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
 
 @OP_REGISTRY.register()
 def clamp(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:clamp' to NNEF."""
+    """Map PyTorch: 'aten:clamp' to NNEF.
+
+    PyTorch's ``clamp(input, min=None, max=None)`` skips a bound when it
+    is ``None`` (the unset sentinel) -- NOT when it is 0.0. The earlier
+    ``if X.data:`` truthy check evaluated to False for the literal 0.0,
+    silently dropping ``min=0`` / ``max=0`` clamps and producing wrong
+    output for any input crossing the unset bound. Same root pattern as
+    the ``flatten`` ``or 0/-1`` bug. Use explicit ``is None`` checks.
+    """
     input_node, min_clamp, max_clamp = node.inputs
 
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
-    if min_clamp.data:
+    has_min = min_clamp.data is not None
+    has_max = max_clamp.data is not None
+    if has_min:
         output = add_single_output_op(
             g,
             node,
@@ -273,11 +376,11 @@ def clamp(g, node, name_to_tensor, **kwargs):
                     g, min_clamp, name_to_tensor
                 ),
             ],
-            output_tensor_name_suffix="clamp_min" if max_clamp.data else "",
+            output_tensor_name_suffix="clamp_min" if has_max else "",
         )
         input_tensor = output
 
-    if max_clamp.data:
+    if has_max:
         add_single_output_op(
             g,
             node,

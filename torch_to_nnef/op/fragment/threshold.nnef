@@ -1,0 +1,9 @@
+# PyTorch threshold: y = x if x > threshold else value
+fragment threshold(
+    input: tensor<scalar>,
+    threshold: tensor<scalar>,
+    value: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    output = select(input > threshold, input, value);
+}
