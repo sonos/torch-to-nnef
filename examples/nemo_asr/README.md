@@ -244,7 +244,7 @@ Ensure that all input audio conforms to these requirements before running infere
 ## Example: Running a NeMo ASR model with tract
 
 
-[in this example directory](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/nemo_asr)
+[in this example directory](https://github.com/sonos/torch-to-nnef/tree/main/examples/nemo_asr)
 The example uses a pre-trained ASR model from NVIDIA NeMo and shows how to perform inference using the exported NNEF artifacts.
 
 
@@ -258,7 +258,7 @@ To run the exported NeMo ASR model from Rust, add the tract-nemo crate to your C
 tract-nemo = {
   git = "https://github.com/sonos/torch-to-nnef.git",
   branch = "main",
-  subdir = "docs/examples/nemo_asr/"
+  subdir = "examples/nemo_asr/"
 }
 ```
 
@@ -301,7 +301,7 @@ The exported NeMo ASR model can also be executed from Python using the tract-nem
 First, install the Python package:
 
 ```bash
-pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py"
+pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract&subdirectory=examples/nemo_asr/src/nemo_asr_py"
 ```
 
 Python inference example
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 If not already installed you need to setup the same python package, as the one for running tract model, **with the `eval` extra** for evaluation:
 
 ```bash
-pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&subdirectory=docs/examples/nemo_asr/src/nemo_asr_py"
+pip install "git+https://github.com/sonos/torch-to-nnef.git@main#egg=nemo-asr-tract[eval]&subdirectory=examples/nemo_asr/src/nemo_asr_py"
 
 ```
 

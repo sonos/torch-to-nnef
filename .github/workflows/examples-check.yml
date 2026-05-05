@@ -1,0 +1,40 @@
+name: Examples shell check (PR)
+
+# Cheap PR-time checks for shell scripts under examples/.
+# Catches typos / dangerous patterns without burning compute on full e2e runs.
+# Full execution of run.sh is intentionally NOT done here -- many examples
+# need GPUs / HF model downloads / wasm-pack and would balloon CI time.
+
+on:
+  pull_request:
+    paths:
+      - "examples/**/*.sh"
+      - "examples/*.sh"
+      - ".github/workflows/examples-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bash syntax check (bash -n)
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            if ! bash -n "$f"; then
+              echo "::error file=$f::bash -n failed"
+              fail=1
+            fi
+          done < <(find examples -type f -name '*.sh')
+          exit $fail
+
+      - name: Shellcheck
+        # Pinned to v2.0.0 SHA: third-party action, don't track @master.
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38
+        with:
+          scandir: examples

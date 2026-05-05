@@ -1,0 +1,52 @@
+name: Doc build (PR check)
+
+# PR-time validation that mkdocs builds cleanly. The deploy step lives in
+# `doc.yml` and runs on push to main; this workflow only catches breakage
+# before merge so we don't ship a broken doc site.
+
+on:
+  pull_request:
+    paths:
+      - "**.md"
+      - "mkdocs.yml"
+      - "docs/**"
+      # The "10. Nemo ASR" tutorial is a symlink into examples/nemo_asr/, so
+      # an examples/ change can break a doc page.
+      - "examples/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # mike + git-revision-date plugins want history.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Build docs
+        # No --strict yet: api-autonav / griffe plugins emit pre-existing
+        # warnings about missing type annotations that we don't want to gate
+        # PRs on. The next step targets only the broken-link warnings.
+        run: uv run mkdocs build 2>&1 | tee mkdocs-build.log
+      - name: Fail on broken links
+        # mkdocs emits "WARNING -  Doc file '...' contains a link '...', but
+        # the target ... is not found" when an internal link / symlink dangles.
+        # Catches the symlink retarget bug PR #72 almost shipped.
+        run: |
+          if grep -E "WARNING -.*contains a link.*not found" mkdocs-build.log; then
+            echo "::error::mkdocs found broken internal links (see log above)"
+            exit 1
+          fi

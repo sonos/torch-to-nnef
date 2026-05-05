@@ -14,6 +14,13 @@ from typing import Union
 
 import evaluate
 
+try:
+    from rich.console import Console as RichConsole
+    from rich.table import Table as RichTable
+except ImportError:
+    RichConsole = None
+    RichTable = None
+
 from nemo_asr_tract.utils import clean_name
 
 
@@ -118,6 +125,7 @@ def write_manifest(
                 transcriptions,
                 audio_length,
                 transcription_time,
+                strict=False,
             )
         ):
             datum = {
@@ -134,13 +142,14 @@ def write_manifest(
 
 
 def _try_import_rich():
-    try:
-        from rich.console import Console
-        from rich.table import Table
+    """``(Console(), Table)`` when rich is installed, else ``(None, None)``.
 
-        return Console(), Table
-    except Exception:
+    rich is an optional dep -- imports happen at module top inside a
+    ``try/except ImportError``; this helper only instantiates the Console.
+    """
+    if RichConsole is None or RichTable is None:
         return None, None
+    return RichConsole(), RichTable
 
 
 def trim_model_id(model_id: str) -> str:
@@ -191,8 +200,8 @@ def display_composite_plain(
     print("*" * 80)
 
 
-def display_results_rich(results: dict, console, Table):
-    table = Table(title="Results per Dataset", show_lines=True)
+def display_results_rich(results: dict, console, table_cls):
+    table = table_cls(title="Results per Dataset", show_lines=True)
     table.add_column("Model", style="bold")
     table.add_column("Dataset")
     table.add_column("WER (%)", justify="right")
@@ -216,9 +225,9 @@ def display_composite_rich(
     composite_inference_time,
     count_entries,
     console,
-    Table,
+    table_cls,
 ):
-    table = Table(title="Composite Results", show_lines=True)
+    table = table_cls(title="Composite Results", show_lines=True)
     table.add_column("Model", style="bold")
     table.add_column("WER (%)", justify="right")
     table.add_column("RTFx", justify="right")
@@ -340,10 +349,10 @@ def score_results(directory: str, model_id: str = None):
             "rtfx": rtfx,
         }
 
-    console, Table = _try_import_rich()
+    console, table_cls = _try_import_rich()
 
     if console:
-        display_results_rich(results, console, Table)
+        display_results_rich(results, console, table_cls)
     else:
         display_results_plain(results)
 
@@ -361,7 +370,7 @@ def score_results(directory: str, model_id: str = None):
             composite_inference_time,
             count_entries,
             console,
-            Table,
+            table_cls,
         )
     else:
         display_composite_plain(

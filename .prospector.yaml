@@ -41,3 +41,24 @@ ignore-paths:
   # Docs output
   - docs/_build
   - site
+  # Vendored from huggingface/open_asr_leaderboard's normalizer (whisper-style
+  # text normalizer + abbreviations). Kept verbatim to allow upstream syncs;
+  # see ``examples/nemo_asr/src/nemo_asr_py/nemo_asr_tract/normalizer/__init__.py``
+  # for the upstream commit reference.
+  - examples/nemo_asr/src/nemo_asr_py/nemo_asr_tract/normalizer
+  # Per-example virtualenvs / rust target/ dirs / HF caches that exist locally
+  # after a contributor runs ``examples/<x>/run.sh``. CI never has these so it
+  # finishes in ~90 s; locally they balloon scan time to >30 min if scanned.
+  # ``ignore-paths`` matches as a path prefix (not a glob) so each nested copy
+  # has to be listed explicitly.
+  - examples/image_gen/.venv
+  - examples/vad/.venv
+  - examples/vad/py/.venv
+  - examples/vad/py/hf_cache
+  - examples/vad/hf_cache
+  - examples/vad/target
+  - examples/yolo/target
+  - examples/imageclass-wasm/target
+  - examples/llm_wasm/target
+  - examples/getting_started_rs/target
+  - examples/nemo_asr/target

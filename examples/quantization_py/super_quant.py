@@ -57,7 +57,7 @@ def fp_to_tract_q4_0_with_grid_mse_calibration(
     return qtensor
 
 
-def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
+def quantize_weights_grid_mse_q40(model: nn.Module, **kwargs):
     to_quantize_module_classes = kwargs.get(
         "to_quantize_module_classes", (nn.Linear,)
     )
@@ -132,7 +132,7 @@ def quantize_weights_grid_mse_Q40(model: nn.Module, **kwargs):
 
 EXAMPLE_REGISTRY = {
     "grid_mse_q4_0_all": partial(
-        quantize_weights_grid_mse_Q40,
+        quantize_weights_grid_mse_q40,
         grid_size=50,
         to_quantize_module_classes=(
             nn.Linear,

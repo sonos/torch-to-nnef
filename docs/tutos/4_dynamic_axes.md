@@ -362,4 +362,4 @@ As an example of what we just learned we propose a simple VAD running live in th
     This model is not trained by SONOS so prediction accuracy is responsibility of original [nemo](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speech_classification/models.html) authors. Inference performance is descent, but little to no effort was made to make tract WASM efficient (no SIMD WASM, no WebGPU kernels),
     this demo is for demonstration purpose.
 
-Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/docs/examples/vad) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_vad.html).
+Curious to read the code behind it ? Just look at our [example directory here](https://github.com/sonos/torch-to-nnef/tree/main/examples/vad) and this [raw page content](https://github.com/sonos/torch-to-nnef/tree/main/docs/html/demo_vad.html).
