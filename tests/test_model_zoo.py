@@ -517,6 +517,21 @@ try:
 except ImportError:
     print("missing diffusers to test Sana mini transformer")
 
+# Mini Pocket-TTS Mimi decoder: SEANet decoder stack from Kyutai's Pocket-TTS,
+# wrapped to bypass the streaming KV-cache buffers (see
+# examples/tts/pocket_tts/decoder.py for the adapter rationale). Exercises
+# Conv1d + ConvTranspose1d shape inference end-to-end against tract.
+try:
+    from tests._pocket_tts_zoo import MiniPocketTTSDecoder
+
+    test_suite.add(
+        (torch.randn(1, 64, 8),),
+        MiniPocketTTSDecoder(),
+        test_name="mini_pocket_tts_decoder",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS mini decoder")
+
 
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
