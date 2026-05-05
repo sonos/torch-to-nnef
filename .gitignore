@@ -118,10 +118,17 @@ site/
 .tract
 *.wav
 *.npz
-*.nnef.tgz
-*.nnef.tar
+*.tgz
+*.tar
+*.zip
 graph.nnef
 *.dat
 *.json
 !packages/nemo-asr/torch_to_nnef_nemo/slug_fingerprints.json
 *.out
+
+# scratch / local model dumps / bug-repro bundles
+tmp/
+dump_*/
+*.txt
+!**/requirements.txt
