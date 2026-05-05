@@ -62,13 +62,22 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
+    # ``torch.stack`` inserts a new axis; the valid range for ``dim`` is
+    # ``[-(N + 1), N]`` where ``N`` is the rank of each input. Negative
+    # dims must be resolved against the *output* rank (``N + 1``) — using
+    # the input list length (as :func:`pick_axis` does for ``FixedTensorList``)
+    # silently rewrites e.g. ``torch.stack([a, b], dim=-1)`` on rank-4
+    # inputs to ``axis = 1`` instead of ``4``, which breaks RoPE-style
+    # complex pairing patterns.
+    item_rank = input_node.data[0].rank
+    axis = dim if dim >= 0 else item_rank + 1 + dim
     add_single_output_op(
         g,
         node,
         name_to_tensor,
         "stack",
         inputs=inputs,
-        attrs={"axis": pick_axis(input_node, dim)},
+        attrs={"axis": axis},
         ensure_tuple=False,
     )
 
