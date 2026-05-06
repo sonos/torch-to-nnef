@@ -553,7 +553,7 @@ def _rerouted_parsing(
                     raise T2NErrorNotImplemented(o_type.kind())
 
                 dtype = str_to_torch_dtype(stype) if stype else None
-                dnode.name = o_node_c_value.debugName()
+                dnode.name = cleanup_data_name(o_node_c_value.debugName())
                 dnode.shape = shape
                 dnode.dtype = dtype
                 dnode.set_data(o_node_c_value.toIValue())

@@ -31,9 +31,12 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     rounding_mode = None
 
     if input_node.data is not None and divisor_node.data is not None:
-        node.outputs[0].set_data(
-            (input_node.data / divisor_node.data).to(node.outputs[0].dtype)
-        )
+        result = input_node.data / divisor_node.data
+        if not isinstance(result, torch.Tensor):
+            result = torch.tensor(result, dtype=node.outputs[0].dtype)
+        else:
+            result = result.to(node.outputs[0].dtype)
+        node.outputs[0].set_data(result)
         return []
 
     if remap_if_neutral_op(torch_graph, node, divisor_node, input_node):

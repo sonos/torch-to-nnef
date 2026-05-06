@@ -564,3 +564,85 @@ def strip_assertion_ifs(graph: "torch._C.Graph") -> int:
             # Iterators over a parent block may now be invalidated; restart.
             break
     return total
+
+
+def _eval_value_by_example(
+    graph: "torch._C.Graph",
+    value: "torch._C.Value",
+    example_inputs: T.Sequence[T.Any],
+) -> T.Any:
+    """Run the graph with the given example inputs, returning `value`.
+
+    Temporarily swaps the graph's outputs for `value`, executes via
+    `torch._C._jit_interpret_graph`, and restores the original outputs.
+    The mutation/restore happens under try/finally so the graph is left
+    in its original state even on interpreter failure.
+    """
+    orig_outputs = list(graph.outputs())
+    n_outs = len(orig_outputs)
+    for _ in range(n_outs):
+        graph.eraseOutput(0)
+    graph.registerOutput(value)
+    try:
+        return torch._C._jit_interpret_graph(graph, tuple(example_inputs))
+    finally:
+        graph.eraseOutput(0)
+        for o in orig_outputs:
+            graph.registerOutput(o)
+
+
+def fold_data_dependent_ifs(
+    graph: "torch._C.Graph",
+    example_inputs: T.Sequence[T.Any],
+) -> int:
+    """Fold `prim::If` nodes whose condition is data-dependent on the input.
+
+    PyTorch's JIT shape-analysis passes do not propagate shapes through
+    `prim::If` nodes that produce tensors, leaving runtime dim/shape
+    checks (e.g. `nn.LSTMCell`'s `if input.dim() == 1: ...`) unresolved
+    by `replace_size_calls_with_constants` + `fold_constant_ifs`. To
+    specialize the graph for the user's example inputs, we evaluate
+    each remaining `prim::If`'s condition by running the graph itself
+    with the example, observing the chosen branch, and inlining it.
+
+    Only top-level Ifs are folded each pass; nested Ifs surface to the
+    top once their parent is removed, so a fixed-point loop catches
+    them too.
+
+    Returns the number of Ifs folded.
+    """
+    top_block = graph.return_node().owningBlock()
+    total = 0
+    for _ in range(20):
+        candidates = [
+            n
+            for n in graph.nodes()
+            if n.kind() == "prim::If" and n.owningBlock() == top_block
+        ]
+        folded = 0
+        for if_node in candidates:
+            cond_v = next(if_node.inputs())
+            try:
+                cond_val = _eval_value_by_example(graph, cond_v, example_inputs)
+            except Exception:  # noqa: BLE001 -- interpreter may fail; skip
+                continue
+            if not isinstance(cond_val, bool):
+                continue
+            blocks = list(if_node.blocks())
+            if len(blocks) != 2:
+                continue
+            chosen = blocks[0 if cond_val else 1]
+            keep_outs = list(chosen.returnNode().inputs())
+            node_outs = list(if_node.outputs())
+            if len(keep_outs) != len(node_outs):
+                continue
+            for old, new in zip(node_outs, keep_outs, strict=True):
+                old.replaceAllUsesWith(new)
+            for n in list(chosen.nodes()):
+                n.moveBefore(if_node)
+            if_node.destroy()
+            folded += 1
+        if folded == 0:
+            break
+        total += folded
+    return total

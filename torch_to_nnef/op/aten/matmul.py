@@ -56,8 +56,11 @@ def _convolution_mode(
     padding = padding_node.data
     groups = groups_node.data
 
-    assert isinstance(padding, str), padding
-    if padding == "valid":
+    if isinstance(padding, (list, tuple)):
+        # `aten::conv1d/conv2d/conv3d` already carry an int-list padding,
+        # so no normalization is needed.
+        pass
+    elif padding == "valid":
         padding = [0] * len(stride)
     elif padding == "same":
         # ref: https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html

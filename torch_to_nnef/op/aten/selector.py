@@ -71,7 +71,16 @@ def slice_(
 
     has_concrete_values = True
     # we use this since by default pytorch generate max int64 value for end
-    if begin_node.data is not None:
+    begin_is_default_none = (
+        isinstance(begin_node, PythonConstant) and begin_node.data is None
+    )
+    end_is_default_none = (
+        isinstance(end_node, PythonConstant) and end_node.data is None
+    )
+    if begin_is_default_none:
+        # `t[None:n]` -> begin defaults to 0
+        begin = 0
+    elif begin_node.data is not None:
         if begin_node.data >= 0:
             begin = pick_index_in_axis(
                 input_node, dim, begin_node.data, check_is_positive=False
@@ -83,7 +92,10 @@ def slice_(
         has_concrete_values = False
         begin = nnef.Identifier(begin_node.export_name)
 
-    if end_node.data is not None:
+    if end_is_default_none:
+        # `t[:None]` -> end defaults to int64 max
+        end = np.iinfo(np.int64).max
+    elif end_node.data is not None:
         if end_node.data >= 0:
             end = pick_index_in_axis(
                 input_node, dim, end_node.data, check_is_positive=False
