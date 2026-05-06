@@ -609,16 +609,52 @@ def var(node, op_helper, **kwargs):
     else:
         raise T2NErrorNotImplemented(len(node.inputs))
     input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
-    axes = dnode.data or list(range(input_tensor.rank))
-    if cornode.data != 0:
+    raw_axes = dnode.data or list(range(input_tensor.rank))
+    axes = [a if a >= 0 else input_tensor.rank + a for a in raw_axes]
+    correction = cornode.data
+    if correction not in (0, 1):
         raise T2NErrorNotImplemented(
-            "only variance without correction translated"
+            f"variance correction={correction} not supported"
         )
-    op_helper.add_single_output_op_from_nnef_tensors(
+    if correction == 0:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "var",
+            inputs=input_tensor,
+            attrs={"axes": axes},
+        )
+        return ["var"]
+    # NNEF ``var`` is population variance (denominator N); PyTorch's default
+    # ``var(correction=1)`` is sample variance (denominator N - 1). Compute
+    # population variance, then rescale by N / (N - 1). Static axes only.
+    n = 1
+    for axis in axes:
+        dim = input_tensor.shape[axis]
+        if not isinstance(dim, int):
+            raise T2NErrorNotImplemented(
+                f"variance correction=1 needs static axes; got {dim}"
+            )
+        n *= dim
+    if n <= 1:
+        raise T2NErrorNotImplemented(
+            f"variance correction=1 ill-defined for N={n}"
+        )
+    pop_var = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "var",
         inputs=input_tensor,
         attrs={"axes": axes},
+        output_tensor_name_suffix="population",
+    )
+    scale_const = PythonConstant(
+        name=f"{node.outputs[0].name}_var_correction",
+        data=torch.tensor(float(n) / float(n - 1), dtype=torch.float32),
+    )
+    scale_tensor = op_helper.get_or_add_tensor_variable_in_nnef(scale_const)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[pop_var, scale_tensor],
     )
     return ["var"]
 
