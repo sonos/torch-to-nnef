@@ -343,6 +343,7 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     dilation = args[5]
     transposed = args[6] if len(args) > 6 else False
     output_padding = args[7] if len(args) > 7 else 0
+    groups = args[8] if len(args) > 8 else 1
 
     # Input shape: (N, Cin, *spatial). Weight shape:
     #   regular conv     -> (Cout, Cin/groups, *kernel)
@@ -368,8 +369,12 @@ def _infer_shape_convolution_output(*args) -> torch.Size:
     output_padding = _normalize(output_padding, spatial_rank)
 
     if transposed:
-        # PyTorch transposed conv: weight is (Cin, Cout/groups, *kernel).
-        cout = w_shape[1]
+        # PyTorch transposed conv: weight is (Cin, Cout/groups, *kernel),
+        # so the actual ``Cout`` is ``w_shape[1] * groups``. Plain
+        # ``w_shape[1]`` only matches when ``groups == 1`` -- for the
+        # depthwise upsample in Mimi (``groups == in_channels``) we'd
+        # otherwise infer ``Cout = 1`` and downstream LayerNorm chokes.
+        cout = w_shape[1] * groups
         out_spatial = []
         for i in range(spatial_rank):
             in_size = x_shape[2 + i]
@@ -427,8 +432,8 @@ INFER_RULES = {
     # ``aten::_convolution`` / ``aten::convolution`` carry ``transposed``
     # (arg 6) and ``output_padding`` (arg 7); pass them so the shape inference
     # picks the transposed-conv formula when needed.
-    ATEN_CONVOLUTION_BARE: InferRule(_infer_shape_convolution_output, 8),
-    ATEN_CONVOLUTION: InferRule(_infer_shape_convolution_output, 8),
+    ATEN_CONVOLUTION_BARE: InferRule(_infer_shape_convolution_output, 9),
+    ATEN_CONVOLUTION: InferRule(_infer_shape_convolution_output, 9),
     ATEN_CONV1D: InferRule(_infer_shape_convolution_output, 6),
     ATEN_CONV2D: InferRule(_infer_shape_convolution_output, 6),
     ATEN_CONV3D: InferRule(_infer_shape_convolution_output, 6),
