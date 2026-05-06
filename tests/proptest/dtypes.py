@@ -13,27 +13,8 @@ from dataclasses import dataclass
 
 import torch
 
+from torch_to_nnef.dtypes import dtype_is_floating_point
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
-
-# Float dtypes the proptest layer knows how to generate and compare.
-FLOAT_DTYPES: T.Tuple[torch.dtype, ...] = (
-    torch.float32,
-    torch.float16,
-    torch.bfloat16,
-    torch.float64,
-)
-
-# Integer/bool dtypes: always exact-compared regardless of tolerance level.
-EXACT_DTYPES: T.Tuple[torch.dtype, ...] = (
-    torch.int64,
-    torch.int32,
-    torch.int16,
-    torch.int8,
-    torch.uint8,
-    torch.bool,
-)
-
-ALL_DTYPES: T.Tuple[torch.dtype, ...] = FLOAT_DTYPES + EXACT_DTYPES
 
 
 @dataclass(frozen=True)
@@ -73,24 +54,14 @@ _FLOAT_TOL_TABLE: T.Dict[T.Tuple[torch.dtype, TractCheckTolerance], Tol] = {
 }
 
 
-def is_float_dtype(dtype: torch.dtype) -> bool:
-    return dtype in FLOAT_DTYPES
-
-
 def lookup_tol(dtype: torch.dtype, level: TractCheckTolerance) -> Tol:
     """Return the (rtol, atol) pair for a dtype at a given tolerance level.
 
-    Args:
-        dtype: a torch dtype that the proptest layer is aware of.
-        level: a TractCheckTolerance value.
-
-    Returns:
-        a Tol(rtol, atol) struct. Integer/bool dtypes always return Tol(0, 0)
-        regardless of level.
+    Integer/bool dtypes always return `Tol(0, 0)` regardless of level.
 
     Raises:
         KeyError: if the dtype is unknown to the proptest layer.
     """
-    if dtype in EXACT_DTYPES:
+    if not dtype_is_floating_point(dtype):
         return Tol(0.0, 0.0)
     return _FLOAT_TOL_TABLE[(dtype, level)]

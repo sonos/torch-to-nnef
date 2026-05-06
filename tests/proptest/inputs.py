@@ -21,6 +21,8 @@ import torch
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as npst
 
+from torch_to_nnef.dtypes import TORCH_TO_NUMPY_DTYPE
+
 DtypeArg = T.Union[torch.dtype, st.SearchStrategy[torch.dtype]]
 
 
@@ -35,21 +37,6 @@ class Interval:
 
     min: float
     max: float
-
-
-# Mapping from torch dtypes to numpy dtypes for hypothesis numpy extra.
-# torch.bfloat16 has no direct numpy dtype; we generate float32 and downcast.
-_TORCH_TO_NUMPY_DTYPE: T.Dict[torch.dtype, np.dtype] = {
-    torch.float32: np.dtype("float32"),
-    torch.float16: np.dtype("float16"),
-    torch.float64: np.dtype("float64"),
-    torch.int64: np.dtype("int64"),
-    torch.int32: np.dtype("int32"),
-    torch.int16: np.dtype("int16"),
-    torch.int8: np.dtype("int8"),
-    torch.uint8: np.dtype("uint8"),
-    torch.bool: np.dtype("bool_"),
-}
 
 
 def dtype_st(
@@ -146,7 +133,7 @@ def tensor_st(
         np_dtype = np.dtype("float32")
         cast_to_bf16 = True
     else:
-        np_dtype = _TORCH_TO_NUMPY_DTYPE[resolved]
+        np_dtype = np.dtype(TORCH_TO_NUMPY_DTYPE[resolved])
         cast_to_bf16 = False
 
     elements = _elements_strategy(

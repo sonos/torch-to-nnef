@@ -28,6 +28,10 @@ import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef.dtypes import (
+    NUMPY_TO_TORCH_DTYPE,
+    dtype_is_floating_point,
+)
 from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
@@ -37,7 +41,7 @@ from torch_to_nnef.inference_target.tract import (
 )
 from torch_to_nnef.log import log
 
-from .dtypes import is_float_dtype, lookup_tol
+from .dtypes import lookup_tol
 
 
 class ProptestComparatorError(AssertionError):
@@ -55,44 +59,6 @@ def _make_no_check_target(target: TractNNEF) -> TractNNEF:
     return twin
 
 
-def _build_tract_run_cmd(
-    target: TractNNEF,
-    nnef_path: Path,
-    inputs_npz: Path,
-    outputs_actual_npz: Path,
-) -> T.List[str]:
-    """Build the tract CLI invocation that dumps actual outputs to NPZ.
-
-    Mirrors the flag layout used by `TractCli.assert_io_cmd_str` but
-    substitutes `--save-outputs-npz` for `--assert-output-bundle`.
-    Both 0.21.15 and 0.22.1 expose `--save-outputs-npz`.
-    """
-    extra: T.List[str] = []
-    if target.version >= "0.20.20":
-        extra.append("--nnef-tract-extra")
-    if target.version >= "0.22.0":
-        extra.append("--nnef-tract-transformers")
-    cmd: T.List[str] = (
-        [
-            str(target.tract_cli.tract_path),
-            str(nnef_path),
-            "--nnef-tract-core",
-            "--nnef-tract-pulse",
-        ]
-        + extra
-        + [
-            "-O",
-            "run",
-            "--input-from-bundle",
-            str(inputs_npz),
-            "--save-outputs-npz",
-            str(outputs_actual_npz),
-            "--allow-float-casts",
-        ]
-    )
-    return cmd
-
-
 def _run_tract(cmd: T.List[str]) -> None:
     """Run tract and surface stderr if it fails."""
     proc = subprocess.run(cmd, capture_output=True, check=False)
@@ -106,22 +72,9 @@ def _run_tract(cmd: T.List[str]) -> None:
         )
 
 
-_NUMPY_TO_TORCH_DTYPE: T.Dict[np.dtype, torch.dtype] = {
-    np.dtype("float32"): torch.float32,
-    np.dtype("float16"): torch.float16,
-    np.dtype("float64"): torch.float64,
-    np.dtype("int64"): torch.int64,
-    np.dtype("int32"): torch.int32,
-    np.dtype("int16"): torch.int16,
-    np.dtype("int8"): torch.int8,
-    np.dtype("uint8"): torch.uint8,
-    np.dtype("bool_"): torch.bool,
-}
-
-
 def _torch_dtype_from_numpy(np_dtype: np.dtype) -> torch.dtype:
-    """Numpy -> torch dtype mapping for tolerance lookup."""
-    return _NUMPY_TO_TORCH_DTYPE[np.dtype(np_dtype)]
+    """Numpy -> torch dtype lookup for tolerance dispatch."""
+    return NUMPY_TO_TORCH_DTYPE[np.dtype(np_dtype).type]
 
 
 def _compare_npz(
@@ -157,7 +110,7 @@ def _compare_npz(
                 f"ref={ref.shape} vs tract={act.shape}"
             )
         npz_dtype = _torch_dtype_from_numpy(ref.dtype)
-        if not is_float_dtype(npz_dtype):
+        if not dtype_is_floating_point(npz_dtype):
             if not np.array_equal(ref, act):
                 raise ProptestComparatorError(
                     f"non-float output {name!r} differs (dtype={ref.dtype})\n"
@@ -167,7 +120,7 @@ def _compare_npz(
         # Pick the loosest tolerance among the NPZ dtype and any float
         # input dtypes (f16 -> 100x looser than f32).
         candidates = [npz_dtype] + [
-            d for d in input_dtypes if is_float_dtype(d)
+            d for d in input_dtypes if dtype_is_floating_point(d)
         ]
         candidate_tols = [lookup_tol(d, tolerance) for d in candidates]
         tol = max(candidate_tols, key=lambda t: max(t.rtol, t.atol))
@@ -238,7 +191,9 @@ def assert_outputs_close_nan_aware(
             allow_same_io_names=True,
         )
         _run_tract(
-            _build_tract_run_cmd(target, exported, inputs_npz, outputs_act_npz)
+            target.tract_cli.run_save_outputs_cmd_str(
+                exported, inputs_npz, outputs_act_npz
+            )
         )
         input_dtypes = tuple(
             t.dtype for t in inputs if isinstance(t, torch.Tensor)

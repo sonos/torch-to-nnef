@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 from ...wrapper import (
+    BinaryPrimitive,
     UnaryPrimitive,
 )
 from ..inputs import Interval, tensor_st
@@ -245,17 +246,6 @@ def _glu_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
-class _Einsum2Op(torch.nn.Module):
-    """Wrapper that calls `torch.einsum(expr, a, b)`."""
-
-    def __init__(self, expr: str):
-        super().__init__()
-        self.expr = expr
-
-    def forward(self, a, b):
-        return torch.einsum(self.expr, a, b)
-
-
 def _einsum_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.einsum(expr, a, b)`: a small set of canonical patterns.
 
@@ -296,7 +286,10 @@ def _einsum_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-3.0, 3.0),
             )
         )
-        return OpSample(inputs=(a, b), module=_Einsum2Op(expr))
+        return OpSample(
+            inputs=(a, b),
+            module=BinaryPrimitive(partial(torch.einsum, expr)),
+        )
 
     return _draw()
 

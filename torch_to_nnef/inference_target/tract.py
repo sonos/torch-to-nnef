@@ -503,20 +503,17 @@ class TractCli:
                 return subprocess.call(cmd_, **kwargs)
         return subprocess.call(cmd_, **kwargs)
 
-    def assert_io_cmd_str(
-        self,
-        nnef_path: Path,
-        input_bundle_path: Path,
-        output_bundle_path: Path,
-        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
-    ):
-        """Assert a NNEF asset has outputs within tolerance bound with tract."""
+    def _run_cmd_prefix(self, nnef_path: Path) -> T.List:
+        """Common prefix shared by `assert_io_cmd_str` and `run_io_cmd_str`.
+
+        Stops just before the ``run`` subcommand and the input/output flags.
+        """
         extra_param = []
         if self.version >= "0.20.20":
             extra_param.append("--nnef-tract-extra")
         if self.version >= "0.22.0":
             extra_param.append("--nnef-tract-transformers")
-        cmd_ = (
+        return (
             [
                 self.tract_path,
                 nnef_path,
@@ -527,6 +524,15 @@ class TractCli:
             + ["-O"]
         )
 
+    def assert_io_cmd_str(
+        self,
+        nnef_path: Path,
+        input_bundle_path: Path,
+        output_bundle_path: Path,
+        check_tolerance: TractCheckTolerance = TractCheckTolerance.EXACT,
+    ):
+        """Assert a NNEF asset has outputs within tolerance bound with tract."""
+        cmd_ = self._run_cmd_prefix(nnef_path)
         if self.version < "0.18.0":
             cmd_ += [
                 "--input-bundle",
@@ -547,6 +553,29 @@ class TractCli:
         cmd_ += ["--allow-float-casts"]
         if self.version >= "0.21.7":
             cmd_ += ["--approx", check_tolerance.value]
+        return [str(c) for c in cmd_]
+
+    def run_save_outputs_cmd_str(
+        self,
+        nnef_path: Path,
+        input_bundle_path: Path,
+        output_bundle_path: Path,
+    ) -> T.List[str]:
+        """Run a NNEF asset and save tract's outputs to an NPZ bundle.
+
+        Returns the command line as a list of strings, suitable for
+        `subprocess.run`. Used by the proptest comparator to do the
+        Python-side, NaN-aware comparison that tract's strict
+        `--assert-output-bundle` cannot express.
+        """
+        cmd_ = self._run_cmd_prefix(nnef_path) + [
+            "run",
+            "--input-from-bundle",
+            input_bundle_path,
+            "--save-outputs-npz",
+            output_bundle_path,
+            "--allow-float-casts",
+        ]
         return [str(c) for c in cmd_]
 
     def assert_io(
