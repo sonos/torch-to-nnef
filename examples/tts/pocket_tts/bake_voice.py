@@ -117,6 +117,42 @@ def bake_from_audio(
 # Default voice-prompt URL: Kyutai's "alba" voice from the public catalog.
 DEFAULT_VOICE_HF_URL = "alba"
 
+# Six bundled voices for the demo, chosen so all hit Pocket-TTS' 30 s
+# truncation cap and therefore share ``T_voice`` (126 frames at the
+# encoder's frame rate). That's required because ``flow_lm_init.nnef.tgz``
+# is exported at a single static ``T_VOICE`` -- multiple voices can share
+# the same graph only if their KV-prefix lengths agree.
+# 3 female / 3 male across 4 source datasets (alba-mackenna,
+# voice-donations, expresso, EARS, VCTK) for variety.
+BUNDLED_VOICES = ["alba", "marius", "cosette", "jean", "mary", "charles"]
+
+
+def bake_bundled(
+    out_dir: Path, voices: list[str], truncate: bool = True
+) -> None:
+    """Bake the bundled-demo voice catalogue, one ``.dat`` per voice.
+
+    Loads the Pocket-TTS checkpoint once and reuses it across voices so
+    the HF download cost is amortised. Asserts that all baked voices
+    share the same ``T_voice`` -- mismatched lengths would silently
+    break the static ``flow_lm_init`` trace shape.
+    """
+    model = TTSModel.load_model()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    t_voices: dict[str, int] = {}
+    for name in voices:
+        voice = harvest_voice_state(model, name, truncate=truncate)
+        t_voices[name] = voice.shape[3]
+        out_path = out_dir / f"{name}.dat"
+        write_nnef_tensor(voice.numpy(), str(out_path), quantized=False)
+        print(f"baked {name:<10s} -> {out_path} T_voice={voice.shape[3]}")
+    seen = set(t_voices.values())
+    if len(seen) > 1:
+        raise RuntimeError(
+            f"baked voices have inconsistent T_voice: {t_voices}; "
+            "the static ``flow_lm_init`` graph only handles one length"
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -124,7 +160,13 @@ def main() -> None:
         "--out",
         type=Path,
         default=Path("voices/alba.dat"),
-        help="Path to write the NNEF ``.dat`` tensor.",
+        help="Path to write the NNEF ``.dat`` tensor (single-voice modes).",
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("voices"),
+        help="Directory to write per-voice ``.dat`` files in ``--bundled`` mode.",
     )
     parser.add_argument(
         "--mini",
@@ -148,6 +190,14 @@ def main() -> None:
         "``--from-audio alba``.",
     )
     parser.add_argument(
+        "--bundled",
+        action="store_true",
+        help="Bake the demo voice catalogue (alba, marius, cosette, jean, "
+        "mary, charles) into ``--out-dir``, one ``.dat`` per voice. All "
+        "share ``T_voice`` so the same exported ``flow_lm_init`` graph "
+        "can switch between them at runtime.",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=0,
@@ -162,11 +212,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    truncate = not args.no_truncate
+    if args.bundled:
+        bake_bundled(args.out_dir, BUNDLED_VOICES, truncate=truncate)
+        return
     audio = args.from_audio
     if audio is None and args.full:
         audio = DEFAULT_VOICE_HF_URL
     if audio is not None:
-        bake_from_audio(audio, args.out, truncate=not args.no_truncate)
+        bake_from_audio(audio, args.out, truncate=truncate)
     else:
         bake_mini(args.out, seed=args.seed)
 

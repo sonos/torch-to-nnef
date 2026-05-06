@@ -37,17 +37,22 @@ MODE=full ./run.sh   # real Pocket-TTS, real audio
 ```
 
 Direct invocation (after the assets are exported in `cli/models/`,
-`cli/voices/alba.dat`, and `cli/tokenizer.model`):
+`cli/voices/`, and `cli/tokenizer.model`):
 
 ```bash
 ./target/release/pocket-tts-tract \
     --models models \
-    --voice voices/alba.dat \
+    --voice-name alba \
+    --voices-dir voices \
     --tokenizer tokenizer.model \
     --text "Hello, world." \
     --ldim 32 --max-frames 256 \
     --out hello.wav
 ```
+
+`--voice-name` picks a bundled voice (alba/marius/cosette/jean/mary/charles)
+and resolves to `<voices-dir>/<name>.dat`. Pass `--voice <path>` to use an
+arbitrary baked `.dat` instead.
 
 `--max-frames` is just a safety cap; the loop terminates on real EOS
 (default threshold `-4.0`, matching Pocket-TTS' own CLI). The

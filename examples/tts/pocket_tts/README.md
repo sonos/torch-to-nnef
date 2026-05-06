@@ -46,8 +46,9 @@ MODE=full ./run.sh   # real ~110M-param Pocket-TTS, real audio
 ```
 
 `MODE=full` triggers an HF download on first run (the gated Pocket-TTS
-checkpoint), exports the four graphs, builds the Rust CLI, and writes
-`cli/out.wav`. Sample output on a M-series CPU:
+checkpoint), exports the four NNEF graphs, bakes 6 bundled voices
+(see *Voices* below), builds the Rust CLI, and writes `cli/out.wav`.
+Sample output on a M-series CPU:
 
 ```
 EOS at frame 33 (logit -3.496 > -4)
@@ -91,6 +92,42 @@ This is still a **bulk** decode (full utterance in one call), not the
 chunked pulse-mode streaming Mimi was designed for; that's the next
 step.
 
+## Voices
+
+`MODE=full` bakes six voices into `cli/voices/<name>.dat`:
+
+| Name      | Source dataset      | Approx. character |
+| --------- | ------------------- | ----------------- |
+| `alba`    | alba-mackenna       | warm female       |
+| `cosette` | expresso emotional  | expressive female |
+| `mary`    | VCTK p333           | calm female       |
+| `marius`  | voice donations     | male              |
+| `jean`    | EARS p010 freeform  | male              |
+| `charles` | VCTK p254           | calm male         |
+
+All six hit Pocket-TTS' 30 s `truncate=True` cap and therefore share
+`T_voice = 126`, so the same exported `flow_lm_init` graph switches
+between them with no re-export. The Rust CLI selects via:
+
+```bash
+./cli/target/release/pocket-tts-tract \
+    --voice-name marius \
+    --voices-dir cli/voices \
+    --tokenizer cli/tokenizer.model \
+    --text "hello I am a text to speech voice" \
+    --ldim 32 --max-frames 256 --out marius.wav
+```
+
+Same prompt across the catalogue produces distinct audio (different
+speakers naturally hit EOS at different frame counts):
+
+```
+alba    -> 33 frames (2.64 s)
+cosette -> 24 frames (1.92 s)
+charles -> 25 frames (2.00 s)
+marius  -> 19 frames (1.52 s)
+```
+
 ## CLI flags
 
 The Rust binary lives in [`cli/`](cli/). Demo-relevant flags:
@@ -99,7 +136,9 @@ The Rust binary lives in [`cli/`](cli/). Demo-relevant flags:
 | --- | --- | --- |
 | `--text "..."` | -- | Requires `--tokenizer`. |
 | `--tokenizer tokenizer.model` | -- | SentencePiece model from `extract_tokenizer.py`. |
-| `--voice voices/alba.dat` | bundled mini | Output of `bake_voice.py`. |
+| `--voice voices/alba.dat` | bundled mini | Explicit path to a baked `.dat`. |
+| `--voice-name <name>` | -- | Pick a bundled voice (alba/marius/cosette/jean/mary/charles). |
+| `--voices-dir <dir>` | `voices` | Where `--voice-name` looks up `<name>.dat`. |
 | `--ldim` | 8 | 32 for the real checkpoint. |
 | `--max-frames` | 32 | Safety cap; loop terminates on EOS first. |
 | `--lsd-steps` | 1 | Pocket-TTS default. |

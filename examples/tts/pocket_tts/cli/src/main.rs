@@ -43,9 +43,20 @@ struct Args {
     /// the SEANet-only mini config).
     #[arg(long, default_value = "models")]
     models: PathBuf,
-    /// Voice prompt tensor (output of `bake_voice.py`).
+    /// Voice prompt tensor (output of `bake_voice.py`). Takes precedence
+    /// over ``--voice-name`` if both are passed.
     #[arg(long, default_value = "voices/alba.dat")]
     voice: PathBuf,
+    /// Pick a bundled voice by name; resolves to ``<voices-dir>/<name>.dat``.
+    /// Bundled voices: alba, marius, cosette, jean, mary, charles
+    /// (3F/3M; all share ``T_voice`` so the same ``flow_lm_init`` graph
+    /// works for any of them).
+    #[arg(long)]
+    voice_name: Option<String>,
+    /// Directory holding bundled voice ``.dat`` files (used only when
+    /// ``--voice-name`` is set).
+    #[arg(long, default_value = "voices")]
+    voices_dir: PathBuf,
     /// SentencePiece tokenizer model (the same one Pocket-TTS ships with
     /// each checkpoint). When omitted, ``--tokens`` is required instead.
     #[arg(long)]
@@ -354,8 +365,19 @@ fn main() -> Result<()> {
     println!("loading audio decoder from {}", audio_decode_path.display());
     let audio_decoder = load_graph(&nnef, &audio_decode_path, args.gpu)?;
 
-    println!("loading voice prompt from {}", args.voice.display());
-    let voice = load_voice(&args.voice)?;
+    // ``--voice`` (path) wins; ``--voice-name`` is a convenience that
+    // resolves to ``<voices-dir>/<name>.dat`` when ``--voice`` is left at
+    // its default.
+    let default_voice = PathBuf::from("voices/alba.dat");
+    let voice_path = if args.voice != default_voice {
+        args.voice.clone()
+    } else if let Some(name) = &args.voice_name {
+        args.voices_dir.join(format!("{name}.dat"))
+    } else {
+        args.voice.clone()
+    };
+    println!("loading voice prompt from {}", voice_path.display());
+    let voice = load_voice(&voice_path)?;
     let voice_shape = voice.shape().to_vec();
     let t_voice = voice_shape
         .get(3)

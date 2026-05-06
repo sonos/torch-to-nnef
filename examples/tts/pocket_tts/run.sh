@@ -58,9 +58,13 @@ TEXT="hello I am a text to speech voice"
 # length up front so flow_lm_init can be traced at those exact sizes (the
 # real model ships symbols tract can't easily relate, so we go static).
 if [ "$MODE" = full ]; then
-    echo "==> extracting tokenizer + measuring shapes"
+    echo "==> extracting tokenizer + baking bundled voices"
     python extract_tokenizer.py --out cli/tokenizer.model
-    python bake_voice.py --full --out cli/voices/alba.dat
+    # ``--bundled`` bakes alba, marius, cosette, jean, mary, charles into
+    # cli/voices/<name>.dat. All share ``T_voice`` (they all hit
+    # Pocket-TTS' 30 s truncate cap) so the same ``flow_lm_init`` graph
+    # works for any of them.
+    python bake_voice.py --bundled --out-dir cli/voices
     SHAPE_DATA="$(python -c '
 import sentencepiece as sp
 import nnef
