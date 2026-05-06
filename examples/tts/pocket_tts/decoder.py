@@ -90,6 +90,17 @@ class StatelessConvTranspose1d(nn.Module):
         self.convtr = streaming.convtr
         self.tail = streaming._kernel_size - streaming._stride
         self.stride = streaming._stride
+        # ``T_out = T_in * stride`` only holds when the underlying
+        # ``nn.ConvTranspose1d`` has no extra output_padding and unit
+        # dilation; pin the invariant so a future Mimi config that breaks
+        # it gets caught at construction rather than producing silently
+        # wrong audio under dynamic ``T_LATENT`` export.
+        assert self.convtr.output_padding == (0,), (
+            f"unexpected output_padding {self.convtr.output_padding}"
+        )
+        assert self.convtr.dilation == (1,), (
+            f"unexpected dilation {self.convtr.dilation}"
+        )
 
     def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         y = self.convtr(x)

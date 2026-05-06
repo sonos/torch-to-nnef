@@ -29,10 +29,9 @@ import copy
 from pathlib import Path
 
 import torch
-from pocket_tts import TTSModel
 import torch.nn.functional as F
+from pocket_tts import TTSModel
 from pocket_tts.models.mimi import MimiModel
-from pocket_tts.modules.mimi_transformer import StreamingTransformerLayer
 from pocket_tts.modules.stateful_module import StatefulModule
 from pocket_tts.modules.transformer import StreamingMultiheadAttention
 from torch import nn
@@ -52,11 +51,15 @@ class BulkSelfAttention(nn.Module):
     Reuses the trained ``in_proj`` / ``out_proj`` / RoPE settings of the
     streaming module but evaluates attention over the full sequence
     without touching the streaming KV cache. Causal mask + RoPE positions
-    are derived from ``q.shape[1]`` directly. This is what
-    ``StreamingMultiheadAttention.forward(x, model_state=None)`` does
-    semantically; we re-implement it inline to dodge a beartype check on
-    ``rope_offset(batch_size: int)`` that fails under tracing because
-    ``b = projected.shape[0]`` is a SymInt-like tensor.
+    are derived from ``q.shape[1]`` directly -- which becomes a tract
+    symbol when the parent graph declares ``T_LATENT`` dynamic.
+
+    Forward accepts ``*_args`` so it's a drop-in replacement for
+    ``StreamingMultiheadAttention.forward(x, model_state)``: the layer's
+    ``_sa_block`` keeps doing the residual add unchanged. Inlining the
+    attention math here also dodges a beartype check on
+    ``rope_offset(batch_size: int)`` upstream which fails under tracing
+    because ``b = projected.shape[0]`` is a SymInt-like tensor.
     """
 
     def __init__(self, attn: StreamingMultiheadAttention):
@@ -65,6 +68,9 @@ class BulkSelfAttention(nn.Module):
         self.out_proj = attn.out_proj
         self.num_heads = attn.num_heads
         self.head_dim = attn.dim_per_head
+        # Per-layer attention ``context`` — decoder_transformer layers ship
+        # with sliding-window attention; we keep whatever value the loaded
+        # checkpoint configured.
         self.context = attn.context
         self.register_buffer(
             "rope_freqs",
@@ -72,14 +78,13 @@ class BulkSelfAttention(nn.Module):
             persistent=False,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         b, t, _ = x.shape
         qkv = self.in_proj(x).view(b, t, 3, self.num_heads, self.head_dim)
         q, k, v = torch.unbind(qkv, dim=2)
         positions = torch.arange(t, device=x.device, dtype=torch.long)
         q, k = apply_rope_at_positions(q, k, positions, self.rope_freqs)
-        # Causal mask with optional sliding-window cap (decoder_transformer
-        # ships with ``context=250``).
+        # Causal mask with optional sliding-window cap.
         delta = positions.view(-1, 1) - positions.view(1, -1)
         keep = delta >= 0
         if self.context is not None:
@@ -102,21 +107,6 @@ class BulkSelfAttention(nn.Module):
         return self.out_proj(out)
 
 
-def _patch_attention_to_bulk(layer: StreamingTransformerLayer) -> None:
-    layer.self_attn = BulkSelfAttention(layer.self_attn)
-    # ``StreamingTransformerLayer._sa_block`` calls
-    # ``self.self_attn(x, model_state)`` -- our bulk attn ignores any extra
-    # args via the Module's keyword/positional flexibility, but to keep
-    # signatures clean we monkey-patch ``_sa_block`` to a single-arg call.
-    orig_sa_block = layer._sa_block
-
-    def _bulk_sa_block(self, x, _model_state):  # noqa: ARG001
-        return self.layer_scale_1(self.self_attn(self.norm1(x)))
-
-    layer._sa_block = _bulk_sa_block.__get__(layer, type(layer))
-    _ = orig_sa_block  # silence linter
-
-
 class MimiDecodePath(nn.Module):
     """Latent-to-waveform bulk decode through Mimi, fully stateless.
 
@@ -131,6 +121,9 @@ class MimiDecodePath(nn.Module):
 
     def __init__(self, mimi: MimiModel, emb_std: torch.Tensor, emb_mean: torch.Tensor):
         super().__init__()
+        # ``emb_std`` / ``emb_mean`` are FlowLM's per-ldim training-EMA
+        # statistics. We bake their value at export time as buffers; if a
+        # checkpoint update changes them, re-export.
         # Everything we touch needs a deepcopy because we patch streaming
         # convs in place; the loaded TTSModel may still be used by other
         # callers (e.g. zoo tests in the same process).
@@ -141,8 +134,13 @@ class MimiDecodePath(nn.Module):
         replace_streaming_with_stateless(mimi.upsample)
         replace_streaming_with_stateless(mimi.decoder_transformer)
         replace_streaming_with_stateless(mimi.decoder)
+        # Swap streaming attention for the bulk variant. The layer's
+        # ``_sa_block`` keeps running unchanged: it calls
+        # ``self.self_attn(x, model_state)`` and adds the residual; our
+        # ``BulkSelfAttention.forward(x, *_args, **_kwargs)`` absorbs the
+        # ignored ``model_state`` arg.
         for layer in mimi.decoder_transformer.transformer.layers:
-            _patch_attention_to_bulk(layer)
+            layer.self_attn = BulkSelfAttention(layer.self_attn)
         self.quantizer = mimi.quantizer
         self.upsample = mimi.upsample
         self.decoder_transformer = mimi.decoder_transformer
@@ -151,7 +149,12 @@ class MimiDecodePath(nn.Module):
         self.register_buffer("emb_mean", emb_mean.detach().clone())
 
     def forward(self, latent: torch.Tensor) -> torch.Tensor:
-        # latent: (B, ldim, T) -- the Rust CLI dumps this layout.
+        # latent: ``(B, ldim, T)``. Production hands FlowLM's per-step
+        # ``(B, ldim)`` outputs stacked into ``(B, T, ldim)`` and then
+        # ``transpose(-1, -2)`` before the quantizer (see
+        # ``tts_model.py:_decode_latents_worker``); the Rust CLI builds
+        # the stack channel-first so the input here is already
+        # post-transpose.
         emb_std = self.emb_std.view(1, -1, 1)
         emb_mean = self.emb_mean.view(1, -1, 1)
         x = latent * emb_std + emb_mean
@@ -163,20 +166,10 @@ class MimiDecodePath(nn.Module):
         return self.decoder(x, None)  # (B, channels, T_audio)
 
 
-def build_mini_path() -> MimiDecodePath:
-    """Tiny decode chain mirroring the production structure.
-
-    Real Mimi: ``dimension=512, ratios=[6,5,4]`` plus a 32-dim quantizer
-    output_proj and a 6.3M-param decoder_transformer. Skipping the
-    decoder_transformer + upsample makes the mini path significantly
-    smaller; we cover them in ``--full``. The mini config keeps the
-    quantizer 1x1 conv + SEANet decoder and degenerate upsample so the
-    CLI pipeline can still smoke-test end to end.
-    """
-    raise NotImplementedError(
-        "mini mode for the full mimi decode is intentionally unsupported -- "
-        "use ``decoder.py --mini`` (SEANet only) for the mini smoke path."
-    )
+_MINI_NOT_SUPPORTED = (
+    "mini mode for the full mimi decode is intentionally unsupported; "
+    "use ``decoder.py --mini`` (SEANet only) for the mini smoke path."
+)
 
 
 def main() -> None:
@@ -215,7 +208,8 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.mini:
-        build_mini_path()  # raises NotImplementedError with guidance.
+        print(_MINI_NOT_SUPPORTED)
+        raise SystemExit(2)
 
     print("loading real Pocket-TTS for Mimi audio decode")
     tts = TTSModel.load_model()
@@ -234,7 +228,7 @@ def main() -> None:
         out = model(latent)
     print(f"PyTorch output shape: {tuple(out.shape)}")
 
-    tract_version = args.tract_version or "0.23.0-dev.5"
+    tract_version = args.tract_version or TractNNEF.latest_version()
     # Declare ``T_LATENT`` dynamic so the same graph runs at any latent
     # frame count -- the autoregressive loop can stop on EOS instead of
     # being padded to the trace shape. T at the input is symbolic;

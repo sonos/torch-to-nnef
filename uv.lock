@@ -1685,6 +1685,19 @@ wheels = [
 ]
 
 [[package]]
+name = "hypothesis"
+version = "6.152.4"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
+    { name = "sortedcontainers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/c7/3147bd903d6b18324a016d43a259cf5b4bb4545e1ead6773dc8a0374e70a/hypothesis-6.152.4.tar.gz", hash = "sha256:31c8f9ce619716f543e2710b489b1633c833586641d9e6c94cee03f109a5afc4", size = 466444, upload-time = "2026-04-27T20:18:37.594Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/89/0f50dd0d92e8a7dffc24f69ab910ff81db89b2f082ba42682bd57695e4d2/hypothesis-6.152.4-py3-none-any.whl", hash = "sha256:e730fd93c7578182efadc7f90b3c5437ee4d55edf738930eb5043c81ac1d97e8", size = 532145, upload-time = "2026-04-27T20:18:35.043Z" },
+]
+
+[[package]]
 name = "identify"
 version = "2.6.9"
 source = { registry = "https://pypi.org/simple/" }
@@ -5773,6 +5786,7 @@ dev = [
 ]
 test = [
     { name = "coverage", extra = ["toml"] },
+    { name = "hypothesis" },
     { name = "mypy" },
     { name = "prospector" },
     { name = "pytest" },
@@ -5818,6 +5832,7 @@ dev = [
 ]
 test = [
     { name = "coverage", extras = ["toml"] },
+    { name = "hypothesis", specifier = ">=6.100,<7" },
     { name = "mypy", specifier = "~=1.13" },
     { name = "prospector" },
     { name = "pytest", specifier = ">=8.3.3,<9" },

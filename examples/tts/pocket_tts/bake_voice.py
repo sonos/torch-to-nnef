@@ -91,19 +91,25 @@ def bake_mini(out_path: Path, seed: int = 0) -> torch.Tensor:
 
 
 def bake_from_audio(
-    audio_conditioning: Path | str, out_path: Path
+    audio_conditioning: Path | str,
+    out_path: Path,
+    truncate: bool = True,
 ) -> torch.Tensor:
     """Production path: real Pocket-TTS checkpoint + audio prompt -> voice.dat.
 
     ``TTSModel.load_model`` triggers a gated HF download on first call.
     Accepts either a local path or a ``hf://`` URL the way Pocket-TTS does.
+    ``truncate`` matches Pocket-TTS' own default: the voice prompt is
+    capped at 30 s of audio so a long input doesn't blow up the trace
+    shape (``T_voice``) the ``flow_lm_init`` graph is exported at.
     """
     model = TTSModel.load_model()
-    voice = harvest_voice_state(model, audio_conditioning)
+    voice = harvest_voice_state(model, audio_conditioning, truncate=truncate)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_nnef_tensor(voice.numpy(), str(out_path), quantized=False)
     print(
-        f"baked {audio_conditioning} -> {out_path} shape={tuple(voice.shape)}"
+        f"baked {audio_conditioning} -> {out_path} shape={tuple(voice.shape)} "
+        f"(truncate={truncate})"
     )
     return voice
 
@@ -147,13 +153,20 @@ def main() -> None:
         default=0,
         help="Seed for ``--mini`` mode (so the bundled asset is reproducible).",
     )
+    parser.add_argument(
+        "--no-truncate",
+        action="store_true",
+        help="Disable Pocket-TTS' default 30 s voice-prompt truncation. "
+        "Long inputs increase ``T_voice`` and grow the ``flow_lm_init`` "
+        "trace shape proportionally.",
+    )
     args = parser.parse_args()
 
     audio = args.from_audio
     if audio is None and args.full:
         audio = DEFAULT_VOICE_HF_URL
     if audio is not None:
-        bake_from_audio(audio, args.out)
+        bake_from_audio(audio, args.out, truncate=not args.no_truncate)
     else:
         bake_mini(args.out, seed=args.seed)
 
