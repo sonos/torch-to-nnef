@@ -10,6 +10,11 @@ import torch
 from torch import nn
 
 from torch_to_nnef.torch_graph.ir_data import TensorVariable
+from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_BOOL,
+    ATEN_DIV,
+    ATEN_LEN,
+)
 
 
 def _walk(g):
@@ -30,7 +35,7 @@ def test_float_scalar_output_parses():
     div_outputs = [
         out
         for n in _walk(m.graph)
-        if n.kind() == "aten::div"
+        if n.kind() == ATEN_DIV
         for out in n.outputs()
         if out.type().annotation_str == "float"
     ]
@@ -51,7 +56,7 @@ def test_bool_scalar_output_parses():
     bool_outputs = [
         out
         for n in _walk(m.graph)
-        if n.kind() == "aten::Bool"
+        if n.kind() == ATEN_BOOL
         for out in n.outputs()
         if out.type().annotation_str == "bool"
     ]
@@ -73,7 +78,7 @@ def test_int_scalar_output_still_parses():
     len_outputs = [
         out
         for n in _walk(m.graph)
-        if n.kind() == "aten::len"
+        if n.kind() == ATEN_LEN
         for out in n.outputs()
         if out.type().annotation_str == "int"
     ]
