@@ -56,33 +56,43 @@ def softplus(**kwargs):
 
 
 @OP_REGISTRY.register()
-def elu(**kwargs):
+def elu(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:elu' to NNEF.
 
-    NNEF/tract's ``elu`` op treats ``alpha`` as an attribute, but the
-    current emitter passes it as a graph-level tensor input via
-    ``unary_input_output_op_with_constant``. tract silently ignores the
-    tensor and uses its default ``alpha=1``, producing wrong outputs for
-    any non-default alpha. Until that is fixed end-to-end (either by
-    routing alpha through an attribute or by decomposing
-    ``elu(x, alpha) = where(x >= 0, x, alpha * (exp(x) - 1))``), we
-    raise NotImplementedError to fail loudly rather than silently
-    miscompute. Same pattern as ``softplus`` above for ``beta != 1``.
+    PyTorch's ``aten::elu(self, alpha=1, scale=1, input_scale=1)`` takes
+    three scalar parameters. NNEF's standard ``elu`` fragment is
+    hard-coded to ``alpha=1``, so we emit a custom ``elu`` fragment (see
+    ``torch_to_nnef/op/fragment/elu.nnef``) that exposes ``alpha`` as an
+    attribute. ``scale`` and ``input_scale`` are not part of the NNEF op
+    surface; the emitter raises on non-default values for those (rare in
+    practice -- the common form is ``F.elu(x, alpha=k)``).
     """
-    # avoid unpack/pack {
-    node = kwargs["node"]
-    # }
-    alpha_node = node.inputs[1]
-    if isinstance(alpha_node, PythonConstant):
-        alpha_value = alpha_node.data
-        if alpha_value is not None and float(alpha_value) != 1.0:
+    input_node = node.inputs[0]
+    alpha_node = node.inputs[1] if len(node.inputs) >= 2 else None
+    extra_scalar_nodes = node.inputs[2:4]
+    for extra in extra_scalar_nodes:
+        if (
+            isinstance(extra, PythonConstant)
+            and extra.data is not None
+            and float(extra.data) != 1.0
+        ):
             raise T2NErrorNotImplemented(
-                "elu with alpha != 1.0 is not supported yet "
-                f"(got alpha={alpha_value!r}); see this emitter's "
-                "docstring for the fix scope."
+                f"elu with non-default scale/input_scale (got {extra.data!r})"
             )
-    node.inputs = node.inputs[:2]  # remove inplace param
-    return unary_input_output_op_with_constant("elu", **kwargs)
+    alpha = 1.0
+    if isinstance(alpha_node, PythonConstant) and alpha_node.data is not None:
+        alpha = float(alpha_node.data)
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        nnef_op_type="elu",
+        inputs=[
+            get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+        ],
+        attrs={"alpha": alpha},
+    )
+    return ["elu"]
 
 
 @OP_REGISTRY.register()

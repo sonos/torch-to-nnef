@@ -284,28 +284,10 @@ def _activation_specs() -> T.List[OpSpec]:
                 dtypes_hint=(torch.float32,),
             ),
             OpSpec(
-                # t2n's elu emitter at
-                # ``torch_to_nnef/op/aten/activation.py`` passes
-                # ``alpha`` as a tensor input via
-                # ``unary_input_output_op_with_constant``, but tract's
-                # NNEF ``elu`` op treats ``alpha`` as an attribute and
-                # silently uses the default 1.0 when alpha is delivered
-                # as an input. Repro: ``elu(-1.0, alpha=0.5)`` returns
-                # ``-0.632`` (= ``1*(exp(-1)-1)``, i.e. alpha=1) instead
-                # of ``-0.316`` (= ``0.5*(exp(-1)-1)``).
-                # Same root pattern as the add/sub alpha bug fixed
-                # earlier; needs a dedicated elu emitter that either
-                # emits the attribute or decomposes alpha into a multiply.
-                name="elu-alpha-xfail",
+                name="elu-alpha",
                 sample_st=_elu_kwarg_sample(),
                 tolerance=VERY,
                 dtypes_hint=(torch.float32,),
-                xfail_reason=(
-                    "t2n elu emitter drops the alpha kwarg "
-                    "(tract uses default 1.0 regardless). Same root "
-                    "pattern as the add/sub alpha bug, see "
-                    "_elu_kwarg_sample in this file for repro."
-                ),
             ),
             OpSpec(
                 name="hardtanh-broad",

@@ -1,0 +1,10 @@
+# PyTorch elu: y = max(0, x) + min(0, alpha * (exp(x) - 1))
+# Shadows NNEF's standard ``elu`` fragment, which is hard-coded to
+# alpha=1, so we route the PyTorch ``alpha`` parameter through here.
+fragment elu(
+  x: tensor<scalar>,
+  alpha: scalar = 1.0 )
+-> ( y: tensor<scalar> )
+{
+    y = select(x < 0.0, alpha * (exp(x) - 1.0), x);
+}
