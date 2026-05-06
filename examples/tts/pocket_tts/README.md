@@ -4,8 +4,13 @@ Target repo: [`kyutai-labs/pocket-tts`](https://github.com/kyutai-labs/pocket-tt
 
 End-to-end Pocket-TTS through tract: a single Rust binary takes text + a
 voice prompt and writes a 24 kHz WAV. No Python in the inference path.
-Runs at RTFx ≈2.5× on CPU and ≈3.3× on Metal GPU for the canonical
-"hello I am a text to speech voice" prompt.
+
+Faster than realtime: RTFx ≈2.5× CPU / ≈3.3× Metal GPU on an Apple M4
+Pro for the canonical "hello I am a text to speech voice" prompt.
+
+For reference, Kyutai's own PyTorch streaming reference clocks ≈6× on a
+base M4 CPU (their published number) and ≈10× on the same M4 Pro we
+measured. The gap is mostly structural — see *Status* below.
 
 Pocket-TTS architecture: a `FlowLM` autoregressive transformer (text +
 voice prompt → continuous audio latents) followed by a `Mimi` neural
@@ -16,10 +21,18 @@ NNEF graphs and threads them together in Rust.
 
 Working end-to-end demo. Known follow-ups (none blocking):
 
+- **Bulk-mode Mimi decode**, not the chunked pulse-mode streaming Mimi
+  was designed for. Kyutai's reference overlaps Mimi decode with the
+  FlowLM autoregressive loop (concurrent), so total wall time ≈
+  max(loop, decode); ours is sum(loop, decode). Pulse-mode through
+  tract is the path to closing the RTFx gap.
+- **No quantization**. Pocket-TTS supports torchao 8-bit upstream; our
+  exports are float32 throughout.
+- **`past_kv.clone()` per step** in the autoregressive loop: ~8.6 MB
+  redundant alloc per step at full dims. Could be amortised by a
+  ring-buffer or by exposing the cache as a runtime-managed tensor.
 - `flow_lm_init` traces at static `(T_TEXT, T_VOICE)` — different text
   length needs a re-export. Tract symbol relations would lift this.
-- Bulk-mode Mimi decode (full utterance in one call), not the chunked
-  pulse-mode streaming Mimi was designed for.
 - Three small wrappers around `pocket_tts` (`BulkSelfAttention`,
   `replace_streaming_with_stateless`, a SentencePiece stub for the mini
   conditioner) that should land upstream as `bulk_decode=True` /
