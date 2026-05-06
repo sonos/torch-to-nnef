@@ -20,6 +20,7 @@ from torch_to_nnef.op.custom_extractors.base import (
 # load default custom registries
 from torch_to_nnef.op.custom_extractors.rnn import (
     GRUExtractor,
+    LSTMCellExtractor,
     LSTMExtractor,
     RNNExtractor,
 )
@@ -29,5 +30,6 @@ __all__ = [
     "ModuleInfoExtractor",
     "RNNExtractor",
     "LSTMExtractor",
+    "LSTMCellExtractor",
     "GRUExtractor",
 ]
