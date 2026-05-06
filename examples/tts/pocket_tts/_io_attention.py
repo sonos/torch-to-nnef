@@ -28,26 +28,31 @@ from pocket_tts.modules.transformer import StreamingMultiheadAttention
 from torch import nn
 
 
-def apply_rope_with_offset(
+def make_rope_freqs(head_dim: int, max_period: float) -> torch.Tensor:
+    """Precomputed frequency band, same as ``pocket_tts.modules.rope``."""
+    ds = torch.arange(head_dim // 2, dtype=torch.float32)
+    return torch.exp(ds * (-math.log(max_period) * 2 / head_dim))
+
+
+def apply_rope_at_positions(
     q: torch.Tensor,
     k: torch.Tensor,
-    offset: torch.Tensor,
-    max_period: float,
+    positions: torch.Tensor,
+    freqs: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """RoPE for an arbitrary ``offset`` scalar tensor.
+    """RoPE rotation using absolute ``positions`` supplied by the caller.
 
-    Mirrors ``pocket_tts.modules.rope.apply_rope`` but takes ``offset`` as a
-    scalar int64 tensor (so tract sees it as a graph input rather than a
-    constant baked at trace time). Q and K are expected as ``(B, T, H, D)``.
+    Mirrors ``pocket_tts.modules.rope.apply_rope`` semantically but takes:
+    - ``positions`` -- ``(T,) int64`` absolute time indices for each query and
+      key step (the Rust runtime computes
+      ``[offset, offset+1, ..., offset+T-1]`` and feeds it as a graph input);
+    - ``freqs`` -- the precomputed ``(D//2,)`` frequency band (a module buffer),
+
+    which keeps every shape-dependent ``arange`` out of the forward pass.
     """
     _, t, h, d = q.shape
     _, _, hk, _ = k.shape
-    ds = torch.arange(d // 2, device=q.device, dtype=torch.float32)
-    freqs = torch.exp(ds * (-math.log(max_period) * 2 / d))
-    ts = torch.arange(t, device=q.device, dtype=torch.float32) + offset.to(
-        torch.float32
-    )
-    ts = ts.view(-1, 1, 1)
+    ts = positions.to(torch.float32).view(-1, 1, 1)
     q_pairs = q.view(-1, t, h, d // 2, 2)
     k_pairs = k.view(-1, t, hk, d // 2, 2)
     qr = q_pairs[..., 0].float()
@@ -67,7 +72,14 @@ def apply_rope_with_offset(
 
 
 class IOSelfAttention(nn.Module):
-    """Causal self-attention with past K/V as explicit IO and updated K/V out."""
+    """Causal self-attention with past K/V as explicit IO and updated K/V out.
+
+    Position indices for RoPE and the causal mask are caller-supplied
+    (``q_positions`` for the new tokens, ``k_positions`` for the full K/V
+    slice including past) so the graph contains no shape-dependent
+    ``arange`` -- tract's ``Range`` op chokes on TDim/F32 mixing in a
+    static export.
+    """
 
     def __init__(self, attn: StreamingMultiheadAttention):
         super().__init__()
@@ -76,41 +88,48 @@ class IOSelfAttention(nn.Module):
         self.num_heads = attn.num_heads
         self.head_dim = attn.dim_per_head
         self.context = attn.context
-        self.max_period = attn.rope.max_period
+        self.register_buffer(
+            "rope_freqs",
+            make_rope_freqs(self.head_dim, attn.rope.max_period),
+            persistent=False,
+        )
 
     def forward(
         self,
         x: torch.Tensor,
         past_k: torch.Tensor,
         past_v: torch.Tensor,
-        offset: torch.Tensor,
+        q_positions: torch.Tensor,
+        k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # x: (B, S_new, D); past_k/past_v: (B, T_past, H, Dh); offset: () int64.
         b, s_new, _ = x.shape
         qkv = self.in_proj(x).view(
             b, s_new, 3, self.num_heads, self.head_dim
         )
         q, k_new, v_new = torch.unbind(qkv, dim=2)
-        q, k_new = apply_rope_with_offset(q, k_new, offset, self.max_period)
+        q, k_new = apply_rope_at_positions(
+            q, k_new, q_positions, self.rope_freqs
+        )
         k_all = torch.cat([past_k, k_new], dim=1)
         v_all = torch.cat([past_v, v_new], dim=1)
-        # Build the same causal mask the streaming forward uses, but as a
-        # function of the explicit offset. q_pos[i] = offset + i,
-        # k_pos[j] = j, mask[i, j] = (q_pos[i] >= k_pos[j]) and
-        # (q_pos[i] - k_pos[j] < context) when context is set.
-        t_total = k_all.shape[1]
-        q_pos = torch.arange(s_new, device=x.device) + offset
-        k_pos = torch.arange(t_total, device=x.device)
-        delta = q_pos.view(-1, 1) - k_pos.view(1, -1)
-        mask = delta >= 0
+        # Causal mask: q_pos[i] >= k_pos[j], plus a sliding-window cap of
+        # ``context`` when present. Tract's SDPA op treats ``attn_mask`` as an
+        # additive float bias on the scores, so we materialise the mask as
+        # ``0.0`` (keep) / ``-inf`` (drop) instead of bool to match.
+        delta = q_positions.view(-1, 1) - k_positions.view(1, -1)
+        keep = delta >= 0
         if self.context is not None:
-            mask = mask & (delta < self.context)
-        # SDPA wants (B, H, S, D)
+            keep = keep & (delta < self.context)
+        attn_mask = torch.where(
+            keep,
+            torch.zeros((), dtype=q.dtype, device=q.device),
+            torch.full((), float("-inf"), dtype=q.dtype, device=q.device),
+        )
         attn_out = F.scaled_dot_product_attention(
             q.transpose(1, 2),
             k_all.transpose(1, 2),
             v_all.transpose(1, 2),
-            attn_mask=mask[None, None],
+            attn_mask=attn_mask[None, None],
             dropout_p=0.0,
         )
         attn_out = attn_out.transpose(1, 2).reshape(
@@ -137,11 +156,12 @@ class IOTransformerLayer(nn.Module):
         x: torch.Tensor,
         past_k: torch.Tensor,
         past_v: torch.Tensor,
-        offset: torch.Tensor,
+        q_positions: torch.Tensor,
+        k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Self-attention residual.
         attn_out, new_k, new_v = self.self_attn(
-            self.norm1(x), past_k, past_v, offset
+            self.norm1(x), past_k, past_v, q_positions, k_positions
         )
         x = x + self.layer_scale_1(attn_out)
         # FF residual.
@@ -164,14 +184,17 @@ class IOTransformer(nn.Module):
         self,
         x: torch.Tensor,
         past_kv: torch.Tensor,
-        offset: torch.Tensor,
+        q_positions: torch.Tensor,
+        k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # past_kv: (n_layers, 2, B, T_past, H, Dh). Returns (out, new_kv).
         new_layers: list[torch.Tensor] = []
         for i, layer in enumerate(self.layers):
             past_k_l = past_kv[i, 0]
             past_v_l = past_kv[i, 1]
-            x, new_k, new_v = layer(x, past_k_l, past_v_l, offset)
+            x, new_k, new_v = layer(
+                x, past_k_l, past_v_l, q_positions, k_positions
+            )
             new_layers.append(torch.stack([new_k, new_v], dim=0))
         new_kv = torch.stack(new_layers, dim=0)
         return x, new_kv

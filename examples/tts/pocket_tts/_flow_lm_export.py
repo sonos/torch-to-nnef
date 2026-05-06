@@ -42,17 +42,23 @@ class FlowLMInit(nn.Module):
         self,
         token_ids: torch.Tensor,
         past_kv: torch.Tensor,
-        offset: torch.Tensor,
+        q_positions: torch.Tensor,
+        k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # token_ids: (B, T_text) int64.
-        # past_kv: (n_layers, 2, B, T_past, H, D) float32 (= voice prefix).
-        # offset: () int64 = T_past.
+        # token_ids:   (B, T_text) int64
+        # past_kv:     (n_layers, 2, B, T_past, H, D) float32 (= voice prefix)
+        # q_positions: (T_text + 1,) int64 = caller-supplied absolute positions
+        #              for the joint [text..., BOS] query stream
+        # k_positions: (T_past + T_text + 1,) int64 = positions for the full
+        #              K cache after this step (used for the causal mask)
         text_emb = self.embed(token_ids)  # (B, T_text, dim)
         b = text_emb.shape[0]
         bos = self.bos_emb.view(1, 1, -1).expand(b, 1, -1)  # (B, 1, ldim)
         bos_proj = self.input_linear(bos)  # (B, 1, dim)
         seq_in = torch.cat([text_emb, bos_proj], dim=1)
-        out, new_kv = self.io_transformer(seq_in, past_kv, offset)
+        out, new_kv = self.io_transformer(
+            seq_in, past_kv, q_positions, k_positions
+        )
         out = self.out_norm(out)
         # Hidden state at the BOS audio position (last in the joint sequence).
         out_last = out[:, -1, :]
@@ -74,14 +80,18 @@ class FlowLMStep(nn.Module):
         self,
         audio_latent: torch.Tensor,
         past_kv: torch.Tensor,
-        offset: torch.Tensor,
+        q_positions: torch.Tensor,
+        k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # audio_latent: (B, ldim) -- the latent sampled at the previous step.
-        # past_kv: (n_layers, 2, B, T_past, H, D).
-        # offset: () int64 = T_past.
+        # audio_latent: (B, ldim)
+        # past_kv:      (n_layers, 2, B, T_past, H, D)
+        # q_positions:  (1,) int64    -- absolute position of this audio step
+        # k_positions:  (T_past + 1,) -- positions for the full K cache
         x = audio_latent.unsqueeze(1)  # (B, 1, ldim)
         x = self.input_linear(x)  # (B, 1, dim)
-        out, new_kv = self.io_transformer(x, past_kv, offset)
+        out, new_kv = self.io_transformer(
+            x, past_kv, q_positions, k_positions
+        )
         out = self.out_norm(out)
         out_last = out[:, -1, :]
         eos_logit = self.out_eos(out_last)
