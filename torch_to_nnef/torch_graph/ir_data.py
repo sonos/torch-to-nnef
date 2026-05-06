@@ -30,8 +30,10 @@ from torch_to_nnef.exceptions import (
 )
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_SCALARIMPLICIT,
+    BOOLTYPE_KIND,
     CONSTANT_KIND,
     DICTTYPE_KIND,
+    FLOATTYPE_KIND,
     INTTYPE_KIND,
     NUMBERTYPE_KIND,
     TUPLETYPE_KIND,
@@ -279,11 +281,24 @@ class TensorVariable(Data):
             )
         return data.to(self.dtype)
 
+    SCALAR_TYPE_KIND_TO_DTYPE = {
+        INTTYPE_KIND: torch.int64,
+        FLOATTYPE_KIND: torch.float32,
+        BOOLTYPE_KIND: torch.bool,
+    }
+
     @classmethod
     def parse(cls, node_c_value: torch._C.Value) -> "TensorVariable":
         node_type = node_c_value.type()
-        if node_type.kind() == INTTYPE_KIND:
-            dtype = torch.int64
+        scalar_dtype = cls.SCALAR_TYPE_KIND_TO_DTYPE.get(node_type.kind())
+        if scalar_dtype is not None:
+            # Python-typed scalar SSA value (int, float, bool). Inlined or
+            # constfolded JIT graphs surface these for ops like `aten::Int`,
+            # `aten::Bool`, `aten::div(int,int) -> float` that survived
+            # specialization. Represent as a 1-element tensor of the right
+            # dtype, mirroring how INT scalars were already handled.
+            dtype = scalar_dtype
+            shape = [1]
         else:
             if node_type.kind() == NUMBERTYPE_KIND:
                 parent_node = node_c_value.node()
@@ -293,11 +308,10 @@ class TensorVariable(Data):
                     raise T2NErrorNotImplemented()
             stype = node_type.scalarType()
             dtype = str_to_torch_dtype(stype) if stype else None
+            shape = node_type.sizes()
         return cls(
             name=node_c_value.debugName(),
-            shape=[1]
-            if node_type.kind() == INTTYPE_KIND
-            else node_type.sizes(),
+            shape=shape,
             dtype=dtype,
             data=node_c_value.toIValue(),
             quant=None,

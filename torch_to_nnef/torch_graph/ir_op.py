@@ -87,6 +87,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     NUMTOTENSOR_KIND,
     TUPLETYPE_KIND,
     WIRED_CUSTOM_LSTM,
+    WIRED_CUSTOM_LSTM_CELL,
 )
 from torch_to_nnef.utils import ReactiveNamedItemDict
 
@@ -612,6 +613,13 @@ class TorchOp:
     def realise_output_type_and_size(self, approx: bool = True) -> bool:
         """Trace output and try to find type shape and constant realisation."""
         if self.kind == CALL_KIND:
+            return False
+        # nn.LSTMCell carries an `(input, hx)` Python signature where `hx` is
+        # a tuple. The IR flattens that to `(input, h, c)` (and reorders
+        # them positionally), so calling `op_ref(*self.args)` to infer
+        # shapes raises a TypeError. The LSTMCellExtractor sets shapes on
+        # its outputs explicitly so this fallback is unnecessary anyway.
+        if self.kind == WIRED_CUSTOM_LSTM_CELL:
             return False
 
         if not all(_.tracable for _ in self.inputs):

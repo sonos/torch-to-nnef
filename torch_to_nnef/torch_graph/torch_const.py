@@ -59,6 +59,8 @@ TUPLETYPE_KIND = "TupleType"
 LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
 INTTYPE_KIND = "IntType"
+FLOATTYPE_KIND = "FloatType"
+BOOLTYPE_KIND = "BoolType"
 NUMBERTYPE_KIND = "NumberType"  # This type represents a Python number
 DICTTYPE_KIND = "DictType"
 # Subtype hierarchy for Number Types (NumberType as the base type):
@@ -71,6 +73,7 @@ MODULE_PATH_QUANTIZED = "TORCH_INTERNAL_QUANTIZED"
 SPECIAL_ATEN_REMAP_PYTORCH = {"__and__": "bitwise_and", "__or__": "bitwise_or"}
 
 WIRED_CUSTOM_LSTM = "wired_custom::LSTM"
+WIRED_CUSTOM_LSTM_CELL = "wired_custom::LSTMCell"
 
 MAP_TO_NOP = [
     NUMTOTENSOR_KIND,
