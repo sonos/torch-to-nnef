@@ -1,6 +1,7 @@
 import math
 
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
@@ -251,8 +252,8 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
         for r, _ in enumerate(normalized_shape_node.data)
     )
     # has_affine is only true when both weight and bias are real tensors and
-    # at least one is non-identity (not all-1 / all-0). ``LayerNorm(...,
-    # elementwise_affine=False)`` leaves both at None -- the affine path would
+    # at least one is non-identity (not all-1 / all-0). `LayerNorm(...,
+    # elementwise_affine=False)` leaves both at None: the affine path would
     # then crash trying to materialize None as an NNEF tensor.
     weight_defined = weight_node.data is not None
     bias_defined = bias_node.data is not None
@@ -290,11 +291,11 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
 def prefer_native_tract_rms_norm(inference_target, mean_axes) -> bool:
     """Return True when we should emit tract's native rms_norm primitive.
 
-    Native ``tract_transformers_rms_norm`` is registered through tract's
+    Native `tract_transformers_rms_norm` is registered through tract's
     transformers extension, which t2n only auto-enables (via the
-    ``--nnef-tract-transformers`` CLI flag) for tract >= 0.22.0. The native
-    op also takes a single integer ``axis``, so multi-axis
-    ``normalized_shape`` keeps the fragment fallback.
+    `--nnef-tract-transformers` CLI flag) for tract >= 0.22.0. The native
+    op also takes a single integer `axis`, so multi-axis
+    `normalized_shape` keeps the fragment fallback.
     """
     return (
         isinstance(inference_target, TractNNEF)
@@ -307,14 +308,14 @@ def prefer_native_tract_rms_norm(inference_target, mean_axes) -> bool:
 def rms_norm(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
     """Map PyTorch: 'aten:rms_norm' to NNEF.
 
-    Signature from ``torch.nn.functional.rms_norm``:
-        ``rms_norm(input, normalized_shape, weight, eps)``
+    Signature from `torch.nn.functional.rms_norm`:
+        `rms_norm(input, normalized_shape, weight, eps)`
 
     On tract >= 0.22.0 with a single normalized dim, emit the native
-    ``tract_transformers_rms_norm`` op (gives tract access to its optimized
-    GPU kernels and rewrite rules) and chain a ``mul`` for elementwise affine.
-    Multi-axis ``normalized_shape`` and non-tract targets fall back to the
-    custom ``rms_norm{,_with_affine}`` fragments.
+    `tract_transformers_rms_norm` op (gives tract access to its optimized
+    GPU kernels and rewrite rules) and chain a `mul` for elementwise affine.
+    Multi-axis `normalized_shape` and non-tract targets fall back to the
+    custom `rms_norm{,_with_affine}` fragments.
     """
     (
         input_tensor_node,
@@ -381,8 +382,19 @@ def rms_norm(g, node, name_to_tensor, inference_target, null_ref, **kwargs):
 def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
     """Translate operators `aten::group_norm` to NNEF.
 
-    It is a special case of NNEF batch_normalization.
-    with variance and mean being tensor
+    Decomposed flow:
+
+    1. Reshape `input` from `(B, C, *spatial)` to `(B, C, S)` where
+       `S = prod(spatial)`: the t2n emitter knows the spatial shape
+       statically and does the flatten here.
+    2. Call the `group_norm` fragment, which works entirely in 3D
+       `(B, num_groups, C/num_groups * S)` then projects back to
+       `(B, C, S)`. The fragment does NOT apply scale/offset.
+    3. Reshape the 3D result back to `(B, C, *spatial)`.
+    4. Multiply by `scale` and add `offset`: both pre-unsqueezed to
+       trailing-1 shape so NNEF's left-aligned broadcast extends them
+       cleanly to the full input rank (this is the same pattern other
+       norms use).
     """
     (
         input_node,
@@ -396,6 +408,12 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         raise T2NErrorNotImplemented(
             "use tract_core_cast in 'group_norm' fragment"
         )
+
+    # Pre-unsqueeze scale/offset so NNEF broadcast extends them across
+    # the full input rank. After the loop they have shape
+    # `(num_channels, 1, 1, ...)` matching `input_node.rank - 1`
+    # trailing 1s; NNEF's left-aligned `maybe_align_inputs_ranks` then
+    # prepends a single 1 to match the full input rank.
     for nd in [offset_node, scale_node]:
         for _ in range(input_node.rank - nd.rank - 1):
             if isinstance(nd.data, QTensorTract):
@@ -440,25 +458,91 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         )
         custom_fragments.append("tract_core")
 
-    # x.reshape(3, 1* 2* 2).mean_or_std(dim=1).repeat(2, 1).t().reshape(6)
+    batch_size = input_node.shape[0]
+    num_channels = input_node.shape[1]
+    flat_spatial = 1
+    for d in input_node.shape[2:]:
+        flat_spatial *= int(d)
+    flat_3d_shape = (batch_size, num_channels, flat_spatial)
+    final_shape = tuple(int(d) for d in input_node.shape)
+    np_dtype = offset_node.np_dtype if upcast_f32 else input_node.np_dtype
+
+    base = node.outputs[0].export_name
+
+    # Reshape input to 3D `(B, C, S)`.
+    input_3d_name = f"{base}_gn_input_3d"
+    input_3d_tensor = NTensor(
+        g, input_3d_name, dtype=np_dtype, shape=flat_3d_shape
+    )
+    name_to_tensor[input_3d_name] = input_3d_tensor
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="reshape",
+        name=f"{input_3d_name}_op",
+        inputs=(inp_ref,),
+        outputs=(input_3d_tensor,),
+        attribs={"shape": list(flat_3d_shape)},
+    )
+
+    # Call the simplified group_norm fragment in 3D.
     custom_fragments.append("group_norm")
+    gn_3d_name = f"{base}_gn_norm_3d"
+    gn_3d_tensor = NTensor(g, gn_3d_name, dtype=np_dtype, shape=flat_3d_shape)
+    name_to_tensor[gn_3d_name] = gn_3d_tensor
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="group_norm",
+        name=f"{gn_3d_name}_op",
+        inputs=(input_3d_tensor,),
+        outputs=(gn_3d_tensor,),
+        attribs={
+            "epsilon": eps_node.data,
+            "num_groups": n_groups_node.data,
+            "batch_size": batch_size,
+            "num_channels": num_channels,
+        },
+    )
+
+    # Reshape back to original `(B, C, *spatial)` shape.
+    reshaped_name = f"{base}_gn_reshape_back"
+    reshaped_tensor = NTensor(
+        g, reshaped_name, dtype=np_dtype, shape=final_shape
+    )
+    name_to_tensor[reshaped_name] = reshaped_tensor
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="reshape",
+        name=f"{reshaped_name}_op",
+        inputs=(gn_3d_tensor,),
+        outputs=(reshaped_tensor,),
+        attribs={"shape": list(final_shape)},
+    )
+
+    # Apply scale.
+    scaled_name = f"{base}_gn_scaled"
+    scaled_tensor = NTensor(g, scaled_name, dtype=np_dtype, shape=final_shape)
+    name_to_tensor[scaled_name] = scaled_tensor
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="mul",
+        name=f"{scaled_name}_op",
+        inputs=(reshaped_tensor, scale_ref),
+        outputs=(scaled_tensor,),
+        attribs={},
+    )
+
+    # Apply offset; `add_single_output_op` wires the last op to
+    # `node.outputs[0]` (the model's output).
     out_ref = add_single_output_op(
         g=g,
         name_to_tensor=name_to_tensor,
         node=node,
-        nnef_op_type="group_norm",
-        # name=f"{node.outputs[0].export_name}_op",
-        inputs=(
-            inp_ref,
-            offset_ref,
-            scale_ref,
-        ),
-        attrs={
-            "epsilon": eps_node.data,
-            "num_groups": n_groups_node.data,
-            "batch_size": input_node.shape[0],
-            "num_channels": input_node.shape[1],
-        },
+        nnef_op_type="add",
+        inputs=(scaled_tensor, offset_ref),
         output_tensor_name_suffix="_f32" if upcast_f32 else "",
     )
     if upcast_f32:

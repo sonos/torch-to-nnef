@@ -184,4 +184,9 @@ def dtype_is_whole_number(dtype) -> bool:
 def dtype_is_floating_point(dtype) -> bool:
     if "numpy" in str(dtype):
         dtype = NUMPY_TO_TORCH_DTYPE[dtype]
-    return dtype in [torch.float16, torch.float32, torch.float64]
+    return dtype in [
+        torch.float16,
+        torch.float32,
+        torch.float64,
+        torch.bfloat16,
+    ]

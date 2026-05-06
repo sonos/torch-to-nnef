@@ -2,12 +2,15 @@ import logging
 
 import pytest
 
+from tests.proptest.conftest_helpers import register_profiles
+
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "experimental: mark test as experimental to run"
     )
     logging.getLogger("torch_to_nnef").setLevel(logging.WARNING)
+    register_profiles()
 
 
 def pytest_addoption(parser):

@@ -228,7 +228,10 @@ def _x_like(
     dtype = input_node.dtype
     if len(_) > 0:
         dtype_node = _[0]
-        if dtype_node.data:
+        # `dtype_node.data` is the integer scalar-type code; 0 maps to
+        # `torch.uint8` and is FALSY in Python. `if X.data:` would
+        # silently drop `dtype=torch.uint8` requests. Use is-None.
+        if dtype_node.data is not None:
             dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
 
     shape_node = input_node.shape
@@ -358,7 +361,9 @@ def new_zeros(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         _,  # requires_grad_node
     ) = node.inputs
 
-    if dtype_node.data:
+    # See note above: 0 maps to `torch.uint8` and is falsy in Python;
+    # use is-None to avoid silently dropping uint8 dtype requests.
+    if dtype_node.data is not None:
         dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
     else:
         dtype = input_node.dtype

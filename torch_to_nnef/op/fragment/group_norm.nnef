@@ -1,42 +1,32 @@
 extension tract_registry tract_core;
 
+# Group norm without scale/offset; the t2n emitter applies those
+# afterwards using the standard per-channel unsqueeze + broadcast path
+# that already handles arbitrary input rank correctly.
+#
+# Input is expected as 3-D `(batch, num_channels, S)` where `S` is
+# the product of spatial dims; the emitter at
+# `torch_to_nnef/op/aten/norm.py:group_norm` is responsible for the
+# reshape-into-3D before the call and the reshape-back-to-original
+# afterwards.
 fragment group_norm(
-    input: tensor<scalar>, # input shape is [Batch, Channels, *]
-    offset: tensor<scalar>,
-    scale: tensor<scalar>,
+    input: tensor<scalar>,
     num_groups: integer,
     num_channels: integer,
     batch_size: integer,
     epsilon: scalar )
 -> ( output: tensor<scalar> )
 {
-
-    tile_rep = tract_core_cast(div(num_channels, num_groups), to="i32");
     per_group_input = reshape(input, shape=[batch_size, num_groups, -1]);
     mean = sum_reduce(per_group_input, axes=[2], normalize=true);
     inv_stdvar = rsqrt(sum_reduce(sqr(per_group_input - mean), axes=[2], normalize=true) + epsilon);
 
-    # this complicated bit allow to compute normalization per groups
-    rmean = reshape(
-        transpose(
-            tile(
-                mean,
-                repeats=[tile_rep, 1, 1]
-            ),
-            axes=[1, 0, 2]
-        ),
-        shape=[batch_size, num_channels]
-    );
+    # Per-group mean and inv_stdvar have shape `(batch, num_groups, 1)`
+    # which broadcasts naturally over the trailing flattened axis: no
+    # tile/transpose dance needed.
+    normalized_per_group = (per_group_input - mean) * inv_stdvar;
 
-    rinv_stdvar = reshape(
-        transpose(
-            tile(
-                inv_stdvar,
-                repeats=[tile_rep, 1, 1]
-            ),
-            axes=[1, 0, 2]
-        ),
-        shape=[batch_size, num_channels]
-    );
-    output = (input - rmean) * rinv_stdvar * scale + offset;
+    # Project back to per-channel layout for the affine apply outside
+    # this fragment.
+    output = reshape(normalized_per_group, shape=[batch_size, num_channels, -1]);
 }

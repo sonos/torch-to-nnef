@@ -1,0 +1,9 @@
+# PyTorch hardsigmoid:
+#   y = 0          if x <= -3
+#   y = 1          if x >= 3
+#   y = x/6 + 1/2  otherwise
+# Equivalent closed form: y = clamp((x + 3) / 6, 0, 1)
+fragment hardsigmoid( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = max(min((x + 3.0) / 6.0, 1.0), 0.0);
+}

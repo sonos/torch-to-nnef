@@ -1,3 +1,5 @@
+import typing as T
+
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target.tract import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -62,12 +64,12 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
-    # ``torch.stack`` inserts a new axis; the valid range for ``dim`` is
-    # ``[-(N + 1), N]`` where ``N`` is the rank of each input. Negative
-    # dims must be resolved against the *output* rank (``N + 1``) — using
-    # the input list length (as :func:`pick_axis` does for ``FixedTensorList``)
-    # silently rewrites e.g. ``torch.stack([a, b], dim=-1)`` on rank-4
-    # inputs to ``axis = 1`` instead of ``4``, which breaks RoPE-style
+    # `torch.stack` inserts a new axis; the valid range for `dim` is
+    # `[-(N + 1), N]` where `N` is the rank of each input. Negative
+    # dims must be resolved against the *output* rank (`N + 1`): using
+    # the input list length (as :func:`pick_axis` does for `FixedTensorList`)
+    # silently rewrites e.g. `torch.stack([a, b], dim=-1)` on rank-4
+    # inputs to `axis = 1` instead of `4`, which breaks RoPE-style
     # complex pairing patterns.
     item_rank = input_node.data[0].rank
     axis = dim if dim >= 0 else item_rank + 1 + dim
@@ -143,12 +145,49 @@ def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
 
 
 @OP_REGISTRY.register()
-def roll(g, node, name_to_tensor, inference_target, **kwargs):
-    """Map PyTorch: 'aten:roll' to NNEF."""
+def roll(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
+    """Map PyTorch: 'aten:roll' to NNEF.
+
+    PyTorch normalizes shifts modulo the dim size; tract does not, and
+    the slice/concat decomposition we emit produces an empty slice for
+    `shift=0` or `|shift|>=dim_size`, which tract misorders into a
+    doubled-shape output. We reproduce PyTorch's normalization here:
+
+    - Drop any (shift, dim) pair where the normalized shift is 0 (no-op).
+    - Replace each remaining shift with `shift % dim_size` so the
+      slice indices stay in `(0, dim_size)`.
+
+    If every pair normalizes away, the entire op is a graph identity.
+    we remap the output node to the input.
+    """
     input_node, shifts_node, dims_node = node.inputs
-    shifts = shifts_node.data
-    dims = dims_node.data
+    shifts = list(shifts_node.data)
+    dims = list(dims_node.data)
     assert len(shifts) == len(dims), "shifts and dims need to be sample size"
+
+    # Normalize shifts via modulo dim_size; drop no-op pairs.
+    normalized_shifts: T.List[int] = []
+    normalized_dims: T.List[int] = []
+    for s, d in zip(shifts, dims, strict=True):
+        dim_size = input_node.shape[d]
+        if dim_size <= 0:
+            continue
+        s_mod = s % dim_size
+        if s_mod == 0:
+            continue
+        normalized_shifts.append(s_mod)
+        normalized_dims.append(d)
+
+    if not normalized_shifts:
+        # Whole op is a no-op: alias the output to the input.
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
+        return []
+
+    shifts = normalized_shifts
+    dims = normalized_dims
+    shifts_node.set_data(shifts)
+    dims_node.set_data(dims)
+
     input_tensor = get_or_add_tensor_variable_in_nnef(
         g, input_node, name_to_tensor
     )
