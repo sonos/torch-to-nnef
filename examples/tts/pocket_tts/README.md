@@ -4,11 +4,26 @@ Target repo: [`kyutai-labs/pocket-tts`](https://github.com/kyutai-labs/pocket-tt
 
 End-to-end Pocket-TTS through tract: a single Rust binary takes text + a
 voice prompt and writes a 24 kHz WAV. No Python in the inference path.
+Runs at RTFx ≈2.5× on CPU and ≈3.3× on Metal GPU for the canonical
+"hello I am a text to speech voice" prompt.
 
 Pocket-TTS architecture: a `FlowLM` autoregressive transformer (text +
 voice prompt → continuous audio latents) followed by a `Mimi` neural
-codec decoder (latents → 24 kHz waveform). The PR exports four NNEF
-graphs and threads them together in Rust.
+codec decoder (latents → 24 kHz waveform). This example exports four
+NNEF graphs and threads them together in Rust.
+
+## Status
+
+Working end-to-end demo. Known follow-ups (none blocking):
+
+- `flow_lm_init` traces at static `(T_TEXT, T_VOICE)` — different text
+  length needs a re-export. Tract symbol relations would lift this.
+- Bulk-mode Mimi decode (full utterance in one call), not the chunked
+  pulse-mode streaming Mimi was designed for.
+- Three small wrappers around `pocket_tts` (`BulkSelfAttention`,
+  `replace_streaming_with_stateless`, a SentencePiece stub for the mini
+  conditioner) that should land upstream as `bulk_decode=True` /
+  `tokenizer=None` kwargs.
 
 ## Quick start
 
