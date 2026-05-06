@@ -12,6 +12,10 @@ Flow:
   2. Dump reference inputs + outputs via ``build_io`` (PyTorch side).
   3. Run tract with ``run --save-outputs-npz`` to capture the runtime outputs.
   4. Load both NPZs and compare per output, with dtype-aware tolerance.
+
+Tract is the only supported target: the Khronos reference interpreter has
+an embryonic op coverage that does not span the breadth of the proptest
+spec catalog.
 """
 
 import subprocess
@@ -24,6 +28,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from torch_to_nnef.exceptions import T2NErrorInvalidArgument
 from torch_to_nnef.export import export_model_to_nnef
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.inference_target.tract import (
@@ -92,13 +97,12 @@ def _run_tract(cmd: T.List[str]) -> None:
     """Run tract and surface stderr if it fails."""
     proc = subprocess.run(cmd, capture_output=True, check=False)
     if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf8", errors="replace")
+        cmd_str = " ".join(cmd)
         raise ProptestComparatorError(
-            "tract CLI failed (rc=%d)\ncmd: %s\nstderr:\n%s"
-            % (
-                proc.returncode,
-                " ".join(cmd),
-                proc.stderr.decode("utf8", errors="replace"),
-            )
+            f"tract CLI failed (rc={proc.returncode})\n"
+            f"cmd: {cmd_str}\n"
+            f"stderr:\n{stderr}"
         )
 
 
@@ -138,24 +142,24 @@ def _compare_npz(
     act_bundle = np.load(actual_npz)
     missing = set(output_names) - set(act_bundle.files)
     if missing:
+        got = sorted(act_bundle.files)
         raise ProptestComparatorError(
-            "tract output NPZ is missing keys: %s (got %s)"
-            % (sorted(missing), sorted(act_bundle.files))
+            f"tract output NPZ is missing keys: {sorted(missing)} (got {got})"
         )
     for name in output_names:
         ref = ref_bundle[name]
         act = act_bundle[name]
         if ref.shape != act.shape:
             raise ProptestComparatorError(
-                "shape mismatch on output %r: ref=%s vs tract=%s"
-                % (name, ref.shape, act.shape)
+                f"shape mismatch on output {name!r}: "
+                f"ref={ref.shape} vs tract={act.shape}"
             )
         npz_dtype = _torch_dtype_from_numpy(ref.dtype)
         if not is_float_dtype(npz_dtype):
             if not np.array_equal(ref, act):
                 raise ProptestComparatorError(
-                    "non-float output %r differs (dtype=%s)\nref=%s\ntract=%s"
-                    % (name, ref.dtype, ref, act)
+                    f"non-float output {name!r} differs (dtype={ref.dtype})\n"
+                    f"ref={ref}\ntract={act}"
                 )
             continue
         # Pick the loosest tolerance among the NPZ dtype and any float
@@ -171,8 +175,9 @@ def _compare_npz(
             )
         except AssertionError as exc:
             raise ProptestComparatorError(
-                "output %r diverges (dtype=%s, rtol=%g, atol=%g)\n%s"
-                % (name, ref.dtype, tol.rtol, tol.atol, exc)
+                f"output {name!r} diverges "
+                f"(dtype={ref.dtype}, rtol={tol.rtol:g}, atol={tol.atol:g})\n"
+                f"{exc}"
             ) from exc
 
 
@@ -193,14 +198,16 @@ def assert_outputs_close_nan_aware(
             (rtol, atol) per dtype via :mod:`tests.proptest.dtypes`.
 
     Raises:
+        T2NErrorInvalidArgument: when ``inference_target`` is not a
+            ``TractNNEF`` instance (the only supported target).
         ProptestComparatorError: on any divergence (shape mismatch, missing
             output, non-float bit-exact mismatch, or float values outside
             tolerance).
     """
     if not isinstance(inference_target, TractNNEF):
-        raise NotImplementedError(
-            "Proptest comparator only supports TractNNEF for now; "
-            "Khronos uses torch.allclose(equal_nan=True) directly."
+        raise T2NErrorInvalidArgument(
+            "proptest comparator is tract-only; got "
+            f"{type(inference_target).__name__}"
         )
     target = _make_no_check_target(inference_target)
     model = model.eval()

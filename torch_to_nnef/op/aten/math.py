@@ -341,79 +341,35 @@ def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
     return ["remainder"]
 
 
-def _add_or_sub_with_alpha(
-    nnef_op_name: str,
-    node,
-    op_helper,
-    **_,
-):
-    """Shared body for ``aten:add`` and ``aten:sub`` (both honor ``alpha``).
+def _resolve_operand(op_helper, c_node):
+    """Materialize an ``aten:add`` / ``aten:sub`` operand as an NNEF tensor."""
+    if isinstance(c_node, PythonConstant):
+        c_node = c_node.into_tensor_variable()
+    return op_helper.get_or_add_tensor_variable_in_nnef(c_node)
 
-    PyTorch's signatures are::
 
-        add(input, other, *, alpha=1) -> input + alpha * other
-        sub(input, other, *, alpha=1) -> input - alpha * other
+def _alpha_is_default(alpha_node) -> bool:
+    """Return True when alpha is absent or equals 1.0 (the PyTorch default)."""
+    if alpha_node is None:
+        return True
+    if not isinstance(alpha_node, PythonConstant):
+        return False
+    return alpha_node.data is not None and float(alpha_node.data) == 1.0
 
-    For the default ``alpha == 1`` we emit a single NNEF ``add`` / ``sub``
-    op (no behavior change vs the historical generic_unary path). For
-    non-default alpha we decompose to ``mul(other, alpha)`` then
-    ``nnef_op_name(input, scaled_other)`` -- this avoids needing a custom
-    NNEF op variant that takes ``alpha`` as an attribute.
 
-    Without this, alpha was silently dropped because aten:add and aten:sub
-    were routed through ``unary.generic_unary`` which calls
-    ``unary_output_op_without_attr`` (see torch_to_nnef/op/aten/unary.py
-    in the GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES list).
+def _emit_alpha_scaled_other(op_helper, node, other_tensor, alpha_node):
+    """Return ``other * alpha`` as a fresh NNEF tensor.
+
+    Declares the intermediate NNEF tensor with ``other``'s shape explicitly:
+    ``add_single_output_op_from_nnef_tensors`` would reuse
+    ``node.outputs[0].shape`` (which is the FINAL broadcast shape of the
+    add/sub), and tract refuses to broadcast a tensor of ``other.shape``
+    declared with that final-broadcast shape.
     """
-    if len(node.inputs) == 3:
-        input_node, other_node, alpha_node = node.inputs
-    else:
-        # Some aten variants don't carry alpha (e.g. add.Scalar without it
-        # being explicitly emitted). Behave like the historical fast path.
-        input_node, other_node = node.inputs
-        alpha_node = None
-
-    alpha_is_default = alpha_node is None or (
-        isinstance(alpha_node, PythonConstant)
-        and alpha_node.data is not None
-        and float(alpha_node.data) == 1.0
-    )
-
-    operands = [
-        op_helper.get_or_add_tensor_variable_in_nnef(
-            c_node.into_tensor_variable()
-            if isinstance(c_node, PythonConstant)
-            else c_node
-        )
-        for c_node in (input_node, other_node)
-    ]
-    input_tensor = operands[0]
-    other_tensor = operands[1]
-
-    if alpha_is_default:
-        op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            nnef_op_name,
-            inputs=(input_tensor, other_tensor),
-        )
-        return
-
-    # Materialize alpha as a tensor and scale ``other`` before combining.
-    # The intermediate ``mul(other, alpha)`` keeps ``other``'s shape (alpha
-    # is a scalar). We declare the intermediate NNEF tensor with that shape
-    # explicitly: the high-level
-    # ``add_single_output_op_from_nnef_tensors`` would reuse
-    # ``node.outputs[0].shape`` (which is the FINAL broadcast shape after
-    # ``add(input, scaled)``), and tract refuses to broadcast a tensor of
-    # ``other.shape`` declared with the final-broadcast shape.
     if isinstance(alpha_node, PythonConstant):
         alpha_node.set_data(float(alpha_node.data))
-        alpha_tensor_var = alpha_node.into_tensor_variable()
-        alpha_tensor = op_helper.get_or_add_tensor_variable_in_nnef(
-            alpha_tensor_var
-        )
-    else:
-        alpha_tensor = op_helper.get_or_add_tensor_variable_in_nnef(alpha_node)
+        alpha_node = alpha_node.into_tensor_variable()
+    alpha_tensor = op_helper.get_or_add_tensor_variable_in_nnef(alpha_node)
     scaled_name = f"{node.outputs[0].export_name}_alpha_scaled"
     scaled_other = NTensor(
         op_helper.g,
@@ -430,6 +386,44 @@ def _add_or_sub_with_alpha(
         inputs=(other_tensor, alpha_tensor),
         outputs=(scaled_other,),
         attribs={},
+    )
+    return scaled_other
+
+
+def _add_or_sub_with_alpha(nnef_op_name: str, node, op_helper, **_):
+    """Shared body for ``aten:add`` and ``aten:sub`` (both honor ``alpha``).
+
+    PyTorch's signatures are::
+
+        add(input, other, *, alpha=1) -> input + alpha * other
+        sub(input, other, *, alpha=1) -> input - alpha * other
+
+    For the default ``alpha == 1`` we emit a single NNEF ``add`` / ``sub``
+    op. For non-default alpha we decompose to ``mul(other, alpha)`` then
+    ``nnef_op_name(input, scaled_other)`` -- this avoids needing a custom
+    NNEF op variant that takes ``alpha`` as an attribute.
+    """
+    if len(node.inputs) == 3:
+        input_node, other_node, alpha_node = node.inputs
+    else:
+        # Some aten variants don't carry alpha (e.g. add.Scalar without it
+        # being explicitly emitted).
+        input_node, other_node = node.inputs
+        alpha_node = None
+
+    input_tensor = _resolve_operand(op_helper, input_node)
+    other_tensor = _resolve_operand(op_helper, other_node)
+
+    if _alpha_is_default(alpha_node):
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            nnef_op_name,
+            inputs=(input_tensor, other_tensor),
+        )
+        return
+
+    scaled_other = _emit_alpha_scaled_other(
+        op_helper, node, other_tensor, alpha_node
     )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
