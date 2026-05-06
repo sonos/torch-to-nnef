@@ -59,6 +59,8 @@ TUPLETYPE_KIND = "TupleType"
 LISTTYPE_KIND = "ListType"
 NONETYPE_KIND = "NoneType"
 INTTYPE_KIND = "IntType"
+FLOATTYPE_KIND = "FloatType"
+BOOLTYPE_KIND = "BoolType"
 NUMBERTYPE_KIND = "NumberType"  # This type represents a Python number
 DICTTYPE_KIND = "DictType"
 # Subtype hierarchy for Number Types (NumberType as the base type):
