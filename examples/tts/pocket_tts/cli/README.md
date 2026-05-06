@@ -61,16 +61,18 @@ conditioner has no real vocabulary.
 * Swapping in real-checkpoint exports (TODO in the parent README) gives real
   audio without changing a line of Rust.
 
-## Known issue (in-progress)
+## Notes on the mini wiring
 
-`flow_lm_init` currently fails through the `tract-nnef` Rust library with
+The exported graph dimensions must agree across the autoregressive loop:
 
-```
-Clashing resolution for expression. 24=24 != 16. (SessionState(SymbolValues { values: {} }))
-```
-
-The same graph passes `check_io` (which runs it through the tract CLI), and
-the other three graphs (`decoder`, `flow_net`, `flow_lm_step`) run cleanly
-through the Rust library. The mismatch is specific to the embed + concat
-path at the front of `flow_lm_init`. Until that's resolved, the CLI panics
-on the first call -- track via the Rust binary build/test in PR #76 follow-ups.
+* `flow_lm`'s `d_model` == `flow_net`'s `cond_channels` (=16 in the mini
+  config).
+* `flow_lm`'s `ldim` == `flow_net`'s `in_channels` / `out_channels` ==
+  `decoder`'s `dimension` (=8 in the mini config). Real Mimi has a
+  `decoder_transformer` projection between FlowLM's `ldim` latents and the
+  SEANet decoder's input dim; the mini path skips that projection by
+  setting both to the same value.
+* `--max-frames` (the audio-frame budget) must equal the number of latent
+  frames the bulk decoder graph was traced with. The mini decoder is
+  traced at 8 frames; pass `--max-frames 8` (or re-export the decoder
+  with a different latent-frame count).

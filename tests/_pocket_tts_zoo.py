@@ -62,7 +62,7 @@ class MiniPocketTTSDecoder(nn.Module):
         super().__init__()
         streaming = SEANetDecoder(
             channels=1,
-            dimension=64,
+            dimension=8,
             n_filters=8,
             n_residual_layers=1,
             ratios=[4, 5, 8],

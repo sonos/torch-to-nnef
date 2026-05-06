@@ -69,6 +69,11 @@ struct Args {
     /// Seed for the noise sampled at each LSD step.
     #[arg(long, default_value = "0")]
     seed: u64,
+    /// Latent dim ``ldim`` of the audio latents (= ``in_channels`` /
+    /// ``out_channels`` of flow_net = first axis of decoder input). Mini
+    /// configs use 8.
+    #[arg(long, default_value = "8")]
+    ldim: usize,
 }
 
 type Runnable =
@@ -180,14 +185,6 @@ fn main() -> Result<()> {
     println!("loading decoder from {}", decoder_path.display());
     let decoder = load_graph(&nnef, &decoder_path)?;
 
-    // NOTE: ``flow_lm_init`` currently fails through ``tract-nnef`` with
-    // ``Clashing resolution for expression. 24=24 != 16``, even though the
-    // exact same graph passes t2n's ``check_io`` (which runs it through the
-    // tract CLI). ``decoder``, ``flow_net``, and ``flow_lm_step`` all run
-    // fine through the Rust library, so this is specific to the
-    // embed-then-concat path inside init. Tracked as a follow-up before
-    // the demo can produce an end-to-end WAV.
-
     println!("loading voice prompt from {}", args.voice.display());
     let voice = load_voice(&args.voice)?;
     let voice_shape = voice.shape().to_vec();
@@ -219,7 +216,10 @@ fn main() -> Result<()> {
     let mut next_pos = (t_voice + token_count + 1) as i64;
 
     // -- LSD decode for first audio frame -----------------------------------
-    let ldim = transformer_out.shape().last().copied().unwrap_or(0);
+    // ``ldim`` is the audio-latent dim (flow_net's in/out_channels),
+    // *not* the transformer hidden dim. They happen to differ in the mini
+    // config (16 vs 8) so don't confuse them.
+    let ldim = args.ldim;
     let mut rng = StdRng::seed_from_u64(args.seed);
     let normal = Normal::new(0.0_f32, 1.0_f32).unwrap();
     let mut latents: Vec<Tensor> = Vec::with_capacity(args.max_frames);

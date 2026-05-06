@@ -132,9 +132,14 @@ def build_mini_decoder() -> SEANetDecoder:
     every dim to keep the structure (initial conv, alternating ELU /
     transposed-conv / residual block, final conv) while staying ~50k params.
     """
+    # ``dimension`` is the channel count entering the SEANet decoder. In real
+    # Mimi a ``decoder_transformer`` projects FlowLM's ``ldim`` latents up to
+    # this dim; we don't export that transformer in the mini path, so set
+    # ``dimension == ldim`` (=8 in ``flow_lm.py:build_mini_flow_lm``) so the
+    # autoregressive latent stream feeds straight into the decoder.
     dec = SEANetDecoder(
         channels=1,
-        dimension=64,
+        dimension=8,
         n_filters=8,
         n_residual_layers=1,
         ratios=[4, 5, 8],

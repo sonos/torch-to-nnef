@@ -43,11 +43,14 @@ def build_mini_flow_net() -> SimpleMLPAdaLN:
     ``cond_channels=512``, ``ldim=64``. Here we shrink every dim while keeping
     the AdaLN-modulated residual structure identical.
     """
+    # ``cond_channels`` matches the FlowLM transformer's ``d_model`` (=16 in
+    # the mini config in ``flow_lm.py``) so the same exported graph can be
+    # plugged into the autoregressive loop without a separate adapter.
     return SimpleMLPAdaLN(
         in_channels=8,
         model_channels=16,
         out_channels=8,
-        cond_channels=24,
+        cond_channels=16,
         num_res_blocks=2,
         num_time_conds=2,
     ).eval()

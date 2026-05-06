@@ -525,7 +525,7 @@ try:
     from tests._pocket_tts_zoo import MiniPocketTTSDecoder
 
     test_suite.add(
-        (torch.randn(1, 64, 8),),
+        (torch.randn(1, 8, 8),),
         MiniPocketTTSDecoder(),
         test_name="mini_pocket_tts_decoder",
     )
@@ -547,7 +547,7 @@ try:
                 in_channels=8,
                 model_channels=16,
                 out_channels=8,
-                cond_channels=24,
+                cond_channels=16,
                 num_res_blocks=2,
                 num_time_conds=2,
             ).eval()
@@ -557,7 +557,7 @@ try:
 
     test_suite.add(
         (
-            torch.randn(1, 24),
+            torch.randn(1, 16),
             torch.zeros(1, 1),
             torch.full((1, 1), 0.25),
             torch.randn(1, 8),
