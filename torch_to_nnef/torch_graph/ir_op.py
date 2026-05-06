@@ -45,11 +45,20 @@ from torch_to_nnef.torch_graph.ir_helpers import (
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.torch_const import (
+    ATEN_ADD,
+    ATEN_ADD_,
     ATEN_ALIAS,
     ATEN_ARANGE,
     ATEN_BADDMM,
     ATEN_CLONE,
+    ATEN_CONV1D,
+    ATEN_CONV2D,
+    ATEN_CONV3D,
+    ATEN_CONVOLUTION,
+    ATEN_CONVOLUTION_BARE,
+    ATEN_CONVOLUTION_MODE,
     ATEN_CUMSUM,
+    ATEN_DIV,
     ATEN_EINSUM,
     ATEN_EMBEDDING,
     ATEN_EMPTY,
@@ -74,6 +83,8 @@ from torch_to_nnef.torch_graph.torch_const import (
     ATEN_SCALED_DOT_PRODUCT_ATTENTION,
     ATEN_SIZE_KIND,
     ATEN_STARTID,
+    ATEN_SUB,
+    ATEN_SUB_,
     ATEN_TO,
     ATEN_TO_COPY,
     ATEN_VIEW_KIND,
@@ -392,12 +403,12 @@ INFER_RULES = {
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
-    "aten::_convolution_mode": InferRule(_infer_shape_convolution_output, 6),
-    "aten::_convolution": InferRule(_infer_shape_convolution_output, 6),
-    "aten::convolution": InferRule(_infer_shape_convolution_output, 6),
-    "aten::conv1d": InferRule(_infer_shape_convolution_output, 6),
-    "aten::conv2d": InferRule(_infer_shape_convolution_output, 6),
-    "aten::conv3d": InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONVOLUTION_MODE: InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONVOLUTION_BARE: InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONVOLUTION: InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONV1D: InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONV2D: InferRule(_infer_shape_convolution_output, 6),
+    ATEN_CONV3D: InferRule(_infer_shape_convolution_output, 6),
 }
 
 
@@ -490,7 +501,7 @@ class TorchOp:
     def update_call_op_arg_kwargs(self, args):
         """Custom adaptation to call aten fn with torch exposed py fn."""
         kwargs = {}
-        if self.kind == "aten::div" and len(args) >= 3:
+        if self.kind == ATEN_DIV and len(args) >= 3:
             kwargs["rounding_mode"] = args[2]
             args = args[:-1]
             self.op_ref = torch.div
@@ -503,14 +514,14 @@ class TorchOp:
         # in-place variants through the out-of-place op is safe (the
         # in-place semantics aren't needed at trace time).
         if (
-            self.kind in ("aten::add", "aten::add_", "aten::sub", "aten::sub_")
+            self.kind in (ATEN_ADD, ATEN_ADD_, ATEN_SUB, ATEN_SUB_)
             and len(args) >= 3
         ):
             kwargs["alpha"] = args[2]
             args = args[:2]
             self.op_ref = (
                 torch.add
-                if self.kind in ("aten::add", "aten::add_")
+                if self.kind in (ATEN_ADD, ATEN_ADD_)
                 else torch.sub
             )
         # }

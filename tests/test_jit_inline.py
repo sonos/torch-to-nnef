@@ -17,6 +17,7 @@ import torch
 from torch import nn
 
 from torch_to_nnef.torch_graph import inline_unresolvable_submodules
+from torch_to_nnef.torch_graph.torch_const import CALL_KIND
 
 
 def _walk_nodes(graph_or_block):
@@ -29,7 +30,7 @@ def _walk_nodes(graph_or_block):
 def _callmethod_counts(graph) -> Counter:
     counts = Counter()
     for n in _walk_nodes(graph):
-        if n.kind() != "prim::CallMethod":
+        if n.kind() != CALL_KIND:
             continue
         ty = next(n.inputs()).type()
         try:
@@ -88,7 +89,7 @@ def test_inline_drops_non_importable_targets_and_preserves_torchnn(
     # importlib.import_module to raise on that exact path. Real torch.nn.*
     # imports must still succeed.
     inner_call = next(
-        n for n in _walk_nodes(m.graph) if n.kind() == "prim::CallMethod"
+        n for n in _walk_nodes(m.graph) if n.kind() == CALL_KIND
     )
     inner_qname = next(inner_call.inputs()).type().qualified_name()
     parts = [

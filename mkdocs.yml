@@ -129,6 +129,7 @@ nav:
     - '9. Tensors only export': "tutos/9_peft.md"
     - '10. Nemo ASR export & eval': "tutos/10_nemo.md"
     - '11. Shapes remodeler': "tutos/11_remodeler.md"
+    - '12. Exporting JIT-only models': "tutos/12_jit_only_models.md"
   - 'Export API': export_api.md
   - 'Internals API': reference/
   - Contributing:
