@@ -2,20 +2,15 @@ import logging
 
 import pytest
 
+from tests.proptest.conftest_helpers import register_profiles
+
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "experimental: mark test as experimental to run"
     )
     logging.getLogger("torch_to_nnef").setLevel(logging.WARNING)
-    try:
-        from tests.proptest.conftest_helpers import register_profiles
-
-        register_profiles()
-    except ImportError:
-        # hypothesis not installed -- proptest tests will be skipped at
-        # collection time because the marker selection won't match anything.
-        pass
+    register_profiles()
 
 
 def pytest_addoption(parser):

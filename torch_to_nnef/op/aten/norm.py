@@ -395,14 +395,6 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
        trailing-1 shape so NNEF's left-aligned broadcast extends them
        cleanly to the full input rank (this is the same pattern other
        norms use).
-
-    Earlier the fragment did all of the above inline using a
-    tile/transpose/reshape dance that was incorrect for batch_size > 1
-    and num_groups < num_channels (mean from one batch leaked into the
-    other batch's channels). Pinpointed via proptest's
-    ``group_norm-xfail`` spec; see the inline comment in
-    ``torch_to_nnef/op/fragment/group_norm.nnef`` for the historical
-    bug description.
     """
     (
         input_node,
@@ -477,7 +469,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
 
     base = node.outputs[0].export_name
 
-    # Step 1: reshape input to 3D ``(B, C, S)``.
+    # Reshape input to 3D ``(B, C, S)``.
     input_3d_name = f"{base}_gn_input_3d"
     input_3d_tensor = NTensor(
         g, input_3d_name, dtype=np_dtype, shape=flat_3d_shape
@@ -493,7 +485,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         attribs={"shape": list(flat_3d_shape)},
     )
 
-    # Step 2: call the simplified group_norm fragment in 3D.
+    # Call the simplified group_norm fragment in 3D.
     custom_fragments.append("group_norm")
     gn_3d_name = f"{base}_gn_norm_3d"
     gn_3d_tensor = NTensor(g, gn_3d_name, dtype=np_dtype, shape=flat_3d_shape)
@@ -513,7 +505,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         },
     )
 
-    # Step 3: reshape back to original ``(B, C, *spatial)`` shape.
+    # Reshape back to original ``(B, C, *spatial)`` shape.
     reshaped_name = f"{base}_gn_reshape_back"
     reshaped_tensor = NTensor(
         g, reshaped_name, dtype=np_dtype, shape=final_shape
@@ -529,7 +521,7 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         attribs={"shape": list(final_shape)},
     )
 
-    # Step 4: scale (in-place op chain).
+    # Apply scale.
     scaled_name = f"{base}_gn_scaled"
     scaled_tensor = NTensor(g, scaled_name, dtype=np_dtype, shape=final_shape)
     name_to_tensor[scaled_name] = scaled_tensor
@@ -543,8 +535,8 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
         attribs={},
     )
 
-    # Step 5: offset -- final output. Use add_single_output_op so the
-    # last op wires to ``node.outputs[0]`` (the model's output).
+    # Apply offset; ``add_single_output_op`` wires the last op to
+    # ``node.outputs[0]`` (the model's output).
     out_ref = add_single_output_op(
         g=g,
         name_to_tensor=name_to_tensor,

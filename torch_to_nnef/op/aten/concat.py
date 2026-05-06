@@ -66,7 +66,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
         inputs.append(tensor_ref)
     # ``torch.stack`` inserts a new axis; the valid range for ``dim`` is
     # ``[-(N + 1), N]`` where ``N`` is the rank of each input. Negative
-    # dims must be resolved against the *output* rank (``N + 1``) — using
+    # dims must be resolved against the *output* rank (``N + 1``) -- using
     # the input list length (as :func:`pick_axis` does for ``FixedTensorList``)
     # silently rewrites e.g. ``torch.stack([a, b], dim=-1)`` on rank-4
     # inputs to ``axis = 1`` instead of ``4``, which breaks RoPE-style
