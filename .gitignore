@@ -123,6 +123,7 @@ site/
 *.zip
 graph.nnef
 *.dat
+!examples/tts/pocket_tts/voices/*.dat
 *.json
 !packages/nemo-asr/torch_to_nnef_nemo/slug_fingerprints.json
 *.out
