@@ -34,6 +34,7 @@ from torch_to_nnef.torch_graph.jit_inline import inline_unresolvable_submodules
 from torch_to_nnef.torch_graph.jit_passes import (
     fold_constant_ifs,
     fold_constant_scalar_arithmetic,
+    fold_tuple_index_through_tuple_construct,
     replace_size_calls_with_constants,
     strip_assertion_ifs,
     strip_prim_data,
@@ -52,6 +53,7 @@ __all__ = [
     "TorchModuleIRGraph",
     "fold_constant_ifs",
     "fold_constant_scalar_arithmetic",
+    "fold_tuple_index_through_tuple_construct",
     "inline_unresolvable_submodules",
     "replace_size_calls_with_constants",
     "strip_assertion_ifs",

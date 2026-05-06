@@ -443,6 +443,50 @@ def strip_prim_data(graph: "torch._C.Graph") -> int:
     return folded
 
 
+def fold_tuple_index_through_tuple_construct(
+    graph: "torch._C.Graph",
+) -> int:
+    """Fold `prim::TupleIndex(tuple_const, k)` into the k-th tuple input.
+
+    JIT artifacts whose Python source builds a tuple at the call site
+    (e.g. `return (h, c)`) and consumes it later via positional indexing
+    (`pair[0]`, `pair[1]`) leave behind `prim::TupleConstruct ->
+    prim::TupleIndex` chains in the inlined graph. t2n's parser already
+    knows about `TupleConstruct` and `TupleUnpack`, but `TupleIndex` is
+    unsupported. When the index is a static `prim::Constant int` and the
+    tuple value is the direct output of a `TupleConstruct`, we rewire
+    `TupleIndex`'s output to the tuple's k-th input verbatim, leaving
+    the `TupleConstruct` itself in place (DCE removes it later if it
+    has no other consumers).
+
+    Returns the count of nodes folded.
+    """
+    folded = 0
+    for node in list(_walk_nodes(graph)):
+        if node.kind() != "prim::TupleIndex":
+            continue
+        inputs = list(node.inputs())
+        if len(inputs) != 2:
+            continue
+        tuple_node = inputs[0].node()
+        if tuple_node.kind() != "prim::TupleConstruct":
+            continue
+        idx_node = inputs[1].node()
+        if idx_node.kind() != "prim::Constant":
+            continue
+        try:
+            idx = int(idx_node["value"])
+        except (RuntimeError, TypeError):
+            continue
+        tuple_inputs = list(tuple_node.inputs())
+        if not 0 <= idx < len(tuple_inputs):
+            continue
+        node.output().replaceAllUsesWith(tuple_inputs[idx])
+        node.destroy()
+        folded += 1
+    return folded
+
+
 def fold_constant_ifs(graph: "torch._C.Graph") -> int:
     """Fold `prim::If` nodes whose condition is a `prim::Constant[bool]`.
 
