@@ -5,12 +5,20 @@ Target repo: [`kyutai-labs/pocket-tts`](https://github.com/kyutai-labs/pocket-tt
 End-to-end Pocket-TTS through tract: a single Rust binary takes text + a
 voice prompt and writes a 24 kHz WAV. No Python in the inference path.
 
-Faster than realtime: RTFx ≈2.5× CPU / ≈3.3× Metal GPU on an Apple M4
-Pro for the canonical "hello I am a text to speech voice" prompt.
+Faster than realtime: **RTFx ≈2.7× CPU / ≈4.4× Metal GPU** on an Apple
+M4 Pro for the canonical "hello I am a text to speech voice" prompt.
+GPU shrinks Mimi decode from ~660 ms to ~120 ms (5.5×).
 
 For reference, Kyutai's own PyTorch streaming reference clocks ≈6× on a
 base M4 CPU (their published number) and ≈10× on the same M4 Pro we
 measured. The gap is mostly structural — see *Status* below.
+
+Optional: `cargo build --release --features transformers-detect` runs
+`tract-transformers`' SDPA / RoPE / KV-cache detection rewrites before
+optimization. On the current tract version it's a slight CPU
+pessimisation (`Sdpa::eval` rebuilds a sub-graph per call rather than
+dispatching a fast kernel) and a marginal GPU speedup. Kept feature-
+gated so the codepath is ready when tract ships a fast Sdpa CPU kernel.
 
 Pocket-TTS architecture: a `FlowLM` autoregressive transformer (text +
 voice prompt → continuous audio latents) followed by a `Mimi` neural

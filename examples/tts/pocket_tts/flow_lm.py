@@ -195,11 +195,13 @@ def main() -> None:
 
     tract_version = args.tract_version or TractNNEF.latest_version()
     check_io = not args.skip_io_check
-    # Use the fragment SDPA fallback rather than ``tract_transformers_sdpa``;
-    # the latter triggers an internal "Clashing resolution" check in the
-    # tract Rust runtime when running this graph through the library API
-    # (the CLI works either way, but check_io / our zoo test only run the
-    # CLI path).
+    # ``reify_sdpa_operator=False``: keep the fragment SDPA (matmul +
+    # softmax + matmul). Reifying to ``tract_transformers_sdpa`` is a
+    # mild pessimisation on tract 0.23.0-dev.5 for our shapes -- the
+    # fused op's ``eval`` rebuilds a sub-graph per call rather than
+    # dispatching a precomputed kernel; the standard optimizer's
+    # einsum/blas lowering on the fragment is faster. Re-evaluate if
+    # tract ships a fast Sdpa kernel.
     target = TractNNEF(
         version=tract_version,
         check_io=check_io,

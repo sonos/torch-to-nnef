@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(not(target_os = "macos"), feature = "transformers-detect"))]
 use anyhow::bail;
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
@@ -116,10 +116,59 @@ struct Args {
 type Runnable =
     Arc<tract_core::internal::SimplePlan<TypedFact, Box<dyn TypedOp>>>;
 
+#[derive(Default, Debug)]
+struct GenerationTimings {
+    init: std::time::Duration,
+    flow_lm_step: std::time::Duration,
+    flow_net: std::time::Duration,
+    mimi_decode: std::time::Duration,
+    n_steps: usize,
+}
+
 fn load_graph(nnef: &Nnef, path: &Path, gpu: bool) -> Result<Runnable> {
     let mut model = nnef
         .model_for_path(path)
         .with_context(|| format!("loading NNEF graph from {}", path.display()))?;
+    // ``with_tract_transformers()`` on the NNEF loader only registers op
+    // *decoders*; the SDPA / RoPE / KV-cache detection rewrites in
+    // ``tract-transformers`` are a separate ``ModelTransform`` that has
+    // to be invoked explicitly (``into_optimized()`` doesn't run it).
+    //
+    // On tract 0.23.0-dev.5 / M4 Pro:
+    //   CPU  off: RTFx ~2.73, on: RTFx ~2.58  (Sdpa::eval rebuilds a
+    //                                          sub-graph and re-plans
+    //                                          per call rather than
+    //                                          dispatching a fast
+    //                                          precomputed kernel)
+    //   GPU  off: RTFx ~4.33, on: RTFx ~4.43  (Metal has fused
+    //                                          scaled_masked_softmax,
+    //                                          apply_rope, and Sdpa is
+    //                                          rewired to those by
+    //                                          ``MetalTransform``)
+    // Default is off; flip via ``--features transformers-detect`` once
+    // tract ships a fast Sdpa CPU kernel.
+    #[cfg(feature = "transformers-detect")]
+    {
+        if let Some(t) = tract_core::transform::get_transform("transformers_detect_all")? {
+            t.transform(&mut model).with_context(|| {
+                format!("applying transformers_detect_all to {}", path.display())
+            })?;
+        } else {
+            bail!("transformers_detect_all transform not registered (link tract-transformers)");
+        }
+    }
+    if std::env::var("PTTS_DEBUG_OPS").is_ok() {
+        let mut counts: std::collections::HashMap<String, usize> = Default::default();
+        for n in model.nodes() {
+            *counts.entry(n.op.name().to_string()).or_default() += 1;
+        }
+        let mut sorted: Vec<_> = counts.into_iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        eprintln!("[op-count pre-optimize] {}:", path.display());
+        for (k, v) in sorted.iter().take(25) {
+            eprintln!("  {v:5} {k}");
+        }
+    }
     if gpu {
         #[cfg(target_os = "macos")]
         {
@@ -235,6 +284,9 @@ fn lsd_decode(
 /// Generation phase: autoregressive loop + LSD per-frame decode + Mimi
 /// audio decode. Split out so we can wrap it in ``with_metal_stream``
 /// when running on the Metal GPU runtime.
+///
+/// Returns the audio samples and a per-phase timing breakdown so the
+/// caller can report RTFx and see where wall time went.
 fn run_generation(
     args: &Args,
     flow_lm_init: &Runnable,
@@ -245,7 +297,9 @@ fn run_generation(
     token_tensor: Tensor,
     t_voice: usize,
     token_count: usize,
-) -> Result<Vec<f32>> {
+) -> Result<(Vec<f32>, GenerationTimings)> {
+    let mut timings = GenerationTimings::default();
+    let init_t = Instant::now();
     let init_q_pos = make_position_vec(t_voice as i64, token_count + 1);
     let init_k_pos = make_position_vec(0, t_voice + token_count + 1);
     let init_outs = flow_lm_init.run(tvec!(
@@ -258,11 +312,13 @@ fn run_generation(
     let mut eos_logit = init_outs[1].clone();
     let mut past_kv = init_outs[2].clone();
     let mut next_pos = (t_voice + token_count + 1) as i64;
+    timings.init = init_t.elapsed();
 
     let ldim = args.ldim;
     let mut rng = StdRng::seed_from_u64(args.seed);
     let std = args.temp.sqrt();
     let mut latents: Vec<Tensor> = Vec::with_capacity(args.max_frames);
+    let lsd_t = Instant::now();
     let first_latent = lsd_decode(
         flow_net,
         &transformer_out,
@@ -272,6 +328,7 @@ fn run_generation(
         args.noise_clamp,
         &mut rng,
     )?;
+    timings.flow_net += lsd_t.elapsed();
     latents.push(first_latent);
 
     for frame in 1..args.max_frames {
@@ -284,16 +341,20 @@ fn run_generation(
         let prev_latent = latents.last().unwrap().clone();
         let q_pos = make_position_vec(next_pos, 1);
         let k_pos = make_position_vec(0, (next_pos as usize) + 1);
+        let step_t = Instant::now();
         let outs = flow_lm_step.run(tvec!(
             prev_latent.into(),
             past_kv.clone().into(),
             q_pos.into(),
             k_pos.into()
         ))?;
+        timings.flow_lm_step += step_t.elapsed();
+        timings.n_steps += 1;
         transformer_out = outs[0].clone();
         eos_logit = outs[1].clone();
         past_kv = outs[2].clone();
         next_pos += 1;
+        let lsd_t = Instant::now();
         let latent = lsd_decode(
             flow_net,
             &transformer_out,
@@ -303,6 +364,7 @@ fn run_generation(
             args.noise_clamp,
             &mut rng,
         )?;
+        timings.flow_net += lsd_t.elapsed();
         latents.push(latent);
     }
     println!("generated {} audio latents", latents.len());
@@ -319,13 +381,16 @@ fn run_generation(
         tract_ndarray::Array3::from_shape_vec((1, ldim, t_lat), latent_buf)
             .map_err(|e| anyhow!("latent stack reshape: {e}"))?;
 
+    let mimi_t = Instant::now();
     let audio_out = audio_decoder.run(tvec!(latent_stack.into_tensor().into()))?;
     let audio = audio_out
         .into_iter()
         .next()
         .ok_or_else(|| anyhow!("decoder produced no output"))?;
     let audio_view = audio.to_plain_array_view::<f32>()?;
-    Ok(audio_view.iter().copied().collect())
+    let samples: Vec<f32> = audio_view.iter().copied().collect();
+    timings.mimi_decode = mimi_t.elapsed();
+    Ok((samples, timings))
 }
 
 fn main() -> Result<()> {
@@ -394,7 +459,7 @@ fn main() -> Result<()> {
 
     // -- generation phase (timed for RTFx; wrapped for Metal stream) --------
     let gen_start = Instant::now();
-    let samples = if args.gpu {
+    let (samples, timings) = if args.gpu {
         #[cfg(target_os = "macos")]
         {
             tract_metal::with_metal_stream(|_| {
@@ -432,6 +497,11 @@ fn main() -> Result<()> {
     let audio_secs = samples.len() as f64 / args.sample_rate as f64;
     let wall_secs = gen_wall.as_secs_f64();
     let rtfx = audio_secs / wall_secs;
+    let avg_step_ms = if timings.n_steps > 0 {
+        timings.flow_lm_step.as_secs_f64() * 1000.0 / timings.n_steps as f64
+    } else {
+        0.0
+    };
     println!(
         "decoded {} samples ({:.2} s @ {} Hz) in {:.2} s wall time -- RTFx {:.2}{}",
         samples.len(),
@@ -440,6 +510,15 @@ fn main() -> Result<()> {
         wall_secs,
         rtfx,
         if args.gpu { " [Metal GPU]" } else { "" },
+    );
+    println!(
+        "  breakdown: init {:.0} ms / flow_lm_step {:.0} ms ({} steps, {:.1} ms/step) / flow_net {:.0} ms / mimi_decode {:.0} ms",
+        timings.init.as_secs_f64() * 1000.0,
+        timings.flow_lm_step.as_secs_f64() * 1000.0,
+        timings.n_steps,
+        avg_step_ms,
+        timings.flow_net.as_secs_f64() * 1000.0,
+        timings.mimi_decode.as_secs_f64() * 1000.0,
     );
 
     // -- write WAV ----------------------------------------------------------

@@ -8,6 +8,16 @@ description = "End-to-end Pocket-TTS demo via tract: text + voice prompt -> 24 k
 name = "pocket-tts-tract"
 path = "src/main.rs"
 
+[features]
+default = []
+# Apply ``tract-transformers``' SDPA / RoPE / KV-cache detection rewrites
+# before optimization. On tract 0.23.0-dev.5 this is a slight CPU
+# pessimisation for our shapes (Sdpa::eval rebuilds + replans per call)
+# and a marginal GPU speedup (~1-2%). Kept gated so the codepath is
+# ready to flip once tract ships a fast precomputed Sdpa kernel.
+# Build with:  cargo build --release --features transformers-detect
+transformers-detect = []
+
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
