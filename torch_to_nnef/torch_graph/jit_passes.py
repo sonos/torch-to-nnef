@@ -293,6 +293,195 @@ def replace_size_calls_with_constants(
     return folded
 
 
+_SCALAR_BINARY_FOLDERS: T.Mapping[str, T.Callable[[T.Any, T.Any], T.Any]] = {
+    "aten::eq": lambda a, b: a == b,
+    "aten::ne": lambda a, b: a != b,
+    "aten::lt": lambda a, b: a < b,
+    "aten::le": lambda a, b: a <= b,
+    "aten::gt": lambda a, b: a > b,
+    "aten::ge": lambda a, b: a >= b,
+}
+
+
+def _const_value(value):
+    """Resolve an SSA value to its compile-time Python constant.
+
+    Returns the Python value when `value` is the output of a
+    `prim::Constant`, otherwise the sentinel `_NOT_CONST`.
+    """
+    n = value.node()
+    if n.kind() != "prim::Constant":
+        return _NOT_CONST
+    out = n.output()
+    out_ty = out.type().kind()
+    if out_ty == "BoolType":
+        return bool(n["value"])
+    if out_ty == "IntType":
+        return int(n["value"])
+    if out_ty == "FloatType":
+        return float(n["value"])
+    if out_ty == "StringType":
+        return str(n["value"])
+    if out_ty == "NoneType":
+        return None
+    return _NOT_CONST
+
+
+_NOT_CONST = object()
+
+
+def _emit_python_constant(graph, value, before_node):
+    """Insert a `prim::Constant` carrying a Python scalar.
+
+    Supports bool, int, float; placed just before `before_node`.
+    """
+    n = graph.create("prim::Constant")
+    if isinstance(value, bool):
+        n.output().setType(torch._C.BoolType.get())
+        n.i_("value", int(value))
+    elif isinstance(value, int):
+        n.output().setType(torch._C.IntType.get())
+        n.i_("value", int(value))
+    elif isinstance(value, float):
+        n.output().setType(torch._C.FloatType.get())
+        n.f_("value", float(value))
+    else:
+        raise NotImplementedError(f"unsupported constant {type(value)}")
+    n.insertBefore(before_node)
+    return n.output()
+
+
+def fold_constant_scalar_arithmetic(graph: "torch._C.Graph") -> int:
+    """Fold scalar arithmetic on `prim::Constant` operands.
+
+    Walks `aten::eq/ne/lt/le/gt/ge`, `aten::__not__`,
+    `aten::__contains__`, and the unary `aten::Bool/Int/Float` casts.
+    Standalone replacement for `_jit_pass_constant_propagation`: used
+    in the JIT-only export chain to avoid a torch internal assertion
+    that fires when the upstream pass walks a graph mixing Phase 1
+    inlined submodules and Phase 2 size-fold constants.
+
+    Returns the number of nodes folded.
+    """
+    folded = 0
+    unary_casts = {
+        "aten::Bool": bool,
+        "aten::Int": int,
+        "aten::Float": float,
+    }
+    candidates = [
+        n
+        for n in _walk_nodes(graph)
+        if n.kind() in _SCALAR_BINARY_FOLDERS
+        or n.kind() in ("aten::__not__", "aten::__contains__")
+        or n.kind() in unary_casts
+    ]
+    for node in candidates:
+        kind = node.kind()
+        inputs = list(node.inputs())
+        new_val = None
+        if kind in _SCALAR_BINARY_FOLDERS and len(inputs) == 2:
+            a = _const_value(inputs[0])
+            b = _const_value(inputs[1])
+            if a is _NOT_CONST or b is _NOT_CONST:
+                continue
+            new_val = _emit_python_constant(
+                graph, _SCALAR_BINARY_FOLDERS[kind](a, b), node
+            )
+        elif kind in unary_casts and len(inputs) == 1:
+            a = _const_value(inputs[0])
+            if a is _NOT_CONST:
+                continue
+            new_val = _emit_python_constant(graph, unary_casts[kind](a), node)
+        elif kind == "aten::__not__" and len(inputs) == 1:
+            a = _const_value(inputs[0])
+            if a is _NOT_CONST:
+                continue
+            new_val = _emit_python_constant(graph, not a, node)
+        elif kind == "aten::__contains__" and len(inputs) == 2:
+            haystack_node = inputs[0].node()
+            needle = _const_value(inputs[1])
+            if needle is _NOT_CONST:
+                continue
+            if haystack_node.kind() != "prim::ListConstruct":
+                continue
+            elems = []
+            for el in haystack_node.inputs():
+                v = _const_value(el)
+                if v is _NOT_CONST:
+                    elems = None
+                    break
+                elems.append(v)
+            if elems is None:
+                continue
+            new_val = _emit_python_constant(graph, needle in elems, node)
+        if new_val is None:
+            continue
+        node.output().replaceAllUsesWith(new_val)
+        node.destroy()
+        folded += 1
+    return folded
+
+
+def strip_prim_data(graph: "torch._C.Graph") -> int:
+    """Replace `prim::data(t)` nodes with their input.
+
+    `prim::data` is the IR form of Tensor `.data` access (detaches from
+    autograd). In inference it is a no-op; t2n's parser doesn't have a
+    handler for it, so we elide it.
+    """
+    folded = 0
+    for node in list(_walk_nodes(graph)):
+        if node.kind() != "prim::data":
+            continue
+        inputs = list(node.inputs())
+        if len(inputs) != 1:
+            continue
+        node.output().replaceAllUsesWith(inputs[0])
+        node.destroy()
+        folded += 1
+    return folded
+
+
+def fold_constant_ifs(graph: "torch._C.Graph") -> int:
+    """Fold `prim::If` nodes whose condition is a `prim::Constant[bool]`.
+
+    Replaces the If with the chosen block's nodes. Returns the count
+    folded.
+    """
+    folded = 0
+    changed = True
+    while changed:
+        changed = False
+        for node in list(_walk_nodes(graph)):
+            if node.kind() != "prim::If":
+                continue
+            cond_node = next(node.inputs()).node()
+            if cond_node.kind() != "prim::Constant":
+                continue
+            try:
+                cond = bool(cond_node["value"])
+            except (RuntimeError, TypeError):
+                continue
+            blocks = list(node.blocks())
+            if len(blocks) != 2:
+                continue
+            keep = blocks[0] if cond else blocks[1]
+            keep_outs = list(keep.returnNode().inputs())
+            node_outs = list(node.outputs())
+            if len(keep_outs) != len(node_outs):
+                continue
+            for old, new in zip(node_outs, keep_outs, strict=True):
+                old.replaceAllUsesWith(new)
+            for n in list(keep.nodes()):
+                n.moveBefore(node)
+            node.destroy()
+            folded += 1
+            changed = True
+            break
+    return folded
+
+
 def strip_assertion_ifs(graph: "torch._C.Graph") -> int:
     """Drop `prim::If` nodes whose one branch is purely a `RaiseException`.
 
