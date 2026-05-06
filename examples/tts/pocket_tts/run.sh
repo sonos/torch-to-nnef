@@ -11,11 +11,11 @@
 # Modes:
 #   * ``--mini`` (default) -- random-weights config (~50k params per stage)
 #     with synthesised tokens. Pipeline-correct WAV but acoustically noise.
-#   * ``MODE=full``        -- real ~89M-param FlowLM through tract +
-#     real ~20M-param Mimi through Pocket-TTS Python (hybrid). Produces
-#     real audio for the requested text. The Mimi audio decode is *not yet
-#     in tract* (the upsample + decoder_transformer + SEANet chain is a
-#     bigger export job; tracked separately).
+#   * ``MODE=full``        -- real ~89M-param FlowLM + real ~20M-param Mimi
+#     audio decoder (quantizer + upsample + decoder_transformer + SEANet),
+#     all four graphs running through tract. No Python in the inference
+#     path: the produced binary + ``cli/models/`` + ``cli/voices/`` +
+#     ``cli/tokenizer.model`` is a self-contained shippable.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -31,7 +31,7 @@ source .venv/bin/activate
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(feature,values(\"inventory-registry\"))"
 
 # 2. Clean prior artefacts ---------------------------------------------------
-rm -f cli/out.wav
+rm -f cli/out.wav cli/models/decoder.nnef.tgz cli/models/mimi_decode.nnef.tgz
 mkdir -p cli/models cli/voices
 
 TRACT_VERSION="${TRACT_VERSION:-0.23.0-dev.5}"
@@ -82,14 +82,20 @@ python flow_lm.py "${COMMON_EXPORT_FLAGS[@]}" \
     --out-step cli/models/flow_lm_step.nnef.tgz
 
 if [ "$MODE" = mini ]; then
-    echo "==> exporting decoder (mini)"
+    echo "==> exporting decoder (mini SEANet only)"
     python decoder.py "${COMMON_EXPORT_FLAGS[@]}" \
         --out cli/models/decoder.nnef.tgz
     echo "==> baking voice prompt (mini)"
     python bake_voice.py --mini --out cli/voices/alba.dat
 else
-    echo "==> skipping decoder export (--full uses Pocket-TTS Python for Mimi decode)"
-    rm -f cli/models/decoder.nnef.tgz
+    # ``mimi_decode`` declares ``T_LATENT`` as a dynamic axis, so the
+    # exported graph runs at any latent frame count. The trace shape below
+    # is just an example -- the autoregressive loop in the CLI stops on
+    # real EOS, not at a fixed frame budget.
+    echo "==> exporting mimi_decode (dynamic T_LATENT)"
+    python mimi_decode.py "${COMMON_EXPORT_FLAGS[@]}" \
+        --latent-frames 50 \
+        --out cli/models/mimi_decode.nnef.tgz
 fi
 
 # 4. Build Rust CLI in release ----------------------------------------------
@@ -118,18 +124,15 @@ print(",".join(str(i) for i in ids))
         --eos-threshold 1e9 \
         --out cli/out.wav
 else
-    echo "    tokenizing via cli/tokenizer.model"
+    echo "    tokenizing via cli/tokenizer.model (full path: tract end-to-end, no Python)"
     ./cli/target/release/pocket-tts-tract \
         --models cli/models \
         --voice cli/voices/alba.dat \
         --tokenizer cli/tokenizer.model \
         --text "$TEXT" \
         --ldim 32 \
-        --max-frames 50 \
-        --eos-threshold 1e9 \
-        --dump-latents cli/latents.npz
-    echo "==> decoding audio via Pocket-TTS Mimi (Python)"
-    python decode_audio.py --latents cli/latents.npz --out cli/out.wav
+        --max-frames 256 \
+        --out cli/out.wav
 fi
 
 echo

@@ -67,7 +67,9 @@ class StatelessConv1d(nn.Module):
         self.conv = streaming.conv
         self.left_pad = streaming._effective_kernel_size - streaming._stride
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        # Accept and ignore the streaming-state arg some callers pass
+        # (``ConvTrUpsample1d.forward`` and SEANet leaves alike).
         if self.left_pad > 0:
             x = F.pad(x, (self.left_pad, 0))
         return self.conv(x)
@@ -87,11 +89,19 @@ class StatelessConvTranspose1d(nn.Module):
         super().__init__()
         self.convtr = streaming.convtr
         self.tail = streaming._kernel_size - streaming._stride
+        self.stride = streaming._stride
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         y = self.convtr(x)
         if self.tail > 0:
-            y = y[..., : -self.tail]
+            # Slice to ``T_in * stride`` rather than ``-self.tail``: under
+            # ``dynamic_axes`` the negative-index slice traces into a
+            # ``min/max`` clamp tract's simplifier can't reduce against the
+            # convtr output dim, which then trips downstream reshape
+            # equality checks. Slicing to an explicit length derived from
+            # the input dim keeps the symbolic shape clean.
+            valid_len = x.shape[-1] * self.stride
+            y = y[..., :valid_len]
         return y
 
 

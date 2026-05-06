@@ -1,15 +1,15 @@
 //! End-to-end Pocket-TTS demo via tract.
 //!
-//! Loads the four NNEF graphs exported from `examples/tts/pocket_tts/`
-//! (`flow_lm_init`, `flow_lm_step`, `flow_net`, `decoder`), threads them
+//! Loads the NNEF graphs exported from `examples/tts/pocket_tts/`
+//! (`flow_lm_init`, `flow_lm_step`, `flow_net`, plus an audio-decode graph
+//! -- either ``mimi_decode.nnef.tgz`` for the full Mimi chain or
+//! ``decoder.nnef.tgz`` for the SEANet-only mini config), threads them
 //! together with a SentencePiece tokenizer + a voice prompt `.dat`, and
 //! writes a 24 kHz WAV.
 //!
-//! With mini random-weights graphs the output is not coherent speech --
-//! the binary is a *plumbing* demo that proves the export -> tract runtime
-//! path is wired correctly. Swapping the NNEF graphs for real-checkpoint
-//! exports (TODO: needs HF auth + production weight loading) gives real
-//! audio without changing a line of Rust.
+//! No Python or external decoder process is used at runtime: the binary
+//! plus its asset directory (``models/``, ``voices/``, ``tokenizer.model``)
+//! is everything needed to synthesise speech.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,9 +30,10 @@ use tract_transformers::WithTractTransformers;
 #[derive(Parser, Debug)]
 #[command(about = "Pocket-TTS demo through tract", long_about = None)]
 struct Args {
-    /// Directory holding the four exported NNEF graphs
-    /// (flow_lm_init.nnef.tgz, flow_lm_step.nnef.tgz, flow_net.nnef.tgz,
-    /// decoder.nnef.tgz).
+    /// Directory holding the exported NNEF graphs (flow_lm_init.nnef.tgz,
+    /// flow_lm_step.nnef.tgz, flow_net.nnef.tgz, plus either
+    /// mimi_decode.nnef.tgz for the full Mimi chain or decoder.nnef.tgz for
+    /// the SEANet-only mini config).
     #[arg(long, default_value = "models")]
     models: PathBuf,
     /// Voice prompt tensor (output of `bake_voice.py`).
@@ -59,8 +60,11 @@ struct Args {
     /// LSD decode steps per audio frame (call flow_net this many times).
     #[arg(long, default_value = "4")]
     lsd_steps: usize,
-    /// EOS logit threshold above which the loop terminates.
-    #[arg(long, default_value = "0.5")]
+    /// EOS logit threshold above which the loop terminates. Pocket-TTS'
+    /// own CLI default is ``-4.0`` (raw logit; ``out_eos`` is a Linear
+    /// layer, not a sigmoid). With ``mimi_decode.nnef.tgz`` traced at
+    /// dynamic ``T_LATENT`` the loop can stop on real EOS.
+    #[arg(long, default_value = "-4.0")]
     eos_threshold: f32,
     /// Sample rate to write into the WAV header. Real Pocket-TTS Mimi runs
     /// at 24 kHz; mini exports are unitless.
@@ -74,12 +78,6 @@ struct Args {
     /// configs use 8; real Pocket-TTS uses 32.
     #[arg(long, default_value = "8")]
     ldim: usize,
-    /// Dump the FlowLM-emitted audio latents to this ``.npz`` (key
-    /// ``latents``, shape ``(B, ldim, T)``) and skip the SEANet decoder
-    /// step. Used by the hybrid ``--full`` run.sh path where the Mimi
-    /// audio decode runs in Python via ``decode_audio.py``.
-    #[arg(long)]
-    dump_latents: Option<PathBuf>,
 }
 
 type Runnable =
@@ -181,20 +179,23 @@ fn main() -> Result<()> {
     let init_path = args.models.join("flow_lm_init.nnef.tgz");
     let step_path = args.models.join("flow_lm_step.nnef.tgz");
     let flow_net_path = args.models.join("flow_net.nnef.tgz");
+    // Prefer the full Mimi chain (latent -> 24 kHz audio) when present;
+    // fall back to the SEANet-only ``decoder.nnef.tgz`` for the mini config.
+    let mimi_decode_path = args.models.join("mimi_decode.nnef.tgz");
     let decoder_path = args.models.join("decoder.nnef.tgz");
+    let audio_decode_path = if mimi_decode_path.exists() {
+        mimi_decode_path
+    } else {
+        decoder_path
+    };
     println!("loading flow_lm_init from {}", init_path.display());
     let flow_lm_init = load_graph(&nnef, &init_path)?;
     println!("loading flow_lm_step from {}", step_path.display());
     let flow_lm_step = load_graph(&nnef, &step_path)?;
     println!("loading flow_net from {}", flow_net_path.display());
     let flow_net = load_graph(&nnef, &flow_net_path)?;
-    let decoder = if args.dump_latents.is_some() {
-        println!("(skipping decoder; --dump-latents set)");
-        None
-    } else {
-        println!("loading decoder from {}", decoder_path.display());
-        Some(load_graph(&nnef, &decoder_path)?)
-    };
+    println!("loading audio decoder from {}", audio_decode_path.display());
+    let audio_decoder = load_graph(&nnef, &audio_decode_path)?;
 
     println!("loading voice prompt from {}", args.voice.display());
     let voice = load_voice(&args.voice)?;
@@ -276,16 +277,7 @@ fn main() -> Result<()> {
         tract_ndarray::Array3::from_shape_vec((1, ldim, t_lat), latent_buf)
             .map_err(|e| anyhow!("latent stack reshape: {e}"))?;
 
-    // -- ``--dump-latents`` short-circuit (hybrid path) ---------------------
-    if let Some(path) = &args.dump_latents {
-        write_npz_latents(path, &latent_stack)
-            .with_context(|| format!("dumping latents to {}", path.display()))?;
-        println!("wrote {} latents=({},{},{})", path.display(), 1, ldim, t_lat);
-        return Ok(());
-    }
-
-    let decoder = decoder.expect("decoder graph is loaded when not skipping");
-    let audio_out = decoder.run(tvec!(latent_stack.into_tensor().into()))?;
+    let audio_out = audio_decoder.run(tvec!(latent_stack.into_tensor().into()))?;
     let audio = audio_out
         .into_iter()
         .next()
@@ -308,51 +300,5 @@ fn main() -> Result<()> {
     }
     writer.finalize()?;
     println!("wrote {}", args.out.display());
-    Ok(())
-}
-
-
-/// Write a ``(1, ldim, T)`` latent tensor as a numpy ``.npz`` archive
-/// containing one array under the key ``latents``. Hand-rolled so we don't
-/// take on a numpy / npz crate dep just for this debug dump.
-fn write_npz_latents(
-    path: &Path,
-    latents: &tract_ndarray::Array3<f32>,
-) -> Result<()> {
-    use std::io::Write;
-    let shape = latents.shape();
-    let header = format!(
-        "{{'descr': '<f4', 'fortran_order': False, 'shape': ({}, {}, {})}}",
-        shape[0], shape[1], shape[2]
-    );
-    // Pad header to 16-byte multiple (np.save requirement).
-    let header_padded = {
-        let mut h = header;
-        // 10 = magic(6) + version(2) + header-len(2)
-        let target = ((10 + h.len() + 1 + 15) / 16) * 16;
-        let pad = target - 10 - h.len() - 1;
-        h.push_str(&" ".repeat(pad));
-        h.push('\n');
-        h
-    };
-    let mut npy = Vec::<u8>::with_capacity(latents.len() * 4 + 256);
-    npy.extend_from_slice(b"\x93NUMPY"); // magic
-    npy.push(1); // major
-    npy.push(0); // minor
-    npy.extend_from_slice(
-        &(u16::try_from(header_padded.len()).expect("header < 64KiB"))
-            .to_le_bytes(),
-    );
-    npy.extend_from_slice(header_padded.as_bytes());
-    for &v in latents.iter() {
-        npy.extend_from_slice(&v.to_le_bytes());
-    }
-
-    let f = std::fs::File::create(path)?;
-    let mut zip = zip::ZipWriter::new(f);
-    let opts: zip::write::SimpleFileOptions = Default::default();
-    zip.start_file("latents.npy", opts)?;
-    zip.write_all(&npy)?;
-    zip.finish()?;
     Ok(())
 }
