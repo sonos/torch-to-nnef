@@ -195,9 +195,7 @@ def _pool_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Norm + Matmul + Conv specs
-# -----------------------------------------------------------------------------
 
 
 def _conv3d_sample_st() -> st.SearchStrategy[OpSample]:
@@ -453,9 +451,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Bitwise + tensor builders
-# -----------------------------------------------------------------------------
 
 
 def _conv2d_dilation_groups_sample_st() -> st.SearchStrategy[OpSample]:
@@ -562,6 +558,4 @@ def _depth_conv_pool_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Depth: norm kwargs (eps, affine), topk/sort flags, cat/stack with N
-# -----------------------------------------------------------------------------

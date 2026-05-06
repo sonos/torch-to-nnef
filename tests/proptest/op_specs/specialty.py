@@ -131,9 +131,7 @@ def _specialty_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # prelu / glu / einsum
-# -----------------------------------------------------------------------------
 
 
 def _prelu_sample_st() -> st.SearchStrategy[OpSample]:
@@ -337,9 +335,7 @@ def _prelu_glu_einsum_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Final user-facing ops (max_pool*_with_indices, dropout, index)
-# -----------------------------------------------------------------------------
 
 
 def _max_pool2d_with_indices_sample_st() -> st.SearchStrategy[OpSample]:
@@ -417,7 +413,5 @@ def _final_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
-# -----------------------------------------------------------------------------

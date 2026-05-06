@@ -328,9 +328,7 @@ def _constructors_index_sdpa_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # FFT (real-input forward and inverse)
-# -----------------------------------------------------------------------------
 
 
 def _fft_sample_st(
@@ -412,9 +410,7 @@ def _fft_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Identity-like glue ops + dtype casts + simple mutators-as-functional
-# -----------------------------------------------------------------------------
 
 
 def _identity_unary_sample_st(
@@ -584,6 +580,4 @@ def _glue_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Depth: conv with dilation/groups + pool with dilation
-# -----------------------------------------------------------------------------

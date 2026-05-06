@@ -306,9 +306,7 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Concat / split / multi-tensor specs
-# -----------------------------------------------------------------------------
 
 
 def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
@@ -409,9 +407,7 @@ def _norm_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Sort / scatter specs (extension of the selector family)
-# -----------------------------------------------------------------------------
 
 
 def _layer_norm_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
@@ -692,6 +688,4 @@ def _depth_norm_topk_cat_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Depth: reduction dtype kwarg (sum, mean, prod with dtype=)
-# -----------------------------------------------------------------------------

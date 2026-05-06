@@ -159,7 +159,6 @@ def _unary_specs() -> T.List[OpSpec]:
     # implementation typically diverges from torch by 1-2 ULPs (~1e-6 relative)
     # and our CLOSE level (1e-5) trips on edge cases (e.g. sin near pi).
     cases: T.List[T.Tuple[str, T.Callable, TractCheckTolerance, Interval]] = [
-        # -- existing 15 --
         ("sin", torch.sin, TractCheckTolerance.VERY, _UNARY_TRIG_DOMAIN),
         ("cos", torch.cos, TractCheckTolerance.VERY, _UNARY_TRIG_DOMAIN),
         ("tan", torch.tan, TractCheckTolerance.VERY, _UNARY_TAN_DOMAIN),
@@ -180,7 +179,6 @@ def _unary_specs() -> T.List[OpSpec]:
         ("asinh", torch.asinh, TractCheckTolerance.VERY, _UNARY_FINITE_DOMAIN),
         ("atan", torch.atan, TractCheckTolerance.VERY, _UNARY_FINITE_DOMAIN),
         ("tanh", torch.tanh, TractCheckTolerance.VERY, _UNARY_TANH_DOMAIN),
-        # -- newly added (9) --
         # Rounding ops -- exact integer outputs, no tolerance needed.
         ("floor", torch.floor, TractCheckTolerance.EXACT, _UNARY_FINITE_DOMAIN),
         ("ceil", torch.ceil, TractCheckTolerance.EXACT, _UNARY_FINITE_DOMAIN),
@@ -272,9 +270,7 @@ def _unary_broad_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Binary specs (5 arithmetic + 6 compare + 3 logical = 14)
-# -----------------------------------------------------------------------------
 
 _BINARY_ARITH_DOMAIN = Interval(-1e3, 1e3)
 _BINARY_DIV_NUM_DOMAIN = Interval(-1e3, 1e3)
@@ -315,7 +311,7 @@ def _div_like_sample_st(
     return _draw()
 
 
-# -- Broadened specs derived from PyTorch op signatures ----------------------
+# Broadened specs derived from PyTorch op signatures.
 # `add`/`sub` accept ``alpha`` (multiplier for ``other``) per
 # https://pytorch.org/docs/stable/generated/torch.add.html and the t2n
 # emitter at ``torch_to_nnef/op/aten/math.py:333-368`` exports it. We sweep
@@ -708,9 +704,7 @@ def _binary_logical_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Reduction specs (4)
-# -----------------------------------------------------------------------------
 
 
 def _clamp_sample_st() -> st.SearchStrategy[OpSample]:
@@ -957,6 +951,4 @@ def _bitwise_builder_specs() -> T.List[OpSpec]:
     ]
 
 
-# -----------------------------------------------------------------------------
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
-# -----------------------------------------------------------------------------
