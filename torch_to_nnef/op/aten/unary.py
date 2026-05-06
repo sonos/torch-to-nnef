@@ -19,7 +19,7 @@ REMAP_ATEN_OP_NAMES = {
 
 # Ops whose standard NNEF spec name differs from tract's registered op name.
 TRACT_OP_ALIASES = {
-    # NNEF spec: ``rcp``; tract registers ``recip`` (ops::math::Recip).
+    # NNEF spec: `rcp`; tract registers `recip` (ops::math::Recip).
     "rcp": "recip",
 }
 
@@ -53,7 +53,7 @@ GENERIC_UNARY_OUTPUT_ATEN_OP_NAMES = [
     "ne",
     # `add` and `sub` deliberately left out: PyTorch passes a third input
     # (`alpha`) that this generic handler would silently drop. They have
-    # dedicated emitters in ``torch_to_nnef/op/aten/math.py``.
+    # dedicated emitters in `torch_to_nnef/op/aten/math.py`.
     "lt",
     "gt",
     "le",

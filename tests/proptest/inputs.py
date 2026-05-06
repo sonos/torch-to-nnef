@@ -1,15 +1,15 @@
 """Tensor-value strategies for hypothesis-driven primitive tests.
 
 `tensor_st` builds a torch tensor from a numpy strategy and then converts via
-``torch.from_numpy`` so that no torch RNG state is touched (which would leak
+`torch.from_numpy` so that no torch RNG state is touched (which would leak
 across hypothesis examples). The dtype parameter accepts EITHER a concrete
-``torch.dtype`` OR a hypothesis strategy returning one, mirroring the
-``hypothesis.extra.numpy.arrays(dtype=...)`` idiom.
+`torch.dtype` OR a hypothesis strategy returning one, mirroring the
+`hypothesis.extra.numpy.arrays(dtype=...)` idiom.
 
 For ops that need N tensors to share a dtype (binary same-dtype, matmul, cat,
 where, etc.), the recommended pattern is to draw the dtype ONCE in the
-composite via ``draw(dtype_st([...]))`` and thread the concrete value into
-each ``tensor_st`` call. Drawing the dtype inside each ``tensor_st`` would
+composite via `draw(dtype_st([...]))` and thread the concrete value into
+each `tensor_st` call. Drawing the dtype inside each `tensor_st` would
 yield independent draws per tensor.
 """
 
@@ -71,7 +71,7 @@ def _resolve_dtype(
 def _quantize_to_dtype(value: float, np_dtype: np.dtype) -> float:
     """Round a float to the nearest exactly-representable value of np_dtype.
 
-    Hypothesis ``floats(width=...)`` rejects min/max bounds that are not
+    Hypothesis `floats(width=...)` rejects min/max bounds that are not
     exactly representable at the given width. This helper makes the domain
     bounds safe for any float width without forcing every caller to
     pre-quantize.
@@ -130,7 +130,7 @@ def tensor_st(
         draw: hypothesis composite draw function (injected automatically).
         shape: concrete shape tuple. Use a shape strategy upstream and pass
             the drawn value here.
-        dtype: a concrete ``torch.dtype`` or a strategy returning one.
+        dtype: a concrete `torch.dtype` or a strategy returning one.
         finite: when True (default), exclude NaN and Inf from the value pool.
             When False, NaN and Inf may be drawn -- only do this for ops whose
             property under test depends on them (e.g. isnan, isinf).

@@ -1,7 +1,7 @@
 """Dtype-aware tolerance table for the proptest comparator.
 
-The tolerance levels mirror ``TractCheckTolerance`` (see
-``torch_to_nnef.inference_target.tract``) but are resolved to (rtol, atol)
+The tolerance levels mirror `TractCheckTolerance` (see
+`torch_to_nnef.inference_target.tract`) but are resolved to (rtol, atol)
 pairs per dtype, since the meaningful epsilon is dtype-dependent.
 
 Integer and bool dtypes always require bit-exact comparison; tolerance is

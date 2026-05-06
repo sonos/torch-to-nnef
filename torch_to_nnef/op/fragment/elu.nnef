@@ -1,6 +1,6 @@
 # PyTorch elu: y = max(0, x) + min(0, alpha * (exp(x) - 1))
-# Shadows NNEF's standard ``elu`` fragment, which is hard-coded to
-# alpha=1, so we route the PyTorch ``alpha`` parameter through here.
+# Shadows NNEF's standard `elu` fragment, which is hard-coded to
+# alpha=1, so we route the PyTorch `alpha` parameter through here.
 fragment elu(
   x: tensor<scalar>,
   alpha: scalar = 1.0 )

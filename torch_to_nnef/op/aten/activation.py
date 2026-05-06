@@ -59,13 +59,13 @@ def softplus(**kwargs):
 def elu(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:elu' to NNEF.
 
-    PyTorch's ``aten::elu(self, alpha=1, scale=1, input_scale=1)`` takes
-    three scalar parameters. NNEF's standard ``elu`` fragment is
-    hard-coded to ``alpha=1``, so we emit a custom ``elu`` fragment (see
-    ``torch_to_nnef/op/fragment/elu.nnef``) that exposes ``alpha`` as an
-    attribute. ``scale`` and ``input_scale`` are not part of the NNEF op
+    PyTorch's `aten::elu(self, alpha=1, scale=1, input_scale=1)` takes
+    three scalar parameters. NNEF's standard `elu` fragment is
+    hard-coded to `alpha=1`, so we emit a custom `elu` fragment (see
+    `torch_to_nnef/op/fragment/elu.nnef`) that exposes `alpha` as an
+    attribute. `scale` and `input_scale` are not part of the NNEF op
     surface; the emitter raises on non-default values for those (rare in
-    practice -- the common form is ``F.elu(x, alpha=k)``).
+    practice -- the common form is `F.elu(x, alpha=k)`).
     """
     input_node = node.inputs[0]
     alpha_node = node.inputs[1] if len(node.inputs) >= 2 else None
@@ -109,16 +109,16 @@ def leaky_relu(**kwargs):
 def prelu(**kwargs):
     """Map PyTorch: 'aten:prelu' to NNEF.
 
-    PyTorch's ``PReLU(num_parameters=C)`` stores the slope as a 1-D tensor
-    of shape ``(C,)`` and applies it along the channel axis (dim=1) of an
-    input shaped ``(B, C, *spatial)``. NNEF broadcasts left-aligned
-    (prepends 1s), so a raw ``(C,)`` weight would broadcast to the
+    PyTorch's `PReLU(num_parameters=C)` stores the slope as a 1-D tensor
+    of shape `(C,)` and applies it along the channel axis (dim=1) of an
+    input shaped `(B, C, *spatial)`. NNEF broadcasts left-aligned
+    (prepends 1s), so a raw `(C,)` weight would broadcast to the
     *trailing* axis instead of the channel axis -- i.e. wrong.
 
-    Pre-unsqueeze the weight to ``(C, 1, 1, ...)`` so left-alignment
-    yields ``(1, C, 1, 1, ...)`` and broadcast lands on the channel axis.
+    Pre-unsqueeze the weight to `(C, 1, 1, ...)` so left-alignment
+    yields `(1, C, 1, 1, ...)` and broadcast lands on the channel axis.
     Same pattern as group_norm/batch_norm scale/offset. The single-slope
-    case (``num_parameters=1`` -> shape ``(1,)``) is left untouched
+    case (`num_parameters=1` -> shape `(1,)`) is left untouched
     since broadcasting is then trivially correct.
     """
     # avoid unpack/pack {
@@ -170,7 +170,7 @@ def relu6(**kwargs):
 def threshold(**kwargs):
     """Map PyTorch: 'aten:threshold' to NNEF.
 
-    PyTorch ref: ``y = x if x > threshold else value``.
+    PyTorch ref: `y = x if x > threshold else value`.
     """
     node = kwargs["node"]
     node.inputs = node.inputs[:3]  # (input, threshold, value)
@@ -185,8 +185,8 @@ def threshold(**kwargs):
 def mish(**kwargs):
     """Map PyTorch: 'aten:mish' to NNEF.
 
-    PyTorch ref: ``y = x * tanh(softplus(x))``. Tract has no native
-    op so we emit a fragment built from ``softplus``/``tanh``/``mul``.
+    PyTorch ref: `y = x * tanh(softplus(x))`. Tract has no native
+    op so we emit a fragment built from `softplus`/`tanh`/`mul`.
     """
     node = kwargs["node"]
     node.inputs = node.inputs[:1]  # drop the inplace flag if present
@@ -198,8 +198,8 @@ def mish(**kwargs):
 def hardsigmoid(**kwargs):
     """Map PyTorch: 'aten:hardsigmoid' to NNEF.
 
-    PyTorch ref: ``y = clamp((x + 3) / 6, 0, 1)``. Tract has no native
-    op for this, so we emit a custom fragment built from ``min``/``max``
+    PyTorch ref: `y = clamp((x + 3) / 6, 0, 1)`. Tract has no native
+    op for this, so we emit a custom fragment built from `min`/`max`
     and arithmetic primitives.
     """
     node = kwargs["node"]
@@ -360,12 +360,12 @@ def clamp_max(g, node, name_to_tensor, **kwargs):
 def clamp(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp' to NNEF.
 
-    PyTorch's ``clamp(input, min=None, max=None)`` skips a bound when it
-    is ``None`` (the unset sentinel) -- NOT when it is 0.0. The earlier
-    ``if X.data:`` truthy check evaluated to False for the literal 0.0,
-    silently dropping ``min=0`` / ``max=0`` clamps and producing wrong
+    PyTorch's `clamp(input, min=None, max=None)` skips a bound when it
+    is `None` (the unset sentinel) -- NOT when it is 0.0. The earlier
+    `if X.data:` truthy check evaluated to False for the literal 0.0,
+    silently dropping `min=0` / `max=0` clamps and producing wrong
     output for any input crossing the unset bound. Same root pattern as
-    the ``flatten`` ``or 0/-1`` bug. Use explicit ``is None`` checks.
+    the `flatten` `or 0/-1` bug. Use explicit `is None` checks.
     """
     input_node, min_clamp, max_clamp = node.inputs
 

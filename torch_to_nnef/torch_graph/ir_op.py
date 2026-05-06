@@ -493,11 +493,11 @@ class TorchOp:
             kwargs["rounding_mode"] = args[2]
             args = args[:-1]
             self.op_ref = torch.div
-        # ``aten::add`` / ``aten::sub`` (and their in-place ``_`` forms)
-        # carry ``alpha`` as the third positional input in PyTorch's IR.
-        # The python ``torch.add`` / ``torch.sub`` signatures take it as
-        # a kwarg-only ``Scalar`` and raise a schema-match error if a
-        # third positional arg is passed. ``call_op`` is a tracing-only
+        # `aten::add` / `aten::sub` (and their in-place `_` forms)
+        # carry `alpha` as the third positional input in PyTorch's IR.
+        # The python `torch.add` / `torch.sub` signatures take it as
+        # a kwarg-only `Scalar` and raise a schema-match error if a
+        # third positional arg is passed. `call_op` is a tracing-only
         # re-execution to recover output shape/dtype, so routing the
         # in-place variants through the out-of-place op is safe (the
         # in-place semantics aren't needed at trace time).

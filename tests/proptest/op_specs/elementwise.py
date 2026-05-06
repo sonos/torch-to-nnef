@@ -97,7 +97,7 @@ def _binary_pow_int_exp_sample_st() -> st.SearchStrategy[OpSample]:
 
     Integer exponents go through a different code path in tract (a
     repeated-multiply or sqr/rsqr fragment for small constants -- see
-    ``torch_to_nnef/op/aten/math.py:_pow``). Cover small absolute values
+    `torch_to_nnef/op/aten/math.py:_pow`). Cover small absolute values
     to keep results bounded.
     """
 
@@ -312,9 +312,9 @@ def _div_like_sample_st(
 
 
 # Broadened specs derived from PyTorch op signatures.
-# `add`/`sub` accept ``alpha`` (multiplier for ``other``) per
+# `add`/`sub` accept `alpha` (multiplier for `other`) per
 # https://pytorch.org/docs/stable/generated/torch.add.html and the t2n
-# emitter at ``torch_to_nnef/op/aten/math.py`` exports it. We sweep
+# emitter at `torch_to_nnef/op/aten/math.py` exports it. We sweep
 # alpha values plus multi-dtype (f32 + f16). Domain bounds for f16 are
 # tighter to keep results within f16's representable range.
 _F16_BINARY_DOMAIN = Interval(-50.0, 50.0)
@@ -323,11 +323,11 @@ _F16_BINARY_DOMAIN = Interval(-50.0, 50.0)
 def _add_or_sub_multi_dtype_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """Sweep dtype (f32 + f16) for ``torch.add`` / ``torch.sub``.
+    """Sweep dtype (f32 + f16) for `torch.add` / `torch.sub`.
 
-    Note: ``alpha`` (the second documented parameter of these ops) is NOT
-    swept here -- see ``_add_or_sub_alpha_sample_st`` and the corresponding
-    ``add-alpha-xfail`` / ``sub-alpha-xfail`` registry entries for that
+    Note: `alpha` (the second documented parameter of these ops) is NOT
+    swept here -- see `_add_or_sub_alpha_sample_st` and the corresponding
+    `add-alpha-xfail` / `sub-alpha-xfail` registry entries for that
     coverage and the tracked emitter bug.
     """
 
@@ -350,16 +350,16 @@ def _add_or_sub_multi_dtype_sample_st(
 def _add_or_sub_alpha_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """Sweep non-default ``alpha`` for ``torch.add`` / ``torch.sub``.
+    """Sweep non-default `alpha` for `torch.add` / `torch.sub`.
 
-    PyTorch's ``torch.add(a, b, alpha=k)`` computes ``a + k*b`` and
-    ``torch.sub(a, b, alpha=k)`` computes ``a - k*b``. Originally proptest
+    PyTorch's `torch.add(a, b, alpha=k)` computes `a + k*b` and
+    `torch.sub(a, b, alpha=k)` computes `a - k*b`. Originally proptest
     found that the alpha attribute was silently dropped at export -- two
-    bugs combined: ``ir_helpers._prepare_arguments`` truncated aten:add /
-    aten:sub inputs to the first two, and ``unary.generic_unary`` (which
+    bugs combined: `ir_helpers._prepare_arguments` truncated aten:add /
+    aten:sub inputs to the first two, and `unary.generic_unary` (which
     these ops were routed through) ignores attributes. Both fixed in this
     same change set: dedicated emitters live at
-    ``torch_to_nnef/op/aten/math.py`` (search ``_add_or_sub_with_alpha``)
+    `torch_to_nnef/op/aten/math.py` (search `_add_or_sub_with_alpha`)
     and the input-truncation behavior was removed.
     """
     _no_specials = {"allow_nan": False, "allow_infinity": False}
@@ -392,14 +392,14 @@ def _add_or_sub_alpha_sample_st(
 
 
 def _div_explicit_none_sample_st() -> st.SearchStrategy[OpSample]:
-    """Div called with explicit ``rounding_mode=None``.
+    """Div called with explicit `rounding_mode=None`.
 
     Originally proptest found that the t2n div emitter cast the output to
-    int64 whenever ``len(node.inputs) == 3``, even when ``rounding_mode``
-    was the literal ``None`` (which PyTorch documents as equivalent to
-    ``/`` true division). Now fixed: the emitter checks
-    ``rounding_mode is not None`` before applying the cast (see
-    ``torch_to_nnef/op/aten/math.py``).
+    int64 whenever `len(node.inputs) == 3`, even when `rounding_mode`
+    was the literal `None` (which PyTorch documents as equivalent to
+    `/` true division). Now fixed: the emitter checks
+    `rounding_mode is not None` before applying the cast (see
+    `torch_to_nnef/op/aten/math.py`).
     """
 
     @st.composite
@@ -425,21 +425,21 @@ def _div_explicit_none_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _div_rounding_sample_st() -> st.SearchStrategy[OpSample]:
-    """Div with ``rounding_mode in {"trunc", "floor"}``.
+    """Div with `rounding_mode in {"trunc", "floor"}`.
 
     **Tract upstream precision bug -- this spec stays xfailed pending a
     tract fix.** The original t2n-side issues are fixed:
 
-    1. ``div(float, float, rounding_mode="trunc")`` previously returned
+    1. `div(float, float, rounding_mode="trunc")` previously returned
        int64; now returns float32 to match PyTorch (the emitter only
        casts to int64 when the traced output dtype is integer).
 
     2. The remaining failure is a tract precision issue: tract's float
-       division for some specific value pairs (e.g. ``11.75 / 11.75``)
+       division for some specific value pairs (e.g. `11.75 / 11.75`)
        returns ~0.99999994 instead of 1.0 (off by ~0.5 ULP of f32
-       epsilon), so ``trunc(0.99999994) = 0`` rather than ``trunc(1.0)
-       = 1``. Reproduced directly with a plain ``div`` (no rounding).
-       The trunc/floor NNEF fragments at ``torch_to_nnef/op/fragment/``
+       epsilon), so `trunc(0.99999994) = 0` rather than `trunc(1.0)
+       = 1`. Reproduced directly with a plain `div` (no rounding).
+       The trunc/floor NNEF fragments at `torch_to_nnef/op/fragment/`
        are mathematically correct; they just operate on tract's already-
        imprecise division result.
 
@@ -581,8 +581,8 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             dtypes_hint=(torch.float32,),
         ),
         OpSpec(
-            # Element-wise ``torch.min(a, b)`` (binary form).
-            # Distinct from the dim-reduction in ``min-dim``.
+            # Element-wise `torch.min(a, b)` (binary form).
+            # Distinct from the dim-reduction in `min-dim`.
             name="min-elementwise",
             sample_st=_binary_broadcast_sample_st(
                 torch.min, domain=_BINARY_ARITH_DOMAIN
@@ -614,27 +614,27 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             ),
         ),
         OpSpec(
-            # remainder is implemented as ``a - floor(a/b) * b`` (see
-            # ``torch_to_nnef/op/fragment/remainder.nnef``). The fragment
+            # remainder is implemented as `a - floor(a/b) * b` (see
+            # `torch_to_nnef/op/fragment/remainder.nnef`). The fragment
             # is mathematically correct, but it depends on tract's f32
-            # ``div`` which has the precision bug noted in
-            # ``div-rounding-xfail`` (``div(x, x)`` returns ~0.99999994).
-            # That makes ``floor(div(x, x)) = 0`` instead of 1, and
-            # ``remainder(x, x) = x`` instead of 0.
+            # `div` which has the precision bug noted in
+            # `div-rounding-xfail` (`div(x, x)` returns ~0.99999994).
+            # That makes `floor(div(x, x)) = 0` instead of 1, and
+            # `remainder(x, x) = x` instead of 0.
             name="remainder-xfail",
             sample_st=_div_like_sample_st(torch.remainder),
             tolerance=TractCheckTolerance.VERY,
             dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same tract upstream div precision bug propagates through "
-                "the remainder fragment ``a - floor(a/b) * b``: "
+                "the remainder fragment `a - floor(a/b) * b`: "
                 "remainder(205.375, 205.375) returns 205.375 in tract vs "
                 "0 in PyTorch."
             ),
         ),
         OpSpec(
-            # fmod is implemented as ``a - trunc(a/b) * b`` (see
-            # ``torch_to_nnef/op/fragment/fmod.nnef``). Same upstream
+            # fmod is implemented as `a - trunc(a/b) * b` (see
+            # `torch_to_nnef/op/fragment/fmod.nnef`). Same upstream
             # tract div bug as remainder.
             name="fmod-xfail",
             sample_st=_div_like_sample_st(torch.fmod),
@@ -642,7 +642,7 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same tract upstream div precision bug propagates through "
-                "the fmod fragment ``a - trunc(a/b) * b``."
+                "the fmod fragment `a - trunc(a/b) * b`."
             ),
         ),
     ]
@@ -711,16 +711,16 @@ def _clamp_sample_st() -> st.SearchStrategy[OpSample]:
     """Clamp over the full PyTorch surface.
 
     Historically narrowed for two distinct reasons that turned out to be
-    the SAME ``if X.data:`` Python falsy bug in t2n's clamp emitter (now
-    fixed in ``torch_to_nnef/op/aten/activation.py``):
+    the SAME `if X.data:` Python falsy bug in t2n's clamp emitter (now
+    fixed in `torch_to_nnef/op/aten/activation.py`):
 
-    - ``min/max == 0.0`` was silently skipped (truthy check on the bound
+    - `min/max == 0.0` was silently skipped (truthy check on the bound
       value), letting tract output the unclamped input.
-    - ``min == max == 0.0`` plus matching input tripped
-      ``KeyError: 'output_0'`` because BOTH conditional branches were
+    - `min == max == 0.0` plus matching input tripped
+      `KeyError: 'output_0'` because BOTH conditional branches were
       skipped, leaving the output node unwired.
 
-    Both go away with the explicit ``is None`` check. This strategy now
+    Both go away with the explicit `is None` check. This strategy now
     sweeps the full bounded range including zero, equal bounds, and
     sign-crossing intervals.
     """
@@ -815,7 +815,7 @@ def _bitwise_binary_sample_st(
 
 
 def _bitwise_not_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.bitwise_not`` over int32."""
+    """`torch.bitwise_not` over int32."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -833,7 +833,7 @@ def _bitwise_not_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.zeros_like(input)`` -- output matches input shape/dtype.
+    """`torch.zeros_like(input)` -- output matches input shape/dtype.
 
     Min rank/size raised to avoid the export-pipeline constant-folding
     case (single-element rank-1 input gets folded out, leaving tract
@@ -856,7 +856,7 @@ def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _ones_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.ones_like(input)`` -- see _zeros_like for shape note."""
+    """`torch.ones_like(input)` -- see _zeros_like for shape note."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -874,7 +874,7 @@ def _ones_like_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _full_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.full_like(input, fill_value)`` -- swept fill values."""
+    """`torch.full_like(input, fill_value)` -- swept fill values."""
 
     @st.composite
     def _draw(draw) -> OpSample:

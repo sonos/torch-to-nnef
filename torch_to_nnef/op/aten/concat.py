@@ -64,12 +64,12 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
             g, input_item, name_to_tensor
         )
         inputs.append(tensor_ref)
-    # ``torch.stack`` inserts a new axis; the valid range for ``dim`` is
-    # ``[-(N + 1), N]`` where ``N`` is the rank of each input. Negative
-    # dims must be resolved against the *output* rank (``N + 1``) -- using
-    # the input list length (as :func:`pick_axis` does for ``FixedTensorList``)
-    # silently rewrites e.g. ``torch.stack([a, b], dim=-1)`` on rank-4
-    # inputs to ``axis = 1`` instead of ``4``, which breaks RoPE-style
+    # `torch.stack` inserts a new axis; the valid range for `dim` is
+    # `[-(N + 1), N]` where `N` is the rank of each input. Negative
+    # dims must be resolved against the *output* rank (`N + 1`) -- using
+    # the input list length (as :func:`pick_axis` does for `FixedTensorList`)
+    # silently rewrites e.g. `torch.stack([a, b], dim=-1)` on rank-4
+    # inputs to `axis = 1` instead of `4`, which breaks RoPE-style
     # complex pairing patterns.
     item_rank = input_node.data[0].rank
     axis = dim if dim >= 0 else item_rank + 1 + dim
@@ -150,12 +150,12 @@ def roll(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
     PyTorch normalizes shifts modulo the dim size; tract does not, and
     the slice/concat decomposition we emit produces an empty slice for
-    ``shift=0`` or ``|shift|>=dim_size``, which tract misorders into a
+    `shift=0` or `|shift|>=dim_size`, which tract misorders into a
     doubled-shape output. We reproduce PyTorch's normalization here:
 
     - Drop any (shift, dim) pair where the normalized shift is 0 (no-op).
-    - Replace each remaining shift with ``shift % dim_size`` so the
-      slice indices stay in ``(0, dim_size)``.
+    - Replace each remaining shift with `shift % dim_size` so the
+      slice indices stay in `(0, dim_size)`.
 
     If every pair normalizes away, the entire op is a graph identity --
     we remap the output node to the input.

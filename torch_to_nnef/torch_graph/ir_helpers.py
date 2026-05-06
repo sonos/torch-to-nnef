@@ -385,10 +385,10 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
         if not isinstance(inp, Data)
     ]
     # Note: we used to truncate aten::{add,sub}'s inputs to the first two,
-    # discarding ``alpha``. That broke any model calling
-    # ``torch.add(a, b, alpha=k)`` with k != 1, because the emitter never
-    # saw alpha and silently produced ``a + b``. The dedicated add/sub
-    # emitters in ``torch_to_nnef/op/aten/math.py`` now read alpha when
+    # discarding `alpha`. That broke any model calling
+    # `torch.add(a, b, alpha=k)` with k != 1, because the emitter never
+    # saw alpha and silently produced `a + b`. The dedicated add/sub
+    # emitters in `torch_to_nnef/op/aten/math.py` now read alpha when
     # present, so we forward the full input list here.
 
     if kind in ["aten::mean", "aten::sum"]:

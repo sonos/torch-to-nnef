@@ -19,12 +19,12 @@ def reducer_helper(aten_op_name: str, node, op_helper, output_idx: int = 0):
     name_to_tensor = op_helper.name_to_tensor
 
     # PyTorch's reduction aten ops have variants with different arity:
-    # - ``aten::sum(input)``: 1 input
-    # - ``aten::sum.dim_IntList(input, dim)``: 2 inputs
-    # - ``aten::sum.dim_IntList(input, dim, keepdim)``: 3 inputs
-    # - ``aten::prod.dim_int(input, dim, keepdim, *, dtype=None)``: 4
-    # We only need ``input``, ``dim``, and ``keepdim``; the trailing
-    # ``dtype`` (when present) is honored by PyTorch upstream and the
+    # - `aten::sum(input)`: 1 input
+    # - `aten::sum.dim_IntList(input, dim)`: 2 inputs
+    # - `aten::sum.dim_IntList(input, dim, keepdim)`: 3 inputs
+    # - `aten::prod.dim_int(input, dim, keepdim, *, dtype=None)`: 4
+    # We only need `input`, `dim`, and `keepdim`; the trailing
+    # `dtype` (when present) is honored by PyTorch upstream and the
     # exported graph already carries the post-cast output dtype, so we
     # can safely ignore it here.
     n_inputs = len(node.inputs)

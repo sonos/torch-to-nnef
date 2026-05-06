@@ -1,7 +1,7 @@
 # PyTorch mish: y = x * tanh(softplus(x)) = x * tanh(log(1 + exp(x)))
 # Numerical-stability concern: PyTorch's softplus uses the
-# ``softplus(z) = z if beta*z > thresh else log(1+exp(beta*z))/beta``
-# threshold trick for large z. NNEF's bare ``softplus`` is the
+# `softplus(z) = z if beta*z > thresh else log(1+exp(beta*z))/beta`
+# threshold trick for large z. NNEF's bare `softplus` is the
 # unstabilized form and may overflow for very large positive x; for
 # typical activation inputs this is acceptable. If needed in the
 # future, swap the inner expression for the stabilized variant.

@@ -23,7 +23,7 @@ from ._common import (
 
 
 def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.matmul(A, B)`` -- joint inner-dim constraint A[-1]==B[-2]."""
+    """`torch.matmul(A, B)` -- joint inner-dim constraint A[-1]==B[-2]."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -61,7 +61,7 @@ def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _linear_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Linear(in_f, out_f)`` -- input shape ends with ``in_f``.
+    """`nn.Linear(in_f, out_f)` -- input shape ends with `in_f`.
 
     Rank starts at 2 (always a batch dim). PyTorch supports rank-1 input
     (treats it as a single vector) but t2n's export pipeline needs a
@@ -72,8 +72,8 @@ def _linear_sample_st() -> st.SearchStrategy[OpSample]:
     def _draw(draw) -> OpSample:
         # in_features and out_features both >= 2 to avoid a t2n corner
         # where Linear(1, 1) on (1, 1)-shape input trips
-        # ``maybe_align_inputs_ranks`` in
-        # ``torch_to_nnef/op/helper.py`` (TypeError: Tensor not iterable).
+        # `maybe_align_inputs_ranks` in
+        # `torch_to_nnef/op/helper.py` (TypeError: Tensor not iterable).
         in_features = draw(st.integers(min_value=2, max_value=8))
         out_features = draw(st.integers(min_value=2, max_value=8))
         bias = draw(st.booleans())
@@ -97,7 +97,7 @@ def _linear_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.LayerNorm(normalized_shape)`` -- input ends with that suffix."""
+    """`nn.LayerNorm(normalized_shape)` -- input ends with that suffix."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -125,7 +125,7 @@ def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.BatchNorm1d(C)`` over (N, C) or (N, C, L) input."""
+    """`nn.BatchNorm1d(C)` over (N, C) or (N, C, L) input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -153,7 +153,7 @@ def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.GroupNorm(num_groups, num_channels)`` -- groups must divide C.
+    """`nn.GroupNorm(num_groups, num_channels)` -- groups must divide C.
 
     Each group must have non-trivial variance, otherwise normalization
     amplifies float-roundoff differences between PyTorch and tract into
@@ -182,7 +182,7 @@ def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _conv1d_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Conv1d(in_C, out_C, kernel)`` over (N, in_C, L) input."""
+    """`nn.Conv1d(in_C, out_C, kernel)` over (N, in_C, L) input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -211,7 +211,7 @@ def _conv1d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _conv2d_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Conv2d(in_C, out_C, kernel)`` over (N, in_C, H, W) input."""
+    """`nn.Conv2d(in_C, out_C, kernel)` over (N, in_C, H, W) input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -276,13 +276,13 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             dtypes_hint=(torch.float32,),
         ),
         OpSpec(
-            # Previously xfailed because the ``group_norm.nnef``
+            # Previously xfailed because the `group_norm.nnef`
             # fragment tiled the BATCH axis instead of GROUPS, leaking
             # mean from one batch into another batch's channels for
             # multi-batch inputs with num_groups < num_channels. Now
             # fixed: the emitter flattens spatial dims before the
             # fragment, the fragment computes everything in 3D
-            # ``(B, num_groups, S)`` space, and scale/offset are
+            # `(B, num_groups, S)` space, and scale/offset are
             # applied via the standard per-channel unsqueeze +
             # left-aligned NNEF broadcast pattern after restoration of
             # the original input rank.
@@ -310,7 +310,7 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
 
 
 def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """``Tensor.norm(p, dim, keepdim)`` -- vector p-norm along a dim."""
+    """`Tensor.norm(p, dim, keepdim)` -- vector p-norm along a dim."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -350,7 +350,7 @@ def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _rms_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.RMSNorm(normalized_shape)`` -- input ends with that suffix."""
+    """`nn.RMSNorm(normalized_shape)` -- input ends with that suffix."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -385,13 +385,13 @@ def _norm_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             # Confirmed upstream tract bug: tract's native
-            # ``tract_transformers_rms_norm`` op (which t2n routes to
-            # for tract >= 0.22.0 with single-axis ``normalized_shape``,
+            # `tract_transformers_rms_norm` op (which t2n routes to
+            # for tract >= 0.22.0 with single-axis `normalized_shape`,
             # the typical LLM case) diverges by ~3% relative vs
-            # PyTorch's ``nn.RMSNorm``. The t2n fragment fallback
-            # (``rms_norm.nnef``) has the correct formula
-            # ``x * rsqrt(mean(x^2) + eps) * gamma`` -- forcing
-            # ``prefer_native_tract_rms_norm`` to False makes proptest
+            # PyTorch's `nn.RMSNorm`. The t2n fragment fallback
+            # (`rms_norm.nnef`) has the correct formula
+            # `x * rsqrt(mean(x^2) + eps) * gamma` -- forcing
+            # `prefer_native_tract_rms_norm` to False makes proptest
             # match PyTorch exactly. The fix lives in tract's native op.
             name="rms_norm-xfail",
             sample_st=_rms_norm_sample_st(),
@@ -411,7 +411,7 @@ def _norm_specs() -> T.List[OpSpec]:
 
 
 def _layer_norm_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.LayerNorm`` sweeping ``eps`` and ``elementwise_affine``."""
+    """`nn.LayerNorm` sweeping `eps` and `elementwise_affine`."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -444,11 +444,11 @@ def _layer_norm_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _batch_norm1d_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.BatchNorm1d`` sweeping ``eps`` (affine=True only).
+    """`nn.BatchNorm1d` sweeping `eps` (affine=True only).
 
-    ``affine=False`` is not implemented in t2n's batch_norm emitter
-    (``norm.py`` raises NotImplementedError when the param tensors are
-    None), so we pin ``affine=True``.
+    `affine=False` is not implemented in t2n's batch_norm emitter
+    (`norm.py` raises NotImplementedError when the param tensors are
+    None), so we pin `affine=True`.
     """
 
     @st.composite
@@ -481,10 +481,10 @@ def _batch_norm1d_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _topk_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.topk`` sweeping ``largest`` (sorted=True only).
+    """`torch.topk` sweeping `largest` (sorted=True only).
 
-    t2n's topk emitter raises NotImplementedError on ``sorted=False``
-    (``selector.py``). Sticking to sorted=True.
+    t2n's topk emitter raises NotImplementedError on `sorted=False`
+    (`selector.py`). Sticking to sorted=True.
     """
 
     @st.composite
@@ -525,9 +525,9 @@ def _topk_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _sort_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.sort`` sweeping ``descending`` (stable=False only).
+    """`torch.sort` sweeping `descending` (stable=False only).
 
-    The ``stable`` kwarg fails the schema-match in t2n's dynamic call
+    The `stable` kwarg fails the schema-match in t2n's dynamic call
     path -- sort.stable is a separate aten overload that t2n's
     update_call_op_arg_kwargs doesn't translate. Stable matters only
     when ties exist; we already feed unique values, so dropping the
@@ -566,7 +566,7 @@ def _sort_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 class _CatNTensors(torch.nn.Module):
-    """``torch.cat([t1, ..., tN], dim=k)`` -- variable N."""
+    """`torch.cat([t1, ..., tN], dim=k)` -- variable N."""
 
     def __init__(self, dim: int):
         super().__init__()
@@ -577,7 +577,7 @@ class _CatNTensors(torch.nn.Module):
 
 
 def _cat_n_tensors_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.cat`` with N tensors (3-4 in this strategy)."""
+    """`torch.cat` with N tensors (3-4 in this strategy)."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -618,7 +618,7 @@ def _cat_n_tensors_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _embedding_padding_idx_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Embedding`` sweeping ``padding_idx``."""
+    """`nn.Embedding` sweeping `padding_idx`."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -646,9 +646,9 @@ def _depth_norm_topk_cat_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
     return [
         OpSpec(
-            # Sweeping ``eps`` exposes near-zero output cases where tract
+            # Sweeping `eps` exposes near-zero output cases where tract
             # diverges by more than SUPER's 1e-3 (e.g. ~2.4e-3 abs with
-            # very small ``eps``). ULTRA matches the practical noise
+            # very small `eps`). ULTRA matches the practical noise
             # floor for layer_norm under hypothesis.
             name="layer_norm-broad",
             sample_st=_layer_norm_kwargs_sample_st(),

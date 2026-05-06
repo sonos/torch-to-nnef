@@ -6,13 +6,13 @@ Three profiles:
   - nightly: 200 examples, no shrink cap.
 
 Profile selection (in priority order):
-  1. ``T2N_HYP_PROFILE`` env var.
-  2. ``HYPOTHESIS_PROFILE`` env var.
-  3. ``ci`` if ``CI`` is truthy (GitHub Actions / most CI runners set this).
-  4. ``dev``.
+  1. `T2N_HYP_PROFILE` env var.
+  2. `HYPOTHESIS_PROFILE` env var.
+  3. `ci` if `CI` is truthy (GitHub Actions / most CI runners set this).
+  4. `dev`.
 
-The CI fallback is belt-and-suspenders for direct ``pytest`` invocations on
-CI runners that don't go through tox (which sets ``T2N_HYP_PROFILE`` itself).
+The CI fallback is belt-and-suspenders for direct `pytest` invocations on
+CI runners that don't go through tox (which sets `T2N_HYP_PROFILE` itself).
 """
 
 import os

@@ -1,7 +1,7 @@
 r"""Hypothesis-driven property tests for torch-to-nnef primitives.
 
 This file is intentionally tiny: the heavy lifting lives in
-``tests.proptest`` (strategies, joint composites, comparator, op registry).
+`tests.proptest` (strategies, joint composites, comparator, op registry).
 Each entry in :data:`tests.proptest.op_specs.REGISTRY` becomes one
 parametrized pytest case here, and hypothesis sweeps shapes/dtypes/values
 within the spec's strategy.
@@ -31,7 +31,7 @@ def test_op_property(spec: OpSpec) -> None:
         # tract / t2n. We skip execution rather than running and matching
         # the failure -- subprocess noise from a guaranteed-fail run is
         # not worth the signal. When the upstream fix lands, removing
-        # ``xfail_reason`` flips the spec back to a normal pass.
+        # `xfail_reason` flips the spec back to a normal pass.
         pytest.xfail(spec.xfail_reason)
     target = TractNNEF.latest()
 

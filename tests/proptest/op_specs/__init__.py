@@ -1,7 +1,7 @@
 """Hypothesis-driven primitive op spec catalog.
 
-``REGISTRY`` is the single source of truth consumed by
-``tests/test_primitive_proptest.py``. This package splits the catalog into
+`REGISTRY` is the single source of truth consumed by
+`tests/test_primitive_proptest.py`. This package splits the catalog into
 themed submodules (elementwise, reductions, shape, activation, norm,
 conv_pool, specialty, factory) so each future spec edit touches one small
 file rather than the whole registry.

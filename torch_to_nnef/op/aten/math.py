@@ -81,15 +81,15 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
     if len(node.inputs) == 3:
         rounding_mode = node.inputs[2].data
         # `rounding_mode` may be None even with 3 inputs (PyTorch passes the
-        # literal None when called as ``div(a, b, rounding_mode=None)``).
+        # literal None when called as `div(a, b, rounding_mode=None)`).
         # In that case the result is true float division and we must NOT
         # cast the output to int64.
         if rounding_mode is not None and isinstance(
             inference_target, TractNNEF
         ):
             # PyTorch preserves input dtype across rounded division:
-            # ``div(float, float, trunc) -> float``,
-            # ``div(int, int, trunc) -> int64``.
+            # `div(float, float, trunc) -> float`,
+            # `div(int, int, trunc) -> int64`.
             # We cast to int64 only when the traced output is integer
             # (originally added to dodge U64 propagation for dim math).
             output_torch_dtype = node.outputs[0].dtype
@@ -203,15 +203,15 @@ def trunc(node, op_helper, **kwargs):
 def outer(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:outer' to NNEF.
 
-    ``torch.outer(a, b)`` over 1-D inputs is ``a[:, None] * b[None, :]``.
-    Lower to two unsqueezes and a broadcasting ``mul``.
+    `torch.outer(a, b)` over 1-D inputs is `a[:, None] * b[None, :]`.
+    Lower to two unsqueezes and a broadcasting `mul`.
 
     Axes are kept positive. Tract's NNEF unsqueeze deserializer
-    (``tract_core::ops::change_axes::AxisOp::change_shape``) does not
-    normalize negative axes and panics with ``smallvec: index exceeds
-    length``; verified across tract 0.20.22 through 0.23.0-dev.5. This
-    matches the wider t2n convention -- the dedicated ``unsqueeze`` op
-    handler also normalizes via ``pick_axis``.
+    (`tract_core::ops::change_axes::AxisOp::change_shape`) does not
+    normalize negative axes and panics with `smallvec: index exceeds
+    length`; verified across tract 0.20.22 through 0.23.0-dev.5. This
+    matches the wider t2n convention -- the dedicated `unsqueeze` op
+    handler also normalizes via `pick_axis`.
     """
     a_node, b_node = node.inputs
     a = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
@@ -342,7 +342,7 @@ def remainder(node, op_helper, torch_graph, inference_target, **kwargs):
 
 
 def _resolve_operand(op_helper, c_node):
-    """Materialize an ``aten:add`` / ``aten:sub`` operand as an NNEF tensor."""
+    """Materialize an `aten:add` / `aten:sub` operand as an NNEF tensor."""
     if isinstance(c_node, PythonConstant):
         c_node = c_node.into_tensor_variable()
     return op_helper.get_or_add_tensor_variable_in_nnef(c_node)
@@ -358,12 +358,12 @@ def _alpha_is_default(alpha_node) -> bool:
 
 
 def _emit_alpha_scaled_other(op_helper, node, other_tensor, alpha_node):
-    """Return ``other * alpha`` as a fresh NNEF tensor.
+    """Return `other * alpha` as a fresh NNEF tensor.
 
-    Declares the intermediate NNEF tensor with ``other``'s shape explicitly:
-    ``add_single_output_op_from_nnef_tensors`` would reuse
-    ``node.outputs[0].shape`` (which is the FINAL broadcast shape of the
-    add/sub), and tract refuses to broadcast a tensor of ``other.shape``
+    Declares the intermediate NNEF tensor with `other`'s shape explicitly:
+    `add_single_output_op_from_nnef_tensors` would reuse
+    `node.outputs[0].shape` (which is the FINAL broadcast shape of the
+    add/sub), and tract refuses to broadcast a tensor of `other.shape`
     declared with that final-broadcast shape.
     """
     if isinstance(alpha_node, PythonConstant):
@@ -391,17 +391,17 @@ def _emit_alpha_scaled_other(op_helper, node, other_tensor, alpha_node):
 
 
 def _add_or_sub_with_alpha(nnef_op_name: str, node, op_helper, **_):
-    """Shared body for ``aten:add`` and ``aten:sub`` (both honor ``alpha``).
+    """Shared body for `aten:add` and `aten:sub` (both honor `alpha`).
 
     PyTorch's signatures are::
 
         add(input, other, *, alpha=1) -> input + alpha * other
         sub(input, other, *, alpha=1) -> input - alpha * other
 
-    For the default ``alpha == 1`` we emit a single NNEF ``add`` / ``sub``
-    op. For non-default alpha we decompose to ``mul(other, alpha)`` then
-    ``nnef_op_name(input, scaled_other)`` -- this avoids needing a custom
-    NNEF op variant that takes ``alpha`` as an attribute.
+    For the default `alpha == 1` we emit a single NNEF `add` / `sub`
+    op. For non-default alpha we decompose to `mul(other, alpha)` then
+    `nnef_op_name(input, scaled_other)` -- this avoids needing a custom
+    NNEF op variant that takes `alpha` as an attribute.
     """
     if len(node.inputs) == 3:
         input_node, other_node, alpha_node = node.inputs
@@ -434,13 +434,13 @@ def _add_or_sub_with_alpha(nnef_op_name: str, node, op_helper, **_):
 
 @OP_REGISTRY.register(torch_op_ids=["add"])
 def add(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:add' to NNEF, honoring the ``alpha`` parameter."""
+    """Map PyTorch: 'aten:add' to NNEF, honoring the `alpha` parameter."""
     _add_or_sub_with_alpha("add", node, op_helper, **kwargs)
 
 
 @OP_REGISTRY.register(torch_op_ids=["sub"])
 def sub(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:sub' to NNEF, honoring the ``alpha`` parameter."""
+    """Map PyTorch: 'aten:sub' to NNEF, honoring the `alpha` parameter."""
     _add_or_sub_with_alpha("sub", node, op_helper, **kwargs)
 
 
@@ -780,10 +780,10 @@ def bitwise_and(node, op_helper, inference_target, **kwargs):
 def bitwise_not(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:bitwise_not', 'aten:bitwise_not_cpu' to NNEF.
 
-    On bool inputs, PyTorch's ``~`` is semantically a logical not, so we emit
-    the standard NNEF ``not`` op (keeps the graph portable and self-documenting,
+    On bool inputs, PyTorch's `~` is semantically a logical not, so we emit
+    the standard NNEF `not` op (keeps the graph portable and self-documenting,
     rather than relying on tract's bitnot happening to do the right thing on
-    bool). For integer inputs, emit ``tract_core_bitnot`` for true bitwise
+    bool). For integer inputs, emit `tract_core_bitnot` for true bitwise
     inversion.
     """
     assert len(node.outputs) == 1

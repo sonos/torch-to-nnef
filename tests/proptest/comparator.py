@@ -1,16 +1,16 @@
 """NaN/Inf-aware comparator for hypothesis-driven primitive tests.
 
-The default tract IO check (``--assert-output-bundle``) does not expose an
-``equal_nan`` flag, so when both PyTorch and tract produce NaN at the same
+The default tract IO check (`--assert-output-bundle`) does not expose an
+`equal_nan` flag, so when both PyTorch and tract produce NaN at the same
 position the byte-level comparison fails. Hypothesis routinely generates
 inputs that yield NaN, so we bypass tract's strict assert and compare NPZs in
-Python with ``np.testing.assert_allclose(equal_nan=True)``.
+Python with `np.testing.assert_allclose(equal_nan=True)`.
 
 Flow:
-  1. Clone the inference target with ``check_io=False`` so
-     ``export_model_to_nnef`` skips its internal assert.
-  2. Dump reference inputs + outputs via ``build_io`` (PyTorch side).
-  3. Run tract with ``run --save-outputs-npz`` to capture the runtime outputs.
+  1. Clone the inference target with `check_io=False` so
+     `export_model_to_nnef` skips its internal assert.
+  2. Dump reference inputs + outputs via `build_io` (PyTorch side).
+  3. Run tract with `run --save-outputs-npz` to capture the runtime outputs.
   4. Load both NPZs and compare per output, with dtype-aware tolerance.
 
 Tract is the only supported target: the Khronos reference interpreter has
@@ -45,9 +45,9 @@ class ProptestComparatorError(AssertionError):
 
 
 def _make_no_check_target(target: TractNNEF) -> TractNNEF:
-    """Return a copy of ``target`` with ``check_io=False``.
+    """Return a copy of `target` with `check_io=False`.
 
-    We disable the built-in ``post_export`` assert so the proptest comparator
+    We disable the built-in `post_export` assert so the proptest comparator
     owns the comparison.
     """
     twin = deepcopy(target)
@@ -63,9 +63,9 @@ def _build_tract_run_cmd(
 ) -> T.List[str]:
     """Build the tract CLI invocation that dumps actual outputs to NPZ.
 
-    Mirrors the flag layout used by ``TractCli.assert_io_cmd_str`` but
-    substitutes ``--save-outputs-npz`` for ``--assert-output-bundle``.
-    Both 0.21.15 and 0.22.1 expose ``--save-outputs-npz``.
+    Mirrors the flag layout used by `TractCli.assert_io_cmd_str` but
+    substitutes `--save-outputs-npz` for `--assert-output-bundle`.
+    Both 0.21.15 and 0.22.1 expose `--save-outputs-npz`.
     """
     extra: T.List[str] = []
     if target.version >= "0.20.20":
@@ -131,9 +131,9 @@ def _compare_npz(
 ) -> None:
     """Compare two NPZ files per-output with NaN/Inf-aware semantics.
 
-    ``input_dtypes`` is the list of dtypes of the original PyTorch inputs.
+    `input_dtypes` is the list of dtypes of the original PyTorch inputs.
     f16/bf16 outputs are cast to f32 during NPZ serialization (see
-    ``model_wrapper.py:write_output_npz``), which would otherwise cause
+    `model_wrapper.py:write_output_npz`), which would otherwise cause
     the comparator to look up the f32 (strict) tolerance for what was
     really an f16 computation. We work around that by using the loosest
     tolerance among (NPZ ref dtype) and (input dtypes).
@@ -190,16 +190,16 @@ def assert_outputs_close_nan_aware(
     """Assert that tract's outputs match PyTorch's reference, NaN-aware.
 
     Args:
-        model: an ``nn.Module`` whose forward returns one or more tensors.
-        inputs: positional inputs forwarded to ``model(*inputs)``.
-        inference_target: a ``TractNNEF`` instance. A clone with
-            ``check_io=False`` is used internally.
+        model: an `nn.Module` whose forward returns one or more tensors.
+        inputs: positional inputs forwarded to `model(*inputs)`.
+        inference_target: a `TractNNEF` instance. A clone with
+            `check_io=False` is used internally.
         tolerance: tolerance level for the numeric comparison. Mapped to
             (rtol, atol) per dtype via :mod:`tests.proptest.dtypes`.
 
     Raises:
-        T2NErrorInvalidArgument: when ``inference_target`` is not a
-            ``TractNNEF`` instance (the only supported target).
+        T2NErrorInvalidArgument: when `inference_target` is not a
+            `TractNNEF` instance (the only supported target).
         ProptestComparatorError: on any divergence (shape mismatch, missing
             output, non-float bit-exact mismatch, or float values outside
             tolerance).

@@ -65,9 +65,9 @@ def _reduction_sample_st(
 def _sum_full_or_multi_dim_sample_st() -> st.SearchStrategy[OpSample]:
     """Sum with the full dim surface per torch.sum doc.
 
-    PyTorch's ``torch.sum`` accepts ``dim`` as ``None`` (reduce all),
+    PyTorch's `torch.sum` accepts `dim` as `None` (reduce all),
     a single int, or a tuple/list of ints (multi-axis reduction). The t2n
-    reducer at ``torch_to_nnef/op/aten/reducer.py`` handles all
+    reducer at `torch_to_nnef/op/aten/reducer.py` handles all
     three. The original sum-dim spec only swept the single-int case; this
     one adds the multi-dim and full-reduction surface.
     """
@@ -198,13 +198,13 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
 
     Two t2n limitations narrow this spec:
 
-    1. The var emitter at ``torch_to_nnef/op/aten/math.py`` raises
-       NotImplementedError when ``correction != 0`` (PyTorch defaults to
+    1. The var emitter at `torch_to_nnef/op/aten/math.py` raises
+       NotImplementedError when `correction != 0` (PyTorch defaults to
        1 -- unbiased estimator); we sweep correction=0 only.
-    2. The same emitter does not honor ``keepdim`` -- it always emits a
-       squeezed-axes ``var`` and never reshapes back. ``keepdim=True``
-       would surface as a shape mismatch (ref ``(..., 1, ...)`` vs tract
-       ``(...)``); we sweep keepdim=False only.
+    2. The same emitter does not honor `keepdim` -- it always emits a
+       squeezed-axes `var` and never reshapes back. `keepdim=True`
+       would surface as a shape mismatch (ref `(..., 1, ...)` vs tract
+       `(...)`); we sweep keepdim=False only.
 
     Both are tracked t2n improvements that this spec will widen against
     once they land.
@@ -299,10 +299,10 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         # any / all are bool reductions (input bool, output bool).
         # tract 0.22.1 (latest in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS)
-        # does NOT define ``any_reduce`` / ``all_reduce`` operators -- they
+        # does NOT define `any_reduce` / `all_reduce` operators -- they
         # were added in tract > 0.22.1. The curated test at
-        # ``tests/test_primitive.py`` skips these via
-        # ``cond_tract_gt_0_22_0``. Xfail until the supported version set
+        # `tests/test_primitive.py` skips these via
+        # `cond_tract_gt_0_22_0`. Xfail until the supported version set
         # bumps past 0.22.1.
         OpSpec(
             name="any-dim-xfail",
@@ -334,7 +334,7 @@ def _reduction_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.CLOSE,
             dtypes_hint=(torch.float32,),
         ),
-        # var has unbiased/biased variants via the ``correction`` kwarg.
+        # var has unbiased/biased variants via the `correction` kwarg.
         # We sweep both.
         OpSpec(
             name="var-dim",
@@ -351,10 +351,10 @@ def _reduction_specs() -> T.List[OpSpec]:
 def _reduction_dtype_kwarg_sample_st(
     method_name: str,
 ) -> st.SearchStrategy[OpSample]:
-    """Reduction with the ``dtype`` cast-then-reduce kwarg.
+    """Reduction with the `dtype` cast-then-reduce kwarg.
 
-    PyTorch's ``sum/mean/prod(dim, *, dtype=)`` casts the input to
-    ``dtype`` BEFORE reducing -- useful for f16 -> f32 accumulation.
+    PyTorch's `sum/mean/prod(dim, *, dtype=)` casts the input to
+    `dtype` BEFORE reducing -- useful for f16 -> f32 accumulation.
     """
 
     @st.composite

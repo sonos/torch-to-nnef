@@ -4,9 +4,9 @@ extension tract_registry tract_core;
 # afterwards using the standard per-channel unsqueeze + broadcast path
 # that already handles arbitrary input rank correctly.
 #
-# Input is expected as 3-D ``(batch, num_channels, S)`` where ``S`` is
+# Input is expected as 3-D `(batch, num_channels, S)` where `S` is
 # the product of spatial dims; the emitter at
-# ``torch_to_nnef/op/aten/norm.py:group_norm`` is responsible for the
+# `torch_to_nnef/op/aten/norm.py:group_norm` is responsible for the
 # reshape-into-3D before the call and the reshape-back-to-original
 # afterwards.
 fragment group_norm(
@@ -21,7 +21,7 @@ fragment group_norm(
     mean = sum_reduce(per_group_input, axes=[2], normalize=true);
     inv_stdvar = rsqrt(sum_reduce(sqr(per_group_input - mean), axes=[2], normalize=true) + epsilon);
 
-    # Per-group mean and inv_stdvar have shape ``(batch, num_groups, 1)``
+    # Per-group mean and inv_stdvar have shape `(batch, num_groups, 1)`
     # which broadcasts naturally over the trailing flattened axis -- no
     # tile/transpose dance needed.
     normalized_per_group = (per_group_input - mean) * inv_stdvar;

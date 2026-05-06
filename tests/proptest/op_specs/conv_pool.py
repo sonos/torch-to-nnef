@@ -32,12 +32,12 @@ def _pool2d_sample_st(
 ) -> st.SearchStrategy[OpSample]:
     """2D pool over (N, C, H, W) input.
 
-    t2n's pool emitters reject ``ceil_mode=True``,
-    ``count_include_pad=False`` and ``divisor_override`` so we keep all of
+    t2n's pool emitters reject `ceil_mode=True`,
+    `count_include_pad=False` and `divisor_override` so we keep all of
     those at safe defaults. avg_pool callers should set
-    ``allow_padding=False`` -- the t2n avg_pool emitter requires
-    ``count_include_pad=True`` (PyTorch's default) but emits NNEF's
-    ``border="ignore"`` (which is ``count_include_pad=False``); padding
+    `allow_padding=False` -- the t2n avg_pool emitter requires
+    `count_include_pad=True` (PyTorch's default) but emits NNEF's
+    `border="ignore"` (which is `count_include_pad=False`); padding
     > 0 surfaces the semantic mismatch.
     """
 
@@ -74,7 +74,7 @@ def _pool1d_sample_st(
     op: T.Callable[..., torch.Tensor],
     allow_padding: bool = True,
 ) -> st.SearchStrategy[OpSample]:
-    """1D pool. See ``_pool2d_sample_st`` for ``allow_padding`` rationale."""
+    """1D pool. See `_pool2d_sample_st` for `allow_padding` rationale."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -109,7 +109,7 @@ def _adaptive_pool2d_sample_st(
 ) -> st.SearchStrategy[OpSample]:
     """adaptive_pool2d -- input H/W must divide output H/W.
 
-    t2n's adaptive pool emitter at ``torch_to_nnef/op/aten/pool.py``
+    t2n's adaptive pool emitter at `torch_to_nnef/op/aten/pool.py`
     is documented as "will likely only work with full defined shapes" --
     it doesn't fully translate adaptive_pool semantics for non-divisible
     input/output ratios (proptest finds shape mismatches like
@@ -199,7 +199,7 @@ def _pool_specs() -> T.List[OpSpec]:
 
 
 def _conv3d_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Conv3d`` over (N, in_C, D, H, W) input."""
+    """`nn.Conv3d` over (N, in_C, D, H, W) input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -266,7 +266,7 @@ def _pool3d_sample_st(
 
 
 def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.cumsum(input, dim)``."""
+    """`torch.cumsum(input, dim)`."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -299,7 +299,7 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
-    """``torch.atan2(y, x)`` -- broadcasted, no special domain."""
+    """`torch.atan2(y, x)` -- broadcasted, no special domain."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -455,9 +455,9 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
 
 
 def _conv2d_dilation_groups_sample_st() -> st.SearchStrategy[OpSample]:
-    """``nn.Conv2d`` sweeping ``dilation`` and ``groups`` kwargs.
+    """`nn.Conv2d` sweeping `dilation` and `groups` kwargs.
 
-    ``groups`` must divide both ``in_channels`` and ``out_channels``;
+    `groups` must divide both `in_channels` and `out_channels`;
     we draw a common groups divisor and pick channel counts as multiples.
     Dilation increases effective kernel; we ensure spatial >= effective k.
     """
@@ -504,9 +504,9 @@ def _conv2d_dilation_groups_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _max_pool2d_dilation_sample_st() -> st.SearchStrategy[OpSample]:
-    """``F.max_pool2d`` with ``dilation`` swept.
+    """`F.max_pool2d` with `dilation` swept.
 
-    ``ceil_mode`` stays False -- t2n's pool emitter raises
+    `ceil_mode` stays False -- t2n's pool emitter raises
     NotImplementedError on ceil_mode=True.
     """
 

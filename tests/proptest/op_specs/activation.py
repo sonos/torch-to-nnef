@@ -69,7 +69,7 @@ def _activation_specs() -> T.List[OpSpec]:
     ]
 
     # Activations with a single optional kwarg pinned to its default; the
-    # kwarg-sweep variants (``-broad``) are added separately below.
+    # kwarg-sweep variants (`-broad`) are added separately below.
     leaky_relu = partial(F.leaky_relu, negative_slope=0.01)
     elu_default = partial(F.elu, alpha=1.0)
     hardtanh_default = partial(F.hardtanh, min_val=-1.0, max_val=1.0)
@@ -151,8 +151,8 @@ def _activation_specs() -> T.List[OpSpec]:
     )
 
     # ---- kwarg-broad variants ----
-    # gelu has an ``approximate`` kwarg (``"none"`` (default) or
-    # ``"tanh"``). Per the PyTorch doc, "tanh" uses an approximate formula
+    # gelu has an `approximate` kwarg (`"none"` (default) or
+    # `"tanh"`). Per the PyTorch doc, "tanh" uses an approximate formula
     # that often matches different cuda kernels.
     @st.composite
     def _gelu_kwarg_sample(draw) -> OpSample:
@@ -251,7 +251,7 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         # softplus has beta and threshold; t2n's softplus emitter only
         # supports beta=1 (raises NotImplemented otherwise -- see
-        # ``torch_to_nnef/op/aten/activation.py``). We sweep
+        # `torch_to_nnef/op/aten/activation.py`). We sweep
         # threshold (default 20) within a safe range; beta stays at 1.
         threshold = draw(
             st.floats(

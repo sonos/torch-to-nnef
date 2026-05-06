@@ -2,9 +2,9 @@
 
 Each composite encodes a cross-input or input-vs-kwarg constraint that
 cannot be satisfied by drawing inputs and kwargs independently (matmul
-inner-dim, clamp ordered pair, permutation of ``[0..rank-1]``, ...).
+inner-dim, clamp ordered pair, permutation of `[0..rank-1]`, ...).
 Heavier joint constructs (matmul, conv, cat, gather) live inline in their
-consumer modules under ``op_specs/`` rather than here.
+consumer modules under `op_specs/` rather than here.
 """
 
 import typing as T
@@ -18,7 +18,7 @@ def clamp_kwargs_st(
 ) -> T.Dict[str, float]:
     """Draw a sorted (min, max) pair for `torch.clamp`.
 
-    Always yields ``min <= max`` by construction.
+    Always yields `min <= max` by construction.
     """
     floats = st.floats(
         min_value=lo, max_value=hi, allow_nan=False, allow_infinity=False
@@ -31,13 +31,13 @@ def clamp_kwargs_st(
 
 @st.composite
 def permutation_st(draw, rank: int) -> T.Tuple[int, ...]:
-    """Draw a permutation of ``range(rank)``."""
+    """Draw a permutation of `range(rank)`."""
     return tuple(draw(st.permutations(list(range(rank)))))
 
 
 @st.composite
 def reduction_dim_st(draw, rank: int) -> int:
-    """Draw a reduction dim index in ``[0, rank)``.
+    """Draw a reduction dim index in `[0, rank)`.
 
     Only valid when rank >= 1; the caller must guarantee that.
     """
@@ -46,7 +46,7 @@ def reduction_dim_st(draw, rank: int) -> int:
 
 @st.composite
 def transpose_dims_st(draw, rank: int) -> T.Tuple[int, int]:
-    """Draw a pair (dim0, dim1) with both in ``[0, rank)`` and dim0 != dim1.
+    """Draw a pair (dim0, dim1) with both in `[0, rank)` and dim0 != dim1.
 
     Only valid when rank >= 2.
     """
@@ -63,7 +63,7 @@ def reshape_target_st(
 ) -> T.Tuple[int, ...]:
     """Draw a target shape with the same total number of elements as source.
 
-    Strategy: factor ``prod(source_shape)`` into a random number of factors
+    Strategy: factor `prod(source_shape)` into a random number of factors
     (between 1 and max_rank), respecting that the per-axis size stays small.
     For zero-size source, returns the source shape unchanged.
     """
