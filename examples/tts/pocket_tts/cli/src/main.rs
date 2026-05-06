@@ -71,9 +71,15 @@ struct Args {
     seed: u64,
     /// Latent dim ``ldim`` of the audio latents (= ``in_channels`` /
     /// ``out_channels`` of flow_net = first axis of decoder input). Mini
-    /// configs use 8.
+    /// configs use 8; real Pocket-TTS uses 32.
     #[arg(long, default_value = "8")]
     ldim: usize,
+    /// Dump the FlowLM-emitted audio latents to this ``.npz`` (key
+    /// ``latents``, shape ``(B, ldim, T)``) and skip the SEANet decoder
+    /// step. Used by the hybrid ``--full`` run.sh path where the Mimi
+    /// audio decode runs in Python via ``decode_audio.py``.
+    #[arg(long)]
+    dump_latents: Option<PathBuf>,
 }
 
 type Runnable =
@@ -182,8 +188,13 @@ fn main() -> Result<()> {
     let flow_lm_step = load_graph(&nnef, &step_path)?;
     println!("loading flow_net from {}", flow_net_path.display());
     let flow_net = load_graph(&nnef, &flow_net_path)?;
-    println!("loading decoder from {}", decoder_path.display());
-    let decoder = load_graph(&nnef, &decoder_path)?;
+    let decoder = if args.dump_latents.is_some() {
+        println!("(skipping decoder; --dump-latents set)");
+        None
+    } else {
+        println!("loading decoder from {}", decoder_path.display());
+        Some(load_graph(&nnef, &decoder_path)?)
+    };
 
     println!("loading voice prompt from {}", args.voice.display());
     let voice = load_voice(&args.voice)?;
@@ -252,21 +263,29 @@ fn main() -> Result<()> {
     }
     println!("generated {} audio latents", latents.len());
 
-    // -- stack latents along time and run the decoder -----------------------
-    // Each latent has shape (1, ldim); stack to (1, ldim, T).
+    // -- stack latents into channels-first (B, ldim, T) ---------------------
     let t_lat = latents.len();
     let mut latent_buf: Vec<f32> = Vec::with_capacity(t_lat * ldim);
-    // Decoder expects channels-first: (B, ldim, T_lat). Transpose at copy.
     for l in 0..ldim {
         for lat in &latents {
             let v = lat.to_plain_array_view::<f32>()?;
             latent_buf.push(v[[0, l]]);
         }
     }
-    let latent_stack = tract_ndarray::Array3::from_shape_vec((1, ldim, t_lat), latent_buf)
-        .map_err(|e| anyhow!("latent stack reshape: {e}"))?
-        .into_tensor();
-    let audio_out = decoder.run(tvec!(latent_stack.into()))?;
+    let latent_stack =
+        tract_ndarray::Array3::from_shape_vec((1, ldim, t_lat), latent_buf)
+            .map_err(|e| anyhow!("latent stack reshape: {e}"))?;
+
+    // -- ``--dump-latents`` short-circuit (hybrid path) ---------------------
+    if let Some(path) = &args.dump_latents {
+        write_npz_latents(path, &latent_stack)
+            .with_context(|| format!("dumping latents to {}", path.display()))?;
+        println!("wrote {} latents=({},{},{})", path.display(), 1, ldim, t_lat);
+        return Ok(());
+    }
+
+    let decoder = decoder.expect("decoder graph is loaded when not skipping");
+    let audio_out = decoder.run(tvec!(latent_stack.into_tensor().into()))?;
     let audio = audio_out
         .into_iter()
         .next()
@@ -289,5 +308,51 @@ fn main() -> Result<()> {
     }
     writer.finalize()?;
     println!("wrote {}", args.out.display());
+    Ok(())
+}
+
+
+/// Write a ``(1, ldim, T)`` latent tensor as a numpy ``.npz`` archive
+/// containing one array under the key ``latents``. Hand-rolled so we don't
+/// take on a numpy / npz crate dep just for this debug dump.
+fn write_npz_latents(
+    path: &Path,
+    latents: &tract_ndarray::Array3<f32>,
+) -> Result<()> {
+    use std::io::Write;
+    let shape = latents.shape();
+    let header = format!(
+        "{{'descr': '<f4', 'fortran_order': False, 'shape': ({}, {}, {})}}",
+        shape[0], shape[1], shape[2]
+    );
+    // Pad header to 16-byte multiple (np.save requirement).
+    let header_padded = {
+        let mut h = header;
+        // 10 = magic(6) + version(2) + header-len(2)
+        let target = ((10 + h.len() + 1 + 15) / 16) * 16;
+        let pad = target - 10 - h.len() - 1;
+        h.push_str(&" ".repeat(pad));
+        h.push('\n');
+        h
+    };
+    let mut npy = Vec::<u8>::with_capacity(latents.len() * 4 + 256);
+    npy.extend_from_slice(b"\x93NUMPY"); // magic
+    npy.push(1); // major
+    npy.push(0); // minor
+    npy.extend_from_slice(
+        &(u16::try_from(header_padded.len()).expect("header < 64KiB"))
+            .to_le_bytes(),
+    );
+    npy.extend_from_slice(header_padded.as_bytes());
+    for &v in latents.iter() {
+        npy.extend_from_slice(&v.to_le_bytes());
+    }
+
+    let f = std::fs::File::create(path)?;
+    let mut zip = zip::ZipWriter::new(f);
+    let opts: zip::write::SimpleFileOptions = Default::default();
+    zip.start_file("latents.npy", opts)?;
+    zip.write_all(&npy)?;
+    zip.finish()?;
     Ok(())
 }

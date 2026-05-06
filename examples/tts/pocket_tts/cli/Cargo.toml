@@ -19,3 +19,4 @@ tract-extra = "0.23.0-dev.5"
 tract-nnef = "0.23.0-dev.5"
 tract-pulse = "0.23.0-dev.5"
 tract-transformers = "0.23.0-dev.5"
+zip = { version = "2", default-features = false, features = ["deflate"] }

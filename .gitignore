@@ -141,3 +141,5 @@ examples/tts/pocket_tts/cli/voices/alba.dat
 examples/tts/pocket_tts/cli/out.wav
 examples/tts/pocket_tts/cli/Cargo.lock
 examples/tts/pocket_tts/cli/target/
+examples/tts/pocket_tts/cli/latents.npz
+examples/tts/pocket_tts/cli/tokenizer.model

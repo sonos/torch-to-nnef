@@ -29,6 +29,7 @@ import argparse
 from pathlib import Path
 
 import torch
+from pocket_tts import TTSModel as _TTSModel
 from pocket_tts.conditioners import text as conditioners_text
 from pocket_tts.conditioners.text import LUTConditioner
 from pocket_tts.models.flow_lm import FlowLMModel
@@ -38,6 +39,19 @@ from pocket_tts.modules.stateful_module import StatefulModule
 
 from examples.tts.pocket_tts._flow_lm_export import FlowLMInit, FlowLMStep
 from torch_to_nnef import TractNNEF, export_model_to_nnef
+
+
+def _load_full_flow_lm() -> FlowLMModel:
+    flow_lm = _TTSModel.load_model().flow_lm.eval()
+    for name, mod in flow_lm.transformer.named_modules():
+        if isinstance(mod, StatefulModule):
+            mod._module_absolute_name = name
+    print(
+        f"  d_model={flow_lm.dim} ldim={flow_lm.ldim} "
+        f"layers={len(flow_lm.transformer.layers)} "
+        f"params={sum(p.numel() for p in flow_lm.parameters()) / 1e6:.1f}M"
+    )
+    return flow_lm
 
 
 def _build_lut_conditioner_without_tokenizer(
@@ -138,9 +152,13 @@ def main() -> None:
     parser.add_argument(
         "--mini",
         action="store_true",
-        default=True,
-        help="Tiny random-weights config (default; only mode supported "
-        "today). Real-checkpoint export needs HF auth and is the next step.",
+        help="Tiny random-weights config (default if ``--full`` not set).",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Load the real Pocket-TTS checkpoint (89M-param FlowLM) and "
+        "re-export at production dims.",
     )
     parser.add_argument(
         "--text-tokens",
@@ -162,8 +180,14 @@ def main() -> None:
         help="Past KV-cache length to use for the step trace shape.",
     )
     args = parser.parse_args()
+    if not args.full:
+        args.mini = True
 
-    flow_lm = build_mini_flow_lm()
+    if args.full:
+        print("loading real Pocket-TTS FlowLM (HF download on first call)")
+        flow_lm = _load_full_flow_lm()
+    else:
+        flow_lm = build_mini_flow_lm()
     n_layers = len(flow_lm.transformer.layers)
     n_heads = flow_lm.transformer.layers[0].self_attn.num_heads
     head_dim = flow_lm.transformer.layers[0].self_attn.dim_per_head
@@ -200,12 +224,19 @@ def main() -> None:
     init_k_pos = torch.arange(
         args.voice_frames + n_q, dtype=torch.long
     )
+    # Init traces all four input shapes statically (``T_TEXT`` and
+    # ``T_VOICE``); tract's dynamic-axes machinery can't relate
+    # ``T_TEXT_PLUS_BOS = T_TEXT + 1`` across symbols, so the run.sh
+    # ``--full`` path tokenises + bakes voice first and then re-exports
+    # at the actual sizes. Use ``--text-tokens N --voice-frames M`` to
+    # match.
+    init_target = target
     print(f"Exporting flow_lm_init to {args.out_init}")
     export_model_to_nnef(
         model=init,
         args=(token_ids, init_past_kv, init_q_pos, init_k_pos),
         file_path_export=args.out_init,
-        inference_target=target,
+        inference_target=init_target,
         input_names=["token_ids", "past_kv", "q_positions", "k_positions"],
         output_names=["transformer_out", "eos_logit", "new_kv"],
         debug_bundle_path=Path("./debug_pocket_tts_flow_lm_init.tgz"),

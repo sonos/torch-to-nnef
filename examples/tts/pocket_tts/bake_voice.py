@@ -90,19 +90,26 @@ def bake_mini(out_path: Path, seed: int = 0) -> torch.Tensor:
     return voice
 
 
-def bake_from_audio(audio_path: Path, out_path: Path) -> torch.Tensor:
+def bake_from_audio(
+    audio_conditioning: Path | str, out_path: Path
+) -> torch.Tensor:
     """Production path: real Pocket-TTS checkpoint + audio prompt -> voice.dat.
 
     ``TTSModel.load_model`` triggers a gated HF download on first call.
+    Accepts either a local path or a ``hf://`` URL the way Pocket-TTS does.
     """
     model = TTSModel.load_model()
-    voice = harvest_voice_state(model, audio_path)
+    voice = harvest_voice_state(model, audio_conditioning)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_nnef_tensor(voice.numpy(), str(out_path), quantized=False)
     print(
-        f"baked {audio_path} -> {out_path} shape={tuple(voice.shape)}"
+        f"baked {audio_conditioning} -> {out_path} shape={tuple(voice.shape)}"
     )
     return voice
+
+
+# Default voice-prompt URL: Kyutai's "alba" voice from the public catalog.
+DEFAULT_VOICE_HF_URL = "alba"
 
 
 def main() -> None:
@@ -121,10 +128,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--from-audio",
-        type=Path,
+        type=str,
         default=None,
-        help="Audio file to derive the voice from (production path; needs "
-        "the real Pocket-TTS checkpoint and HF auth).",
+        help="Audio file (local path or ``hf://`` URL or one of the Pocket-TTS "
+        "predefined voice names like ``alba``) to derive the voice from. "
+        "Production path; needs the real Pocket-TTS checkpoint.",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Bake from the default voice prompt (Kyutai's ``alba``) via "
+        "``Pocket-TTS``'s built-in voice catalogue. Equivalent to "
+        "``--from-audio alba``.",
     )
     parser.add_argument(
         "--seed",
@@ -134,8 +149,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.from_audio is not None:
-        bake_from_audio(args.from_audio, args.out)
+    audio = args.from_audio
+    if audio is None and args.full:
+        audio = DEFAULT_VOICE_HF_URL
+    if audio is not None:
+        bake_from_audio(audio, args.out)
     else:
         bake_mini(args.out, seed=args.seed)
 

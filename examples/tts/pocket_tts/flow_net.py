@@ -31,6 +31,7 @@ import argparse
 from pathlib import Path
 
 import torch
+from pocket_tts import TTSModel as _TTSModel
 from pocket_tts.modules.mlp import SimpleMLPAdaLN
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
@@ -56,6 +57,15 @@ def build_mini_flow_net() -> SimpleMLPAdaLN:
     ).eval()
 
 
+def load_full_flow_net() -> SimpleMLPAdaLN:
+    """Extract the trained ``flow_net`` from the real Pocket-TTS checkpoint.
+
+    Triggers a HuggingFace download on first call (gated for the voice-cloning
+    variant; ``kyutai/pocket-tts-without-voice-cloning`` is public).
+    """
+    return _TTSModel.load_model().flow_lm.flow_net.eval()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -70,14 +80,25 @@ def main() -> None:
     parser.add_argument(
         "--mini",
         action="store_true",
-        default=True,
-        help="Tiny random-weights config (default; only mode supported "
-        "today). Real flow_net export will load Pocket-TTS' published weights.",
+        help="Tiny random-weights config (~13k params) instead of the real "
+        "Pocket-TTS checkpoint. Default if ``--full`` is not passed.",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Load the real Pocket-TTS checkpoint and export its trained "
+        "``flow_net`` at production dims.",
     )
     args = parser.parse_args()
+    if not args.full:
+        args.mini = True
 
     torch.manual_seed(0)
-    model = build_mini_flow_net()
+    if args.full:
+        model = load_full_flow_net()
+        print("loaded real Pocket-TTS flow_net")
+    else:
+        model = build_mini_flow_net()
     print(f"flow_net params: {sum(p.numel() for p in model.parameters())}")
 
     batch = 1

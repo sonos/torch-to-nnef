@@ -5,26 +5,17 @@
 # "hello I am a text to speech voice".
 #
 # Usage:
-#     ./run.sh
+#     ./run.sh             # default --mini path (random weights, noise out)
+#     MODE=full ./run.sh   # real Pocket-TTS weights (HF download)
 #
-# What this does, in order:
-#   1. Bootstrap a uv-managed venv + Rust toolchain (idempotent).
-#   2. Remove any prior ``cli/out.wav`` so each run starts clean.
-#   3. Export the four NNEF graphs (flow_net, flow_lm_init, flow_lm_step,
-#      decoder) and bake ``voices/alba.dat`` -- all driven through
-#      the same uv-managed Python environment.
-#   4. ``cargo build --release`` the Rust CLI.
-#   5. Invoke the CLI to write ``cli/out.wav``.
-#
-# Note on weights: this run.sh wires the *mini* random-weights config end
-# to end (~50k params per stage). The pipeline is plumbing-correct -- the
-# WAV is well-formed 24 kHz f32 audio -- but the audio itself is noise
-# because the weights are random. Switching to the real Pocket-TTS
-# checkpoint requires extending each export script with a ``--full`` path
-# (load ``TTSModel.load_model()``, harvest its submodules, re-export at
-# production dims) and adding an export of ``mimi.decoder_transformer``,
-# the projection between FlowLM latents and the SEANet decoder. Tracked
-# as a follow-up.
+# Modes:
+#   * ``--mini`` (default) -- random-weights config (~50k params per stage)
+#     with synthesised tokens. Pipeline-correct WAV but acoustically noise.
+#   * ``MODE=full``        -- real ~89M-param FlowLM through tract +
+#     real ~20M-param Mimi through Pocket-TTS Python (hybrid). Produces
+#     real audio for the requested text. The Mimi audio decode is *not yet
+#     in tract* (the upsample + decoder_transformer + SEANet chain is a
+#     bigger export job; tracked separately).
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -44,25 +35,62 @@ rm -f cli/out.wav
 mkdir -p cli/models cli/voices
 
 TRACT_VERSION="${TRACT_VERSION:-0.23.0-dev.5}"
-COMMON_EXPORT_FLAGS=(--mini --skip-io-check --tract-version "$TRACT_VERSION")
+MODE="${MODE:-mini}"
+case "$MODE" in
+    mini) WEIGHTS_FLAG=--mini ;;
+    full) WEIGHTS_FLAG=--full ;;
+    *) echo "MODE must be 'mini' or 'full', got: $MODE" >&2; exit 1 ;;
+esac
+COMMON_EXPORT_FLAGS=("$WEIGHTS_FLAG" --skip-io-check --tract-version "$TRACT_VERSION")
 
 # 3. Export the four NNEF graphs + bake the voice prompt ---------------------
+TEXT="hello I am a text to speech voice"
+
+# In --full mode we need to know the real text-token count + voice-prefix
+# length up front so flow_lm_init can be traced at those exact sizes (the
+# real model ships symbols tract can't easily relate, so we go static).
+if [ "$MODE" = full ]; then
+    echo "==> extracting tokenizer + measuring shapes"
+    python extract_tokenizer.py --out cli/tokenizer.model
+    python bake_voice.py --full --out cli/voices/alba.dat
+    SHAPE_DATA="$(python -c '
+import sentencepiece as sp
+import nnef
+sp_proc = sp.SentencePieceProcessor("cli/tokenizer.model")
+ids = sp_proc.encode("'"$TEXT"'")
+with open("cli/voices/alba.dat", "rb") as f:
+    voice = nnef.read_tensor(f)
+print(f"{len(ids)},{voice.shape[3]}")
+')"
+    T_TEXT="${SHAPE_DATA%,*}"
+    T_VOICE="${SHAPE_DATA#*,}"
+    echo "    T_TEXT=$T_TEXT  T_VOICE=$T_VOICE"
+else
+    T_TEXT=4
+    T_VOICE=4
+fi
+
 echo "==> exporting flow_net"
 python flow_net.py "${COMMON_EXPORT_FLAGS[@]}" \
     --out cli/models/flow_net.nnef.tgz
 
 echo "==> exporting flow_lm (init + step)"
 python flow_lm.py "${COMMON_EXPORT_FLAGS[@]}" \
-    --voice-frames 4 \
+    --text-tokens "$T_TEXT" \
+    --voice-frames "$T_VOICE" \
     --out-init cli/models/flow_lm_init.nnef.tgz \
     --out-step cli/models/flow_lm_step.nnef.tgz
 
-echo "==> exporting decoder"
-python decoder.py "${COMMON_EXPORT_FLAGS[@]}" \
-    --out cli/models/decoder.nnef.tgz
-
-echo "==> baking voice prompt (alba)"
-python bake_voice.py --mini --out cli/voices/alba.dat
+if [ "$MODE" = mini ]; then
+    echo "==> exporting decoder (mini)"
+    python decoder.py "${COMMON_EXPORT_FLAGS[@]}" \
+        --out cli/models/decoder.nnef.tgz
+    echo "==> baking voice prompt (mini)"
+    python bake_voice.py --mini --out cli/voices/alba.dat
+else
+    echo "==> skipping decoder export (--full uses Pocket-TTS Python for Mimi decode)"
+    rm -f cli/models/decoder.nnef.tgz
+fi
 
 # 4. Build Rust CLI in release ----------------------------------------------
 echo "==> building Rust CLI"
@@ -70,30 +98,39 @@ echo "==> building Rust CLI"
 
 # 5. Run the binary on the requested text -----------------------------------
 TEXT="hello I am a text to speech voice"
-# The mini conditioner has random embeddings + ``n_bins=100`` vocabulary,
-# so we feed a deterministic placeholder token sequence sized to the
-# decoder's traced latent-frame budget instead of running the real
-# SentencePiece tokenizer (which would hand back token IDs >= 100 the
-# mini embedding cannot look up). Real-weights mode would replace this
-# with ``--text "$TEXT" --tokenizer cli/tokenizer.model``.
-# The mini ``flow_lm_init`` graph is traced with ``--text-tokens 4`` so
-# the token sequence has to be exactly 4 entries to match the static
-# shape; we slice the bytes of $TEXT down to 4 here.
-TOKENS="$(python -c '
+
+echo "==> synthesising: $TEXT"
+if [ "$MODE" = mini ]; then
+    # mini conditioner has random embeddings + ``n_bins=100`` vocab and
+    # ``flow_lm_init`` is traced with ``--text-tokens 4``, so feed exactly
+    # 4 placeholder IDs derived from the requested text bytes.
+    TOKENS="$(python -c '
 text = "'"$TEXT"'"
 ids = [(b % 100) + 1 for b in text.encode("utf-8")[:4]]
 print(",".join(str(i) for i in ids))
 ')"
-
-echo "==> synthesising: $TEXT"
-echo "    tokens: $TOKENS"
-./cli/target/release/pocket-tts-tract \
-    --models cli/models \
-    --voice cli/voices/alba.dat \
-    --tokens "$TOKENS" \
-    --max-frames 8 \
-    --eos-threshold 1e9 \
-    --out cli/out.wav
+    echo "    tokens (mini placeholder): $TOKENS"
+    ./cli/target/release/pocket-tts-tract \
+        --models cli/models \
+        --voice cli/voices/alba.dat \
+        --tokens "$TOKENS" \
+        --max-frames 8 \
+        --eos-threshold 1e9 \
+        --out cli/out.wav
+else
+    echo "    tokenizing via cli/tokenizer.model"
+    ./cli/target/release/pocket-tts-tract \
+        --models cli/models \
+        --voice cli/voices/alba.dat \
+        --tokenizer cli/tokenizer.model \
+        --text "$TEXT" \
+        --ldim 32 \
+        --max-frames 50 \
+        --eos-threshold 1e9 \
+        --dump-latents cli/latents.npz
+    echo "==> decoding audio via Pocket-TTS Mimi (Python)"
+    python decode_audio.py --latents cli/latents.npz --out cli/out.wav
+fi
 
 echo
 echo "Wrote $EXAMPLE_DIR/cli/out.wav"
