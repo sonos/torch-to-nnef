@@ -1138,6 +1138,9 @@ class LSTMCellExtractor(ModuleInfoExtractor):
         # pylint: disable-next=import-outside-toplevel
         from torch_to_nnef.op import helper
 
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.op.aten.rnn import emit_lstm_cell_via_fragment
+
         cell: nn.LSTMCell = node.op_ref
         if len(node.inputs) != 3:
             raise T2NErrorNotImplemented(
@@ -1152,14 +1155,12 @@ class LSTMCellExtractor(ModuleInfoExtractor):
 
         # The t2n IR may surface (input, h, c) in any order after tuple
         # expansion at the call site. Identify `input` by shape and order
-        # the rest positionally (relying on `_extract_outputs` having mapped
+        # the rest positionally (`_extract_outputs` already maps
         # provided_outputs[0] = h_new, [1] = c_new).
         input_tv, h_prev_tv, c_prev_tv = self._reorder_cell_inputs(
             node.inputs, cell
         )
         h_new_tv, c_new_tv = node.outputs
-
-        hidden = cell.hidden_size
 
         input_ref = helper.get_or_add_tensor_variable_in_nnef(
             g, input_tv, name_to_tensor
@@ -1171,153 +1172,28 @@ class LSTMCellExtractor(ModuleInfoExtractor):
             g, c_prev_tv, name_to_tensor
         )
 
-        base = node.outputs[0].export_name
-        nnef_dtype = input_ref.dtype
-
-        def add_weight(t: torch.Tensor, name: str) -> NTensor:
-            tv = helper.TensorVariable(
-                name=getattr(t, "nnef_name", f"{base}_{name}"),
-                data=t.detach(),
-                shape=list(t.shape),
-                dtype=t.dtype,
-            )
-            return helper.get_or_add_tensor_variable_in_nnef(
-                g, tv, name_to_tensor, name_suffix=name
-            )
-
-        w_ih_ref = add_weight(cell.weight_ih, "weight_ih")
-        w_hh_ref = add_weight(cell.weight_hh, "weight_hh")
-
-        if cell.bias and cell.bias_ih is not None and cell.bias_hh is not None:
-            # Pre-sum the two biases (PyTorch adds them) and unsqueeze to
-            # (1, 4H) so it broadcasts across the (B, 4H) preactivation.
-            b_combined = (cell.bias_ih + cell.bias_hh).unsqueeze(0)
-            b_ref = add_weight(b_combined, "bias")
-        else:
-            b_ref = None
-
-        def new_tensor(suffix: str, shape: T.Sequence[int]) -> NTensor:
-            t = NTensor(
-                g, name=f"{base}_{suffix}", dtype=nnef_dtype, shape=tuple(shape)
-            )
-            name_to_tensor[t.name] = t
-            return t
-
-        def emit(op_type: str, inputs, attribs, suffix: str, shape):
-            out = new_tensor(suffix, shape)
-            NOperation(
-                graph=g,
-                type=op_type,
-                inputs=inputs if isinstance(inputs, tuple) else tuple(inputs),
-                outputs=out,
-                attribs=attribs,
-            )
-            return out
+        b_ih = cell.bias_ih if cell.bias else None
+        b_hh = cell.bias_hh if cell.bias else None
 
         batch_dim = (
             input_tv.shape[0]
             if input_tv.shape and input_tv.shape[0] is not None
             else 1
         )
-        four_h = 4 * hidden
-
-        preact_x = emit(
-            "matmul",
-            (input_ref, w_ih_ref),
-            {"transposeA": False, "transposeB": True},
-            "preact_x",
-            [batch_dim, four_h],
-        )
-        preact_h = emit(
-            "matmul",
-            (h_prev_ref, w_hh_ref),
-            {"transposeA": False, "transposeB": True},
-            "preact_h",
-            [batch_dim, four_h],
-        )
-        if b_ref is not None:
-            preact_xh = emit(
-                "add",
-                (preact_x, preact_h),
-                {},
-                "preact_xh",
-                [batch_dim, four_h],
-            )
-            preact = emit(
-                "add",
-                (preact_xh, b_ref),
-                {},
-                "preact",
-                [batch_dim, four_h],
-            )
-        else:
-            preact = emit(
-                "add",
-                (preact_x, preact_h),
-                {},
-                "preact",
-                [batch_dim, four_h],
-            )
-
-        def slice_gate(idx: int, suffix: str) -> NTensor:
-            return emit(
-                "slice",
-                (preact,),
-                {
-                    "axes": [1],
-                    "begin": [idx * hidden],
-                    "end": [(idx + 1) * hidden],
-                    "stride": [1],
-                },
-                suffix,
-                [batch_dim, hidden],
-            )
-
-        i_pre = slice_gate(0, "i_pre")
-        f_pre = slice_gate(1, "f_pre")
-        g_pre = slice_gate(2, "g_pre")
-        o_pre = slice_gate(3, "o_pre")
-
-        i_t = emit("sigmoid", (i_pre,), {}, "i", [batch_dim, hidden])
-        f_t = emit("sigmoid", (f_pre,), {}, "f", [batch_dim, hidden])
-        g_t = emit("tanh", (g_pre,), {}, "g", [batch_dim, hidden])
-        o_t = emit("sigmoid", (o_pre,), {}, "o", [batch_dim, hidden])
-
-        f_c = emit(
-            "mul", (f_t, c_prev_ref), {}, "f_times_c", [batch_dim, hidden]
-        )
-        i_g = emit("mul", (i_t, g_t), {}, "i_times_g", [batch_dim, hidden])
-
-        # Final outputs: bind to the IR's expected names so downstream graph
-        # consumers wire up correctly.
-        c_new_ref = helper.add_tensor_variable_node_as_nnef_tensor(
+        return emit_lstm_cell_via_fragment(
             g,
-            c_new_tv,
             name_to_tensor,
-            prevent_variable=True,
+            base=h_new_tv.export_name,
+            nnef_dtype=input_ref.dtype,
+            batch_dim=batch_dim,
+            hidden=cell.hidden_size,
+            input_ref=input_ref,
+            h_prev_ref=h_prev_ref,
+            c_prev_ref=c_prev_ref,
+            w_ih=cell.weight_ih,
+            w_hh=cell.weight_hh,
+            b_ih=b_ih,
+            b_hh=b_hh,
+            h_new_tv=h_new_tv,
+            c_new_tv=c_new_tv,
         )
-        NOperation(
-            graph=g,
-            type="add",
-            inputs=(f_c, i_g),
-            outputs=c_new_ref,
-            attribs={},
-        )
-
-        tanh_c = emit(
-            "tanh", (c_new_ref,), {}, "tanh_c_new", [batch_dim, hidden]
-        )
-        h_new_ref = helper.add_tensor_variable_node_as_nnef_tensor(
-            g,
-            h_new_tv,
-            name_to_tensor,
-            prevent_variable=True,
-        )
-        NOperation(
-            graph=g,
-            type="mul",
-            inputs=(o_t, tanh_c),
-            outputs=h_new_ref,
-            attribs={},
-        )
-        return []
