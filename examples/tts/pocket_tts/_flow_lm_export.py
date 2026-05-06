@@ -98,6 +98,9 @@ class FlowLMStep(nn.Module):
         x = self.input_linear(x)  # (B, 1, dim)
         out, new_kv = self.io_transformer(x, past_kv, q_positions, k_positions)
         out = self.out_norm(out)
-        out_last = out[:, -1, :]
+        # ``x`` has T=1 in step, so the only Q position is the only output.
+        # ``squeeze(1)`` is unambiguous here and avoids the negative-index
+        # slice path that tract 0.23-dev's shape inference resolves to T=0.
+        out_last = out.squeeze(1)
         eos_logit = self.out_eos(out_last)
         return out_last, eos_logit, new_kv

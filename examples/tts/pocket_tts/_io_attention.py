@@ -58,8 +58,16 @@ def apply_rope_at_positions(
     qi = q_pairs[..., 1].float()
     kr = k_pairs[..., 0].float()
     ki = k_pairs[..., 1].float()
-    rotr = torch.cos(freqs * ts)
-    roti = torch.sin(freqs * ts)
+    # Compute the angle once and reuse for cos/sin -- tract / t2n
+    # otherwise emit the broadcast-align unsqueeze under the same NNEF
+    # tensor name twice (two separate ``aligned`` definitions) which
+    # trips a "Clashing resolution" check at runtime.
+    angle = freqs * ts  # (T, 1, D//2)
+    # Pre-align ``rotr`` / ``roti`` to ``q_pairs[..., 0]`` rank
+    # (B, T, H, D//2) once each, so that the four multiplies below need no
+    # further rank-broadcast and t2n doesn't emit duplicate aligned names.
+    rotr = torch.cos(angle).unsqueeze(0)  # (1, T, 1, D//2)
+    roti = torch.sin(angle).unsqueeze(0)
     qor = qr * rotr - qi * roti
     qoi = qr * roti + qi * rotr
     kor = kr * rotr - ki * roti

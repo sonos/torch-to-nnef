@@ -12,6 +12,7 @@
 //! audio without changing a line of Rust.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
@@ -70,7 +71,8 @@ struct Args {
     seed: u64,
 }
 
-type Runnable = SimplePlan<TypedFact, Box<dyn TypedOp>, tract_core::model::Graph<TypedFact, Box<dyn TypedOp>>>;
+type Runnable =
+    Arc<tract_core::internal::SimplePlan<TypedFact, Box<dyn TypedOp>>>;
 
 fn load_graph(nnef: &Nnef, path: &Path) -> Result<Runnable> {
     let model = nnef
@@ -143,7 +145,7 @@ fn lsd_decode(
             .into_iter()
             .next()
             .ok_or_else(|| anyhow!("flow_net produced no output"))?;
-        let flow_view = flow_dir.to_array_view::<f32>()?;
+        let flow_view = flow_dir.to_plain_array_view::<f32>()?;
         for (c, f) in current_vec.iter_mut().zip(flow_view.iter()) {
             *c += *f / lsd_steps as f32;
         }
@@ -226,7 +228,7 @@ fn main() -> Result<()> {
 
     // -- step loop ----------------------------------------------------------
     for frame in 1..args.max_frames {
-        let eos_view = eos_logit.to_array_view::<f32>()?;
+        let eos_view = eos_logit.to_plain_array_view::<f32>()?;
         let eos_val = *eos_view.iter().next().unwrap_or(&0.0);
         if eos_val > args.eos_threshold {
             println!("EOS at frame {frame} (logit {eos_val:.3} > {})", args.eos_threshold);
@@ -257,7 +259,7 @@ fn main() -> Result<()> {
     // Decoder expects channels-first: (B, ldim, T_lat). Transpose at copy.
     for l in 0..ldim {
         for lat in &latents {
-            let v = lat.to_array_view::<f32>()?;
+            let v = lat.to_plain_array_view::<f32>()?;
             latent_buf.push(v[[0, l]]);
         }
     }
@@ -269,7 +271,7 @@ fn main() -> Result<()> {
         .into_iter()
         .next()
         .ok_or_else(|| anyhow!("decoder produced no output"))?;
-    let audio_view = audio.to_array_view::<f32>()?;
+    let audio_view = audio.to_plain_array_view::<f32>()?;
     let samples: Vec<f32> = audio_view.iter().copied().collect();
     println!("decoded {} audio samples", samples.len());
 
