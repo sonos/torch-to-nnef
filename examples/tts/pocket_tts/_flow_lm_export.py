@@ -36,7 +36,14 @@ class FlowLMInit(nn.Module):
         self.io_transformer = IOTransformer(flow_lm.transformer)
         self.out_norm = flow_lm.out_norm
         self.out_eos = flow_lm.out_eos
-        self.register_buffer("bos_emb", flow_lm.bos_emb.detach().clone())
+        # Pre-project the BOS embedding so the forward graph only has to do a
+        # static concat instead of an expand-from-singleton-batch (which trips
+        # tract's shape inference when B=1 collides with T_text).
+        with torch.no_grad():
+            bos_proj = flow_lm.input_linear(
+                flow_lm.bos_emb.view(1, 1, -1)
+            )
+        self.register_buffer("bos_proj", bos_proj.detach().clone())
 
     def forward(
         self,
@@ -52,10 +59,10 @@ class FlowLMInit(nn.Module):
         # k_positions: (T_past + T_text + 1,) int64 = positions for the full
         #              K cache after this step (used for the causal mask)
         text_emb = self.embed(token_ids)  # (B, T_text, dim)
-        b = text_emb.shape[0]
-        bos = self.bos_emb.view(1, 1, -1).expand(b, 1, -1)  # (B, 1, ldim)
-        bos_proj = self.input_linear(bos)  # (B, 1, dim)
-        seq_in = torch.cat([text_emb, bos_proj], dim=1)
+        # ``bos_proj`` is precomputed (B=1) as a buffer in __init__; cat it
+        # at the end of the joint sequence. This export shape only supports
+        # B=1; production will need an explicit repeat/expand.
+        seq_in = torch.cat([text_emb, self.bos_proj], dim=1)
         out, new_kv = self.io_transformer(
             seq_in, past_kv, q_positions, k_positions
         )

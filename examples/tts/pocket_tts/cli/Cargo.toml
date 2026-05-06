@@ -1,0 +1,21 @@
+[package]
+name = "pocket-tts-tract"
+version = "0.1.0"
+edition = "2024"
+description = "End-to-end Pocket-TTS demo via tract: text + voice prompt -> 24 kHz WAV."
+
+[[bin]]
+name = "pocket-tts-tract"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4", features = ["derive"] }
+hound = "3.5"
+rand = "0.9"
+rand_distr = "0.5"
+sentencepiece = "0.11"
+tract-extra = "0.22.1"
+tract-nnef = "0.22.1"
+tract-pulse = "0.22.1"
+tract-transformers = "0.22.1"

@@ -149,6 +149,13 @@ def main() -> None:
         help="Number of text tokens to use for the trace shape.",
     )
     parser.add_argument(
+        "--voice-frames",
+        type=int,
+        default=4,
+        help="Voice-prompt KV-cache prefix length to bake into the init "
+        "trace shape (must match the voice.dat tensor at axis 3).",
+    )
+    parser.add_argument(
         "--past-frames",
         type=int,
         default=4,
@@ -164,18 +171,35 @@ def main() -> None:
 
     tract_version = args.tract_version or TractNNEF.latest_version()
     check_io = not args.skip_io_check
-    target = TractNNEF(version=tract_version, check_io=check_io)
+    # Use the fragment SDPA fallback rather than ``tract_transformers_sdpa``;
+    # the latter triggers an internal "Clashing resolution" check in the
+    # tract Rust runtime when running this graph through the library API
+    # (the CLI works either way, but check_io / our zoo test only run the
+    # CLI path).
+    target = TractNNEF(
+        version=tract_version,
+        check_io=check_io,
+        reify_sdpa_operator=False,
+    )
 
     # --- flow_lm_init -------------------------------------------------------
-    # Trace shape: T_voice=0 voice prefix (no prompt), ``--text-tokens``
-    # text tokens. The caller will swap in a real voice prefix at runtime via
-    # ``voice.dat`` -- see ``bake_voice.py``.
+    # Trace shape: ``--voice-frames`` voice prefix (axis 3 of past_kv) plus
+    # ``--text-tokens`` text tokens. The voice prefix is supplied at runtime
+    # via ``voice.dat`` -- see ``bake_voice.py``. The trace shape must match
+    # the bundled voice tensor's T_voice or tract complains about clashing
+    # static dims.
     init = FlowLMInit(flow_lm).eval()
     token_ids = torch.randint(0, 100, (1, args.text_tokens), dtype=torch.long)
-    init_past_kv = torch.zeros(n_layers, 2, 1, 0, n_heads, head_dim)
+    init_past_kv = torch.zeros(
+        n_layers, 2, 1, args.voice_frames, n_heads, head_dim
+    )
     n_q = args.text_tokens + 1
-    init_q_pos = torch.arange(n_q, dtype=torch.long)
-    init_k_pos = torch.arange(n_q, dtype=torch.long)
+    init_q_pos = torch.arange(
+        args.voice_frames, args.voice_frames + n_q, dtype=torch.long
+    )
+    init_k_pos = torch.arange(
+        args.voice_frames + n_q, dtype=torch.long
+    )
     print(f"Exporting flow_lm_init to {args.out_init}")
     export_model_to_nnef(
         model=init,
@@ -188,7 +212,9 @@ def main() -> None:
     )
 
     # --- flow_lm_step -------------------------------------------------------
-    # Trace shape: ``--past-frames`` past KV entries.
+    # Trace shape: ``--past-frames`` past KV entries. Past KV time axis
+    # (axis 3 on ``past_kv``, axis 0 on ``k_positions``) is declared
+    # dynamic so the same graph handles any T_past >= 1 at runtime.
     step = FlowLMStep(flow_lm).eval()
     audio = torch.randn(1, ldim, dtype=torch.float32)
     step_past_kv = torch.randn(
@@ -196,12 +222,20 @@ def main() -> None:
     )
     step_q_pos = torch.tensor([args.past_frames], dtype=torch.long)
     step_k_pos = torch.arange(args.past_frames + 1, dtype=torch.long)
+    step_target = TractNNEF(
+        version=tract_version,
+        check_io=check_io,
+        dynamic_axes={
+            "past_kv": {3: "T_PAST"},
+            "k_positions": {0: "T_PAST_PLUS_ONE"},
+        },
+    )
     print(f"Exporting flow_lm_step to {args.out_step}")
     export_model_to_nnef(
         model=step,
         args=(audio, step_past_kv, step_q_pos, step_k_pos),
         file_path_export=args.out_step,
-        inference_target=target,
+        inference_target=step_target,
         input_names=["audio_latent", "past_kv", "q_positions", "k_positions"],
         output_names=["transformer_out", "eos_logit", "new_kv"],
         debug_bundle_path=Path("./debug_pocket_tts_flow_lm_step.tgz"),
