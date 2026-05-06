@@ -156,7 +156,7 @@ def _prod_dim_sample_st() -> st.SearchStrategy[OpSample]:
     @st.composite
     def _draw(draw) -> OpSample:
         rank = draw(st.integers(min_value=1, max_value=4))
-        # Keep dim sizes small (<=4) -- product of many values quickly
+        # Keep dim sizes small (<=4): product of many values quickly
         # under/overflows even at f32.
         shape = tuple(
             draw(
@@ -196,8 +196,8 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
 
     1. The var emitter at `torch_to_nnef/op/aten/math.py` raises
        NotImplementedError when `correction != 0` (PyTorch defaults to
-       1 -- unbiased estimator); we sweep correction=0 only.
-    2. The same emitter does not honor `keepdim` -- it always emits a
+       1: unbiased estimator); we sweep correction=0 only.
+    2. The same emitter does not honor `keepdim`: it always emits a
        squeezed-axes `var` and never reshapes back. `keepdim=True`
        would surface as a shape mismatch (ref `(..., 1, ...)` vs tract
        `(...)`); we sweep keepdim=False only.
@@ -272,7 +272,7 @@ def _reduction_specs() -> T.List[OpSpec]:
             sample_st=_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
         ),
-        # Argmax / argmin return int64 indices -- the comparator's exact
+        # Argmax / argmin return int64 indices: the comparator's exact
         # int path catches any divergence. Pure index ops, no tolerance
         # needed.
         OpSpec(
@@ -287,7 +287,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         ),
         # any / all are bool reductions (input bool, output bool).
         # tract 0.22.1 (latest in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS)
-        # does NOT define `any_reduce` / `all_reduce` operators -- they
+        # does NOT define `any_reduce` / `all_reduce` operators: they
         # were added in tract > 0.22.1. The curated test at
         # `tests/test_primitive.py` skips these via
         # `cond_tract_gt_0_22_0`. Xfail until the supported version set
@@ -338,7 +338,7 @@ def _reduction_dtype_kwarg_sample_st(
     """Reduction with the `dtype` cast-then-reduce kwarg.
 
     PyTorch's `sum/mean/prod(dim, *, dtype=)` casts the input to
-    `dtype` BEFORE reducing -- useful for f16 -> f32 accumulation.
+    `dtype` BEFORE reducing: useful for f16 -> f32 accumulation.
     """
 
     @st.composite

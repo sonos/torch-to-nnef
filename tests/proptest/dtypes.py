@@ -23,7 +23,7 @@ FLOAT_DTYPES: T.Tuple[torch.dtype, ...] = (
     torch.float64,
 )
 
-# Integer/bool dtypes -- always exact-compared regardless of tolerance level.
+# Integer/bool dtypes: always exact-compared regardless of tolerance level.
 EXACT_DTYPES: T.Tuple[torch.dtype, ...] = (
     torch.int64,
     torch.int32,

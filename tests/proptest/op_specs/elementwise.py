@@ -73,7 +73,7 @@ def _binary_multi_dtype_sample_st(
 
     Inputs are drawn with a per-dtype domain (f16 has a tighter range to
     keep results in its representable interval). Both inputs share the
-    drawn dtype -- broadcasting is independent.
+    drawn dtype: broadcasting is independent.
     """
 
     @st.composite
@@ -96,7 +96,7 @@ def _binary_pow_int_exp_sample_st() -> st.SearchStrategy[OpSample]:
     """Pow with integer-valued exponent tensors.
 
     Integer exponents go through a different code path in tract (a
-    repeated-multiply or sqr/rsqr fragment for small constants -- see
+    repeated-multiply or sqr/rsqr fragment for small constants: see
     `torch_to_nnef/op/aten/math.py:_pow`). Cover small absolute values
     to keep results bounded.
     """
@@ -177,7 +177,7 @@ def _unary_specs() -> T.List[OpSpec]:
         ("asinh", torch.asinh, TractCheckTolerance.VERY, _UNARY_FINITE_DOMAIN),
         ("atan", torch.atan, TractCheckTolerance.VERY, _UNARY_FINITE_DOMAIN),
         ("tanh", torch.tanh, TractCheckTolerance.VERY, _UNARY_TANH_DOMAIN),
-        # Rounding ops -- exact integer outputs, no tolerance needed.
+        # Rounding ops: exact integer outputs, no tolerance needed.
         ("floor", torch.floor, TractCheckTolerance.EXACT, _UNARY_FINITE_DOMAIN),
         ("ceil", torch.ceil, TractCheckTolerance.EXACT, _UNARY_FINITE_DOMAIN),
         ("round", torch.round, TractCheckTolerance.EXACT, _UNARY_FINITE_DOMAIN),
@@ -226,7 +226,7 @@ def _unary_broad_specs() -> T.List[OpSpec]:
     """Multi-dtype broadening for the highest-value unary ops.
 
     f16 has a tighter representable range; we shrink the per-op domain
-    accordingly. We don't broaden every unary op -- the goal is to surface
+    accordingly. We don't broaden every unary op: the goal is to surface
     f16-specific paths in tract / t2n without exploding subprocess count.
     """
     f16_finite_domain = Interval(-1e3, 1e3)
@@ -322,7 +322,7 @@ def _add_or_sub_multi_dtype_sample_st(
     """Sweep dtype (f32 + f16) for `torch.add` / `torch.sub`.
 
     Note: `alpha` (the second documented parameter of these ops) is NOT
-    swept here -- see `_add_or_sub_alpha_sample_st` and the corresponding
+    swept here: see `_add_or_sub_alpha_sample_st` and the corresponding
     `add-alpha-xfail` / `sub-alpha-xfail` registry entries for that
     coverage and the tracked emitter bug.
     """
@@ -350,7 +350,7 @@ def _add_or_sub_alpha_sample_st(
 
     PyTorch's `torch.add(a, b, alpha=k)` computes `a + k*b` and
     `torch.sub(a, b, alpha=k)` computes `a - k*b`. Originally proptest
-    found that the alpha attribute was silently dropped at export -- two
+    found that the alpha attribute was silently dropped at export: two
     bugs combined: `ir_helpers._prepare_arguments` truncated aten:add /
     aten:sub inputs to the first two, and `unary.generic_unary` (which
     these ops were routed through) ignores attributes. Both fixed in this
@@ -421,7 +421,7 @@ def _div_explicit_none_sample_st() -> st.SearchStrategy[OpSample]:
 def _div_rounding_sample_st() -> st.SearchStrategy[OpSample]:
     """Div with `rounding_mode in {"trunc", "floor"}`.
 
-    **Tract upstream precision bug -- this spec stays xfailed pending a
+    **Tract upstream precision bug: this spec stays xfailed pending a
     tract fix.** The original t2n-side issues are fixed:
 
     1. `div(float, float, rounding_mode="trunc")` previously returned
@@ -763,7 +763,7 @@ def _clamp_where_specs() -> T.List[OpSpec]:
 def _bitwise_binary_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """Bitwise binary op over int32 -- mutually broadcastable shapes."""
+    """Bitwise binary op over int32: mutually broadcastable shapes."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -796,7 +796,7 @@ def _bitwise_not_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.zeros_like(input)` -- output matches input shape/dtype.
+    """`torch.zeros_like(input)`: output matches input shape/dtype.
 
     Min rank/size raised to avoid the export-pipeline constant-folding
     case (single-element rank-1 input gets folded out, leaving tract
@@ -817,7 +817,7 @@ def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _ones_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.ones_like(input)` -- see _zeros_like for shape note."""
+    """`torch.ones_like(input)`: see _zeros_like for shape note."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -833,7 +833,7 @@ def _ones_like_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _full_like_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.full_like(input, fill_value)` -- swept fill values."""
+    """`torch.full_like(input, fill_value)`: swept fill values."""
 
     @st.composite
     def _draw(draw) -> OpSample:

@@ -38,21 +38,21 @@ def _activation_specs() -> T.List[OpSpec]:
     VERY = TractCheckTolerance.VERY
     SUPER = TractCheckTolerance.SUPER
 
-    # Pure unary activations -- no kwargs, just elementwise.
+    # Pure unary activations: no kwargs, just elementwise.
     pure_unary: T.List[T.Tuple[str, T.Callable, TractCheckTolerance]] = [
         ("relu", F.relu, EXACT),
         ("sigmoid", F.sigmoid, VERY),
         ("gelu", F.gelu, VERY),
         ("silu", F.silu, VERY),
-        # hardswish = x * relu6(x+3) / 6 -- multi-op chain, ULP-level
+        # hardswish = x * relu6(x+3) / 6: multi-op chain, ULP-level
         # divergence between PyTorch and tract is normal, EXACT is too
         # strict.
         ("hardswish", F.hardswish, TractCheckTolerance.APPROXIMATE),
-        # hardsigmoid = clamp((x+3)/6, 0, 1) -- one mul + one add +
+        # hardsigmoid = clamp((x+3)/6, 0, 1): one mul + one add +
         # min/max chain; small ULP drift, APPROXIMATE matches the
         # tolerance picked for hardswish.
         ("hardsigmoid", F.hardsigmoid, TractCheckTolerance.APPROXIMATE),
-        # mish = x * tanh(softplus(x)) -- saturating, slow tails.
+        # mish = x * tanh(softplus(x)): saturating, slow tails.
         ("mish", F.mish, VERY),
         ("selu", F.selu, VERY),
         ("relu6", F.relu6, EXACT),
@@ -239,7 +239,7 @@ def _activation_specs() -> T.List[OpSpec]:
             tensor_st(shape, torch.float32, finite=True, domain=_ACT_DOMAIN)
         )
         # softplus has beta and threshold; t2n's softplus emitter only
-        # supports beta=1 (raises NotImplemented otherwise -- see
+        # supports beta=1 (raises NotImplemented otherwise: see
         # `torch_to_nnef/op/aten/activation.py`). We sweep
         # threshold (default 20) within a safe range; beta stays at 1.
         threshold = draw(

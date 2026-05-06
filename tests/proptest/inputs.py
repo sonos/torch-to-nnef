@@ -132,7 +132,7 @@ def tensor_st(
             the drawn value here.
         dtype: a concrete `torch.dtype` or a strategy returning one.
         finite: when True (default), exclude NaN and Inf from the value pool.
-            When False, NaN and Inf may be drawn -- only do this for ops whose
+            When False, NaN and Inf may be drawn: only do this for ops whose
             property under test depends on them (e.g. isnan, isinf).
         domain: optional Interval bound on values. For ops with restricted
             input domains (log, sqrt, acos, etc.).

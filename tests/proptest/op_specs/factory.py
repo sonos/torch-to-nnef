@@ -25,7 +25,7 @@ from ._common import (
 
 
 class _ZerosFromShapeOf(torch.nn.Module):
-    """`torch.zeros(*x.shape, dtype=x.dtype)` -- derives shape from input."""
+    """`torch.zeros(*x.shape, dtype=x.dtype)`: derives shape from input."""
 
     def forward(self, x):
         return torch.zeros(x.shape, dtype=x.dtype)
@@ -39,7 +39,7 @@ class _OnesFromShapeOf(torch.nn.Module):
 
 
 class _FullFromShapeOf(torch.nn.Module):
-    """`torch.full(x.shape, fill_value, dtype=x.dtype)` -- swept fills."""
+    """`torch.full(x.shape, fill_value, dtype=x.dtype)`: swept fills."""
 
     def __init__(self, fill_value: float):
         super().__init__()
@@ -50,7 +50,7 @@ class _FullFromShapeOf(torch.nn.Module):
 
 
 class _ArangeFromInput(torch.nn.Module):
-    """`torch.arange(start, end, step)` -- start/end/step baked at init.
+    """`torch.arange(start, end, step)`: start/end/step baked at init.
 
     The input is ignored at runtime, but kept so the export pipeline has
     a real graph input. We attach a no-op dependency via `+ x.sum() * 0`
@@ -68,7 +68,7 @@ class _ArangeFromInput(torch.nn.Module):
 
 
 class _ScalarTensorOfDtypeOf(torch.nn.Module):
-    """`torch.scalar_tensor(value, dtype=x.dtype)` -- 0-d constant."""
+    """`torch.scalar_tensor(value, dtype=x.dtype)`: 0-d constant."""
 
     def __init__(self, value: float):
         super().__init__()
@@ -79,7 +79,7 @@ class _ScalarTensorOfDtypeOf(torch.nn.Module):
 
 
 class _NewZerosFromInput(torch.nn.Module):
-    """`Tensor.new_zeros(shape)` -- derives shape and dtype from input."""
+    """`Tensor.new_zeros(shape)`: derives shape and dtype from input."""
 
     def forward(self, x):
         return x.new_zeros(x.shape)
@@ -197,7 +197,7 @@ def _new_zeros_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _index_advanced_sample_st() -> st.SearchStrategy[OpSample]:
-    """`x[long_tensor]` -- advanced indexing along axis 0.
+    """`x[long_tensor]`: advanced indexing along axis 0.
 
     Output shape: index_tensor.shape + x.shape[1:].
     """
@@ -241,7 +241,7 @@ def _index_advanced_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _sdpa_sample_st() -> st.SearchStrategy[OpSample]:
-    """`F.scaled_dot_product_attention(Q, K, V)` -- shape (B, H, S, D)."""
+    """`F.scaled_dot_product_attention(Q, K, V)`: shape (B, H, S, D)."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -381,7 +381,7 @@ def _fft_specs() -> T.List[OpSpec]:
             # Additionally, t2n's NPZ writer at
             # `model_wrapper.py` raises `RuntimeError: Can't call
             # numpy() on Tensor that has conjugate bit set` for IFFT
-            # output -- needs a `.resolve_conj()` before serialization.
+            # output: needs a `.resolve_conj()` before serialization.
             name="fft_ifft-xfail",
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
@@ -419,7 +419,7 @@ def _identity_unary_sample_st(
 
 
 class _CastToDtype(torch.nn.Module):
-    """`Tensor.to(dtype)` -- runtime dtype cast."""
+    """`Tensor.to(dtype)`: runtime dtype cast."""
 
     def __init__(self, dtype: torch.dtype):
         super().__init__()
@@ -430,7 +430,7 @@ class _CastToDtype(torch.nn.Module):
 
 
 class _TypeAsFromOther(torch.nn.Module):
-    """`Tensor.type_as(other)` -- cast to other's dtype."""
+    """`Tensor.type_as(other)`: cast to other's dtype."""
 
     def forward(self, a, b):
         return a.type_as(b)
@@ -448,7 +448,7 @@ class _FillFunctional(torch.nn.Module):
 
 
 def _to_dtype_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.to(dtype)` -- sweep cast targets among supported floats."""
+    """`Tensor.to(dtype)`: sweep cast targets among supported floats."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -467,7 +467,7 @@ def _to_dtype_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _type_as_sample_st() -> st.SearchStrategy[OpSample]:
-    """`a.type_as(b)` -- a takes b's dtype."""
+    """`a.type_as(b)`: a takes b's dtype."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -555,8 +555,6 @@ def _glue_specs() -> T.List[OpSpec]:
         ),
     ]
 
-
-# Depth: conv with dilation/groups + pool with dilation
 
 SPECS = (
     *_constructors_index_sdpa_specs(),

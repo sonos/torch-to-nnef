@@ -66,7 +66,7 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
         inputs.append(tensor_ref)
     # `torch.stack` inserts a new axis; the valid range for `dim` is
     # `[-(N + 1), N]` where `N` is the rank of each input. Negative
-    # dims must be resolved against the *output* rank (`N + 1`) -- using
+    # dims must be resolved against the *output* rank (`N + 1`): using
     # the input list length (as :func:`pick_axis` does for `FixedTensorList`)
     # silently rewrites e.g. `torch.stack([a, b], dim=-1)` on rank-4
     # inputs to `axis = 1` instead of `4`, which breaks RoPE-style
@@ -157,7 +157,7 @@ def roll(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
     - Replace each remaining shift with `shift % dim_size` so the
       slice indices stay in `(0, dim_size)`.
 
-    If every pair normalizes away, the entire op is a graph identity --
+    If every pair normalizes away, the entire op is a graph identity.
     we remap the output node to the input.
     """
     input_node, shifts_node, dims_node = node.inputs
@@ -179,7 +179,7 @@ def roll(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
         normalized_dims.append(d)
 
     if not normalized_shifts:
-        # Whole op is a no-op -- alias the output to the input.
+        # Whole op is a no-op: alias the output to the input.
         torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return []
 

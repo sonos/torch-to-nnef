@@ -24,7 +24,7 @@ from ._common import (
 
 
 def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.Embedding(num_embeddings, embedding_dim)` -- index lookup."""
+    """`nn.Embedding(num_embeddings, embedding_dim)`: index lookup."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -48,7 +48,7 @@ def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _repeat_interleave_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.repeat_interleave(input, repeats, dim)` -- scalar repeats."""
+    """`torch.repeat_interleave(input, repeats, dim)`: scalar repeats."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -83,7 +83,7 @@ def _repeat_interleave_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _upsample_nearest2d_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.UpsamplingNearest2d(scale_factor=N)` -- (N, C, H, W) input."""
+    """`nn.UpsamplingNearest2d(scale_factor=N)`: (N, C, H, W) input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -131,7 +131,7 @@ def _specialty_specs() -> T.List[OpSpec]:
 
 
 def _prelu_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.PReLU(num_parameters=1)` -- shared slope across all channels."""
+    """`nn.PReLU(num_parameters=1)`: shared slope across all channels."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -160,12 +160,12 @@ def _prelu_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _prelu_multi_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.PReLU(num_parameters=C)` -- per-channel slope.
+    """`nn.PReLU(num_parameters=C)`: per-channel slope.
 
     PyTorch broadcasts `weight` of shape `(C,)` along the channel
     axis (`dim=1`) of an input shaped `(N, C, *spatial)`. Because
     NNEF broadcasts left-aligned, the t2n emitter pre-unsqueezes the
-    weight to `(C, 1, 1, ...)` before emit -- see
+    weight to `(C, 1, 1, ...)` before emit: see
     `torch_to_nnef/op/aten/activation.py:prelu`.
     """
 
@@ -210,7 +210,7 @@ def _prelu_multi_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _glu_sample_st() -> st.SearchStrategy[OpSample]:
-    """`F.glu(input, dim)` -- splits input in half along dim, gates."""
+    """`F.glu(input, dim)`: splits input in half along dim, gates."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -257,7 +257,7 @@ class _Einsum2Op(torch.nn.Module):
 
 
 def _einsum_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.einsum(expr, a, b)` -- a small set of canonical patterns.
+    """`torch.einsum(expr, a, b)`: a small set of canonical patterns.
 
     Open-ended einsum strings are too unconstrained for a useful sweep;
     we pick a fixed catalog of well-known patterns and let hypothesis
@@ -326,11 +326,8 @@ def _prelu_glu_einsum_specs() -> T.List[OpSpec]:
     ]
 
 
-# Final user-facing ops (max_pool*_with_indices, dropout, index)
-
-
 def _max_pool2d_with_indices_sample_st() -> st.SearchStrategy[OpSample]:
-    """`F.max_pool2d(..., return_indices=True)` -- multi-output.
+    """`F.max_pool2d(..., return_indices=True)`: multi-output.
 
     Like topk, indices are tie-breaking-dependent. We feed a permutation
     of integers as input to make every value unique and indices
@@ -362,7 +359,7 @@ def _max_pool2d_with_indices_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _dropout_eval_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.Dropout(p)` in eval mode -- a no-op identity.
+    """`nn.Dropout(p)` in eval mode: a no-op identity.
 
     The export pipeline should skip dropout in eval mode (it has no
     effect at inference). Proptest sweeps shapes to confirm the no-op
@@ -380,7 +377,7 @@ def _dropout_eval_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-10.0, 10.0),
             )
         )
-        # eval() mode -- dropout should be identity.
+        # eval() mode: dropout should be identity.
         layer = nn.Dropout(p=0.5).eval()
         return OpSample(inputs=(x,), module=layer)
 

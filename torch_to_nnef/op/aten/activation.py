@@ -65,7 +65,7 @@ def elu(g, node, name_to_tensor, **kwargs):
     `torch_to_nnef/op/fragment/elu.nnef`) that exposes `alpha` as an
     attribute. `scale` and `input_scale` are not part of the NNEF op
     surface; the emitter raises on non-default values for those (rare in
-    practice -- the common form is `F.elu(x, alpha=k)`).
+    practice: the common form is `F.elu(x, alpha=k)`).
     """
     input_node = node.inputs[0]
     alpha_node = node.inputs[1] if len(node.inputs) >= 2 else None
@@ -113,7 +113,7 @@ def prelu(**kwargs):
     of shape `(C,)` and applies it along the channel axis (dim=1) of an
     input shaped `(B, C, *spatial)`. NNEF broadcasts left-aligned
     (prepends 1s), so a raw `(C,)` weight would broadcast to the
-    *trailing* axis instead of the channel axis -- i.e. wrong.
+    *trailing* axis instead of the channel axis: i.e. wrong.
 
     Pre-unsqueeze the weight to `(C, 1, 1, ...)` so left-alignment
     yields `(1, C, 1, 1, ...)` and broadcast lands on the channel axis.
@@ -361,7 +361,7 @@ def clamp(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:clamp' to NNEF.
 
     PyTorch's `clamp(input, min=None, max=None)` skips a bound when it
-    is `None` (the unset sentinel) -- NOT when it is 0.0. The earlier
+    is `None` (the unset sentinel): NOT when it is 0.0. The earlier
     `if X.data:` truthy check evaluated to False for the literal 0.0,
     silently dropping `min=0` / `max=0` clamps and producing wrong
     output for any input crossing the unset bound. Same root pattern as

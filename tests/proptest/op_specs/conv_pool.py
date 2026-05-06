@@ -35,7 +35,7 @@ def _pool2d_sample_st(
     t2n's pool emitters reject `ceil_mode=True`,
     `count_include_pad=False` and `divisor_override` so we keep all of
     those at safe defaults. avg_pool callers should set
-    `allow_padding=False` -- the t2n avg_pool emitter requires
+    `allow_padding=False`: the t2n avg_pool emitter requires
     `count_include_pad=True` (PyTorch's default) but emits NNEF's
     `border="ignore"` (which is `count_include_pad=False`); padding
     > 0 surfaces the semantic mismatch.
@@ -107,10 +107,10 @@ def _pool1d_sample_st(
 def _adaptive_pool2d_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """adaptive_pool2d -- input H/W must divide output H/W.
+    """adaptive_pool2d: input H/W must divide output H/W.
 
     t2n's adaptive pool emitter at `torch_to_nnef/op/aten/pool.py`
-    is documented as "will likely only work with full defined shapes" --
+    is documented as "will likely only work with full defined shapes".
     it doesn't fully translate adaptive_pool semantics for non-divisible
     input/output ratios (proptest finds shape mismatches like
     output (2,1) on input H=3 producing tract output H=3 instead of 2).
@@ -159,12 +159,12 @@ def _pool_specs() -> T.List[OpSpec]:
             tolerance=EXACT,
         ),
         OpSpec(
-            # padding=0 only -- t2n's avg_pool emitter requires
+            # padding=0 only: t2n's avg_pool emitter requires
             # count_include_pad=True (PyTorch's default) but emits
             # NNEF border="ignore" which means count_include_pad=False.
             # Padding > 0 surfaces the semantic mismatch (PyTorch's edge
             # outputs include the padded zeros in the average; tract's
-            # don't). t2n bug -- emitter should either implement
+            # don't). t2n bug: emitter should either implement
             # count_include_pad=True faithfully or reject it.
             name="avg_pool1d",
             sample_st=_pool1d_sample_st(F.avg_pool1d, allow_padding=False),
@@ -292,7 +292,7 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.atan2(y, x)` -- broadcasted, no special domain."""
+    """`torch.atan2(y, x)`: broadcasted, no special domain."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -315,7 +315,7 @@ def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
 def _classifier_sample_st(
     op: T.Callable[[torch.Tensor], torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """NaN/Inf classifier -- input may contain NaN/Inf."""
+    """NaN/Inf classifier: input may contain NaN/Inf."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -345,7 +345,7 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             tolerance=EXACT,
         ),
         OpSpec(
-            # Same count_include_pad caveat as avg_pool1d/2d -- padding=0.
+            # Same count_include_pad caveat as avg_pool1d/2d: padding=0.
             name="avg_pool3d",
             sample_st=_pool3d_sample_st(F.avg_pool3d, allow_padding=False),
             tolerance=APPROX,
@@ -484,7 +484,7 @@ def _conv2d_dilation_groups_sample_st() -> st.SearchStrategy[OpSample]:
 def _max_pool2d_dilation_sample_st() -> st.SearchStrategy[OpSample]:
     """`F.max_pool2d` with `dilation` swept.
 
-    `ceil_mode` stays False -- t2n's pool emitter raises
+    `ceil_mode` stays False: t2n's pool emitter raises
     NotImplementedError on ceil_mode=True.
     """
 
@@ -533,8 +533,6 @@ def _conv2d_kwarg_sweep_specs() -> T.List[OpSpec]:
         ),
     ]
 
-
-# Depth: norm kwargs (eps, affine), topk/sort flags, cat/stack with N
 
 SPECS = (
     *_pool_specs(),

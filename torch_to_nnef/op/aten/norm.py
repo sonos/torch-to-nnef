@@ -253,7 +253,7 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
     )
     # has_affine is only true when both weight and bias are real tensors and
     # at least one is non-identity (not all-1 / all-0). `LayerNorm(...,
-    # elementwise_affine=False)` leaves both at None -- the affine path would
+    # elementwise_affine=False)` leaves both at None: the affine path would
     # then crash trying to materialize None as an NNEF tensor.
     weight_defined = weight_node.data is not None
     bias_defined = bias_node.data is not None
@@ -385,13 +385,13 @@ def group_norm(g, node, name_to_tensor, inference_target, **kwargs):
     Decomposed flow:
 
     1. Reshape `input` from `(B, C, *spatial)` to `(B, C, S)` where
-       `S = prod(spatial)` -- the t2n emitter knows the spatial shape
+       `S = prod(spatial)`: the t2n emitter knows the spatial shape
        statically and does the flatten here.
     2. Call the `group_norm` fragment, which works entirely in 3D
        `(B, num_groups, C/num_groups * S)` then projects back to
        `(B, C, S)`. The fragment does NOT apply scale/offset.
     3. Reshape the 3D result back to `(B, C, *spatial)`.
-    4. Multiply by `scale` and add `offset` -- both pre-unsqueezed to
+    4. Multiply by `scale` and add `offset`: both pre-unsqueezed to
        trailing-1 shape so NNEF's left-aligned broadcast extends them
        cleanly to the full input rank (this is the same pattern other
        norms use).

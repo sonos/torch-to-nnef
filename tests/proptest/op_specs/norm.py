@@ -23,7 +23,7 @@ from ._common import (
 
 
 def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.matmul(A, B)` -- joint inner-dim constraint A[-1]==B[-2]."""
+    """`torch.matmul(A, B)`: joint inner-dim constraint A[-1]==B[-2]."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -60,7 +60,7 @@ def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _linear_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.Linear(in_f, out_f)` -- input shape ends with `in_f`.
+    """`nn.Linear(in_f, out_f)`: input shape ends with `in_f`.
 
     Rank starts at 2 (always a batch dim). PyTorch supports rank-1 input
     (treats it as a single vector) but t2n's export pipeline needs a
@@ -96,7 +96,7 @@ def _linear_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.LayerNorm(normalized_shape)` -- input ends with that suffix."""
+    """`nn.LayerNorm(normalized_shape)`: input ends with that suffix."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -152,7 +152,7 @@ def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.GroupNorm(num_groups, num_channels)` -- groups must divide C.
+    """`nn.GroupNorm(num_groups, num_channels)`: groups must divide C.
 
     Each group must have non-trivial variance, otherwise normalization
     amplifies float-roundoff differences between PyTorch and tract into
@@ -240,7 +240,7 @@ def _conv2d_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _norm_conv_matmul_specs() -> T.List[OpSpec]:
-    # Multi-op chains -- tract's f32 ops accumulate ULP-level error per
+    # Multi-op chains: tract's f32 ops accumulate ULP-level error per
     # multiply-accumulate. CLOSE (1e-5) is too tight for a typical
     # conv/linear; VERY (1e-4) gives breathing room.
     VERY = TractCheckTolerance.VERY
@@ -302,7 +302,7 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
 
 
 def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.norm(p, dim, keepdim)` -- vector p-norm along a dim."""
+    """`Tensor.norm(p, dim, keepdim)`: vector p-norm along a dim."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -318,7 +318,7 @@ def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
         )
         dim = draw(reduction_dim_st(rank))
         keepdim = draw(st.booleans())
-        # p in {1, 2} only -- t2n's norm emitter at norm.py dispatches
+        # p in {1, 2} only: t2n's norm emitter at norm.py dispatches
         # only these in tract; fractional p may go through a different
         # path with its own bugs.
         p = draw(st.sampled_from([1, 2]))
@@ -341,7 +341,7 @@ def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _rms_norm_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.RMSNorm(normalized_shape)` -- input ends with that suffix."""
+    """`nn.RMSNorm(normalized_shape)`: input ends with that suffix."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -380,7 +380,7 @@ def _norm_specs() -> T.List[OpSpec]:
             # the typical LLM case) diverges by ~3% relative vs
             # PyTorch's `nn.RMSNorm`. The t2n fragment fallback
             # (`rms_norm.nnef`) has the correct formula
-            # `x * rsqrt(mean(x^2) + eps) * gamma` -- forcing
+            # `x * rsqrt(mean(x^2) + eps) * gamma`: forcing
             # `prefer_native_tract_rms_norm` to False makes proptest
             # match PyTorch exactly. The fix lives in tract's native op.
             name="rms_norm-xfail",
@@ -516,7 +516,7 @@ def _sort_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.sort` sweeping `descending` (stable=False only).
 
     The `stable` kwarg fails the schema-match in t2n's dynamic call
-    path -- sort.stable is a separate aten overload that t2n's
+    path: sort.stable is a separate aten overload that t2n's
     update_call_op_arg_kwargs doesn't translate. Stable matters only
     when ties exist; we already feed unique values, so dropping the
     sweep loses no signal.
@@ -553,7 +553,7 @@ def _sort_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 class _CatNTensors(torch.nn.Module):
-    """`torch.cat([t1, ..., tN], dim=k)` -- variable N."""
+    """`torch.cat([t1, ..., tN], dim=k)`: variable N."""
 
     def __init__(self, dim: int):
         super().__init__()
@@ -667,8 +667,6 @@ def _norm_topk_cat_kwarg_specs() -> T.List[OpSpec]:
         ),
     ]
 
-
-# Depth: reduction dtype kwarg (sum, mean, prod with dtype=)
 
 SPECS = (
     *_norm_conv_matmul_specs(),

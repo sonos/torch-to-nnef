@@ -29,7 +29,7 @@ def test_op_property(spec: OpSpec) -> None:
     if spec.xfail_reason is not None:
         # Imperative xfail: the spec is known-bad against the current
         # tract / t2n. We skip execution rather than running and matching
-        # the failure -- subprocess noise from a guaranteed-fail run is
+        # the failure: subprocess noise from a guaranteed-fail run is
         # not worth the signal. When the upstream fix lands, removing
         # `xfail_reason` flips the spec back to a normal pass.
         pytest.xfail(spec.xfail_reason)

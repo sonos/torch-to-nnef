@@ -22,7 +22,7 @@ fragment group_norm(
     inv_stdvar = rsqrt(sum_reduce(sqr(per_group_input - mean), axes=[2], normalize=true) + epsilon);
 
     # Per-group mean and inv_stdvar have shape `(batch, num_groups, 1)`
-    # which broadcasts naturally over the trailing flattened axis -- no
+    # which broadcasts naturally over the trailing flattened axis: no
     # tile/transpose dance needed.
     normalized_per_group = (per_group_input - mean) * inv_stdvar;
 

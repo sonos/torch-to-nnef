@@ -176,7 +176,7 @@ def _squeeze_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _view_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.view(*shape)` -- like reshape but requires contiguous input."""
+    """`Tensor.view(*shape)`: like reshape but requires contiguous input."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -274,7 +274,7 @@ def _narrow_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _expand_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.expand(*sizes)` -- each source dim must be 1 or equal."""
+    """`Tensor.expand(*sizes)`: each source dim must be 1 or equal."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -310,7 +310,7 @@ def _expand_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _repeat_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.repeat(*sizes)` -- repeats the tensor along each dim.
+    """`Tensor.repeat(*sizes)`: repeats the tensor along each dim.
 
     PyTorch allows `len(sizes) >= rank`, with the source treated as if
     it had leading size-1 dims to match. Repeats are constrained to
@@ -415,7 +415,7 @@ def _shape_specs() -> T.List[OpSpec]:
 
 
 def _select_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.select(dim, index)` -- pick a single slice along dim.
+    """`Tensor.select(dim, index)`: pick a single slice along dim.
 
     Output rank = input rank - 1; index must be in `[0, dim_size)`.
     """
@@ -503,7 +503,7 @@ def _index_select_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _gather_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.gather(input, dim, index)` -- index has same rank as input.
+    """`torch.gather(input, dim, index)`: index has same rank as input.
 
     For each output position, the value is
     `input[i_0, ..., index[i], ..., i_{n-1}]` along the gather dim.
@@ -528,7 +528,7 @@ def _gather_sample_st() -> st.SearchStrategy[OpSample]:
         idx_dim_size = draw(st.integers(min_value=1, max_value=4))
         idx_shape = list(shape)
         idx_shape[dim] = idx_dim_size
-        # Build idx values in valid range -- via hypothesis (not
+        # Build idx values in valid range: via hypothesis (not
         # np.random) so generation stays deterministic.
         idx = draw(
             tensor_st(
@@ -557,7 +557,7 @@ def _gather_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _masked_fill_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.masked_fill(mask, value)` -- bool mask, scalar value."""
+    """`Tensor.masked_fill(mask, value)`: bool mask, scalar value."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -595,7 +595,7 @@ def _topk_sample_st() -> st.SearchStrategy[OpSample]:
     Tie-breaking on equal values is implementation-defined; PyTorch and
     tract pick different indices when the input has duplicates. To make
     the indices output well-defined, we feed a permutation of integers
-    1..N as the input -- every value is unique so the index output is
+    1..N as the input: every value is unique so the index output is
     deterministic across both backends.
     """
 
@@ -616,7 +616,7 @@ def _topk_sample_st() -> st.SearchStrategy[OpSample]:
         n = 1
         for s in shape:
             n *= s
-        # Draw a permutation of 1..n then reshape -- unique values, no ties.
+        # Draw a permutation of 1..n then reshape: unique values, no ties.
         perm = draw(st.permutations(list(range(1, n + 1))))
         x = torch.tensor(perm, dtype=torch.float32).reshape(shape)
         return OpSample(
@@ -661,7 +661,7 @@ def _selector_specs() -> T.List[OpSpec]:
 
 
 class _CatPair(torch.nn.Module):
-    """Wrapper for `torch.cat([a, b], dim=k)` -- list-of-2 form."""
+    """Wrapper for `torch.cat([a, b], dim=k)`: list-of-2 form."""
 
     def __init__(self, dim: int):
         super().__init__()
@@ -672,7 +672,7 @@ class _CatPair(torch.nn.Module):
 
 
 class _StackPair(torch.nn.Module):
-    """Wrapper for `torch.stack([a, b], dim=k)` -- list-of-2 form."""
+    """Wrapper for `torch.stack([a, b], dim=k)`: list-of-2 form."""
 
     def __init__(self, dim: int):
         super().__init__()
@@ -683,7 +683,7 @@ class _StackPair(torch.nn.Module):
 
 
 def _cat_sample_st() -> st.SearchStrategy[OpSample]:
-    """`cat([a, b], dim)` -- joint shape: a/b agree on every non-cat dim."""
+    """`cat([a, b], dim)`: joint shape: a/b agree on every non-cat dim."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -727,7 +727,7 @@ def _cat_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _stack_sample_st() -> st.SearchStrategy[OpSample]:
-    """`stack([a, b], dim)` -- joint shape: a and b have identical shape."""
+    """`stack([a, b], dim)`: joint shape: a and b have identical shape."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -765,12 +765,12 @@ def _stack_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _chunk_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.chunk(chunks, dim)` -- multi-output split.
+    """`Tensor.chunk(chunks, dim)`: multi-output split.
 
     PyTorch's chunk handles non-divisible `shape[dim]` gracefully (last
     chunk is smaller). The t2n split emitter at
     `torch_to_nnef/op/aten/split.py` asserts equal-sized chunks and
-    raises `AssertionError` otherwise -- so our strategy enforces
+    raises `AssertionError` otherwise: so our strategy enforces
     `shape[dim] % chunks == 0`.
     """
 
@@ -811,7 +811,7 @@ def _chunk_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.unbind(input, dim)` -- splits into a tuple of slices."""
+    """`torch.unbind(input, dim)`: splits into a tuple of slices."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -843,7 +843,7 @@ def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _roll_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.roll(input, shifts, dims)` -- cyclic shift.
+    """`torch.roll(input, shifts, dims)`: cyclic shift.
 
     Sweeps the full PyTorch range for `shifts`: positive, negative,
     zero, and magnitudes >= dim_size. Tract's slice/concat path has
@@ -887,7 +887,7 @@ def _roll_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _outer_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.outer(a, b)` -- both inputs are 1-D, result is 2-D."""
+    """`torch.outer(a, b)`: both inputs are 1-D, result is 2-D."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -920,7 +920,7 @@ def _outer_sample_st() -> st.SearchStrategy[OpSample]:
 def _triangular_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
-    """`torch.tril/triu(input, diagonal)` -- requires rank >= 2."""
+    """`torch.tril/triu(input, diagonal)`: requires rank >= 2."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1140,7 +1140,7 @@ def _sort_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
 
 
 def _scatter_sample_st() -> st.SearchStrategy[OpSample]:
-    """`Tensor.scatter(dim, index, src)` -- counterpart of gather."""
+    """`Tensor.scatter(dim, index, src)`: counterpart of gather."""
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -1196,7 +1196,7 @@ def _scatter_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _slice_sample_st() -> st.SearchStrategy[OpSample]:
-    """Python slice via `__getitem__` -- maps to `aten:slice`.
+    """Python slice via `__getitem__`: maps to `aten:slice`.
 
     Currently only the simple "single dim, contiguous" form to keep the
     strategy simple.

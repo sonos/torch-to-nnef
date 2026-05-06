@@ -210,7 +210,7 @@ def outer(node, op_helper, **kwargs):
     (`tract_core::ops::change_axes::AxisOp::change_shape`) does not
     normalize negative axes and panics with `smallvec: index exceeds
     length`; verified across tract 0.20.22 through 0.23.0-dev.5. This
-    matches the wider t2n convention -- the dedicated `unsqueeze` op
+    matches the wider t2n convention: the dedicated `unsqueeze` op
     handler also normalizes via `pick_axis`.
     """
     a_node, b_node = node.inputs
@@ -242,7 +242,7 @@ def pow_(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:pow' to NNEF."""
     (input_node, exponent_node) = node.inputs
     inputs = [op_helper.get_or_add_tensor_variable_in_nnef(input_node)]
-    # Scalar 2 / -2 only -- isinstance check skips the truthiness branch on
+    # Scalar 2 / -2 only: isinstance check skips the truthiness branch on
     # tensor-valued exponents (which would raise "ambiguous").
     exp_data = exponent_node.data
     if isinstance(exp_data, (int, float)) and exp_data in (2, -2):
@@ -288,7 +288,7 @@ def mul(node, op_helper, torch_graph, **kwargs):
     if input_node.data is not None and other_node.data is not None:
         # When one operand is a float scalar (e.g. 1/sqrt(d) attention scaling)
         # and the other an int64 shape value, torch promotes to float, but the
-        # traced output dtype may still be int64 -- set_data's dtype validation
+        # traced output dtype may still be int64: set_data's dtype validation
         # would then fail. Cast to the declared dtype for tensor results;
         # Python scalars (int * int -> int) are passed through as-is.
         result = input_node.data * other_node.data
@@ -400,7 +400,7 @@ def _add_or_sub_with_alpha(nnef_op_name: str, node, op_helper, **_):
 
     For the default `alpha == 1` we emit a single NNEF `add` / `sub`
     op. For non-default alpha we decompose to `mul(other, alpha)` then
-    `nnef_op_name(input, scaled_other)` -- this avoids needing a custom
+    `nnef_op_name(input, scaled_other)`: this avoids needing a custom
     NNEF op variant that takes `alpha` as an attribute.
     """
     if len(node.inputs) == 3:
