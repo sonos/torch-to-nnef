@@ -23,7 +23,6 @@ from pocket_tts.modules.mimi_transformer import (
     StreamingTransformer,
     StreamingTransformerLayer,
 )
-from pocket_tts.modules.rope import RotaryEmbedding
 from pocket_tts.modules.transformer import StreamingMultiheadAttention
 from torch import nn
 
@@ -103,9 +102,7 @@ class IOSelfAttention(nn.Module):
         k_positions: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         b, s_new, _ = x.shape
-        qkv = self.in_proj(x).view(
-            b, s_new, 3, self.num_heads, self.head_dim
-        )
+        qkv = self.in_proj(x).view(b, s_new, 3, self.num_heads, self.head_dim)
         q, k_new, v_new = torch.unbind(qkv, dim=2)
         q, k_new = apply_rope_at_positions(
             q, k_new, q_positions, self.rope_freqs
@@ -139,7 +136,7 @@ class IOSelfAttention(nn.Module):
 
 
 class IOTransformerLayer(nn.Module):
-    """Wraps a Pocket-TTS ``StreamingTransformerLayer`` with KV-as-IO attention."""
+    """Pocket-TTS ``StreamingTransformerLayer`` with KV-as-IO attention."""
 
     def __init__(self, layer: StreamingTransformerLayer):
         super().__init__()
@@ -172,7 +169,7 @@ class IOTransformerLayer(nn.Module):
 
 
 class IOTransformer(nn.Module):
-    """Stack of IO transformer layers with stacked KV cache (n_layers, 2, ...)."""
+    """Stack of IO transformer layers; KV cache shape is (n_layers, 2, ...)."""
 
     def __init__(self, transformer: StreamingTransformer):
         super().__init__()

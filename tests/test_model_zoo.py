@@ -569,6 +569,31 @@ except ImportError:
     print("missing pocket_tts to test Pocket-TTS flow_net")
 
 
+# Mini Pocket-TTS FlowLM init + step: KV-cache-as-IO wrappers around the
+# autoregressive transformer. ``flow_lm_init`` runs once per utterance
+# (tokens + voice KV prefix); ``flow_lm_step`` runs once per audio frame.
+try:
+    from tests._pocket_tts_zoo import (
+        MiniPocketTTSFlowLMInit,
+        MiniPocketTTSFlowLMStep,
+        mini_flow_lm_init_inputs,
+        mini_flow_lm_step_inputs,
+    )
+
+    test_suite.add(
+        mini_flow_lm_init_inputs(),
+        MiniPocketTTSFlowLMInit(),
+        test_name="mini_pocket_tts_flow_lm_init",
+    )
+    test_suite.add(
+        mini_flow_lm_step_inputs(),
+        MiniPocketTTSFlowLMStep(),
+        test_name="mini_pocket_tts_flow_lm_step",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS flow_lm")
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,

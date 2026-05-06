@@ -29,15 +29,47 @@ import argparse
 from pathlib import Path
 
 import torch
+from pocket_tts.conditioners import text as conditioners_text
 from pocket_tts.conditioners.text import LUTConditioner
 from pocket_tts.models.flow_lm import FlowLMModel
 from pocket_tts.modules.mimi_transformer import StreamingTransformer
 from pocket_tts.modules.mlp import SimpleMLPAdaLN
 from pocket_tts.modules.stateful_module import StatefulModule
 
+from examples.tts.pocket_tts._flow_lm_export import FlowLMInit, FlowLMStep
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
-from examples.tts.pocket_tts._flow_lm_export import FlowLMInit, FlowLMStep
+
+def _build_lut_conditioner_without_tokenizer(
+    n_bins: int, dim: int
+) -> LUTConditioner:
+    """Build a ``LUTConditioner`` whose ``__init__`` skips SentencePiece.
+
+    Pocket-TTS' real conditioner downloads a gated SentencePiece model in
+    ``LUTConditioner.__init__``. Tokenization happens in Rust via the
+    ``sentencepiece`` crate at runtime, so the exported graph only needs
+    the ``embed`` lookup. We patch the SentencePiece constructor to a stub
+    around the one-shot init so the rest of the original constructor runs
+    unchanged.
+    """
+
+    class _StubTokenizer:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def vocab_size(self):
+            return n_bins
+
+    real = conditioners_text.SentencePieceTokenizer
+    conditioners_text.SentencePieceTokenizer = _StubTokenizer
+    try:
+        cond = LUTConditioner(
+            n_bins=n_bins, tokenizer_path="", dim=dim, output_dim=dim
+        )
+    finally:
+        conditioners_text.SentencePieceTokenizer = real
+    cond.tokenizer = None
+    return cond
 
 
 def build_mini_flow_lm() -> FlowLMModel:
@@ -53,16 +85,9 @@ def build_mini_flow_lm() -> FlowLMModel:
     ldim = 8
     context = 32
 
-    # ``LUTConditioner.__init__`` would download the SentencePiece tokenizer
-    # from a gated HF repo. The actual conditioner module only needs its
-    # ``embed`` Embedding for the forward path that we export, so build it
-    # directly without invoking the tokenizer.
-    conditioner = LUTConditioner.__new__(LUTConditioner)
-    torch.nn.Module.__init__(conditioner)
-    conditioner.dim = d_model
-    conditioner.output_dim = d_model
-    conditioner.tokenizer = None
-    conditioner.embed = torch.nn.Embedding(n_bins + 1, d_model)
+    conditioner = _build_lut_conditioner_without_tokenizer(
+        n_bins=n_bins, dim=d_model
+    )
     transformer = StreamingTransformer(
         d_model=d_model,
         num_heads=num_heads,

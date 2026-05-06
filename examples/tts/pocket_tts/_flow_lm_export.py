@@ -67,7 +67,7 @@ class FlowLMInit(nn.Module):
 
 
 class FlowLMStep(nn.Module):
-    """Subsequent FlowLM call: one audio latent + KV → transformer_out + eos + KV."""
+    """Subsequent FlowLM call: one audio latent + KV → out + eos + KV."""
 
     def __init__(self, flow_lm: FlowLMModel):
         super().__init__()
@@ -89,9 +89,7 @@ class FlowLMStep(nn.Module):
         # k_positions:  (T_past + 1,) -- positions for the full K cache
         x = audio_latent.unsqueeze(1)  # (B, 1, ldim)
         x = self.input_linear(x)  # (B, 1, dim)
-        out, new_kv = self.io_transformer(
-            x, past_kv, q_positions, k_positions
-        )
+        out, new_kv = self.io_transformer(x, past_kv, q_positions, k_positions)
         out = self.out_norm(out)
         out_last = out[:, -1, :]
         eos_logit = self.out_eos(out_last)
