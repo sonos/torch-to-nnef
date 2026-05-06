@@ -1,0 +1,6 @@
+torch>=2.5
+pocket-tts
+huggingface_hub
+sentencepiece
+scipy
+-e ../../../
