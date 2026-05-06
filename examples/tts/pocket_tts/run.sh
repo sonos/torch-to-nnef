@@ -5,8 +5,9 @@
 # "hello I am a text to speech voice".
 #
 # Usage:
-#     ./run.sh             # default --mini path (random weights, noise out)
-#     MODE=full ./run.sh   # real Pocket-TTS weights (HF download)
+#     ./run.sh                # default --mini path (random weights, noise out)
+#     MODE=full ./run.sh      # real Pocket-TTS weights (HF download)
+#     MODE=full GPU=1 ./run.sh  # full + tract Metal runtime (macOS only)
 #
 # Modes:
 #   * ``--mini`` (default) -- random-weights config (~50k params per stage)
@@ -16,6 +17,8 @@
 #     all four graphs running through tract. No Python in the inference
 #     path: the produced binary + ``cli/models/`` + ``cli/voices/`` +
 #     ``cli/tokenizer.model`` is a self-contained shippable.
+#
+# The CLI prints RTFx (audio_seconds / wall_seconds) on every run.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -36,12 +39,17 @@ mkdir -p cli/models cli/voices
 
 TRACT_VERSION="${TRACT_VERSION:-0.23.0-dev.5}"
 MODE="${MODE:-mini}"
+GPU="${GPU:-0}"
 case "$MODE" in
     mini) WEIGHTS_FLAG=--mini ;;
     full) WEIGHTS_FLAG=--full ;;
     *) echo "MODE must be 'mini' or 'full', got: $MODE" >&2; exit 1 ;;
 esac
 COMMON_EXPORT_FLAGS=("$WEIGHTS_FLAG" --skip-io-check --tract-version "$TRACT_VERSION")
+GPU_CLI_FLAGS=()
+if [ "$GPU" = 1 ]; then
+    GPU_CLI_FLAGS=(--gpu)
+fi
 
 # 3. Export the four NNEF graphs + bake the voice prompt ---------------------
 TEXT="hello I am a text to speech voice"
@@ -122,6 +130,7 @@ print(",".join(str(i) for i in ids))
         --tokens "$TOKENS" \
         --max-frames 8 \
         --eos-threshold 1e9 \
+        "${GPU_CLI_FLAGS[@]+"${GPU_CLI_FLAGS[@]}"}" \
         --out cli/out.wav
 else
     echo "    tokenizing via cli/tokenizer.model (full path: tract end-to-end, no Python)"
@@ -132,6 +141,7 @@ else
         --text "$TEXT" \
         --ldim 32 \
         --max-frames 256 \
+        "${GPU_CLI_FLAGS[@]+"${GPU_CLI_FLAGS[@]}"}" \
         --out cli/out.wav
 fi
 

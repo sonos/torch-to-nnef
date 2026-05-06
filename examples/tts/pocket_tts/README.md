@@ -2,10 +2,37 @@
 
 Target repo: [`kyutai-labs/pocket-tts`](https://github.com/kyutai-labs/pocket-tts).
 
-A lightweight CPU-friendly TTS from Kyutai (~100M params, multi-language,
-voice cloning). It's a `FlowLM` (text + voice prompt -> continuous audio
-latents) feeding into a `Mimi` neural codec decoder (latents -> 24 kHz
-waveform).
+End-to-end Pocket-TTS through tract: a single Rust binary takes text + a
+voice prompt and writes a 24 kHz WAV. No Python in the inference path.
+
+Pocket-TTS architecture: a `FlowLM` autoregressive transformer (text +
+voice prompt → continuous audio latents) followed by a `Mimi` neural
+codec decoder (latents → 24 kHz waveform). The PR exports four NNEF
+graphs and threads them together in Rust.
+
+## Quick start
+
+```bash
+./run.sh             # mini path: random weights, output is noise
+MODE=full ./run.sh   # real ~110M-param Pocket-TTS, real audio
+```
+
+`MODE=full` triggers an HF download on first run (the gated Pocket-TTS
+checkpoint), exports the four graphs, builds the Rust CLI, and writes
+`cli/out.wav`. Sample output on a M-series CPU:
+
+```
+EOS at frame 33 (logit -3.496 > -4)
+generated 33 audio latents
+decoded 63360 samples (2.64 s @ 24000 Hz) in 1.05 s wall time -- RTFx 2.53
+```
+
+Add `--gpu` to route the four graphs through tract's Metal runtime
+(macOS only):
+
+```
+decoded 63360 samples (2.64 s @ 24000 Hz) in 0.95 s wall time -- RTFx 2.79 [Metal GPU]
+```
 
 ## Layout
 
@@ -20,26 +47,38 @@ waveform).
 
 The full Mimi decode graph wraps four submodules into a single stateless
 NNEF graph: latent denormalisation, the quantizer 1×1 conv (ldim → mimi
-dim), the depthwise transposed-conv upsample, the decoder transformer, and
-the SEANet decoder. Streaming convs and the streaming KV-cache attention
-are mirrored with stateless wrappers (see `decoder.py` and the
+dim), the depthwise transposed-conv upsample, the decoder transformer,
+and the SEANet decoder. Streaming convs and the streaming KV-cache
+attention are mirrored with stateless wrappers (see `decoder.py` and the
 `BulkSelfAttention` class in `mimi_decode.py`); weights are reused as-is.
 
 The graph declares `T_LATENT` as a dynamic axis, so the same exported
-artifact runs at any frame count -- the autoregressive loop terminates on
-real EOS and feeds however many latents it produced into the decoder. This
-is still a *bulk* decode (full utterance in one call), not the chunked
-pulse-mode streaming Mimi was designed for; that is the next step.
+artifact runs at any frame count -- the autoregressive loop terminates
+on real EOS (default threshold `-4.0`, matching Pocket-TTS) and feeds
+however many latents it produced into the decoder. Audio length tracks
+the utterance: same prompt across noise seeds 0/1/2/7 gives
+33/29/28/27 audio frames (2.64 / 2.32 / 2.24 / 2.16 s).
 
-## Run
+This is still a **bulk** decode (full utterance in one call), not the
+chunked pulse-mode streaming Mimi was designed for; that's the next
+step.
 
-`run.sh` does the whole pipeline (export + bake voice + build CLI + run).
+## CLI flags
 
-```bash
-./run.sh             # mini path: random weights, noise out
-MODE=full ./run.sh   # real ~110M-param Pocket-TTS, real audio at 24 kHz
-```
+The Rust binary lives in [`cli/`](cli/). Demo-relevant flags:
 
-In `MODE=full` everything runs through tract: there is no Python in the
-inference path. The shippable artefact is the Rust binary plus the
-`cli/models/`, `cli/voices/`, and `cli/tokenizer.model` asset directory.
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--text "..."` | -- | Requires `--tokenizer`. |
+| `--tokenizer tokenizer.model` | -- | SentencePiece model from `extract_tokenizer.py`. |
+| `--voice voices/alba.dat` | bundled mini | Output of `bake_voice.py`. |
+| `--ldim` | 8 | 32 for the real checkpoint. |
+| `--max-frames` | 32 | Safety cap; loop terminates on EOS first. |
+| `--lsd-steps` | 1 | Pocket-TTS default. |
+| `--temp` | 0.7 | Initial-noise std is `sqrt(temp)`. |
+| `--noise-clamp` | -- | Optional truncated-normal bound. |
+| `--eos-threshold` | -4.0 | Pocket-TTS default. |
+| `--seed` | 0 | Reproducible noise. |
+| `--gpu` | off | Metal GPU runtime (macOS only). |
+
+Stdout reports RTFx (audio_seconds / wall_seconds) on every run.
