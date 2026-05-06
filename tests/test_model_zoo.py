@@ -518,6 +518,42 @@ except ImportError:
     print("missing diffusers to test Sana mini transformer")
 
 
+# Mini Pocket-TTS flow_net: the AdaLN-modulated MLP that runs once per LSD
+# decode step inside the FlowLM autoregressive loop. Pure feedforward, no
+# streaming state -- exercises RMSNorm with default ``var(correction=1)``,
+# AdaLN modulation, sinusoidal time embedding, and the cond+time merge.
+try:
+    from pocket_tts.modules.mlp import SimpleMLPAdaLN
+
+    class MiniPocketTTSFlowNet(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.flow_net = SimpleMLPAdaLN(
+                in_channels=8,
+                model_channels=16,
+                out_channels=8,
+                cond_channels=24,
+                num_res_blocks=2,
+                num_time_conds=2,
+            ).eval()
+
+        def forward(self, cond, t_start, t_end, x):
+            return self.flow_net(cond, t_start, t_end, x)
+
+    test_suite.add(
+        (
+            torch.randn(1, 24),
+            torch.zeros(1, 1),
+            torch.full((1, 1), 0.25),
+            torch.randn(1, 8),
+        ),
+        MiniPocketTTSFlowNet(),
+        test_name="mini_pocket_tts_flow_net",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS flow_net")
+
+
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
     test_suite.test_samples,
