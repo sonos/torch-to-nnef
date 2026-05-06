@@ -68,8 +68,8 @@ def _activation_specs() -> T.List[OpSpec]:
         for name, op, tol in pure_unary
     ]
 
-    # Activations with a single optional kwarg (kept at default for v1; the
-    # kwarg surface is its own broadening pass once these baseline pass).
+    # Activations with a single optional kwarg pinned to its default; the
+    # kwarg-sweep variants (``-broad``) are added separately below.
     leaky_relu = partial(F.leaky_relu, negative_slope=0.01)
     elu_default = partial(F.elu, alpha=1.0)
     hardtanh_default = partial(F.hardtanh, min_val=-1.0, max_val=1.0)

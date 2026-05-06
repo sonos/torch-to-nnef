@@ -12,7 +12,7 @@ import typing as T
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as npst
 
-# v1 shape budget (per the design plan):
+# Default shape budget:
 # - rank up to 4 (5+ only for ops with explicit higher-rank semantics)
 # - per-dim size up to 8 (keeps total elements <= 4096 at rank 4)
 # - zero-sized dims off by default

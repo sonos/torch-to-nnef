@@ -586,8 +586,8 @@ def _masked_fill_sample_st() -> st.SearchStrategy[OpSample]:
 
     @st.composite
     def _draw(draw) -> OpSample:
-        # Mask is broadcastable with input; v1 keeps them same shape for
-        # simplicity.
+        # ``masked_fill`` accepts any broadcastable mask; this strategy
+        # keeps them same-shape for simplicity.
         shape = draw(shape_st(min_rank=1, max_rank=4))
         x = draw(
             tensor_st(

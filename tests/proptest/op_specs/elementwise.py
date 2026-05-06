@@ -19,28 +19,139 @@ from ..shapes import (
     shape_st,
     ternary_broadcast_shapes_st,
 )
-from ._common import (
-    _UNARY_ACOSH_DOMAIN,
-    _UNARY_ATANH_DOMAIN,
-    _UNARY_EXP_DOMAIN,
-    _UNARY_FINITE_DOMAIN,
-    _UNARY_HYP_DOMAIN,
-    _UNARY_INVTRIG_DOMAIN,
-    _UNARY_LOG_DOMAIN,
-    _UNARY_RECIP_DOMAIN,
-    _UNARY_RSQRT_DOMAIN,
-    _UNARY_SQRT_DOMAIN,
-    _UNARY_TAN_DOMAIN,
-    _UNARY_TANH_DOMAIN,
-    _UNARY_TRIG_DOMAIN,
-    OpSample,
-    OpSpec,
-    _binary_broadcast_sample_st,
-    _binary_multi_dtype_sample_st,
-    _binary_pow_int_exp_sample_st,
-    _binary_pow_sample_st,
-    _unary_sample_st,
-)
+from ._common import OpSample, OpSpec, _unary_sample_st
+
+# Domain bounds chosen to keep outputs in a numerically meaningful range and
+# avoid trivial saturation while still exercising edge cases.
+_UNARY_TRIG_DOMAIN = Interval(-6.283, 6.283)  # ~ +/- 2*pi
+_UNARY_TAN_DOMAIN = Interval(-1.4, 1.4)  # avoid tan(pi/2) explosion
+_UNARY_EXP_DOMAIN = Interval(-30.0, 30.0)
+_UNARY_LOG_DOMAIN = Interval(1e-3, 1e4)
+_UNARY_FINITE_DOMAIN = Interval(-1e4, 1e4)
+_UNARY_SQRT_DOMAIN = Interval(0.0, 1e4)
+_UNARY_RSQRT_DOMAIN = Interval(1e-3, 1e4)
+# Reciprocal is positive-only here: the strategy doesn't yet support
+# disjoint intervals, and a single straddle interval would generate
+# values arbitrarily close to zero.
+_UNARY_RECIP_DOMAIN = Interval(1e-2, 1e3)
+_UNARY_TANH_DOMAIN = Interval(-30.0, 30.0)
+# Inverse-trig (asin, acos): input in [-1, 1].
+_UNARY_INVTRIG_DOMAIN = Interval(-1.0, 1.0)
+# acosh: input in [1, inf).
+_UNARY_ACOSH_DOMAIN = Interval(1.0, 1e3)
+# atanh: input in (-1, 1) strict; epsilon margin avoids the singularities.
+_UNARY_ATANH_DOMAIN = Interval(-0.999, 0.999)
+# Hyperbolic sinh/cosh: bounded to avoid overflow at f32.
+_UNARY_HYP_DOMAIN = Interval(-30.0, 30.0)
+
+
+def _binary_broadcast_sample_st(
+    op: T.Callable[..., torch.Tensor],
+    dtype: torch.dtype = torch.float32,
+    domain: T.Optional[Interval] = None,
+    finite: bool = True,
+) -> st.SearchStrategy[OpSample]:
+    """Binary-op sample strategy with mutually broadcastable shapes."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=8))
+        a = draw(tensor_st(sa, dtype, finite=finite, domain=domain))
+        b = draw(tensor_st(sb, dtype, finite=finite, domain=domain))
+        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+
+    return _draw()
+
+
+def _binary_multi_dtype_sample_st(
+    op: T.Callable[..., torch.Tensor],
+    dtypes: T.Sequence[torch.dtype] = (torch.float32, torch.float16),
+    domain_f32: T.Optional[Interval] = None,
+    domain_f16: T.Optional[Interval] = None,
+) -> st.SearchStrategy[OpSample]:
+    """Binary-op sample sweeping a list of float dtypes.
+
+    Inputs are drawn with a per-dtype domain (f16 has a tighter range to
+    keep results in its representable interval). Both inputs share the
+    drawn dtype -- broadcasting is independent.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        dtype = draw(dtype_st(list(dtypes)))
+        domain = (
+            domain_f16
+            if dtype == torch.float16 and domain_f16 is not None
+            else domain_f32
+        )
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=8))
+        a = draw(tensor_st(sa, dtype, finite=True, domain=domain))
+        b = draw(tensor_st(sb, dtype, finite=True, domain=domain))
+        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+
+    return _draw()
+
+
+def _binary_pow_int_exp_sample_st() -> st.SearchStrategy[OpSample]:
+    """Pow with integer-valued exponent tensors.
+
+    Integer exponents go through a different code path in tract (a
+    repeated-multiply or sqr/rsqr fragment for small constants -- see
+    ``torch_to_nnef/op/aten/math.py:_pow``). Cover small absolute values
+    to keep results bounded.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        base = draw(
+            tensor_st(
+                sa,
+                torch.float32,
+                finite=True,
+                domain=Interval(0.5, 10.0),
+            )
+        )
+        exp_int = draw(st.integers(min_value=-3, max_value=3))
+        exponent = torch.full(sb, float(exp_int), dtype=torch.float32)
+        return OpSample(
+            inputs=(base, exponent),
+            kwargs={},
+            module=BinaryPrimitive(torch.pow),
+        )
+
+    return _draw()
+
+
+def _binary_pow_sample_st() -> st.SearchStrategy[OpSample]:
+    """Pow needs separate domains for base (>=0) and exponent (small)."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        base = draw(
+            tensor_st(
+                sa,
+                torch.float32,
+                finite=True,
+                domain=Interval(0.1, 100.0),
+            )
+        )
+        exponent = draw(
+            tensor_st(
+                sb,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(
+            inputs=(base, exponent),
+            kwargs={},
+            module=BinaryPrimitive(torch.pow),
+        )
+
+    return _draw()
 
 
 def _unary_specs() -> T.List[OpSpec]:

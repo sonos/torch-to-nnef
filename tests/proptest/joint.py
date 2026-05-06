@@ -1,10 +1,10 @@
 """Reusable joint-constraint composites for hypothesis op specs.
 
-Each composite encodes a cross-input or input-vs-kwarg constraint that cannot
-be satisfied by drawing inputs and kwargs independently (matmul inner-dim,
-clamp ordered pair, permutation of [0..rank-1], etc.). v1 only ships the
-composites needed by the v1 op coverage list (see the design plan); heavier
-composites (matmul, conv, cat, gather) land in v2.
+Each composite encodes a cross-input or input-vs-kwarg constraint that
+cannot be satisfied by drawing inputs and kwargs independently (matmul
+inner-dim, clamp ordered pair, permutation of ``[0..rank-1]``, ...).
+Heavier joint constructs (matmul, conv, cat, gather) live inline in their
+consumer modules under ``op_specs/`` rather than here.
 """
 
 import typing as T

@@ -196,7 +196,7 @@ def _prod_dim_sample_st() -> st.SearchStrategy[OpSample]:
 def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
     """Var reduction over a single dim, biased estimator only.
 
-    Two t2n limitations narrow this spec for v1:
+    Two t2n limitations narrow this spec:
 
     1. The var emitter at ``torch_to_nnef/op/aten/math.py:717`` raises
        NotImplementedError when ``correction != 0`` (PyTorch defaults to

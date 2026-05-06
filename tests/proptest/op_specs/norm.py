@@ -452,7 +452,7 @@ def _batch_norm1d_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
 
     ``affine=False`` is not implemented in t2n's batch_norm emitter
     (``norm.py`` raises NotImplementedError when the param tensors are
-    None). Sticking to affine=True for v1.
+    None), so we pin ``affine=True``.
     """
 
     @st.composite
