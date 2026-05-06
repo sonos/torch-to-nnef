@@ -63,6 +63,236 @@ def _block_only_raises(block) -> bool:
     return all(n.kind() in ASSERTION_BLOCK_KINDS for n in nodes)
 
 
+def _tensor_sizes(value) -> T.Optional[T.List[int]]:
+    """Return the concrete `sizes()` for a Tensor SSA value.
+
+    Returns None if any dim is symbolic / unknown.
+    """
+    ty = value.type()
+    if not hasattr(ty, "sizes"):
+        return None
+    try:
+        sizes = ty.sizes()
+    except RuntimeError:
+        return None
+    if sizes is None or any(s is None for s in sizes):
+        return None
+    return list(sizes)
+
+
+def _insert_int_constant_before(
+    graph: "torch._C.Graph",
+    value: int,
+    before_node: "torch._C.Node",
+) -> "torch._C.Value":
+    """Insert a `prim::Constant` int just before `before_node`.
+
+    Uses `Graph.create` + `Node.insertBefore` rather than the higher-level
+    `Graph.insertConstant`, which interacts badly with `setInsertPoint`
+    when the target lives in a sub-block. Returns the SSA value.
+    """
+    n = graph.create("prim::Constant")
+    n.output().setType(torch._C.IntType.get())
+    n.i_("value", int(value))
+    n.insertBefore(before_node)
+    return n.output()
+
+
+def _insert_int_list_constant(
+    graph: "torch._C.Graph",
+    values: T.Sequence[int],
+    before_node: "torch._C.Node",
+) -> "torch._C.Value":
+    """Materialize a `prim::ListConstruct` of int constants.
+
+    Inserts the elements and the list construct just before `before_node`.
+    Returns the list SSA value.
+    """
+    elem_vals = [
+        _insert_int_constant_before(graph, v, before_node) for v in values
+    ]
+    lc = graph.create("prim::ListConstruct", 1)
+    lc.output().setType(torch._C.ListType(torch._C.IntType.get()))
+    for v in elem_vals:
+        lc.addInput(v)
+    lc.insertBefore(before_node)
+    return lc.output()
+
+
+_PRIMITIVE_TYPE_KINDS: T.FrozenSet[str] = frozenset(
+    {"BoolType", "IntType", "FloatType", "StringType", "NoneType"}
+)
+
+
+def _is_primitive_type(t) -> bool:
+    """True for scalar types and lists/optionals of scalar types.
+
+    The fold pass will only walk forward through nodes whose every output
+    is a primitive: a `Tensor`-typed output means the size value reaches
+    tensor production and must be preserved as a symbolic / dynamic dim.
+    """
+    kind = t.kind()
+    if kind in _PRIMITIVE_TYPE_KINDS:
+        return True
+    if kind in ("ListType", "OptionalType"):
+        return _is_primitive_type(t.getElementType())
+    return False
+
+
+_CONTROL_FLOW_SINKS = {
+    # `prim::If` consumes its condition at operand 0; the value never
+    # appears in the chosen block's NNEF emission.
+    ("prim::If", 0),
+    # `prim::Loop(max_trip_count, init_cond, ...)`: both are control-only.
+    ("prim::Loop", 0),
+    ("prim::Loop", 1),
+}
+
+
+def _reach_only_control_flow(source_value: "torch._C.Value") -> bool:
+    """Decide whether folding `source_value` to a constant is shape-safe.
+
+    Walks every forward-reachable use. Returns True iff every reach path
+    terminates in a control-flow sink (`prim::If` condition, `prim::Loop`
+    trip count / cond, `prim::RaiseException`) without ever crossing a
+    node that produces a non-primitive (tensor-typed, ScriptObject, ...)
+    output. The latter case means the size value participates in tensor
+    production and must remain dynamic so the standard `aten::size`
+    handler can route it through `tract_core_shape_of` under
+    `inference_target.has_dynamic_axes`.
+
+    Conservative: an unrecognized op kind whose outputs are all
+    primitives is followed; an op kind that produces no output and
+    isn't `prim::RaiseException` is treated as control-flow-only.
+    """
+    visited: T.Set[int] = set()
+    queue: T.List[torch._C.Value] = [source_value]
+    saw_terminal = False
+    while queue:
+        v = queue.pop()
+        if id(v) in visited:
+            continue
+        visited.add(id(v))
+        for use in v.uses():
+            user = use.user
+            offset = use.offset
+            kind = user.kind()
+            if (kind, offset) in _CONTROL_FLOW_SINKS:
+                saw_terminal = True
+                continue
+            if kind == "prim::RaiseException":
+                # value is being formatted into an exception message
+                saw_terminal = True
+                continue
+            outputs = list(user.outputs())
+            if not outputs:
+                # No outputs -> pure side-effect node we already handled
+                # above for known kinds; treat anything else as a refusal
+                # to be safe.
+                return False
+            if not all(_is_primitive_type(o.type()) for o in outputs):
+                # Some output is non-primitive (tensor-typed). The value
+                # participates in tensor production -- refuse fold.
+                return False
+            for o in outputs:
+                queue.append(o)
+            saw_terminal = saw_terminal  # propagate; we may not have
+            # hit a real sink yet but the path is still primitive-only.
+    return saw_terminal
+
+
+def replace_size_calls_with_constants(
+    graph: "torch._C.Graph",
+    example_inputs: T.Sequence[T.Any],
+) -> int:
+    """Fold size queries whose values flow only into control flow.
+
+    Reach analysis: walks forward from each candidate source. A source is
+    folded only when every reach path terminates in `prim::If` condition,
+    `prim::Loop` trip count, or `prim::RaiseException` without ever
+    crossing a node that produces a tensor-typed output. Sources whose
+    value flows into tensor production (via `aten::reshape`, `aten::view`,
+    `aten::expand`, `aten::zeros`, ...) are left alone, so the standard
+    `aten::size` handler in `op/aten/other.py` can route them through
+    `tract_core_shape_of` under `inference_target.has_dynamic_axes`.
+
+    This makes the pass safe by default for any export target, including
+    those declaring dynamic axes: a dim consumed by `aten::view` will not
+    be baked into the NNEF graph as a constant.
+
+    Returns the count of size-call nodes folded.
+    """
+    torch._C._jit_pass_complete_shape_analysis(
+        graph, tuple(example_inputs), False
+    )
+
+    # Snapshot candidates before mutation; walking nested blocks while
+    # destroying nodes invalidates the iterator.
+    candidates = [
+        n
+        for n in _walk_nodes(graph)
+        if n.kind() in ("aten::dim", "aten::numel", "aten::len", "aten::size")
+    ]
+
+    folded = 0
+    for node in candidates:
+        # Reach analysis: refuse the fold if any output participates in
+        # tensor production.
+        if not all(_reach_only_control_flow(out) for out in node.outputs()):
+            continue
+        kind = node.kind()
+        inputs = list(node.inputs())
+        new_val: T.Optional["torch._C.Value"] = None
+        if kind == "aten::dim":
+            sizes = _tensor_sizes(inputs[0])
+            if sizes is not None:
+                new_val = _insert_int_constant_before(graph, len(sizes), node)
+        elif kind == "aten::numel":
+            sizes = _tensor_sizes(inputs[0])
+            if sizes is not None:
+                n = 1
+                for s in sizes:
+                    n *= int(s)
+                new_val = _insert_int_constant_before(graph, n, node)
+        elif kind == "aten::len":
+            in_ty = inputs[0].type()
+            if in_ty.kind() == "TensorType":
+                sizes = _tensor_sizes(inputs[0])
+                if sizes is not None and len(sizes) > 0:
+                    new_val = _insert_int_constant_before(
+                        graph, int(sizes[0]), node
+                    )
+            elif inputs[0].node().kind() == "prim::ListConstruct":
+                count = sum(1 for _ in inputs[0].node().inputs())
+                new_val = _insert_int_constant_before(graph, count, node)
+        elif kind == "aten::size":
+            sizes = _tensor_sizes(inputs[0])
+            if sizes is None:
+                pass
+            elif len(inputs) == 1:
+                new_val = _insert_int_list_constant(graph, sizes, node)
+            elif len(inputs) == 2:
+                dim_node = inputs[1].node()
+                if dim_node.kind() == "prim::Constant":
+                    try:
+                        dim_val = dim_node["value"]
+                    except RuntimeError:
+                        dim_val = None
+                    if dim_val is not None:
+                        if dim_val < 0:
+                            dim_val += len(sizes)
+                        if 0 <= dim_val < len(sizes):
+                            new_val = _insert_int_constant_before(
+                                graph, int(sizes[dim_val]), node
+                            )
+        if new_val is None:
+            continue
+        node.output().replaceAllUsesWith(new_val)
+        node.destroy()
+        folded += 1
+    return folded
+
+
 def strip_assertion_ifs(graph: "torch._C.Graph") -> int:
     """Drop `prim::If` nodes whose one branch is purely a `RaiseException`.
 
