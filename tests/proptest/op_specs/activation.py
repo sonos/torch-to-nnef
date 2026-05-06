@@ -251,7 +251,7 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         # softplus has beta and threshold; t2n's softplus emitter only
         # supports beta=1 (raises NotImplemented otherwise -- see
-        # ``torch_to_nnef/op/aten/activation.py:48-54``). We sweep
+        # ``torch_to_nnef/op/aten/activation.py``). We sweep
         # threshold (default 20) within a safe range; beta stays at 1.
         threshold = draw(
             st.floats(
@@ -285,7 +285,7 @@ def _activation_specs() -> T.List[OpSpec]:
             ),
             OpSpec(
                 # t2n's elu emitter at
-                # ``torch_to_nnef/op/aten/activation.py:57-64`` passes
+                # ``torch_to_nnef/op/aten/activation.py`` passes
                 # ``alpha`` as a tensor input via
                 # ``unary_input_output_op_with_constant``, but tract's
                 # NNEF ``elu`` op treats ``alpha`` as an attribute and

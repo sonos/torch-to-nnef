@@ -109,7 +109,7 @@ def _adaptive_pool2d_sample_st(
 ) -> st.SearchStrategy[OpSample]:
     """adaptive_pool2d -- input H/W must divide output H/W.
 
-    t2n's adaptive pool emitter at ``torch_to_nnef/op/aten/pool.py:288``
+    t2n's adaptive pool emitter at ``torch_to_nnef/op/aten/pool.py``
     is documented as "will likely only work with full defined shapes" --
     it doesn't fully translate adaptive_pool semantics for non-divisible
     input/output ratios (proptest finds shape mismatches like

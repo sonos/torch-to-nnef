@@ -67,7 +67,7 @@ def _sum_full_or_multi_dim_sample_st() -> st.SearchStrategy[OpSample]:
 
     PyTorch's ``torch.sum`` accepts ``dim`` as ``None`` (reduce all),
     a single int, or a tuple/list of ints (multi-axis reduction). The t2n
-    reducer at ``torch_to_nnef/op/aten/reducer.py:46-53`` handles all
+    reducer at ``torch_to_nnef/op/aten/reducer.py`` handles all
     three. The original sum-dim spec only swept the single-int case; this
     one adds the multi-dim and full-reduction surface.
     """
@@ -198,7 +198,7 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
 
     Two t2n limitations narrow this spec:
 
-    1. The var emitter at ``torch_to_nnef/op/aten/math.py:717`` raises
+    1. The var emitter at ``torch_to_nnef/op/aten/math.py`` raises
        NotImplementedError when ``correction != 0`` (PyTorch defaults to
        1 -- unbiased estimator); we sweep correction=0 only.
     2. The same emitter does not honor ``keepdim`` -- it always emits a
@@ -301,7 +301,7 @@ def _reduction_specs() -> T.List[OpSpec]:
         # tract 0.22.1 (latest in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS)
         # does NOT define ``any_reduce`` / ``all_reduce`` operators -- they
         # were added in tract > 0.22.1. The curated test at
-        # ``tests/test_primitive.py:1180-1188`` skips these via
+        # ``tests/test_primitive.py`` skips these via
         # ``cond_tract_gt_0_22_0``. Xfail until the supported version set
         # bumps past 0.22.1.
         OpSpec(

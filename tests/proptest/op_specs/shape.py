@@ -799,7 +799,7 @@ def _chunk_sample_st() -> st.SearchStrategy[OpSample]:
 
     PyTorch's chunk handles non-divisible ``shape[dim]`` gracefully (last
     chunk is smaller). The t2n split emitter at
-    ``torch_to_nnef/op/aten/split.py:97`` asserts equal-sized chunks and
+    ``torch_to_nnef/op/aten/split.py`` asserts equal-sized chunks and
     raises ``AssertionError`` otherwise -- so our strategy enforces
     ``shape[dim] % chunks == 0``.
     """
@@ -880,7 +880,7 @@ def _roll_sample_st() -> st.SearchStrategy[OpSample]:
     Sweeps the full PyTorch range for ``shifts``: positive, negative,
     zero, and magnitudes >= dim_size. Tract's slice/concat path has
     issues with shift=0 and shift==dim_size (output shape doubles), but
-    the t2n roll emitter at ``torch_to_nnef/op/aten/concat.py:136`` now
+    the t2n roll emitter at ``torch_to_nnef/op/aten/concat.py`` now
     normalizes shifts via modulo and elides no-op rolls (matches
     PyTorch's behavior), which avoids triggering the tract bug.
     """

@@ -326,7 +326,7 @@ def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
         )
         dim = draw(reduction_dim_st(rank))
         keepdim = draw(st.booleans())
-        # p in {1, 2} only -- t2n's norm emitter at norm.py:149 dispatches
+        # p in {1, 2} only -- t2n's norm emitter at norm.py dispatches
         # only these in tract; fractional p may go through a different
         # path with its own bugs.
         p = draw(st.sampled_from([1, 2]))
@@ -484,7 +484,7 @@ def _topk_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
     """``torch.topk`` sweeping ``largest`` (sorted=True only).
 
     t2n's topk emitter raises NotImplementedError on ``sorted=False``
-    (``selector.py:758``). Sticking to sorted=True.
+    (``selector.py``). Sticking to sorted=True.
     """
 
     @st.composite

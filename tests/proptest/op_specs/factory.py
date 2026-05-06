@@ -394,7 +394,7 @@ def _fft_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             # Additionally, t2n's NPZ writer at
-            # ``model_wrapper.py:303`` raises ``RuntimeError: Can't call
+            # ``model_wrapper.py`` raises ``RuntimeError: Can't call
             # numpy() on Tensor that has conjugate bit set`` for IFFT
             # output -- needs a ``.resolve_conj()`` before serialization.
             name="fft_ifft-xfail",
@@ -403,7 +403,7 @@ def _fft_specs() -> T.List[OpSpec]:
             dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same complex-output comparator gap as fft_fft, plus "
-                "t2n model_wrapper.py:303 missing .resolve_conj() before "
+                "t2n model_wrapper.py missing .resolve_conj() before "
                 ".numpy() for ifft output (conjugate bit set)."
             ),
         ),

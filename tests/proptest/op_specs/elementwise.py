@@ -314,7 +314,7 @@ def _div_like_sample_st(
 # Broadened specs derived from PyTorch op signatures.
 # `add`/`sub` accept ``alpha`` (multiplier for ``other``) per
 # https://pytorch.org/docs/stable/generated/torch.add.html and the t2n
-# emitter at ``torch_to_nnef/op/aten/math.py:333-368`` exports it. We sweep
+# emitter at ``torch_to_nnef/op/aten/math.py`` exports it. We sweep
 # alpha values plus multi-dtype (f32 + f16). Domain bounds for f16 are
 # tighter to keep results within f16's representable range.
 _F16_BINARY_DOMAIN = Interval(-50.0, 50.0)
