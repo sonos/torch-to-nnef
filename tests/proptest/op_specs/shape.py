@@ -47,7 +47,6 @@ def _reshape_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.reshape, shape=target_shape)),
         )
 
@@ -78,7 +77,6 @@ def _transpose_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.transpose, dim0=d0, dim1=d1)),
         )
 
@@ -109,7 +107,6 @@ def _permute_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.permute, dims=perm)),
         )
 
@@ -132,7 +129,6 @@ def _unsqueeze_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.unsqueeze, dim=dim)),
         )
 
@@ -173,7 +169,6 @@ def _squeeze_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.squeeze, dim=squeeze_dim)),
         )
 
@@ -199,7 +194,6 @@ def _view_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive("view", args=tuple(target_shape)),
         )
 
@@ -233,7 +227,6 @@ def _flatten_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "flatten",
                 kwargs={"start_dim": start_dim, "end_dim": end_dim},
@@ -272,7 +265,6 @@ def _narrow_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(
                 partial(torch.narrow, dim=dim, start=start, length=length)
             ),
@@ -311,7 +303,6 @@ def _expand_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive("expand", args=tuple(target)),
         )
 
@@ -359,7 +350,6 @@ def _repeat_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive("repeat", args=(list(sizes),)),
         )
 
@@ -372,61 +362,51 @@ def _shape_specs() -> T.List[OpSpec]:
             name="reshape",
             sample_st=_reshape_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="transpose",
             sample_st=_transpose_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="permute",
             sample_st=_permute_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="unsqueeze",
             sample_st=_unsqueeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="squeeze",
             sample_st=_squeeze_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="view",
             sample_st=_view_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="flatten",
             sample_st=_flatten_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="narrow",
             sample_st=_narrow_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="expand",
             sample_st=_expand_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="repeat",
             sample_st=_repeat_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -464,7 +444,6 @@ def _select_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "select", kwargs={"dim": dim, "index": index}
             ),
@@ -517,7 +496,6 @@ def _index_select_sample_st() -> st.SearchStrategy[OpSample]:
         op_fn = (lambda d: lambda t, ix: torch.index_select(t, d, ix))(dim)
         return OpSample(
             inputs=(x, idx),
-            kwargs={},
             module=BinaryPrimitive(op_fn),
         )
 
@@ -572,7 +550,6 @@ def _gather_sample_st() -> st.SearchStrategy[OpSample]:
         op_fn = (lambda d: lambda t, ix: torch.gather(t, d, ix))(dim)
         return OpSample(
             inputs=(x, idx),
-            kwargs={},
             module=BinaryPrimitive(op_fn),
         )
 
@@ -606,7 +583,6 @@ def _masked_fill_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x, mask),
-            kwargs={},
             module=BinaryPrimitive(lambda t, m: t.masked_fill(m, value)),
         )
 
@@ -645,7 +621,6 @@ def _topk_sample_st() -> st.SearchStrategy[OpSample]:
         x = torch.tensor(perm, dtype=torch.float32).reshape(shape)
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive("topk", kwargs={"k": k, "dim": dim}),
         )
 
@@ -658,31 +633,26 @@ def _selector_specs() -> T.List[OpSpec]:
             name="select",
             sample_st=_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="index_select",
             sample_st=_index_select_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="gather",
             sample_st=_gather_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="masked_fill",
             sample_st=_masked_fill_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="topk",
             sample_st=_topk_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -751,7 +721,7 @@ def _cat_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-10.0, 10.0),
             )
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=_CatPair(dim))
+        return OpSample(inputs=(a, b), module=_CatPair(dim))
 
     return _draw()
 
@@ -789,7 +759,7 @@ def _stack_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-10.0, 10.0),
             )
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=_StackPair(dim))
+        return OpSample(inputs=(a, b), module=_StackPair(dim))
 
     return _draw()
 
@@ -832,7 +802,6 @@ def _chunk_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "chunk", kwargs={"chunks": chunks, "dim": dim}
             ),
@@ -867,7 +836,6 @@ def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.unbind, dim=dim)),
         )
 
@@ -912,7 +880,6 @@ def _roll_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.roll, shifts=shift, dims=dim)),
         )
 
@@ -944,7 +911,6 @@ def _outer_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(a, b),
-            kwargs={},
             module=BinaryPrimitive(torch.outer),
         )
 
@@ -980,7 +946,6 @@ def _triangular_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(op, diagonal=diagonal)),
         )
 
@@ -994,49 +959,41 @@ def _concat_split_specs() -> T.List[OpSpec]:
             name="cat",
             sample_st=_cat_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="stack",
             sample_st=_stack_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="chunk",
             sample_st=_chunk_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="unbind",
             sample_st=_unbind_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="roll",
             sample_st=_roll_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="outer",
             sample_st=_outer_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="tril",
             sample_st=_triangular_sample_st(torch.tril),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="triu",
             sample_st=_triangular_sample_st(torch.triu),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -1111,7 +1068,7 @@ def _pad_sample_st(
             wrapped = partial(F.pad, pad=tuple(pad), mode=mode, value=0.0)
         else:
             wrapped = partial(F.pad, pad=tuple(pad), mode=mode)
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -1122,19 +1079,16 @@ def _pad_specs() -> T.List[OpSpec]:
             name="pad-constant",
             sample_st=_pad_sample_st("constant", max_pad_per_side=3),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="pad-reflect",
             sample_st=_pad_sample_st("reflect"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="pad-replicate-xfail",
             sample_st=_pad_sample_st("replicate"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract 0.22.1 does not implement NNEF pad mode "
                 '"replicate" ("unsupported padding mode replicate"). '
@@ -1177,7 +1131,6 @@ def _sort_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
         x = torch.tensor(perm, dtype=torch.float32).reshape(shape)
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 method_name, kwargs={"dim": dim, "descending": descending}
             ),
@@ -1236,7 +1189,6 @@ def _scatter_sample_st() -> st.SearchStrategy[OpSample]:
         op_fn = (lambda d: lambda t, i, s: t.scatter(d, i, s))(dim)
         return OpSample(
             inputs=(x, idx, src),
-            kwargs={},
             module=TernaryPrimitive(op_fn),
         )
 
@@ -1280,7 +1232,7 @@ def _slice_sample_st() -> st.SearchStrategy[OpSample]:
             slicer[_dim] = slice(_start, _end)
             return t[tuple(slicer)]
 
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(slice_fn))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(slice_fn))
 
     return _draw()
 
@@ -1291,27 +1243,31 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
             name="sort",
             sample_st=_sort_sample_st("sort"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="argsort",
             sample_st=_sort_sample_st("argsort"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="scatter",
             sample_st=_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="slice",
             sample_st=_slice_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # 3D conv/pool + numerical helpers + classifiers
+
+SPECS = (
+    *_shape_specs(),
+    *_concat_split_specs(),
+    *_pad_specs(),
+    *_sort_scatter_specs(),
+    *_selector_specs(),
+)

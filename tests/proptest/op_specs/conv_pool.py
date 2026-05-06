@@ -65,7 +65,7 @@ def _pool2d_sample_st(
         wrapped = partial(
             op, kernel_size=kernel, stride=stride, padding=padding
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -99,7 +99,7 @@ def _pool1d_sample_st(
         wrapped = partial(
             op, kernel_size=kernel, stride=stride, padding=padding
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -138,7 +138,7 @@ def _adaptive_pool2d_sample_st(
             )
         )
         wrapped = partial(op, output_size=(out_h, out_w))
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -152,13 +152,11 @@ def _pool_specs() -> T.List[OpSpec]:
             name="max_pool1d",
             sample_st=_pool1d_sample_st(F.max_pool1d),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="max_pool2d",
             sample_st=_pool2d_sample_st(F.max_pool2d),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # padding=0 only -- t2n's avg_pool emitter requires
@@ -171,26 +169,22 @@ def _pool_specs() -> T.List[OpSpec]:
             name="avg_pool1d",
             sample_st=_pool1d_sample_st(F.avg_pool1d, allow_padding=False),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Same padding limitation as avg_pool1d.
             name="avg_pool2d",
             sample_st=_pool2d_sample_st(F.avg_pool2d, allow_padding=False),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="adaptive_avg_pool2d",
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_avg_pool2d),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="adaptive_max_pool2d",
             sample_st=_adaptive_pool2d_sample_st(F.adaptive_max_pool2d),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -224,7 +218,7 @@ def _conv3d_sample_st() -> st.SearchStrategy[OpSample]:
         layer = nn.Conv3d(
             in_c, out_c, kernel, stride=stride, padding=padding, bias=bias
         ).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -260,7 +254,7 @@ def _pool3d_sample_st(
         wrapped = partial(
             op, kernel_size=kernel, stride=stride, padding=padding
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -291,7 +285,6 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.cumsum, dim=dim)),
         )
 
@@ -314,9 +307,7 @@ def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
                 sb, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
             )
         )
-        return OpSample(
-            inputs=(y, x), kwargs={}, module=BinaryPrimitive(torch.atan2)
-        )
+        return OpSample(inputs=(y, x), module=BinaryPrimitive(torch.atan2))
 
     return _draw()
 
@@ -331,7 +322,7 @@ def _classifier_sample_st(
         shape = draw(shape_st(min_rank=1, max_rank=3))
         # finite=False so NaN/Inf can be drawn; outputs are bool exact.
         x = draw(tensor_st(shape, torch.float32, finite=False))
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(op))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
 
     return _draw()
 
@@ -347,20 +338,17 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="conv3d",
             sample_st=_conv3d_sample_st(),
             tolerance=CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="max_pool3d",
             sample_st=_pool3d_sample_st(F.max_pool3d),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Same count_include_pad caveat as avg_pool1d/2d -- padding=0.
             name="avg_pool3d",
             sample_st=_pool3d_sample_st(F.avg_pool3d, allow_padding=False),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="expm1",
@@ -368,7 +356,6 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
                 torch.expm1, domain=Interval(-10.0, 10.0)
             ),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="log1p",
@@ -376,13 +363,11 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
                 torch.log1p, domain=Interval(-0.999, 1e3)
             ),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="log10",
             sample_st=_unary_sample_st(torch.log10, domain=Interval(1e-3, 1e4)),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="trunc-unary",
@@ -390,19 +375,16 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
                 torch.trunc, domain=Interval(-100.0, 100.0)
             ),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="cumsum",
             sample_st=_cumsum_sample_st(),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="atan2-xfail",
             sample_st=_atan2_sample_st(),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract atan2 disagrees with PyTorch on quadrant boundaries "
                 "(e.g. atan2(0, -1) returns 0 in tract vs pi in PyTorch). "
@@ -413,7 +395,6 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="isnan-xfail",
             sample_st=_classifier_sample_st(torch.isnan),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract 0.22.1 lacks tract_core_is_nan; requires "
                 "tract > 0.22.1 (same gating as any/all)."
@@ -423,7 +404,6 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="isinf-xfail",
             sample_st=_classifier_sample_st(torch.isinf),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract 0.22.1 lacks tract_core_is_inf; requires tract > 0.22.1."
             ),
@@ -432,7 +412,6 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="isposinf-xfail",
             sample_st=_classifier_sample_st(torch.isposinf),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract 0.22.1 lacks tract_core_isposinf; requires "
                 "tract > 0.22.1."
@@ -442,7 +421,6 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             name="isneginf-xfail",
             sample_st=_classifier_sample_st(torch.isneginf),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract 0.22.1 lacks tract_core_isneginf; requires "
                 "tract > 0.22.1."
@@ -498,7 +476,7 @@ def _conv2d_dilation_groups_sample_st() -> st.SearchStrategy[OpSample]:
             groups=groups,
             bias=bias,
         ).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -536,26 +514,30 @@ def _max_pool2d_dilation_sample_st() -> st.SearchStrategy[OpSample]:
             padding=padding,
             dilation=dilation,
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
 
-def _depth_conv_pool_specs() -> T.List[OpSpec]:
+def _conv2d_kwarg_sweep_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="conv2d-dilation-groups",
             sample_st=_conv2d_dilation_groups_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="max_pool2d-dilation",
             sample_st=_max_pool2d_dilation_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Depth: norm kwargs (eps, affine), topk/sort flags, cat/stack with N
+
+SPECS = (
+    *_pool_specs(),
+    *_conv3d_pool3d_helpers_specs(),
+    *_conv2d_kwarg_sweep_specs(),
+)

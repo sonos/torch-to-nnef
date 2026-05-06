@@ -63,7 +63,6 @@ def _activation_specs() -> T.List[OpSpec]:
             name=name,
             sample_st=_unary_sample_st(op, domain=_ACT_DOMAIN),
             tolerance=tol,
-            dtypes_hint=(torch.float32,),
         )
         for name, op, tol in pure_unary
     ]
@@ -81,13 +80,11 @@ def _activation_specs() -> T.List[OpSpec]:
                 name="leaky_relu",
                 sample_st=_unary_sample_st(leaky_relu, domain=_ACT_DOMAIN),
                 tolerance=EXACT,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="elu",
                 sample_st=_unary_sample_st(elu_default, domain=_ACT_DOMAIN),
                 tolerance=VERY,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="hardtanh",
@@ -95,7 +92,6 @@ def _activation_specs() -> T.List[OpSpec]:
                     hardtanh_default, domain=_ACT_DOMAIN
                 ),
                 tolerance=EXACT,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="softplus",
@@ -103,7 +99,6 @@ def _activation_specs() -> T.List[OpSpec]:
                     softplus_default, domain=_ACT_DOMAIN
                 ),
                 tolerance=SUPER,
-                dtypes_hint=(torch.float32,),
             ),
         ]
     )
@@ -135,7 +130,6 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(
                 partial(F.threshold, threshold=thresh, value=value)
             ),
@@ -146,7 +140,6 @@ def _activation_specs() -> T.List[OpSpec]:
             name="threshold",
             sample_st=_threshold_sample(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         )
     )
 
@@ -163,7 +156,6 @@ def _activation_specs() -> T.List[OpSpec]:
         approximate = draw(st.sampled_from(["none", "tanh"]))
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(F.gelu, approximate=approximate)),
         )
 
@@ -184,7 +176,6 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(F.leaky_relu, negative_slope=slope)),
         )
 
@@ -206,7 +197,6 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(F.elu, alpha=alpha)),
         )
 
@@ -239,7 +229,6 @@ def _activation_specs() -> T.List[OpSpec]:
             b = a + 1.0
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(F.hardtanh, min_val=a, max_val=b)),
         )
 
@@ -263,7 +252,6 @@ def _activation_specs() -> T.List[OpSpec]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(
                 partial(F.softplus, beta=1.0, threshold=threshold)
             ),
@@ -275,31 +263,26 @@ def _activation_specs() -> T.List[OpSpec]:
                 name="gelu-broad",
                 sample_st=_gelu_kwarg_sample(),
                 tolerance=VERY,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="leaky_relu-broad",
                 sample_st=_leaky_relu_kwarg_sample(),
                 tolerance=EXACT,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="elu-alpha",
                 sample_st=_elu_kwarg_sample(),
                 tolerance=VERY,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="hardtanh-broad",
                 sample_st=_hardtanh_kwarg_sample(),
                 tolerance=EXACT,
-                dtypes_hint=(torch.float32,),
             ),
             OpSpec(
                 name="softplus-broad",
                 sample_st=_softplus_kwarg_sample(),
                 tolerance=SUPER,
-                dtypes_hint=(torch.float32,),
             ),
         ]
     )
@@ -336,7 +319,6 @@ def _softmax_dim_sample_st(op_name: str) -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(op_name, kwargs={"dim": dim}),
         )
 
@@ -349,15 +331,18 @@ def _softmax_specs() -> T.List[OpSpec]:
             name="softmax",
             sample_st=_softmax_dim_sample_st("softmax"),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="log_softmax",
             sample_st=_softmax_dim_sample_st("log_softmax"),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Selector / indexing specs
+
+SPECS = (
+    *_activation_specs(),
+    *_softmax_specs(),
+)

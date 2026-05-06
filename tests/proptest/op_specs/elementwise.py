@@ -58,7 +58,7 @@ def _binary_broadcast_sample_st(
         sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=8))
         a = draw(tensor_st(sa, dtype, finite=finite, domain=domain))
         b = draw(tensor_st(sb, dtype, finite=finite, domain=domain))
-        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
 
     return _draw()
 
@@ -87,7 +87,7 @@ def _binary_multi_dtype_sample_st(
         sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=8))
         a = draw(tensor_st(sa, dtype, finite=True, domain=domain))
         b = draw(tensor_st(sb, dtype, finite=True, domain=domain))
-        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
 
     return _draw()
 
@@ -116,7 +116,6 @@ def _binary_pow_int_exp_sample_st() -> st.SearchStrategy[OpSample]:
         exponent = torch.full(sb, float(exp_int), dtype=torch.float32)
         return OpSample(
             inputs=(base, exponent),
-            kwargs={},
             module=BinaryPrimitive(torch.pow),
         )
 
@@ -147,7 +146,6 @@ def _binary_pow_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(base, exponent),
-            kwargs={},
             module=BinaryPrimitive(torch.pow),
         )
 
@@ -196,7 +194,6 @@ def _unary_specs() -> T.List[OpSpec]:
             name=name,
             sample_st=_unary_sample_st(op, domain=domain),
             tolerance=tol,
-            dtypes_hint=(torch.float32,),
         )
         for name, op, tol, domain in cases
     ]
@@ -220,7 +217,7 @@ def _unary_multi_dtype_sample_st(
         )
         shape = draw(shape_st(min_rank=0, max_rank=4))
         x = draw(tensor_st(shape, dtype, finite=True, domain=domain))
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(op))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
 
     return _draw()
 
@@ -264,7 +261,6 @@ def _unary_broad_specs() -> T.List[OpSpec]:
                 domain_f16=domain_f16,
             ),
             tolerance=tol,
-            dtypes_hint=(torch.float32, torch.float16),
         )
         for name, op, tol, domain_f32, domain_f16 in cases
     ]
@@ -306,7 +302,7 @@ def _div_like_sample_st(
                 sb, torch.float32, finite=True, domain=_BINARY_DIV_DEN_DOMAIN
             )
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
 
     return _draw()
 
@@ -342,7 +338,7 @@ def _add_or_sub_multi_dtype_sample_st(
         sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=8))
         a = draw(tensor_st(sa, dtype, finite=True, domain=domain))
         b = draw(tensor_st(sb, dtype, finite=True, domain=domain))
-        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
 
     return _draw()
 
@@ -384,7 +380,6 @@ def _add_or_sub_alpha_sample_st(
         alpha = draw(nonunit_alpha_st)
         return OpSample(
             inputs=(a, b),
-            kwargs={},
             module=BinaryPrimitive(partial(op, alpha=alpha)),
         )
 
@@ -417,7 +412,6 @@ def _div_explicit_none_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(a, b),
-            kwargs={},
             module=BinaryPrimitive(partial(torch.div, rounding_mode=None)),
         )
 
@@ -461,9 +455,7 @@ def _div_rounding_sample_st() -> st.SearchStrategy[OpSample]:
         )
         rounding_mode = draw(st.sampled_from(["trunc", "floor"]))
         wrapped = partial(torch.div, rounding_mode=rounding_mode)
-        return OpSample(
-            inputs=(a, b), kwargs={}, module=BinaryPrimitive(wrapped)
-        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(wrapped))
 
     return _draw()
 
@@ -476,19 +468,16 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.add, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="add-broad",
             sample_st=_add_or_sub_multi_dtype_sample_st(torch.add),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32, torch.float16),
         ),
         OpSpec(
             name="add-alpha",
             sample_st=_add_or_sub_alpha_sample_st(torch.add),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="sub",
@@ -496,19 +485,16 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.sub, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="sub-broad",
             sample_st=_add_or_sub_multi_dtype_sample_st(torch.sub),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32, torch.float16),
         ),
         OpSpec(
             name="sub-alpha",
             sample_st=_add_or_sub_alpha_sample_st(torch.sub),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="mul",
@@ -516,25 +502,21 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.mul, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="div",
             sample_st=_div_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="div-explicit-none",
             sample_st=_div_explicit_none_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="div-rounding-xfail",
             sample_st=_div_rounding_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "div with rounding_mode='trunc'/'floor' (a) returns int64 "
                 "instead of float32 and (b) gives 0 for div(x, x) when x>0 "
@@ -546,13 +528,11 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             name="pow",
             sample_st=_binary_pow_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="pow-int-exp",
             sample_st=_binary_pow_int_exp_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="mul-broad",
@@ -562,7 +542,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 domain_f16=_F16_BINARY_DOMAIN,
             ),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32, torch.float16),
         ),
         OpSpec(
             name="minimum",
@@ -570,7 +549,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.minimum, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="maximum",
@@ -578,7 +556,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.maximum, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Element-wise `torch.min(a, b)` (binary form).
@@ -588,7 +565,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.min, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="max-elementwise",
@@ -596,7 +572,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 torch.max, domain=_BINARY_ARITH_DOMAIN
             ),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="floor_divide-xfail",
@@ -605,7 +580,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
                 domain=_BINARY_DIV_NUM_DOMAIN,
             ),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same tract upstream precision bug as div-rounding-xfail: "
                 "tract's div(x, x) returns ~0.99999994 instead of 1.0, so "
@@ -624,7 +598,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             name="remainder-xfail",
             sample_st=_div_like_sample_st(torch.remainder),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same tract upstream div precision bug propagates through "
                 "the remainder fragment `a - floor(a/b) * b`: "
@@ -639,7 +612,6 @@ def _binary_arith_specs() -> T.List[OpSpec]:
             name="fmod-xfail",
             sample_st=_div_like_sample_st(torch.fmod),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same tract upstream div precision bug propagates through "
                 "the fmod fragment `a - trunc(a/b) * b`."
@@ -666,7 +638,6 @@ def _binary_compare_specs() -> T.List[OpSpec]:
                     op, domain=_BINARY_ARITH_DOMAIN
                 ),
                 tolerance=TractCheckTolerance.EXACT,
-                dtypes_hint=(torch.float32,),
             )
         )
         # Multi-dtype broadening. Compare ops always produce bool, so the
@@ -681,7 +652,6 @@ def _binary_compare_specs() -> T.List[OpSpec]:
                     domain_f16=_F16_BINARY_DOMAIN,
                 ),
                 tolerance=TractCheckTolerance.EXACT,
-                dtypes_hint=(torch.float32, torch.float16),
             )
         )
     return specs
@@ -698,7 +668,6 @@ def _binary_logical_specs() -> T.List[OpSpec]:
             name=name,
             sample_st=_binary_broadcast_sample_st(op, dtype=torch.bool),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.bool,),
         )
         for name, op in cases
     ]
@@ -747,7 +716,6 @@ def _clamp_sample_st() -> st.SearchStrategy[OpSample]:
         lo_v, hi_v = (a, b) if a <= b else (b, a)
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(torch.clamp, min=lo_v, max=hi_v)),
         )
 
@@ -771,7 +739,6 @@ def _where_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(cond, a, b),
-            kwargs={},
             module=TernaryPrimitive(torch.where),
         )
 
@@ -784,13 +751,11 @@ def _clamp_where_specs() -> T.List[OpSpec]:
             name="clamp",
             sample_st=_clamp_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="where",
             sample_st=_where_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -809,7 +774,7 @@ def _bitwise_binary_sample_st(
         b = draw(
             tensor_st(sb, torch.int32, finite=True, domain=Interval(-100, 100))
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=BinaryPrimitive(op))
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
 
     return _draw()
 
@@ -825,9 +790,7 @@ def _bitwise_not_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.int32, finite=True, domain=Interval(-100, 100)
             )
         )
-        return OpSample(
-            inputs=(x,), kwargs={}, module=UnaryPrimitive(torch.bitwise_not)
-        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.bitwise_not))
 
     return _draw()
 
@@ -848,9 +811,7 @@ def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
             )
         )
-        return OpSample(
-            inputs=(x,), kwargs={}, module=UnaryPrimitive(torch.zeros_like)
-        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.zeros_like))
 
     return _draw()
 
@@ -866,9 +827,7 @@ def _ones_like_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
             )
         )
-        return OpSample(
-            inputs=(x,), kwargs={}, module=UnaryPrimitive(torch.ones_like)
-        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.ones_like))
 
     return _draw()
 
@@ -894,7 +853,6 @@ def _full_like_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(
                 partial(torch.full_like, fill_value=fill_value)
             ),
@@ -910,45 +868,48 @@ def _bitwise_builder_specs() -> T.List[OpSpec]:
             name="bitwise_and",
             sample_st=_bitwise_binary_sample_st(torch.bitwise_and),
             tolerance=EXACT,
-            dtypes_hint=(torch.int32,),
         ),
         OpSpec(
             name="bitwise_or",
             sample_st=_bitwise_binary_sample_st(torch.bitwise_or),
             tolerance=EXACT,
-            dtypes_hint=(torch.int32,),
         ),
         OpSpec(
             name="bitwise_xor",
             sample_st=_bitwise_binary_sample_st(torch.bitwise_xor),
             tolerance=EXACT,
-            dtypes_hint=(torch.int32,),
         ),
         OpSpec(
             name="bitwise_not",
             sample_st=_bitwise_not_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.int32,),
         ),
         OpSpec(
             name="zeros_like",
             sample_st=_zeros_like_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="ones_like",
             sample_st=_ones_like_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="full_like",
             sample_st=_full_like_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Specialty ops (embedding, repeat_interleave, upsample, sdpa, ...)
+
+SPECS = (
+    *_unary_specs(),
+    *_unary_broad_specs(),
+    *_binary_arith_specs(),
+    *_binary_compare_specs(),
+    *_binary_logical_specs(),
+    *_clamp_where_specs(),
+    *_bitwise_builder_specs(),
+)

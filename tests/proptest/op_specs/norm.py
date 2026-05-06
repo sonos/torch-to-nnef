@@ -53,7 +53,6 @@ def _matmul_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(a, b),
-            kwargs={},
             module=BinaryPrimitive(torch.matmul),
         )
 
@@ -91,7 +90,7 @@ def _linear_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.Linear(in_features, out_features, bias=bias).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -119,7 +118,7 @@ def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.LayerNorm(normalized_shape).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -147,7 +146,7 @@ def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.BatchNorm1d(c).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -176,7 +175,7 @@ def _group_norm_sample_st() -> st.SearchStrategy[OpSample]:
         scale = float(total)
         x = torch.tensor(perm, dtype=torch.float32).reshape(shape) / scale
         layer = nn.GroupNorm(num_groups, num_channels).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -205,7 +204,7 @@ def _conv1d_sample_st() -> st.SearchStrategy[OpSample]:
         layer = nn.Conv1d(
             in_c, out_c, kernel, stride=stride, padding=padding, bias=bias
         ).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -235,7 +234,7 @@ def _conv2d_sample_st() -> st.SearchStrategy[OpSample]:
         layer = nn.Conv2d(
             in_c, out_c, kernel, stride=stride, padding=padding, bias=bias
         ).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -251,13 +250,11 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             name="matmul",
             sample_st=_matmul_sample_st(),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="linear",
             sample_st=_linear_sample_st(),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # layer_norm involves variance + division; nightly proptest
@@ -267,13 +264,11 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             name="layer_norm",
             sample_st=_layer_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="batch_norm1d",
             sample_st=_batch_norm1d_sample_st(),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Previously xfailed because the `group_norm.nnef`
@@ -289,19 +284,16 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             name="group_norm",
             sample_st=_group_norm_sample_st(),
             tolerance=TractCheckTolerance.SUPER,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="conv1d",
             sample_st=_conv1d_sample_st(),
             tolerance=CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="conv2d",
             sample_st=_conv2d_sample_st(),
             tolerance=CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -340,7 +332,6 @@ def _vector_norm_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "norm", kwargs={"p": p, "dim": dim, "keepdim": keepdim}
             ),
@@ -370,7 +361,7 @@ def _rms_norm_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.RMSNorm(norm_size).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -381,7 +372,6 @@ def _norm_specs() -> T.List[OpSpec]:
             name="vector_norm",
             sample_st=_vector_norm_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Confirmed upstream tract bug: tract's native
@@ -396,7 +386,6 @@ def _norm_specs() -> T.List[OpSpec]:
             name="rms_norm-xfail",
             sample_st=_rms_norm_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "tract's native tract_transformers_rms_norm op diverges "
                 "from PyTorch's nn.RMSNorm by ~3% relative; forcing the "
@@ -438,7 +427,7 @@ def _layer_norm_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
         layer = nn.LayerNorm(
             norm_size, eps=eps, elementwise_affine=elementwise_affine
         ).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -475,7 +464,7 @@ def _batch_norm1d_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.BatchNorm1d(c, eps=eps, affine=True).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -509,7 +498,6 @@ def _topk_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
         largest = draw(st.booleans())
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "topk",
                 kwargs={
@@ -555,7 +543,6 @@ def _sort_kwargs_sample_st() -> st.SearchStrategy[OpSample]:
         descending = draw(st.booleans())
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "sort",
                 kwargs={"dim": dim, "descending": descending},
@@ -610,7 +597,6 @@ def _cat_n_tensors_sample_st() -> st.SearchStrategy[OpSample]:
             )
         return OpSample(
             inputs=tuple(tensors),
-            kwargs={},
             module=_CatNTensors(dim),
         )
 
@@ -637,12 +623,12 @@ def _embedding_padding_idx_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.Embedding(num_emb, emb_dim, padding_idx=padding_idx).eval()
-        return OpSample(inputs=(idx,), kwargs={}, module=layer)
+        return OpSample(inputs=(idx,), module=layer)
 
     return _draw()
 
 
-def _depth_norm_topk_cat_specs() -> T.List[OpSpec]:
+def _norm_topk_cat_kwarg_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
     return [
         OpSpec(
@@ -653,39 +639,39 @@ def _depth_norm_topk_cat_specs() -> T.List[OpSpec]:
             name="layer_norm-broad",
             sample_st=_layer_norm_kwargs_sample_st(),
             tolerance=TractCheckTolerance.ULTRA,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="batch_norm1d-broad",
             sample_st=_batch_norm1d_kwargs_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="topk-broad",
             sample_st=_topk_kwargs_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="sort-broad",
             sample_st=_sort_kwargs_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="cat-n-tensors",
             sample_st=_cat_n_tensors_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="embedding-padding-idx",
             sample_st=_embedding_padding_idx_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Depth: reduction dtype kwarg (sum, mean, prod with dtype=)
+
+SPECS = (
+    *_norm_conv_matmul_specs(),
+    *_norm_specs(),
+    *_norm_topk_cat_kwarg_specs(),
+)

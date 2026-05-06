@@ -94,7 +94,7 @@ def _zeros_from_shape_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-1.0, 1.0)
             )
         )
-        return OpSample(inputs=(x,), kwargs={}, module=_ZerosFromShapeOf())
+        return OpSample(inputs=(x,), module=_ZerosFromShapeOf())
 
     return _draw()
 
@@ -108,7 +108,7 @@ def _ones_from_shape_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-1.0, 1.0)
             )
         )
-        return OpSample(inputs=(x,), kwargs={}, module=_OnesFromShapeOf())
+        return OpSample(inputs=(x,), module=_OnesFromShapeOf())
 
     return _draw()
 
@@ -132,7 +132,6 @@ def _full_from_shape_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=_FullFromShapeOf(fill_value),
         )
 
@@ -153,7 +152,6 @@ def _arange_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=_ArangeFromInput(start, end, step),
         )
 
@@ -178,7 +176,6 @@ def _scalar_tensor_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=_ScalarTensorOfDtypeOf(value),
         )
 
@@ -194,7 +191,7 @@ def _new_zeros_sample_st() -> st.SearchStrategy[OpSample]:
                 shape, torch.float32, finite=True, domain=Interval(-1.0, 1.0)
             )
         )
-        return OpSample(inputs=(x,), kwargs={}, module=_NewZerosFromInput())
+        return OpSample(inputs=(x,), module=_NewZerosFromInput())
 
     return _draw()
 
@@ -237,7 +234,6 @@ def _index_advanced_sample_st() -> st.SearchStrategy[OpSample]:
 
         return OpSample(
             inputs=(x, idx),
-            kwargs={},
             module=BinaryPrimitive(op_fn),
         )
 
@@ -266,7 +262,6 @@ def _sdpa_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(q, k, v),
-            kwargs={},
             module=TernaryPrimitive(F.scaled_dot_product_attention),
         )
 
@@ -281,49 +276,41 @@ def _constructors_index_sdpa_specs() -> T.List[OpSpec]:
             name="zeros",
             sample_st=_zeros_from_shape_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="ones",
             sample_st=_ones_from_shape_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="full",
             sample_st=_full_from_shape_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="arange",
             sample_st=_arange_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.int64,),
         ),
         OpSpec(
             name="scalar_tensor",
             sample_st=_scalar_tensor_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="new_zeros",
             sample_st=_new_zeros_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="index",
             sample_st=_index_advanced_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="sdpa",
             sample_st=_sdpa_sample_st(),
             tolerance=VERY,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -365,7 +352,6 @@ def _fft_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(op, dim=dim)),
         )
 
@@ -385,7 +371,6 @@ def _fft_specs() -> T.List[OpSpec]:
             name="fft_fft-xfail",
             sample_st=_fft_sample_st(torch.fft.fft),
             tolerance=TractCheckTolerance.SUPER,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "FFT returns complex; comparator doesn't bridge "
                 "PyTorch's complex64 output vs tract's (real, imag) "
@@ -400,7 +385,6 @@ def _fft_specs() -> T.List[OpSpec]:
             name="fft_ifft-xfail",
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
-            dtypes_hint=(torch.float32,),
             xfail_reason=(
                 "Same complex-output comparator gap as fft_fft, plus "
                 "t2n model_wrapper.py missing .resolve_conj() before "
@@ -429,7 +413,7 @@ def _identity_unary_sample_st(
                 shape, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
             )
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(op))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
 
     return _draw()
 
@@ -477,9 +461,7 @@ def _to_dtype_sample_st() -> st.SearchStrategy[OpSample]:
         target_dtype = draw(
             st.sampled_from([torch.float32, torch.float16, torch.float64])
         )
-        return OpSample(
-            inputs=(x,), kwargs={}, module=_CastToDtype(target_dtype)
-        )
+        return OpSample(inputs=(x,), module=_CastToDtype(target_dtype))
 
     return _draw()
 
@@ -505,7 +487,7 @@ def _type_as_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-1.0, 1.0),
             )
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=_TypeAsFromOther())
+        return OpSample(inputs=(a, b), module=_TypeAsFromOther())
 
     return _draw()
 
@@ -533,7 +515,7 @@ def _fill_sample_st() -> st.SearchStrategy[OpSample]:
                 allow_infinity=False,
             )
         )
-        return OpSample(inputs=(x,), kwargs={}, module=_FillFunctional(value))
+        return OpSample(inputs=(x,), module=_FillFunctional(value))
 
     return _draw()
 
@@ -545,39 +527,39 @@ def _glue_specs() -> T.List[OpSpec]:
             name="clone",
             sample_st=_identity_unary_sample_st(torch.clone),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="contiguous",
             sample_st=_identity_unary_sample_st(lambda t: t.contiguous()),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="detach",
             sample_st=_identity_unary_sample_st(lambda t: t.detach()),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="to_dtype",
             sample_st=_to_dtype_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32, torch.float16, torch.float64),
         ),
         OpSpec(
             name="type_as",
             sample_st=_type_as_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32, torch.float16),
         ),
         OpSpec(
             name="fill",
             sample_st=_fill_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Depth: conv with dilation/groups + pool with dilation
+
+SPECS = (
+    *_constructors_index_sdpa_specs(),
+    *_fft_specs(),
+    *_glue_specs(),
+)

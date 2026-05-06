@@ -106,20 +106,22 @@ def _run_tract(cmd: T.List[str]) -> None:
         )
 
 
+_NUMPY_TO_TORCH_DTYPE: T.Dict[np.dtype, torch.dtype] = {
+    np.dtype("float32"): torch.float32,
+    np.dtype("float16"): torch.float16,
+    np.dtype("float64"): torch.float64,
+    np.dtype("int64"): torch.int64,
+    np.dtype("int32"): torch.int32,
+    np.dtype("int16"): torch.int16,
+    np.dtype("int8"): torch.int8,
+    np.dtype("uint8"): torch.uint8,
+    np.dtype("bool_"): torch.bool,
+}
+
+
 def _torch_dtype_from_numpy(np_dtype: np.dtype) -> torch.dtype:
-    """Best-effort numpy -> torch dtype mapping for tolerance lookup."""
-    mapping = {
-        np.dtype("float32"): torch.float32,
-        np.dtype("float16"): torch.float16,
-        np.dtype("float64"): torch.float64,
-        np.dtype("int64"): torch.int64,
-        np.dtype("int32"): torch.int32,
-        np.dtype("int16"): torch.int16,
-        np.dtype("int8"): torch.int8,
-        np.dtype("uint8"): torch.uint8,
-        np.dtype("bool_"): torch.bool,
-    }
-    return mapping[np.dtype(np_dtype)]
+    """Numpy -> torch dtype mapping for tolerance lookup."""
+    return _NUMPY_TO_TORCH_DTYPE[np.dtype(np_dtype)]
 
 
 def _compare_npz(

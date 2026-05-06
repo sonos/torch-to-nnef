@@ -42,7 +42,7 @@ def _embedding_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.Embedding(num_emb, emb_dim).eval()
-        return OpSample(inputs=(idx,), kwargs={}, module=layer)
+        return OpSample(inputs=(idx,), module=layer)
 
     return _draw()
 
@@ -74,7 +74,6 @@ def _repeat_interleave_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(
                 partial(torch.repeat_interleave, repeats=repeats, dim=dim)
             ),
@@ -102,7 +101,7 @@ def _upsample_nearest2d_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.UpsamplingNearest2d(scale_factor=scale).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -114,19 +113,16 @@ def _specialty_specs() -> T.List[OpSpec]:
             name="embedding",
             sample_st=_embedding_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="repeat_interleave",
             sample_st=_repeat_interleave_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="upsample_nearest2d",
             sample_st=_upsample_nearest2d_sample_st(),
             tolerance=EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -158,7 +154,7 @@ def _prelu_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         layer = nn.PReLU(num_parameters=1).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -208,7 +204,7 @@ def _prelu_multi_sample_st() -> st.SearchStrategy[OpSample]:
                 )
             )
             layer.weight.copy_(w)
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
@@ -243,7 +239,6 @@ def _glu_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=UnaryPrimitive(partial(F.glu, dim=dim)),
         )
 
@@ -301,7 +296,7 @@ def _einsum_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-3.0, 3.0),
             )
         )
-        return OpSample(inputs=(a, b), kwargs={}, module=_Einsum2Op(expr))
+        return OpSample(inputs=(a, b), module=_Einsum2Op(expr))
 
     return _draw()
 
@@ -312,25 +307,21 @@ def _prelu_glu_einsum_specs() -> T.List[OpSpec]:
             name="prelu",
             sample_st=_prelu_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="prelu-multi",
             sample_st=_prelu_multi_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="glu",
             sample_st=_glu_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="einsum",
             sample_st=_einsum_sample_st(),
             tolerance=TractCheckTolerance.VERY,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -365,7 +356,7 @@ def _max_pool2d_with_indices_sample_st() -> st.SearchStrategy[OpSample]:
             stride=stride,
             return_indices=True,
         )
-        return OpSample(inputs=(x,), kwargs={}, module=UnaryPrimitive(wrapped))
+        return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
     return _draw()
 
@@ -391,27 +382,31 @@ def _dropout_eval_sample_st() -> st.SearchStrategy[OpSample]:
         )
         # eval() mode -- dropout should be identity.
         layer = nn.Dropout(p=0.5).eval()
-        return OpSample(inputs=(x,), kwargs={}, module=layer)
+        return OpSample(inputs=(x,), module=layer)
 
     return _draw()
 
 
-def _final_specs() -> T.List[OpSpec]:
+def _max_pool_dropout_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
             name="max_pool2d_with_indices",
             sample_st=_max_pool2d_with_indices_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="dropout",
             sample_st=_dropout_eval_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
+
+SPECS = (
+    *_specialty_specs(),
+    *_prelu_glu_einsum_specs(),
+    *_max_pool_dropout_specs(),
+)

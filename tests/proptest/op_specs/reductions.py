@@ -55,7 +55,6 @@ def _reduction_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(method_name, kwargs=kwargs),
         )
 
@@ -117,7 +116,6 @@ def _sum_full_or_multi_dim_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive("sum", kwargs=kwargs),
         )
 
@@ -144,7 +142,6 @@ def _bool_reduction_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
         x = draw(tensor_st(shape, torch.bool))
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 method_name, kwargs={"dim": dim, "keepdim": keepdim}
             ),
@@ -184,7 +181,6 @@ def _prod_dim_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "prod", kwargs={"dim": dim, "keepdim": keepdim}
             ),
@@ -233,7 +229,6 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 "var",
                 kwargs={
@@ -253,7 +248,6 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="sum-dim",
             sample_st=_reduction_sample_st("sum"),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             # Multi-dim and full-tensor sums accumulate float error across
@@ -262,25 +256,21 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="sum-dim-broad",
             sample_st=_sum_full_or_multi_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="mean-dim",
             sample_st=_reduction_sample_st("mean"),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="max-dim",
             sample_st=_reduction_sample_st("max"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="min-dim",
             sample_st=_reduction_sample_st("min"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         # Argmax / argmin return int64 indices -- the comparator's exact
         # int path catches any divergence. Pure index ops, no tolerance
@@ -289,13 +279,11 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="argmax-dim",
             sample_st=_reduction_sample_st("argmax"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="argmin-dim",
             sample_st=_reduction_sample_st("argmin"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.float32,),
         ),
         # any / all are bool reductions (input bool, output bool).
         # tract 0.22.1 (latest in TractNNEF.OFFICIAL_SUPPORTED_VERSIONS)
@@ -308,7 +296,6 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="any-dim-xfail",
             sample_st=_bool_reduction_sample_st("any"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.bool,),
             xfail_reason=(
                 "tract 0.22.1 lacks any_reduce; introduced in tract > "
                 "0.22.1. Bumping TractNNEF.OFFICIAL_SUPPORTED_VERSIONS "
@@ -319,7 +306,6 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="all-dim-xfail",
             sample_st=_bool_reduction_sample_st("all"),
             tolerance=TractCheckTolerance.EXACT,
-            dtypes_hint=(torch.bool,),
             xfail_reason=(
                 "tract 0.22.1 lacks all_reduce; introduced in tract > "
                 "0.22.1. Bumping TractNNEF.OFFICIAL_SUPPORTED_VERSIONS "
@@ -332,7 +318,6 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="prod-dim",
             sample_st=_prod_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
         # var has unbiased/biased variants via the `correction` kwarg.
         # We sweep both.
@@ -340,7 +325,6 @@ def _reduction_specs() -> T.List[OpSpec]:
             name="var-dim",
             sample_st=_var_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
@@ -383,7 +367,6 @@ def _reduction_dtype_kwarg_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            kwargs={},
             module=TensorFnPrimitive(
                 method_name,
                 kwargs={
@@ -397,7 +380,7 @@ def _reduction_dtype_kwarg_sample_st(
     return _draw()
 
 
-def _depth_reduction_dtype_specs() -> T.List[OpSpec]:
+def _reduction_dtype_kwarg_specs() -> T.List[OpSpec]:
     APPROX = TractCheckTolerance.APPROXIMATE
     CLOSE = TractCheckTolerance.CLOSE
     return [
@@ -405,21 +388,23 @@ def _depth_reduction_dtype_specs() -> T.List[OpSpec]:
             name="sum-dtype",
             sample_st=_reduction_dtype_kwarg_sample_st("sum"),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="mean-dtype",
             sample_st=_reduction_dtype_kwarg_sample_st("mean"),
             tolerance=APPROX,
-            dtypes_hint=(torch.float32,),
         ),
         OpSpec(
             name="prod-dtype",
             sample_st=_reduction_dtype_kwarg_sample_st("prod"),
             tolerance=CLOSE,
-            dtypes_hint=(torch.float32,),
         ),
     ]
 
 
 # Registry assembly
+
+SPECS = (
+    *_reduction_specs(),
+    *_reduction_dtype_kwarg_specs(),
+)
