@@ -60,17 +60,22 @@ class StatelessConv1d(nn.Module):
     buffer is all zeros, which is the same as left-padding the full input
     with zeros -- so an ``F.pad`` followed by the same ``Conv1d`` produces
     identical output and traces cleanly.
+
+    Set ``left_pad_zero=False`` when targeting tract pulse mode -- tract
+    inserts its own delay buffer for the conv's lookback, and our manual
+    ``F.pad`` would double-count against it.
     """
 
-    def __init__(self, streaming: StreamingConv1d):
+    def __init__(self, streaming: StreamingConv1d, left_pad_zero: bool = True):
         super().__init__()
         self.conv = streaming.conv
         self.left_pad = streaming._effective_kernel_size - streaming._stride
+        self.left_pad_zero = left_pad_zero
 
     def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         # Accept and ignore the streaming-state arg some callers pass
         # (``ConvTrUpsample1d.forward`` and SEANet leaves alike).
-        if self.left_pad > 0:
+        if self.left_pad_zero and self.left_pad > 0:
             x = F.pad(x, (self.left_pad, 0))
         return self.conv(x)
 
@@ -83,18 +88,19 @@ class StatelessConvTranspose1d(nn.Module):
     streaming session the stored partial is all zeros and we emit only the
     samples that wouldn't be overwritten by the next chunk -- equivalent to
     truncating the convtranspose output by ``kernel - stride`` on the right.
+
+    Set ``trim=False`` when targeting tract pulse mode -- tract's pulsifier
+    handles the overlap-add itself for ConvTranspose with ``kernel > stride``,
+    and our manual ``Slice`` becomes ``NonePulsingWrapping`` which drops the
+    stream fact and trips the ``pulse-to-type`` conversion.
     """
 
-    def __init__(self, streaming: StreamingConvTranspose1d):
+    def __init__(self, streaming: StreamingConvTranspose1d, trim: bool = True):
         super().__init__()
         self.convtr = streaming.convtr
         self.tail = streaming._kernel_size - streaming._stride
         self.stride = streaming._stride
-        # ``T_out = T_in * stride`` only holds when the underlying
-        # ``nn.ConvTranspose1d`` has no extra output_padding and unit
-        # dilation; pin the invariant so a future Mimi config that breaks
-        # it gets caught at construction rather than producing silently
-        # wrong audio under dynamic ``T_LATENT`` export.
+        self.trim = trim
         assert self.convtr.output_padding == (0,), (
             f"unexpected output_padding {self.convtr.output_padding}"
         )
@@ -104,27 +110,35 @@ class StatelessConvTranspose1d(nn.Module):
 
     def forward(self, x: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         y = self.convtr(x)
-        if self.tail > 0:
-            # Slice to ``T_in * stride`` rather than ``-self.tail``: under
-            # ``dynamic_axes`` the negative-index slice traces into a
-            # ``min/max`` clamp tract's simplifier can't reduce against the
-            # convtr output dim, which then trips downstream reshape
-            # equality checks. Slicing to an explicit length derived from
-            # the input dim keeps the symbolic shape clean.
+        if self.trim and self.tail > 0:
             valid_len = x.shape[-1] * self.stride
             y = y[..., :valid_len]
         return y
 
 
-def replace_streaming_with_stateless(module: nn.Module) -> None:
-    """Recursively swap streaming conv leaves with their stateless mirrors."""
+def replace_streaming_with_stateless(
+    module: nn.Module,
+    *,
+    convtr_trim: bool = True,
+    conv_left_pad: bool = True,
+) -> None:
+    """Recursively swap streaming conv leaves with their stateless mirrors.
+
+    ``convtr_trim=False`` skips the post-convtr tail trim and
+    ``conv_left_pad=False`` skips the pre-conv left-pad: in pulse mode
+    tract's pulse machinery handles overlap-add (for ConvTr) and the
+    lookback delay buffer (for Conv) itself, and our manual ``F.pad`` /
+    end-slice would double-count against it.
+    """
     for name, child in list(module.named_children()):
         if isinstance(child, StreamingConv1d):
-            setattr(module, name, StatelessConv1d(child))
+            setattr(module, name, StatelessConv1d(child, left_pad_zero=conv_left_pad))
         elif isinstance(child, StreamingConvTranspose1d):
-            setattr(module, name, StatelessConvTranspose1d(child))
+            setattr(module, name, StatelessConvTranspose1d(child, trim=convtr_trim))
         else:
-            replace_streaming_with_stateless(child)
+            replace_streaming_with_stateless(
+                child, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
+            )
 
 
 class StatelessSEANetDecoder(nn.Module):
@@ -205,11 +219,25 @@ def main() -> None:
         "today). Real Mimi decoder export would need extra adapter work to "
         "load Pocket-TTS' safetensors and rebuild the matching structure.",
     )
+    parser.add_argument(
+        "--dynamic-t",
+        action="store_true",
+        help="Declare ``T_LATENT`` as a dynamic axis. Required to pulsify "
+        "the graph downstream (``tract --pulse N``).",
+    )
+    parser.add_argument(
+        "--for-pulse",
+        action="store_true",
+        help="Skip the manual post-convtr tail trim so tract's pulse "
+        "machinery handles the overlap-add. Implies --dynamic-t.",
+    )
     args = parser.parse_args()
+    if args.for_pulse:
+        args.dynamic_t = True
 
     streaming = build_mini_decoder()
     stateless = copy.deepcopy(streaming)
-    replace_streaming_with_stateless(stateless)
+    replace_streaming_with_stateless(stateless, convtr_trim=not args.for_pulse)
     model = StatelessSEANetDecoder(stateless).eval()
 
     latent_dim = streaming.dimension
@@ -228,12 +256,15 @@ def main() -> None:
 
     tract_version = args.tract_version or TractNNEF.latest_version()
     check_io = not args.skip_io_check
+    target_kwargs = {"version": tract_version, "check_io": check_io}
+    if args.dynamic_t:
+        target_kwargs["dynamic_axes"] = {"latent": {2: "T_LATENT"}}
     print(f"Exporting to NNEF with tract {tract_version} (check_io={check_io})")
     export_model_to_nnef(
         model=model,
         args=(latent,),
         file_path_export=args.out,
-        inference_target=TractNNEF(version=tract_version, check_io=check_io),
+        inference_target=TractNNEF(**target_kwargs),
         input_names=["latent"],
         output_names=["audio"],
         debug_bundle_path=Path("./debug_pocket_tts_decoder.tgz"),

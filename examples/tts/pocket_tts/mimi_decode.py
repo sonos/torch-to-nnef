@@ -119,7 +119,13 @@ class MimiDecodePath(nn.Module):
     to trace.
     """
 
-    def __init__(self, mimi: MimiModel, emb_std: torch.Tensor, emb_mean: torch.Tensor):
+    def __init__(
+        self,
+        mimi: MimiModel,
+        emb_std: torch.Tensor,
+        emb_mean: torch.Tensor,
+        convtr_trim: bool = True,
+    ):
         super().__init__()
         # ``emb_std`` / ``emb_mean`` are FlowLM's per-ldim training-EMA
         # statistics. We bake their value at export time as buffers; if a
@@ -131,9 +137,18 @@ class MimiDecodePath(nn.Module):
         for name, mod in mimi.named_modules():
             if isinstance(mod, StatefulModule):
                 mod._module_absolute_name = name
-        replace_streaming_with_stateless(mimi.upsample)
-        replace_streaming_with_stateless(mimi.decoder_transformer)
-        replace_streaming_with_stateless(mimi.decoder)
+        # In pulse mode (``convtr_trim=False``), also drop the conv
+        # left-pad: tract's pulse machinery owns both kinds of state.
+        conv_left_pad = convtr_trim
+        replace_streaming_with_stateless(
+            mimi.upsample, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
+        )
+        replace_streaming_with_stateless(
+            mimi.decoder_transformer, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
+        )
+        replace_streaming_with_stateless(
+            mimi.decoder, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
+        )
         # Swap streaming attention for the bulk variant. The layer's
         # ``_sa_block`` keeps running unchanged: it calls
         # ``self.self_attn(x, model_state)`` and adds the residual; our
@@ -205,6 +220,12 @@ def main() -> None:
         "a dynamic axis, so the Rust runtime can call it with any positive "
         "frame count -- this value only seeds tract's shape inference.",
     )
+    parser.add_argument(
+        "--for-pulse",
+        action="store_true",
+        help="Skip the manual post-convtr tail trim so tract's pulse "
+        "machinery handles the overlap-add. Required for ``tract --pulse N``.",
+    )
     args = parser.parse_args()
 
     if args.mini:
@@ -214,7 +235,10 @@ def main() -> None:
     print("loading real Pocket-TTS for Mimi audio decode")
     tts = TTSModel.load_model()
     model = MimiDecodePath(
-        tts.mimi, tts.flow_lm.emb_std, tts.flow_lm.emb_mean
+        tts.mimi,
+        tts.flow_lm.emb_std,
+        tts.flow_lm.emb_mean,
+        convtr_trim=not args.for_pulse,
     ).eval()
     ldim = tts.flow_lm.ldim
     print(
@@ -240,6 +264,16 @@ def main() -> None:
         reify_sdpa_operator=False,
         dynamic_axes={"latent": {2: "T_LATENT"}},
     )
+    # Hand tract symbolic constraints it can use during pulse-mode
+    # simplification. ``T_LATENT >= 1`` rules out the singleton-broadcast
+    # branch when dim expressions differ across paths; an upper bound
+    # keeps the search space bounded.
+    # t2n's ``custom_extensions`` already prepends the NNEF ``extension``
+    # keyword to each entry, so we pass just ``tract_assert <expr>``.
+    custom_extensions = [
+        "tract_assert T_LATENT >= 1",
+        "tract_assert T_LATENT <= 1024",
+    ]
     print(f"Exporting mimi_decode to {args.out} (tract {tract_version})")
     export_model_to_nnef(
         model=model,
@@ -248,6 +282,7 @@ def main() -> None:
         inference_target=target,
         input_names=["latent"],
         output_names=["audio"],
+        custom_extensions=custom_extensions,
         debug_bundle_path=Path("./debug_pocket_tts_mimi_decode.tgz"),
     )
     print("done")
