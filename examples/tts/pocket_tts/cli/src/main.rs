@@ -125,6 +125,26 @@ struct Args {
 type Runnable =
     Arc<tract_core::internal::SimplePlan<TypedFact, Box<dyn TypedOp>>>;
 
+fn to_f32(t: Tensor) -> Result<Tensor> {
+    if t.datum_type() == DatumType::F32 {
+        Ok(t)
+    } else {
+        Ok(t.cast_to_dt(DatumType::F32)?.into_owned())
+    }
+}
+
+fn match_dt(t: Tensor, target: DatumType) -> Result<Tensor> {
+    if t.datum_type() == target {
+        Ok(t)
+    } else {
+        Ok(t.cast_to_dt(target)?.into_owned())
+    }
+}
+
+fn input_dt(plan: &Runnable, ix: usize) -> DatumType {
+    plan.model().input_fact(ix).unwrap().datum_type
+}
+
 #[derive(Default, Debug)]
 struct GenerationTimings {
     init: std::time::Duration,
@@ -348,14 +368,17 @@ fn run_generation(
     let init_t = Instant::now();
     let init_q_pos = make_position_vec(t_voice as i64, token_count + 1);
     let init_k_pos = make_position_vec(0, t_voice + token_count + 1);
+    let voice = match_dt(voice, input_dt(flow_lm_init, 1))?;
     let init_outs = flow_lm_init.run(tvec!(
         token_tensor.into(),
         voice.into(),
         init_q_pos.into(),
         init_k_pos.into()
     ))?;
-    let mut transformer_out = init_outs[0].clone();
-    let mut eos_logit = init_outs[1].clone();
+    let mut transformer_out =
+        to_f32(init_outs[0].clone().into_tensor())?.into_tvalue();
+    let mut eos_logit =
+        to_f32(init_outs[1].clone().into_tensor())?.into_tvalue();
     let mut past_kv = init_outs[2].clone();
     let mut next_pos = (t_voice + token_count + 1) as i64;
     timings.init = init_t.elapsed();
@@ -400,6 +423,7 @@ fn run_generation(
             break;
         }
         let prev_latent = latents.last().unwrap().clone();
+        let prev_latent = match_dt(prev_latent, input_dt(flow_lm_step, 0))?;
         let q_pos = make_position_vec(next_pos, 1);
         let k_pos = make_position_vec(0, (next_pos as usize) + 1);
         let step_t = Instant::now();
@@ -411,8 +435,8 @@ fn run_generation(
         ))?;
         timings.flow_lm_step += step_t.elapsed();
         timings.n_steps += 1;
-        transformer_out = outs[0].clone();
-        eos_logit = outs[1].clone();
+        transformer_out = to_f32(outs[0].clone().into_tensor())?.into_tvalue();
+        eos_logit = to_f32(outs[1].clone().into_tensor())?.into_tvalue();
         past_kv = outs[2].clone();
         next_pos += 1;
         let lsd_t = Instant::now();
@@ -594,7 +618,6 @@ fn main() -> Result<()> {
 
     println!("loading tract NNEF runtime");
     let nnef = tract_nnef::nnef()
-        .with_tract_core()
         .with_pulse()
         .with_tract_extra()
         .with_tract_transformers();
