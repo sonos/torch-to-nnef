@@ -18,6 +18,7 @@ README.
 | [`yolo/`](yolo/) | YOLO pose estimation in wasm | [1. Getting started](https://sonos.github.io/torch-to-nnef/latest/tutos/1_getting_started/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_pose_estimation.html) |
 | [`llm_wasm/`](llm_wasm/) | Small LLM running in wasm | [5. Large Language Models](https://sonos.github.io/torch-to-nnef/latest/tutos/5_llm/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_poem_generator.html) |
 | [`vad/`](vad/) | Voice activity detection in wasm | [4. Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_vad.html) |
+| [`silero_vad/`](silero_vad/) | Silero-VAD JIT artifact straight to NNEF (`harden_jit_for_export`) | [12. JIT-only models](https://sonos.github.io/torch-to-nnef/latest/tutos/12_jit_only_models/) | -- |
 | [`nemo_asr/`](nemo_asr/) | NeMo ASR (Rust runtime + Python bindings) | [10. NeMo ASR export & eval](https://sonos.github.io/torch-to-nnef/latest/tutos/10_nemo/) | -- |
 | [`image_gen/`](image_gen/) | Stable Diffusion 1.5 export (SDXL / SD3 / Flux planned) | -- (exploration; see PR #71 / #69) | -- |
 

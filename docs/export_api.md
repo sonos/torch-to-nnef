@@ -52,6 +52,23 @@ export_model_to_nnef(
       show_root_heading: true
       show_source: false
 
+## JIT-only model hardening
+
+For JIT-only artifacts whose Python source isn't on the import path
+(e.g. `silero_vad.jit`), the standard recursive parser cannot resolve
+the inner classes. `harden_jit_for_export` runs a chain of opt-in
+graph passes that specialize the JIT graph for your example inputs,
+producing a graph the standard exporter can consume. See the
+[JIT-only models tutorial](./tutos/12_jit_only_models.md) for the full
+chain and rationale per pass.
+
+::: torch_to_nnef.torch_graph.harden
+    handler: python
+    options:
+      heading_level: 3
+      show_root_heading: true
+      show_source: false
+
 ## Remodeler
 
 For boundary‑only transforms (collapse, bind, alias, outputs_keep), see the

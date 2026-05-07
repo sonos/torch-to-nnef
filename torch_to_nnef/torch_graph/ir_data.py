@@ -36,6 +36,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     FLOATTYPE_KIND,
     INTTYPE_KIND,
     NUMBERTYPE_KIND,
+    TENSORTYPE_KIND,
     TUPLETYPE_KIND,
 )
 from torch_to_nnef.utils import NamedItem, ReactiveNamedItemDict
@@ -459,10 +460,10 @@ class TupleTensors(Data):
         assert node_type.kind() == TUPLETYPE_KIND
         elements = []
         for idx, elm in enumerate(node_type.elements()):
-            if elm.kind() == "TensorType":
+            if elm.kind() == TENSORTYPE_KIND:
                 stype = elm.scalarType()
                 shape = elm.sizes()
-            elif elm.kind() == "IntType":
+            elif elm.kind() == INTTYPE_KIND:
                 stype = "int"
                 shape = [1]
             else:

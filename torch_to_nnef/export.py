@@ -57,6 +57,7 @@ def export_model_to_nnef(
     debug_bundle_path: T.Optional[Path] = None,
     custom_extensions: T.Optional[T.List[str]] = None,
     allow_same_io_names: bool = False,
+    auto_harden_jit: bool = True,
 ) -> Path:
     """Main entrypoint of this library.
 
@@ -167,6 +168,15 @@ def export_model_to_nnef(
             Some libs like 'nvidia/nemo' use this pattern.
             (note that it only make sense if it's a no operation)
 
+        auto_harden_jit: bool (default: True)
+            When `model` is a `torch.jit.ScriptModule`, automatically
+            run `harden_jit_for_export` to specialize its graph for the
+            given example inputs (freeze + size folds + constant folds
+            + tuple round-trip + data-dependent If fold). Each pass is
+            a no-op on graphs that don't carry the relevant pattern, so
+            the wrapper is safe to apply unconditionally; turn it off
+            to drive the chain manually for fine-grained control.
+
     Returns:
         Path: the path to the exported artifact.
             - If `compression_level is None`: returns the
@@ -215,6 +225,24 @@ def export_model_to_nnef(
     if isinstance(output_names, KeysView):
         output_names = list(output_names)
     args = tuple(args) if isinstance(args, ValuesView) else args
+
+    # Auto-apply the JIT-only export hardening chain when the input is
+    # a `torch.jit.ScriptModule`. The chain is a no-op on already-clean
+    # graphs, so the only cost on a well-behaved JIT artifact is the
+    # graph walk; on artifacts whose Python source isn't on the import
+    # path (e.g. `silero_vad.jit`) it's the difference between a
+    # successful export and a `ModuleNotFoundError`. Opt out via
+    # `auto_harden_jit=False` to drive the chain manually.
+    if auto_harden_jit and isinstance(model, torch.jit.ScriptModule):
+        # pylint: disable-next=import-outside-toplevel
+        from torch_to_nnef.torch_graph import harden_jit_for_export
+
+        LOGGER.info(
+            "Detected torch.jit.ScriptModule; auto-applying "
+            "harden_jit_for_export. Pass auto_harden_jit=False to "
+            "drive the chain manually."
+        )
+        model = harden_jit_for_export(model, args)
 
     mod_tensor_updater = ModTensorUpdater(
         model,

@@ -43,6 +43,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     CONSTANT_KIND,
     DICTCONSTRUCT_KIND,
     GETATTR_KIND,
+    INTTYPE_KIND,
     LISTCONSTRUCT_KIND,
     LISTTYPE_KIND,
     LISTUNPACK_KIND,
@@ -51,6 +52,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     MODULE_PATH_QUANTIZED,
     NUMTOTENSOR_KIND,
     PRIM_STARTID,
+    TENSORTYPE_KIND,
     TUPLECONSTRUCT_KIND,
     TUPLEUNPACK_KIND,
 )
@@ -550,10 +552,10 @@ def _rerouted_parsing(
                 dnodes, node.outputs(), strict=False
             ):
                 o_type = o_node_c_value.type()
-                if o_type.kind() == "TensorType":
+                if o_type.kind() == TENSORTYPE_KIND:
                     stype = o_type.scalarType()
                     shape = o_type.sizes()
-                elif o_type.kind() == "IntType":
+                elif o_type.kind() == INTTYPE_KIND:
                     stype = "int"
                     shape = [1]
                 else:

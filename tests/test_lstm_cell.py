@@ -87,9 +87,7 @@ def test_strip_assertion_ifs_drops_dim_check_branches():
     scripted = torch.jit.script(cell)
     torch._C._jit_pass_inline(scripted.graph)
     torch._C._jit_pass_dce(scripted.graph)
-    n_if_before = sum(
-        1 for n in scripted.graph.nodes() if n.kind() == IF_KIND
-    )
+    n_if_before = sum(1 for n in scripted.graph.nodes() if n.kind() == IF_KIND)
     stripped = strip_assertion_ifs(scripted.graph)
     torch._C._jit_pass_dce(scripted.graph)
 

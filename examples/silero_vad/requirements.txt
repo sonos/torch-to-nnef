@@ -1,0 +1,4 @@
+-e ../../
+silero-vad
+torch==2.11.*
+torchaudio==2.11.*

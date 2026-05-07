@@ -48,10 +48,13 @@ from torch_to_nnef.torch_graph.torch_const import (
     IF_KIND,
     INTTYPE_KIND,
     LISTCONSTRUCT_KIND,
+    LISTTYPE_KIND,
     LOOP_KIND,
     NONETYPE_KIND,
+    OPTIONALTYPE_KIND,
     RAISE_EXCEPTION_KIND,
     STRINGTYPE_KIND,
+    TENSORTYPE_KIND,
     TUPLECONSTRUCT_KIND,
     TUPLEINDEX_KIND,
 )
@@ -172,7 +175,7 @@ def _is_primitive_type(t) -> bool:
     kind = t.kind()
     if kind in _PRIMITIVE_TYPE_KINDS:
         return True
-    if kind in ("ListType", "OptionalType"):
+    if kind in (LISTTYPE_KIND, OPTIONALTYPE_KIND):
         return _is_primitive_type(t.getElementType())
     return False
 
@@ -322,7 +325,7 @@ def _materialize_size_fold(
 
 def _fold_len(graph, node, inputs, sizes):
     in_ty = inputs[0].type()
-    if in_ty.kind() == "TensorType":
+    if in_ty.kind() == TENSORTYPE_KIND:
         if sizes is not None and len(sizes) > 0:
             return _insert_int_constant_before(graph, int(sizes[0]), node)
         return None
@@ -374,10 +377,10 @@ _SCALAR_BINARY_FOLDERS: T.Mapping[str, T.Callable[[T.Any, T.Any], T.Any]] = {
 
 
 _PRIM_CONSTANT_PARSERS: T.Mapping[str, T.Callable[[T.Any], T.Any]] = {
-    "BoolType": bool,
-    "IntType": int,
-    "FloatType": float,
-    "StringType": str,
+    BOOLTYPE_KIND: bool,
+    INTTYPE_KIND: int,
+    FLOATTYPE_KIND: float,
+    STRINGTYPE_KIND: str,
 }
 
 
@@ -391,7 +394,7 @@ def _const_value(value):
     if n.kind() != CONSTANT_KIND:
         return _NOT_CONST
     out_ty = n.output().type().kind()
-    if out_ty == "NoneType":
+    if out_ty == NONETYPE_KIND:
         return None
     parser = _PRIM_CONSTANT_PARSERS.get(out_ty)
     return parser(n["value"]) if parser is not None else _NOT_CONST
