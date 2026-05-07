@@ -616,6 +616,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../tutos/12_jit_only_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12. Exporting JIT-only models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1122,6 +1145,15 @@
   <a href="#torch_to_nnef.inference_target.tract.TractCli.download" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;download
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.TractCli.run_save_outputs_cmd_str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;run_save_outputs_cmd_str
     </span>
   </a>
   
@@ -2772,6 +2804,75 @@
   
   
     <li class="md-nav__item">
+      <a href="../../torch_graph/jit_inline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torch_graph/jit_passes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torch_graph/jit_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../torch_graph/torch_const/" class="md-nav__link">
         
   
@@ -3164,6 +3265,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.inference_target.tract.TractCli.run_save_outputs_cmd_str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;run_save_outputs_cmd_str
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3493,6 +3603,29 @@ tract with pre-built binaries.</p>
     <div class="doc doc-contents ">
 
         <p>Download tract requested version in cache directory.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="torch_to_nnef.inference_target.tract.TractCli.run_save_outputs_cmd_str" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">run_save_outputs_cmd_str</span>
+
+
+</h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_save_outputs_cmd_str</span><span class="p">(</span><span class="n">nnef_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">input_bundle_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">output_bundle_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run a NNEF asset and save tract's outputs to an NPZ bundle.</p>
+<p>Returns the command line as a list of strings, suitable for
+<code>subprocess.run</code>. Used by the proptest comparator to do the
+Python-side, NaN-aware comparison that tract's strict
+<code>--assert-output-bundle</code> cannot express.</p>
 
     </div>
 

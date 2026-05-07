@@ -616,6 +616,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tutos/12_jit_only_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12. Exporting JIT-only models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2675,6 +2698,75 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_inline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../torch_graph/torch_const/" class="md-nav__link">
         
   
@@ -3143,8 +3235,20 @@
     <div class="doc doc-contents ">
 
         <p>Translate operators <code>aten::group_norm</code> to NNEF.</p>
-<p>It is a special case of NNEF batch_normalization.
-with variance and mean being tensor</p>
+<p>Decomposed flow:</p>
+<ol>
+<li>Reshape <code>input</code> from <code>(B, C, *spatial)</code> to <code>(B, C, S)</code> where
+   <code>S = prod(spatial)</code>: the t2n emitter knows the spatial shape
+   statically and does the flatten here.</li>
+<li>Call the <code>group_norm</code> fragment, which works entirely in 3D
+   <code>(B, num_groups, C/num_groups * S)</code> then projects back to
+   <code>(B, C, S)</code>. The fragment does NOT apply scale/offset.</li>
+<li>Reshape the 3D result back to <code>(B, C, *spatial)</code>.</li>
+<li>Multiply by <code>scale</code> and add <code>offset</code>: both pre-unsqueezed to
+   trailing-1 shape so NNEF's left-aligned broadcast extends them
+   cleanly to the full input rank (this is the same pattern other
+   norms use).</li>
+</ol>
 
     </div>
 

@@ -616,6 +616,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tutos/12_jit_only_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12. Exporting JIT-only models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2666,6 +2689,75 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_inline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../torch_graph/torch_const/" class="md-nav__link">
         
   
@@ -3126,12 +3218,23 @@
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">roll</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">roll</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:roll' to NNEF.</p>
+<p>PyTorch normalizes shifts modulo the dim size; tract does not, and
+the slice/concat decomposition we emit produces an empty slice for
+<code>shift=0</code> or <code>|shift|&gt;=dim_size</code>, which tract misorders into a
+doubled-shape output. We reproduce PyTorch's normalization here:</p>
+<ul>
+<li>Drop any (shift, dim) pair where the normalized shift is 0 (no-op).</li>
+<li>Replace each remaining shift with <code>shift % dim_size</code> so the
+  slice indices stay in <code>(0, dim_size)</code>.</li>
+</ul>
+<p>If every pair normalizes away, the entire op is a graph identity.
+we remap the output node to the input.</p>
 
     </div>
 

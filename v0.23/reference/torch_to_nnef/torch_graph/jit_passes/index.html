@@ -9,25 +9,25 @@
       
       
       
-        <link rel="prev" href="../base/">
+        <link rel="prev" href="../jit_inline/">
       
       
-        <link rel="next" href="../../fragment/">
+        <link rel="next" href="../jit_utils/">
       
       
-      <link rel="icon" href="../../../../../img/t2n_ico.png">
+      <link rel="icon" href="../../../../img/t2n_ico.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
     
     
       
-        <title>torch_to_nnef.op.custom_extractors.rnn - Torch → NNEF documentation</title>
+        <title>torch_to_nnef.torch_graph.jit_passes - Torch → NNEF documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.342714a4.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.342714a4.min.css">
       
         
-        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +46,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../../../style.css">
+      <link rel="stylesheet" href="../../../../style.css">
     
-    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#torch_to_nnef.op.custom_extractors.rnn" class="md-skip">
+        <a href="#torch_to_nnef.torch_graph.jit_passes" class="md-skip">
           Skip to content
         </a>
       
@@ -97,7 +97,7 @@
  - add "documentation" as fixed header topic
 -->
 
-<script type="text/javascript" src="../../../../../html/sync_sender_colorscheme.js"></script>
+<script type="text/javascript" src="../../../../html/sync_sender_colorscheme.js"></script>
 <!-- Determine classes -->
 
 
@@ -113,14 +113,14 @@
 
     <!-- Link to home -->
     <a
-      href="../../../../.."
+      href="../../../.."
       title="Torch → NNEF documentation"
       class="md-header__button md-logo"
       aria-label="Torch → NNEF documentation"
       data-md-component="logo"
     >
-      <img class="logo-img" src="../../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+      <img class="logo-img" src="../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
 
     <!-- Button to open drawer -->
@@ -140,7 +140,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              torch_to_nnef.op.custom_extractors.rnn
+              torch_to_nnef.torch_graph.jit_passes
             
           </span>
         </div>
@@ -282,9 +282,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
-      <img class="logo-img" src="../../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
-<img class="logo-img" src="../../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
+    <a href="../../../.." title="Torch → NNEF documentation" class="md-nav__button md-logo" aria-label="Torch → NNEF documentation" data-md-component="logo">
+      <img class="logo-img" src="../../../../img/torch_to_nnef.png#only-light"  alt="logo-light" />
+<img class="logo-img" src="../../../../img/torch_to_nnef_black.png#only-dark" alt="logo-dark" />
     </a>
     Torch → NNEF documentation
   </label>
@@ -310,7 +310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../.." class="md-nav__link">
+      <a href="../../../.." class="md-nav__link">
         
   
   
@@ -370,7 +370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/1_getting_started/" class="md-nav__link">
+      <a href="../../../../tutos/1_getting_started/" class="md-nav__link">
         
   
   
@@ -393,7 +393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/2_nnef_archive/" class="md-nav__link">
+      <a href="../../../../tutos/2_nnef_archive/" class="md-nav__link">
         
   
   
@@ -416,7 +416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
+      <a href="../../../../tutos/3_multi_inputs_outputs/" class="md-nav__link">
         
   
   
@@ -439,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/4_dynamic_axes/" class="md-nav__link">
+      <a href="../../../../tutos/4_dynamic_axes/" class="md-nav__link">
         
   
   
@@ -462,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/5_llm/" class="md-nav__link">
+      <a href="../../../../tutos/5_llm/" class="md-nav__link">
         
   
   
@@ -485,7 +485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/6_quantization/" class="md-nav__link">
+      <a href="../../../../tutos/6_quantization/" class="md-nav__link">
         
   
   
@@ -508,7 +508,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/7_offloaded_tensor/" class="md-nav__link">
+      <a href="../../../../tutos/7_offloaded_tensor/" class="md-nav__link">
         
   
   
@@ -531,7 +531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/8_custom_operator/" class="md-nav__link">
+      <a href="../../../../tutos/8_custom_operator/" class="md-nav__link">
         
   
   
@@ -554,7 +554,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/9_peft/" class="md-nav__link">
+      <a href="../../../../tutos/9_peft/" class="md-nav__link">
         
   
   
@@ -577,7 +577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/10_nemo/" class="md-nav__link">
+      <a href="../../../../tutos/10_nemo/" class="md-nav__link">
         
   
   
@@ -600,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/11_remodeler/" class="md-nav__link">
+      <a href="../../../../tutos/11_remodeler/" class="md-nav__link">
         
   
   
@@ -623,7 +623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../tutos/12_jit_only_models/" class="md-nav__link">
+      <a href="../../../../tutos/12_jit_only_models/" class="md-nav__link">
         
   
   
@@ -653,7 +653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../export_api/" class="md-nav__link">
+      <a href="../../../../export_api/" class="md-nav__link">
         
   
   
@@ -755,7 +755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../" class="md-nav__link">
+      <a href="../../" class="md-nav__link">
         
   
   
@@ -778,7 +778,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../collect_env/" class="md-nav__link">
+      <a href="../../collect_env/" class="md-nav__link">
         
   
   
@@ -801,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../compress/" class="md-nav__link">
+      <a href="../../compress/" class="md-nav__link">
         
   
   
@@ -824,7 +824,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../console/" class="md-nav__link">
+      <a href="../../console/" class="md-nav__link">
         
   
   
@@ -847,7 +847,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../dtypes/" class="md-nav__link">
+      <a href="../../dtypes/" class="md-nav__link">
         
   
   
@@ -870,7 +870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../exceptions/" class="md-nav__link">
+      <a href="../../exceptions/" class="md-nav__link">
         
   
   
@@ -893,7 +893,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../export/" class="md-nav__link">
+      <a href="../../export/" class="md-nav__link">
         
   
   
@@ -954,7 +954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../inference_target/" class="md-nav__link">
+      <a href="../../inference_target/" class="md-nav__link">
         
   
   
@@ -977,7 +977,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../inference_target/base/" class="md-nav__link">
+      <a href="../../inference_target/base/" class="md-nav__link">
         
   
   
@@ -1000,7 +1000,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../inference_target/khronos/" class="md-nav__link">
+      <a href="../../inference_target/khronos/" class="md-nav__link">
         
   
   
@@ -1023,7 +1023,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../inference_target/tract/" class="md-nav__link">
+      <a href="../../inference_target/tract/" class="md-nav__link">
         
   
   
@@ -1054,7 +1054,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../log/" class="md-nav__link">
+      <a href="../../log/" class="md-nav__link">
         
   
   
@@ -1077,7 +1077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../model_wrapper/" class="md-nav__link">
+      <a href="../../model_wrapper/" class="md-nav__link">
         
   
   
@@ -1100,7 +1100,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../nnef_graph/" class="md-nav__link">
+      <a href="../../nnef_graph/" class="md-nav__link">
         
   
   
@@ -1120,20 +1120,18 @@
                 
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12" >
         
           
           <label class="md-nav__link" for="__nav_4_1_12" id="__nav_4_1_12_label" tabindex="0">
@@ -1149,7 +1147,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_12_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>op
@@ -1163,7 +1161,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../" class="md-nav__link">
+      <a href="../../op/" class="md-nav__link">
         
   
   
@@ -1224,7 +1222,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/" class="md-nav__link">
+      <a href="../../op/aten/" class="md-nav__link">
         
   
   
@@ -1247,7 +1245,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/activation/" class="md-nav__link">
+      <a href="../../op/aten/activation/" class="md-nav__link">
         
   
   
@@ -1270,7 +1268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/attn/" class="md-nav__link">
+      <a href="../../op/aten/attn/" class="md-nav__link">
         
   
   
@@ -1293,7 +1291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/axes_change/" class="md-nav__link">
+      <a href="../../op/aten/axes_change/" class="md-nav__link">
         
   
   
@@ -1316,7 +1314,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/complex/" class="md-nav__link">
+      <a href="../../op/aten/complex/" class="md-nav__link">
         
   
   
@@ -1339,7 +1337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/concat/" class="md-nav__link">
+      <a href="../../op/aten/concat/" class="md-nav__link">
         
   
   
@@ -1362,7 +1360,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/expand/" class="md-nav__link">
+      <a href="../../op/aten/expand/" class="md-nav__link">
         
   
   
@@ -1385,7 +1383,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/fft/" class="md-nav__link">
+      <a href="../../op/aten/fft/" class="md-nav__link">
         
   
   
@@ -1408,7 +1406,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/math/" class="md-nav__link">
+      <a href="../../op/aten/math/" class="md-nav__link">
         
   
   
@@ -1431,7 +1429,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/matmul/" class="md-nav__link">
+      <a href="../../op/aten/matmul/" class="md-nav__link">
         
   
   
@@ -1454,7 +1452,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/norm/" class="md-nav__link">
+      <a href="../../op/aten/norm/" class="md-nav__link">
         
   
   
@@ -1477,7 +1475,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/other/" class="md-nav__link">
+      <a href="../../op/aten/other/" class="md-nav__link">
         
   
   
@@ -1500,7 +1498,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/pad/" class="md-nav__link">
+      <a href="../../op/aten/pad/" class="md-nav__link">
         
   
   
@@ -1523,7 +1521,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/pool/" class="md-nav__link">
+      <a href="../../op/aten/pool/" class="md-nav__link">
         
   
   
@@ -1546,7 +1544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/qops/" class="md-nav__link">
+      <a href="../../op/aten/qops/" class="md-nav__link">
         
   
   
@@ -1569,7 +1567,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/reducer/" class="md-nav__link">
+      <a href="../../op/aten/reducer/" class="md-nav__link">
         
   
   
@@ -1592,7 +1590,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/selector/" class="md-nav__link">
+      <a href="../../op/aten/selector/" class="md-nav__link">
         
   
   
@@ -1615,7 +1613,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/split/" class="md-nav__link">
+      <a href="../../op/aten/split/" class="md-nav__link">
         
   
   
@@ -1638,7 +1636,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/tensor_build/" class="md-nav__link">
+      <a href="../../op/aten/tensor_build/" class="md-nav__link">
         
   
   
@@ -1661,7 +1659,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../aten/unary/" class="md-nav__link">
+      <a href="../../op/aten/unary/" class="md-nav__link">
         
   
   
@@ -1689,20 +1687,18 @@
                 
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_12_3" >
         
           
           <label class="md-nav__link" for="__nav_4_1_12_3" id="__nav_4_1_12_3_label" tabindex="0">
@@ -1718,7 +1714,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_4_1_12_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_1_12_3">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>custom_extractors
@@ -1732,7 +1728,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../op/custom_extractors/" class="md-nav__link">
         
   
   
@@ -1755,7 +1751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../base/" class="md-nav__link">
+      <a href="../../op/custom_extractors/base/" class="md-nav__link">
         
   
   
@@ -1775,30 +1771,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../op/custom_extractors/rnn/" class="md-nav__link">
         
   
   
@@ -1809,48 +1785,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.custom_extractors.rnn" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;rnn
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label=" rnn">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.custom_extractors.rnn.LSTMExtractor" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LSTMExtractor
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1871,7 +1805,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fragment/" class="md-nav__link">
+      <a href="../../op/fragment/" class="md-nav__link">
         
   
   
@@ -1894,7 +1828,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../helper/" class="md-nav__link">
+      <a href="../../op/helper/" class="md-nav__link">
         
   
   
@@ -1917,7 +1851,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../quantized/" class="md-nav__link">
+      <a href="../../op/quantized/" class="md-nav__link">
         
   
   
@@ -1986,7 +1920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/" class="md-nav__link">
+      <a href="../../remodeler/" class="md-nav__link">
         
   
   
@@ -2009,7 +1943,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/adapter/" class="md-nav__link">
+      <a href="../../remodeler/adapter/" class="md-nav__link">
         
   
   
@@ -2032,7 +1966,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/dyn_axes/" class="md-nav__link">
+      <a href="../../remodeler/dyn_axes/" class="md-nav__link">
         
   
   
@@ -2055,7 +1989,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/inspect_utils/" class="md-nav__link">
+      <a href="../../remodeler/inspect_utils/" class="md-nav__link">
         
   
   
@@ -2078,7 +2012,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/rich_render/" class="md-nav__link">
+      <a href="../../remodeler/rich_render/" class="md-nav__link">
         
   
   
@@ -2101,7 +2035,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/schema/" class="md-nav__link">
+      <a href="../../remodeler/schema/" class="md-nav__link">
         
   
   
@@ -2124,7 +2058,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../remodeler/serialize/" class="md-nav__link">
+      <a href="../../remodeler/serialize/" class="md-nav__link">
         
   
   
@@ -2193,7 +2127,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/" class="md-nav__link">
+      <a href="../../tensor/" class="md-nav__link">
         
   
   
@@ -2216,7 +2150,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/named/" class="md-nav__link">
+      <a href="../../tensor/named/" class="md-nav__link">
         
   
   
@@ -2239,7 +2173,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/offload/" class="md-nav__link">
+      <a href="../../tensor/offload/" class="md-nav__link">
         
   
   
@@ -2262,7 +2196,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/opaque/" class="md-nav__link">
+      <a href="../../tensor/opaque/" class="md-nav__link">
         
   
   
@@ -2323,7 +2257,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/quant/" class="md-nav__link">
+      <a href="../../tensor/quant/" class="md-nav__link">
         
   
   
@@ -2346,7 +2280,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/quant/base/" class="md-nav__link">
+      <a href="../../tensor/quant/base/" class="md-nav__link">
         
   
   
@@ -2369,7 +2303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/quant/qtract/" class="md-nav__link">
+      <a href="../../tensor/quant/qtract/" class="md-nav__link">
         
   
   
@@ -2400,7 +2334,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/updater/" class="md-nav__link">
+      <a href="../../tensor/updater/" class="md-nav__link">
         
   
   
@@ -2423,7 +2357,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tensor/utils/" class="md-nav__link">
+      <a href="../../tensor/utils/" class="md-nav__link">
         
   
   
@@ -2451,18 +2385,20 @@
                 
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_15" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1_15" checked>
         
           
           <label class="md-nav__link" for="__nav_4_1_15" id="__nav_4_1_15_label" tabindex="0">
@@ -2478,7 +2414,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_4_1_15_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_1_15">
             <span class="md-nav__icon md-icon"></span>
             <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>torch_graph
@@ -2492,7 +2428,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -2515,7 +2451,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_data/" class="md-nav__link">
+      <a href="../ir_data/" class="md-nav__link">
         
   
   
@@ -2538,7 +2474,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_graph/" class="md-nav__link">
+      <a href="../ir_graph/" class="md-nav__link">
         
   
   
@@ -2561,7 +2497,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_helpers/" class="md-nav__link">
+      <a href="../ir_helpers/" class="md-nav__link">
         
   
   
@@ -2584,7 +2520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_module_tracer/" class="md-nav__link">
+      <a href="../ir_module_tracer/" class="md-nav__link">
         
   
   
@@ -2607,7 +2543,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_naming/" class="md-nav__link">
+      <a href="../ir_naming/" class="md-nav__link">
         
   
   
@@ -2630,7 +2566,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/ir_op/" class="md-nav__link">
+      <a href="../ir_op/" class="md-nav__link">
         
   
   
@@ -2653,7 +2589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/jit_inline/" class="md-nav__link">
+      <a href="../jit_inline/" class="md-nav__link">
         
   
   
@@ -2673,10 +2609,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2687,6 +2643,102 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;jit_passes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" jit_passes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2699,7 +2751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/jit_utils/" class="md-nav__link">
+      <a href="../jit_utils/" class="md-nav__link">
         
   
   
@@ -2722,7 +2774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../torch_graph/torch_const/" class="md-nav__link">
+      <a href="../torch_const/" class="md-nav__link">
         
   
   
@@ -2753,7 +2805,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../utils/" class="md-nav__link">
+      <a href="../../utils/" class="md-nav__link">
         
   
   
@@ -2829,7 +2881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../contributing/guidelines/" class="md-nav__link">
+      <a href="../../../../contributing/guidelines/" class="md-nav__link">
         
   
   
@@ -2852,7 +2904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../contributing/internal_design/" class="md-nav__link">
+      <a href="../../../../contributing/internal_design/" class="md-nav__link">
         
   
   
@@ -2875,7 +2927,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../contributing/supported_operators/" class="md-nav__link">
+      <a href="../../../../contributing/supported_operators/" class="md-nav__link">
         
   
   
@@ -2898,7 +2950,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../contributing/add_new_aten_op/" class="md-nav__link">
+      <a href="../../../../contributing/add_new_aten_op/" class="md-nav__link">
         
   
   
@@ -2921,7 +2973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../contributing/debugging/" class="md-nav__link">
+      <a href="../../../../contributing/debugging/" class="md-nav__link">
         
   
   
@@ -2951,7 +3003,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../why_nnef/" class="md-nav__link">
+      <a href="../../../../why_nnef/" class="md-nav__link">
         
   
   
@@ -2973,7 +3025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../backstory/" class="md-nav__link">
+      <a href="../../../../backstory/" class="md-nav__link">
         
   
   
@@ -2995,7 +3047,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../../CHANGELOG/" class="md-nav__link">
+      <a href="../../../../CHANGELOG/" class="md-nav__link">
         
   
   
@@ -3035,19 +3087,73 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.custom_extractors.rnn" class="md-nav__link">
+  <a href="#torch_to_nnef.torch_graph.jit_passes" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;rnn
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;jit_passes
     </span>
   </a>
   
-    <nav class="md-nav" aria-label=" rnn">
+    <nav class="md-nav" aria-label=" jit_passes">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.custom_extractors.rnn.LSTMExtractor" class="md-nav__link">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LSTMExtractor
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_constant_scalar_arithmetic
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_data_dependent_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_index_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_assertion_ifs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;strip_prim_data
     </span>
   </a>
   
@@ -3074,20 +3180,30 @@
 
 
 
-  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn</h1>
+  <h1><code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes</h1>
 
 <div class="doc doc-object doc-module">
 
 
 
-<h3 id="torch_to_nnef.op.custom_extractors.rnn" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.op.custom_extractors.rnn</span>
+<h3 id="torch_to_nnef.torch_graph.jit_passes" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.torch_graph.jit_passes</span>
 
 
 </h3>
 
     <div class="doc doc-contents first">
 
+        <p>Reusable JIT-graph passes for hardening JIT-only models against t2n parsing.</p>
+<p>These helpers are useful when the source model arrives as a <code>torch.jit.JIT</code>
+artifact (e.g. Silero-VAD's <code>silero_vad.jit</code>) whose Python source isn't on
+the import path. After <code>torch._C._jit_pass_inline</code> flattens the graph,
+PyTorch's compiled-in dim/shape assertions (notably inside <code>nn.LSTMCell</code>
+and STFT helpers) leave behind <code>prim::If</code> nodes whose only effect on one
+branch is to raise an exception. Those branches feed scalar-typed
+arithmetic that t2n's tensor-oriented parser cannot represent, so we drop
+them.</p>
+
 
 
   <div class="doc doc-children">
@@ -3099,44 +3215,193 @@
 
 
 
-<div class="doc doc-object doc-class">
+
+<div class="doc doc-object doc-function">
 
 
-
-<h4 id="torch_to_nnef.op.custom_extractors.rnn.LSTMExtractor" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">LSTMExtractor</span>
+<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_ifs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_ifs</span>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">LSTMExtractor</span><span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="torch_to_nnef.op.custom_extractors.rnn._RNNMixin">_RNNMixin</span></code>, <code><a class="autorefs autorefs-internal" title="            ModuleInfoExtractor (torch_to_nnef.op.custom_extractors.base.ModuleInfoExtractor)" href="../base/#torch_to_nnef.op.custom_extractors.base.ModuleInfoExtractor">ModuleInfoExtractor</a></code></p>
 
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-  </div>
+        <p>Fold <code>prim::If</code> nodes whose condition is a <code>prim::Constant[bool]</code>.</p>
+<p>Replaces the If with the chosen block's nodes. Returns the count
+folded.</p>
 
     </div>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_constant_scalar_arithmetic" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_constant_scalar_arithmetic</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_constant_scalar_arithmetic</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold scalar arithmetic on <code>prim::Constant</code> operands.</p>
+<p>Walks <code>aten::eq/ne/lt/le/gt/ge</code>, <code>aten::__not__</code>,
+<code>aten::__contains__</code>, and the unary <code>aten::Bool/Int/Float</code> casts.
+Standalone replacement for <code>_jit_pass_constant_propagation</code>: used
+in the JIT-only export chain to avoid a torch internal assertion
+that fires when the upstream pass walks a graph mixing Phase 1
+inlined submodules and Phase 2 size-fold constants.</p>
+<p>Returns the number of nodes folded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_data_dependent_ifs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_data_dependent_ifs</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_data_dependent_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold <code>prim::If</code> nodes whose condition is data-dependent on the input.</p>
+<p>PyTorch's JIT shape-analysis passes do not propagate shapes through
+<code>prim::If</code> nodes that produce tensors, leaving runtime dim/shape
+checks (e.g. <code>nn.LSTMCell</code>'s <code>if input.dim() == 1: ...</code>) unresolved
+by <code>replace_size_calls_with_constants</code> + <code>fold_constant_ifs</code>. To
+specialize the graph for the user's example inputs, we evaluate
+each remaining <code>prim::If</code>'s condition by running the graph itself
+with the example, observing the chosen branch, and inlining it.</p>
+<p>Only top-level Ifs are folded each pass; nested Ifs surface to the
+top once their parent is removed, so a fixed-point loop catches
+them too.</p>
+<p>Returns the number of Ifs folded.</p>
+<p>Requires <code>torch._C._jit_interpret_graph</code>, exposed since torch 1.10.
+The probe is deferred until a candidate If is actually found, so
+callers on older torch with already-clean graphs (no remaining Ifs)
+return 0 without raising. The rest of <code>torch_to_nnef</code> still works
+on torch 1.8+, only this one pass needs the newer API.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_index_through_tuple_construct" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_index_through_tuple_construct</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_index_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold <code>prim::TupleIndex(tuple_const, k)</code> into the k-th tuple input.</p>
+<p>JIT artifacts whose Python source builds a tuple at the call site
+(e.g. <code>return (h, c)</code>) and consumes it later via positional indexing
+(<code>pair[0]</code>, <code>pair[1]</code>) leave behind <code>prim::TupleConstruct -&gt;
+prim::TupleIndex</code> chains in the inlined graph. t2n's parser already
+knows about <code>TupleConstruct</code> and <code>TupleUnpack</code>, but <code>TupleIndex</code> is
+unsupported. When the index is a static <code>prim::Constant int</code> and the
+tuple value is the direct output of a <code>TupleConstruct</code>, we rewire
+<code>TupleIndex</code>'s output to the tuple's k-th input verbatim, leaving
+the <code>TupleConstruct</code> itself in place (DCE removes it later if it
+has no other consumers).</p>
+<p>Returns the count of nodes folded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">replace_size_calls_with_constants</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">replace_size_calls_with_constants</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">,</span> <span class="n">example_inputs</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold size queries whose values flow only into control flow.</p>
+<p>Reach analysis: walks forward from each candidate source. A source is
+folded only when every reach path terminates in <code>prim::If</code> condition,
+<code>prim::Loop</code> trip count, or <code>prim::RaiseException</code> without ever
+crossing a node that produces a tensor-typed output. Sources whose
+value flows into tensor production (via <code>aten::reshape</code>, <code>aten::view</code>,
+<code>aten::expand</code>, <code>aten::zeros</code>, ...) are left alone, so the standard
+<code>aten::size</code> handler in <code>op/aten/other.py</code> can route them through
+<code>tract_core_shape_of</code> under <code>inference_target.has_dynamic_axes</code>.</p>
+<p>This makes the pass safe by default for any export target, including
+those declaring dynamic axes: a dim consumed by <code>aten::view</code> will not
+be baked into the NNEF graph as a constant.</p>
+<p>Returns the count of size-call nodes folded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.strip_assertion_ifs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_assertion_ifs</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_assertion_ifs</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop <code>prim::If</code> nodes whose one branch is purely a <code>RaiseException</code>.</p>
+<p>Replace uses of the If's outputs with the non-raising block's outputs,
+then destroy the If. Walks nested blocks (assertion ifs are often
+inside other prim::If branches). Returns the count of stripped nodes.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.strip_prim_data" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">strip_prim_data</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">strip_prim_data</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Replace <code>prim::data(t)</code> nodes with their input.</p>
+<p><code>prim::data</code> is the IR form of Tensor <code>.data</code> access (detaches from
+autograd). In inference it is a no-op; t2n's parser doesn't have a
+handler for it, so we elide it.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -3190,9 +3455,9 @@
         
           
           <a
-            href="../base/"
+            href="../jit_inline/"
             class="md-footer__link md-footer__link--prev"
-            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;base"
+            aria-label="Previous: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;jit_inline"
           >
             <div class="md-footer__button md-icon">
               
@@ -3203,7 +3468,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>base
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
               </div>
             </div>
           </a>
@@ -3213,16 +3478,16 @@
         
           
           <a
-            href="../../fragment/"
+            href="../jit_utils/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;fragment"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;jit_utils"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>fragment
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -3239,7 +3504,7 @@
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
         <a href="https://www.sonos.com/">
-            <img src="../../../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
+            <img src="../../../../img/SONOS.png" style="height:32px;margin: 16px;" alt="SONOS">
         </a>
       <div class="md-copyright">
   
@@ -3297,10 +3562,10 @@
     
     
       
-      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"base": "../../../..", "features": ["content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.footer"], "search": "../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.56ea9cef.min.js"></script>
       
     
   </body>

@@ -616,6 +616,29 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../tutos/12_jit_only_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12. Exporting JIT-only models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1345,6 +1368,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.hardsigmoid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hardsigmoid
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.activation.hardswish" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hardswish
@@ -1375,6 +1407,15 @@
   <a href="#torch_to_nnef.op.aten.activation.log_softmax" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;log_softmax
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.mish" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;mish
     </span>
   </a>
   
@@ -1429,6 +1470,15 @@
   <a href="#torch_to_nnef.op.aten.activation.softplus" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;softplus
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;threshold
     </span>
   </a>
   
@@ -2774,6 +2824,75 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_inline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_inline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_passes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_passes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../torch_graph/jit_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>jit_utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../torch_graph/torch_const/" class="md-nav__link">
         
   
@@ -3160,6 +3279,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.hardsigmoid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hardsigmoid
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.activation.hardswish" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hardswish
@@ -3190,6 +3318,15 @@
   <a href="#torch_to_nnef.op.aten.activation.log_softmax" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;log_softmax
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.mish" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;mish
     </span>
   </a>
   
@@ -3244,6 +3381,15 @@
   <a href="#torch_to_nnef.op.aten.activation.softplus" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;softplus
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.activation.threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;threshold
     </span>
   </a>
   
@@ -3310,6 +3456,12 @@
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:clamp' to NNEF.</p>
+<p>PyTorch's <code>clamp(input, min=None, max=None)</code> skips a bound when it
+is <code>None</code> (the unset sentinel): NOT when it is 0.0. The earlier
+<code>if X.data:</code> truthy check evaluated to False for the literal 0.0,
+silently dropping <code>min=0</code> / <code>max=0</code> clamps and producing wrong
+output for any input crossing the unset bound. Same root pattern as
+the <code>flatten</code> <code>or 0/-1</code> bug. Use explicit <code>is None</code> checks.</p>
 
     </div>
 
@@ -3361,12 +3513,19 @@
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">elu</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">elu</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:elu' to NNEF.</p>
+<p>PyTorch's <code>aten::elu(self, alpha=1, scale=1, input_scale=1)</code> takes
+three scalar parameters. NNEF's standard <code>elu</code> fragment is
+hard-coded to <code>alpha=1</code>, so we emit a custom <code>elu</code> fragment (see
+<code>torch_to_nnef/op/fragment/elu.nnef</code>) that exposes <code>alpha</code> as an
+attribute. <code>scale</code> and <code>input_scale</code> are not part of the NNEF op
+surface; the emitter raises on non-default values for those (rare in
+practice: the common form is <code>F.elu(x, alpha=k)</code>).</p>
 
     </div>
 
@@ -3424,6 +3583,28 @@
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:glu' to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.activation.hardsigmoid" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">hardsigmoid</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">hardsigmoid</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:hardsigmoid' to NNEF.</p>
+<p>PyTorch ref: <code>y = clamp((x + 3) / 6, 0, 1)</code>. Tract has no native
+op for this, so we emit a custom fragment built from <code>min</code>/<code>max</code>
+and arithmetic primitives.</p>
 
     </div>
 
@@ -3508,6 +3689,27 @@
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.activation.mish" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">mish</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">mish</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:mish' to NNEF.</p>
+<p>PyTorch ref: <code>y = x * tanh(softplus(x))</code>. Tract has no native
+op so we emit a fragment built from <code>softplus</code>/<code>tanh</code>/<code>mul</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.activation.prelu" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">prelu</span>
 
@@ -3519,6 +3721,16 @@
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:prelu' to NNEF.</p>
+<p>PyTorch's <code>PReLU(num_parameters=C)</code> stores the slope as a 1-D tensor
+of shape <code>(C,)</code> and applies it along the channel axis (dim=1) of an
+input shaped <code>(B, C, *spatial)</code>. NNEF broadcasts left-aligned
+(prepends 1s), so a raw <code>(C,)</code> weight would broadcast to the
+<em>trailing</em> axis instead of the channel axis: i.e. wrong.</p>
+<p>Pre-unsqueeze the weight to <code>(C, 1, 1, ...)</code> so left-alignment
+yields <code>(1, C, 1, 1, ...)</code> and broadcast lands on the channel axis.
+Same pattern as group_norm/batch_norm scale/offset. The single-slope
+case (<code>num_parameters=1</code> -&gt; shape <code>(1,)</code>) is left untouched
+since broadcasting is then trivially correct.</p>
 
     </div>
 
@@ -3627,6 +3839,26 @@ implementation, nor case beta != 1.</p>
   <summary>NNEF ref</summary>
   <p>y = log(exp(x) + 1.0)</p>
 </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.activation.threshold" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">threshold</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">threshold</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:threshold' to NNEF.</p>
+<p>PyTorch ref: <code>y = x if x &gt; threshold else value</code>.</p>
+
     </div>
 
 </div>
