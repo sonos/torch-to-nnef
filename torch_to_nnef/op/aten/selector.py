@@ -44,6 +44,30 @@ def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
     )
 
 
+def _resolve_slice_bound(bound_node, input_node, dim: int, default):
+    """Resolve a slice begin/end into either a concrete int or an Identifier.
+
+    Returns `(value, has_concrete_value)`. `has_concrete_value` is False
+    when the bound is a runtime Identifier or a negative concrete value
+    (the latter requires deferred resolution against `dim_size`).
+
+    A `prim::Constant[NoneType]` bound (`t[:n]` or `t[m:]`) maps to the
+    `default` argument: 0 for begin, INT64_MAX for end.
+    """
+    if isinstance(bound_node, PythonConstant) and bound_node.data is None:
+        return default, True
+    if bound_node.data is None:
+        return nnef.Identifier(bound_node.export_name), False
+    if bound_node.data >= 0:
+        return (
+            pick_index_in_axis(
+                input_node, dim, bound_node.data, check_is_positive=False
+            ),
+            True,
+        )
+    return bound_node.data, False
+
+
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
     node,
@@ -69,31 +93,14 @@ def slice_(
     # we assert for now all node except first are all constant
     dim = axis_node.data
 
-    has_concrete_values = True
     # we use this since by default pytorch generate max int64 value for end
-    if begin_node.data is not None:
-        if begin_node.data >= 0:
-            begin = pick_index_in_axis(
-                input_node, dim, begin_node.data, check_is_positive=False
-            )
-        else:
-            begin = begin_node.data
-            has_concrete_values = False
-    else:
-        has_concrete_values = False
-        begin = nnef.Identifier(begin_node.export_name)
-
-    if end_node.data is not None:
-        if end_node.data >= 0:
-            end = pick_index_in_axis(
-                input_node, dim, end_node.data, check_is_positive=False
-            )
-        else:
-            has_concrete_values = False
-            end = end_node.data
-    else:
-        has_concrete_values = False
-        end = nnef.Identifier(end_node.export_name)
+    begin, begin_concrete = _resolve_slice_bound(
+        begin_node, input_node, dim, default=0
+    )
+    end, end_concrete = _resolve_slice_bound(
+        end_node, input_node, dim, default=np.iinfo(np.int64).max
+    )
+    has_concrete_values = begin_concrete and end_concrete
 
     fixed_dims_and_higher_end_slice = (
         isinstance(end, int)

@@ -22,6 +22,19 @@ LOGGER = logging.getLogger(__name__)
 OP_REGISTRY = AtenOpRegistry()
 
 
+def _div_constant_result(numerator, divisor, output_dtype) -> torch.Tensor:
+    """Return `numerator / divisor` as a tensor of `output_dtype`.
+
+    Both inputs may be Python scalars (after frozen-graph constant
+    folding); their division returns a Python scalar that has no `.to`,
+    so wrap before casting.
+    """
+    result = numerator / divisor
+    if not isinstance(result, torch.Tensor):
+        return torch.tensor(result, dtype=output_dtype)
+    return result.to(output_dtype)
+
+
 @OP_REGISTRY.register()
 def div(node, op_helper, inference_target, torch_graph, **kwargs):
     """Map PyTorch: 'aten:div' to NNEF."""
@@ -32,7 +45,9 @@ def div(node, op_helper, inference_target, torch_graph, **kwargs):
 
     if input_node.data is not None and divisor_node.data is not None:
         node.outputs[0].set_data(
-            (input_node.data / divisor_node.data).to(node.outputs[0].dtype)
+            _div_constant_result(
+                input_node.data, divisor_node.data, node.outputs[0].dtype
+            )
         )
         return []
 
