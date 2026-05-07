@@ -3,6 +3,8 @@
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-07
+
 ### Added
 - **JIT-only model export support** (`torch.jit.ScriptModule` with non-importable inner classes, e.g. Silero-VAD's `silero_vad.jit`).
   - `torch_to_nnef.harden_jit_for_export(model, args, *, freeze=True, diagnostics=None)`: high-level helper that bundles freeze + selective inline + size folds + scalar arithmetic + constant Ifs + tuple round-trip folds + `prim::data` strip + assertion-If strip + data-dependent If fold.
