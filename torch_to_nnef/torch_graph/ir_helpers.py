@@ -25,6 +25,7 @@ from torch_to_nnef.torch_graph.ir_data import (
     cleanup_data_name,
 )
 from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
+from torch_to_nnef.torch_graph.jit_utils import parse_jit_qualname
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
     ATEN_CONTIGUOUS_KIND,
@@ -605,14 +606,7 @@ def _extract_op_infos_call_kind(module, traced_module, node, inputs):
         # input of the PyTorch IR 'graph'
         # in this case finding the Python object reference based on
         # PyTorch IR python API is hard.
-        ref_cls_path = ".".join(
-            [
-                _
-                for _ in qualname.replace("__torch__.", "").split(".")
-                if "___torch_mangle_" not in _
-            ]
-        )
-        ref_mod_path, ref_cls_name = ref_cls_path.rsplit(".", 1)
+        ref_mod_path, ref_cls_name = parse_jit_qualname(qualname)
         ref_cls = getattr(importlib.import_module(ref_mod_path), ref_cls_name)
         module_getter_ref, op_ref = next(
             (name, mod)
