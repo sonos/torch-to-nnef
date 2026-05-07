@@ -57,6 +57,7 @@ from torch_to_nnef.torch_graph.torch_const import (
     TENSORTYPE_KIND,
     TUPLECONSTRUCT_KIND,
     TUPLEINDEX_KIND,
+    TUPLEUNPACK_KIND,
 )
 
 ASSERTION_BLOCK_KINDS: T.Tuple[str, ...] = (
@@ -555,6 +556,43 @@ def fold_tuple_index_through_tuple_construct(
         if not 0 <= idx < len(tuple_inputs):
             continue
         node.output().replaceAllUsesWith(tuple_inputs[idx])
+        node.destroy()
+        folded += 1
+    return folded
+
+
+def fold_tuple_unpack_through_tuple_construct(
+    graph: "torch._C.Graph",
+) -> int:
+    """Fold `prim::TupleUnpack(prim::TupleConstruct(...))` into the inputs.
+
+    Sibling of `fold_tuple_index_through_tuple_construct`. JIT artifacts
+    that build a tuple at the call site and consume it via destructuring
+    assignment (`a, b = my_pair()`) leave behind a
+    `prim::TupleConstruct -> prim::TupleUnpack` chain after inlining.
+    The k-th unpack output is exactly the k-th construct input; we
+    rewire each unpack output verbatim and destroy the unpack. The
+    `TupleConstruct` is left in place; DCE removes it if its only
+    consumers (the unpack outputs) are now gone.
+
+    Returns the count of `TupleUnpack` nodes folded.
+    """
+    folded = 0
+    for node in list(walk_nodes(graph)):
+        if node.kind() != TUPLEUNPACK_KIND:
+            continue
+        inputs = list(node.inputs())
+        if len(inputs) != 1:
+            continue
+        tuple_node = inputs[0].node()
+        if tuple_node.kind() != TUPLECONSTRUCT_KIND:
+            continue
+        tuple_inputs = list(tuple_node.inputs())
+        unpack_outputs = list(node.outputs())
+        if len(tuple_inputs) != len(unpack_outputs):
+            continue
+        for old_out, new_val in zip(unpack_outputs, tuple_inputs, strict=True):
+            old_out.replaceAllUsesWith(new_val)
         node.destroy()
         folded += 1
     return folded
