@@ -5,13 +5,25 @@ Target repo: [`kyutai-labs/pocket-tts`](https://github.com/kyutai-labs/pocket-tt
 End-to-end Pocket-TTS through tract: a single Rust binary takes text + a
 voice prompt and writes a 24 kHz WAV. No Python in the inference path.
 
-Faster than realtime: **RTFx ≈2.7× CPU / ≈4.4× Metal GPU** on an Apple
-M4 Pro for the canonical "hello I am a text to speech voice" prompt.
-GPU shrinks Mimi decode from ~660 ms to ~120 ms (5.5×).
+Performance on Apple M4 Pro, pulse-mode + worker-thread streaming
+(`--pulse 2`, default after the streaming work landed). Numbers are
+apples-to-apples vs Kyutai's own `python -m pocket_tts generate` on
+the same machine, both warm (model loaded, first call discarded):
 
-For reference, Kyutai's own PyTorch streaming reference clocks ≈6× on a
-base M4 CPU (their published number) and ≈10× on the same M4 Pro we
-measured. The gap is mostly structural — see *Status* below.
+| Implementation                  | "hello I am ..." (~2.2 s) | TIMIT phrase (~3.0 s) |
+| ------------------------------- | ------------------------- | --------------------- |
+| Kyutai PyTorch FP32             | 9.71×                     | 9.92×                 |
+| **Our tract FP32**              | ~8.4×                     | 8.71×                 |
+| **Our tract FP16** (`--fp16`)   | **9.94×**                 | **9.88×**             |
+
+Tract FP16 is at parity with Kyutai's PyTorch FP32 reference on M4 Pro
+(slight edge on the canonical phrase, slight deficit on TIMIT — within
+noise).
+
+GPU (Metal) is currently a small win: bulk-mode Mimi runs ~5× faster
+on Metal but pulse-mode CPU + threading already overlaps mimi_decode
+with the AR loop, so the wall is dominated by `flow_lm_step` (M=1
+GEMVs hit `apple_amx_mmm_f16_64x1` / `_f32_32x1`).
 
 Optional: `cargo build --release --features transformers-detect` runs
 `tract-transformers`' SDPA / RoPE / KV-cache detection rewrites before
@@ -25,17 +37,51 @@ voice prompt → continuous audio latents) followed by a `Mimi` neural
 codec decoder (latents → 24 kHz waveform). This example exports four
 NNEF graphs and threads them together in Rust.
 
+## Bundle size
+
+Single-voice deployable on disk (`MODE=full` after `./run.sh`):
+
+| Component                       | Size  |
+| ------------------------------- | ----- |
+| `pocket-tts-tract` binary       | 23 MB |
+| `tokenizer.model` (SentencePiece) | 60 KB |
+| `flow_lm_init.nnef.tgz` (fp16)  | 153 MB |
+| `flow_lm_step.nnef.tgz` (fp16)  | 145 MB |
+| `flow_net.nnef.tgz` (fp32)      | 38 MB |
+| `mimi_decode.nnef.tgz` (fp32)   | 40 MB |
+| `voices/alba.dat`               | 6 MB  |
+| **Total** (1 voice, fp16 FlowLM) | **~403 MB** |
+| All 6 bundled voices            | +30 MB |
+
+The two FlowLM graphs duplicate weights (separate NNEF archives); a
+shared-asset packaging step would shave another ~150 MB. `flow_net`
+and `mimi_decode` are still fp32 — fp16 export there is an open
+follow-up (~40 MB more saved if validated).
+
 ## Status
 
-Working end-to-end demo. Known follow-ups (none blocking):
+Working end-to-end demo with pulse-mode streaming. Resolved since the
+initial bulk-mode revision:
 
-- **Bulk-mode Mimi decode**, not the chunked pulse-mode streaming Mimi
-  was designed for. Kyutai's reference overlaps Mimi decode with the
-  FlowLM autoregressive loop (concurrent), so total wall time ≈
-  max(loop, decode); ours is sum(loop, decode). Pulse-mode through
-  tract is the path to closing the RTFx gap.
-- **No quantization**. Pocket-TTS supports torchao 8-bit upstream; our
-  exports are float32 throughout.
+- ✅ **Pulse-mode Mimi decode** with worker-thread overlap (`--pulse 2`).
+  Total wall ≈ max(AR loop, Mimi decode). Surfaced two tract pulse-mode
+  bugs (LCM-merge of stream-axis dims, Deconv overlap-add bias double-add)
+  that are tracked in tract PRs #2202 and #2204.
+- ✅ **fp16 export** for FlowLM (`--fp16`) — halves the FlowLM disk
+  footprint and ~13% per-step speedup. Surfaced an `aten::layer_norm`
+  upcast gap in t2n (mirrored from `batch_norm`'s `force_norm_in_f32`
+  pattern in this PR).
+
+Known follow-ups (none blocking):
+
+- **fp16 FlowLM ships with `force_attention_inner_in_f32=False`** because
+  t2n's SDPA upcast produces structurally wrong outputs on Pocket-TTS
+  (audible as a different language); pure f16 SDPA matches f32 within
+  ~1%. Worth a separate t2n investigation.
+- **Q4_0 export path** through tract's block-quant infrastructure
+  is the preferred next step for further speedup. Tract has
+  AMX-friendly dot-product kernels for 4-bit weights; would require
+  a t2n quantization-aware export.
 - **`past_kv.clone()` per step** in the autoregressive loop: ~8.6 MB
   redundant alloc per step at full dims. Could be amortised by a
   ring-buffer or by exposing the cache as a runtime-managed tensor.
@@ -56,20 +102,20 @@ MODE=full ./run.sh   # real ~110M-param Pocket-TTS, real audio
 `MODE=full` triggers an HF download on first run (the gated Pocket-TTS
 checkpoint), exports the four NNEF graphs, bakes 6 bundled voices
 (see *Voices* below), builds the Rust CLI, and writes `cli/out.wav`.
-Sample output on a M-series CPU:
+Sample output on M4 Pro, pulse-mode + threading + fp16 FlowLM:
 
 ```
 EOS at frame 33 (logit -3.496 > -4)
 generated 33 audio latents
-decoded 63360 samples (2.64 s @ 24000 Hz) in 1.05 s wall time -- RTFx 2.53
+decoded 63360 samples (2.64 s @ 24000 Hz) in 0.27 s wall time -- RTFx 9.94
+  breakdown: init 16 ms / flow_lm_step 151 ms (32 steps, 4.7 ms/step) / flow_net 21 ms / mimi_decode 161 ms
 ```
+
+`flow_lm_step` and `mimi_decode` run concurrently via a worker thread,
+so the wall is `max(flow_path, mimi_path)`.
 
 Add `--gpu` to route the four graphs through tract's Metal runtime
-(macOS only):
-
-```
-decoded 63360 samples (2.64 s @ 24000 Hz) in 0.95 s wall time -- RTFx 2.79 [Metal GPU]
-```
+(macOS only).
 
 ## Layout
 
@@ -155,5 +201,7 @@ The Rust binary lives in [`cli/`](cli/). Demo-relevant flags:
 | `--eos-threshold` | -4.0 | Pocket-TTS default. |
 | `--seed` | 0 | Reproducible noise. |
 | `--gpu` | off | Metal GPU runtime (macOS only). |
+| `--pulse N` | 0 (bulk) | Pulse size for streaming Mimi decode (`N=2` = 160 ms audio per call). Runs concurrently with the AR loop via a worker thread. |
+| `--fp16` (export-side) | off | `flow_lm.py --fp16`: cast FlowLM weights to half precision; export sets `force_norm_in_f32=True` so LayerNorm stays in f32 for stability. ~13% per-step speedup, ~150 MB smaller on disk. |
 
 Stdout reports RTFx (audio_seconds / wall_seconds) on every run.
