@@ -2,7 +2,7 @@
 
 Working code that accompanies the [torch-to-nnef
 documentation](https://sonos.github.io/torch-to-nnef/latest/). Each subdir is
-self-contained -- clone the repo, `cd examples/<name>/`, follow the per-example
+self-contained: clone the repo, `cd examples/<name>/`, follow the per-example
 README.
 
 ## Examples by tutorial
@@ -20,7 +20,7 @@ README.
 | [`vad/`](vad/) | Voice activity detection in wasm | [4. Dynamic axes](https://sonos.github.io/torch-to-nnef/latest/tutos/4_dynamic_axes/) | [demo](https://sonos.github.io/torch-to-nnef/latest/html/demo_vad.html) |
 | [`silero_vad/`](silero_vad/) | Silero-VAD JIT artifact straight to NNEF (`harden_jit_for_export`) | [12. JIT-only models](https://sonos.github.io/torch-to-nnef/latest/tutos/12_jit_only_models/) | -- |
 | [`nemo_asr/`](nemo_asr/) | NeMo ASR (Rust runtime + Python bindings) | [10. NeMo ASR export & eval](https://sonos.github.io/torch-to-nnef/latest/tutos/10_nemo/) | -- |
-| [`image_gen/`](image_gen/) | Stable Diffusion 1.5 export (SDXL / SD3 / Flux planned) | -- (exploration; see PR #71 / #69) | -- |
+| [`image_gen/`](image_gen/) | SD 1.5 + Flux-Schnell + Sana (DiT, mini configs); SDXL / SD3 placeholders | (exploration, no tutorial yet) | -- |
 
 ## Bootstrap helpers
 
@@ -38,5 +38,5 @@ call:
 
 The wasm demos are deployed alongside the docs at
 <https://sonos.github.io/torch-to-nnef/latest/html/>. The HTML source lives
-in [`docs/html/`](../docs/html/) -- the `examples/` subdir produces the wasm
+in [`docs/html/`](../docs/html/); the `examples/` subdir produces the wasm
 module, `docs/html/` hosts the page that loads it.
