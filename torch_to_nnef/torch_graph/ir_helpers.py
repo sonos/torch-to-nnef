@@ -28,11 +28,17 @@ from torch_to_nnef.torch_graph.ir_module_tracer import TorchModuleTracer
 from torch_to_nnef.torch_graph.jit_utils import parse_jit_qualname
 from torch_to_nnef.torch_graph.torch_const import (
     ATEN_ARANGE,
+    ATEN_CLONE,
     ATEN_CONTIGUOUS_KIND,
+    ATEN_ELU,
+    ATEN_EXPAND,
     ATEN_INT,
+    ATEN_MEAN,
+    ATEN_ONES,
     ATEN_RELU,
     ATEN_SILU,
     ATEN_STARTID,
+    ATEN_SUM,
     CALL_KIND,
     CONSTANT_KIND,
     DICTCONSTRUCT_KIND,
@@ -418,22 +424,22 @@ def _prepare_arguments(kind: str, inputs: T.List[torch._C.Value], data_nodes):
     # emitters in `torch_to_nnef/op/aten/math.py` now read alpha when
     # present, so we forward the full input list here.
 
-    if kind in ["aten::mean", "aten::sum"]:
+    if kind in [ATEN_MEAN, ATEN_SUM]:
         abstracted_inputs = abstracted_inputs[:3]
 
-    if kind == "aten::elu":
+    if kind == ATEN_ELU:
         # difference between aten and python API
         abstracted_inputs = abstracted_inputs[:2]
 
-    if kind == "aten::clone":
+    if kind == ATEN_CLONE:
         # remove useless ref to memory_format (for us)
         abstracted_inputs = abstracted_inputs[:1]
 
-    if kind == "aten::expand":
+    if kind == ATEN_EXPAND:
         # remove useless ref to inplicit (for us)
         abstracted_inputs = abstracted_inputs[:-1]
 
-    if kind == "aten::ones":
+    if kind == ATEN_ONES:
         # remove useless ref even dtype for now
         abstracted_inputs = abstracted_inputs[:1]
 
