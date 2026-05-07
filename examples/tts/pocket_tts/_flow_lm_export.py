@@ -40,9 +40,7 @@ class FlowLMInit(nn.Module):
         # static concat instead of an expand-from-singleton-batch (which trips
         # tract's shape inference when B=1 collides with T_text).
         with torch.no_grad():
-            bos_proj = flow_lm.input_linear(
-                flow_lm.bos_emb.view(1, 1, -1)
-            )
+            bos_proj = flow_lm.input_linear(flow_lm.bos_emb.view(1, 1, -1))
         self.register_buffer("bos_proj", bos_proj.detach().clone())
 
     def forward(

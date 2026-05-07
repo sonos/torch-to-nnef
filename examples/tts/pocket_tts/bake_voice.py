@@ -166,7 +166,9 @@ def main() -> None:
         "--out-dir",
         type=Path,
         default=Path("voices"),
-        help="Directory to write per-voice ``.dat`` files in ``--bundled`` mode.",
+        help=(
+            "Directory to write per-voice ``.dat`` files in ``--bundled`` mode."
+        ),
     )
     parser.add_argument(
         "--mini",

@@ -132,9 +132,15 @@ def replace_streaming_with_stateless(
     """
     for name, child in list(module.named_children()):
         if isinstance(child, StreamingConv1d):
-            setattr(module, name, StatelessConv1d(child, left_pad_zero=conv_left_pad))
+            setattr(
+                module,
+                name,
+                StatelessConv1d(child, left_pad_zero=conv_left_pad),
+            )
         elif isinstance(child, StreamingConvTranspose1d):
-            setattr(module, name, StatelessConvTranspose1d(child, trim=convtr_trim))
+            setattr(
+                module, name, StatelessConvTranspose1d(child, trim=convtr_trim)
+            )
         else:
             replace_streaming_with_stateless(
                 child, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad

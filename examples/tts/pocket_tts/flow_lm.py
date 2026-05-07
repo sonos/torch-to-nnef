@@ -223,9 +223,7 @@ def main() -> None:
     init_q_pos = torch.arange(
         args.voice_frames, args.voice_frames + n_q, dtype=torch.long
     )
-    init_k_pos = torch.arange(
-        args.voice_frames + n_q, dtype=torch.long
-    )
+    init_k_pos = torch.arange(args.voice_frames + n_q, dtype=torch.long)
     # Init traces all four input shapes statically (``T_TEXT`` and
     # ``T_VOICE``); tract's dynamic-axes machinery can't relate
     # ``T_TEXT_PLUS_BOS = T_TEXT + 1`` across symbols, so the run.sh

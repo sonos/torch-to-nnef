@@ -36,13 +36,12 @@ from pocket_tts.modules.stateful_module import StatefulModule
 from pocket_tts.modules.transformer import StreamingMultiheadAttention
 from torch import nn
 
-from torch_to_nnef import TractNNEF, export_model_to_nnef
-
 from examples.tts.pocket_tts._io_attention import (
     apply_rope_at_positions,
     make_rope_freqs,
 )
 from examples.tts.pocket_tts.decoder import replace_streaming_with_stateless
+from torch_to_nnef import TractNNEF, export_model_to_nnef
 
 
 class BulkSelfAttention(nn.Module):
@@ -101,9 +100,7 @@ class BulkSelfAttention(nn.Module):
             attn_mask=attn_mask[None, None],
             dropout_p=0.0,
         )
-        out = out.transpose(1, 2).reshape(
-            b, t, self.num_heads * self.head_dim
-        )
+        out = out.transpose(1, 2).reshape(b, t, self.num_heads * self.head_dim)
         return self.out_proj(out)
 
 
@@ -143,7 +140,9 @@ class MimiDecodePath(nn.Module):
         # pulsifies plain ``Pad`` ops natively, and the SEANet residual
         # branches need the pad in place to keep their shapes aligned.
         replace_streaming_with_stateless(mimi.upsample, convtr_trim=convtr_trim)
-        replace_streaming_with_stateless(mimi.decoder_transformer, convtr_trim=convtr_trim)
+        replace_streaming_with_stateless(
+            mimi.decoder_transformer, convtr_trim=convtr_trim
+        )
         replace_streaming_with_stateless(mimi.decoder, convtr_trim=convtr_trim)
         # Swap streaming attention for the bulk variant. The layer's
         # ``_sa_block`` keeps running unchanged: it calls
@@ -173,7 +172,9 @@ class MimiDecodePath(nn.Module):
         # ``model_state=None`` falls into the stateless path inside the
         # streaming attention; the conv leaves are already patched.
         x = self.upsample(x, None)  # (B, dim, T*S)
-        (x,) = self.decoder_transformer(x, None)  # (B, T*S, dim) -> (B, dim, T*S)
+        (x,) = self.decoder_transformer(
+            x, None
+        )  # (B, T*S, dim) -> (B, dim, T*S)
         return self.decoder(x, None)  # (B, channels, T_audio)
 
 
