@@ -11,10 +11,10 @@ from torch_to_nnef import TractNNEF, export_model_to_nnef
 base_model = vision_mdl.efficientnet_b0
 weights = vision_mdl.EfficientNet_B0_Weights
 
-my_image_model = base_model(pretrained=True)
+classification_task = weights.IMAGENET1K_V1
+my_image_model = base_model(weights=classification_task)
 
 img = read_image("./Grace_Hopper.jpg")
-classification_task = weights.IMAGENET1K_V1
 input_data_sample = classification_task.transforms()(img.unsqueeze(0))
 file_path_export = Path("efficientnet_b0_batchable.nnef.tgz")
 export_model_to_nnef(

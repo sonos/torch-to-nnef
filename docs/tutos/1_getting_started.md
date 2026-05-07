@@ -44,10 +44,10 @@ import torch
 from torchvision import models as vision_mdl
 from torchvision.io import read_image
 
-my_image_model = vision_mdl.vit_b_16(pretrained=True) # (1)!
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1 # (2)!
+my_image_model = vision_mdl.vit_b_16(weights=classification_task) # (1)!
 
 img = read_image("./Grace_Hopper.jpg")
-classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1 # (2)!
 input_data_sample = classification_task.transforms()(
     img.unsqueeze(0)
 )
