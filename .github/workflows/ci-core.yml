@@ -31,7 +31,7 @@ jobs:
           matrix: |
             python-version {3.10}, tox-env {"torch_1_13"}
             python-version {3.12}, tox-env {"torch_2_2", "zoo_torch_2_2"}
-            python-version {3.13}, tox-env {"py313", "zoo_py313", "proptest", "format_check", "static_check"}
+            python-version {3.13}, tox-env {"py313", "zoo_py313", "proptest", "format_check", "static_check", "silero_vad_demo"}
             python-version {3.14}, tox-env {"py314", "zoo_py314"}
 
     outputs:

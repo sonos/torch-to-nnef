@@ -104,6 +104,8 @@ BOOLTYPE_KIND = "BoolType"
 STRINGTYPE_KIND = "StringType"
 NUMBERTYPE_KIND = "NumberType"  # This type represents a Python number
 DICTTYPE_KIND = "DictType"
+TENSORTYPE_KIND = "TensorType"
+OPTIONALTYPE_KIND = "OptionalType"
 # Subtype hierarchy for Number Types (NumberType as the base type):
 # IntType <: NumberType
 # FloatType <: NumberType

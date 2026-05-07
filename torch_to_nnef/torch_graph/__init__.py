@@ -18,6 +18,7 @@ requested by user.
 
 """
 
+from torch_to_nnef.torch_graph.harden import harden_jit_for_export
 from torch_to_nnef.torch_graph.ir_data import (
     Data,
     FixedTensorList,
@@ -60,4 +61,5 @@ __all__ = [
     "replace_size_calls_with_constants",
     "strip_assertion_ifs",
     "strip_prim_data",
+    "harden_jit_for_export",
 ]

@@ -1,0 +1,38 @@
+extension tract_registry tract_core;
+
+# Single-step LSTMCell. Encapsulates the math one node-call instead of
+# spreading 20 primitive ops in the parent graph. Grouped matmul against
+# the combined weight tensors (4H, I) and (4H, H) keeps compute identical
+# to the flat decomposition; tract's declutter pass picks the same kernel
+# fusion either way, but a single node is easier for the runtime to reason
+# about and for graph-level optimizations to fire on.
+
+fragment lstm_cell(
+    input: tensor<scalar>,        # (B, I)
+    h_prev: tensor<scalar>,       # (B, H)
+    c_prev: tensor<scalar>,       # (B, H)
+    W_ih: tensor<scalar>,         # (4H, I) -- combined input weights
+    W_hh: tensor<scalar>,         # (4H, H) -- combined hidden weights
+    b: tensor<scalar>,            # (1, 4H) -- summed `b_ih + b_hh`, unsqueezed for broadcast
+    i_end: integer,               # = H,    end of input gate slice
+    f_end: integer,               # = 2*H,  end of forget gate slice
+    g_end: integer,               # = 3*H,  end of cell  gate slice
+    o_end: integer                # = 4*H,  end of output gate slice
+) -> ( h_new: tensor<scalar>, c_new: tensor<scalar> ) {
+    preact_x = matmul(input, W_ih, transposeB = true);
+    preact_h = matmul(h_prev, W_hh, transposeB = true);
+    preact = preact_x + preact_h + b;
+
+    i_pre = slice(preact, axes = [1], begin = [0],     end = [i_end]);
+    f_pre = slice(preact, axes = [1], begin = [i_end], end = [f_end]);
+    g_pre = slice(preact, axes = [1], begin = [f_end], end = [g_end]);
+    o_pre = slice(preact, axes = [1], begin = [g_end], end = [o_end]);
+
+    i_t = sigmoid(i_pre);
+    f_t = sigmoid(f_pre);
+    g_t = tanh(g_pre);
+    o_t = sigmoid(o_pre);
+
+    c_new = f_t * c_prev + i_t * g_t;
+    h_new = o_t * tanh(c_new);
+}

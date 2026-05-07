@@ -20,6 +20,73 @@ that reshape the JIT graph in place so that, after the chain, every
 (`torch.nn.*`) and every other unsupported construct collapses into ops
 that the standard parser handles.
 
+## The easy path: pass the JIT directly
+
+`export_model_to_nnef` auto-detects `torch.jit.ScriptModule` inputs and
+applies the JIT-only export hardening chain internally. The trivial
+case is just:
+
+```python
+import torch
+from torch_to_nnef import TractNNEF, export_model_to_nnef
+
+inner = torch.jit.load("model.jit").eval()
+example_inputs = (x, state)
+
+export_model_to_nnef(
+    model=inner,
+    args=example_inputs,
+    file_path_export="model.nnef.tgz",
+    inference_target=TractNNEF(version=TractNNEF.latest_version()),
+    input_names=["x", "state"],
+    output_names=["prob", "new_state"],
+)
+```
+
+A log line confirms the auto-harden ran. Each pass in the chain is a
+no-op on graphs that don't carry the relevant pattern, so the wrapper
+is safe on any ScriptModule.
+
+If you want fine-grained control (per-pass diagnostics, custom
+ordering, partial chain for debugging), opt out and call the helper
+yourself:
+
+```python
+from torch_to_nnef import (
+    TractNNEF,
+    export_model_to_nnef,
+    harden_jit_for_export,
+)
+
+diagnostics: dict[str, object] = {}
+model = harden_jit_for_export(
+    inner, example_inputs, diagnostics=diagnostics
+)
+# `diagnostics` now holds per-pass fold counts and the freeze flag.
+
+export_model_to_nnef(
+    model=model,
+    args=example_inputs,
+    file_path_export="model.nnef.tgz",
+    inference_target=TractNNEF(version=TractNNEF.latest_version()),
+    auto_harden_jit=False,  # already hardened above
+    input_names=["x", "state"],
+    output_names=["prob", "new_state"],
+)
+```
+
+`args` to `harden_jit_for_export` is the same shape as
+`export_model_to_nnef(..., args=...)` (forward arguments only); the
+helper prepends the `self` receiver internally.
+
+For the lowest-level entry, the individual passes are exposed too.
+See the next section.
+
+> **torch version**: tested on torch 2.11.0. The data-dependent If fold
+> calls `torch._C._jit_interpret_graph`, an undocumented internal API
+> exposed since torch 1.10. Earlier 2.x should work; only 2.11.0 is
+> CI-gated.
+
 ## The chain
 
 ```python

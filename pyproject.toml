@@ -430,6 +430,25 @@ commands = [
     ],
 ]
 
+[tool.tox.env.silero_vad_demo]
+# End-to-end check that examples/silero_vad/export.py runs successfully.
+# Pinned to torch 2.11 because `harden_jit_for_export` calls
+# `torch._C._jit_interpret_graph`, an undocumented internal API whose
+# behavior is only guaranteed on the version we test against.
+basepython = ["python3.13"]
+deps = [
+    "--index-url=https://download.pytorch.org/whl/cpu",
+    "torch==2.11.*",
+    "torchaudio==2.11.*",
+    "silero-vad",
+]
+commands = [
+    [
+        "python",
+        "examples/silero_vad/export.py",
+    ],
+]
+
 [tool.tox.env.proptest_nightly]
 basepython = ["python3.13"]
 deps = ["--index-url=https://download.pytorch.org/whl/cpu", "torch==2.6.*"]
