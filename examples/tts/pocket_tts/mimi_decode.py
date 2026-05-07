@@ -137,18 +137,14 @@ class MimiDecodePath(nn.Module):
         for name, mod in mimi.named_modules():
             if isinstance(mod, StatefulModule):
                 mod._module_absolute_name = name
-        # In pulse mode (``convtr_trim=False``), also drop the conv
-        # left-pad: tract's pulse machinery owns both kinds of state.
-        conv_left_pad = convtr_trim
-        replace_streaming_with_stateless(
-            mimi.upsample, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
-        )
-        replace_streaming_with_stateless(
-            mimi.decoder_transformer, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
-        )
-        replace_streaming_with_stateless(
-            mimi.decoder, convtr_trim=convtr_trim, conv_left_pad=conv_left_pad
-        )
+        # ``convtr_trim`` is the only knob ``--for-pulse`` flips: drop
+        # the manual post-convtr tail-trim so tract-pulse owns the
+        # overlap-add. Conv left-pad stays enabled either way -- tract
+        # pulsifies plain ``Pad`` ops natively, and the SEANet residual
+        # branches need the pad in place to keep their shapes aligned.
+        replace_streaming_with_stateless(mimi.upsample, convtr_trim=convtr_trim)
+        replace_streaming_with_stateless(mimi.decoder_transformer, convtr_trim=convtr_trim)
+        replace_streaming_with_stateless(mimi.decoder, convtr_trim=convtr_trim)
         # Swap streaming attention for the bulk variant. The layer's
         # ``_sa_block`` keeps running unchanged: it calls
         # ``self.self_attn(x, model_state)`` and adds the residual; our

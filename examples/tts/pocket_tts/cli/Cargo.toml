@@ -34,3 +34,18 @@ tract-transformers = "0.23.0-dev.5"
 # Metal GPU runtime is macOS-only.
 [target.'cfg(target_os = "macos")'.dependencies]
 tract-metal = "0.23.0-dev.5"
+
+# Point at our local tract checkout so the CLI picks up the in-flight
+# pulse fixes (PRs #2201 + #2202 + the deconv runtime work). Once those
+# land in a published tract release, drop the [patch] block.
+[patch.crates-io]
+tract-core = { path = "/Users/julien.balian/SONOS/src/tract/core" }
+tract-data = { path = "/Users/julien.balian/SONOS/src/tract/data" }
+tract-extra = { path = "/Users/julien.balian/SONOS/src/tract/extra" }
+tract-linalg = { path = "/Users/julien.balian/SONOS/src/tract/linalg" }
+tract-nnef = { path = "/Users/julien.balian/SONOS/src/tract/nnef" }
+tract-pulse = { path = "/Users/julien.balian/SONOS/src/tract/pulse" }
+tract-gpu = { path = "/Users/julien.balian/SONOS/src/tract/gpu" }
+tract-pulse-opl = { path = "/Users/julien.balian/SONOS/src/tract/pulse-opl" }
+tract-transformers = { path = "/Users/julien.balian/SONOS/src/tract/transformers" }
+tract-metal = { path = "/Users/julien.balian/SONOS/src/tract/metal" }
