@@ -236,9 +236,7 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register(["layer_norm", "native_layer_norm"])
-def layer_norm(
-    g, node, name_to_tensor, null_ref, inference_target, **kwargs
-):
+def layer_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     """Map PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF.
 
     When the input is fp16 and ``inference_target.force_norm_in_f32`` is
