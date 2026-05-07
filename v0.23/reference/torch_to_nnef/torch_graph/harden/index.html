@@ -3190,8 +3190,10 @@ place. The chain has two stages.</p>
 <li><code>fold_constant_scalar_arithmetic</code>: cmps, <code>__not__</code>,
    <code>__contains__</code>, scalar casts.</li>
 <li><code>fold_constant_ifs</code>: drop Ifs with a constant boolean condition.</li>
-<li><code>fold_tuple_index_through_tuple_construct</code>: collapse the
-   <code>TupleConstruct -&gt; TupleIndex</code> round-trip.</li>
+<li><code>fold_tuple_index_through_tuple_construct</code> and
+   <code>fold_tuple_unpack_through_tuple_construct</code>: collapse the
+   <code>TupleConstruct -&gt; TupleIndex</code> and
+   <code>TupleConstruct -&gt; TupleUnpack</code> round-trips.</li>
 <li><code>strip_prim_data</code>: drop <code>prim::data(t)</code> (autograd-detach no-op).</li>
 <li><code>strip_assertion_ifs</code>: drop Ifs whose one branch is a pure
    <code>RaiseException</code>.</li>

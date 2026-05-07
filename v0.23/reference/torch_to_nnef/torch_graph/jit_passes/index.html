@@ -2750,6 +2750,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
@@ -3179,6 +3188,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.jit_passes.replace_size_calls_with_constants" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;replace_size_calls_with_constants
@@ -3369,6 +3387,34 @@ tuple value is the direct output of a <code>TupleConstruct</code>, we rewire
 the <code>TupleConstruct</code> itself in place (DCE removes it later if it
 has no other consumers).</p>
 <p>Returns the count of nodes folded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.jit_passes.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_unpack_through_tuple_construct</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_unpack_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold <code>prim::TupleUnpack(prim::TupleConstruct(...))</code> into the inputs.</p>
+<p>Sibling of <code>fold_tuple_index_through_tuple_construct</code>. JIT artifacts
+that build a tuple at the call site and consume it via destructuring
+assignment (<code>a, b = my_pair()</code>) leave behind a
+<code>prim::TupleConstruct -&gt; prim::TupleUnpack</code> chain after inlining.
+The k-th unpack output is exactly the k-th construct input; we
+rewire each unpack output verbatim and destroy the unpack. The
+<code>TupleConstruct</code> is left in place; DCE removes it if its only
+consumers (the unpack outputs) are now gone.</p>
+<p>Returns the count of <code>TupleUnpack</code> nodes folded.</p>
 
     </div>
 

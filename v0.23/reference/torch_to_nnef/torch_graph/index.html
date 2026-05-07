@@ -2702,6 +2702,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
@@ -3515,6 +3524,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fold_tuple_unpack_through_tuple_construct
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
@@ -4219,6 +4237,34 @@ has no other consumers).</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.torch_graph.fold_tuple_unpack_through_tuple_construct" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fold_tuple_unpack_through_tuple_construct</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fold_tuple_unpack_through_tuple_construct</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="s1">&#39;torch._C.Graph&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fold <code>prim::TupleUnpack(prim::TupleConstruct(...))</code> into the inputs.</p>
+<p>Sibling of <code>fold_tuple_index_through_tuple_construct</code>. JIT artifacts
+that build a tuple at the call site and consume it via destructuring
+assignment (<code>a, b = my_pair()</code>) leave behind a
+<code>prim::TupleConstruct -&gt; prim::TupleUnpack</code> chain after inlining.
+The k-th unpack output is exactly the k-th construct input; we
+rewire each unpack output verbatim and destroy the unpack. The
+<code>TupleConstruct</code> is left in place; DCE removes it if its only
+consumers (the unpack outputs) are now gone.</p>
+<p>Returns the count of <code>TupleUnpack</code> nodes folded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.torch_graph.harden_jit_for_export" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">harden_jit_for_export</span>
 
@@ -4250,8 +4296,10 @@ place. The chain has two stages.</p>
 <li><code>fold_constant_scalar_arithmetic</code>: cmps, <code>__not__</code>,
    <code>__contains__</code>, scalar casts.</li>
 <li><code>fold_constant_ifs</code>: drop Ifs with a constant boolean condition.</li>
-<li><code>fold_tuple_index_through_tuple_construct</code>: collapse the
-   <code>TupleConstruct -&gt; TupleIndex</code> round-trip.</li>
+<li><code>fold_tuple_index_through_tuple_construct</code> and
+   <code>fold_tuple_unpack_through_tuple_construct</code>: collapse the
+   <code>TupleConstruct -&gt; TupleIndex</code> and
+   <code>TupleConstruct -&gt; TupleUnpack</code> round-trips.</li>
 <li><code>strip_prim_data</code>: drop <code>prim::data(t)</code> (autograd-detach no-op).</li>
 <li><code>strip_assertion_ifs</code>: drop Ifs whose one branch is a pure
    <code>RaiseException</code>.</li>
