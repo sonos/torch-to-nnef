@@ -1592,6 +1592,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../aten/rnn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../aten/selector/" class="md-nav__link">
         
   
@@ -1786,6 +1809,30 @@
   
     <nav class="md-nav" aria-label=" custom_extractors">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.custom_extractors.LSTMCellExtractor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LSTMCellExtractor
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" LSTMCellExtractor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.custom_extractors.LSTMCellExtractor.ordered_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;ordered_args
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#torch_to_nnef.op.custom_extractors.LSTMExtractor" class="md-nav__link">
@@ -2575,6 +2622,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../../torch_graph/harden/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../torch_graph/ir_data/" class="md-nav__link">
         
   
@@ -3105,6 +3175,30 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.custom_extractors.LSTMCellExtractor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LSTMCellExtractor
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" LSTMCellExtractor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.custom_extractors.LSTMCellExtractor.ordered_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;ordered_args
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.custom_extractors.LSTMExtractor" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LSTMExtractor
@@ -3233,6 +3327,78 @@ which by default use torch.jit.trace .</p>
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="torch_to_nnef.op.custom_extractors.LSTMCellExtractor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">LSTMCellExtractor</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">LSTMCellExtractor</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            ModuleInfoExtractor (torch_to_nnef.op.custom_extractors.base.ModuleInfoExtractor)" href="base/#torch_to_nnef.op.custom_extractors.base.ModuleInfoExtractor">ModuleInfoExtractor</a></code></p>
+
+
+        <p>Decompose <code>nn.LSTMCell</code> into primitive NNEF ops.</p>
+<p>Unlike <code>nn.LSTM</code>, an LSTMCell carries a single time-step. We emit:
+    preact = matmul(input, w_ih, T) + matmul(h, w_hh, T) + b_ih + b_hh
+    i, f, g, o = chunk(preact, 4, axis=-1)
+    c_new = sigmoid(f) * c + sigmoid(i) * tanh(g)
+    h_new = sigmoid(o) * tanh(c_new)</p>
+<p>Input order from the user-facing wrapper is <code>(input, h, c)</code> -- the
+internal nn.LSTMCell call expects <code>(input, (h, c))</code> which is handled by
+<code>_call_original_mod_with_args</code>.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="torch_to_nnef.op.custom_extractors.LSTMCellExtractor.ordered_args" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">ordered_args</span>
+
+
+</h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">ordered_args</span><span class="p">(</span><span class="n">torch_graph</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Reorder args so the first one is <code>input</code> (shape (B, input_size)).</p>
+<p>t2n's IR sometimes reorders the cell's inputs after FixedTensorList /
+tuple expansion, surfacing them as e.g. (h, input, c). The cell's
+<code>input_size</code> (= weight_ih.shape[1]) lets us pick the input tensor by
+shape; the relative order of (h, c) follows the JIT graph's
+prim::ListConstruct that builds hx.</p>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-class">
 

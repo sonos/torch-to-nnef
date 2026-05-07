@@ -912,6 +912,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1728,6 +1737,29 @@
   
   <span class="md-ellipsis">
     <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>reducer
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="op/aten/rnn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
     
   </span>
   
@@ -2604,6 +2636,29 @@
   
   
     <li class="md-nav__item">
+      <a href="torch_graph/harden/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="torch_graph/ir_data/" class="md-nav__link">
         
   
@@ -3235,6 +3290,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3697,7 +3761,7 @@ Experimental feature.</p>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">auto_harden_jit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3972,6 +4036,27 @@ Some libs like 'nvidia/nemo' use this pattern.
             </td>
             <td>
                   <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>auto_harden_jit</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool (default: True)
+When <code>model</code> is a <code>torch.jit.ScriptModule</code>, automatically
+run <code>harden_jit_for_export</code> to specialize its graph for the
+given example inputs (freeze + size folds + constant folds
++ tuple round-trip + data-dependent If fold). Each pass is
+a no-op on graphs that don't carry the relevant pattern, so
+the wrapper is safe to apply unconditionally; turn it off
+to drive the chain manually for fine-grained control.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
             </td>
           </tr>
       </tbody>
@@ -4302,6 +4387,65 @@ identical to <code>torch_to_nnef.export.export_tensors_to_nnef</code></p>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">exported_tensors</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="go">[&#39;b.weight&#39;, &#39;b.bias&#39;]</span>
 </span></code></pre></div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.harden_jit_for_export" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">harden_jit_for_export</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">harden_jit_for_export</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">],</span> <span class="s1">&#39;torch.Tensor&#39;</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">freeze</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">diagnostics</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Specialize a JIT ScriptModule's graph for the given example inputs.</p>
+<p>Returns the (possibly frozen) module with the chain applied in
+place. The chain has two stages.</p>
+<p><strong>Resolve CallMethod / CallFunction / GetAttr</strong> (one of):</p>
+<ul>
+<li><code>torch.jit.freeze</code> (<code>freeze=True</code>, default). Requires the module
+  to be in eval mode; pass a <code>model.eval()</code>-ed instance or set
+  <code>freeze=False</code>. On <code>RuntimeError</code>, the helper logs a warning and
+  falls back to the manual inline.</li>
+<li><code>inline_unresolvable_submodules</code>. Used when freeze was disabled
+  or failed; covers CallMethods whose target class isn't on the
+  import path. Skipped when freeze succeeded.</li>
+</ul>
+<p><strong>Specialize for the example inputs</strong> (always, in this order):</p>
+<ol>
+<li><code>replace_size_calls_with_constants</code>: forward-reach analysis
+   folds <code>aten::dim/size/len/numel</code> whose values flow only into
+   control flow. Tensor-shape consumers are left dynamic.</li>
+<li><code>fold_constant_scalar_arithmetic</code>: cmps, <code>__not__</code>,
+   <code>__contains__</code>, scalar casts.</li>
+<li><code>fold_constant_ifs</code>: drop Ifs with a constant boolean condition.</li>
+<li><code>fold_tuple_index_through_tuple_construct</code>: collapse the
+   <code>TupleConstruct -&gt; TupleIndex</code> round-trip.</li>
+<li><code>strip_prim_data</code>: drop <code>prim::data(t)</code> (autograd-detach no-op).</li>
+<li><code>strip_assertion_ifs</code>: drop Ifs whose one branch is a pure
+   <code>RaiseException</code>.</li>
+<li><code>fold_data_dependent_ifs</code>: evaluate any remaining If condition
+   under the example inputs and inline the chosen branch.</li>
+</ol>
+<p><code>args</code> is the model's <code>forward</code> arguments (no implicit <code>self</code>); the
+helper prepends the (possibly frozen) <code>self</code> receiver internally
+when invoking passes that re-execute the graph through
+<code>torch._C._jit_interpret_graph</code>. A single <code>torch.Tensor</code> is accepted
+as a shorthand for <code>(tensor,)</code>, matching the permissive convention
+of <code>export_model_to_nnef(model, args=...)</code>.</p>
+<p>When <code>diagnostics</code> is a dict, it is populated in place with the
+count of nodes folded / stripped per pass, keyed by pass name. The
+<code>froze</code> key records whether freeze succeeded;
+<code>inline_unresolvable_submodules</code> is only present when the manual
+inline ran (i.e. freeze was disabled or failed). Useful for
+debugging unfamiliar JIT artifacts.</p>
 
     </div>
 

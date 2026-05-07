@@ -12,7 +12,7 @@
         <link rel="prev" href="../tensor/utils/">
       
       
-        <link rel="next" href="ir_data/">
+        <link rel="next" href="harden/">
       
       
       <link rel="icon" href="../../../img/t2n_ico.png">
@@ -1590,6 +1590,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../op/aten/rnn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../op/aten/selector/" class="md-nav__link">
         
   
@@ -2679,6 +2702,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
@@ -2723,6 +2755,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="harden/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -3460,6 +3515,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;inline_unresolvable_submodules
@@ -4155,6 +4219,65 @@ has no other consumers).</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.torch_graph.harden_jit_for_export" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">harden_jit_for_export</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">harden_jit_for_export</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">],</span> <span class="s1">&#39;torch.Tensor&#39;</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">freeze</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">diagnostics</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Specialize a JIT ScriptModule's graph for the given example inputs.</p>
+<p>Returns the (possibly frozen) module with the chain applied in
+place. The chain has two stages.</p>
+<p><strong>Resolve CallMethod / CallFunction / GetAttr</strong> (one of):</p>
+<ul>
+<li><code>torch.jit.freeze</code> (<code>freeze=True</code>, default). Requires the module
+  to be in eval mode; pass a <code>model.eval()</code>-ed instance or set
+  <code>freeze=False</code>. On <code>RuntimeError</code>, the helper logs a warning and
+  falls back to the manual inline.</li>
+<li><code>inline_unresolvable_submodules</code>. Used when freeze was disabled
+  or failed; covers CallMethods whose target class isn't on the
+  import path. Skipped when freeze succeeded.</li>
+</ul>
+<p><strong>Specialize for the example inputs</strong> (always, in this order):</p>
+<ol>
+<li><code>replace_size_calls_with_constants</code>: forward-reach analysis
+   folds <code>aten::dim/size/len/numel</code> whose values flow only into
+   control flow. Tensor-shape consumers are left dynamic.</li>
+<li><code>fold_constant_scalar_arithmetic</code>: cmps, <code>__not__</code>,
+   <code>__contains__</code>, scalar casts.</li>
+<li><code>fold_constant_ifs</code>: drop Ifs with a constant boolean condition.</li>
+<li><code>fold_tuple_index_through_tuple_construct</code>: collapse the
+   <code>TupleConstruct -&gt; TupleIndex</code> round-trip.</li>
+<li><code>strip_prim_data</code>: drop <code>prim::data(t)</code> (autograd-detach no-op).</li>
+<li><code>strip_assertion_ifs</code>: drop Ifs whose one branch is a pure
+   <code>RaiseException</code>.</li>
+<li><code>fold_data_dependent_ifs</code>: evaluate any remaining If condition
+   under the example inputs and inline the chosen branch.</li>
+</ol>
+<p><code>args</code> is the model's <code>forward</code> arguments (no implicit <code>self</code>); the
+helper prepends the (possibly frozen) <code>self</code> receiver internally
+when invoking passes that re-execute the graph through
+<code>torch._C._jit_interpret_graph</code>. A single <code>torch.Tensor</code> is accepted
+as a shorthand for <code>(tensor,)</code>, matching the permissive convention
+of <code>export_model_to_nnef(model, args=...)</code>.</p>
+<p>When <code>diagnostics</code> is a dict, it is populated in place with the
+count of nodes folded / stripped per pass, keyed by pass name. The
+<code>froze</code> key records whether freeze succeeded;
+<code>inline_unresolvable_submodules</code> is only present when the manual
+inline ran (i.e. freeze was disabled or failed). Useful for
+debugging unfamiliar JIT artifacts.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.torch_graph.inline_unresolvable_submodules" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">inline_unresolvable_submodules</span>
 
@@ -4327,16 +4450,16 @@ handler for it, so we elide it.</p>
         
           
           <a
-            href="ir_data/"
+            href="harden/"
             class="md-footer__link md-footer__link--next"
-            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;ir_data"
+            aria-label="Next: &lt;code class=&#39;doc-symbol doc-symbol-nav doc-symbol-module&#39;&gt;&lt;/code&gt;harden"
           >
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>ir_data
+                <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
               </div>
             </div>
             <div class="md-footer__button md-icon">

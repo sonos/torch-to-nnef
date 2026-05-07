@@ -778,6 +778,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#jit-only-model-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      JIT-only model hardening
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JIT-only model hardening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;harden
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" harden">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#remodeler" class="md-nav__link">
     <span class="md-ellipsis">
       Remodeler
@@ -1712,6 +1751,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/torch_to_nnef/op/aten/rnn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>rnn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/torch_to_nnef/op/aten/selector/" class="md-nav__link">
         
   
@@ -2571,6 +2633,29 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/torch_to_nnef/torch_graph/harden/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class='doc-symbol doc-symbol-nav doc-symbol-module'></code>harden
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/torch_to_nnef/torch_graph/ir_data/" class="md-nav__link">
         
   
@@ -3168,6 +3253,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#jit-only-model-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      JIT-only model hardening
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JIT-only model hardening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;harden
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" harden">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.torch_graph.harden.harden_jit_for_export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;harden_jit_for_export
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#remodeler" class="md-nav__link">
     <span class="md-ellipsis">
       Remodeler
@@ -3261,7 +3385,7 @@
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">export_model_to_nnef</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">file_path_export</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">inference_target</span><span class="p">:</span> <span class="n">InferenceTarget</span><span class="p">,</span> <span class="n">input_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">output_names</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">compression_level</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">nnef_variable_naming_scheme</span><span class="p">:</span> <span class="n">VariableNamingScheme</span> <span class="o">=</span> <span class="n">DEFAULT_VARNAME_SCHEME</span><span class="p">,</span> <span class="n">check_io_names_qte_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">debug_bundle_path</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">custom_extensions</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">allow_same_io_names</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">auto_harden_jit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3536,6 +3660,27 @@ Some libs like 'nvidia/nemo' use this pattern.
             </td>
             <td>
                   <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>auto_harden_jit</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool (default: True)
+When <code>model</code> is a <code>torch.jit.ScriptModule</code>, automatically
+run <code>harden_jit_for_export</code> to specialize its graph for the
+given example inputs (freeze + size folds + constant folds
++ tuple round-trip + data-dependent If fold). Each pass is
+a no-op on graphs that don't carry the relevant pattern, so
+the wrapper is safe to apply unconditionally; turn it off
+to drive the chain manually for fine-grained control.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
             </td>
           </tr>
       </tbody>
@@ -3989,6 +4134,117 @@ stored in those format</p>
 
     </div>
 
+</div><h2 id="jit-only-model-hardening">JIT-only model hardening</h2>
+<p>For JIT-only artifacts whose Python source isn't on the import path
+(e.g. <code>silero_vad.jit</code>), the standard recursive parser cannot resolve
+the inner classes. <code>harden_jit_for_export</code> runs a chain of opt-in
+graph passes that specialize the JIT graph for your example inputs,
+producing a graph the standard exporter can consume. See the
+<a href="../tutos/12_jit_only_models/">JIT-only models tutorial</a> for the full
+chain and rationale per pass.</p>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h3 id="torch_to_nnef.torch_graph.harden" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">torch_to_nnef.torch_graph.harden</span>
+
+
+</h3>
+
+    <div class="doc doc-contents first">
+
+        <p>High-level helper that runs the JIT-only export hardening chain.</p>
+<p>The individual passes in <code>jit_inline</code> and <code>jit_passes</code> are exposed for
+fine-grained use (custom orderings, partial chains for debugging). Most
+callers want the full chain; <code>harden_jit_for_export</code> wraps it with a
+sensible default order and freeze step.</p>
+<p>Each pass is a no-op on graphs that don't carry the relevant pattern,
+so the chain is safe to apply unconditionally.</p>
+<p>Supported on torch &gt;= 1.10 (the only API requirement is
+<code>torch._C._jit_interpret_graph</code>, used by <code>fold_data_dependent_ifs</code> and
+probed lazily). CI gates the chain on torch 2.11.0; older versions work
+but are not regression-tested.</p>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.torch_graph.harden.harden_jit_for_export" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">harden_jit_for_export</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">harden_jit_for_export</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Sequence</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">],</span> <span class="s1">&#39;torch.Tensor&#39;</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">freeze</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">diagnostics</span><span class="p">:</span> <span class="n">T</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n">T</span><span class="o">.</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">T</span><span class="o">.</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;torch.jit.ScriptModule&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Specialize a JIT ScriptModule's graph for the given example inputs.</p>
+<p>Returns the (possibly frozen) module with the chain applied in
+place. The chain has two stages.</p>
+<p><strong>Resolve CallMethod / CallFunction / GetAttr</strong> (one of):</p>
+<ul>
+<li><code>torch.jit.freeze</code> (<code>freeze=True</code>, default). Requires the module
+  to be in eval mode; pass a <code>model.eval()</code>-ed instance or set
+  <code>freeze=False</code>. On <code>RuntimeError</code>, the helper logs a warning and
+  falls back to the manual inline.</li>
+<li><code>inline_unresolvable_submodules</code>. Used when freeze was disabled
+  or failed; covers CallMethods whose target class isn't on the
+  import path. Skipped when freeze succeeded.</li>
+</ul>
+<p><strong>Specialize for the example inputs</strong> (always, in this order):</p>
+<ol>
+<li><code>replace_size_calls_with_constants</code>: forward-reach analysis
+   folds <code>aten::dim/size/len/numel</code> whose values flow only into
+   control flow. Tensor-shape consumers are left dynamic.</li>
+<li><code>fold_constant_scalar_arithmetic</code>: cmps, <code>__not__</code>,
+   <code>__contains__</code>, scalar casts.</li>
+<li><code>fold_constant_ifs</code>: drop Ifs with a constant boolean condition.</li>
+<li><code>fold_tuple_index_through_tuple_construct</code>: collapse the
+   <code>TupleConstruct -&gt; TupleIndex</code> round-trip.</li>
+<li><code>strip_prim_data</code>: drop <code>prim::data(t)</code> (autograd-detach no-op).</li>
+<li><code>strip_assertion_ifs</code>: drop Ifs whose one branch is a pure
+   <code>RaiseException</code>.</li>
+<li><code>fold_data_dependent_ifs</code>: evaluate any remaining If condition
+   under the example inputs and inline the chosen branch.</li>
+</ol>
+<p><code>args</code> is the model's <code>forward</code> arguments (no implicit <code>self</code>); the
+helper prepends the (possibly frozen) <code>self</code> receiver internally
+when invoking passes that re-execute the graph through
+<code>torch._C._jit_interpret_graph</code>. A single <code>torch.Tensor</code> is accepted
+as a shorthand for <code>(tensor,)</code>, matching the permissive convention
+of <code>export_model_to_nnef(model, args=...)</code>.</p>
+<p>When <code>diagnostics</code> is a dict, it is populated in place with the
+count of nodes folded / stripped per pass, keyed by pass name. The
+<code>froze</code> key records whether freeze succeeded;
+<code>inline_unresolvable_submodules</code> is only present when the manual
+inline ran (i.e. freeze was disabled or failed). Useful for
+debugging unfamiliar JIT artifacts.</p>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
 </div><h2 id="remodeler">Remodeler</h2>
 <p>For boundary‑only transforms (collapse, bind, alias, outputs_keep), see the
 dedicated tutorial: <a href="../tutos/11_remodeler/">Provider‑agnostic remodeler</a>.</p>
@@ -4014,7 +4270,7 @@ dedicated tutorial: <a href="../tutos/11_remodeler/">Provider‑agnostic remodel
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 4, 2026 10:49:25 UTC">May 4, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 7, 2026 10:16:13 UTC">May 7, 2026</span>
   </span>
 
     
