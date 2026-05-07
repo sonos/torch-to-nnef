@@ -6,10 +6,10 @@ from torchvision.io import read_image
 
 from torch_to_nnef import TractNNEF, export_model_to_nnef
 
-my_image_model = vision_mdl.vit_b_16(pretrained=True)
+classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
+my_image_model = vision_mdl.vit_b_16(weights=classification_task)
 
 img = read_image("./Grace_Hopper.jpg")
-classification_task = vision_mdl.ViT_B_16_Weights.IMAGENET1K_V1
 input_data_sample = classification_task.transforms()(img.unsqueeze(0))
 file_path_export = Path("vit_b_16_batchable.nnef.tgz")
 export_model_to_nnef(
