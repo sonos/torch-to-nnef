@@ -35,17 +35,17 @@ tract-transformers = "0.23.0-dev.5"
 [target.'cfg(target_os = "macos")'.dependencies]
 tract-metal = "0.23.0-dev.5"
 
-# Point at our local tract checkout so the CLI picks up the in-flight
-# pulse fixes (PRs #2201 + #2202 + the deconv runtime work). Once those
-# land in a published tract release, drop the [patch] block.
+# Pin to fixes ahead of tract 0.23.0-dev.5: pulse LCM-merge (#2202) and
+# pulse-mode Deconv bias overlap-add (#2204). Drop this [patch] block
+# once both land in a published tract release.
 [patch.crates-io]
-tract-core = { path = "/Users/julien.balian/SONOS/src/tract/core" }
-tract-data = { path = "/Users/julien.balian/SONOS/src/tract/data" }
-tract-extra = { path = "/Users/julien.balian/SONOS/src/tract/extra" }
-tract-linalg = { path = "/Users/julien.balian/SONOS/src/tract/linalg" }
-tract-nnef = { path = "/Users/julien.balian/SONOS/src/tract/nnef" }
-tract-pulse = { path = "/Users/julien.balian/SONOS/src/tract/pulse" }
-tract-gpu = { path = "/Users/julien.balian/SONOS/src/tract/gpu" }
-tract-pulse-opl = { path = "/Users/julien.balian/SONOS/src/tract/pulse-opl" }
-tract-transformers = { path = "/Users/julien.balian/SONOS/src/tract/transformers" }
-tract-metal = { path = "/Users/julien.balian/SONOS/src/tract/metal" }
+tract-core         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-data         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-extra        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-linalg       = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-nnef         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-pulse        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-gpu          = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-pulse-opl    = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-transformers = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-metal        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
