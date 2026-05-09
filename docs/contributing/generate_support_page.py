@@ -93,13 +93,31 @@ class AliasManager:
         return self.ref_alias.get(op_name, [])
 
 
+#: Last torch version whose ``torch.compiler_ir.html`` page enumerates the
+#: core ATen IR ops in scrapeable form. Starting at 2.10 the page was
+#: emptied (the published version is ~1 KB of boilerplate), so we fall
+#: back to this one to keep the "is core" column populated.
+LAST_TORCH_VERSION_WITH_IR_DOC = "2.9"
+
+
 class FetchFromTorchVersion:
     def __init__(self, torch_version: str):
         self.torch_version = torch_version
+        # Set by `get_core_ir`: the URL that actually yielded the core
+        # IR list (fallback or not). Used by the markdown header so the
+        # `is core` link points at the page that was scraped.
+        self.resolved_ir_url: Optional[str] = None
 
     @property
     def url_ir(self) -> str:
         return f"https://docs.pytorch.org/docs/{self.torch_version}/torch.compiler_ir.html"
+
+    @property
+    def url_ir_fallback(self) -> str:
+        return (
+            "https://docs.pytorch.org/docs/"
+            f"{LAST_TORCH_VERSION_WITH_IR_DOC}/torch.compiler_ir.html"
+        )
 
     @property
     def onnx_support_url(self) -> str:
@@ -108,10 +126,9 @@ class FetchFromTorchVersion:
             "onnx_torchscript_supported_aten_ops.html"
         )
 
-    def get_core_ir(self) -> tuple[Set[str], List[str]]:
-        resp = rq.get(self.url_ir, timeout=20)
-        assert resp.status_code == 200
-        soup = bs4.BeautifulSoup(resp.content, "html.parser")
+    @staticmethod
+    def _parse_ir_page(html: bytes) -> tuple[Set[str], List[str]]:
+        soup = bs4.BeautifulSoup(html, "html.parser")
         res = soup.find_all("span", {"class": "pre"})
         official_aten_names = {
             r.text.split(".")[1]
@@ -122,10 +139,47 @@ class FetchFromTorchVersion:
         official_prim_names = sorted(
             [r.text.split(".")[1] for r in res if r.text.startswith("prim")]
         )
-        return (official_aten_names, official_prim_names)
+        return official_aten_names, official_prim_names
+
+    def get_core_ir(self) -> tuple[Set[str], List[str]]:
+        resp = rq.get(self.url_ir, timeout=20)
+        assert resp.status_code == 200
+        official_aten_names, official_prim_names = self._parse_ir_page(
+            resp.content
+        )
+        self.resolved_ir_url = self.url_ir
+        if not official_aten_names:
+            warnings.warn(
+                f"{self.url_ir} no longer enumerates the core ATen IR "
+                "(emptied in torch 2.10+); falling back to "
+                f"{self.url_ir_fallback} for the 'is core' column.",
+                stacklevel=2,
+            )
+            fallback = rq.get(self.url_ir_fallback, timeout=20)
+            assert fallback.status_code == 200
+            official_aten_names, official_prim_names = self._parse_ir_page(
+                fallback.content
+            )
+            self.resolved_ir_url = self.url_ir_fallback
+        return official_aten_names, official_prim_names
 
     def get_onnx_support(self) -> tuple[Set[str], Set[str]]:
+        """Fetch the TorchScript-ONNX per-op support page.
+
+        PyTorch removed this page after torch 2.8 (TorchScript ONNX
+        export was deprecated in favour of `torch.onnx.export(dynamo=
+        True)`), and the new dynamo path doesn't ship a tabular
+        per-op page. Return empty sets when the URL 404s so callers
+        can drop the ONNX section gracefully.
+        """
         resp = rq.get(self.onnx_support_url, timeout=20)
+        if resp.status_code == 404:
+            warnings.warn(
+                f"ONNX support page not found at {self.onnx_support_url} "
+                "(removed in torch 2.9+). Skipping ONNX comparison.",
+                stacklevel=2,
+            )
+            return set(), set()
         assert resp.status_code == 200
         soup = bs4.BeautifulSoup(resp.content, "html.parser")
         supported_ops = {
@@ -231,6 +285,17 @@ def print_t(text, file):
         print("", file=file)
 
 
+def _md_link(text: str, href: Optional[str]) -> str:
+    """Inline-anchor or plain text fallback."""
+    if not href:
+        return text
+    return f'<a href="{href}">{text}</a>'
+
+
+def _format_aliases(aliases: List[str]) -> str:
+    return ", ".join(aliases)
+
+
 def write_operator_support(
     support_target_name: str,
     support_target_msg: str,
@@ -241,8 +306,15 @@ def write_operator_support(
     fh,
     cache_url: LinkToTorchDocCache,
     support_inplace: Set[str],
+    support_n_ops_label: str,
 ):
-    rows = []
+    """Emit one tabbed section.
+
+    The table is raw HTML (not a markdown pipe table) so each `<tr>`
+    can carry a `supported`/`unsupported` class hooked up by the inline
+    filter widget at the top of the section.
+    """
+    row_items: List[tuple] = []
     qte_core = 0
     qte_supported_core = 0
     matched_qte = 0
@@ -271,20 +343,24 @@ def write_operator_support(
             matched_qte += 1
 
         inplace_str = "✅" if a_from_code in support_inplace else "❌"
-        alias_str = ", ".join(alias_manager.get_aliases(a_from_code))
-        op_name = a_from_code
-        torch_url_doc = cache_url.get_url(op_name)
-        if torch_url_doc:
-            op_name = f"[{op_name}]({torch_url_doc})"
-        rows.append(
+        alias_str = _format_aliases(alias_manager.get_aliases(a_from_code))
+        torch_url_doc = cache_url.get_url(a_from_code)
+        op_name_html = _md_link(a_from_code, torch_url_doc)
+        row_items.append(
             (
-                f"| {op_name} | {alias_str} | "
-                f"{inplace_str} | {is_core_official_str} | "
-                f"{mapped_in_support_str} |",
+                exist_in_support,
                 is_core,
+                op_name_html,
+                alias_str,
+                inplace_str,
+                is_core_official_str,
+                mapped_in_support_str,
             )
         )
-    rows = sorted(rows, key=lambda x: -int(x[1]))
+
+    # Core ops first to keep the historical sort, then unsupported core.
+    row_items.sort(key=lambda r: -int(r[1]))
+
     print_t("", file=fh)
     support_n_ops = len([_ for _ in supported_opset if not _.endswith("_")])
     ratio_total_str = f"{matched_qte}/{len(aten_torch_from_code)}"
@@ -295,49 +371,118 @@ def write_operator_support(
         f'"{qte_supported_core}/{qte_core}"]\n\n'
         "-  and support from full `aten::`: \n\n"
         f'[={ratio_total_str} "{ratio_total_str}"]\n\n'
-        " (total registered aten "
-        f"operators in t2n being {support_n_ops})",
+        f" (total operators listed as supported by {support_n_ops_label} "
+        f"being {support_n_ops})",
         file=fh,
     )
     print_t("", file=fh)
-    print_t(
-        "| aten name | aliases | can in-place | is core | translated |",
-        file=fh,
-    )
-    print_t(
-        "| -------- | ------- | ------- | --------- | ---------------- |",
-        file=fh,
-    )
-    for r in rows:
-        print_t(r[0], file=fh)
 
+    # Filter widget + raw HTML table. The filter scope is a single
+    # `.op-filter-container`, so multiple sections (TractNNEF, ONNX) on
+    # the same page each get their own independent toggle state.
+    filter_id = f"op-filter-{support_target_name}"
+    print_t(
+        '<div class="op-filter-container" markdown="0">\n'
+        '<form class="op-filter-form">\n'
+        '<label><input type="radio" name="' + filter_id + '" '
+        'value="all" checked> All</label>\n'
+        '<label><input type="radio" name="' + filter_id + '" '
+        'value="supported"> Supported only</label>\n'
+        '<label><input type="radio" name="' + filter_id + '" '
+        'value="unsupported"> Unsupported only</label>\n'
+        "</form>\n"
+        '<table class="op-table">\n'
+        "<thead><tr>"
+        "<th>translated</th><th>aten name</th><th>aliases</th>"
+        "<th>can in-place</th><th>is core</th>"
+        "</tr></thead>\n"
+        "<tbody>",
+        file=fh,
+    )
+    for (
+        exist_in_support,
+        _is_core,
+        op_name_html,
+        alias_str,
+        inplace_str,
+        is_core_official_str,
+        mapped_in_support_str,
+    ) in row_items:
+        klass = "supported" if exist_in_support else "unsupported"
+        print_t(
+            f'<tr class="op-row {klass}">'
+            f"<td>{mapped_in_support_str}</td>"
+            f"<td>{op_name_html}</td>"
+            f"<td>{alias_str}</td>"
+            f"<td>{inplace_str}</td>"
+            f"<td>{is_core_official_str}</td>"
+            "</tr>",
+            file=fh,
+        )
+    print_t("</tbody>\n</table>\n</div>", file=fh)
     print_t("", file=fh)
+
+
+FILTER_SCRIPT = """\
+<script>
+(function () {
+  function applyFilter(form) {
+    var mode = form.querySelector('input[type="radio"]:checked').value;
+    var rows = form.parentElement.querySelectorAll('tr.op-row');
+    rows.forEach(function (tr) {
+      var sup = tr.classList.contains('supported');
+      var keep =
+        mode === 'all' ||
+        (mode === 'supported' && sup) ||
+        (mode === 'unsupported' && !sup);
+      tr.style.display = keep ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.op-filter-form').forEach(function (form) {
+    form.addEventListener('change', function () { applyFilter(form); });
+  });
+})();
+</script>
+"""
 
 
 def build_markdown_header(fetcher) -> str:
     date = datetime.now().strftime("%d %b %Y")
+    ir_url = fetcher.resolved_ir_url or fetcher.url_ir
+    ir_note = (
+        f"[PyTorch IR documentation page]({ir_url})"
+        if ir_url == fetcher.url_ir
+        else (
+            f"[PyTorch IR documentation page]({ir_url}) "
+            f"(the page for torch {fetcher.torch_version} was emptied "
+            f"upstream; falling back to "
+            f"torch {LAST_TORCH_VERSION_WITH_IR_DOC} which is the last "
+            "version that still enumerates the core ATen IR)"
+        )
+    )
     return (
         "!!! note\n"
-        "    This table and page are auto generated from 'a script' "
-        "that dig into PyTorch."
-        f" Version targetted is:  **'{fetcher.torch_version}'**. file "
-        f"was generated the **{date}**.\n\n"
+        "    This table and page are auto generated by "
+        "`docs/contributing/generate_support_page.py` and reflect the "
+        "PyTorch reference docs at the time of generation."
+        f" Targeted torch version: **{fetcher.torch_version}**. "
+        f"Generated on **{date}**.\n\n"
         "!!! warning\n"
-        "     Take these informations with a grain of salt as this is "
-        "referencing operators that may never appear"
-        " in torch IR graph traced by `torch_to_nnef` "
-        "(because remapped to others more generic). "
-        "Also some  uncommon operators are very rare in models, "
-        "hence support may be lacking. "
-        " **SONOS only maintains operators 'per need basis'**, "
-        "but contributions are always wecome [see how](./add_new_aten_op.md)."
+        "     Take these results with a grain of salt: many of the listed "
+        "operators never appear in the torch IR graph that "
+        "`torch_to_nnef` traces (they get remapped to more generic ops "
+        "upstream), and some uncommon operators are rare in real models "
+        "so support may be lacking even when marked unsupported. "
+        "**SONOS maintains operators on a per-need basis**, "
+        "and contributions are always welcome "
+        "[see how](./add_new_aten_op.md)."
         "\n\n"
-        "\n 'is core' column refers to this "
-        f"[PyTorch IR documentation page]({fetcher.url_ir})\n\n"
-        "We filter-out from from observed operators 'backward' and 'sym' one's "
-        "which are unwanted in inference engine. "
-        "Also in place operations are merged with memory allocated activations "
-        "as this is inference implementation detail."
+        f"\n 'is core' column refers to this {ir_note}.\n\n"
+        "We filter out 'backward' and 'sym' operators from the listing "
+        "since they are unwanted in an inference engine. "
+        "In-place operations are merged with their non-inplace "
+        "counterparts since that distinction is an inference "
+        "implementation detail."
     )
 
 
@@ -385,19 +530,23 @@ def build_markdown_page(torch_version: str):
             fh=fh,
             cache_url=cache_url,
             support_inplace=support_inplace,
+            support_n_ops_label="`torch_to_nnef`",
         )
-        write_operator_support(
-            "ONNX",
-            "builtin PyTorch `ONNX` support based on "
-            f"[this page]({fetcher.onnx_support_url})",
-            aten_torch_from_code,
-            onnx_supported,
-            official_aten_names=official_aten_names,
-            alias_manager=aliases_manager,
-            fh=fh,
-            cache_url=cache_url,
-            support_inplace=support_inplace,
-        )
+        if onnx_supported or onnx_unsupported:
+            write_operator_support(
+                "ONNX",
+                "builtin PyTorch `ONNX` support based on "
+                f"[this page]({fetcher.onnx_support_url})",
+                aten_torch_from_code,
+                onnx_supported,
+                official_aten_names=official_aten_names,
+                alias_manager=aliases_manager,
+                fh=fh,
+                cache_url=cache_url,
+                support_inplace=support_inplace,
+                support_n_ops_label="PyTorch's TorchScript ONNX exporter",
+            )
+        print(FILTER_SCRIPT, file=fh)
     cache_url.save()
 
 

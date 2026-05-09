@@ -7,6 +7,10 @@
   line-height: 1.2rem;
   white-space: nowrap;
   overflow: hidden;
+  /* Bar backgrounds are always light (blue/green/yellow/red on a grey
+     base) regardless of mkdocs-material light/dark scheme, so pin the
+     label colour to black so it stays readable in dark mode too. */
+  color: #000;
 }
 
 .progress-bar {
@@ -72,4 +76,36 @@
 
 [data-md-color-scheme="default"] img[src$="#only-dark"] {
   display: none; /* Hide dark images in light mode */
+}
+
+/* Operator-support page: filter widget styling. The widget is emitted
+   by docs/contributing/generate_support_page.py at the top of each
+   tabbed section; the `<form>` carries the radio group, the surrounding
+   `<div class="op-filter-container">` scopes the rows it controls. */
+.op-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 0.5rem 0 1rem;
+  align-items: center;
+}
+
+.op-filter-form label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.op-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.op-table th,
+.op-table td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
 }
