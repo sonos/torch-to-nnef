@@ -616,3 +616,71 @@ def eye(g, node, name_to_tensor, op_helper, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return ["eye"]
+
+
+@OP_REGISTRY.register()
+def linspace(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:linspace' to a NNEF constant tensor.
+
+    `aten::linspace(start, end, steps, dtype, layout, device,
+    pin_memory)` is fully determined at trace time when `start`, `end`,
+    `steps` are static, which is the common case. Bake the result via
+    `torch.linspace` and register as a constant.
+    """
+    start_node, end_node, steps_node = node.inputs[:3]
+    if not all(
+        isinstance(n, PythonConstant) and isinstance(n.data, (int, float))
+        for n in (start_node, end_node, steps_node)
+    ):
+        raise T2NErrorNotImplemented(
+            "aten::linspace with dynamic start/end/steps not yet supported"
+        )
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.linspace(
+            start_node.data,
+            end_node.data,
+            int(steps_node.data),
+            dtype=out_dtype,
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def hann_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:hann_window' to a NNEF constant tensor.
+
+    Trace-time constant: `aten::hann_window(window_length, periodic,
+    dtype, layout, device, pin_memory)`. `periodic` is read when
+    present (default True per torch).
+    """
+    inputs = node.inputs
+    length_node = inputs[0]
+    if not (
+        isinstance(length_node, PythonConstant)
+        and isinstance(length_node.data, int)
+    ):
+        raise T2NErrorNotImplemented(
+            "aten::hann_window with dynamic length not yet supported"
+        )
+    periodic = True
+    if (
+        len(inputs) >= 2
+        and isinstance(inputs[1], PythonConstant)
+        and isinstance(inputs[1].data, bool)
+    ):
+        periodic = inputs[1].data
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.hann_window(
+            int(length_node.data), periodic=periodic, dtype=out_dtype
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)

@@ -1114,3 +1114,46 @@ def zero(node, op_helper, **kwargs):
         inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
     )
     return ["zero"]
+
+
+@OP_REGISTRY.register()
+def logsumexp(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:logsumexp' to the `logsumexp` fragment.
+
+    PyTorch signature: ``logsumexp(input, dim, keepdim=False)``.
+    The fragment always reduces the named axis (no keepdim); when the
+    user asks for keepdim=True we follow up with an `unsqueeze` on
+    the same axis to reinstate it.
+    """
+    input_node, dim_node, keepdim_node = node.inputs[:3]
+    dim = dim_node.data
+    if isinstance(dim, list):
+        if len(dim) != 1:
+            raise T2NErrorNotImplemented(
+                f"logsumexp over multiple axes not yet supported: {dim}"
+            )
+        dim = dim[0]
+    keepdim = bool(keepdim_node.data)
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if keepdim:
+        reduced = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "logsumexp",
+            inputs=inp_ref,
+            attrs={"axis": dim},
+            output_tensor_name_suffix="_lse",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=reduced,
+            attrs={"axes": [dim]},
+        )
+    else:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "logsumexp",
+            inputs=inp_ref,
+            attrs={"axis": dim},
+        )
+    return ["logsumexp"]

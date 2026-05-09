@@ -642,3 +642,51 @@ def atleast_3d(g, node, name_to_tensor, torch_graph, **kwargs):
         attrs={"axes": axes},
         pass_quantization_params=True,
     )
+
+
+@OP_REGISTRY.register()
+def movedim(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:movedim' to NNEF as `transpose`.
+
+    `movedim(x, src, dst)` repositions the source axis so it ends up
+    at `dst`, sliding the others left/right; the result is a permutation
+    of the input's axes. Builds the explicit `[axes]` list and emits
+    a single transpose.
+    """
+    input_node, src_node, dst_node = node.inputs
+    rank = input_node.rank
+
+    # Normalize possibly-list inputs (movedim accepts int or sequences).
+    raw_src = src_node.data
+    raw_dst = dst_node.data
+    if isinstance(raw_src, int):
+        raw_src = [raw_src]
+    if isinstance(raw_dst, int):
+        raw_dst = [raw_dst]
+    src_axes = [pick_axis(input_node, s) for s in raw_src]
+    dst_axes = [pick_axis(input_node, d) for d in raw_dst]
+    if len(src_axes) != len(dst_axes):
+        raise T2NErrorNotImplemented(
+            f"movedim: src ({src_axes}) and dst ({dst_axes}) lengths differ"
+        )
+
+    # Build the permutation: keep all axes not in `src` in original order,
+    # then insert each src_axes[i] at dst_axes[i].
+    remaining = [a for a in range(rank) if a not in src_axes]
+    perm = list(remaining)
+    for s, d in sorted(
+        zip(src_axes, dst_axes, strict=True), key=lambda p: p[1]
+    ):
+        perm.insert(d, s)
+
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": perm},
+        pass_quantization_params=True,
+    )
