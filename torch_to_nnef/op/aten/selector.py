@@ -823,32 +823,295 @@ def index_select(node, op_helper, inference_target, **kwargs):
     return ["tract_core"]
 
 
+def _emit_scatter_elements(
+    node, op_helper, input_node, dim, indexes_node, src_node, reduction
+):
+    """Common emitter for the scatter family on the TractNNEF path.
+
+    All variants lower to `tract_core_scatter_elements`; the only thing
+    that varies is the `reduction` attribute and which torch overload's
+    inputs we pulled apart upstream.
+    """
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_scatter_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(indexes_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(src_node),
+        ],
+        attrs={"axis": dim, "reduction": reduction},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
 @OP_REGISTRY.register()
 def scatter(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:scatter' to NNEF."""
     input_node, dim_node, indexes_node, src_node = node.inputs
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
-
-    # is a select with indexes
-    op_helper.add_single_output_op_from_nnef_tensors(
+    return _emit_scatter_elements(
         node,
-        "tract_core_scatter_elements",
-        inputs=[
-            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
-            op_helper.get_or_add_tensor_variable_in_nnef(
-                indexes_node,
-            ),
-            op_helper.get_or_add_tensor_variable_in_nnef(
-                src_node,
-            ),
-        ],
-        attrs={
-            "axis": dim_node.data,
-        },
-        force_consistent_inputs_shapes=False,
+        op_helper,
+        input_node,
+        dim_node.data,
+        indexes_node,
+        src_node,
+        reduction="none",
     )
-    return ["tract_core"]
+
+
+_SCATTER_REDUCTION_MIN_TRACT_VERSION = "0.23.0-dev.4"
+
+
+def _check_scatter_reduction_supported(inference_target):
+    """Tract gained the NNEF `reduction` attribute in 0.23.0-dev.4 (#2109).
+
+    Earlier releases (incl. the published 0.22.1) silently ignore the
+    attribute and run the default overwrite path, which silently gives
+    wrong answers. Refuse to emit when targeting an older runtime.
+    """
+    if inference_target.version < _SCATTER_REDUCTION_MIN_TRACT_VERSION:
+        raise T2NErrorNotImplemented(
+            f"scatter with reduction needs tract >= "
+            f"{_SCATTER_REDUCTION_MIN_TRACT_VERSION}; got "
+            f"{inference_target.version}"
+        )
+
+
+@OP_REGISTRY.register()
+def scatter_add(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:scatter_add' to NNEF.
+
+    `scatter_add(input, dim, index, src)` accumulates `src` values into
+    `input` at positions selected by `index` along `dim`. Equivalent to
+    `tract_core_scatter_elements` with `reduction="add"`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    _check_scatter_reduction_supported(inference_target)
+    input_node, dim_node, indexes_node, src_node = node.inputs
+    return _emit_scatter_elements(
+        node,
+        op_helper,
+        input_node,
+        dim_node.data,
+        indexes_node,
+        src_node,
+        reduction="add",
+    )
+
+
+_SCATTER_REDUCE_TORCH_TO_TRACT = {
+    "sum": "add",
+    "prod": "mul",
+    "amax": "max",
+    "amin": "min",
+}
+
+
+@OP_REGISTRY.register()
+def scatter_reduce(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:scatter_reduce' to NNEF.
+
+    Maps torch's reduce mode to tract's `ScatterReduction`. `mean` is
+    not in tract's set ({add, mul, min, max}) so we raise; the same goes
+    for `include_self=False`, since tract always reduces against the
+    pre-existing destination value.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    _check_scatter_reduction_supported(inference_target)
+    (
+        input_node,
+        dim_node,
+        indexes_node,
+        src_node,
+        reduce_node,
+        include_self_node,
+    ) = node.inputs
+    reduce_str = reduce_node.data
+    if reduce_str not in _SCATTER_REDUCE_TORCH_TO_TRACT:
+        raise T2NErrorNotImplemented(
+            f"scatter_reduce: reduce='{reduce_str}' not supported "
+            "(tract has add/mul/min/max only; no mean)"
+        )
+    if include_self_node.data is False:
+        raise T2NErrorNotImplemented(
+            "scatter_reduce: include_self=False not supported by tract"
+        )
+    return _emit_scatter_elements(
+        node,
+        op_helper,
+        input_node,
+        dim_node.data,
+        indexes_node,
+        src_node,
+        reduction=_SCATTER_REDUCE_TORCH_TO_TRACT[reduce_str],
+    )
+
+
+@OP_REGISTRY.register()
+def select_scatter(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:select_scatter' to NNEF.
+
+    `out = input.clone(); out.select(dim, index).copy_(src)` -- the
+    functional select-write. Decomposes to `slice` + `unsqueeze` +
+    `concat`: replace the (size-1) slab at position `index` along `dim`
+    with `src` (which has rank `input.rank - 1`). Static-shape only.
+    """
+    input_node, src_node, dim_node, index_node = node.inputs
+    dim = pick_axis(input_node, dim_node.data)
+    dim_size = input_node.shape[dim]
+    if not isinstance(dim_size, int):
+        raise T2NErrorNotImplemented(
+            f"select_scatter on dynamic dim {dim} not yet supported"
+        )
+
+    index = index_node.data
+    if index < 0:
+        index += dim_size
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    src_unsq = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(src_node),
+        attrs={"axes": [dim]},
+        output_tensor_name_suffix="_ss_src_unsq",
+    )
+
+    parts = []
+    if index > 0:
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=inp_ref,
+                attrs={"axes": [dim], "begin": [0], "end": [index]},
+                output_tensor_name_suffix="_ss_left",
+            )
+        )
+    parts.append(src_unsq)
+    if index + 1 < dim_size:
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=inp_ref,
+                attrs={
+                    "axes": [dim],
+                    "begin": [index + 1],
+                    "end": [dim_size],
+                },
+                output_tensor_name_suffix="_ss_right",
+            )
+        )
+
+    if len(parts) == 1:
+        # Whole-axis replacement (dim_size == 1): src already covers the
+        # full output. Emit a no-op reshape so the output gets named.
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=parts[0],
+            attrs={"shape": list(input_node.shape)},
+        )
+    else:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "concat",
+            inputs=parts,
+            ensure_tuple=False,
+            attrs={"axis": dim},
+            force_consistent_inputs_shapes=False,
+        )
+    return []
+
+
+@OP_REGISTRY.register()
+def slice_scatter(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:slice_scatter' to NNEF.
+
+    `out = input.clone(); out[..., start:end:step, ...] = src` -- the
+    functional slice-write. Decomposes to `slice` + `concat`. `step != 1`
+    is rejected (would need an interleave path). Static-shape only.
+    """
+    (
+        input_node,
+        src_node,
+        dim_node,
+        start_node,
+        end_node,
+        step_node,
+    ) = node.inputs
+    if step_node.data != 1:
+        raise T2NErrorNotImplemented(
+            f"slice_scatter step={step_node.data} (only step=1 supported)"
+        )
+    dim = pick_axis(input_node, dim_node.data)
+    dim_size = input_node.shape[dim]
+    if not isinstance(dim_size, int):
+        raise T2NErrorNotImplemented(
+            f"slice_scatter on dynamic dim {dim} not yet supported"
+        )
+
+    start = start_node.data if start_node.data is not None else 0
+    end = end_node.data if end_node.data is not None else dim_size
+    if start < 0:
+        start += dim_size
+    if end < 0:
+        end += dim_size
+    start = max(start, 0)
+    end = min(end, dim_size)
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    src_ref = op_helper.get_or_add_tensor_variable_in_nnef(src_node)
+
+    parts = []
+    if start > 0:
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=inp_ref,
+                attrs={"axes": [dim], "begin": [0], "end": [start]},
+                output_tensor_name_suffix="_sls_left",
+            )
+        )
+    parts.append(src_ref)
+    if end < dim_size:
+        parts.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=inp_ref,
+                attrs={"axes": [dim], "begin": [end], "end": [dim_size]},
+                output_tensor_name_suffix="_sls_right",
+            )
+        )
+
+    if len(parts) == 1:
+        # Full-axis replacement (start == 0 and end == dim_size). Emit a
+        # no-op reshape so the output node still gets registered.
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=parts[0],
+            attrs={"shape": list(input_node.shape)},
+        )
+    else:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "concat",
+            inputs=parts,
+            ensure_tuple=False,
+            attrs={"axis": dim},
+            force_consistent_inputs_shapes=False,
+        )
+    return []
 
 
 @OP_REGISTRY.register()
