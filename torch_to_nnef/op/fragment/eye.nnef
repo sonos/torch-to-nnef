@@ -1,0 +1,25 @@
+# Identity matrix of shape (n, m), built from runtime index ranges
+# broadcast-compared with `eq`. Works for both static and dynamic
+# `n` / `m`: when either comes from a runtime tensor (e.g. a
+# dynamic-axis sequence length), `tract_core_range` produces a
+# dynamic-extent rank-1 tensor and the broadcast through `eq`
+# propagates correctly. No constant tensor is baked into the graph,
+# so a 1024x1024 mask costs a few primitive ops instead of 4 MB of
+# zeros.
+#
+# Only `tract_core_range` and `tract_core_cast` are non-stdlib; both
+# are core tract extensions shipped with every TractNNEF version we
+# target.
+fragment eye(
+    n: integer,
+    m: integer,
+    to: string = "f32"
+) -> ( y: tensor<scalar> )
+{
+    rows    = tract_core_range(start = 0, end = n, step = 1);
+    cols    = tract_core_range(start = 0, end = m, step = 1);
+    rows_2d = unsqueeze(rows, axes = [1]);
+    cols_2d = unsqueeze(cols, axes = [0]);
+    mask    = eq(rows_2d, cols_2d);
+    y       = tract_core_cast(mask, to = to);
+}

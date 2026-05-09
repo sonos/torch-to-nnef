@@ -4,7 +4,11 @@ import nnef
 import numpy as np
 import torch
 
-from torch_to_nnef.dtypes import NUMPY_DTYPE_TO_STR, SCALAR_TYPE_TO_PYTORCH_TYPE
+from torch_to_nnef.dtypes import (
+    NUMPY_DTYPE_TO_STR,
+    SCALAR_TYPE_TO_PYTORCH_TYPE,
+    TORCH_DTYPE_TO_TRACT_STR,
+)
 from torch_to_nnef.exceptions import T2NErrorNotImplemented, T2NErrorTract
 from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
@@ -556,35 +560,59 @@ def tril(
 
 
 @OP_REGISTRY.register()
-def eye(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:eye' to NNEF as a constant identity matrix.
+def eye(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map PyTorch: 'aten:eye' to NNEF via the `eye` fragment.
 
-    Both ``eye(n)`` and ``eye(n, m)`` overloads are supported; the
-    result is fully determined at trace time so we materialise it as
-    a NNEF constant tensor.
+    Builds the identity at runtime from index ranges + broadcast-eq,
+    so both static `n` (Python int from the trace) and dynamic `n`
+    (a `TensorVariable` produced by e.g. `aten::size`) work without
+    baking an `n*n` constant into the graph. This is critical for
+    attention-mask construction in LLMs where `n = seq_len` is a
+    dynamic axis.
     """
     n_inputs = len(node.inputs)
     if n_inputs == 5:
         # eye(n, dtype, layout, device, pin_memory)
-        n = node.inputs[0].data
-        m = n
+        n_node = node.inputs[0]
+        m_node = node.inputs[0]
     elif n_inputs == 6:
         # eye(n, m, dtype, layout, device, pin_memory)
-        n = node.inputs[0].data
-        m = node.inputs[1].data
+        n_node = node.inputs[0]
+        m_node = node.inputs[1]
     else:
         raise T2NErrorNotImplemented(
             f"aten::eye with {n_inputs} inputs (expected 5 or 6)"
         )
-    if not isinstance(n, int) or not isinstance(m, int):
-        raise T2NErrorNotImplemented(
-            f"aten::eye with non-int dims (n={n}, m={m})"
-        )
+
     onode = node.outputs[0]
     out_dtype = onode.dtype or torch.float32
-    onode.set_data(
-        torch.eye(n, m, dtype=out_dtype),
-        force_dtype=True,
-        force_shape=True,
+    dtype_str = TORCH_DTYPE_TO_TRACT_STR[out_dtype]
+
+    def _to_integer_param(d):
+        """Resolve `n` / `m` for the eye fragment.
+
+        Pass a literal int when known statically, an `Identifier`
+        otherwise so a runtime-computed `n` flows through the fragment
+        to `tract_core_range` and the identity is sized at runtime.
+        """
+        if isinstance(d, PythonConstant) and isinstance(d.data, int):
+            return d.data
+        # Register the runtime tensor in the NNEF graph so the
+        # `Identifier` we hand back resolves to a real wire.
+        op_helper.get_or_add_tensor_variable_in_nnef(d)
+        return nnef.Identifier(d.export_name)
+
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "eye",
+        inputs=[],
+        attrs={
+            "n": _to_integer_param(n_node),
+            "m": _to_integer_param(m_node),
+            # Param renamed away from `dtype` since the NNEF writer
+            # special-cases that attr key as a numpy-dtype lookup.
+            "to": dtype_str,
+        },
+        force_consistent_inputs_shapes=False,
     )
-    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+    return ["eye"]
