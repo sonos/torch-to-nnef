@@ -1,0 +1,8 @@
+# log(sigmoid(x)) in numerically-stable form:
+#   log_sigmoid(x) = min(0, x) - log(1 + exp(-|x|))
+# Avoids overflow / underflow in `exp(-x)` for large |x|.
+fragment log_sigmoid( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    abs_x = abs(x);
+    y     = min(x, 0.0) - log(1.0 + exp(0.0 - abs_x));
+}

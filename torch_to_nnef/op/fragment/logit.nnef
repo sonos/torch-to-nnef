@@ -1,0 +1,12 @@
+# logit(x, eps=0) = log(c / (1 - c)) with c = clamp(x, eps, 1 - eps).
+# `eps == 0` collapses the clamp to the open interval (0, 1) (no-op for
+# values inside that range; values at the endpoints still go to +/-inf
+# by IEEE-754, matching torch.special.logit's eps=None behaviour).
+fragment logit(
+    x:   tensor<scalar>,
+    eps: scalar = 0.0
+) -> ( y: tensor<scalar> )
+{
+    clamped = min(max(x, eps), 1.0 - eps);
+    y       = log(clamped / (1.0 - clamped));
+}

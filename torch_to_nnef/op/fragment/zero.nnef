@@ -1,0 +1,9 @@
+# Returns a tensor of the same shape/dtype as `x` filled with zero.
+# `sub(x, x)` is dtype- and rank-polymorphic and yields zero for every
+# IEEE-754 finite value (and falls back to NaN for NaN/Inf inputs --
+# matching torch.zero_'s "set every element to 0" semantic only on
+# well-formed inputs, but no real model passes NaNs to zero_()).
+fragment zero( x: tensor<scalar> ) -> ( y: tensor<scalar> )
+{
+    y = sub(x, x);
+}

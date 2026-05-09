@@ -1,0 +1,10 @@
+# CELU(x, alpha) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1)).
+fragment celu(
+    x:     tensor<scalar>,
+    alpha: scalar = 1.0
+) -> ( y: tensor<scalar> )
+{
+    pos_part = max(x, 0.0);
+    neg_part = min(0.0, alpha * (exp(x / alpha) - 1.0));
+    y        = pos_part + neg_part;
+}

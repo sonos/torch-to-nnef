@@ -1,13 +1,17 @@
 # Cosine similarity along `axis`, matching torch.cosine_similarity:
-#   sum(a * b, axis) / max(eps, sqrt(sum(a*a, axis) * sum(b*b, axis)))
+#   y = sum(a * b, axis) / (max(eps, |a|) * max(eps, |b|))
+#
+# `eps` clamps each per-side norm independently (the torch
+# convention), not the product. Clamping `|a|*|b|` instead silently
+# diverges from torch when either norm is tiny, e.g. `|b| ~ 1e-8`
+# with `|a| ~ 0.4` (product `~ 4e-9` falls below `eps = 1e-8` and
+# the wrong-formula answer is half the correct one).
 #
 # NNEF sum_reduce keeps the reduced axis as size-1, so each reduction
-# is paired with `squeeze` to drop it (matches torch which removes the
-# reduced dim).
+# is paired with `squeeze` to drop it (matches torch which removes
+# the reduced dim).
 #
-# Pure NNEF stdlib (mul, sum_reduce, squeeze, sqrt, max, div); the
-# NNEF reader inlines this fragment to those primitives, so tract
-# sees no new op.
+# Pure NNEF stdlib (mul, sum_reduce, squeeze, sqrt, max, div).
 fragment cosine_similarity( a: tensor<scalar>, b: tensor<scalar>, axis: integer, eps: scalar = 1e-8 ) -> ( y: tensor<scalar> )
 {
     ab       = mul(a, b);
@@ -16,6 +20,7 @@ fragment cosine_similarity( a: tensor<scalar>, b: tensor<scalar>, axis: integer,
     dot      = squeeze(sum_reduce(ab, axes = [axis]), axes = [axis]);
     norma_sq = squeeze(sum_reduce(aa, axes = [axis]), axes = [axis]);
     normb_sq = squeeze(sum_reduce(bb, axes = [axis]), axes = [axis]);
-    denom    = sqrt(norma_sq * normb_sq);
-    y        = dot / max(denom, eps);
+    norma    = max(sqrt(norma_sq), eps);
+    normb    = max(sqrt(normb_sq), eps);
+    y        = dot / (norma * normb);
 }

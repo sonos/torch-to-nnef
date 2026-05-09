@@ -1,0 +1,9 @@
+# isfinite(x) via the IEEE-754 invariant `(x - x) == 0`:
+#   finite x:  x - x == 0       -> True
+#   +/-inf:    inf - inf == nan -> nan == 0  is False
+#   nan:       nan - nan == nan -> nan == 0  is False
+# Pure NNEF stdlib (sub + eq), no `tract_core_is_*` extension needed.
+fragment isfinite( x: tensor<scalar> ) -> ( y: tensor<logical> )
+{
+    y = eq(sub(x, x), 0.0);
+}

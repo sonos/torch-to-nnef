@@ -1,0 +1,8 @@
+# Hard shrinkage: hardshrink(x, lambda) = where(|x| > lambda, x, 0).
+fragment hardshrink(
+    x:     tensor<scalar>,
+    lambd: scalar = 0.5
+) -> ( y: tensor<scalar> )
+{
+    y = select(gt(abs(x), lambd), x, 0.0);
+}

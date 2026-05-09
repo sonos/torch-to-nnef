@@ -991,3 +991,126 @@ def bitwise_or(node, op_helper, inference_target, **kwargs):
         nnef_op_type="tract_core_bitor", node=node
     )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def addcmul(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:addcmul' to the `addcmul` fragment."""
+    out_node, x_node, y_node, value_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "addcmul",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(out_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(x_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(y_node),
+        ],
+        attrs={"value": float(value_node.data)},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["addcmul"]
+
+
+@OP_REGISTRY.register()
+def lerp(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:lerp' to the `lerp` fragment."""
+    start_node, end_node, weight_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "lerp",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(start_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(end_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(weight_node),
+        ],
+        force_consistent_inputs_shapes=False,
+    )
+    return ["lerp"]
+
+
+@OP_REGISTRY.register()
+def logit(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:logit' to the `logit` fragment."""
+    x_node = node.inputs[0]
+    eps_val = 0.0
+    if len(node.inputs) > 1 and node.inputs[1].data is not None:
+        eps_val = float(node.inputs[1].data)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "logit",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(x_node),
+        attrs={"eps": eps_val},
+    )
+    return ["logit"]
+
+
+@OP_REGISTRY.register()
+def log_sigmoid(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:log_sigmoid' to the `log_sigmoid` fragment."""
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "log_sigmoid",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
+    )
+    return ["log_sigmoid"]
+
+
+@OP_REGISTRY.register()
+def isfinite(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:isfinite' to the `isfinite` fragment."""
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "isfinite",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
+    )
+    return ["isfinite"]
+
+
+@OP_REGISTRY.register()
+def hardshrink(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:hardshrink' to the `hardshrink` fragment."""
+    x_node, lambd_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "hardshrink",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(x_node),
+        attrs={"lambd": float(lambd_node.data)},
+    )
+    return ["hardshrink"]
+
+
+@OP_REGISTRY.register()
+def softshrink(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:softshrink' to the `softshrink` fragment."""
+    x_node, lambd_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "softshrink",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(x_node),
+        attrs={"lambd": float(lambd_node.data)},
+    )
+    return ["softshrink"]
+
+
+@OP_REGISTRY.register()
+def celu(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:celu' to the `celu` fragment."""
+    x_node, alpha_node = node.inputs
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "celu",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(x_node),
+        attrs={"alpha": float(alpha_node.data)},
+    )
+    return ["celu"]
+
+
+@OP_REGISTRY.register()
+def zero(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:zero' (and ``zero_``) to the `zero` fragment."""
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "zero",
+        inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
+    )
+    return ["zero"]
