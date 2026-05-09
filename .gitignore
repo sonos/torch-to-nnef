@@ -125,6 +125,7 @@ graph.nnef
 *.dat
 *.json
 !packages/nemo-asr/torch_to_nnef_nemo/slug_fingerprints.json
+!docs/contributing/torch_*_doc_urls.json
 *.out
 
 # scratch / local model dumps / bug-repro bundles

@@ -1,11 +1,11 @@
 !!! note
-    This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'2.7'**. file was generated the **09 Jan 2026**.
+    This table and page are auto generated from 'a script' that dig into PyTorch. Version targetted is:  **'2.8'**. file was generated the **09 May 2026**.
 
 !!! warning
      Take these informations with a grain of salt as this is referencing operators that may never appear in torch IR graph traced by `torch_to_nnef` (because remapped to others more generic). Also some  uncommon operators are very rare in models, hence support may be lacking.  **SONOS only maintains operators 'per need basis'**, but contributions are always wecome [see how](./add_new_aten_op.md).
 
 
- 'is core' column refers to this [PyTorch IR documentation page](https://docs.pytorch.org/docs/2.7/torch.compiler_ir.html)
+ 'is core' column refers to this [PyTorch IR documentation page](https://docs.pytorch.org/docs/2.8/torch.compiler_ir.html)
 
 We filter-out from from observed operators 'backward' and 'sym' one's which are unwanted in inference engine. Also in place operations are merged with memory allocated activations as this is inference implementation detail.
 === "TractNNEF"
@@ -15,263 +15,265 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
 
     - core PyTorch opset:
 
-    [=116/137 "116/137"]
+    [=126/138 "126/138"]
 
     -  and support from full `aten::`: 
 
-    [=192/862 "192/862"]
+    [=210/859 "210/859"]
 
-     (total registered aten operators in t2n being 223)
+     (total registered aten operators in t2n being 242)
 
     | aten name | aliases | can in-place | is core | translated |
     | -------- | ------- | ------- | --------- | ---------------- |
-    | [abs](https://docs.pytorch.org/docs/2.7/generated/torch.abs.html) | absolute | ✅ | ✅ | ✅ |
-    | [acos](https://docs.pytorch.org/docs/2.7/generated/torch.acos.html) | arccos | ✅ | ✅ | ✅ |
-    | [acosh](https://docs.pytorch.org/docs/2.7/generated/torch.acosh.html) | arccosh | ✅ | ✅ | ✅ |
-    | [adaptive_avg_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool1d.html) |  | ❌ | ✅ | ✅ |
-    | [add](https://docs.pytorch.org/docs/2.7/generated/torch.add.html) |  | ✅ | ✅ | ✅ |
-    | [addmm](https://docs.pytorch.org/docs/2.7/generated/torch.addmm.html) |  | ✅ | ✅ | ✅ |
+    | [abs](https://docs.pytorch.org/docs/2.8/generated/torch.abs.html) | absolute | ✅ | ✅ | ✅ |
+    | [acos](https://docs.pytorch.org/docs/2.8/generated/torch.acos.html) | arccos | ✅ | ✅ | ✅ |
+    | [acosh](https://docs.pytorch.org/docs/2.8/generated/torch.acosh.html) | arccosh | ✅ | ✅ | ✅ |
+    | [adaptive_avg_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool1d.html) |  | ❌ | ✅ | ✅ |
+    | [add](https://docs.pytorch.org/docs/2.8/generated/torch.add.html) |  | ✅ | ✅ | ✅ |
+    | [addmm](https://docs.pytorch.org/docs/2.8/generated/torch.addmm.html) |  | ✅ | ✅ | ✅ |
     | alias |  | ❌ | ✅ | ✅ |
-    | [amax](https://docs.pytorch.org/docs/2.7/generated/torch.amax.html) |  | ❌ | ✅ | ✅ |
-    | [amin](https://docs.pytorch.org/docs/2.7/generated/torch.amin.html) |  | ❌ | ✅ | ✅ |
-    | [any](https://docs.pytorch.org/docs/2.7/generated/torch.any.html) |  | ❌ | ✅ | ✅ |
-    | [arange](https://docs.pytorch.org/docs/2.7/generated/torch.arange.html) |  | ❌ | ✅ | ✅ |
-    | [argmax](https://docs.pytorch.org/docs/2.7/generated/torch.argmax.html) |  | ❌ | ✅ | ✅ |
-    | [argmin](https://docs.pytorch.org/docs/2.7/generated/torch.argmin.html) |  | ❌ | ✅ | ✅ |
-    | [as_strided](https://docs.pytorch.org/docs/2.7/generated/torch.as_strided.html) |  | ✅ | ✅ | ❌ |
-    | [asin](https://docs.pytorch.org/docs/2.7/generated/torch.asin.html) | arcsin | ✅ | ✅ | ✅ |
-    | [asinh](https://docs.pytorch.org/docs/2.7/generated/torch.asinh.html) | arcsinh | ✅ | ✅ | ✅ |
-    | [atan](https://docs.pytorch.org/docs/2.7/generated/torch.atan.html) | arctan | ✅ | ✅ | ✅ |
-    | [atan2](https://docs.pytorch.org/docs/2.7/generated/torch.atan2.html) | arctan2 | ✅ | ✅ | ✅ |
-    | [atanh](https://docs.pytorch.org/docs/2.7/generated/torch.atanh.html) | arctanh | ✅ | ✅ | ✅ |
-    | [avg_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool1d.html) |  | ❌ | ✅ | ✅ |
-    | [avg_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool2d.html) |  | ❌ | ✅ | ✅ |
-    | [avg_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool3d.html) |  | ❌ | ✅ | ✅ |
-    | [bitwise_and](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_and.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_not](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_not.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_or](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_or.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_xor](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_xor.html) |  | ✅ | ✅ | ✅ |
-    | [bmm](https://docs.pytorch.org/docs/2.7/generated/torch.bmm.html) |  | ❌ | ✅ | ✅ |
-    | [cat](https://docs.pytorch.org/docs/2.7/generated/torch.cat.html) | concat, concatenate | ❌ | ✅ | ✅ |
-    | [ceil](https://docs.pytorch.org/docs/2.7/generated/torch.ceil.html) |  | ✅ | ✅ | ✅ |
-    | [clamp](https://docs.pytorch.org/docs/2.7/generated/torch.clamp.html) | clip | ✅ | ✅ | ✅ |
-    | [clone](https://docs.pytorch.org/docs/2.7/generated/torch.clone.html) |  | ❌ | ✅ | ✅ |
+    | [amax](https://docs.pytorch.org/docs/2.8/generated/torch.amax.html) |  | ❌ | ✅ | ✅ |
+    | [amin](https://docs.pytorch.org/docs/2.8/generated/torch.amin.html) |  | ❌ | ✅ | ✅ |
+    | [any](https://docs.pytorch.org/docs/2.8/generated/torch.any.html) |  | ❌ | ✅ | ✅ |
+    | [arange](https://docs.pytorch.org/docs/2.8/generated/torch.arange.html) |  | ❌ | ✅ | ✅ |
+    | [argmax](https://docs.pytorch.org/docs/2.8/generated/torch.argmax.html) |  | ❌ | ✅ | ✅ |
+    | [argmin](https://docs.pytorch.org/docs/2.8/generated/torch.argmin.html) |  | ❌ | ✅ | ✅ |
+    | [as_strided](https://docs.pytorch.org/docs/2.8/generated/torch.as_strided.html) |  | ✅ | ✅ | ❌ |
+    | [asin](https://docs.pytorch.org/docs/2.8/generated/torch.asin.html) | arcsin | ✅ | ✅ | ✅ |
+    | [asinh](https://docs.pytorch.org/docs/2.8/generated/torch.asinh.html) | arcsinh | ✅ | ✅ | ✅ |
+    | [atan](https://docs.pytorch.org/docs/2.8/generated/torch.atan.html) | arctan | ✅ | ✅ | ✅ |
+    | [atan2](https://docs.pytorch.org/docs/2.8/generated/torch.atan2.html) | arctan2 | ✅ | ✅ | ✅ |
+    | [atanh](https://docs.pytorch.org/docs/2.8/generated/torch.atanh.html) | arctanh | ✅ | ✅ | ✅ |
+    | [avg_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool1d.html) |  | ❌ | ✅ | ✅ |
+    | [avg_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool2d.html) |  | ❌ | ✅ | ✅ |
+    | [avg_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool3d.html) |  | ❌ | ✅ | ✅ |
+    | [bitwise_and](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_and.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_not](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_not.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_or](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_or.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_xor](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_xor.html) |  | ✅ | ✅ | ✅ |
+    | [bmm](https://docs.pytorch.org/docs/2.8/generated/torch.bmm.html) |  | ❌ | ✅ | ✅ |
+    | [cat](https://docs.pytorch.org/docs/2.8/generated/torch.cat.html) | concat, concatenate | ❌ | ✅ | ✅ |
+    | [ceil](https://docs.pytorch.org/docs/2.8/generated/torch.ceil.html) |  | ✅ | ✅ | ✅ |
+    | [clamp](https://docs.pytorch.org/docs/2.8/generated/torch.clamp.html) | clip | ✅ | ✅ | ✅ |
+    | [clone](https://docs.pytorch.org/docs/2.8/generated/torch.clone.html) |  | ❌ | ✅ | ✅ |
     | col2im |  | ❌ | ✅ | ❌ |
     | constant_pad_nd |  | ❌ | ✅ | ✅ |
     | convolution |  | ❌ | ✅ | ✅ |
     | copy |  | ✅ | ✅ | ✅ |
-    | [cos](https://docs.pytorch.org/docs/2.7/generated/torch.cos.html) |  | ✅ | ✅ | ✅ |
-    | [cosh](https://docs.pytorch.org/docs/2.7/generated/torch.cosh.html) |  | ✅ | ✅ | ✅ |
-    | [cumsum](https://docs.pytorch.org/docs/2.7/generated/torch.cumsum.html) |  | ✅ | ✅ | ❌ |
-    | [diagonal](https://docs.pytorch.org/docs/2.7/generated/torch.diagonal.html) |  | ❌ | ✅ | ❌ |
-    | [div](https://docs.pytorch.org/docs/2.7/generated/torch.div.html) | divide, true_divide | ✅ | ✅ | ✅ |
-    | [embedding](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.embedding.html) |  | ❌ | ✅ | ✅ |
-    | [empty](https://docs.pytorch.org/docs/2.7/generated/torch.empty.html) |  | ❌ | ✅ | ❌ |
-    | [empty_strided](https://docs.pytorch.org/docs/2.7/generated/torch.empty_strided.html) |  | ❌ | ✅ | ❌ |
-    | [eq](https://docs.pytorch.org/docs/2.7/generated/torch.eq.html) |  | ✅ | ✅ | ✅ |
-    | [erf](https://docs.pytorch.org/docs/2.7/generated/torch.erf.html) | special_erf | ✅ | ✅ | ✅ |
-    | [exp](https://docs.pytorch.org/docs/2.7/generated/torch.exp.html) |  | ✅ | ✅ | ✅ |
-    | expand |  | ❌ | ✅ | ✅ |
-    | [expm1](https://docs.pytorch.org/docs/2.7/generated/torch.expm1.html) | special_expm1 | ✅ | ✅ | ✅ |
+    | [cos](https://docs.pytorch.org/docs/2.8/generated/torch.cos.html) |  | ✅ | ✅ | ✅ |
+    | [cosh](https://docs.pytorch.org/docs/2.8/generated/torch.cosh.html) |  | ✅ | ✅ | ✅ |
+    | [cumsum](https://docs.pytorch.org/docs/2.8/generated/torch.cumsum.html) |  | ✅ | ✅ | ✅ |
+    | [diagonal](https://docs.pytorch.org/docs/2.8/generated/torch.diagonal.html) |  | ❌ | ✅ | ✅ |
+    | [div](https://docs.pytorch.org/docs/2.8/generated/torch.div.html) | divide, true_divide | ✅ | ✅ | ✅ |
+    | [elu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.elu.html) |  | ✅ | ✅ | ✅ |
+    | [embedding](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.embedding.html) |  | ❌ | ✅ | ✅ |
+    | [empty](https://docs.pytorch.org/docs/2.8/generated/torch.empty.html) |  | ❌ | ✅ | ❌ |
+    | [empty_strided](https://docs.pytorch.org/docs/2.8/generated/torch.empty_strided.html) |  | ❌ | ✅ | ❌ |
+    | [eq](https://docs.pytorch.org/docs/2.8/generated/torch.eq.html) |  | ✅ | ✅ | ✅ |
+    | [erf](https://docs.pytorch.org/docs/2.8/generated/torch.erf.html) | special_erf | ✅ | ✅ | ✅ |
+    | [exp](https://docs.pytorch.org/docs/2.8/generated/torch.exp.html) |  | ✅ | ✅ | ✅ |
+    | [expand](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.expand.html) |  | ❌ | ✅ | ✅ |
+    | [expm1](https://docs.pytorch.org/docs/2.8/generated/torch.expm1.html) | special_expm1 | ✅ | ✅ | ✅ |
     | fill |  | ✅ | ✅ | ✅ |
-    | [flip](https://docs.pytorch.org/docs/2.7/generated/torch.flip.html) |  | ❌ | ✅ | ❌ |
-    | [floor](https://docs.pytorch.org/docs/2.7/generated/torch.floor.html) |  | ✅ | ✅ | ✅ |
-    | [fmod](https://docs.pytorch.org/docs/2.7/generated/torch.fmod.html) |  | ✅ | ✅ | ✅ |
-    | [full](https://docs.pytorch.org/docs/2.7/generated/torch.full.html) |  | ❌ | ✅ | ✅ |
-    | [full_like](https://docs.pytorch.org/docs/2.7/generated/torch.full_like.html) |  | ❌ | ✅ | ✅ |
-    | [gather](https://docs.pytorch.org/docs/2.7/generated/torch.gather.html) |  | ❌ | ✅ | ✅ |
-    | [ge](https://docs.pytorch.org/docs/2.7/generated/torch.ge.html) | greater_equal | ✅ | ✅ | ✅ |
-    | [gelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.gelu.html) |  | ✅ | ✅ | ✅ |
+    | [flip](https://docs.pytorch.org/docs/2.8/generated/torch.flip.html) |  | ❌ | ✅ | ✅ |
+    | [floor](https://docs.pytorch.org/docs/2.8/generated/torch.floor.html) |  | ✅ | ✅ | ✅ |
+    | [fmod](https://docs.pytorch.org/docs/2.8/generated/torch.fmod.html) |  | ✅ | ✅ | ✅ |
+    | [full](https://docs.pytorch.org/docs/2.8/generated/torch.full.html) |  | ❌ | ✅ | ✅ |
+    | [full_like](https://docs.pytorch.org/docs/2.8/generated/torch.full_like.html) |  | ❌ | ✅ | ✅ |
+    | [gather](https://docs.pytorch.org/docs/2.8/generated/torch.gather.html) |  | ❌ | ✅ | ✅ |
+    | [ge](https://docs.pytorch.org/docs/2.8/generated/torch.ge.html) | greater_equal | ✅ | ✅ | ✅ |
+    | [gelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.gelu.html) |  | ✅ | ✅ | ✅ |
     | grid_sampler_2d |  | ❌ | ✅ | ❌ |
-    | [gt](https://docs.pytorch.org/docs/2.7/generated/torch.gt.html) | greater | ✅ | ✅ | ✅ |
-    | [hardtanh](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardtanh.html) |  | ✅ | ✅ | ✅ |
+    | [gt](https://docs.pytorch.org/docs/2.8/generated/torch.gt.html) | greater | ✅ | ✅ | ✅ |
+    | [hardtanh](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardtanh.html) |  | ✅ | ✅ | ✅ |
     | index |  | ❌ | ✅ | ✅ |
-    | index_put |  | ✅ | ✅ | ❌ |
-    | [index_select](https://docs.pytorch.org/docs/2.7/generated/torch.index_select.html) |  | ❌ | ✅ | ✅ |
-    | [isinf](https://docs.pytorch.org/docs/2.7/generated/torch.isinf.html) |  | ❌ | ✅ | ✅ |
-    | [isnan](https://docs.pytorch.org/docs/2.7/generated/torch.isnan.html) |  | ❌ | ✅ | ✅ |
-    | [le](https://docs.pytorch.org/docs/2.7/generated/torch.le.html) | less_equal | ✅ | ✅ | ✅ |
-    | [leaky_relu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.leaky_relu.html) |  | ✅ | ✅ | ✅ |
-    | [log](https://docs.pytorch.org/docs/2.7/generated/torch.log.html) |  | ✅ | ✅ | ✅ |
-    | [log10](https://docs.pytorch.org/docs/2.7/generated/torch.log10.html) |  | ✅ | ✅ | ✅ |
-    | [log1p](https://docs.pytorch.org/docs/2.7/generated/torch.log1p.html) | special_log1p | ✅ | ✅ | ✅ |
-    | [log2](https://docs.pytorch.org/docs/2.7/generated/torch.log2.html) |  | ✅ | ✅ | ✅ |
-    | [logical_and](https://docs.pytorch.org/docs/2.7/generated/torch.logical_and.html) |  | ✅ | ✅ | ✅ |
-    | [logical_not](https://docs.pytorch.org/docs/2.7/generated/torch.logical_not.html) |  | ✅ | ✅ | ✅ |
-    | [logical_or](https://docs.pytorch.org/docs/2.7/generated/torch.logical_or.html) |  | ✅ | ✅ | ✅ |
-    | [logical_xor](https://docs.pytorch.org/docs/2.7/generated/torch.logical_xor.html) |  | ✅ | ✅ | ✅ |
-    | [lt](https://docs.pytorch.org/docs/2.7/generated/torch.lt.html) | less | ✅ | ✅ | ✅ |
-    | masked_scatter |  | ✅ | ✅ | ❌ |
-    | [max](https://docs.pytorch.org/docs/2.7/generated/torch.max.html) |  | ❌ | ✅ | ✅ |
-    | max_pool2d_with_indices |  | ❌ | ✅ | ❌ |
-    | max_pool3d_with_indices |  | ❌ | ✅ | ❌ |
-    | [maximum](https://docs.pytorch.org/docs/2.7/generated/torch.maximum.html) |  | ❌ | ✅ | ✅ |
-    | [mean](https://docs.pytorch.org/docs/2.7/generated/torch.mean.html) |  | ❌ | ✅ | ✅ |
-    | [min](https://docs.pytorch.org/docs/2.7/generated/torch.min.html) |  | ❌ | ✅ | ✅ |
-    | [minimum](https://docs.pytorch.org/docs/2.7/generated/torch.minimum.html) |  | ❌ | ✅ | ✅ |
-    | [mm](https://docs.pytorch.org/docs/2.7/generated/torch.mm.html) |  | ❌ | ✅ | ✅ |
-    | [mul](https://docs.pytorch.org/docs/2.7/generated/torch.mul.html) | multiply | ✅ | ✅ | ✅ |
+    | [index_put](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.index_put.html) |  | ✅ | ✅ | ❌ |
+    | [index_select](https://docs.pytorch.org/docs/2.8/generated/torch.index_select.html) |  | ❌ | ✅ | ✅ |
+    | [isinf](https://docs.pytorch.org/docs/2.8/generated/torch.isinf.html) |  | ❌ | ✅ | ✅ |
+    | [isnan](https://docs.pytorch.org/docs/2.8/generated/torch.isnan.html) |  | ❌ | ✅ | ✅ |
+    | [le](https://docs.pytorch.org/docs/2.8/generated/torch.le.html) | less_equal | ✅ | ✅ | ✅ |
+    | [leaky_relu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.leaky_relu.html) |  | ✅ | ✅ | ✅ |
+    | [log](https://docs.pytorch.org/docs/2.8/generated/torch.log.html) |  | ✅ | ✅ | ✅ |
+    | [log10](https://docs.pytorch.org/docs/2.8/generated/torch.log10.html) |  | ✅ | ✅ | ✅ |
+    | [log1p](https://docs.pytorch.org/docs/2.8/generated/torch.log1p.html) | special_log1p | ✅ | ✅ | ✅ |
+    | [log2](https://docs.pytorch.org/docs/2.8/generated/torch.log2.html) |  | ✅ | ✅ | ✅ |
+    | [logical_and](https://docs.pytorch.org/docs/2.8/generated/torch.logical_and.html) |  | ✅ | ✅ | ✅ |
+    | [logical_not](https://docs.pytorch.org/docs/2.8/generated/torch.logical_not.html) |  | ✅ | ✅ | ✅ |
+    | [logical_or](https://docs.pytorch.org/docs/2.8/generated/torch.logical_or.html) |  | ✅ | ✅ | ✅ |
+    | [logical_xor](https://docs.pytorch.org/docs/2.8/generated/torch.logical_xor.html) |  | ✅ | ✅ | ✅ |
+    | [lt](https://docs.pytorch.org/docs/2.8/generated/torch.lt.html) | less | ✅ | ✅ | ✅ |
+    | [masked_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.masked_scatter.html) |  | ✅ | ✅ | ❌ |
+    | [max](https://docs.pytorch.org/docs/2.8/generated/torch.max.html) |  | ❌ | ✅ | ✅ |
+    | max_pool2d_with_indices |  | ❌ | ✅ | ✅ |
+    | max_pool3d_with_indices |  | ❌ | ✅ | ✅ |
+    | [maximum](https://docs.pytorch.org/docs/2.8/generated/torch.maximum.html) |  | ❌ | ✅ | ✅ |
+    | [mean](https://docs.pytorch.org/docs/2.8/generated/torch.mean.html) |  | ❌ | ✅ | ✅ |
+    | [min](https://docs.pytorch.org/docs/2.8/generated/torch.min.html) |  | ❌ | ✅ | ✅ |
+    | [minimum](https://docs.pytorch.org/docs/2.8/generated/torch.minimum.html) |  | ❌ | ✅ | ✅ |
+    | [mm](https://docs.pytorch.org/docs/2.8/generated/torch.mm.html) |  | ❌ | ✅ | ✅ |
+    | [mul](https://docs.pytorch.org/docs/2.8/generated/torch.mul.html) | multiply | ✅ | ✅ | ✅ |
     | native_dropout |  | ❌ | ✅ | ✅ |
     | native_group_norm |  | ❌ | ✅ | ✅ |
     | native_layer_norm |  | ❌ | ✅ | ✅ |
-    | [ne](https://docs.pytorch.org/docs/2.7/generated/torch.ne.html) | not_equal | ✅ | ✅ | ✅ |
-    | [neg](https://docs.pytorch.org/docs/2.7/generated/torch.neg.html) | negative | ✅ | ✅ | ✅ |
-    | [nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.nonzero.html) |  | ❌ | ✅ | ❌ |
-    | [permute](https://docs.pytorch.org/docs/2.7/generated/torch.permute.html) |  | ❌ | ✅ | ✅ |
-    | [pow](https://docs.pytorch.org/docs/2.7/generated/torch.pow.html) |  | ✅ | ✅ | ✅ |
-    | [prod](https://docs.pytorch.org/docs/2.7/generated/torch.prod.html) |  | ❌ | ✅ | ✅ |
-    | [rand](https://docs.pytorch.org/docs/2.7/generated/torch.rand.html) |  | ❌ | ✅ | ❌ |
-    | [randn](https://docs.pytorch.org/docs/2.7/generated/torch.randn.html) |  | ❌ | ✅ | ❌ |
-    | [randperm](https://docs.pytorch.org/docs/2.7/generated/torch.randperm.html) |  | ❌ | ✅ | ❌ |
-    | [reciprocal](https://docs.pytorch.org/docs/2.7/generated/torch.reciprocal.html) |  | ✅ | ✅ | ✅ |
+    | [ne](https://docs.pytorch.org/docs/2.8/generated/torch.ne.html) | not_equal | ✅ | ✅ | ✅ |
+    | [neg](https://docs.pytorch.org/docs/2.8/generated/torch.neg.html) | negative | ✅ | ✅ | ✅ |
+    | [nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.nonzero.html) |  | ❌ | ✅ | ❌ |
+    | [permute](https://docs.pytorch.org/docs/2.8/generated/torch.permute.html) |  | ❌ | ✅ | ✅ |
+    | [pow](https://docs.pytorch.org/docs/2.8/generated/torch.pow.html) |  | ✅ | ✅ | ✅ |
+    | [prod](https://docs.pytorch.org/docs/2.8/generated/torch.prod.html) |  | ❌ | ✅ | ✅ |
+    | [rand](https://docs.pytorch.org/docs/2.8/generated/torch.rand.html) |  | ❌ | ✅ | ❌ |
+    | [randn](https://docs.pytorch.org/docs/2.8/generated/torch.randn.html) |  | ❌ | ✅ | ❌ |
+    | [randperm](https://docs.pytorch.org/docs/2.8/generated/torch.randperm.html) |  | ❌ | ✅ | ❌ |
+    | [reciprocal](https://docs.pytorch.org/docs/2.8/generated/torch.reciprocal.html) |  | ✅ | ✅ | ✅ |
     | reflection_pad1d |  | ❌ | ✅ | ✅ |
     | reflection_pad2d |  | ❌ | ✅ | ✅ |
     | reflection_pad3d |  | ❌ | ✅ | ✅ |
-    | [relu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.relu.html) |  | ✅ | ✅ | ✅ |
-    | [remainder](https://docs.pytorch.org/docs/2.7/generated/torch.remainder.html) |  | ✅ | ✅ | ✅ |
-    | repeat |  | ❌ | ✅ | ✅ |
+    | [relu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.relu.html) |  | ✅ | ✅ | ✅ |
+    | [remainder](https://docs.pytorch.org/docs/2.8/generated/torch.remainder.html) |  | ✅ | ✅ | ✅ |
+    | [repeat](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.repeat.html) |  | ❌ | ✅ | ✅ |
     | replication_pad2d |  | ❌ | ✅ | ✅ |
     | replication_pad3d |  | ❌ | ✅ | ✅ |
-    | [round](https://docs.pytorch.org/docs/2.7/generated/torch.round.html) | special_round | ✅ | ✅ | ✅ |
-    | [rsqrt](https://docs.pytorch.org/docs/2.7/generated/torch.rsqrt.html) |  | ✅ | ✅ | ✅ |
+    | [round](https://docs.pytorch.org/docs/2.8/generated/torch.round.html) | special_round | ✅ | ✅ | ✅ |
+    | [rsqrt](https://docs.pytorch.org/docs/2.8/generated/torch.rsqrt.html) |  | ✅ | ✅ | ✅ |
     | scalar_tensor |  | ❌ | ✅ | ✅ |
-    | [scatter](https://docs.pytorch.org/docs/2.7/generated/torch.scatter.html) |  | ✅ | ✅ | ✅ |
-    | [scatter_add](https://docs.pytorch.org/docs/2.7/generated/torch.scatter_add.html) |  | ✅ | ✅ | ❌ |
-    | [scatter_reduce](https://docs.pytorch.org/docs/2.7/generated/torch.scatter_reduce.html) |  | ✅ | ✅ | ❌ |
-    | [select](https://docs.pytorch.org/docs/2.7/generated/torch.select.html) |  | ❌ | ✅ | ✅ |
-    | [select_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.select_scatter.html) |  | ❌ | ✅ | ❌ |
-    | [sigmoid](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.sigmoid.html) | special_expit | ✅ | ✅ | ✅ |
-    | [sign](https://docs.pytorch.org/docs/2.7/generated/torch.sign.html) |  | ✅ | ✅ | ✅ |
-    | [sin](https://docs.pytorch.org/docs/2.7/generated/torch.sin.html) |  | ✅ | ✅ | ✅ |
-    | [sinh](https://docs.pytorch.org/docs/2.7/generated/torch.sinh.html) |  | ✅ | ✅ | ✅ |
+    | [scatter](https://docs.pytorch.org/docs/2.8/generated/torch.scatter.html) |  | ✅ | ✅ | ✅ |
+    | [scatter_add](https://docs.pytorch.org/docs/2.8/generated/torch.scatter_add.html) |  | ✅ | ✅ | ✅ |
+    | [scatter_reduce](https://docs.pytorch.org/docs/2.8/generated/torch.scatter_reduce.html) |  | ✅ | ✅ | ✅ |
+    | [select](https://docs.pytorch.org/docs/2.8/generated/torch.select.html) |  | ❌ | ✅ | ✅ |
+    | [select_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.select_scatter.html) |  | ❌ | ✅ | ✅ |
+    | [sigmoid](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.sigmoid.html) | special_expit | ✅ | ✅ | ✅ |
+    | [sign](https://docs.pytorch.org/docs/2.8/generated/torch.sign.html) |  | ✅ | ✅ | ✅ |
+    | [sin](https://docs.pytorch.org/docs/2.8/generated/torch.sin.html) |  | ✅ | ✅ | ✅ |
+    | [sinh](https://docs.pytorch.org/docs/2.8/generated/torch.sinh.html) |  | ✅ | ✅ | ✅ |
     | slice |  | ❌ | ✅ | ✅ |
-    | [slice_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.slice_scatter.html) |  | ❌ | ✅ | ❌ |
-    | [sort](https://docs.pytorch.org/docs/2.7/generated/torch.sort.html) |  | ❌ | ✅ | ✅ |
+    | [slice_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.slice_scatter.html) |  | ❌ | ✅ | ✅ |
+    | [sort](https://docs.pytorch.org/docs/2.8/generated/torch.sort.html) |  | ❌ | ✅ | ✅ |
     | split_with_sizes |  | ❌ | ✅ | ✅ |
-    | [sqrt](https://docs.pytorch.org/docs/2.7/generated/torch.sqrt.html) |  | ✅ | ✅ | ✅ |
-    | [squeeze](https://docs.pytorch.org/docs/2.7/generated/torch.squeeze.html) |  | ✅ | ✅ | ✅ |
-    | [sub](https://docs.pytorch.org/docs/2.7/generated/torch.sub.html) | subtract | ✅ | ✅ | ✅ |
-    | [sum](https://docs.pytorch.org/docs/2.7/generated/torch.sum.html) |  | ❌ | ✅ | ✅ |
-    | [tan](https://docs.pytorch.org/docs/2.7/generated/torch.tan.html) |  | ✅ | ✅ | ✅ |
-    | [tanh](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.tanh.html) |  | ✅ | ✅ | ✅ |
-    | [topk](https://docs.pytorch.org/docs/2.7/generated/torch.topk.html) |  | ❌ | ✅ | ✅ |
-    | [trunc](https://docs.pytorch.org/docs/2.7/generated/torch.trunc.html) | fix | ✅ | ✅ | ✅ |
-    | [unsqueeze](https://docs.pytorch.org/docs/2.7/generated/torch.unsqueeze.html) |  | ✅ | ✅ | ✅ |
+    | [sqrt](https://docs.pytorch.org/docs/2.8/generated/torch.sqrt.html) |  | ✅ | ✅ | ✅ |
+    | [squeeze](https://docs.pytorch.org/docs/2.8/generated/torch.squeeze.html) |  | ✅ | ✅ | ✅ |
+    | [sub](https://docs.pytorch.org/docs/2.8/generated/torch.sub.html) | subtract | ✅ | ✅ | ✅ |
+    | [sum](https://docs.pytorch.org/docs/2.8/generated/torch.sum.html) |  | ❌ | ✅ | ✅ |
+    | [tan](https://docs.pytorch.org/docs/2.8/generated/torch.tan.html) |  | ✅ | ✅ | ✅ |
+    | [tanh](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.tanh.html) |  | ✅ | ✅ | ✅ |
+    | [topk](https://docs.pytorch.org/docs/2.8/generated/torch.topk.html) |  | ❌ | ✅ | ✅ |
+    | [trunc](https://docs.pytorch.org/docs/2.8/generated/torch.trunc.html) | fix | ✅ | ✅ | ✅ |
+    | [unsqueeze](https://docs.pytorch.org/docs/2.8/generated/torch.unsqueeze.html) |  | ✅ | ✅ | ✅ |
     | upsample_bilinear2d |  | ❌ | ✅ | ❌ |
     | upsample_nearest2d |  | ❌ | ✅ | ✅ |
-    | [var](https://docs.pytorch.org/docs/2.7/generated/torch.var.html) |  | ❌ | ✅ | ✅ |
-    | view |  | ❌ | ✅ | ✅ |
-    | [where](https://docs.pytorch.org/docs/2.7/generated/torch.where.html) |  | ❌ | ✅ | ✅ |
-    | [adaptive_avg_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool2d.html) |  | ❌ | - | ✅ |
-    | [adaptive_avg_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool3d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool1d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool2d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool3d.html) |  | ❌ | - | ✅ |
-    | [addbmm](https://docs.pytorch.org/docs/2.7/generated/torch.addbmm.html) |  | ✅ | - | ❌ |
-    | [addcdiv](https://docs.pytorch.org/docs/2.7/generated/torch.addcdiv.html) |  | ❌ | - | ❌ |
-    | [addcmul](https://docs.pytorch.org/docs/2.7/generated/torch.addcmul.html) |  | ❌ | - | ❌ |
-    | [addmv](https://docs.pytorch.org/docs/2.7/generated/torch.addmv.html) |  | ✅ | - | ❌ |
-    | [addr](https://docs.pytorch.org/docs/2.7/generated/torch.addr.html) |  | ✅ | - | ❌ |
+    | [var](https://docs.pytorch.org/docs/2.8/generated/torch.var.html) |  | ❌ | ✅ | ✅ |
+    | [view](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.view.html) |  | ❌ | ✅ | ✅ |
+    | [where](https://docs.pytorch.org/docs/2.8/generated/torch.where.html) |  | ❌ | ✅ | ✅ |
+    | [adaptive_avg_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool2d.html) |  | ❌ | - | ✅ |
+    | [adaptive_avg_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool3d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool1d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool2d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool3d.html) |  | ❌ | - | ✅ |
+    | [addbmm](https://docs.pytorch.org/docs/2.8/generated/torch.addbmm.html) |  | ✅ | - | ❌ |
+    | [addcdiv](https://docs.pytorch.org/docs/2.8/generated/torch.addcdiv.html) |  | ❌ | - | ❌ |
+    | [addcmul](https://docs.pytorch.org/docs/2.8/generated/torch.addcmul.html) |  | ❌ | - | ❌ |
+    | [addmv](https://docs.pytorch.org/docs/2.8/generated/torch.addmv.html) |  | ✅ | - | ❌ |
+    | [addr](https://docs.pytorch.org/docs/2.8/generated/torch.addr.html) |  | ✅ | - | ❌ |
     | affine_grid_generator |  | ❌ | - | ❌ |
     | alias_copy |  | ❌ | - | ❌ |
     | align_as |  | ❌ | - | ❌ |
     | align_tensors |  | ❌ | - | ❌ |
     | align_to |  | ❌ | - | ❌ |
-    | [all](https://docs.pytorch.org/docs/2.7/generated/torch.all.html) |  | ❌ | - | ✅ |
+    | [all](https://docs.pytorch.org/docs/2.8/generated/torch.all.html) |  | ❌ | - | ✅ |
     | all_gather_into_tensor |  | ❌ | - | ❌ |
     | all_reduce |  | ❌ | - | ❌ |
-    | [allclose](https://docs.pytorch.org/docs/2.7/generated/torch.allclose.html) |  | ❌ | - | ❌ |
-    | [alpha_dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.alpha_dropout.html) |  | ✅ | - | ❌ |
-    | [aminmax](https://docs.pytorch.org/docs/2.7/generated/torch.aminmax.html) |  | ❌ | - | ❌ |
-    | [angle](https://docs.pytorch.org/docs/2.7/generated/torch.angle.html) |  | ❌ | - | ❌ |
+    | [allclose](https://docs.pytorch.org/docs/2.8/generated/torch.allclose.html) |  | ❌ | - | ❌ |
+    | [alpha_dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.alpha_dropout.html) |  | ✅ | - | ❌ |
+    | [aminmax](https://docs.pytorch.org/docs/2.8/generated/torch.aminmax.html) |  | ❌ | - | ❌ |
+    | [angle](https://docs.pytorch.org/docs/2.8/generated/torch.angle.html) |  | ❌ | - | ❌ |
     | append |  | ❌ | - | ❌ |
-    | [argsort](https://docs.pytorch.org/docs/2.7/generated/torch.argsort.html) |  | ❌ | - | ✅ |
-    | [argwhere](https://docs.pytorch.org/docs/2.7/generated/torch.argwhere.html) |  | ❌ | - | ❌ |
+    | [argsort](https://docs.pytorch.org/docs/2.8/generated/torch.argsort.html) |  | ❌ | - | ✅ |
+    | [argwhere](https://docs.pytorch.org/docs/2.8/generated/torch.argwhere.html) |  | ❌ | - | ❌ |
     | as_strided_copy |  | ❌ | - | ❌ |
     | as_strided_scatter |  | ❌ | - | ❌ |
-    | [as_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.as_tensor.html) |  | ❌ | - | ❌ |
-    | [atleast_1d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_1d.html) |  | ❌ | - | ❌ |
-    | [atleast_2d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_2d.html) |  | ❌ | - | ❌ |
-    | [atleast_3d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_3d.html) |  | ❌ | - | ❌ |
-    | [baddbmm](https://docs.pytorch.org/docs/2.7/generated/torch.baddbmm.html) |  | ✅ | - | ✅ |
-    | [bartlett_window](https://docs.pytorch.org/docs/2.7/generated/torch.bartlett_window.html) |  | ❌ | - | ❌ |
-    | [batch_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.batch_norm.html) |  | ❌ | - | ✅ |
+    | [as_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.as_tensor.html) |  | ❌ | - | ❌ |
+    | [atleast_1d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_1d.html) |  | ❌ | - | ❌ |
+    | [atleast_2d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_2d.html) |  | ❌ | - | ❌ |
+    | [atleast_3d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_3d.html) |  | ❌ | - | ❌ |
+    | [baddbmm](https://docs.pytorch.org/docs/2.8/generated/torch.baddbmm.html) |  | ✅ | - | ✅ |
+    | [bartlett_window](https://docs.pytorch.org/docs/2.8/generated/torch.bartlett_window.html) |  | ❌ | - | ❌ |
+    | [batch_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.batch_norm.html) |  | ❌ | - | ✅ |
     | batch_norm_elemt |  | ❌ | - | ❌ |
     | batch_norm_gather_stats |  | ❌ | - | ❌ |
     | batch_norm_gather_stats_with_counts |  | ❌ | - | ❌ |
     | batch_norm_stats |  | ❌ | - | ❌ |
     | batch_norm_update_stats |  | ❌ | - | ❌ |
-    | [bernoulli](https://docs.pytorch.org/docs/2.7/generated/torch.bernoulli.html) |  | ✅ | - | ❌ |
-    | [bilinear](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.bilinear.html) |  | ❌ | - | ❌ |
+    | [bernoulli](https://docs.pytorch.org/docs/2.8/generated/torch.bernoulli.html) |  | ✅ | - | ❌ |
+    | [bilinear](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.bilinear.html) |  | ❌ | - | ❌ |
     | bin |  | ❌ | - | ❌ |
-    | [binary_cross_entropy](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.binary_cross_entropy.html) |  | ❌ | - | ❌ |
-    | [binary_cross_entropy_with_logits](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) |  | ❌ | - | ❌ |
-    | [bincount](https://docs.pytorch.org/docs/2.7/generated/torch.bincount.html) |  | ❌ | - | ❌ |
+    | [binary_cross_entropy](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.binary_cross_entropy.html) |  | ❌ | - | ❌ |
+    | [binary_cross_entropy_with_logits](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) |  | ❌ | - | ❌ |
+    | [bincount](https://docs.pytorch.org/docs/2.8/generated/torch.bincount.html) |  | ❌ | - | ❌ |
     | binomial |  | ❌ | - | ❌ |
-    | [bitwise_left_shift](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_left_shift.html) |  | ✅ | - | ❌ |
-    | [bitwise_right_shift](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_right_shift.html) |  | ✅ | - | ❌ |
-    | [blackman_window](https://docs.pytorch.org/docs/2.7/generated/torch.blackman_window.html) |  | ❌ | - | ❌ |
-    | [block_diag](https://docs.pytorch.org/docs/2.7/generated/torch.block_diag.html) |  | ❌ | - | ❌ |
-    | [broadcast_tensors](https://docs.pytorch.org/docs/2.7/generated/torch.broadcast_tensors.html) |  | ❌ | - | ❌ |
-    | [broadcast_to](https://docs.pytorch.org/docs/2.7/generated/torch.broadcast_to.html) |  | ❌ | - | ❌ |
-    | [bucketize](https://docs.pytorch.org/docs/2.7/generated/torch.bucketize.html) |  | ❌ | - | ❌ |
-    | [can_cast](https://docs.pytorch.org/docs/2.7/generated/torch.can_cast.html) |  | ❌ | - | ❌ |
+    | [bitwise_left_shift](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_left_shift.html) |  | ✅ | - | ❌ |
+    | [bitwise_right_shift](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_right_shift.html) |  | ✅ | - | ❌ |
+    | [blackman_window](https://docs.pytorch.org/docs/2.8/generated/torch.blackman_window.html) |  | ❌ | - | ❌ |
+    | [block_diag](https://docs.pytorch.org/docs/2.8/generated/torch.block_diag.html) |  | ❌ | - | ❌ |
+    | [broadcast_tensors](https://docs.pytorch.org/docs/2.8/generated/torch.broadcast_tensors.html) |  | ❌ | - | ❌ |
+    | [broadcast_to](https://docs.pytorch.org/docs/2.8/generated/torch.broadcast_to.html) |  | ❌ | - | ❌ |
+    | [bucketize](https://docs.pytorch.org/docs/2.8/generated/torch.bucketize.html) |  | ❌ | - | ❌ |
+    | [can_cast](https://docs.pytorch.org/docs/2.8/generated/torch.can_cast.html) |  | ❌ | - | ❌ |
     | capitalize |  | ❌ | - | ❌ |
-    | [cartesian_prod](https://docs.pytorch.org/docs/2.7/generated/torch.cartesian_prod.html) |  | ❌ | - | ❌ |
+    | [cartesian_prod](https://docs.pytorch.org/docs/2.8/generated/torch.cartesian_prod.html) |  | ❌ | - | ❌ |
     | cauchy |  | ✅ | - | ❌ |
-    | ccol_indices |  | ❌ | - | ❌ |
+    | [ccol_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.ccol_indices.html) |  | ❌ | - | ❌ |
     | ccol_indices_copy |  | ❌ | - | ❌ |
-    | [cdist](https://docs.pytorch.org/docs/2.7/generated/torch.cdist.html) |  | ❌ | - | ❌ |
-    | [celu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.celu.html) |  | ❌ | - | ❌ |
+    | [cdist](https://docs.pytorch.org/docs/2.8/generated/torch.cdist.html) |  | ❌ | - | ❌ |
+    | [celu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.celu.html) |  | ❌ | - | ❌ |
     | center |  | ❌ | - | ❌ |
-    | [chain_matmul](https://docs.pytorch.org/docs/2.7/generated/torch.chain_matmul.html) |  | ❌ | - | ❌ |
-    | chalf |  | ❌ | - | ❌ |
+    | [chain_matmul](https://docs.pytorch.org/docs/2.8/generated/torch.chain_matmul.html) |  | ❌ | - | ❌ |
+    | [chalf](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.chalf.html) |  | ❌ | - | ❌ |
     | channel_shuffle |  | ❌ | - | ❌ |
-    | [cholesky](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky.html) |  | ❌ | - | ❌ |
-    | [cholesky_inverse](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky_inverse.html) |  | ❌ | - | ❌ |
-    | [cholesky_solve](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky_solve.html) |  | ❌ | - | ❌ |
+    | [cholesky](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky.html) |  | ❌ | - | ❌ |
+    | [cholesky_inverse](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky_inverse.html) |  | ❌ | - | ❌ |
+    | [cholesky_solve](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky_solve.html) |  | ❌ | - | ❌ |
     | choose_qparams_optimized |  | ❌ | - | ❌ |
     | chr |  | ❌ | - | ❌ |
-    | [chunk](https://docs.pytorch.org/docs/2.7/generated/torch.chunk.html) |  | ❌ | - | ✅ |
+    | [chunk](https://docs.pytorch.org/docs/2.8/generated/torch.chunk.html) |  | ❌ | - | ✅ |
     | clamp_max |  | ✅ | - | ✅ |
     | clamp_min |  | ✅ | - | ✅ |
     | clear |  | ❌ | - | ❌ |
-    | coalesce |  | ❌ | - | ❌ |
-    | col_indices |  | ❌ | - | ❌ |
+    | [coalesce](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.coalesce.html) |  | ❌ | - | ❌ |
+    | [col_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.col_indices.html) |  | ❌ | - | ❌ |
     | col_indices_copy |  | ❌ | - | ❌ |
-    | [column_stack](https://docs.pytorch.org/docs/2.7/generated/torch.column_stack.html) |  | ❌ | - | ❌ |
-    | [combinations](https://docs.pytorch.org/docs/2.7/generated/torch.combinations.html) |  | ❌ | - | ❌ |
-    | [complex](https://docs.pytorch.org/docs/2.7/generated/torch.complex.html) |  | ❌ | - | ❌ |
+    | [column_stack](https://docs.pytorch.org/docs/2.8/generated/torch.column_stack.html) |  | ❌ | - | ❌ |
+    | [combinations](https://docs.pytorch.org/docs/2.8/generated/torch.combinations.html) |  | ❌ | - | ❌ |
+    | [complex](https://docs.pytorch.org/docs/2.8/generated/torch.complex.html) |  | ❌ | - | ❌ |
     | confirmed_by_owner |  | ❌ | - | ❌ |
-    | [conj](https://docs.pytorch.org/docs/2.7/generated/torch.conj.html) |  | ❌ | - | ❌ |
-    | [conj_physical](https://docs.pytorch.org/docs/2.7/generated/torch.conj_physical.html) |  | ✅ | - | ❌ |
-    | contiguous |  | ❌ | - | ✅ |
+    | [conj](https://docs.pytorch.org/docs/2.8/generated/torch.conj.html) |  | ❌ | - | ❌ |
+    | [conj_physical](https://docs.pytorch.org/docs/2.8/generated/torch.conj_physical.html) |  | ✅ | - | ❌ |
+    | [contiguous](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.contiguous.html) |  | ❌ | - | ✅ |
     | conv |  | ❌ | - | ❌ |
-    | [conv1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv1d.html) |  | ❌ | - | ✅ |
-    | [conv2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv2d.html) |  | ❌ | - | ✅ |
-    | [conv3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv3d.html) |  | ❌ | - | ✅ |
+    | [conv1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv1d.html) |  | ❌ | - | ✅ |
+    | [conv2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv2d.html) |  | ❌ | - | ✅ |
+    | [conv3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv3d.html) |  | ❌ | - | ✅ |
     | conv_depthwise3d |  | ❌ | - | ❌ |
     | conv_tbc |  | ❌ | - | ❌ |
-    | [conv_transpose1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose1d.html) |  | ❌ | - | ❌ |
-    | [conv_transpose2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose2d.html) |  | ❌ | - | ❌ |
-    | [conv_transpose3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose3d.html) |  | ❌ | - | ❌ |
+    | [conv_transpose1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose1d.html) |  | ❌ | - | ❌ |
+    | [conv_transpose2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose2d.html) |  | ❌ | - | ❌ |
+    | [conv_transpose3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose3d.html) |  | ❌ | - | ❌ |
+    | convert_weight_to_int4pack |  | ❌ | - | ❌ |
     | convolution_overrideable |  | ❌ | - | ❌ |
     | convrelu |  | ❌ | - | ❌ |
     | copy_sparse_to_sparse |  | ✅ | - | ❌ |
     | copy_to |  | ❌ | - | ❌ |
-    | [copysign](https://docs.pytorch.org/docs/2.7/generated/torch.copysign.html) |  | ✅ | - | ❌ |
-    | [corrcoef](https://docs.pytorch.org/docs/2.7/generated/torch.corrcoef.html) |  | ❌ | - | ❌ |
-    | [cosine_embedding_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.cosine_embedding_loss.html) |  | ❌ | - | ❌ |
-    | [cosine_similarity](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.cosine_similarity.html) |  | ❌ | - | ❌ |
+    | [copysign](https://docs.pytorch.org/docs/2.8/generated/torch.copysign.html) |  | ✅ | - | ❌ |
+    | [corrcoef](https://docs.pytorch.org/docs/2.8/generated/torch.corrcoef.html) |  | ❌ | - | ❌ |
+    | [cosine_embedding_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.cosine_embedding_loss.html) |  | ❌ | - | ❌ |
+    | [cosine_similarity](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.cosine_similarity.html) |  | ❌ | - | ❌ |
     | count |  | ❌ | - | ❌ |
-    | [count_nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.count_nonzero.html) |  | ❌ | - | ❌ |
-    | cpu |  | ❌ | - | ❌ |
-    | [cross](https://docs.pytorch.org/docs/2.7/generated/torch.cross.html) |  | ❌ | - | ❌ |
+    | [count_nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.count_nonzero.html) |  | ❌ | - | ❌ |
+    | [cpu](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.cpu.html) |  | ❌ | - | ❌ |
+    | [cross](https://docs.pytorch.org/docs/2.8/generated/torch.cross.html) |  | ❌ | - | ❌ |
     | cross_entropy_loss |  | ❌ | - | ❌ |
-    | crow_indices |  | ❌ | - | ❌ |
+    | [crow_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.crow_indices.html) |  | ❌ | - | ❌ |
     | crow_indices_copy |  | ❌ | - | ❌ |
-    | [ctc_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.ctc_loss.html) |  | ❌ | - | ❌ |
-    | cuda |  | ❌ | - | ❌ |
+    | [ctc_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.ctc_loss.html) |  | ❌ | - | ❌ |
+    | [cuda](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.cuda.html) |  | ❌ | - | ❌ |
     | cudnn_affine_grid_generator |  | ❌ | - | ❌ |
     | cudnn_batch_norm |  | ❌ | - | ❌ |
     | cudnn_convolution |  | ❌ | - | ❌ |
@@ -280,62 +282,60 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | cudnn_convolution_transpose |  | ❌ | - | ❌ |
     | cudnn_grid_sampler |  | ❌ | - | ❌ |
     | cudnn_is_acceptable |  | ❌ | - | ❌ |
-    | [cummax](https://docs.pytorch.org/docs/2.7/generated/torch.cummax.html) |  | ❌ | - | ❌ |
-    | [cummin](https://docs.pytorch.org/docs/2.7/generated/torch.cummin.html) |  | ❌ | - | ❌ |
-    | [cumprod](https://docs.pytorch.org/docs/2.7/generated/torch.cumprod.html) |  | ✅ | - | ❌ |
-    | [cumulative_trapezoid](https://docs.pytorch.org/docs/2.7/generated/torch.cumulative_trapezoid.html) |  | ❌ | - | ❌ |
+    | [cummax](https://docs.pytorch.org/docs/2.8/generated/torch.cummax.html) |  | ❌ | - | ❌ |
+    | [cummin](https://docs.pytorch.org/docs/2.8/generated/torch.cummin.html) |  | ❌ | - | ❌ |
+    | [cumprod](https://docs.pytorch.org/docs/2.8/generated/torch.cumprod.html) |  | ✅ | - | ❌ |
+    | [cumulative_trapezoid](https://docs.pytorch.org/docs/2.8/generated/torch.cumulative_trapezoid.html) |  | ❌ | - | ❌ |
     | data |  | ❌ | - | ❌ |
-    | [deg2rad](https://docs.pytorch.org/docs/2.7/generated/torch.deg2rad.html) |  | ❌ | - | ❌ |
+    | [deg2rad](https://docs.pytorch.org/docs/2.8/generated/torch.deg2rad.html) |  | ❌ | - | ❌ |
     | degrees |  | ❌ | - | ❌ |
-    | dense_dim |  | ❌ | - | ❌ |
-    | [dequantize](https://docs.pytorch.org/docs/2.7/generated/torch.dequantize.html) |  | ❌ | - | ✅ |
-    | detach |  | ✅ | - | ✅ |
+    | [dense_dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.dense_dim.html) |  | ❌ | - | ❌ |
+    | [dequantize](https://docs.pytorch.org/docs/2.8/generated/torch.dequantize.html) |  | ❌ | - | ✅ |
+    | [detach](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.detach.html) |  | ✅ | - | ✅ |
     | detach_copy |  | ❌ | - | ❌ |
-    | device |  | ❌ | - | ❌ |
-    | [diag](https://docs.pytorch.org/docs/2.7/generated/torch.diag.html) |  | ❌ | - | ❌ |
-    | [diag_embed](https://docs.pytorch.org/docs/2.7/generated/torch.diag_embed.html) |  | ❌ | - | ❌ |
-    | [diagflat](https://docs.pytorch.org/docs/2.7/generated/torch.diagflat.html) |  | ❌ | - | ❌ |
+    | [device](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.device.html) |  | ❌ | - | ❌ |
+    | [diag](https://docs.pytorch.org/docs/2.8/generated/torch.diag.html) |  | ❌ | - | ❌ |
+    | [diag_embed](https://docs.pytorch.org/docs/2.8/generated/torch.diag_embed.html) |  | ❌ | - | ❌ |
+    | [diagflat](https://docs.pytorch.org/docs/2.8/generated/torch.diagflat.html) |  | ❌ | - | ❌ |
     | diagonal_copy |  | ❌ | - | ❌ |
-    | [diagonal_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.diagonal_scatter.html) |  | ❌ | - | ❌ |
+    | [diagonal_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.diagonal_scatter.html) |  | ❌ | - | ❌ |
     | dict |  | ❌ | - | ❌ |
-    | [diff](https://docs.pytorch.org/docs/2.7/generated/torch.diff.html) |  | ❌ | - | ❌ |
-    | [digamma](https://docs.pytorch.org/docs/2.7/generated/torch.digamma.html) | special_digamma, special_psi | ✅ | - | ❌ |
-    | dim |  | ❌ | - | ❌ |
-    | [dist](https://docs.pytorch.org/docs/2.7/generated/torch.dist.html) |  | ❌ | - | ❌ |
+    | [diff](https://docs.pytorch.org/docs/2.8/generated/torch.diff.html) |  | ❌ | - | ❌ |
+    | [digamma](https://docs.pytorch.org/docs/2.8/generated/torch.digamma.html) | special_digamma, special_psi | ✅ | - | ❌ |
+    | [dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.dim.html) |  | ❌ | - | ❌ |
+    | [dist](https://docs.pytorch.org/docs/2.8/generated/torch.dist.html) |  | ❌ | - | ❌ |
     | divmod |  | ❌ | - | ❌ |
-    | [dot](https://docs.pytorch.org/docs/2.7/generated/torch.dot.html) |  | ❌ | - | ❌ |
-    | [dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.dropout.html) |  | ✅ | - | ✅ |
-    | [dsplit](https://docs.pytorch.org/docs/2.7/generated/torch.dsplit.html) |  | ❌ | - | ❌ |
-    | [dstack](https://docs.pytorch.org/docs/2.7/generated/torch.dstack.html) |  | ❌ | - | ❌ |
+    | [dot](https://docs.pytorch.org/docs/2.8/generated/torch.dot.html) |  | ❌ | - | ❌ |
+    | [dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.dropout.html) |  | ✅ | - | ✅ |
+    | [dsplit](https://docs.pytorch.org/docs/2.8/generated/torch.dsplit.html) |  | ❌ | - | ❌ |
+    | [dstack](https://docs.pytorch.org/docs/2.8/generated/torch.dstack.html) |  | ❌ | - | ❌ |
     | dtype |  | ❌ | - | ❌ |
-    | eig |  | ❌ | - | ❌ |
-    | [einsum](https://docs.pytorch.org/docs/2.7/generated/torch.einsum.html) |  | ❌ | - | ✅ |
-    | element_size |  | ❌ | - | ❌ |
-    | [elu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.elu.html) |  | ✅ | - | ✅ |
-    | [embedding_bag](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.embedding_bag.html) |  | ❌ | - | ❌ |
+    | [eig](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.eig.html) |  | ❌ | - | ❌ |
+    | [einsum](https://docs.pytorch.org/docs/2.8/generated/torch.einsum.html) |  | ❌ | - | ✅ |
+    | [element_size](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.element_size.html) |  | ❌ | - | ❌ |
+    | [embedding_bag](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.embedding_bag.html) |  | ❌ | - | ❌ |
     | embedding_renorm |  | ✅ | - | ❌ |
-    | [empty_like](https://docs.pytorch.org/docs/2.7/generated/torch.empty_like.html) |  | ❌ | - | ✅ |
+    | [empty_like](https://docs.pytorch.org/docs/2.8/generated/torch.empty_like.html) |  | ❌ | - | ✅ |
     | empty_permuted |  | ❌ | - | ❌ |
     | empty_quantized |  | ❌ | - | ❌ |
-    | [enable_grad](https://docs.pytorch.org/docs/2.7/generated/torch.enable_grad.html) |  | ❌ | - | ❌ |
+    | [enable_grad](https://docs.pytorch.org/docs/2.8/generated/torch.enable_grad.html) |  | ❌ | - | ❌ |
     | endswith |  | ❌ | - | ❌ |
-    | [equal](https://docs.pytorch.org/docs/2.7/generated/torch.equal.html) |  | ❌ | - | ❌ |
-    | [erfc](https://docs.pytorch.org/docs/2.7/generated/torch.erfc.html) | special_erfc | ✅ | - | ❌ |
-    | [erfinv](https://docs.pytorch.org/docs/2.7/generated/torch.erfinv.html) | special_erfinv | ✅ | - | ❌ |
-    | [exp2](https://docs.pytorch.org/docs/2.7/generated/torch.exp2.html) | special_exp2 | ✅ | - | ❌ |
-    | expand_as |  | ❌ | - | ❌ |
-    | expand_copy |  | ❌ | - | ❌ |
+    | [equal](https://docs.pytorch.org/docs/2.8/generated/torch.equal.html) |  | ❌ | - | ❌ |
+    | [erfc](https://docs.pytorch.org/docs/2.8/generated/torch.erfc.html) | special_erfc | ✅ | - | ❌ |
+    | [erfinv](https://docs.pytorch.org/docs/2.8/generated/torch.erfinv.html) | special_erfinv | ✅ | - | ❌ |
+    | [exp2](https://docs.pytorch.org/docs/2.8/generated/torch.exp2.html) | special_exp2 | ✅ | - | ❌ |
+    | [expand_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.expand_as.html) |  | ❌ | - | ❌ |
     | expandtabs |  | ❌ | - | ❌ |
     | exponential |  | ✅ | - | ❌ |
     | extend |  | ❌ | - | ❌ |
-    | [eye](https://docs.pytorch.org/docs/2.7/generated/torch.eye.html) |  | ❌ | - | ❌ |
+    | [eye](https://docs.pytorch.org/docs/2.8/generated/torch.eye.html) |  | ❌ | - | ❌ |
     | fabs |  | ❌ | - | ❌ |
     | factorial |  | ❌ | - | ❌ |
-    | [fake_quantize_per_channel_affine](https://docs.pytorch.org/docs/2.7/generated/torch.fake_quantize_per_channel_affine.html) |  | ❌ | - | ❌ |
+    | [fake_quantize_per_channel_affine](https://docs.pytorch.org/docs/2.8/generated/torch.fake_quantize_per_channel_affine.html) |  | ❌ | - | ❌ |
     | fake_quantize_per_channel_affine_cachemask |  | ❌ | - | ❌ |
-    | [fake_quantize_per_tensor_affine](https://docs.pytorch.org/docs/2.7/generated/torch.fake_quantize_per_tensor_affine.html) |  | ❌ | - | ❌ |
+    | [fake_quantize_per_tensor_affine](https://docs.pytorch.org/docs/2.8/generated/torch.fake_quantize_per_tensor_affine.html) |  | ❌ | - | ❌ |
     | fake_quantize_per_tensor_affine_cachemask |  | ❌ | - | ❌ |
-    | [feature_alpha_dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.feature_alpha_dropout.html) |  | ✅ | - | ❌ |
+    | [feature_alpha_dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.feature_alpha_dropout.html) |  | ✅ | - | ❌ |
     | feature_dropout |  | ✅ | - | ❌ |
     | fft_fftfreq |  | ❌ | - | ❌ |
     | fft_ihfft2 |  | ❌ | - | ❌ |
@@ -343,133 +343,133 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | fft_irfftn |  | ❌ | - | ❌ |
     | fft_rfftfreq |  | ❌ | - | ❌ |
     | fft_rfftn |  | ❌ | - | ❌ |
-    | fill_diagonal_ |  | ❌ | - | ❌ |
+    | [fill_diagonal_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.fill_diagonal_.html) |  | ❌ | - | ❌ |
     | find |  | ❌ | - | ❌ |
-    | [flatten](https://docs.pytorch.org/docs/2.7/generated/torch.flatten.html) |  | ❌ | - | ✅ |
+    | [flatten](https://docs.pytorch.org/docs/2.8/generated/torch.flatten.html) |  | ❌ | - | ✅ |
     | flatten_dense_tensors |  | ❌ | - | ❌ |
-    | [fliplr](https://docs.pytorch.org/docs/2.7/generated/torch.fliplr.html) |  | ❌ | - | ❌ |
-    | [flipud](https://docs.pytorch.org/docs/2.7/generated/torch.flipud.html) |  | ❌ | - | ❌ |
-    | [float_power](https://docs.pytorch.org/docs/2.7/generated/torch.float_power.html) |  | ✅ | - | ❌ |
-    | [floor_divide](https://docs.pytorch.org/docs/2.7/generated/torch.floor_divide.html) |  | ✅ | - | ✅ |
+    | [fliplr](https://docs.pytorch.org/docs/2.8/generated/torch.fliplr.html) |  | ❌ | - | ❌ |
+    | [flipud](https://docs.pytorch.org/docs/2.8/generated/torch.flipud.html) |  | ❌ | - | ❌ |
+    | [float_power](https://docs.pytorch.org/docs/2.8/generated/torch.float_power.html) |  | ✅ | - | ❌ |
+    | [floor_divide](https://docs.pytorch.org/docs/2.8/generated/torch.floor_divide.html) |  | ✅ | - | ✅ |
     | floordiv |  | ❌ | - | ❌ |
-    | [fmax](https://docs.pytorch.org/docs/2.7/generated/torch.fmax.html) |  | ❌ | - | ❌ |
-    | [fmin](https://docs.pytorch.org/docs/2.7/generated/torch.fmin.html) |  | ❌ | - | ❌ |
+    | [fmax](https://docs.pytorch.org/docs/2.8/generated/torch.fmax.html) |  | ❌ | - | ❌ |
+    | [fmin](https://docs.pytorch.org/docs/2.8/generated/torch.fmin.html) |  | ❌ | - | ❌ |
     | foo |  | ❌ | - | ❌ |
     | fork |  | ❌ | - | ❌ |
     | format |  | ❌ | - | ❌ |
-    | [frac](https://docs.pytorch.org/docs/2.7/generated/torch.frac.html) |  | ❌ | - | ❌ |
-    | [fractional_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.fractional_max_pool2d.html) |  | ❌ | - | ❌ |
-    | [fractional_max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.fractional_max_pool3d.html) |  | ❌ | - | ❌ |
-    | [frexp](https://docs.pytorch.org/docs/2.7/generated/torch.frexp.html) |  | ❌ | - | ❌ |
+    | [frac](https://docs.pytorch.org/docs/2.8/generated/torch.frac.html) |  | ❌ | - | ❌ |
+    | [fractional_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.fractional_max_pool2d.html) |  | ❌ | - | ❌ |
+    | [fractional_max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.fractional_max_pool3d.html) |  | ❌ | - | ❌ |
+    | [frexp](https://docs.pytorch.org/docs/2.8/generated/torch.frexp.html) |  | ❌ | - | ❌ |
     | frobenius_norm |  | ❌ | - | ✅ |
-    | [from_file](https://docs.pytorch.org/docs/2.7/generated/torch.from_file.html) |  | ❌ | - | ❌ |
+    | [from_file](https://docs.pytorch.org/docs/2.8/generated/torch.from_file.html) |  | ❌ | - | ❌ |
     | fused_moving_avg_obs_fake_quant |  | ❌ | - | ❌ |
     | gamma |  | ❌ | - | ❌ |
-    | [gcd](https://docs.pytorch.org/docs/2.7/generated/torch.gcd.html) |  | ✅ | - | ❌ |
+    | [gcd](https://docs.pytorch.org/docs/2.8/generated/torch.gcd.html) |  | ✅ | - | ❌ |
     | geometric |  | ✅ | - | ❌ |
-    | [geqrf](https://docs.pytorch.org/docs/2.7/generated/torch.geqrf.html) |  | ❌ | - | ❌ |
+    | [geqrf](https://docs.pytorch.org/docs/2.8/generated/torch.geqrf.html) |  | ❌ | - | ❌ |
     | get |  | ❌ | - | ❌ |
     | get_autocast_dtype |  | ❌ | - | ❌ |
-    | get_device |  | ❌ | - | ❌ |
+    | [get_device](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.get_device.html) |  | ❌ | - | ❌ |
     | get_gradients |  | ❌ | - | ❌ |
     | get_pool_ceil_padding |  | ❌ | - | ❌ |
     | getelem |  | ❌ | - | ❌ |
-    | [glu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.glu.html) |  | ❌ | - | ✅ |
+    | [glu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.glu.html) |  | ❌ | - | ✅ |
     | glu_jvp |  | ❌ | - | ❌ |
-    | grad |  | ❌ | - | ❌ |
+    | [grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.grad.html) |  | ❌ | - | ❌ |
     | grid_sampler |  | ❌ | - | ❌ |
     | grid_sampler_3d |  | ❌ | - | ❌ |
-    | [group_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.group_norm.html) |  | ❌ | - | ✅ |
-    | gru |  | ❌ | - | ❌ |
+    | [group_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.group_norm.html) |  | ❌ | - | ✅ |
+    | gru |  | ❌ | - | ✅ |
     | gru_cell |  | ❌ | - | ❌ |
-    | [hamming_window](https://docs.pytorch.org/docs/2.7/generated/torch.hamming_window.html) |  | ❌ | - | ❌ |
-    | [hann_window](https://docs.pytorch.org/docs/2.7/generated/torch.hann_window.html) |  | ❌ | - | ❌ |
-    | [hardshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardshrink.html) |  | ✅ | - | ❌ |
-    | [hardsigmoid](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardsigmoid.html) |  | ✅ | - | ❌ |
-    | [hardswish](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardswish.html) |  | ✅ | - | ✅ |
+    | [hamming_window](https://docs.pytorch.org/docs/2.8/generated/torch.hamming_window.html) |  | ❌ | - | ❌ |
+    | [hann_window](https://docs.pytorch.org/docs/2.8/generated/torch.hann_window.html) |  | ❌ | - | ❌ |
+    | [hardshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardshrink.html) |  | ✅ | - | ❌ |
+    | [hardsigmoid](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardsigmoid.html) |  | ✅ | - | ✅ |
+    | [hardswish](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardswish.html) |  | ✅ | - | ✅ |
     | has_torch_function |  | ❌ | - | ❌ |
     | hash |  | ❌ | - | ❌ |
-    | [heaviside](https://docs.pytorch.org/docs/2.7/generated/torch.heaviside.html) |  | ❌ | - | ❌ |
+    | [heaviside](https://docs.pytorch.org/docs/2.8/generated/torch.heaviside.html) |  | ❌ | - | ❌ |
     | hex |  | ❌ | - | ❌ |
-    | [hinge_embedding_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hinge_embedding_loss.html) |  | ❌ | - | ❌ |
-    | [histc](https://docs.pytorch.org/docs/2.7/generated/torch.histc.html) |  | ❌ | - | ❌ |
-    | [histogram](https://docs.pytorch.org/docs/2.7/generated/torch.histogram.html) |  | ❌ | - | ❌ |
-    | [histogramdd](https://docs.pytorch.org/docs/2.7/generated/torch.histogramdd.html) |  | ❌ | - | ❌ |
-    | [hsplit](https://docs.pytorch.org/docs/2.7/generated/torch.hsplit.html) |  | ❌ | - | ❌ |
-    | [hspmm](https://docs.pytorch.org/docs/2.7/generated/torch.hspmm.html) |  | ❌ | - | ❌ |
-    | [hstack](https://docs.pytorch.org/docs/2.7/generated/torch.hstack.html) |  | ❌ | - | ✅ |
-    | [huber_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.huber_loss.html) |  | ❌ | - | ❌ |
-    | [hypot](https://docs.pytorch.org/docs/2.7/generated/torch.hypot.html) |  | ✅ | - | ❌ |
-    | [i0](https://docs.pytorch.org/docs/2.7/generated/torch.i0.html) | special_i0 | ✅ | - | ❌ |
-    | [igamma](https://docs.pytorch.org/docs/2.7/generated/torch.igamma.html) | special_gammainc | ✅ | - | ❌ |
-    | [igammac](https://docs.pytorch.org/docs/2.7/generated/torch.igammac.html) | special_gammaincc | ✅ | - | ❌ |
+    | [hinge_embedding_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hinge_embedding_loss.html) |  | ❌ | - | ❌ |
+    | [histc](https://docs.pytorch.org/docs/2.8/generated/torch.histc.html) |  | ❌ | - | ❌ |
+    | [histogram](https://docs.pytorch.org/docs/2.8/generated/torch.histogram.html) |  | ❌ | - | ❌ |
+    | [histogramdd](https://docs.pytorch.org/docs/2.8/generated/torch.histogramdd.html) |  | ❌ | - | ❌ |
+    | [hsplit](https://docs.pytorch.org/docs/2.8/generated/torch.hsplit.html) |  | ❌ | - | ❌ |
+    | [hspmm](https://docs.pytorch.org/docs/2.8/generated/torch.hspmm.html) |  | ❌ | - | ❌ |
+    | [hstack](https://docs.pytorch.org/docs/2.8/generated/torch.hstack.html) |  | ❌ | - | ✅ |
+    | [huber_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.huber_loss.html) |  | ❌ | - | ❌ |
+    | [hypot](https://docs.pytorch.org/docs/2.8/generated/torch.hypot.html) |  | ✅ | - | ❌ |
+    | [i0](https://docs.pytorch.org/docs/2.8/generated/torch.i0.html) | special_i0 | ✅ | - | ❌ |
+    | [igamma](https://docs.pytorch.org/docs/2.8/generated/torch.igamma.html) | special_gammainc | ✅ | - | ❌ |
+    | [igammac](https://docs.pytorch.org/docs/2.8/generated/torch.igammac.html) | special_gammaincc | ✅ | - | ❌ |
     | iinfo |  | ❌ | - | ❌ |
     | im2col |  | ❌ | - | ❌ |
-    | [imag](https://docs.pytorch.org/docs/2.7/generated/torch.imag.html) |  | ❌ | - | ❌ |
-    | [index_add](https://docs.pytorch.org/docs/2.7/generated/torch.index_add.html) |  | ❌ | - | ❌ |
-    | [index_copy](https://docs.pytorch.org/docs/2.7/generated/torch.index_copy.html) |  | ❌ | - | ❌ |
-    | index_fill |  | ❌ | - | ❌ |
+    | [imag](https://docs.pytorch.org/docs/2.8/generated/torch.imag.html) |  | ❌ | - | ❌ |
+    | [index_add](https://docs.pytorch.org/docs/2.8/generated/torch.index_add.html) |  | ❌ | - | ❌ |
+    | [index_copy](https://docs.pytorch.org/docs/2.8/generated/torch.index_copy.html) |  | ❌ | - | ❌ |
+    | [index_fill](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.index_fill.html) |  | ❌ | - | ❌ |
     | index_put_impl_ |  | ❌ | - | ❌ |
-    | [index_reduce](https://docs.pytorch.org/docs/2.7/generated/torch.index_reduce.html) |  | ✅ | - | ❌ |
-    | indices |  | ❌ | - | ❌ |
+    | [index_reduce](https://docs.pytorch.org/docs/2.8/generated/torch.index_reduce.html) |  | ✅ | - | ❌ |
+    | [indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.indices.html) |  | ❌ | - | ❌ |
     | indices_copy |  | ❌ | - | ❌ |
-    | [initial_seed](https://docs.pytorch.org/docs/2.7/generated/torch.initial_seed.html) |  | ❌ | - | ❌ |
-    | [inner](https://docs.pytorch.org/docs/2.7/generated/torch.inner.html) |  | ❌ | - | ❌ |
+    | [initial_seed](https://docs.pytorch.org/docs/2.8/generated/torch.initial_seed.html) |  | ❌ | - | ❌ |
+    | [inner](https://docs.pytorch.org/docs/2.8/generated/torch.inner.html) |  | ❌ | - | ❌ |
     | insert |  | ❌ | - | ❌ |
-    | [instance_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.instance_norm.html) |  | ❌ | - | ❌ |
-    | int_repr |  | ❌ | - | ❌ |
+    | [instance_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.instance_norm.html) |  | ❌ | - | ❌ |
+    | [int_repr](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.int_repr.html) |  | ❌ | - | ❌ |
     | is_autocast_cpu_enabled |  | ❌ | - | ❌ |
     | is_autocast_enabled |  | ❌ | - | ❌ |
-    | is_coalesced |  | ❌ | - | ❌ |
-    | [is_complex](https://docs.pytorch.org/docs/2.7/generated/torch.is_complex.html) |  | ❌ | - | ❌ |
-    | [is_conj](https://docs.pytorch.org/docs/2.7/generated/torch.is_conj.html) |  | ❌ | - | ❌ |
-    | is_contiguous |  | ❌ | - | ❌ |
-    | is_cuda |  | ❌ | - | ❌ |
-    | [is_floating_point](https://docs.pytorch.org/docs/2.7/generated/torch.is_floating_point.html) |  | ❌ | - | ❌ |
-    | [is_grad_enabled](https://docs.pytorch.org/docs/2.7/generated/torch.is_grad_enabled.html) |  | ❌ | - | ❌ |
-    | is_leaf |  | ❌ | - | ❌ |
+    | [is_coalesced](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_coalesced.html) |  | ❌ | - | ❌ |
+    | [is_complex](https://docs.pytorch.org/docs/2.8/generated/torch.is_complex.html) |  | ❌ | - | ❌ |
+    | [is_conj](https://docs.pytorch.org/docs/2.8/generated/torch.is_conj.html) |  | ❌ | - | ❌ |
+    | [is_contiguous](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_contiguous.html) |  | ❌ | - | ❌ |
+    | [is_cuda](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_cuda.html) |  | ❌ | - | ❌ |
+    | [is_floating_point](https://docs.pytorch.org/docs/2.8/generated/torch.is_floating_point.html) |  | ❌ | - | ❌ |
+    | [is_grad_enabled](https://docs.pytorch.org/docs/2.8/generated/torch.is_grad_enabled.html) |  | ❌ | - | ❌ |
+    | [is_leaf](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_leaf.html) |  | ❌ | - | ❌ |
     | is_non_overlapping_and_dense |  | ❌ | - | ❌ |
-    | [is_nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.is_nonzero.html) |  | ❌ | - | ❌ |
+    | [is_nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.is_nonzero.html) |  | ❌ | - | ❌ |
     | is_owner |  | ❌ | - | ❌ |
-    | is_pinned |  | ❌ | - | ❌ |
+    | [is_pinned](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_pinned.html) |  | ❌ | - | ❌ |
     | is_same_size |  | ❌ | - | ❌ |
     | is_scripting |  | ❌ | - | ❌ |
-    | is_set_to |  | ❌ | - | ❌ |
-    | is_signed |  | ❌ | - | ❌ |
+    | [is_set_to](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_set_to.html) |  | ❌ | - | ❌ |
+    | [is_signed](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_signed.html) |  | ❌ | - | ❌ |
     | is_strides_like_format |  | ❌ | - | ❌ |
     | isalnum |  | ❌ | - | ❌ |
     | isalpha |  | ❌ | - | ❌ |
-    | [isclose](https://docs.pytorch.org/docs/2.7/generated/torch.isclose.html) |  | ❌ | - | ❌ |
+    | [isclose](https://docs.pytorch.org/docs/2.8/generated/torch.isclose.html) |  | ❌ | - | ❌ |
     | isdecimal |  | ❌ | - | ❌ |
     | isdigit |  | ❌ | - | ❌ |
-    | [isfinite](https://docs.pytorch.org/docs/2.7/generated/torch.isfinite.html) |  | ❌ | - | ❌ |
+    | [isfinite](https://docs.pytorch.org/docs/2.8/generated/torch.isfinite.html) |  | ❌ | - | ❌ |
     | isidentifier |  | ❌ | - | ❌ |
-    | [isin](https://docs.pytorch.org/docs/2.7/generated/torch.isin.html) |  | ❌ | - | ❌ |
+    | [isin](https://docs.pytorch.org/docs/2.8/generated/torch.isin.html) |  | ❌ | - | ❌ |
     | islower |  | ❌ | - | ❌ |
-    | [isneginf](https://docs.pytorch.org/docs/2.7/generated/torch.isneginf.html) |  | ❌ | - | ✅ |
+    | [isneginf](https://docs.pytorch.org/docs/2.8/generated/torch.isneginf.html) |  | ❌ | - | ✅ |
     | isnumeric |  | ❌ | - | ❌ |
-    | [isposinf](https://docs.pytorch.org/docs/2.7/generated/torch.isposinf.html) |  | ❌ | - | ✅ |
+    | [isposinf](https://docs.pytorch.org/docs/2.8/generated/torch.isposinf.html) |  | ❌ | - | ✅ |
     | isprintable |  | ❌ | - | ❌ |
-    | [isreal](https://docs.pytorch.org/docs/2.7/generated/torch.isreal.html) |  | ❌ | - | ❌ |
+    | [isreal](https://docs.pytorch.org/docs/2.8/generated/torch.isreal.html) |  | ❌ | - | ❌ |
     | isspace |  | ❌ | - | ❌ |
-    | [istft](https://docs.pytorch.org/docs/2.7/generated/torch.istft.html) |  | ❌ | - | ❌ |
+    | [istft](https://docs.pytorch.org/docs/2.8/generated/torch.istft.html) |  | ❌ | - | ❌ |
     | istitle |  | ❌ | - | ❌ |
     | isupper |  | ❌ | - | ❌ |
-    | item |  | ❌ | - | ❌ |
+    | [item](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.item.html) |  | ❌ | - | ❌ |
     | items |  | ❌ | - | ❌ |
     | join |  | ❌ | - | ❌ |
-    | [kaiser_window](https://docs.pytorch.org/docs/2.7/generated/torch.kaiser_window.html) |  | ❌ | - | ❌ |
+    | [kaiser_window](https://docs.pytorch.org/docs/2.8/generated/torch.kaiser_window.html) |  | ❌ | - | ❌ |
     | keys |  | ❌ | - | ❌ |
-    | [kl_div](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.kl_div.html) |  | ❌ | - | ❌ |
-    | [kron](https://docs.pytorch.org/docs/2.7/generated/torch.kron.html) |  | ❌ | - | ❌ |
-    | [kthvalue](https://docs.pytorch.org/docs/2.7/generated/torch.kthvalue.html) |  | ❌ | - | ❌ |
-    | [l1_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.l1_loss.html) |  | ❌ | - | ❌ |
-    | [layer_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.layer_norm.html) |  | ❌ | - | ✅ |
-    | [lcm](https://docs.pytorch.org/docs/2.7/generated/torch.lcm.html) |  | ✅ | - | ❌ |
-    | [ldexp](https://docs.pytorch.org/docs/2.7/generated/torch.ldexp.html) |  | ✅ | - | ❌ |
+    | [kl_div](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.kl_div.html) |  | ❌ | - | ❌ |
+    | [kron](https://docs.pytorch.org/docs/2.8/generated/torch.kron.html) |  | ❌ | - | ❌ |
+    | [kthvalue](https://docs.pytorch.org/docs/2.8/generated/torch.kthvalue.html) |  | ❌ | - | ❌ |
+    | [l1_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.l1_loss.html) |  | ❌ | - | ❌ |
+    | [layer_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.layer_norm.html) |  | ❌ | - | ✅ |
+    | [lcm](https://docs.pytorch.org/docs/2.8/generated/torch.lcm.html) |  | ✅ | - | ❌ |
+    | [ldexp](https://docs.pytorch.org/docs/2.8/generated/torch.ldexp.html) |  | ✅ | - | ❌ |
     | len |  | ❌ | - | ❌ |
-    | [lerp](https://docs.pytorch.org/docs/2.7/generated/torch.lerp.html) |  | ✅ | - | ❌ |
-    | [lgamma](https://docs.pytorch.org/docs/2.7/generated/torch.lgamma.html) |  | ✅ | - | ❌ |
+    | [lerp](https://docs.pytorch.org/docs/2.8/generated/torch.lerp.html) |  | ✅ | - | ❌ |
+    | [lgamma](https://docs.pytorch.org/docs/2.8/generated/torch.lgamma.html) |  | ✅ | - | ❌ |
     | lift |  | ❌ | - | ❌ |
     | lift_fresh |  | ❌ | - | ❌ |
     | lift_fresh_copy |  | ❌ | - | ❌ |
@@ -505,8 +505,8 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | linalg_tensorinv |  | ❌ | - | ❌ |
     | linalg_tensorsolve |  | ❌ | - | ❌ |
     | linalg_vector_norm |  | ❌ | - | ✅ |
-    | [linear](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.linear.html) |  | ❌ | - | ✅ |
-    | [linspace](https://docs.pytorch.org/docs/2.7/generated/torch.linspace.html) |  | ❌ | - | ❌ |
+    | [linear](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.linear.html) |  | ❌ | - | ✅ |
+    | [linspace](https://docs.pytorch.org/docs/2.8/generated/torch.linspace.html) |  | ❌ | - | ❌ |
     | list |  | ❌ | - | ❌ |
     | list_with_default |  | ❌ | - | ❌ |
     | ljust |  | ❌ | - | ❌ |
@@ -514,39 +514,39 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | log_normal |  | ✅ | - | ❌ |
     | log_sigmoid |  | ❌ | - | ❌ |
     | log_sigmoid_forward |  | ❌ | - | ❌ |
-    | [log_softmax](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.log_softmax.html) | special_log_softmax | ❌ | - | ✅ |
-    | [logaddexp](https://docs.pytorch.org/docs/2.7/generated/torch.logaddexp.html) |  | ❌ | - | ❌ |
-    | [logaddexp2](https://docs.pytorch.org/docs/2.7/generated/torch.logaddexp2.html) |  | ❌ | - | ❌ |
-    | [logcumsumexp](https://docs.pytorch.org/docs/2.7/generated/torch.logcumsumexp.html) |  | ❌ | - | ❌ |
-    | [logdet](https://docs.pytorch.org/docs/2.7/generated/torch.logdet.html) |  | ❌ | - | ❌ |
-    | [logit](https://docs.pytorch.org/docs/2.7/generated/torch.logit.html) | special_logit | ❌ | - | ❌ |
-    | [logspace](https://docs.pytorch.org/docs/2.7/generated/torch.logspace.html) |  | ❌ | - | ❌ |
-    | [logsumexp](https://docs.pytorch.org/docs/2.7/generated/torch.logsumexp.html) | special_logsumexp | ❌ | - | ❌ |
+    | [log_softmax](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.log_softmax.html) | special_log_softmax | ❌ | - | ✅ |
+    | [logaddexp](https://docs.pytorch.org/docs/2.8/generated/torch.logaddexp.html) |  | ❌ | - | ❌ |
+    | [logaddexp2](https://docs.pytorch.org/docs/2.8/generated/torch.logaddexp2.html) |  | ❌ | - | ❌ |
+    | [logcumsumexp](https://docs.pytorch.org/docs/2.8/generated/torch.logcumsumexp.html) |  | ❌ | - | ❌ |
+    | [logdet](https://docs.pytorch.org/docs/2.8/generated/torch.logdet.html) |  | ❌ | - | ❌ |
+    | [logit](https://docs.pytorch.org/docs/2.8/generated/torch.logit.html) | special_logit | ❌ | - | ❌ |
+    | [logspace](https://docs.pytorch.org/docs/2.8/generated/torch.logspace.html) |  | ❌ | - | ❌ |
+    | [logsumexp](https://docs.pytorch.org/docs/2.8/generated/torch.logsumexp.html) | special_logsumexp | ❌ | - | ❌ |
     | lower |  | ❌ | - | ❌ |
-    | lstm |  | ❌ | - | ❌ |
-    | lstm_cell |  | ❌ | - | ❌ |
+    | lstm |  | ❌ | - | ✅ |
+    | lstm_cell |  | ❌ | - | ✅ |
     | lstrip |  | ❌ | - | ❌ |
-    | lstsq |  | ❌ | - | ❌ |
-    | [lu_solve](https://docs.pytorch.org/docs/2.7/generated/torch.lu_solve.html) |  | ❌ | - | ❌ |
-    | [lu_unpack](https://docs.pytorch.org/docs/2.7/generated/torch.lu_unpack.html) |  | ❌ | - | ❌ |
+    | [lstsq](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.lstsq.html) |  | ❌ | - | ❌ |
+    | [lu_solve](https://docs.pytorch.org/docs/2.8/generated/torch.lu_solve.html) |  | ❌ | - | ❌ |
+    | [lu_unpack](https://docs.pytorch.org/docs/2.8/generated/torch.lu_unpack.html) |  | ❌ | - | ❌ |
     | mH | adjoint | ❌ | - | ❌ |
     | mT |  | ❌ | - | ❌ |
-    | [manual_seed](https://docs.pytorch.org/docs/2.7/generated/torch.manual_seed.html) |  | ❌ | - | ❌ |
-    | [margin_ranking_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.margin_ranking_loss.html) |  | ❌ | - | ❌ |
-    | masked_fill |  | ✅ | - | ✅ |
-    | [masked_select](https://docs.pytorch.org/docs/2.7/generated/torch.masked_select.html) |  | ❌ | - | ❌ |
+    | [manual_seed](https://docs.pytorch.org/docs/2.8/generated/torch.manual_seed.html) |  | ❌ | - | ❌ |
+    | [margin_ranking_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.margin_ranking_loss.html) |  | ❌ | - | ❌ |
+    | [masked_fill](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.masked_fill.html) |  | ✅ | - | ✅ |
+    | [masked_select](https://docs.pytorch.org/docs/2.8/generated/torch.masked_select.html) |  | ❌ | - | ❌ |
     | mathremainder |  | ❌ | - | ❌ |
-    | [matmul](https://docs.pytorch.org/docs/2.7/generated/torch.matmul.html) | linalg_matmul | ❌ | - | ✅ |
+    | [matmul](https://docs.pytorch.org/docs/2.8/generated/torch.matmul.html) | linalg_matmul | ❌ | - | ✅ |
     | matrix_H |  | ❌ | - | ❌ |
-    | matrix_rank |  | ❌ | - | ❌ |
-    | [max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool1d.html) |  | ❌ | - | ✅ |
+    | [matrix_rank](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.matrix_rank.html) |  | ❌ | - | ❌ |
+    | [max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool1d.html) |  | ❌ | - | ✅ |
     | max_pool1d_with_indices |  | ❌ | - | ❌ |
-    | [max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool2d.html) |  | ❌ | - | ✅ |
-    | [max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool3d.html) |  | ❌ | - | ✅ |
-    | [max_unpool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_unpool2d.html) |  | ❌ | - | ❌ |
-    | [max_unpool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_unpool3d.html) |  | ❌ | - | ❌ |
-    | [median](https://docs.pytorch.org/docs/2.7/generated/torch.median.html) |  | ❌ | - | ❌ |
-    | [meshgrid](https://docs.pytorch.org/docs/2.7/generated/torch.meshgrid.html) |  | ❌ | - | ❌ |
+    | [max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool2d.html) |  | ❌ | - | ✅ |
+    | [max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool3d.html) |  | ❌ | - | ✅ |
+    | [max_unpool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_unpool2d.html) |  | ❌ | - | ❌ |
+    | [max_unpool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_unpool3d.html) |  | ❌ | - | ❌ |
+    | [median](https://docs.pytorch.org/docs/2.8/generated/torch.median.html) |  | ❌ | - | ❌ |
+    | [meshgrid](https://docs.pytorch.org/docs/2.8/generated/torch.meshgrid.html) |  | ❌ | - | ❌ |
     | miopen_batch_norm |  | ❌ | - | ❌ |
     | miopen_convolution |  | ❌ | - | ❌ |
     | miopen_convolution_add_relu |  | ❌ | - | ❌ |
@@ -554,7 +554,7 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | miopen_convolution_transpose |  | ❌ | - | ❌ |
     | miopen_depthwise_convolution |  | ❌ | - | ❌ |
     | miopen_rnn |  | ❌ | - | ❌ |
-    | [mish](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.mish.html) |  | ❌ | - | ❌ |
+    | [mish](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.mish.html) |  | ❌ | - | ✅ |
     | mkldnn_adaptive_avg_pool2d |  | ❌ | - | ❌ |
     | mkldnn_convolution |  | ❌ | - | ❌ |
     | mkldnn_linear |  | ❌ | - | ❌ |
@@ -563,172 +563,172 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | mkldnn_reorder_conv2d_weight |  | ❌ | - | ❌ |
     | mkldnn_reorder_conv3d_weight |  | ❌ | - | ❌ |
     | mkldnn_rnn_layer |  | ❌ | - | ❌ |
-    | [mode](https://docs.pytorch.org/docs/2.7/generated/torch.mode.html) |  | ❌ | - | ❌ |
+    | [mode](https://docs.pytorch.org/docs/2.8/generated/torch.mode.html) |  | ❌ | - | ❌ |
     | modf |  | ❌ | - | ❌ |
-    | [movedim](https://docs.pytorch.org/docs/2.7/generated/torch.movedim.html) | moveaxis | ❌ | - | ❌ |
+    | [movedim](https://docs.pytorch.org/docs/2.8/generated/torch.movedim.html) | moveaxis | ❌ | - | ❌ |
     | mps_linear |  | ❌ | - | ❌ |
-    | [mse_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.mse_loss.html) |  | ❌ | - | ❌ |
-    | [msort](https://docs.pytorch.org/docs/2.7/generated/torch.msort.html) |  | ❌ | - | ❌ |
-    | [multi_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.multi_margin_loss.html) |  | ❌ | - | ❌ |
-    | [multilabel_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.multilabel_margin_loss.html) |  | ❌ | - | ❌ |
+    | [mse_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.mse_loss.html) |  | ❌ | - | ❌ |
+    | [msort](https://docs.pytorch.org/docs/2.8/generated/torch.msort.html) |  | ❌ | - | ❌ |
+    | [multi_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.multi_margin_loss.html) |  | ❌ | - | ❌ |
+    | [multilabel_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.multilabel_margin_loss.html) |  | ❌ | - | ❌ |
     | multilabel_margin_loss_forward |  | ❌ | - | ❌ |
-    | [multinomial](https://docs.pytorch.org/docs/2.7/generated/torch.multinomial.html) |  | ❌ | - | ❌ |
-    | [mv](https://docs.pytorch.org/docs/2.7/generated/torch.mv.html) |  | ❌ | - | ❌ |
-    | [mvlgamma](https://docs.pytorch.org/docs/2.7/generated/torch.mvlgamma.html) | special_multigammaln | ❌ | - | ❌ |
-    | [nan_to_num](https://docs.pytorch.org/docs/2.7/generated/torch.nan_to_num.html) |  | ✅ | - | ❌ |
-    | [nanmean](https://docs.pytorch.org/docs/2.7/generated/torch.nanmean.html) |  | ❌ | - | ❌ |
-    | [nanmedian](https://docs.pytorch.org/docs/2.7/generated/torch.nanmedian.html) |  | ❌ | - | ❌ |
-    | [nanquantile](https://docs.pytorch.org/docs/2.7/generated/torch.nanquantile.html) |  | ❌ | - | ❌ |
-    | [nansum](https://docs.pytorch.org/docs/2.7/generated/torch.nansum.html) |  | ❌ | - | ❌ |
-    | [narrow](https://docs.pytorch.org/docs/2.7/generated/torch.narrow.html) |  | ❌ | - | ✅ |
-    | [narrow_copy](https://docs.pytorch.org/docs/2.7/generated/torch.narrow_copy.html) |  | ❌ | - | ❌ |
+    | [multinomial](https://docs.pytorch.org/docs/2.8/generated/torch.multinomial.html) |  | ❌ | - | ❌ |
+    | [mv](https://docs.pytorch.org/docs/2.8/generated/torch.mv.html) |  | ❌ | - | ❌ |
+    | [mvlgamma](https://docs.pytorch.org/docs/2.8/generated/torch.mvlgamma.html) | special_multigammaln | ❌ | - | ❌ |
+    | [nan_to_num](https://docs.pytorch.org/docs/2.8/generated/torch.nan_to_num.html) |  | ✅ | - | ❌ |
+    | [nanmean](https://docs.pytorch.org/docs/2.8/generated/torch.nanmean.html) |  | ❌ | - | ❌ |
+    | [nanmedian](https://docs.pytorch.org/docs/2.8/generated/torch.nanmedian.html) |  | ❌ | - | ❌ |
+    | [nanquantile](https://docs.pytorch.org/docs/2.8/generated/torch.nanquantile.html) |  | ❌ | - | ❌ |
+    | [nansum](https://docs.pytorch.org/docs/2.8/generated/torch.nansum.html) |  | ❌ | - | ❌ |
+    | [narrow](https://docs.pytorch.org/docs/2.8/generated/torch.narrow.html) |  | ❌ | - | ✅ |
+    | [narrow_copy](https://docs.pytorch.org/docs/2.8/generated/torch.narrow_copy.html) |  | ❌ | - | ❌ |
     | native_batch_norm |  | ❌ | - | ❌ |
     | native_channel_shuffle |  | ❌ | - | ❌ |
     | native_multi_head_self_attention |  | ❌ | - | ❌ |
     | native_norm |  | ❌ | - | ❌ |
     | neq |  | ❌ | - | ❌ |
     | nested_to_padded_tensor |  | ❌ | - | ❌ |
-    | new_empty |  | ❌ | - | ❌ |
+    | [new_empty](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_empty.html) |  | ❌ | - | ❌ |
     | new_empty_strided |  | ❌ | - | ❌ |
-    | new_full |  | ❌ | - | ❌ |
-    | new_ones |  | ❌ | - | ❌ |
-    | new_zeros |  | ❌ | - | ✅ |
-    | [nextafter](https://docs.pytorch.org/docs/2.7/generated/torch.nextafter.html) |  | ✅ | - | ❌ |
-    | [nll_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.nll_loss.html) |  | ❌ | - | ❌ |
+    | [new_full](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_full.html) |  | ❌ | - | ❌ |
+    | [new_ones](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_ones.html) |  | ❌ | - | ❌ |
+    | [new_zeros](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_zeros.html) |  | ❌ | - | ✅ |
+    | [nextafter](https://docs.pytorch.org/docs/2.8/generated/torch.nextafter.html) |  | ✅ | - | ❌ |
+    | [nll_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.nll_loss.html) |  | ❌ | - | ❌ |
     | nll_loss2d |  | ❌ | - | ❌ |
     | nll_loss_forward |  | ❌ | - | ❌ |
     | nll_loss_nd |  | ❌ | - | ❌ |
     | node |  | ❌ | - | ❌ |
     | nonzero_numpy |  | ❌ | - | ❌ |
     | nonzero_static |  | ❌ | - | ❌ |
-    | [norm](https://docs.pytorch.org/docs/2.7/generated/torch.norm.html) |  | ❌ | - | ✅ |
+    | [norm](https://docs.pytorch.org/docs/2.8/generated/torch.norm.html) |  | ❌ | - | ✅ |
     | norm_except_dim |  | ❌ | - | ❌ |
-    | [normal](https://docs.pytorch.org/docs/2.7/generated/torch.normal.html) |  | ✅ | - | ❌ |
+    | [normal](https://docs.pytorch.org/docs/2.8/generated/torch.normal.html) |  | ✅ | - | ❌ |
     | normal_functional |  | ❌ | - | ❌ |
     | nuclear_norm |  | ❌ | - | ❌ |
-    | [numel](https://docs.pytorch.org/docs/2.7/generated/torch.numel.html) |  | ❌ | - | ✅ |
+    | [numel](https://docs.pytorch.org/docs/2.8/generated/torch.numel.html) |  | ❌ | - | ✅ |
     | numpy_T |  | ❌ | - | ❌ |
     | oct |  | ❌ | - | ❌ |
-    | [one_hot](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.one_hot.html) |  | ❌ | - | ❌ |
-    | [ones](https://docs.pytorch.org/docs/2.7/generated/torch.ones.html) |  | ❌ | - | ✅ |
-    | [ones_like](https://docs.pytorch.org/docs/2.7/generated/torch.ones_like.html) |  | ❌ | - | ✅ |
+    | [one_hot](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.one_hot.html) |  | ❌ | - | ❌ |
+    | [ones](https://docs.pytorch.org/docs/2.8/generated/torch.ones.html) |  | ❌ | - | ✅ |
+    | [ones_like](https://docs.pytorch.org/docs/2.8/generated/torch.ones_like.html) |  | ❌ | - | ✅ |
     | op |  | ❌ | - | ❌ |
     | op_name |  | ❌ | - | ❌ |
     | ord |  | ❌ | - | ❌ |
-    | [ormqr](https://docs.pytorch.org/docs/2.7/generated/torch.ormqr.html) |  | ❌ | - | ❌ |
-    | [outer](https://docs.pytorch.org/docs/2.7/generated/torch.outer.html) | ger | ❌ | - | ❌ |
+    | [ormqr](https://docs.pytorch.org/docs/2.8/generated/torch.ormqr.html) |  | ❌ | - | ❌ |
+    | [outer](https://docs.pytorch.org/docs/2.8/generated/torch.outer.html) | ger | ❌ | - | ✅ |
     | output_nr |  | ❌ | - | ❌ |
     | owner |  | ❌ | - | ❌ |
     | owner_name |  | ❌ | - | ❌ |
-    | [pad](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pad.html) |  | ❌ | - | ✅ |
+    | [pad](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pad.html) |  | ❌ | - | ✅ |
     | pad_sequence |  | ❌ | - | ❌ |
-    | [pairwise_distance](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pairwise_distance.html) |  | ❌ | - | ❌ |
+    | [pairwise_distance](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pairwise_distance.html) |  | ❌ | - | ❌ |
     | partition |  | ❌ | - | ❌ |
-    | [pdist](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pdist.html) |  | ❌ | - | ❌ |
+    | [pdist](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pdist.html) |  | ❌ | - | ❌ |
     | percentFormat |  | ❌ | - | ❌ |
     | permute_copy |  | ❌ | - | ❌ |
-    | pin_memory |  | ❌ | - | ❌ |
-    | pinv |  | ❌ | - | ❌ |
-    | [pinverse](https://docs.pytorch.org/docs/2.7/generated/torch.pinverse.html) |  | ❌ | - | ❌ |
-    | [pixel_shuffle](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pixel_shuffle.html) |  | ❌ | - | ❌ |
-    | [pixel_unshuffle](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pixel_unshuffle.html) |  | ❌ | - | ❌ |
+    | [pin_memory](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.pin_memory.html) |  | ❌ | - | ❌ |
+    | [pinv](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.pinv.html) |  | ❌ | - | ❌ |
+    | [pinverse](https://docs.pytorch.org/docs/2.8/generated/torch.pinverse.html) |  | ❌ | - | ❌ |
+    | [pixel_shuffle](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pixel_shuffle.html) |  | ❌ | - | ❌ |
+    | [pixel_unshuffle](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pixel_unshuffle.html) |  | ❌ | - | ❌ |
     | pointwise_placeholder |  | ❌ | - | ❌ |
-    | [poisson](https://docs.pytorch.org/docs/2.7/generated/torch.poisson.html) |  | ❌ | - | ❌ |
-    | [poisson_nll_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.poisson_nll_loss.html) |  | ❌ | - | ❌ |
-    | [polar](https://docs.pytorch.org/docs/2.7/generated/torch.polar.html) |  | ❌ | - | ❌ |
-    | [polygamma](https://docs.pytorch.org/docs/2.7/generated/torch.polygamma.html) | special_polygamma | ✅ | - | ❌ |
+    | [poisson](https://docs.pytorch.org/docs/2.8/generated/torch.poisson.html) |  | ❌ | - | ❌ |
+    | [poisson_nll_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.poisson_nll_loss.html) |  | ❌ | - | ❌ |
+    | [polar](https://docs.pytorch.org/docs/2.8/generated/torch.polar.html) |  | ❌ | - | ❌ |
+    | [polygamma](https://docs.pytorch.org/docs/2.8/generated/torch.polygamma.html) | special_polygamma | ✅ | - | ❌ |
     | pop |  | ❌ | - | ❌ |
     | popitem |  | ❌ | - | ❌ |
-    | [positive](https://docs.pytorch.org/docs/2.7/generated/torch.positive.html) |  | ❌ | - | ❌ |
-    | [prelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.prelu.html) |  | ❌ | - | ✅ |
-    | [promote_types](https://docs.pytorch.org/docs/2.7/generated/torch.promote_types.html) |  | ❌ | - | ❌ |
+    | [positive](https://docs.pytorch.org/docs/2.8/generated/torch.positive.html) |  | ❌ | - | ❌ |
+    | [prelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.prelu.html) |  | ❌ | - | ✅ |
+    | [promote_types](https://docs.pytorch.org/docs/2.8/generated/torch.promote_types.html) |  | ❌ | - | ❌ |
     | put |  | ✅ | - | ❌ |
-    | q_per_channel_axis |  | ❌ | - | ❌ |
-    | q_per_channel_scales |  | ❌ | - | ❌ |
-    | q_per_channel_zero_points |  | ❌ | - | ❌ |
-    | q_scale |  | ❌ | - | ❌ |
-    | q_zero_point |  | ❌ | - | ❌ |
-    | [qr](https://docs.pytorch.org/docs/2.7/generated/torch.qr.html) |  | ❌ | - | ❌ |
-    | qscheme |  | ❌ | - | ❌ |
-    | [quantile](https://docs.pytorch.org/docs/2.7/generated/torch.quantile.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_axis](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_axis.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_scales](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_scales.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_zero_points](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_zero_points.html) |  | ❌ | - | ❌ |
+    | [q_scale](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_scale.html) |  | ❌ | - | ❌ |
+    | [q_zero_point](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_zero_point.html) |  | ❌ | - | ❌ |
+    | [qr](https://docs.pytorch.org/docs/2.8/generated/torch.qr.html) |  | ❌ | - | ❌ |
+    | [qscheme](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.qscheme.html) |  | ❌ | - | ❌ |
+    | [quantile](https://docs.pytorch.org/docs/2.8/generated/torch.quantile.html) |  | ❌ | - | ❌ |
     | quantize |  | ❌ | - | ❌ |
-    | [quantize_per_channel](https://docs.pytorch.org/docs/2.7/generated/torch.quantize_per_channel.html) |  | ❌ | - | ❌ |
-    | [quantize_per_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.quantize_per_tensor.html) |  | ❌ | - | ✅ |
+    | [quantize_per_channel](https://docs.pytorch.org/docs/2.8/generated/torch.quantize_per_channel.html) |  | ❌ | - | ❌ |
+    | [quantize_per_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.quantize_per_tensor.html) |  | ❌ | - | ✅ |
     | quantize_per_tensor_dynamic |  | ❌ | - | ❌ |
-    | [quantized_batch_norm](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_batch_norm.html) |  | ❌ | - | ❌ |
+    | [quantized_batch_norm](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_batch_norm.html) |  | ❌ | - | ❌ |
     | quantized_gru |  | ❌ | - | ❌ |
     | quantized_lstm |  | ❌ | - | ❌ |
-    | [quantized_max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_max_pool1d.html) |  | ❌ | - | ❌ |
-    | [quantized_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_max_pool2d.html) |  | ❌ | - | ❌ |
+    | [quantized_max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_max_pool1d.html) |  | ❌ | - | ❌ |
+    | [quantized_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_max_pool2d.html) |  | ❌ | - | ❌ |
     | quantized_max_pool3d |  | ❌ | - | ❌ |
-    | [rad2deg](https://docs.pytorch.org/docs/2.7/generated/torch.rad2deg.html) |  | ❌ | - | ❌ |
+    | [rad2deg](https://docs.pytorch.org/docs/2.8/generated/torch.rad2deg.html) |  | ❌ | - | ❌ |
     | radians |  | ❌ | - | ❌ |
-    | [rand_like](https://docs.pytorch.org/docs/2.7/generated/torch.rand_like.html) |  | ❌ | - | ❌ |
-    | [randint](https://docs.pytorch.org/docs/2.7/generated/torch.randint.html) |  | ❌ | - | ❌ |
-    | [randint_like](https://docs.pytorch.org/docs/2.7/generated/torch.randint_like.html) |  | ❌ | - | ❌ |
-    | [randn_like](https://docs.pytorch.org/docs/2.7/generated/torch.randn_like.html) |  | ❌ | - | ❌ |
+    | [rand_like](https://docs.pytorch.org/docs/2.8/generated/torch.rand_like.html) |  | ❌ | - | ❌ |
+    | [randint](https://docs.pytorch.org/docs/2.8/generated/torch.randint.html) |  | ❌ | - | ❌ |
+    | [randint_like](https://docs.pytorch.org/docs/2.8/generated/torch.randint_like.html) |  | ❌ | - | ❌ |
+    | [randn_like](https://docs.pytorch.org/docs/2.8/generated/torch.randn_like.html) |  | ❌ | - | ❌ |
     | random |  | ✅ | - | ❌ |
-    | [range](https://docs.pytorch.org/docs/2.7/generated/torch.range.html) |  | ❌ | - | ❌ |
-    | [ravel](https://docs.pytorch.org/docs/2.7/generated/torch.ravel.html) |  | ❌ | - | ❌ |
-    | [real](https://docs.pytorch.org/docs/2.7/generated/torch.real.html) |  | ❌ | - | ❌ |
-    | record_stream |  | ❌ | - | ❌ |
+    | [range](https://docs.pytorch.org/docs/2.8/generated/torch.range.html) |  | ❌ | - | ❌ |
+    | [ravel](https://docs.pytorch.org/docs/2.8/generated/torch.ravel.html) |  | ❌ | - | ❌ |
+    | [real](https://docs.pytorch.org/docs/2.8/generated/torch.real.html) |  | ❌ | - | ❌ |
+    | [record_stream](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.record_stream.html) |  | ❌ | - | ❌ |
     | reduce_scatter_tensor |  | ❌ | - | ❌ |
     | refine_names |  | ❌ | - | ❌ |
-    | [relu6](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.relu6.html) |  | ✅ | - | ✅ |
+    | [relu6](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.relu6.html) |  | ✅ | - | ✅ |
     | remove |  | ❌ | - | ❌ |
     | rename |  | ✅ | - | ❌ |
-    | [renorm](https://docs.pytorch.org/docs/2.7/generated/torch.renorm.html) |  | ❌ | - | ❌ |
-    | [repeat_interleave](https://docs.pytorch.org/docs/2.7/generated/torch.repeat_interleave.html) |  | ❌ | - | ✅ |
+    | [renorm](https://docs.pytorch.org/docs/2.8/generated/torch.renorm.html) |  | ❌ | - | ❌ |
+    | [repeat_interleave](https://docs.pytorch.org/docs/2.8/generated/torch.repeat_interleave.html) |  | ❌ | - | ✅ |
     | replace |  | ❌ | - | ❌ |
     | replication_pad1d |  | ❌ | - | ✅ |
-    | requires_grad_ |  | ❌ | - | ❌ |
-    | [reshape](https://docs.pytorch.org/docs/2.7/generated/torch.reshape.html) |  | ❌ | - | ✅ |
-    | reshape_as |  | ❌ | - | ❌ |
+    | [requires_grad_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.requires_grad_.html) |  | ❌ | - | ❌ |
+    | [reshape](https://docs.pytorch.org/docs/2.8/generated/torch.reshape.html) |  | ❌ | - | ✅ |
+    | [reshape_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.reshape_as.html) |  | ❌ | - | ❌ |
     | resize |  | ✅ | - | ❌ |
-    | resize_as_ |  | ❌ | - | ❌ |
+    | [resize_as_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.resize_as_.html) |  | ❌ | - | ❌ |
     | resize_as_sparse |  | ✅ | - | ❌ |
-    | [resolve_conj](https://docs.pytorch.org/docs/2.7/generated/torch.resolve_conj.html) |  | ❌ | - | ❌ |
-    | [resolve_neg](https://docs.pytorch.org/docs/2.7/generated/torch.resolve_neg.html) |  | ❌ | - | ❌ |
-    | [result_type](https://docs.pytorch.org/docs/2.7/generated/torch.result_type.html) |  | ❌ | - | ❌ |
-    | retain_grad |  | ❌ | - | ❌ |
-    | retains_grad |  | ❌ | - | ❌ |
+    | [resolve_conj](https://docs.pytorch.org/docs/2.8/generated/torch.resolve_conj.html) |  | ❌ | - | ❌ |
+    | [resolve_neg](https://docs.pytorch.org/docs/2.8/generated/torch.resolve_neg.html) |  | ❌ | - | ❌ |
+    | [result_type](https://docs.pytorch.org/docs/2.8/generated/torch.result_type.html) |  | ❌ | - | ❌ |
+    | [retain_grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.retain_grad.html) |  | ❌ | - | ❌ |
+    | [retains_grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.retains_grad.html) |  | ❌ | - | ❌ |
     | reverse |  | ❌ | - | ❌ |
     | rfind |  | ❌ | - | ❌ |
     | rindex |  | ❌ | - | ❌ |
     | rjust |  | ❌ | - | ❌ |
-    | rnn_relu |  | ❌ | - | ❌ |
+    | rnn_relu |  | ❌ | - | ✅ |
     | rnn_relu_cell |  | ❌ | - | ❌ |
-    | rnn_tanh |  | ❌ | - | ❌ |
+    | rnn_tanh |  | ❌ | - | ✅ |
     | rnn_tanh_cell |  | ❌ | - | ❌ |
-    | [roll](https://docs.pytorch.org/docs/2.7/generated/torch.roll.html) |  | ❌ | - | ✅ |
-    | [rot90](https://docs.pytorch.org/docs/2.7/generated/torch.rot90.html) |  | ❌ | - | ❌ |
-    | row_indices |  | ❌ | - | ❌ |
+    | [roll](https://docs.pytorch.org/docs/2.8/generated/torch.roll.html) |  | ❌ | - | ✅ |
+    | [rot90](https://docs.pytorch.org/docs/2.8/generated/torch.rot90.html) |  | ❌ | - | ❌ |
+    | [row_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.row_indices.html) |  | ❌ | - | ❌ |
     | row_indices_copy |  | ❌ | - | ❌ |
     | rowwise_prune |  | ❌ | - | ❌ |
     | rpartition |  | ❌ | - | ❌ |
-    | [rrelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.rrelu.html) |  | ❌ | - | ❌ |
+    | [rrelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.rrelu.html) |  | ❌ | - | ❌ |
     | rrelu_with_noise |  | ✅ | - | ❌ |
     | rrelu_with_noise_functional |  | ❌ | - | ❌ |
     | rsplit |  | ❌ | - | ❌ |
     | rstrip |  | ❌ | - | ❌ |
     | rsub |  | ❌ | - | ✅ |
-    | [save](https://docs.pytorch.org/docs/2.7/generated/torch.save.html) |  | ❌ | - | ❌ |
-    | [scaled_dot_product_attention](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.scaled_dot_product_attention.html) |  | ❌ | - | ✅ |
-    | [searchsorted](https://docs.pytorch.org/docs/2.7/generated/torch.searchsorted.html) |  | ❌ | - | ❌ |
-    | [seed](https://docs.pytorch.org/docs/2.7/generated/torch.seed.html) |  | ❌ | - | ❌ |
+    | [save](https://docs.pytorch.org/docs/2.8/generated/torch.save.html) |  | ❌ | - | ❌ |
+    | [scaled_dot_product_attention](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.scaled_dot_product_attention.html) |  | ❌ | - | ✅ |
+    | [searchsorted](https://docs.pytorch.org/docs/2.8/generated/torch.searchsorted.html) |  | ❌ | - | ❌ |
+    | [seed](https://docs.pytorch.org/docs/2.8/generated/torch.seed.html) |  | ❌ | - | ❌ |
     | segment_reduce |  | ❌ | - | ❌ |
     | select_copy |  | ❌ | - | ❌ |
-    | [selu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.selu.html) |  | ✅ | - | ✅ |
+    | [selu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.selu.html) |  | ✅ | - | ✅ |
     | set |  | ✅ | - | ❌ |
     | set_data |  | ❌ | - | ❌ |
     | set_grad_enabled |  | ❌ | - | ❌ |
     | set_source_Tensor_storage_offset |  | ❌ | - | ❌ |
     | setdefault |  | ❌ | - | ❌ |
-    | [sgn](https://docs.pytorch.org/docs/2.7/generated/torch.sgn.html) |  | ❌ | - | ❌ |
-    | [signbit](https://docs.pytorch.org/docs/2.7/generated/torch.signbit.html) |  | ❌ | - | ❌ |
-    | [silu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.silu.html) |  | ✅ | - | ✅ |
-    | [sinc](https://docs.pytorch.org/docs/2.7/generated/torch.sinc.html) | special_sinc | ❌ | - | ❌ |
-    | size |  | ❌ | - | ✅ |
+    | [sgn](https://docs.pytorch.org/docs/2.8/generated/torch.sgn.html) |  | ❌ | - | ❌ |
+    | [signbit](https://docs.pytorch.org/docs/2.8/generated/torch.signbit.html) |  | ❌ | - | ❌ |
+    | [silu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.silu.html) |  | ✅ | - | ✅ |
+    | [sinc](https://docs.pytorch.org/docs/2.8/generated/torch.sinc.html) | special_sinc | ❌ | - | ❌ |
+    | [size](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.size.html) |  | ❌ | - | ✅ |
     | slice_copy |  | ❌ | - | ❌ |
     | slice_inverse |  | ❌ | - | ❌ |
     | slow_conv3d |  | ❌ | - | ❌ |
@@ -737,18 +737,18 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | slow_conv_dilated3d |  | ❌ | - | ❌ |
     | slow_conv_transpose2d |  | ❌ | - | ❌ |
     | slow_conv_transpose3d |  | ❌ | - | ❌ |
-    | [smm](https://docs.pytorch.org/docs/2.7/generated/torch.smm.html) |  | ❌ | - | ❌ |
-    | [smooth_l1_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.smooth_l1_loss.html) |  | ❌ | - | ❌ |
-    | [soft_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.soft_margin_loss.html) |  | ❌ | - | ❌ |
-    | [softmax](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softmax.html) | special_softmax | ❌ | - | ✅ |
-    | [softplus](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softplus.html) |  | ❌ | - | ✅ |
-    | [softshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softshrink.html) |  | ❌ | - | ❌ |
-    | solve |  | ❌ | - | ❌ |
+    | [smm](https://docs.pytorch.org/docs/2.8/generated/torch.smm.html) |  | ❌ | - | ❌ |
+    | [smooth_l1_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.smooth_l1_loss.html) |  | ❌ | - | ❌ |
+    | [soft_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.soft_margin_loss.html) |  | ❌ | - | ❌ |
+    | [softmax](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softmax.html) | special_softmax | ❌ | - | ✅ |
+    | [softplus](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softplus.html) |  | ❌ | - | ✅ |
+    | [softshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softshrink.html) |  | ❌ | - | ❌ |
+    | [solve](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.solve.html) |  | ❌ | - | ❌ |
     | sorted |  | ❌ | - | ❌ |
-    | [sparse_compressed_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.sparse_compressed_tensor.html) |  | ❌ | - | ❌ |
-    | [sparse_coo_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.sparse_coo_tensor.html) |  | ❌ | - | ❌ |
-    | sparse_dim |  | ❌ | - | ❌ |
-    | sparse_mask |  | ❌ | - | ❌ |
+    | [sparse_compressed_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.sparse_compressed_tensor.html) |  | ❌ | - | ❌ |
+    | [sparse_coo_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.sparse_coo_tensor.html) |  | ❌ | - | ❌ |
+    | [sparse_dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.sparse_dim.html) |  | ❌ | - | ❌ |
+    | [sparse_mask](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.sparse_mask.html) |  | ❌ | - | ❌ |
     | sparse_resize |  | ✅ | - | ❌ |
     | sparse_resize_and_clear |  | ✅ | - | ❌ |
     | sparse_sampled_addmm |  | ❌ | - | ❌ |
@@ -786,372 +786,371 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | special_spherical_bessel_j0 |  | ❌ | - | ❌ |
     | special_xlog1py |  | ❌ | - | ❌ |
     | special_zeta |  | ❌ | - | ❌ |
-    | [split](https://docs.pytorch.org/docs/2.7/generated/torch.split.html) |  | ❌ | - | ❌ |
+    | [split](https://docs.pytorch.org/docs/2.8/generated/torch.split.html) |  | ❌ | - | ❌ |
     | split_copy |  | ❌ | - | ❌ |
-    | split_with_sizes_copy |  | ❌ | - | ❌ |
     | splitlines |  | ❌ | - | ❌ |
-    | [square](https://docs.pytorch.org/docs/2.7/generated/torch.square.html) |  | ✅ | - | ❌ |
-    | [sspaddmm](https://docs.pytorch.org/docs/2.7/generated/torch.sspaddmm.html) |  | ❌ | - | ❌ |
-    | [stack](https://docs.pytorch.org/docs/2.7/generated/torch.stack.html) |  | ❌ | - | ✅ |
+    | [square](https://docs.pytorch.org/docs/2.8/generated/torch.square.html) |  | ✅ | - | ❌ |
+    | [sspaddmm](https://docs.pytorch.org/docs/2.8/generated/torch.sspaddmm.html) |  | ❌ | - | ❌ |
+    | [stack](https://docs.pytorch.org/docs/2.8/generated/torch.stack.html) |  | ❌ | - | ✅ |
     | startswith |  | ❌ | - | ❌ |
-    | [std](https://docs.pytorch.org/docs/2.7/generated/torch.std.html) |  | ❌ | - | ❌ |
-    | [std_mean](https://docs.pytorch.org/docs/2.7/generated/torch.std_mean.html) |  | ❌ | - | ❌ |
-    | [stft](https://docs.pytorch.org/docs/2.7/generated/torch.stft.html) |  | ❌ | - | ✅ |
-    | storage_offset |  | ❌ | - | ❌ |
+    | [std](https://docs.pytorch.org/docs/2.8/generated/torch.std.html) |  | ❌ | - | ❌ |
+    | [std_mean](https://docs.pytorch.org/docs/2.8/generated/torch.std_mean.html) |  | ❌ | - | ❌ |
+    | [stft](https://docs.pytorch.org/docs/2.8/generated/torch.stft.html) |  | ❌ | - | ✅ |
+    | [storage_offset](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.storage_offset.html) |  | ❌ | - | ❌ |
     | str |  | ❌ | - | ❌ |
-    | stride |  | ❌ | - | ❌ |
+    | [stride](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.stride.html) |  | ❌ | - | ❌ |
     | strip |  | ❌ | - | ❌ |
     | sum_to |  | ❌ | - | ❌ |
-    | [svd](https://docs.pytorch.org/docs/2.7/generated/torch.svd.html) |  | ❌ | - | ❌ |
+    | [svd](https://docs.pytorch.org/docs/2.8/generated/torch.svd.html) |  | ❌ | - | ❌ |
     | swapcase |  | ❌ | - | ❌ |
     | symbolic_b |  | ❌ | - | ❌ |
     | symeig |  | ❌ | - | ❌ |
-    | [t](https://docs.pytorch.org/docs/2.7/generated/torch.t.html) |  | ✅ | - | ❌ |
-    | [take](https://docs.pytorch.org/docs/2.7/generated/torch.take.html) |  | ❌ | - | ❌ |
-    | [take_along_dim](https://docs.pytorch.org/docs/2.7/generated/torch.take_along_dim.html) |  | ❌ | - | ❌ |
-    | [tanhshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.tanhshrink.html) |  | ❌ | - | ❌ |
-    | [tensor](https://docs.pytorch.org/docs/2.7/generated/torch.tensor.html) |  | ❌ | - | ❌ |
-    | [tensor_split](https://docs.pytorch.org/docs/2.7/generated/torch.tensor_split.html) |  | ❌ | - | ❌ |
-    | [tensordot](https://docs.pytorch.org/docs/2.7/generated/torch.tensordot.html) |  | ❌ | - | ❌ |
+    | [t](https://docs.pytorch.org/docs/2.8/generated/torch.t.html) |  | ✅ | - | ❌ |
+    | [take](https://docs.pytorch.org/docs/2.8/generated/torch.take.html) |  | ❌ | - | ❌ |
+    | [take_along_dim](https://docs.pytorch.org/docs/2.8/generated/torch.take_along_dim.html) |  | ❌ | - | ❌ |
+    | [tanhshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.tanhshrink.html) |  | ❌ | - | ❌ |
+    | [tensor](https://docs.pytorch.org/docs/2.8/generated/torch.tensor.html) |  | ❌ | - | ❌ |
+    | [tensor_split](https://docs.pytorch.org/docs/2.8/generated/torch.tensor_split.html) |  | ❌ | - | ❌ |
+    | [tensordot](https://docs.pytorch.org/docs/2.8/generated/torch.tensordot.html) |  | ❌ | - | ❌ |
     | test |  | ❌ | - | ❌ |
     | test_symbol |  | ❌ | - | ❌ |
     | test_vartype |  | ❌ | - | ❌ |
     | test_vartype2 |  | ❌ | - | ❌ |
     | thnn_conv2d |  | ❌ | - | ❌ |
     | thnn_conv2d_forward |  | ❌ | - | ❌ |
-    | [threshold](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.threshold.html) |  | ❌ | - | ❌ |
-    | [tile](https://docs.pytorch.org/docs/2.7/generated/torch.tile.html) |  | ❌ | - | ❌ |
+    | [threshold](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.threshold.html) |  | ❌ | - | ✅ |
+    | [tile](https://docs.pytorch.org/docs/2.8/generated/torch.tile.html) |  | ❌ | - | ❌ |
     | title |  | ❌ | - | ❌ |
-    | to |  | ❌ | - | ✅ |
-    | to_dense |  | ❌ | - | ❌ |
+    | [to](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to.html) |  | ❌ | - | ✅ |
+    | [to_dense](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to_dense.html) |  | ❌ | - | ❌ |
     | to_here |  | ❌ | - | ❌ |
-    | to_mkldnn |  | ❌ | - | ❌ |
+    | [to_mkldnn](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to_mkldnn.html) |  | ❌ | - | ❌ |
     | to_padded_tensor |  | ❌ | - | ❌ |
-    | [trace](https://docs.pytorch.org/docs/2.7/generated/torch.trace.html) |  | ❌ | - | ❌ |
-    | [transpose](https://docs.pytorch.org/docs/2.7/generated/torch.transpose.html) | swapaxes, swapdims | ✅ | - | ✅ |
-    | transpose_copy |  | ❌ | - | ❌ |
-    | [trapezoid](https://docs.pytorch.org/docs/2.7/generated/torch.trapezoid.html) |  | ❌ | - | ❌ |
-    | [trapz](https://docs.pytorch.org/docs/2.7/generated/torch.trapz.html) |  | ❌ | - | ❌ |
-    | [triangular_solve](https://docs.pytorch.org/docs/2.7/generated/torch.triangular_solve.html) |  | ❌ | - | ❌ |
-    | [tril](https://docs.pytorch.org/docs/2.7/generated/torch.tril.html) |  | ❌ | - | ✅ |
-    | [tril_indices](https://docs.pytorch.org/docs/2.7/generated/torch.tril_indices.html) |  | ❌ | - | ❌ |
-    | [triplet_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.triplet_margin_loss.html) |  | ❌ | - | ❌ |
-    | [triu](https://docs.pytorch.org/docs/2.7/generated/torch.triu.html) |  | ❌ | - | ✅ |
-    | [triu_indices](https://docs.pytorch.org/docs/2.7/generated/torch.triu_indices.html) |  | ❌ | - | ❌ |
-    | type_as |  | ❌ | - | ✅ |
-    | [unbind](https://docs.pytorch.org/docs/2.7/generated/torch.unbind.html) |  | ❌ | - | ✅ |
+    | [trace](https://docs.pytorch.org/docs/2.8/generated/torch.trace.html) |  | ❌ | - | ❌ |
+    | [transpose](https://docs.pytorch.org/docs/2.8/generated/torch.transpose.html) | swapaxes, swapdims | ✅ | - | ✅ |
+    | [trapezoid](https://docs.pytorch.org/docs/2.8/generated/torch.trapezoid.html) |  | ❌ | - | ❌ |
+    | [trapz](https://docs.pytorch.org/docs/2.8/generated/torch.trapz.html) |  | ❌ | - | ❌ |
+    | [triangular_solve](https://docs.pytorch.org/docs/2.8/generated/torch.triangular_solve.html) |  | ❌ | - | ❌ |
+    | [tril](https://docs.pytorch.org/docs/2.8/generated/torch.tril.html) |  | ❌ | - | ✅ |
+    | [tril_indices](https://docs.pytorch.org/docs/2.8/generated/torch.tril_indices.html) |  | ❌ | - | ❌ |
+    | [triplet_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.triplet_margin_loss.html) |  | ❌ | - | ❌ |
+    | [triu](https://docs.pytorch.org/docs/2.8/generated/torch.triu.html) |  | ❌ | - | ✅ |
+    | [triu_indices](https://docs.pytorch.org/docs/2.8/generated/torch.triu_indices.html) |  | ❌ | - | ❌ |
+    | [type_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.type_as.html) |  | ❌ | - | ✅ |
+    | [unbind](https://docs.pytorch.org/docs/2.8/generated/torch.unbind.html) |  | ❌ | - | ✅ |
     | unbind_copy |  | ❌ | - | ❌ |
-    | [unflatten](https://docs.pytorch.org/docs/2.7/generated/torch.unflatten.html) |  | ❌ | - | ✅ |
+    | [unflatten](https://docs.pytorch.org/docs/2.8/generated/torch.unflatten.html) |  | ❌ | - | ✅ |
     | unflatten_dense_tensors |  | ❌ | - | ❌ |
-    | [unfold](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.unfold.html) |  | ❌ | - | ❌ |
+    | [unfold](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.unfold.html) |  | ❌ | - | ❌ |
     | unfold_copy |  | ❌ | - | ❌ |
     | uniform |  | ✅ | - | ❌ |
-    | [unique_consecutive](https://docs.pytorch.org/docs/2.7/generated/torch.unique_consecutive.html) |  | ❌ | - | ❌ |
+    | [unique_consecutive](https://docs.pytorch.org/docs/2.8/generated/torch.unique_consecutive.html) |  | ❌ | - | ❌ |
     | unique_dim |  | ❌ | - | ❌ |
     | unique_dim_consecutive |  | ❌ | - | ❌ |
     | unknown |  | ❌ | - | ❌ |
     | unsafe_chunk |  | ❌ | - | ❌ |
     | unsafe_split |  | ❌ | - | ❌ |
     | unsafe_split_with_sizes |  | ❌ | - | ❌ |
-    | unsqueeze_copy |  | ❌ | - | ❌ |
     | update |  | ❌ | - | ❌ |
     | upper |  | ❌ | - | ❌ |
-    | [upsample](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.upsample.html) |  | ❌ | - | ❌ |
+    | [upsample](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.upsample.html) |  | ❌ | - | ❌ |
     | upsample_bicubic2d |  | ❌ | - | ❌ |
     | upsample_linear1d |  | ❌ | - | ❌ |
     | upsample_nearest1d |  | ❌ | - | ❌ |
     | upsample_nearest3d |  | ❌ | - | ❌ |
     | upsample_trilinear3d |  | ❌ | - | ❌ |
-    | values |  | ❌ | - | ❌ |
+    | [values](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.values.html) |  | ❌ | - | ❌ |
     | values_copy |  | ❌ | - | ❌ |
-    | [vander](https://docs.pytorch.org/docs/2.7/generated/torch.vander.html) |  | ❌ | - | ❌ |
-    | [var_mean](https://docs.pytorch.org/docs/2.7/generated/torch.var_mean.html) |  | ❌ | - | ❌ |
-    | [vdot](https://docs.pytorch.org/docs/2.7/generated/torch.vdot.html) |  | ❌ | - | ❌ |
-    | view_as |  | ❌ | - | ❌ |
-    | [view_as_complex](https://docs.pytorch.org/docs/2.7/generated/torch.view_as_complex.html) |  | ❌ | - | ✅ |
+    | [vander](https://docs.pytorch.org/docs/2.8/generated/torch.vander.html) |  | ❌ | - | ❌ |
+    | [var_mean](https://docs.pytorch.org/docs/2.8/generated/torch.var_mean.html) |  | ❌ | - | ❌ |
+    | [vdot](https://docs.pytorch.org/docs/2.8/generated/torch.vdot.html) |  | ❌ | - | ❌ |
+    | [view_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.view_as.html) |  | ❌ | - | ❌ |
+    | [view_as_complex](https://docs.pytorch.org/docs/2.8/generated/torch.view_as_complex.html) |  | ❌ | - | ✅ |
     | view_as_complex_copy |  | ❌ | - | ❌ |
-    | [view_as_real](https://docs.pytorch.org/docs/2.7/generated/torch.view_as_real.html) |  | ❌ | - | ✅ |
+    | [view_as_real](https://docs.pytorch.org/docs/2.8/generated/torch.view_as_real.html) |  | ❌ | - | ✅ |
     | view_as_real_copy |  | ❌ | - | ❌ |
     | view_copy |  | ❌ | - | ❌ |
     | view_expand_placeholder |  | ❌ | - | ❌ |
-    | [vsplit](https://docs.pytorch.org/docs/2.7/generated/torch.vsplit.html) |  | ❌ | - | ❌ |
-    | [vstack](https://docs.pytorch.org/docs/2.7/generated/torch.vstack.html) | row_stack | ❌ | - | ✅ |
+    | [vsplit](https://docs.pytorch.org/docs/2.8/generated/torch.vsplit.html) |  | ❌ | - | ❌ |
+    | [vstack](https://docs.pytorch.org/docs/2.8/generated/torch.vstack.html) | row_stack | ❌ | - | ✅ |
     | wait |  | ❌ | - | ❌ |
     | wait_tensor |  | ❌ | - | ❌ |
     | warn |  | ❌ | - | ❌ |
     | warns |  | ❌ | - | ❌ |
     | wrapped_linear_prepack |  | ❌ | - | ❌ |
     | wrapped_quantized_linear_prepacked |  | ❌ | - | ❌ |
-    | [xlogy](https://docs.pytorch.org/docs/2.7/generated/torch.xlogy.html) | special_xlogy | ❌ | - | ❌ |
+    | [xlogy](https://docs.pytorch.org/docs/2.8/generated/torch.xlogy.html) | special_xlogy | ❌ | - | ❌ |
     | zero |  | ✅ | - | ❌ |
-    | [zeros](https://docs.pytorch.org/docs/2.7/generated/torch.zeros.html) |  | ❌ | - | ✅ |
-    | [zeros_like](https://docs.pytorch.org/docs/2.7/generated/torch.zeros_like.html) |  | ❌ | - | ✅ |
+    | [zeros](https://docs.pytorch.org/docs/2.8/generated/torch.zeros.html) |  | ❌ | - | ✅ |
+    | [zeros_like](https://docs.pytorch.org/docs/2.8/generated/torch.zeros_like.html) |  | ❌ | - | ✅ |
     | zfill |  | ❌ | - | ❌ |
 
 === "ONNX"
 
 
-    Total matched operators in builtin PyTorch `ONNX` support based on [this page](https://docs.pytorch.org/docs/2.7/onnx_torchscript_supported_aten_ops.html) compared to:
+    Total matched operators in builtin PyTorch `ONNX` support based on [this page](https://docs.pytorch.org/docs/2.8/onnx_torchscript_supported_aten_ops.html) compared to:
 
     - core PyTorch opset:
 
-    [=122/137 "122/137"]
+    [=123/138 "123/138"]
 
     -  and support from full `aten::`: 
 
-    [=320/862 "320/862"]
+    [=320/859 "320/859"]
 
      (total registered aten operators in t2n being 348)
 
     | aten name | aliases | can in-place | is core | translated |
     | -------- | ------- | ------- | --------- | ---------------- |
-    | [abs](https://docs.pytorch.org/docs/2.7/generated/torch.abs.html) | absolute | ✅ | ✅ | ✅ |
-    | [acos](https://docs.pytorch.org/docs/2.7/generated/torch.acos.html) | arccos | ✅ | ✅ | ✅ |
-    | [acosh](https://docs.pytorch.org/docs/2.7/generated/torch.acosh.html) | arccosh | ✅ | ✅ | ❌ |
-    | [adaptive_avg_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool1d.html) |  | ❌ | ✅ | ✅ |
-    | [add](https://docs.pytorch.org/docs/2.7/generated/torch.add.html) |  | ✅ | ✅ | ✅ |
-    | [addmm](https://docs.pytorch.org/docs/2.7/generated/torch.addmm.html) |  | ✅ | ✅ | ✅ |
+    | [abs](https://docs.pytorch.org/docs/2.8/generated/torch.abs.html) | absolute | ✅ | ✅ | ✅ |
+    | [acos](https://docs.pytorch.org/docs/2.8/generated/torch.acos.html) | arccos | ✅ | ✅ | ✅ |
+    | [acosh](https://docs.pytorch.org/docs/2.8/generated/torch.acosh.html) | arccosh | ✅ | ✅ | ❌ |
+    | [adaptive_avg_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool1d.html) |  | ❌ | ✅ | ✅ |
+    | [add](https://docs.pytorch.org/docs/2.8/generated/torch.add.html) |  | ✅ | ✅ | ✅ |
+    | [addmm](https://docs.pytorch.org/docs/2.8/generated/torch.addmm.html) |  | ✅ | ✅ | ✅ |
     | alias |  | ❌ | ✅ | ✅ |
-    | [amax](https://docs.pytorch.org/docs/2.7/generated/torch.amax.html) |  | ❌ | ✅ | ✅ |
-    | [amin](https://docs.pytorch.org/docs/2.7/generated/torch.amin.html) |  | ❌ | ✅ | ✅ |
-    | [any](https://docs.pytorch.org/docs/2.7/generated/torch.any.html) |  | ❌ | ✅ | ✅ |
-    | [arange](https://docs.pytorch.org/docs/2.7/generated/torch.arange.html) |  | ❌ | ✅ | ✅ |
-    | [argmax](https://docs.pytorch.org/docs/2.7/generated/torch.argmax.html) |  | ❌ | ✅ | ✅ |
-    | [argmin](https://docs.pytorch.org/docs/2.7/generated/torch.argmin.html) |  | ❌ | ✅ | ✅ |
-    | [as_strided](https://docs.pytorch.org/docs/2.7/generated/torch.as_strided.html) |  | ✅ | ✅ | ✅ |
-    | [asin](https://docs.pytorch.org/docs/2.7/generated/torch.asin.html) | arcsin | ✅ | ✅ | ✅ |
-    | [asinh](https://docs.pytorch.org/docs/2.7/generated/torch.asinh.html) | arcsinh | ✅ | ✅ | ❌ |
-    | [atan](https://docs.pytorch.org/docs/2.7/generated/torch.atan.html) | arctan | ✅ | ✅ | ✅ |
-    | [atan2](https://docs.pytorch.org/docs/2.7/generated/torch.atan2.html) | arctan2 | ✅ | ✅ | ✅ |
-    | [atanh](https://docs.pytorch.org/docs/2.7/generated/torch.atanh.html) | arctanh | ✅ | ✅ | ❌ |
-    | [avg_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool1d.html) |  | ❌ | ✅ | ✅ |
-    | [avg_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool2d.html) |  | ❌ | ✅ | ✅ |
-    | [avg_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.avg_pool3d.html) |  | ❌ | ✅ | ✅ |
-    | [bitwise_and](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_and.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_not](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_not.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_or](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_or.html) |  | ✅ | ✅ | ✅ |
-    | [bitwise_xor](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_xor.html) |  | ✅ | ✅ | ❌ |
-    | [bmm](https://docs.pytorch.org/docs/2.7/generated/torch.bmm.html) |  | ❌ | ✅ | ✅ |
-    | [cat](https://docs.pytorch.org/docs/2.7/generated/torch.cat.html) | concat, concatenate | ❌ | ✅ | ✅ |
-    | [ceil](https://docs.pytorch.org/docs/2.7/generated/torch.ceil.html) |  | ✅ | ✅ | ✅ |
-    | [clamp](https://docs.pytorch.org/docs/2.7/generated/torch.clamp.html) | clip | ✅ | ✅ | ✅ |
-    | [clone](https://docs.pytorch.org/docs/2.7/generated/torch.clone.html) |  | ❌ | ✅ | ✅ |
+    | [amax](https://docs.pytorch.org/docs/2.8/generated/torch.amax.html) |  | ❌ | ✅ | ✅ |
+    | [amin](https://docs.pytorch.org/docs/2.8/generated/torch.amin.html) |  | ❌ | ✅ | ✅ |
+    | [any](https://docs.pytorch.org/docs/2.8/generated/torch.any.html) |  | ❌ | ✅ | ✅ |
+    | [arange](https://docs.pytorch.org/docs/2.8/generated/torch.arange.html) |  | ❌ | ✅ | ✅ |
+    | [argmax](https://docs.pytorch.org/docs/2.8/generated/torch.argmax.html) |  | ❌ | ✅ | ✅ |
+    | [argmin](https://docs.pytorch.org/docs/2.8/generated/torch.argmin.html) |  | ❌ | ✅ | ✅ |
+    | [as_strided](https://docs.pytorch.org/docs/2.8/generated/torch.as_strided.html) |  | ✅ | ✅ | ✅ |
+    | [asin](https://docs.pytorch.org/docs/2.8/generated/torch.asin.html) | arcsin | ✅ | ✅ | ✅ |
+    | [asinh](https://docs.pytorch.org/docs/2.8/generated/torch.asinh.html) | arcsinh | ✅ | ✅ | ❌ |
+    | [atan](https://docs.pytorch.org/docs/2.8/generated/torch.atan.html) | arctan | ✅ | ✅ | ✅ |
+    | [atan2](https://docs.pytorch.org/docs/2.8/generated/torch.atan2.html) | arctan2 | ✅ | ✅ | ✅ |
+    | [atanh](https://docs.pytorch.org/docs/2.8/generated/torch.atanh.html) | arctanh | ✅ | ✅ | ❌ |
+    | [avg_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool1d.html) |  | ❌ | ✅ | ✅ |
+    | [avg_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool2d.html) |  | ❌ | ✅ | ✅ |
+    | [avg_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.avg_pool3d.html) |  | ❌ | ✅ | ✅ |
+    | [bitwise_and](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_and.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_not](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_not.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_or](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_or.html) |  | ✅ | ✅ | ✅ |
+    | [bitwise_xor](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_xor.html) |  | ✅ | ✅ | ❌ |
+    | [bmm](https://docs.pytorch.org/docs/2.8/generated/torch.bmm.html) |  | ❌ | ✅ | ✅ |
+    | [cat](https://docs.pytorch.org/docs/2.8/generated/torch.cat.html) | concat, concatenate | ❌ | ✅ | ✅ |
+    | [ceil](https://docs.pytorch.org/docs/2.8/generated/torch.ceil.html) |  | ✅ | ✅ | ✅ |
+    | [clamp](https://docs.pytorch.org/docs/2.8/generated/torch.clamp.html) | clip | ✅ | ✅ | ✅ |
+    | [clone](https://docs.pytorch.org/docs/2.8/generated/torch.clone.html) |  | ❌ | ✅ | ✅ |
     | col2im |  | ❌ | ✅ | ✅ |
     | constant_pad_nd |  | ❌ | ✅ | ✅ |
     | convolution |  | ❌ | ✅ | ✅ |
     | copy |  | ✅ | ✅ | ❌ |
-    | [cos](https://docs.pytorch.org/docs/2.7/generated/torch.cos.html) |  | ✅ | ✅ | ✅ |
-    | [cosh](https://docs.pytorch.org/docs/2.7/generated/torch.cosh.html) |  | ✅ | ✅ | ❌ |
-    | [cumsum](https://docs.pytorch.org/docs/2.7/generated/torch.cumsum.html) |  | ✅ | ✅ | ✅ |
-    | [diagonal](https://docs.pytorch.org/docs/2.7/generated/torch.diagonal.html) |  | ❌ | ✅ | ✅ |
-    | [div](https://docs.pytorch.org/docs/2.7/generated/torch.div.html) | divide, true_divide | ✅ | ✅ | ✅ |
-    | [embedding](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.embedding.html) |  | ❌ | ✅ | ✅ |
-    | [empty](https://docs.pytorch.org/docs/2.7/generated/torch.empty.html) |  | ❌ | ✅ | ✅ |
-    | [empty_strided](https://docs.pytorch.org/docs/2.7/generated/torch.empty_strided.html) |  | ❌ | ✅ | ❌ |
-    | [eq](https://docs.pytorch.org/docs/2.7/generated/torch.eq.html) |  | ✅ | ✅ | ✅ |
-    | [erf](https://docs.pytorch.org/docs/2.7/generated/torch.erf.html) | special_erf | ✅ | ✅ | ✅ |
-    | [exp](https://docs.pytorch.org/docs/2.7/generated/torch.exp.html) |  | ✅ | ✅ | ✅ |
-    | expand |  | ❌ | ✅ | ✅ |
-    | [expm1](https://docs.pytorch.org/docs/2.7/generated/torch.expm1.html) | special_expm1 | ✅ | ✅ | ❌ |
+    | [cos](https://docs.pytorch.org/docs/2.8/generated/torch.cos.html) |  | ✅ | ✅ | ✅ |
+    | [cosh](https://docs.pytorch.org/docs/2.8/generated/torch.cosh.html) |  | ✅ | ✅ | ❌ |
+    | [cumsum](https://docs.pytorch.org/docs/2.8/generated/torch.cumsum.html) |  | ✅ | ✅ | ✅ |
+    | [diagonal](https://docs.pytorch.org/docs/2.8/generated/torch.diagonal.html) |  | ❌ | ✅ | ✅ |
+    | [div](https://docs.pytorch.org/docs/2.8/generated/torch.div.html) | divide, true_divide | ✅ | ✅ | ✅ |
+    | [elu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.elu.html) |  | ✅ | ✅ | ✅ |
+    | [embedding](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.embedding.html) |  | ❌ | ✅ | ✅ |
+    | [empty](https://docs.pytorch.org/docs/2.8/generated/torch.empty.html) |  | ❌ | ✅ | ✅ |
+    | [empty_strided](https://docs.pytorch.org/docs/2.8/generated/torch.empty_strided.html) |  | ❌ | ✅ | ❌ |
+    | [eq](https://docs.pytorch.org/docs/2.8/generated/torch.eq.html) |  | ✅ | ✅ | ✅ |
+    | [erf](https://docs.pytorch.org/docs/2.8/generated/torch.erf.html) | special_erf | ✅ | ✅ | ✅ |
+    | [exp](https://docs.pytorch.org/docs/2.8/generated/torch.exp.html) |  | ✅ | ✅ | ✅ |
+    | [expand](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.expand.html) |  | ❌ | ✅ | ✅ |
+    | [expm1](https://docs.pytorch.org/docs/2.8/generated/torch.expm1.html) | special_expm1 | ✅ | ✅ | ❌ |
     | fill |  | ✅ | ✅ | ✅ |
-    | [flip](https://docs.pytorch.org/docs/2.7/generated/torch.flip.html) |  | ❌ | ✅ | ✅ |
-    | [floor](https://docs.pytorch.org/docs/2.7/generated/torch.floor.html) |  | ✅ | ✅ | ✅ |
-    | [fmod](https://docs.pytorch.org/docs/2.7/generated/torch.fmod.html) |  | ✅ | ✅ | ✅ |
-    | [full](https://docs.pytorch.org/docs/2.7/generated/torch.full.html) |  | ❌ | ✅ | ✅ |
-    | [full_like](https://docs.pytorch.org/docs/2.7/generated/torch.full_like.html) |  | ❌ | ✅ | ✅ |
-    | [gather](https://docs.pytorch.org/docs/2.7/generated/torch.gather.html) |  | ❌ | ✅ | ✅ |
-    | [ge](https://docs.pytorch.org/docs/2.7/generated/torch.ge.html) | greater_equal | ✅ | ✅ | ✅ |
-    | [gelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.gelu.html) |  | ✅ | ✅ | ✅ |
+    | [flip](https://docs.pytorch.org/docs/2.8/generated/torch.flip.html) |  | ❌ | ✅ | ✅ |
+    | [floor](https://docs.pytorch.org/docs/2.8/generated/torch.floor.html) |  | ✅ | ✅ | ✅ |
+    | [fmod](https://docs.pytorch.org/docs/2.8/generated/torch.fmod.html) |  | ✅ | ✅ | ✅ |
+    | [full](https://docs.pytorch.org/docs/2.8/generated/torch.full.html) |  | ❌ | ✅ | ✅ |
+    | [full_like](https://docs.pytorch.org/docs/2.8/generated/torch.full_like.html) |  | ❌ | ✅ | ✅ |
+    | [gather](https://docs.pytorch.org/docs/2.8/generated/torch.gather.html) |  | ❌ | ✅ | ✅ |
+    | [ge](https://docs.pytorch.org/docs/2.8/generated/torch.ge.html) | greater_equal | ✅ | ✅ | ✅ |
+    | [gelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.gelu.html) |  | ✅ | ✅ | ✅ |
     | grid_sampler_2d |  | ❌ | ✅ | ❌ |
-    | [gt](https://docs.pytorch.org/docs/2.7/generated/torch.gt.html) | greater | ✅ | ✅ | ✅ |
-    | [hardtanh](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardtanh.html) |  | ✅ | ✅ | ✅ |
+    | [gt](https://docs.pytorch.org/docs/2.8/generated/torch.gt.html) | greater | ✅ | ✅ | ✅ |
+    | [hardtanh](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardtanh.html) |  | ✅ | ✅ | ✅ |
     | index |  | ❌ | ✅ | ✅ |
-    | index_put |  | ✅ | ✅ | ✅ |
-    | [index_select](https://docs.pytorch.org/docs/2.7/generated/torch.index_select.html) |  | ❌ | ✅ | ✅ |
-    | [isinf](https://docs.pytorch.org/docs/2.7/generated/torch.isinf.html) |  | ❌ | ✅ | ✅ |
-    | [isnan](https://docs.pytorch.org/docs/2.7/generated/torch.isnan.html) |  | ❌ | ✅ | ✅ |
-    | [le](https://docs.pytorch.org/docs/2.7/generated/torch.le.html) | less_equal | ✅ | ✅ | ✅ |
-    | [leaky_relu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.leaky_relu.html) |  | ✅ | ✅ | ✅ |
-    | [log](https://docs.pytorch.org/docs/2.7/generated/torch.log.html) |  | ✅ | ✅ | ✅ |
-    | [log10](https://docs.pytorch.org/docs/2.7/generated/torch.log10.html) |  | ✅ | ✅ | ✅ |
-    | [log1p](https://docs.pytorch.org/docs/2.7/generated/torch.log1p.html) | special_log1p | ✅ | ✅ | ✅ |
-    | [log2](https://docs.pytorch.org/docs/2.7/generated/torch.log2.html) |  | ✅ | ✅ | ✅ |
-    | [logical_and](https://docs.pytorch.org/docs/2.7/generated/torch.logical_and.html) |  | ✅ | ✅ | ✅ |
-    | [logical_not](https://docs.pytorch.org/docs/2.7/generated/torch.logical_not.html) |  | ✅ | ✅ | ✅ |
-    | [logical_or](https://docs.pytorch.org/docs/2.7/generated/torch.logical_or.html) |  | ✅ | ✅ | ✅ |
-    | [logical_xor](https://docs.pytorch.org/docs/2.7/generated/torch.logical_xor.html) |  | ✅ | ✅ | ✅ |
-    | [lt](https://docs.pytorch.org/docs/2.7/generated/torch.lt.html) | less | ✅ | ✅ | ✅ |
-    | masked_scatter |  | ✅ | ✅ | ✅ |
-    | [max](https://docs.pytorch.org/docs/2.7/generated/torch.max.html) |  | ❌ | ✅ | ✅ |
+    | [index_put](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.index_put.html) |  | ✅ | ✅ | ✅ |
+    | [index_select](https://docs.pytorch.org/docs/2.8/generated/torch.index_select.html) |  | ❌ | ✅ | ✅ |
+    | [isinf](https://docs.pytorch.org/docs/2.8/generated/torch.isinf.html) |  | ❌ | ✅ | ✅ |
+    | [isnan](https://docs.pytorch.org/docs/2.8/generated/torch.isnan.html) |  | ❌ | ✅ | ✅ |
+    | [le](https://docs.pytorch.org/docs/2.8/generated/torch.le.html) | less_equal | ✅ | ✅ | ✅ |
+    | [leaky_relu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.leaky_relu.html) |  | ✅ | ✅ | ✅ |
+    | [log](https://docs.pytorch.org/docs/2.8/generated/torch.log.html) |  | ✅ | ✅ | ✅ |
+    | [log10](https://docs.pytorch.org/docs/2.8/generated/torch.log10.html) |  | ✅ | ✅ | ✅ |
+    | [log1p](https://docs.pytorch.org/docs/2.8/generated/torch.log1p.html) | special_log1p | ✅ | ✅ | ✅ |
+    | [log2](https://docs.pytorch.org/docs/2.8/generated/torch.log2.html) |  | ✅ | ✅ | ✅ |
+    | [logical_and](https://docs.pytorch.org/docs/2.8/generated/torch.logical_and.html) |  | ✅ | ✅ | ✅ |
+    | [logical_not](https://docs.pytorch.org/docs/2.8/generated/torch.logical_not.html) |  | ✅ | ✅ | ✅ |
+    | [logical_or](https://docs.pytorch.org/docs/2.8/generated/torch.logical_or.html) |  | ✅ | ✅ | ✅ |
+    | [logical_xor](https://docs.pytorch.org/docs/2.8/generated/torch.logical_xor.html) |  | ✅ | ✅ | ✅ |
+    | [lt](https://docs.pytorch.org/docs/2.8/generated/torch.lt.html) | less | ✅ | ✅ | ✅ |
+    | [masked_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.masked_scatter.html) |  | ✅ | ✅ | ✅ |
+    | [max](https://docs.pytorch.org/docs/2.8/generated/torch.max.html) |  | ❌ | ✅ | ✅ |
     | max_pool2d_with_indices |  | ❌ | ✅ | ✅ |
     | max_pool3d_with_indices |  | ❌ | ✅ | ✅ |
-    | [maximum](https://docs.pytorch.org/docs/2.7/generated/torch.maximum.html) |  | ❌ | ✅ | ✅ |
-    | [mean](https://docs.pytorch.org/docs/2.7/generated/torch.mean.html) |  | ❌ | ✅ | ✅ |
-    | [min](https://docs.pytorch.org/docs/2.7/generated/torch.min.html) |  | ❌ | ✅ | ✅ |
-    | [minimum](https://docs.pytorch.org/docs/2.7/generated/torch.minimum.html) |  | ❌ | ✅ | ✅ |
-    | [mm](https://docs.pytorch.org/docs/2.7/generated/torch.mm.html) |  | ❌ | ✅ | ✅ |
-    | [mul](https://docs.pytorch.org/docs/2.7/generated/torch.mul.html) | multiply | ✅ | ✅ | ✅ |
+    | [maximum](https://docs.pytorch.org/docs/2.8/generated/torch.maximum.html) |  | ❌ | ✅ | ✅ |
+    | [mean](https://docs.pytorch.org/docs/2.8/generated/torch.mean.html) |  | ❌ | ✅ | ✅ |
+    | [min](https://docs.pytorch.org/docs/2.8/generated/torch.min.html) |  | ❌ | ✅ | ✅ |
+    | [minimum](https://docs.pytorch.org/docs/2.8/generated/torch.minimum.html) |  | ❌ | ✅ | ✅ |
+    | [mm](https://docs.pytorch.org/docs/2.8/generated/torch.mm.html) |  | ❌ | ✅ | ✅ |
+    | [mul](https://docs.pytorch.org/docs/2.8/generated/torch.mul.html) | multiply | ✅ | ✅ | ✅ |
     | native_dropout |  | ❌ | ✅ | ✅ |
     | native_group_norm |  | ❌ | ✅ | ❌ |
     | native_layer_norm |  | ❌ | ✅ | ✅ |
-    | [ne](https://docs.pytorch.org/docs/2.7/generated/torch.ne.html) | not_equal | ✅ | ✅ | ✅ |
-    | [neg](https://docs.pytorch.org/docs/2.7/generated/torch.neg.html) | negative | ✅ | ✅ | ✅ |
-    | [nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.nonzero.html) |  | ❌ | ✅ | ✅ |
-    | [permute](https://docs.pytorch.org/docs/2.7/generated/torch.permute.html) |  | ❌ | ✅ | ✅ |
-    | [pow](https://docs.pytorch.org/docs/2.7/generated/torch.pow.html) |  | ✅ | ✅ | ✅ |
-    | [prod](https://docs.pytorch.org/docs/2.7/generated/torch.prod.html) |  | ❌ | ✅ | ✅ |
-    | [rand](https://docs.pytorch.org/docs/2.7/generated/torch.rand.html) |  | ❌ | ✅ | ✅ |
-    | [randn](https://docs.pytorch.org/docs/2.7/generated/torch.randn.html) |  | ❌ | ✅ | ✅ |
-    | [randperm](https://docs.pytorch.org/docs/2.7/generated/torch.randperm.html) |  | ❌ | ✅ | ❌ |
-    | [reciprocal](https://docs.pytorch.org/docs/2.7/generated/torch.reciprocal.html) |  | ✅ | ✅ | ✅ |
+    | [ne](https://docs.pytorch.org/docs/2.8/generated/torch.ne.html) | not_equal | ✅ | ✅ | ✅ |
+    | [neg](https://docs.pytorch.org/docs/2.8/generated/torch.neg.html) | negative | ✅ | ✅ | ✅ |
+    | [nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.nonzero.html) |  | ❌ | ✅ | ✅ |
+    | [permute](https://docs.pytorch.org/docs/2.8/generated/torch.permute.html) |  | ❌ | ✅ | ✅ |
+    | [pow](https://docs.pytorch.org/docs/2.8/generated/torch.pow.html) |  | ✅ | ✅ | ✅ |
+    | [prod](https://docs.pytorch.org/docs/2.8/generated/torch.prod.html) |  | ❌ | ✅ | ✅ |
+    | [rand](https://docs.pytorch.org/docs/2.8/generated/torch.rand.html) |  | ❌ | ✅ | ✅ |
+    | [randn](https://docs.pytorch.org/docs/2.8/generated/torch.randn.html) |  | ❌ | ✅ | ✅ |
+    | [randperm](https://docs.pytorch.org/docs/2.8/generated/torch.randperm.html) |  | ❌ | ✅ | ❌ |
+    | [reciprocal](https://docs.pytorch.org/docs/2.8/generated/torch.reciprocal.html) |  | ✅ | ✅ | ✅ |
     | reflection_pad1d |  | ❌ | ✅ | ✅ |
     | reflection_pad2d |  | ❌ | ✅ | ✅ |
     | reflection_pad3d |  | ❌ | ✅ | ✅ |
-    | [relu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.relu.html) |  | ✅ | ✅ | ✅ |
-    | [remainder](https://docs.pytorch.org/docs/2.7/generated/torch.remainder.html) |  | ✅ | ✅ | ✅ |
-    | repeat |  | ❌ | ✅ | ✅ |
+    | [relu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.relu.html) |  | ✅ | ✅ | ✅ |
+    | [remainder](https://docs.pytorch.org/docs/2.8/generated/torch.remainder.html) |  | ✅ | ✅ | ✅ |
+    | [repeat](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.repeat.html) |  | ❌ | ✅ | ✅ |
     | replication_pad2d |  | ❌ | ✅ | ✅ |
     | replication_pad3d |  | ❌ | ✅ | ✅ |
-    | [round](https://docs.pytorch.org/docs/2.7/generated/torch.round.html) | special_round | ✅ | ✅ | ✅ |
-    | [rsqrt](https://docs.pytorch.org/docs/2.7/generated/torch.rsqrt.html) |  | ✅ | ✅ | ✅ |
+    | [round](https://docs.pytorch.org/docs/2.8/generated/torch.round.html) | special_round | ✅ | ✅ | ✅ |
+    | [rsqrt](https://docs.pytorch.org/docs/2.8/generated/torch.rsqrt.html) |  | ✅ | ✅ | ✅ |
     | scalar_tensor |  | ❌ | ✅ | ✅ |
-    | [scatter](https://docs.pytorch.org/docs/2.7/generated/torch.scatter.html) |  | ✅ | ✅ | ✅ |
-    | [scatter_add](https://docs.pytorch.org/docs/2.7/generated/torch.scatter_add.html) |  | ✅ | ✅ | ✅ |
-    | [scatter_reduce](https://docs.pytorch.org/docs/2.7/generated/torch.scatter_reduce.html) |  | ✅ | ✅ | ✅ |
-    | [select](https://docs.pytorch.org/docs/2.7/generated/torch.select.html) |  | ❌ | ✅ | ✅ |
-    | [select_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.select_scatter.html) |  | ❌ | ✅ | ❌ |
-    | [sigmoid](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.sigmoid.html) | special_expit | ✅ | ✅ | ✅ |
-    | [sign](https://docs.pytorch.org/docs/2.7/generated/torch.sign.html) |  | ✅ | ✅ | ✅ |
-    | [sin](https://docs.pytorch.org/docs/2.7/generated/torch.sin.html) |  | ✅ | ✅ | ✅ |
-    | [sinh](https://docs.pytorch.org/docs/2.7/generated/torch.sinh.html) |  | ✅ | ✅ | ❌ |
+    | [scatter](https://docs.pytorch.org/docs/2.8/generated/torch.scatter.html) |  | ✅ | ✅ | ✅ |
+    | [scatter_add](https://docs.pytorch.org/docs/2.8/generated/torch.scatter_add.html) |  | ✅ | ✅ | ✅ |
+    | [scatter_reduce](https://docs.pytorch.org/docs/2.8/generated/torch.scatter_reduce.html) |  | ✅ | ✅ | ✅ |
+    | [select](https://docs.pytorch.org/docs/2.8/generated/torch.select.html) |  | ❌ | ✅ | ✅ |
+    | [select_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.select_scatter.html) |  | ❌ | ✅ | ❌ |
+    | [sigmoid](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.sigmoid.html) | special_expit | ✅ | ✅ | ✅ |
+    | [sign](https://docs.pytorch.org/docs/2.8/generated/torch.sign.html) |  | ✅ | ✅ | ✅ |
+    | [sin](https://docs.pytorch.org/docs/2.8/generated/torch.sin.html) |  | ✅ | ✅ | ✅ |
+    | [sinh](https://docs.pytorch.org/docs/2.8/generated/torch.sinh.html) |  | ✅ | ✅ | ❌ |
     | slice |  | ❌ | ✅ | ✅ |
-    | [slice_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.slice_scatter.html) |  | ❌ | ✅ | ❌ |
-    | [sort](https://docs.pytorch.org/docs/2.7/generated/torch.sort.html) |  | ❌ | ✅ | ✅ |
+    | [slice_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.slice_scatter.html) |  | ❌ | ✅ | ❌ |
+    | [sort](https://docs.pytorch.org/docs/2.8/generated/torch.sort.html) |  | ❌ | ✅ | ✅ |
     | split_with_sizes |  | ❌ | ✅ | ✅ |
-    | [sqrt](https://docs.pytorch.org/docs/2.7/generated/torch.sqrt.html) |  | ✅ | ✅ | ✅ |
-    | [squeeze](https://docs.pytorch.org/docs/2.7/generated/torch.squeeze.html) |  | ✅ | ✅ | ✅ |
-    | [sub](https://docs.pytorch.org/docs/2.7/generated/torch.sub.html) | subtract | ✅ | ✅ | ✅ |
-    | [sum](https://docs.pytorch.org/docs/2.7/generated/torch.sum.html) |  | ❌ | ✅ | ✅ |
-    | [tan](https://docs.pytorch.org/docs/2.7/generated/torch.tan.html) |  | ✅ | ✅ | ✅ |
-    | [tanh](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.tanh.html) |  | ✅ | ✅ | ✅ |
-    | [topk](https://docs.pytorch.org/docs/2.7/generated/torch.topk.html) |  | ❌ | ✅ | ✅ |
-    | [trunc](https://docs.pytorch.org/docs/2.7/generated/torch.trunc.html) | fix | ✅ | ✅ | ❌ |
-    | [unsqueeze](https://docs.pytorch.org/docs/2.7/generated/torch.unsqueeze.html) |  | ✅ | ✅ | ✅ |
+    | [sqrt](https://docs.pytorch.org/docs/2.8/generated/torch.sqrt.html) |  | ✅ | ✅ | ✅ |
+    | [squeeze](https://docs.pytorch.org/docs/2.8/generated/torch.squeeze.html) |  | ✅ | ✅ | ✅ |
+    | [sub](https://docs.pytorch.org/docs/2.8/generated/torch.sub.html) | subtract | ✅ | ✅ | ✅ |
+    | [sum](https://docs.pytorch.org/docs/2.8/generated/torch.sum.html) |  | ❌ | ✅ | ✅ |
+    | [tan](https://docs.pytorch.org/docs/2.8/generated/torch.tan.html) |  | ✅ | ✅ | ✅ |
+    | [tanh](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.tanh.html) |  | ✅ | ✅ | ✅ |
+    | [topk](https://docs.pytorch.org/docs/2.8/generated/torch.topk.html) |  | ❌ | ✅ | ✅ |
+    | [trunc](https://docs.pytorch.org/docs/2.8/generated/torch.trunc.html) | fix | ✅ | ✅ | ❌ |
+    | [unsqueeze](https://docs.pytorch.org/docs/2.8/generated/torch.unsqueeze.html) |  | ✅ | ✅ | ✅ |
     | upsample_bilinear2d |  | ❌ | ✅ | ✅ |
     | upsample_nearest2d |  | ❌ | ✅ | ✅ |
-    | [var](https://docs.pytorch.org/docs/2.7/generated/torch.var.html) |  | ❌ | ✅ | ✅ |
-    | view |  | ❌ | ✅ | ✅ |
-    | [where](https://docs.pytorch.org/docs/2.7/generated/torch.where.html) |  | ❌ | ✅ | ✅ |
-    | [adaptive_avg_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool2d.html) |  | ❌ | - | ✅ |
-    | [adaptive_avg_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_avg_pool3d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool1d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool2d.html) |  | ❌ | - | ✅ |
-    | [adaptive_max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.adaptive_max_pool3d.html) |  | ❌ | - | ✅ |
-    | [addbmm](https://docs.pytorch.org/docs/2.7/generated/torch.addbmm.html) |  | ✅ | - | ❌ |
-    | [addcdiv](https://docs.pytorch.org/docs/2.7/generated/torch.addcdiv.html) |  | ❌ | - | ❌ |
-    | [addcmul](https://docs.pytorch.org/docs/2.7/generated/torch.addcmul.html) |  | ❌ | - | ✅ |
-    | [addmv](https://docs.pytorch.org/docs/2.7/generated/torch.addmv.html) |  | ✅ | - | ❌ |
-    | [addr](https://docs.pytorch.org/docs/2.7/generated/torch.addr.html) |  | ✅ | - | ❌ |
+    | [var](https://docs.pytorch.org/docs/2.8/generated/torch.var.html) |  | ❌ | ✅ | ✅ |
+    | [view](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.view.html) |  | ❌ | ✅ | ✅ |
+    | [where](https://docs.pytorch.org/docs/2.8/generated/torch.where.html) |  | ❌ | ✅ | ✅ |
+    | [adaptive_avg_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool2d.html) |  | ❌ | - | ✅ |
+    | [adaptive_avg_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_avg_pool3d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool1d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool2d.html) |  | ❌ | - | ✅ |
+    | [adaptive_max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.adaptive_max_pool3d.html) |  | ❌ | - | ✅ |
+    | [addbmm](https://docs.pytorch.org/docs/2.8/generated/torch.addbmm.html) |  | ✅ | - | ❌ |
+    | [addcdiv](https://docs.pytorch.org/docs/2.8/generated/torch.addcdiv.html) |  | ❌ | - | ❌ |
+    | [addcmul](https://docs.pytorch.org/docs/2.8/generated/torch.addcmul.html) |  | ❌ | - | ✅ |
+    | [addmv](https://docs.pytorch.org/docs/2.8/generated/torch.addmv.html) |  | ✅ | - | ❌ |
+    | [addr](https://docs.pytorch.org/docs/2.8/generated/torch.addr.html) |  | ✅ | - | ❌ |
     | affine_grid_generator |  | ❌ | - | ✅ |
     | alias_copy |  | ❌ | - | ❌ |
     | align_as |  | ❌ | - | ❌ |
     | align_tensors |  | ❌ | - | ❌ |
     | align_to |  | ❌ | - | ❌ |
-    | [all](https://docs.pytorch.org/docs/2.7/generated/torch.all.html) |  | ❌ | - | ✅ |
+    | [all](https://docs.pytorch.org/docs/2.8/generated/torch.all.html) |  | ❌ | - | ✅ |
     | all_gather_into_tensor |  | ❌ | - | ❌ |
     | all_reduce |  | ❌ | - | ❌ |
-    | [allclose](https://docs.pytorch.org/docs/2.7/generated/torch.allclose.html) |  | ❌ | - | ❌ |
-    | [alpha_dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.alpha_dropout.html) |  | ✅ | - | ✅ |
-    | [aminmax](https://docs.pytorch.org/docs/2.7/generated/torch.aminmax.html) |  | ❌ | - | ✅ |
-    | [angle](https://docs.pytorch.org/docs/2.7/generated/torch.angle.html) |  | ❌ | - | ❌ |
+    | [allclose](https://docs.pytorch.org/docs/2.8/generated/torch.allclose.html) |  | ❌ | - | ❌ |
+    | [alpha_dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.alpha_dropout.html) |  | ✅ | - | ✅ |
+    | [aminmax](https://docs.pytorch.org/docs/2.8/generated/torch.aminmax.html) |  | ❌ | - | ✅ |
+    | [angle](https://docs.pytorch.org/docs/2.8/generated/torch.angle.html) |  | ❌ | - | ❌ |
     | append |  | ❌ | - | ✅ |
-    | [argsort](https://docs.pytorch.org/docs/2.7/generated/torch.argsort.html) |  | ❌ | - | ✅ |
-    | [argwhere](https://docs.pytorch.org/docs/2.7/generated/torch.argwhere.html) |  | ❌ | - | ❌ |
+    | [argsort](https://docs.pytorch.org/docs/2.8/generated/torch.argsort.html) |  | ❌ | - | ✅ |
+    | [argwhere](https://docs.pytorch.org/docs/2.8/generated/torch.argwhere.html) |  | ❌ | - | ❌ |
     | as_strided_copy |  | ❌ | - | ❌ |
     | as_strided_scatter |  | ❌ | - | ❌ |
-    | [as_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.as_tensor.html) |  | ❌ | - | ✅ |
-    | [atleast_1d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_1d.html) |  | ❌ | - | ✅ |
-    | [atleast_2d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_2d.html) |  | ❌ | - | ✅ |
-    | [atleast_3d](https://docs.pytorch.org/docs/2.7/generated/torch.atleast_3d.html) |  | ❌ | - | ✅ |
-    | [baddbmm](https://docs.pytorch.org/docs/2.7/generated/torch.baddbmm.html) |  | ✅ | - | ✅ |
-    | [bartlett_window](https://docs.pytorch.org/docs/2.7/generated/torch.bartlett_window.html) |  | ❌ | - | ❌ |
-    | [batch_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.batch_norm.html) |  | ❌ | - | ✅ |
+    | [as_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.as_tensor.html) |  | ❌ | - | ✅ |
+    | [atleast_1d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_1d.html) |  | ❌ | - | ✅ |
+    | [atleast_2d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_2d.html) |  | ❌ | - | ✅ |
+    | [atleast_3d](https://docs.pytorch.org/docs/2.8/generated/torch.atleast_3d.html) |  | ❌ | - | ✅ |
+    | [baddbmm](https://docs.pytorch.org/docs/2.8/generated/torch.baddbmm.html) |  | ✅ | - | ✅ |
+    | [bartlett_window](https://docs.pytorch.org/docs/2.8/generated/torch.bartlett_window.html) |  | ❌ | - | ❌ |
+    | [batch_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.batch_norm.html) |  | ❌ | - | ✅ |
     | batch_norm_elemt |  | ❌ | - | ❌ |
     | batch_norm_gather_stats |  | ❌ | - | ❌ |
     | batch_norm_gather_stats_with_counts |  | ❌ | - | ❌ |
     | batch_norm_stats |  | ❌ | - | ❌ |
     | batch_norm_update_stats |  | ❌ | - | ❌ |
-    | [bernoulli](https://docs.pytorch.org/docs/2.7/generated/torch.bernoulli.html) |  | ✅ | - | ✅ |
-    | [bilinear](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.bilinear.html) |  | ❌ | - | ❌ |
+    | [bernoulli](https://docs.pytorch.org/docs/2.8/generated/torch.bernoulli.html) |  | ✅ | - | ✅ |
+    | [bilinear](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.bilinear.html) |  | ❌ | - | ❌ |
     | bin |  | ❌ | - | ❌ |
-    | [binary_cross_entropy](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.binary_cross_entropy.html) |  | ❌ | - | ❌ |
-    | [binary_cross_entropy_with_logits](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) |  | ❌ | - | ✅ |
-    | [bincount](https://docs.pytorch.org/docs/2.7/generated/torch.bincount.html) |  | ❌ | - | ❌ |
+    | [binary_cross_entropy](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.binary_cross_entropy.html) |  | ❌ | - | ❌ |
+    | [binary_cross_entropy_with_logits](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.binary_cross_entropy_with_logits.html) |  | ❌ | - | ✅ |
+    | [bincount](https://docs.pytorch.org/docs/2.8/generated/torch.bincount.html) |  | ❌ | - | ❌ |
     | binomial |  | ❌ | - | ❌ |
-    | [bitwise_left_shift](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_left_shift.html) |  | ✅ | - | ✅ |
-    | [bitwise_right_shift](https://docs.pytorch.org/docs/2.7/generated/torch.bitwise_right_shift.html) |  | ✅ | - | ✅ |
-    | [blackman_window](https://docs.pytorch.org/docs/2.7/generated/torch.blackman_window.html) |  | ❌ | - | ❌ |
-    | [block_diag](https://docs.pytorch.org/docs/2.7/generated/torch.block_diag.html) |  | ❌ | - | ❌ |
-    | [broadcast_tensors](https://docs.pytorch.org/docs/2.7/generated/torch.broadcast_tensors.html) |  | ❌ | - | ✅ |
-    | [broadcast_to](https://docs.pytorch.org/docs/2.7/generated/torch.broadcast_to.html) |  | ❌ | - | ✅ |
-    | [bucketize](https://docs.pytorch.org/docs/2.7/generated/torch.bucketize.html) |  | ❌ | - | ✅ |
-    | [can_cast](https://docs.pytorch.org/docs/2.7/generated/torch.can_cast.html) |  | ❌ | - | ❌ |
+    | [bitwise_left_shift](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_left_shift.html) |  | ✅ | - | ✅ |
+    | [bitwise_right_shift](https://docs.pytorch.org/docs/2.8/generated/torch.bitwise_right_shift.html) |  | ✅ | - | ✅ |
+    | [blackman_window](https://docs.pytorch.org/docs/2.8/generated/torch.blackman_window.html) |  | ❌ | - | ❌ |
+    | [block_diag](https://docs.pytorch.org/docs/2.8/generated/torch.block_diag.html) |  | ❌ | - | ❌ |
+    | [broadcast_tensors](https://docs.pytorch.org/docs/2.8/generated/torch.broadcast_tensors.html) |  | ❌ | - | ✅ |
+    | [broadcast_to](https://docs.pytorch.org/docs/2.8/generated/torch.broadcast_to.html) |  | ❌ | - | ✅ |
+    | [bucketize](https://docs.pytorch.org/docs/2.8/generated/torch.bucketize.html) |  | ❌ | - | ✅ |
+    | [can_cast](https://docs.pytorch.org/docs/2.8/generated/torch.can_cast.html) |  | ❌ | - | ❌ |
     | capitalize |  | ❌ | - | ❌ |
-    | [cartesian_prod](https://docs.pytorch.org/docs/2.7/generated/torch.cartesian_prod.html) |  | ❌ | - | ❌ |
+    | [cartesian_prod](https://docs.pytorch.org/docs/2.8/generated/torch.cartesian_prod.html) |  | ❌ | - | ❌ |
     | cauchy |  | ✅ | - | ❌ |
-    | ccol_indices |  | ❌ | - | ❌ |
+    | [ccol_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.ccol_indices.html) |  | ❌ | - | ❌ |
     | ccol_indices_copy |  | ❌ | - | ❌ |
-    | [cdist](https://docs.pytorch.org/docs/2.7/generated/torch.cdist.html) |  | ❌ | - | ✅ |
-    | [celu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.celu.html) |  | ❌ | - | ✅ |
+    | [cdist](https://docs.pytorch.org/docs/2.8/generated/torch.cdist.html) |  | ❌ | - | ✅ |
+    | [celu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.celu.html) |  | ❌ | - | ✅ |
     | center |  | ❌ | - | ❌ |
-    | [chain_matmul](https://docs.pytorch.org/docs/2.7/generated/torch.chain_matmul.html) |  | ❌ | - | ❌ |
-    | chalf |  | ❌ | - | ❌ |
+    | [chain_matmul](https://docs.pytorch.org/docs/2.8/generated/torch.chain_matmul.html) |  | ❌ | - | ❌ |
+    | [chalf](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.chalf.html) |  | ❌ | - | ❌ |
     | channel_shuffle |  | ❌ | - | ❌ |
-    | [cholesky](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky.html) |  | ❌ | - | ❌ |
-    | [cholesky_inverse](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky_inverse.html) |  | ❌ | - | ❌ |
-    | [cholesky_solve](https://docs.pytorch.org/docs/2.7/generated/torch.cholesky_solve.html) |  | ❌ | - | ❌ |
+    | [cholesky](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky.html) |  | ❌ | - | ❌ |
+    | [cholesky_inverse](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky_inverse.html) |  | ❌ | - | ❌ |
+    | [cholesky_solve](https://docs.pytorch.org/docs/2.8/generated/torch.cholesky_solve.html) |  | ❌ | - | ❌ |
     | choose_qparams_optimized |  | ❌ | - | ❌ |
     | chr |  | ❌ | - | ❌ |
-    | [chunk](https://docs.pytorch.org/docs/2.7/generated/torch.chunk.html) |  | ❌ | - | ✅ |
+    | [chunk](https://docs.pytorch.org/docs/2.8/generated/torch.chunk.html) |  | ❌ | - | ✅ |
     | clamp_max |  | ✅ | - | ✅ |
     | clamp_min |  | ✅ | - | ✅ |
     | clear |  | ❌ | - | ❌ |
-    | coalesce |  | ❌ | - | ❌ |
-    | col_indices |  | ❌ | - | ❌ |
+    | [coalesce](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.coalesce.html) |  | ❌ | - | ❌ |
+    | [col_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.col_indices.html) |  | ❌ | - | ❌ |
     | col_indices_copy |  | ❌ | - | ❌ |
-    | [column_stack](https://docs.pytorch.org/docs/2.7/generated/torch.column_stack.html) |  | ❌ | - | ❌ |
-    | [combinations](https://docs.pytorch.org/docs/2.7/generated/torch.combinations.html) |  | ❌ | - | ❌ |
-    | [complex](https://docs.pytorch.org/docs/2.7/generated/torch.complex.html) |  | ❌ | - | ❌ |
+    | [column_stack](https://docs.pytorch.org/docs/2.8/generated/torch.column_stack.html) |  | ❌ | - | ❌ |
+    | [combinations](https://docs.pytorch.org/docs/2.8/generated/torch.combinations.html) |  | ❌ | - | ❌ |
+    | [complex](https://docs.pytorch.org/docs/2.8/generated/torch.complex.html) |  | ❌ | - | ❌ |
     | confirmed_by_owner |  | ❌ | - | ❌ |
-    | [conj](https://docs.pytorch.org/docs/2.7/generated/torch.conj.html) |  | ❌ | - | ❌ |
-    | [conj_physical](https://docs.pytorch.org/docs/2.7/generated/torch.conj_physical.html) |  | ✅ | - | ✅ |
-    | contiguous |  | ❌ | - | ✅ |
+    | [conj](https://docs.pytorch.org/docs/2.8/generated/torch.conj.html) |  | ❌ | - | ❌ |
+    | [conj_physical](https://docs.pytorch.org/docs/2.8/generated/torch.conj_physical.html) |  | ✅ | - | ✅ |
+    | [contiguous](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.contiguous.html) |  | ❌ | - | ✅ |
     | conv |  | ❌ | - | ❌ |
-    | [conv1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv1d.html) |  | ❌ | - | ✅ |
-    | [conv2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv2d.html) |  | ❌ | - | ✅ |
-    | [conv3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv3d.html) |  | ❌ | - | ✅ |
+    | [conv1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv1d.html) |  | ❌ | - | ✅ |
+    | [conv2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv2d.html) |  | ❌ | - | ✅ |
+    | [conv3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv3d.html) |  | ❌ | - | ✅ |
     | conv_depthwise3d |  | ❌ | - | ❌ |
     | conv_tbc |  | ❌ | - | ✅ |
-    | [conv_transpose1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose1d.html) |  | ❌ | - | ✅ |
-    | [conv_transpose2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose2d.html) |  | ❌ | - | ✅ |
-    | [conv_transpose3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.conv_transpose3d.html) |  | ❌ | - | ✅ |
+    | [conv_transpose1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose1d.html) |  | ❌ | - | ✅ |
+    | [conv_transpose2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose2d.html) |  | ❌ | - | ✅ |
+    | [conv_transpose3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.conv_transpose3d.html) |  | ❌ | - | ✅ |
+    | convert_weight_to_int4pack |  | ❌ | - | ❌ |
     | convolution_overrideable |  | ❌ | - | ❌ |
     | convrelu |  | ❌ | - | ❌ |
     | copy_sparse_to_sparse |  | ✅ | - | ❌ |
     | copy_to |  | ❌ | - | ❌ |
-    | [copysign](https://docs.pytorch.org/docs/2.7/generated/torch.copysign.html) |  | ✅ | - | ❌ |
-    | [corrcoef](https://docs.pytorch.org/docs/2.7/generated/torch.corrcoef.html) |  | ❌ | - | ❌ |
-    | [cosine_embedding_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.cosine_embedding_loss.html) |  | ❌ | - | ❌ |
-    | [cosine_similarity](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.cosine_similarity.html) |  | ❌ | - | ✅ |
+    | [copysign](https://docs.pytorch.org/docs/2.8/generated/torch.copysign.html) |  | ✅ | - | ❌ |
+    | [corrcoef](https://docs.pytorch.org/docs/2.8/generated/torch.corrcoef.html) |  | ❌ | - | ❌ |
+    | [cosine_embedding_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.cosine_embedding_loss.html) |  | ❌ | - | ❌ |
+    | [cosine_similarity](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.cosine_similarity.html) |  | ❌ | - | ✅ |
     | count |  | ❌ | - | ❌ |
-    | [count_nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.count_nonzero.html) |  | ❌ | - | ❌ |
-    | cpu |  | ❌ | - | ❌ |
-    | [cross](https://docs.pytorch.org/docs/2.7/generated/torch.cross.html) |  | ❌ | - | ✅ |
+    | [count_nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.count_nonzero.html) |  | ❌ | - | ❌ |
+    | [cpu](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.cpu.html) |  | ❌ | - | ❌ |
+    | [cross](https://docs.pytorch.org/docs/2.8/generated/torch.cross.html) |  | ❌ | - | ✅ |
     | cross_entropy_loss |  | ❌ | - | ✅ |
-    | crow_indices |  | ❌ | - | ❌ |
+    | [crow_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.crow_indices.html) |  | ❌ | - | ❌ |
     | crow_indices_copy |  | ❌ | - | ❌ |
-    | [ctc_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.ctc_loss.html) |  | ❌ | - | ❌ |
-    | cuda |  | ❌ | - | ❌ |
+    | [ctc_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.ctc_loss.html) |  | ❌ | - | ❌ |
+    | [cuda](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.cuda.html) |  | ❌ | - | ❌ |
     | cudnn_affine_grid_generator |  | ❌ | - | ❌ |
     | cudnn_batch_norm |  | ❌ | - | ❌ |
     | cudnn_convolution |  | ❌ | - | ❌ |
@@ -1160,62 +1159,60 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | cudnn_convolution_transpose |  | ❌ | - | ❌ |
     | cudnn_grid_sampler |  | ❌ | - | ❌ |
     | cudnn_is_acceptable |  | ❌ | - | ❌ |
-    | [cummax](https://docs.pytorch.org/docs/2.7/generated/torch.cummax.html) |  | ❌ | - | ❌ |
-    | [cummin](https://docs.pytorch.org/docs/2.7/generated/torch.cummin.html) |  | ❌ | - | ❌ |
-    | [cumprod](https://docs.pytorch.org/docs/2.7/generated/torch.cumprod.html) |  | ✅ | - | ❌ |
-    | [cumulative_trapezoid](https://docs.pytorch.org/docs/2.7/generated/torch.cumulative_trapezoid.html) |  | ❌ | - | ❌ |
+    | [cummax](https://docs.pytorch.org/docs/2.8/generated/torch.cummax.html) |  | ❌ | - | ❌ |
+    | [cummin](https://docs.pytorch.org/docs/2.8/generated/torch.cummin.html) |  | ❌ | - | ❌ |
+    | [cumprod](https://docs.pytorch.org/docs/2.8/generated/torch.cumprod.html) |  | ✅ | - | ❌ |
+    | [cumulative_trapezoid](https://docs.pytorch.org/docs/2.8/generated/torch.cumulative_trapezoid.html) |  | ❌ | - | ❌ |
     | data |  | ❌ | - | ❌ |
-    | [deg2rad](https://docs.pytorch.org/docs/2.7/generated/torch.deg2rad.html) |  | ❌ | - | ❌ |
+    | [deg2rad](https://docs.pytorch.org/docs/2.8/generated/torch.deg2rad.html) |  | ❌ | - | ❌ |
     | degrees |  | ❌ | - | ❌ |
-    | dense_dim |  | ❌ | - | ❌ |
-    | [dequantize](https://docs.pytorch.org/docs/2.7/generated/torch.dequantize.html) |  | ❌ | - | ✅ |
-    | detach |  | ✅ | - | ✅ |
+    | [dense_dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.dense_dim.html) |  | ❌ | - | ❌ |
+    | [dequantize](https://docs.pytorch.org/docs/2.8/generated/torch.dequantize.html) |  | ❌ | - | ✅ |
+    | [detach](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.detach.html) |  | ✅ | - | ✅ |
     | detach_copy |  | ❌ | - | ❌ |
-    | device |  | ❌ | - | ❌ |
-    | [diag](https://docs.pytorch.org/docs/2.7/generated/torch.diag.html) |  | ❌ | - | ❌ |
-    | [diag_embed](https://docs.pytorch.org/docs/2.7/generated/torch.diag_embed.html) |  | ❌ | - | ❌ |
-    | [diagflat](https://docs.pytorch.org/docs/2.7/generated/torch.diagflat.html) |  | ❌ | - | ❌ |
+    | [device](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.device.html) |  | ❌ | - | ❌ |
+    | [diag](https://docs.pytorch.org/docs/2.8/generated/torch.diag.html) |  | ❌ | - | ❌ |
+    | [diag_embed](https://docs.pytorch.org/docs/2.8/generated/torch.diag_embed.html) |  | ❌ | - | ❌ |
+    | [diagflat](https://docs.pytorch.org/docs/2.8/generated/torch.diagflat.html) |  | ❌ | - | ❌ |
     | diagonal_copy |  | ❌ | - | ❌ |
-    | [diagonal_scatter](https://docs.pytorch.org/docs/2.7/generated/torch.diagonal_scatter.html) |  | ❌ | - | ❌ |
+    | [diagonal_scatter](https://docs.pytorch.org/docs/2.8/generated/torch.diagonal_scatter.html) |  | ❌ | - | ❌ |
     | dict |  | ❌ | - | ❌ |
-    | [diff](https://docs.pytorch.org/docs/2.7/generated/torch.diff.html) |  | ❌ | - | ❌ |
-    | [digamma](https://docs.pytorch.org/docs/2.7/generated/torch.digamma.html) | special_digamma, special_psi | ✅ | - | ❌ |
-    | dim |  | ❌ | - | ✅ |
-    | [dist](https://docs.pytorch.org/docs/2.7/generated/torch.dist.html) |  | ❌ | - | ❌ |
+    | [diff](https://docs.pytorch.org/docs/2.8/generated/torch.diff.html) |  | ❌ | - | ❌ |
+    | [digamma](https://docs.pytorch.org/docs/2.8/generated/torch.digamma.html) | special_digamma, special_psi | ✅ | - | ❌ |
+    | [dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.dim.html) |  | ❌ | - | ✅ |
+    | [dist](https://docs.pytorch.org/docs/2.8/generated/torch.dist.html) |  | ❌ | - | ❌ |
     | divmod |  | ❌ | - | ❌ |
-    | [dot](https://docs.pytorch.org/docs/2.7/generated/torch.dot.html) |  | ❌ | - | ✅ |
-    | [dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.dropout.html) |  | ✅ | - | ✅ |
-    | [dsplit](https://docs.pytorch.org/docs/2.7/generated/torch.dsplit.html) |  | ❌ | - | ❌ |
-    | [dstack](https://docs.pytorch.org/docs/2.7/generated/torch.dstack.html) |  | ❌ | - | ❌ |
+    | [dot](https://docs.pytorch.org/docs/2.8/generated/torch.dot.html) |  | ❌ | - | ✅ |
+    | [dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.dropout.html) |  | ✅ | - | ✅ |
+    | [dsplit](https://docs.pytorch.org/docs/2.8/generated/torch.dsplit.html) |  | ❌ | - | ❌ |
+    | [dstack](https://docs.pytorch.org/docs/2.8/generated/torch.dstack.html) |  | ❌ | - | ❌ |
     | dtype |  | ❌ | - | ❌ |
-    | eig |  | ❌ | - | ❌ |
-    | [einsum](https://docs.pytorch.org/docs/2.7/generated/torch.einsum.html) |  | ❌ | - | ✅ |
-    | element_size |  | ❌ | - | ❌ |
-    | [elu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.elu.html) |  | ✅ | - | ✅ |
-    | [embedding_bag](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.embedding_bag.html) |  | ❌ | - | ✅ |
+    | [eig](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.eig.html) |  | ❌ | - | ❌ |
+    | [einsum](https://docs.pytorch.org/docs/2.8/generated/torch.einsum.html) |  | ❌ | - | ✅ |
+    | [element_size](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.element_size.html) |  | ❌ | - | ❌ |
+    | [embedding_bag](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.embedding_bag.html) |  | ❌ | - | ✅ |
     | embedding_renorm |  | ✅ | - | ✅ |
-    | [empty_like](https://docs.pytorch.org/docs/2.7/generated/torch.empty_like.html) |  | ❌ | - | ✅ |
+    | [empty_like](https://docs.pytorch.org/docs/2.8/generated/torch.empty_like.html) |  | ❌ | - | ✅ |
     | empty_permuted |  | ❌ | - | ❌ |
     | empty_quantized |  | ❌ | - | ❌ |
-    | [enable_grad](https://docs.pytorch.org/docs/2.7/generated/torch.enable_grad.html) |  | ❌ | - | ❌ |
+    | [enable_grad](https://docs.pytorch.org/docs/2.8/generated/torch.enable_grad.html) |  | ❌ | - | ❌ |
     | endswith |  | ❌ | - | ❌ |
-    | [equal](https://docs.pytorch.org/docs/2.7/generated/torch.equal.html) |  | ❌ | - | ❌ |
-    | [erfc](https://docs.pytorch.org/docs/2.7/generated/torch.erfc.html) | special_erfc | ✅ | - | ❌ |
-    | [erfinv](https://docs.pytorch.org/docs/2.7/generated/torch.erfinv.html) | special_erfinv | ✅ | - | ❌ |
-    | [exp2](https://docs.pytorch.org/docs/2.7/generated/torch.exp2.html) | special_exp2 | ✅ | - | ❌ |
-    | expand_as |  | ❌ | - | ✅ |
-    | expand_copy |  | ❌ | - | ❌ |
+    | [equal](https://docs.pytorch.org/docs/2.8/generated/torch.equal.html) |  | ❌ | - | ❌ |
+    | [erfc](https://docs.pytorch.org/docs/2.8/generated/torch.erfc.html) | special_erfc | ✅ | - | ❌ |
+    | [erfinv](https://docs.pytorch.org/docs/2.8/generated/torch.erfinv.html) | special_erfinv | ✅ | - | ❌ |
+    | [exp2](https://docs.pytorch.org/docs/2.8/generated/torch.exp2.html) | special_exp2 | ✅ | - | ❌ |
+    | [expand_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.expand_as.html) |  | ❌ | - | ✅ |
     | expandtabs |  | ❌ | - | ❌ |
     | exponential |  | ✅ | - | ❌ |
     | extend |  | ❌ | - | ❌ |
-    | [eye](https://docs.pytorch.org/docs/2.7/generated/torch.eye.html) |  | ❌ | - | ✅ |
+    | [eye](https://docs.pytorch.org/docs/2.8/generated/torch.eye.html) |  | ❌ | - | ✅ |
     | fabs |  | ❌ | - | ❌ |
     | factorial |  | ❌ | - | ❌ |
-    | [fake_quantize_per_channel_affine](https://docs.pytorch.org/docs/2.7/generated/torch.fake_quantize_per_channel_affine.html) |  | ❌ | - | ✅ |
+    | [fake_quantize_per_channel_affine](https://docs.pytorch.org/docs/2.8/generated/torch.fake_quantize_per_channel_affine.html) |  | ❌ | - | ✅ |
     | fake_quantize_per_channel_affine_cachemask |  | ❌ | - | ❌ |
-    | [fake_quantize_per_tensor_affine](https://docs.pytorch.org/docs/2.7/generated/torch.fake_quantize_per_tensor_affine.html) |  | ❌ | - | ✅ |
+    | [fake_quantize_per_tensor_affine](https://docs.pytorch.org/docs/2.8/generated/torch.fake_quantize_per_tensor_affine.html) |  | ❌ | - | ✅ |
     | fake_quantize_per_tensor_affine_cachemask |  | ❌ | - | ❌ |
-    | [feature_alpha_dropout](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.feature_alpha_dropout.html) |  | ✅ | - | ✅ |
+    | [feature_alpha_dropout](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.feature_alpha_dropout.html) |  | ✅ | - | ✅ |
     | feature_dropout |  | ✅ | - | ✅ |
     | fft_fftfreq |  | ❌ | - | ❌ |
     | fft_ihfft2 |  | ❌ | - | ❌ |
@@ -1223,133 +1220,133 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | fft_irfftn |  | ❌ | - | ❌ |
     | fft_rfftfreq |  | ❌ | - | ❌ |
     | fft_rfftn |  | ❌ | - | ❌ |
-    | fill_diagonal_ |  | ❌ | - | ❌ |
+    | [fill_diagonal_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.fill_diagonal_.html) |  | ❌ | - | ❌ |
     | find |  | ❌ | - | ❌ |
-    | [flatten](https://docs.pytorch.org/docs/2.7/generated/torch.flatten.html) |  | ❌ | - | ✅ |
+    | [flatten](https://docs.pytorch.org/docs/2.8/generated/torch.flatten.html) |  | ❌ | - | ✅ |
     | flatten_dense_tensors |  | ❌ | - | ❌ |
-    | [fliplr](https://docs.pytorch.org/docs/2.7/generated/torch.fliplr.html) |  | ❌ | - | ❌ |
-    | [flipud](https://docs.pytorch.org/docs/2.7/generated/torch.flipud.html) |  | ❌ | - | ❌ |
-    | [float_power](https://docs.pytorch.org/docs/2.7/generated/torch.float_power.html) |  | ✅ | - | ❌ |
-    | [floor_divide](https://docs.pytorch.org/docs/2.7/generated/torch.floor_divide.html) |  | ✅ | - | ✅ |
+    | [fliplr](https://docs.pytorch.org/docs/2.8/generated/torch.fliplr.html) |  | ❌ | - | ❌ |
+    | [flipud](https://docs.pytorch.org/docs/2.8/generated/torch.flipud.html) |  | ❌ | - | ❌ |
+    | [float_power](https://docs.pytorch.org/docs/2.8/generated/torch.float_power.html) |  | ✅ | - | ❌ |
+    | [floor_divide](https://docs.pytorch.org/docs/2.8/generated/torch.floor_divide.html) |  | ✅ | - | ✅ |
     | floordiv |  | ❌ | - | ✅ |
-    | [fmax](https://docs.pytorch.org/docs/2.7/generated/torch.fmax.html) |  | ❌ | - | ❌ |
-    | [fmin](https://docs.pytorch.org/docs/2.7/generated/torch.fmin.html) |  | ❌ | - | ❌ |
+    | [fmax](https://docs.pytorch.org/docs/2.8/generated/torch.fmax.html) |  | ❌ | - | ❌ |
+    | [fmin](https://docs.pytorch.org/docs/2.8/generated/torch.fmin.html) |  | ❌ | - | ❌ |
     | foo |  | ❌ | - | ❌ |
     | fork |  | ❌ | - | ❌ |
     | format |  | ❌ | - | ❌ |
-    | [frac](https://docs.pytorch.org/docs/2.7/generated/torch.frac.html) |  | ❌ | - | ❌ |
-    | [fractional_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.fractional_max_pool2d.html) |  | ❌ | - | ❌ |
-    | [fractional_max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.fractional_max_pool3d.html) |  | ❌ | - | ❌ |
-    | [frexp](https://docs.pytorch.org/docs/2.7/generated/torch.frexp.html) |  | ❌ | - | ❌ |
+    | [frac](https://docs.pytorch.org/docs/2.8/generated/torch.frac.html) |  | ❌ | - | ❌ |
+    | [fractional_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.fractional_max_pool2d.html) |  | ❌ | - | ❌ |
+    | [fractional_max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.fractional_max_pool3d.html) |  | ❌ | - | ❌ |
+    | [frexp](https://docs.pytorch.org/docs/2.8/generated/torch.frexp.html) |  | ❌ | - | ❌ |
     | frobenius_norm |  | ❌ | - | ✅ |
-    | [from_file](https://docs.pytorch.org/docs/2.7/generated/torch.from_file.html) |  | ❌ | - | ❌ |
+    | [from_file](https://docs.pytorch.org/docs/2.8/generated/torch.from_file.html) |  | ❌ | - | ❌ |
     | fused_moving_avg_obs_fake_quant |  | ❌ | - | ❌ |
     | gamma |  | ❌ | - | ❌ |
-    | [gcd](https://docs.pytorch.org/docs/2.7/generated/torch.gcd.html) |  | ✅ | - | ❌ |
+    | [gcd](https://docs.pytorch.org/docs/2.8/generated/torch.gcd.html) |  | ✅ | - | ❌ |
     | geometric |  | ✅ | - | ❌ |
-    | [geqrf](https://docs.pytorch.org/docs/2.7/generated/torch.geqrf.html) |  | ❌ | - | ❌ |
+    | [geqrf](https://docs.pytorch.org/docs/2.8/generated/torch.geqrf.html) |  | ❌ | - | ❌ |
     | get |  | ❌ | - | ❌ |
     | get_autocast_dtype |  | ❌ | - | ❌ |
-    | get_device |  | ❌ | - | ❌ |
+    | [get_device](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.get_device.html) |  | ❌ | - | ❌ |
     | get_gradients |  | ❌ | - | ❌ |
     | get_pool_ceil_padding |  | ❌ | - | ❌ |
     | getelem |  | ❌ | - | ❌ |
-    | [glu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.glu.html) |  | ❌ | - | ✅ |
+    | [glu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.glu.html) |  | ❌ | - | ✅ |
     | glu_jvp |  | ❌ | - | ❌ |
-    | grad |  | ❌ | - | ❌ |
+    | [grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.grad.html) |  | ❌ | - | ❌ |
     | grid_sampler |  | ❌ | - | ✅ |
     | grid_sampler_3d |  | ❌ | - | ❌ |
-    | [group_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.group_norm.html) |  | ❌ | - | ✅ |
+    | [group_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.group_norm.html) |  | ❌ | - | ✅ |
     | gru |  | ❌ | - | ✅ |
     | gru_cell |  | ❌ | - | ❌ |
-    | [hamming_window](https://docs.pytorch.org/docs/2.7/generated/torch.hamming_window.html) |  | ❌ | - | ❌ |
-    | [hann_window](https://docs.pytorch.org/docs/2.7/generated/torch.hann_window.html) |  | ❌ | - | ✅ |
-    | [hardshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardshrink.html) |  | ✅ | - | ✅ |
-    | [hardsigmoid](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardsigmoid.html) |  | ✅ | - | ✅ |
-    | [hardswish](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hardswish.html) |  | ✅ | - | ✅ |
+    | [hamming_window](https://docs.pytorch.org/docs/2.8/generated/torch.hamming_window.html) |  | ❌ | - | ❌ |
+    | [hann_window](https://docs.pytorch.org/docs/2.8/generated/torch.hann_window.html) |  | ❌ | - | ✅ |
+    | [hardshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardshrink.html) |  | ✅ | - | ✅ |
+    | [hardsigmoid](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardsigmoid.html) |  | ✅ | - | ✅ |
+    | [hardswish](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hardswish.html) |  | ✅ | - | ✅ |
     | has_torch_function |  | ❌ | - | ❌ |
     | hash |  | ❌ | - | ❌ |
-    | [heaviside](https://docs.pytorch.org/docs/2.7/generated/torch.heaviside.html) |  | ❌ | - | ❌ |
+    | [heaviside](https://docs.pytorch.org/docs/2.8/generated/torch.heaviside.html) |  | ❌ | - | ❌ |
     | hex |  | ❌ | - | ❌ |
-    | [hinge_embedding_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.hinge_embedding_loss.html) |  | ❌ | - | ❌ |
-    | [histc](https://docs.pytorch.org/docs/2.7/generated/torch.histc.html) |  | ❌ | - | ❌ |
-    | [histogram](https://docs.pytorch.org/docs/2.7/generated/torch.histogram.html) |  | ❌ | - | ❌ |
-    | [histogramdd](https://docs.pytorch.org/docs/2.7/generated/torch.histogramdd.html) |  | ❌ | - | ❌ |
-    | [hsplit](https://docs.pytorch.org/docs/2.7/generated/torch.hsplit.html) |  | ❌ | - | ❌ |
-    | [hspmm](https://docs.pytorch.org/docs/2.7/generated/torch.hspmm.html) |  | ❌ | - | ❌ |
-    | [hstack](https://docs.pytorch.org/docs/2.7/generated/torch.hstack.html) |  | ❌ | - | ✅ |
-    | [huber_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.huber_loss.html) |  | ❌ | - | ❌ |
-    | [hypot](https://docs.pytorch.org/docs/2.7/generated/torch.hypot.html) |  | ✅ | - | ❌ |
-    | [i0](https://docs.pytorch.org/docs/2.7/generated/torch.i0.html) | special_i0 | ✅ | - | ❌ |
-    | [igamma](https://docs.pytorch.org/docs/2.7/generated/torch.igamma.html) | special_gammainc | ✅ | - | ❌ |
-    | [igammac](https://docs.pytorch.org/docs/2.7/generated/torch.igammac.html) | special_gammaincc | ✅ | - | ❌ |
+    | [hinge_embedding_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.hinge_embedding_loss.html) |  | ❌ | - | ❌ |
+    | [histc](https://docs.pytorch.org/docs/2.8/generated/torch.histc.html) |  | ❌ | - | ❌ |
+    | [histogram](https://docs.pytorch.org/docs/2.8/generated/torch.histogram.html) |  | ❌ | - | ❌ |
+    | [histogramdd](https://docs.pytorch.org/docs/2.8/generated/torch.histogramdd.html) |  | ❌ | - | ❌ |
+    | [hsplit](https://docs.pytorch.org/docs/2.8/generated/torch.hsplit.html) |  | ❌ | - | ❌ |
+    | [hspmm](https://docs.pytorch.org/docs/2.8/generated/torch.hspmm.html) |  | ❌ | - | ❌ |
+    | [hstack](https://docs.pytorch.org/docs/2.8/generated/torch.hstack.html) |  | ❌ | - | ✅ |
+    | [huber_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.huber_loss.html) |  | ❌ | - | ❌ |
+    | [hypot](https://docs.pytorch.org/docs/2.8/generated/torch.hypot.html) |  | ✅ | - | ❌ |
+    | [i0](https://docs.pytorch.org/docs/2.8/generated/torch.i0.html) | special_i0 | ✅ | - | ❌ |
+    | [igamma](https://docs.pytorch.org/docs/2.8/generated/torch.igamma.html) | special_gammainc | ✅ | - | ❌ |
+    | [igammac](https://docs.pytorch.org/docs/2.8/generated/torch.igammac.html) | special_gammaincc | ✅ | - | ❌ |
     | iinfo |  | ❌ | - | ❌ |
     | im2col |  | ❌ | - | ✅ |
-    | [imag](https://docs.pytorch.org/docs/2.7/generated/torch.imag.html) |  | ❌ | - | ❌ |
-    | [index_add](https://docs.pytorch.org/docs/2.7/generated/torch.index_add.html) |  | ❌ | - | ✅ |
-    | [index_copy](https://docs.pytorch.org/docs/2.7/generated/torch.index_copy.html) |  | ❌ | - | ✅ |
-    | index_fill |  | ❌ | - | ✅ |
+    | [imag](https://docs.pytorch.org/docs/2.8/generated/torch.imag.html) |  | ❌ | - | ❌ |
+    | [index_add](https://docs.pytorch.org/docs/2.8/generated/torch.index_add.html) |  | ❌ | - | ✅ |
+    | [index_copy](https://docs.pytorch.org/docs/2.8/generated/torch.index_copy.html) |  | ❌ | - | ✅ |
+    | [index_fill](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.index_fill.html) |  | ❌ | - | ✅ |
     | index_put_impl_ |  | ❌ | - | ❌ |
-    | [index_reduce](https://docs.pytorch.org/docs/2.7/generated/torch.index_reduce.html) |  | ✅ | - | ❌ |
-    | indices |  | ❌ | - | ❌ |
+    | [index_reduce](https://docs.pytorch.org/docs/2.8/generated/torch.index_reduce.html) |  | ✅ | - | ❌ |
+    | [indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.indices.html) |  | ❌ | - | ❌ |
     | indices_copy |  | ❌ | - | ❌ |
-    | [initial_seed](https://docs.pytorch.org/docs/2.7/generated/torch.initial_seed.html) |  | ❌ | - | ❌ |
-    | [inner](https://docs.pytorch.org/docs/2.7/generated/torch.inner.html) |  | ❌ | - | ❌ |
+    | [initial_seed](https://docs.pytorch.org/docs/2.8/generated/torch.initial_seed.html) |  | ❌ | - | ❌ |
+    | [inner](https://docs.pytorch.org/docs/2.8/generated/torch.inner.html) |  | ❌ | - | ❌ |
     | insert |  | ❌ | - | ✅ |
-    | [instance_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.instance_norm.html) |  | ❌ | - | ✅ |
-    | int_repr |  | ❌ | - | ❌ |
+    | [instance_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.instance_norm.html) |  | ❌ | - | ✅ |
+    | [int_repr](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.int_repr.html) |  | ❌ | - | ❌ |
     | is_autocast_cpu_enabled |  | ❌ | - | ❌ |
     | is_autocast_enabled |  | ❌ | - | ❌ |
-    | is_coalesced |  | ❌ | - | ❌ |
-    | [is_complex](https://docs.pytorch.org/docs/2.7/generated/torch.is_complex.html) |  | ❌ | - | ❌ |
-    | [is_conj](https://docs.pytorch.org/docs/2.7/generated/torch.is_conj.html) |  | ❌ | - | ❌ |
-    | is_contiguous |  | ❌ | - | ❌ |
-    | is_cuda |  | ❌ | - | ❌ |
-    | [is_floating_point](https://docs.pytorch.org/docs/2.7/generated/torch.is_floating_point.html) |  | ❌ | - | ✅ |
-    | [is_grad_enabled](https://docs.pytorch.org/docs/2.7/generated/torch.is_grad_enabled.html) |  | ❌ | - | ❌ |
-    | is_leaf |  | ❌ | - | ❌ |
+    | [is_coalesced](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_coalesced.html) |  | ❌ | - | ❌ |
+    | [is_complex](https://docs.pytorch.org/docs/2.8/generated/torch.is_complex.html) |  | ❌ | - | ❌ |
+    | [is_conj](https://docs.pytorch.org/docs/2.8/generated/torch.is_conj.html) |  | ❌ | - | ❌ |
+    | [is_contiguous](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_contiguous.html) |  | ❌ | - | ❌ |
+    | [is_cuda](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_cuda.html) |  | ❌ | - | ❌ |
+    | [is_floating_point](https://docs.pytorch.org/docs/2.8/generated/torch.is_floating_point.html) |  | ❌ | - | ✅ |
+    | [is_grad_enabled](https://docs.pytorch.org/docs/2.8/generated/torch.is_grad_enabled.html) |  | ❌ | - | ❌ |
+    | [is_leaf](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_leaf.html) |  | ❌ | - | ❌ |
     | is_non_overlapping_and_dense |  | ❌ | - | ❌ |
-    | [is_nonzero](https://docs.pytorch.org/docs/2.7/generated/torch.is_nonzero.html) |  | ❌ | - | ❌ |
+    | [is_nonzero](https://docs.pytorch.org/docs/2.8/generated/torch.is_nonzero.html) |  | ❌ | - | ❌ |
     | is_owner |  | ❌ | - | ❌ |
-    | is_pinned |  | ❌ | - | ✅ |
+    | [is_pinned](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_pinned.html) |  | ❌ | - | ✅ |
     | is_same_size |  | ❌ | - | ❌ |
     | is_scripting |  | ❌ | - | ❌ |
-    | is_set_to |  | ❌ | - | ❌ |
-    | is_signed |  | ❌ | - | ❌ |
+    | [is_set_to](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_set_to.html) |  | ❌ | - | ❌ |
+    | [is_signed](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.is_signed.html) |  | ❌ | - | ❌ |
     | is_strides_like_format |  | ❌ | - | ❌ |
     | isalnum |  | ❌ | - | ❌ |
     | isalpha |  | ❌ | - | ❌ |
-    | [isclose](https://docs.pytorch.org/docs/2.7/generated/torch.isclose.html) |  | ❌ | - | ❌ |
+    | [isclose](https://docs.pytorch.org/docs/2.8/generated/torch.isclose.html) |  | ❌ | - | ❌ |
     | isdecimal |  | ❌ | - | ❌ |
     | isdigit |  | ❌ | - | ❌ |
-    | [isfinite](https://docs.pytorch.org/docs/2.7/generated/torch.isfinite.html) |  | ❌ | - | ✅ |
+    | [isfinite](https://docs.pytorch.org/docs/2.8/generated/torch.isfinite.html) |  | ❌ | - | ✅ |
     | isidentifier |  | ❌ | - | ❌ |
-    | [isin](https://docs.pytorch.org/docs/2.7/generated/torch.isin.html) |  | ❌ | - | ❌ |
+    | [isin](https://docs.pytorch.org/docs/2.8/generated/torch.isin.html) |  | ❌ | - | ❌ |
     | islower |  | ❌ | - | ❌ |
-    | [isneginf](https://docs.pytorch.org/docs/2.7/generated/torch.isneginf.html) |  | ❌ | - | ❌ |
+    | [isneginf](https://docs.pytorch.org/docs/2.8/generated/torch.isneginf.html) |  | ❌ | - | ❌ |
     | isnumeric |  | ❌ | - | ❌ |
-    | [isposinf](https://docs.pytorch.org/docs/2.7/generated/torch.isposinf.html) |  | ❌ | - | ❌ |
+    | [isposinf](https://docs.pytorch.org/docs/2.8/generated/torch.isposinf.html) |  | ❌ | - | ❌ |
     | isprintable |  | ❌ | - | ❌ |
-    | [isreal](https://docs.pytorch.org/docs/2.7/generated/torch.isreal.html) |  | ❌ | - | ❌ |
+    | [isreal](https://docs.pytorch.org/docs/2.8/generated/torch.isreal.html) |  | ❌ | - | ❌ |
     | isspace |  | ❌ | - | ❌ |
-    | [istft](https://docs.pytorch.org/docs/2.7/generated/torch.istft.html) |  | ❌ | - | ❌ |
+    | [istft](https://docs.pytorch.org/docs/2.8/generated/torch.istft.html) |  | ❌ | - | ❌ |
     | istitle |  | ❌ | - | ❌ |
     | isupper |  | ❌ | - | ❌ |
-    | item |  | ❌ | - | ✅ |
+    | [item](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.item.html) |  | ❌ | - | ✅ |
     | items |  | ❌ | - | ❌ |
     | join |  | ❌ | - | ❌ |
-    | [kaiser_window](https://docs.pytorch.org/docs/2.7/generated/torch.kaiser_window.html) |  | ❌ | - | ❌ |
+    | [kaiser_window](https://docs.pytorch.org/docs/2.8/generated/torch.kaiser_window.html) |  | ❌ | - | ❌ |
     | keys |  | ❌ | - | ❌ |
-    | [kl_div](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.kl_div.html) |  | ❌ | - | ✅ |
-    | [kron](https://docs.pytorch.org/docs/2.7/generated/torch.kron.html) |  | ❌ | - | ❌ |
-    | [kthvalue](https://docs.pytorch.org/docs/2.7/generated/torch.kthvalue.html) |  | ❌ | - | ❌ |
-    | [l1_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.l1_loss.html) |  | ❌ | - | ❌ |
-    | [layer_norm](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.layer_norm.html) |  | ❌ | - | ✅ |
-    | [lcm](https://docs.pytorch.org/docs/2.7/generated/torch.lcm.html) |  | ✅ | - | ❌ |
-    | [ldexp](https://docs.pytorch.org/docs/2.7/generated/torch.ldexp.html) |  | ✅ | - | ❌ |
+    | [kl_div](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.kl_div.html) |  | ❌ | - | ✅ |
+    | [kron](https://docs.pytorch.org/docs/2.8/generated/torch.kron.html) |  | ❌ | - | ❌ |
+    | [kthvalue](https://docs.pytorch.org/docs/2.8/generated/torch.kthvalue.html) |  | ❌ | - | ❌ |
+    | [l1_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.l1_loss.html) |  | ❌ | - | ❌ |
+    | [layer_norm](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.layer_norm.html) |  | ❌ | - | ✅ |
+    | [lcm](https://docs.pytorch.org/docs/2.8/generated/torch.lcm.html) |  | ✅ | - | ❌ |
+    | [ldexp](https://docs.pytorch.org/docs/2.8/generated/torch.ldexp.html) |  | ✅ | - | ❌ |
     | len |  | ❌ | - | ✅ |
-    | [lerp](https://docs.pytorch.org/docs/2.7/generated/torch.lerp.html) |  | ✅ | - | ✅ |
-    | [lgamma](https://docs.pytorch.org/docs/2.7/generated/torch.lgamma.html) |  | ✅ | - | ❌ |
+    | [lerp](https://docs.pytorch.org/docs/2.8/generated/torch.lerp.html) |  | ✅ | - | ✅ |
+    | [lgamma](https://docs.pytorch.org/docs/2.8/generated/torch.lgamma.html) |  | ✅ | - | ❌ |
     | lift |  | ❌ | - | ✅ |
     | lift_fresh |  | ❌ | - | ❌ |
     | lift_fresh_copy |  | ❌ | - | ❌ |
@@ -1385,8 +1382,8 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | linalg_tensorinv |  | ❌ | - | ❌ |
     | linalg_tensorsolve |  | ❌ | - | ❌ |
     | linalg_vector_norm |  | ❌ | - | ✅ |
-    | [linear](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.linear.html) |  | ❌ | - | ✅ |
-    | [linspace](https://docs.pytorch.org/docs/2.7/generated/torch.linspace.html) |  | ❌ | - | ✅ |
+    | [linear](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.linear.html) |  | ❌ | - | ✅ |
+    | [linspace](https://docs.pytorch.org/docs/2.8/generated/torch.linspace.html) |  | ❌ | - | ✅ |
     | list |  | ❌ | - | ✅ |
     | list_with_default |  | ❌ | - | ❌ |
     | ljust |  | ❌ | - | ❌ |
@@ -1394,39 +1391,39 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | log_normal |  | ✅ | - | ❌ |
     | log_sigmoid |  | ❌ | - | ✅ |
     | log_sigmoid_forward |  | ❌ | - | ❌ |
-    | [log_softmax](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.log_softmax.html) | special_log_softmax | ❌ | - | ✅ |
-    | [logaddexp](https://docs.pytorch.org/docs/2.7/generated/torch.logaddexp.html) |  | ❌ | - | ❌ |
-    | [logaddexp2](https://docs.pytorch.org/docs/2.7/generated/torch.logaddexp2.html) |  | ❌ | - | ❌ |
-    | [logcumsumexp](https://docs.pytorch.org/docs/2.7/generated/torch.logcumsumexp.html) |  | ❌ | - | ❌ |
-    | [logdet](https://docs.pytorch.org/docs/2.7/generated/torch.logdet.html) |  | ❌ | - | ✅ |
-    | [logit](https://docs.pytorch.org/docs/2.7/generated/torch.logit.html) | special_logit | ❌ | - | ✅ |
-    | [logspace](https://docs.pytorch.org/docs/2.7/generated/torch.logspace.html) |  | ❌ | - | ❌ |
-    | [logsumexp](https://docs.pytorch.org/docs/2.7/generated/torch.logsumexp.html) | special_logsumexp | ❌ | - | ✅ |
+    | [log_softmax](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.log_softmax.html) | special_log_softmax | ❌ | - | ✅ |
+    | [logaddexp](https://docs.pytorch.org/docs/2.8/generated/torch.logaddexp.html) |  | ❌ | - | ❌ |
+    | [logaddexp2](https://docs.pytorch.org/docs/2.8/generated/torch.logaddexp2.html) |  | ❌ | - | ❌ |
+    | [logcumsumexp](https://docs.pytorch.org/docs/2.8/generated/torch.logcumsumexp.html) |  | ❌ | - | ❌ |
+    | [logdet](https://docs.pytorch.org/docs/2.8/generated/torch.logdet.html) |  | ❌ | - | ✅ |
+    | [logit](https://docs.pytorch.org/docs/2.8/generated/torch.logit.html) | special_logit | ❌ | - | ✅ |
+    | [logspace](https://docs.pytorch.org/docs/2.8/generated/torch.logspace.html) |  | ❌ | - | ❌ |
+    | [logsumexp](https://docs.pytorch.org/docs/2.8/generated/torch.logsumexp.html) | special_logsumexp | ❌ | - | ✅ |
     | lower |  | ❌ | - | ❌ |
     | lstm |  | ❌ | - | ✅ |
     | lstm_cell |  | ❌ | - | ✅ |
     | lstrip |  | ❌ | - | ❌ |
-    | lstsq |  | ❌ | - | ❌ |
-    | [lu_solve](https://docs.pytorch.org/docs/2.7/generated/torch.lu_solve.html) |  | ❌ | - | ❌ |
-    | [lu_unpack](https://docs.pytorch.org/docs/2.7/generated/torch.lu_unpack.html) |  | ❌ | - | ❌ |
+    | [lstsq](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.lstsq.html) |  | ❌ | - | ❌ |
+    | [lu_solve](https://docs.pytorch.org/docs/2.8/generated/torch.lu_solve.html) |  | ❌ | - | ❌ |
+    | [lu_unpack](https://docs.pytorch.org/docs/2.8/generated/torch.lu_unpack.html) |  | ❌ | - | ❌ |
     | mH | adjoint | ❌ | - | ❌ |
     | mT |  | ❌ | - | ❌ |
-    | [manual_seed](https://docs.pytorch.org/docs/2.7/generated/torch.manual_seed.html) |  | ❌ | - | ❌ |
-    | [margin_ranking_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.margin_ranking_loss.html) |  | ❌ | - | ❌ |
-    | masked_fill |  | ✅ | - | ✅ |
-    | [masked_select](https://docs.pytorch.org/docs/2.7/generated/torch.masked_select.html) |  | ❌ | - | ✅ |
+    | [manual_seed](https://docs.pytorch.org/docs/2.8/generated/torch.manual_seed.html) |  | ❌ | - | ❌ |
+    | [margin_ranking_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.margin_ranking_loss.html) |  | ❌ | - | ❌ |
+    | [masked_fill](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.masked_fill.html) |  | ✅ | - | ✅ |
+    | [masked_select](https://docs.pytorch.org/docs/2.8/generated/torch.masked_select.html) |  | ❌ | - | ✅ |
     | mathremainder |  | ❌ | - | ❌ |
-    | [matmul](https://docs.pytorch.org/docs/2.7/generated/torch.matmul.html) | linalg_matmul | ❌ | - | ✅ |
+    | [matmul](https://docs.pytorch.org/docs/2.8/generated/torch.matmul.html) | linalg_matmul | ❌ | - | ✅ |
     | matrix_H |  | ❌ | - | ❌ |
-    | matrix_rank |  | ❌ | - | ❌ |
-    | [max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool1d.html) |  | ❌ | - | ✅ |
+    | [matrix_rank](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.matrix_rank.html) |  | ❌ | - | ❌ |
+    | [max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool1d.html) |  | ❌ | - | ✅ |
     | max_pool1d_with_indices |  | ❌ | - | ✅ |
-    | [max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool2d.html) |  | ❌ | - | ✅ |
-    | [max_pool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_pool3d.html) |  | ❌ | - | ✅ |
-    | [max_unpool2d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_unpool2d.html) |  | ❌ | - | ❌ |
-    | [max_unpool3d](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.max_unpool3d.html) |  | ❌ | - | ❌ |
-    | [median](https://docs.pytorch.org/docs/2.7/generated/torch.median.html) |  | ❌ | - | ❌ |
-    | [meshgrid](https://docs.pytorch.org/docs/2.7/generated/torch.meshgrid.html) |  | ❌ | - | ✅ |
+    | [max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool2d.html) |  | ❌ | - | ✅ |
+    | [max_pool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_pool3d.html) |  | ❌ | - | ✅ |
+    | [max_unpool2d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_unpool2d.html) |  | ❌ | - | ❌ |
+    | [max_unpool3d](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.max_unpool3d.html) |  | ❌ | - | ❌ |
+    | [median](https://docs.pytorch.org/docs/2.8/generated/torch.median.html) |  | ❌ | - | ❌ |
+    | [meshgrid](https://docs.pytorch.org/docs/2.8/generated/torch.meshgrid.html) |  | ❌ | - | ✅ |
     | miopen_batch_norm |  | ❌ | - | ❌ |
     | miopen_convolution |  | ❌ | - | ❌ |
     | miopen_convolution_add_relu |  | ❌ | - | ❌ |
@@ -1434,7 +1431,7 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | miopen_convolution_transpose |  | ❌ | - | ❌ |
     | miopen_depthwise_convolution |  | ❌ | - | ❌ |
     | miopen_rnn |  | ❌ | - | ❌ |
-    | [mish](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.mish.html) |  | ❌ | - | ✅ |
+    | [mish](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.mish.html) |  | ❌ | - | ✅ |
     | mkldnn_adaptive_avg_pool2d |  | ❌ | - | ❌ |
     | mkldnn_convolution |  | ❌ | - | ❌ |
     | mkldnn_linear |  | ❌ | - | ❌ |
@@ -1443,135 +1440,135 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | mkldnn_reorder_conv2d_weight |  | ❌ | - | ❌ |
     | mkldnn_reorder_conv3d_weight |  | ❌ | - | ❌ |
     | mkldnn_rnn_layer |  | ❌ | - | ❌ |
-    | [mode](https://docs.pytorch.org/docs/2.7/generated/torch.mode.html) |  | ❌ | - | ❌ |
+    | [mode](https://docs.pytorch.org/docs/2.8/generated/torch.mode.html) |  | ❌ | - | ❌ |
     | modf |  | ❌ | - | ❌ |
-    | [movedim](https://docs.pytorch.org/docs/2.7/generated/torch.movedim.html) | moveaxis | ❌ | - | ✅ |
+    | [movedim](https://docs.pytorch.org/docs/2.8/generated/torch.movedim.html) | moveaxis | ❌ | - | ✅ |
     | mps_linear |  | ❌ | - | ❌ |
-    | [mse_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.mse_loss.html) |  | ❌ | - | ✅ |
-    | [msort](https://docs.pytorch.org/docs/2.7/generated/torch.msort.html) |  | ❌ | - | ❌ |
-    | [multi_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.multi_margin_loss.html) |  | ❌ | - | ❌ |
-    | [multilabel_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.multilabel_margin_loss.html) |  | ❌ | - | ❌ |
+    | [mse_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.mse_loss.html) |  | ❌ | - | ✅ |
+    | [msort](https://docs.pytorch.org/docs/2.8/generated/torch.msort.html) |  | ❌ | - | ❌ |
+    | [multi_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.multi_margin_loss.html) |  | ❌ | - | ❌ |
+    | [multilabel_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.multilabel_margin_loss.html) |  | ❌ | - | ❌ |
     | multilabel_margin_loss_forward |  | ❌ | - | ❌ |
-    | [multinomial](https://docs.pytorch.org/docs/2.7/generated/torch.multinomial.html) |  | ❌ | - | ✅ |
-    | [mv](https://docs.pytorch.org/docs/2.7/generated/torch.mv.html) |  | ❌ | - | ✅ |
-    | [mvlgamma](https://docs.pytorch.org/docs/2.7/generated/torch.mvlgamma.html) | special_multigammaln | ❌ | - | ❌ |
-    | [nan_to_num](https://docs.pytorch.org/docs/2.7/generated/torch.nan_to_num.html) |  | ✅ | - | ✅ |
-    | [nanmean](https://docs.pytorch.org/docs/2.7/generated/torch.nanmean.html) |  | ❌ | - | ❌ |
-    | [nanmedian](https://docs.pytorch.org/docs/2.7/generated/torch.nanmedian.html) |  | ❌ | - | ❌ |
-    | [nanquantile](https://docs.pytorch.org/docs/2.7/generated/torch.nanquantile.html) |  | ❌ | - | ❌ |
-    | [nansum](https://docs.pytorch.org/docs/2.7/generated/torch.nansum.html) |  | ❌ | - | ❌ |
-    | [narrow](https://docs.pytorch.org/docs/2.7/generated/torch.narrow.html) |  | ❌ | - | ✅ |
-    | [narrow_copy](https://docs.pytorch.org/docs/2.7/generated/torch.narrow_copy.html) |  | ❌ | - | ❌ |
+    | [multinomial](https://docs.pytorch.org/docs/2.8/generated/torch.multinomial.html) |  | ❌ | - | ✅ |
+    | [mv](https://docs.pytorch.org/docs/2.8/generated/torch.mv.html) |  | ❌ | - | ✅ |
+    | [mvlgamma](https://docs.pytorch.org/docs/2.8/generated/torch.mvlgamma.html) | special_multigammaln | ❌ | - | ❌ |
+    | [nan_to_num](https://docs.pytorch.org/docs/2.8/generated/torch.nan_to_num.html) |  | ✅ | - | ✅ |
+    | [nanmean](https://docs.pytorch.org/docs/2.8/generated/torch.nanmean.html) |  | ❌ | - | ❌ |
+    | [nanmedian](https://docs.pytorch.org/docs/2.8/generated/torch.nanmedian.html) |  | ❌ | - | ❌ |
+    | [nanquantile](https://docs.pytorch.org/docs/2.8/generated/torch.nanquantile.html) |  | ❌ | - | ❌ |
+    | [nansum](https://docs.pytorch.org/docs/2.8/generated/torch.nansum.html) |  | ❌ | - | ❌ |
+    | [narrow](https://docs.pytorch.org/docs/2.8/generated/torch.narrow.html) |  | ❌ | - | ✅ |
+    | [narrow_copy](https://docs.pytorch.org/docs/2.8/generated/torch.narrow_copy.html) |  | ❌ | - | ❌ |
     | native_batch_norm |  | ❌ | - | ❌ |
     | native_channel_shuffle |  | ❌ | - | ❌ |
     | native_multi_head_self_attention |  | ❌ | - | ❌ |
     | native_norm |  | ❌ | - | ❌ |
     | neq |  | ❌ | - | ❌ |
     | nested_to_padded_tensor |  | ❌ | - | ❌ |
-    | new_empty |  | ❌ | - | ✅ |
+    | [new_empty](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_empty.html) |  | ❌ | - | ✅ |
     | new_empty_strided |  | ❌ | - | ❌ |
-    | new_full |  | ❌ | - | ✅ |
-    | new_ones |  | ❌ | - | ✅ |
-    | new_zeros |  | ❌ | - | ✅ |
-    | [nextafter](https://docs.pytorch.org/docs/2.7/generated/torch.nextafter.html) |  | ✅ | - | ❌ |
-    | [nll_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.nll_loss.html) |  | ❌ | - | ✅ |
+    | [new_full](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_full.html) |  | ❌ | - | ✅ |
+    | [new_ones](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_ones.html) |  | ❌ | - | ✅ |
+    | [new_zeros](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.new_zeros.html) |  | ❌ | - | ✅ |
+    | [nextafter](https://docs.pytorch.org/docs/2.8/generated/torch.nextafter.html) |  | ✅ | - | ❌ |
+    | [nll_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.nll_loss.html) |  | ❌ | - | ✅ |
     | nll_loss2d |  | ❌ | - | ✅ |
     | nll_loss_forward |  | ❌ | - | ❌ |
     | nll_loss_nd |  | ❌ | - | ✅ |
     | node |  | ❌ | - | ❌ |
     | nonzero_numpy |  | ❌ | - | ✅ |
     | nonzero_static |  | ❌ | - | ❌ |
-    | [norm](https://docs.pytorch.org/docs/2.7/generated/torch.norm.html) |  | ❌ | - | ✅ |
+    | [norm](https://docs.pytorch.org/docs/2.8/generated/torch.norm.html) |  | ❌ | - | ✅ |
     | norm_except_dim |  | ❌ | - | ❌ |
-    | [normal](https://docs.pytorch.org/docs/2.7/generated/torch.normal.html) |  | ✅ | - | ✅ |
+    | [normal](https://docs.pytorch.org/docs/2.8/generated/torch.normal.html) |  | ✅ | - | ✅ |
     | normal_functional |  | ❌ | - | ❌ |
     | nuclear_norm |  | ❌ | - | ❌ |
-    | [numel](https://docs.pytorch.org/docs/2.7/generated/torch.numel.html) |  | ❌ | - | ✅ |
+    | [numel](https://docs.pytorch.org/docs/2.8/generated/torch.numel.html) |  | ❌ | - | ✅ |
     | numpy_T |  | ❌ | - | ✅ |
     | oct |  | ❌ | - | ❌ |
-    | [one_hot](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.one_hot.html) |  | ❌ | - | ✅ |
-    | [ones](https://docs.pytorch.org/docs/2.7/generated/torch.ones.html) |  | ❌ | - | ✅ |
-    | [ones_like](https://docs.pytorch.org/docs/2.7/generated/torch.ones_like.html) |  | ❌ | - | ✅ |
+    | [one_hot](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.one_hot.html) |  | ❌ | - | ✅ |
+    | [ones](https://docs.pytorch.org/docs/2.8/generated/torch.ones.html) |  | ❌ | - | ✅ |
+    | [ones_like](https://docs.pytorch.org/docs/2.8/generated/torch.ones_like.html) |  | ❌ | - | ✅ |
     | op |  | ❌ | - | ❌ |
     | op_name |  | ❌ | - | ❌ |
     | ord |  | ❌ | - | ❌ |
-    | [ormqr](https://docs.pytorch.org/docs/2.7/generated/torch.ormqr.html) |  | ❌ | - | ❌ |
-    | [outer](https://docs.pytorch.org/docs/2.7/generated/torch.outer.html) | ger | ❌ | - | ✅ |
+    | [ormqr](https://docs.pytorch.org/docs/2.8/generated/torch.ormqr.html) |  | ❌ | - | ❌ |
+    | [outer](https://docs.pytorch.org/docs/2.8/generated/torch.outer.html) | ger | ❌ | - | ✅ |
     | output_nr |  | ❌ | - | ❌ |
     | owner |  | ❌ | - | ❌ |
     | owner_name |  | ❌ | - | ❌ |
-    | [pad](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pad.html) |  | ❌ | - | ✅ |
+    | [pad](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pad.html) |  | ❌ | - | ✅ |
     | pad_sequence |  | ❌ | - | ❌ |
-    | [pairwise_distance](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pairwise_distance.html) |  | ❌ | - | ✅ |
+    | [pairwise_distance](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pairwise_distance.html) |  | ❌ | - | ✅ |
     | partition |  | ❌ | - | ❌ |
-    | [pdist](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pdist.html) |  | ❌ | - | ❌ |
+    | [pdist](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pdist.html) |  | ❌ | - | ❌ |
     | percentFormat |  | ❌ | - | ❌ |
     | permute_copy |  | ❌ | - | ❌ |
-    | pin_memory |  | ❌ | - | ❌ |
-    | pinv |  | ❌ | - | ❌ |
-    | [pinverse](https://docs.pytorch.org/docs/2.7/generated/torch.pinverse.html) |  | ❌ | - | ❌ |
-    | [pixel_shuffle](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pixel_shuffle.html) |  | ❌ | - | ✅ |
-    | [pixel_unshuffle](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.pixel_unshuffle.html) |  | ❌ | - | ✅ |
+    | [pin_memory](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.pin_memory.html) |  | ❌ | - | ❌ |
+    | [pinv](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.pinv.html) |  | ❌ | - | ❌ |
+    | [pinverse](https://docs.pytorch.org/docs/2.8/generated/torch.pinverse.html) |  | ❌ | - | ❌ |
+    | [pixel_shuffle](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pixel_shuffle.html) |  | ❌ | - | ✅ |
+    | [pixel_unshuffle](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.pixel_unshuffle.html) |  | ❌ | - | ✅ |
     | pointwise_placeholder |  | ❌ | - | ❌ |
-    | [poisson](https://docs.pytorch.org/docs/2.7/generated/torch.poisson.html) |  | ❌ | - | ❌ |
-    | [poisson_nll_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.poisson_nll_loss.html) |  | ❌ | - | ❌ |
-    | [polar](https://docs.pytorch.org/docs/2.7/generated/torch.polar.html) |  | ❌ | - | ❌ |
-    | [polygamma](https://docs.pytorch.org/docs/2.7/generated/torch.polygamma.html) | special_polygamma | ✅ | - | ❌ |
+    | [poisson](https://docs.pytorch.org/docs/2.8/generated/torch.poisson.html) |  | ❌ | - | ❌ |
+    | [poisson_nll_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.poisson_nll_loss.html) |  | ❌ | - | ❌ |
+    | [polar](https://docs.pytorch.org/docs/2.8/generated/torch.polar.html) |  | ❌ | - | ❌ |
+    | [polygamma](https://docs.pytorch.org/docs/2.8/generated/torch.polygamma.html) | special_polygamma | ✅ | - | ❌ |
     | pop |  | ❌ | - | ✅ |
     | popitem |  | ❌ | - | ❌ |
-    | [positive](https://docs.pytorch.org/docs/2.7/generated/torch.positive.html) |  | ❌ | - | ❌ |
-    | [prelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.prelu.html) |  | ❌ | - | ✅ |
-    | [promote_types](https://docs.pytorch.org/docs/2.7/generated/torch.promote_types.html) |  | ❌ | - | ❌ |
+    | [positive](https://docs.pytorch.org/docs/2.8/generated/torch.positive.html) |  | ❌ | - | ❌ |
+    | [prelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.prelu.html) |  | ❌ | - | ✅ |
+    | [promote_types](https://docs.pytorch.org/docs/2.8/generated/torch.promote_types.html) |  | ❌ | - | ❌ |
     | put |  | ✅ | - | ❌ |
-    | q_per_channel_axis |  | ❌ | - | ❌ |
-    | q_per_channel_scales |  | ❌ | - | ❌ |
-    | q_per_channel_zero_points |  | ❌ | - | ❌ |
-    | q_scale |  | ❌ | - | ❌ |
-    | q_zero_point |  | ❌ | - | ❌ |
-    | [qr](https://docs.pytorch.org/docs/2.7/generated/torch.qr.html) |  | ❌ | - | ❌ |
-    | qscheme |  | ❌ | - | ❌ |
-    | [quantile](https://docs.pytorch.org/docs/2.7/generated/torch.quantile.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_axis](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_axis.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_scales](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_scales.html) |  | ❌ | - | ❌ |
+    | [q_per_channel_zero_points](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_per_channel_zero_points.html) |  | ❌ | - | ❌ |
+    | [q_scale](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_scale.html) |  | ❌ | - | ❌ |
+    | [q_zero_point](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.q_zero_point.html) |  | ❌ | - | ❌ |
+    | [qr](https://docs.pytorch.org/docs/2.8/generated/torch.qr.html) |  | ❌ | - | ❌ |
+    | [qscheme](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.qscheme.html) |  | ❌ | - | ❌ |
+    | [quantile](https://docs.pytorch.org/docs/2.8/generated/torch.quantile.html) |  | ❌ | - | ❌ |
     | quantize |  | ❌ | - | ❌ |
-    | [quantize_per_channel](https://docs.pytorch.org/docs/2.7/generated/torch.quantize_per_channel.html) |  | ❌ | - | ❌ |
-    | [quantize_per_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.quantize_per_tensor.html) |  | ❌ | - | ✅ |
+    | [quantize_per_channel](https://docs.pytorch.org/docs/2.8/generated/torch.quantize_per_channel.html) |  | ❌ | - | ❌ |
+    | [quantize_per_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.quantize_per_tensor.html) |  | ❌ | - | ✅ |
     | quantize_per_tensor_dynamic |  | ❌ | - | ❌ |
-    | [quantized_batch_norm](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_batch_norm.html) |  | ❌ | - | ❌ |
+    | [quantized_batch_norm](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_batch_norm.html) |  | ❌ | - | ❌ |
     | quantized_gru |  | ❌ | - | ❌ |
     | quantized_lstm |  | ❌ | - | ❌ |
-    | [quantized_max_pool1d](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_max_pool1d.html) |  | ❌ | - | ❌ |
-    | [quantized_max_pool2d](https://docs.pytorch.org/docs/2.7/generated/torch.quantized_max_pool2d.html) |  | ❌ | - | ❌ |
+    | [quantized_max_pool1d](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_max_pool1d.html) |  | ❌ | - | ❌ |
+    | [quantized_max_pool2d](https://docs.pytorch.org/docs/2.8/generated/torch.quantized_max_pool2d.html) |  | ❌ | - | ❌ |
     | quantized_max_pool3d |  | ❌ | - | ❌ |
-    | [rad2deg](https://docs.pytorch.org/docs/2.7/generated/torch.rad2deg.html) |  | ❌ | - | ❌ |
+    | [rad2deg](https://docs.pytorch.org/docs/2.8/generated/torch.rad2deg.html) |  | ❌ | - | ❌ |
     | radians |  | ❌ | - | ❌ |
-    | [rand_like](https://docs.pytorch.org/docs/2.7/generated/torch.rand_like.html) |  | ❌ | - | ✅ |
-    | [randint](https://docs.pytorch.org/docs/2.7/generated/torch.randint.html) |  | ❌ | - | ✅ |
-    | [randint_like](https://docs.pytorch.org/docs/2.7/generated/torch.randint_like.html) |  | ❌ | - | ✅ |
-    | [randn_like](https://docs.pytorch.org/docs/2.7/generated/torch.randn_like.html) |  | ❌ | - | ✅ |
+    | [rand_like](https://docs.pytorch.org/docs/2.8/generated/torch.rand_like.html) |  | ❌ | - | ✅ |
+    | [randint](https://docs.pytorch.org/docs/2.8/generated/torch.randint.html) |  | ❌ | - | ✅ |
+    | [randint_like](https://docs.pytorch.org/docs/2.8/generated/torch.randint_like.html) |  | ❌ | - | ✅ |
+    | [randn_like](https://docs.pytorch.org/docs/2.8/generated/torch.randn_like.html) |  | ❌ | - | ✅ |
     | random |  | ✅ | - | ❌ |
-    | [range](https://docs.pytorch.org/docs/2.7/generated/torch.range.html) |  | ❌ | - | ❌ |
-    | [ravel](https://docs.pytorch.org/docs/2.7/generated/torch.ravel.html) |  | ❌ | - | ❌ |
-    | [real](https://docs.pytorch.org/docs/2.7/generated/torch.real.html) |  | ❌ | - | ❌ |
-    | record_stream |  | ❌ | - | ❌ |
+    | [range](https://docs.pytorch.org/docs/2.8/generated/torch.range.html) |  | ❌ | - | ❌ |
+    | [ravel](https://docs.pytorch.org/docs/2.8/generated/torch.ravel.html) |  | ❌ | - | ❌ |
+    | [real](https://docs.pytorch.org/docs/2.8/generated/torch.real.html) |  | ❌ | - | ❌ |
+    | [record_stream](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.record_stream.html) |  | ❌ | - | ❌ |
     | reduce_scatter_tensor |  | ❌ | - | ❌ |
     | refine_names |  | ❌ | - | ❌ |
-    | [relu6](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.relu6.html) |  | ✅ | - | ✅ |
+    | [relu6](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.relu6.html) |  | ✅ | - | ✅ |
     | remove |  | ❌ | - | ❌ |
     | rename |  | ✅ | - | ❌ |
-    | [renorm](https://docs.pytorch.org/docs/2.7/generated/torch.renorm.html) |  | ❌ | - | ❌ |
-    | [repeat_interleave](https://docs.pytorch.org/docs/2.7/generated/torch.repeat_interleave.html) |  | ❌ | - | ✅ |
+    | [renorm](https://docs.pytorch.org/docs/2.8/generated/torch.renorm.html) |  | ❌ | - | ❌ |
+    | [repeat_interleave](https://docs.pytorch.org/docs/2.8/generated/torch.repeat_interleave.html) |  | ❌ | - | ✅ |
     | replace |  | ❌ | - | ❌ |
     | replication_pad1d |  | ❌ | - | ✅ |
-    | requires_grad_ |  | ❌ | - | ❌ |
-    | [reshape](https://docs.pytorch.org/docs/2.7/generated/torch.reshape.html) |  | ❌ | - | ✅ |
-    | reshape_as |  | ❌ | - | ✅ |
+    | [requires_grad_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.requires_grad_.html) |  | ❌ | - | ❌ |
+    | [reshape](https://docs.pytorch.org/docs/2.8/generated/torch.reshape.html) |  | ❌ | - | ✅ |
+    | [reshape_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.reshape_as.html) |  | ❌ | - | ✅ |
     | resize |  | ✅ | - | ❌ |
-    | resize_as_ |  | ❌ | - | ❌ |
+    | [resize_as_](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.resize_as_.html) |  | ❌ | - | ❌ |
     | resize_as_sparse |  | ✅ | - | ❌ |
-    | [resolve_conj](https://docs.pytorch.org/docs/2.7/generated/torch.resolve_conj.html) |  | ❌ | - | ✅ |
-    | [resolve_neg](https://docs.pytorch.org/docs/2.7/generated/torch.resolve_neg.html) |  | ❌ | - | ✅ |
-    | [result_type](https://docs.pytorch.org/docs/2.7/generated/torch.result_type.html) |  | ❌ | - | ❌ |
-    | retain_grad |  | ❌ | - | ❌ |
-    | retains_grad |  | ❌ | - | ❌ |
+    | [resolve_conj](https://docs.pytorch.org/docs/2.8/generated/torch.resolve_conj.html) |  | ❌ | - | ✅ |
+    | [resolve_neg](https://docs.pytorch.org/docs/2.8/generated/torch.resolve_neg.html) |  | ❌ | - | ✅ |
+    | [result_type](https://docs.pytorch.org/docs/2.8/generated/torch.result_type.html) |  | ❌ | - | ❌ |
+    | [retain_grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.retain_grad.html) |  | ❌ | - | ❌ |
+    | [retains_grad](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.retains_grad.html) |  | ❌ | - | ❌ |
     | reverse |  | ❌ | - | ❌ |
     | rfind |  | ❌ | - | ❌ |
     | rindex |  | ❌ | - | ❌ |
@@ -1580,35 +1577,35 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | rnn_relu_cell |  | ❌ | - | ❌ |
     | rnn_tanh |  | ❌ | - | ✅ |
     | rnn_tanh_cell |  | ❌ | - | ❌ |
-    | [roll](https://docs.pytorch.org/docs/2.7/generated/torch.roll.html) |  | ❌ | - | ✅ |
-    | [rot90](https://docs.pytorch.org/docs/2.7/generated/torch.rot90.html) |  | ❌ | - | ❌ |
-    | row_indices |  | ❌ | - | ❌ |
+    | [roll](https://docs.pytorch.org/docs/2.8/generated/torch.roll.html) |  | ❌ | - | ✅ |
+    | [rot90](https://docs.pytorch.org/docs/2.8/generated/torch.rot90.html) |  | ❌ | - | ❌ |
+    | [row_indices](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.row_indices.html) |  | ❌ | - | ❌ |
     | row_indices_copy |  | ❌ | - | ❌ |
     | rowwise_prune |  | ❌ | - | ❌ |
     | rpartition |  | ❌ | - | ❌ |
-    | [rrelu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.rrelu.html) |  | ❌ | - | ✅ |
+    | [rrelu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.rrelu.html) |  | ❌ | - | ✅ |
     | rrelu_with_noise |  | ✅ | - | ❌ |
     | rrelu_with_noise_functional |  | ❌ | - | ❌ |
     | rsplit |  | ❌ | - | ❌ |
     | rstrip |  | ❌ | - | ❌ |
     | rsub |  | ❌ | - | ✅ |
-    | [save](https://docs.pytorch.org/docs/2.7/generated/torch.save.html) |  | ❌ | - | ❌ |
-    | [scaled_dot_product_attention](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.scaled_dot_product_attention.html) |  | ❌ | - | ✅ |
-    | [searchsorted](https://docs.pytorch.org/docs/2.7/generated/torch.searchsorted.html) |  | ❌ | - | ❌ |
-    | [seed](https://docs.pytorch.org/docs/2.7/generated/torch.seed.html) |  | ❌ | - | ❌ |
+    | [save](https://docs.pytorch.org/docs/2.8/generated/torch.save.html) |  | ❌ | - | ❌ |
+    | [scaled_dot_product_attention](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.scaled_dot_product_attention.html) |  | ❌ | - | ✅ |
+    | [searchsorted](https://docs.pytorch.org/docs/2.8/generated/torch.searchsorted.html) |  | ❌ | - | ❌ |
+    | [seed](https://docs.pytorch.org/docs/2.8/generated/torch.seed.html) |  | ❌ | - | ❌ |
     | segment_reduce |  | ❌ | - | ❌ |
     | select_copy |  | ❌ | - | ❌ |
-    | [selu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.selu.html) |  | ✅ | - | ✅ |
+    | [selu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.selu.html) |  | ✅ | - | ✅ |
     | set |  | ✅ | - | ❌ |
     | set_data |  | ❌ | - | ❌ |
     | set_grad_enabled |  | ❌ | - | ❌ |
     | set_source_Tensor_storage_offset |  | ❌ | - | ❌ |
     | setdefault |  | ❌ | - | ❌ |
-    | [sgn](https://docs.pytorch.org/docs/2.7/generated/torch.sgn.html) |  | ❌ | - | ❌ |
-    | [signbit](https://docs.pytorch.org/docs/2.7/generated/torch.signbit.html) |  | ❌ | - | ❌ |
-    | [silu](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.silu.html) |  | ✅ | - | ✅ |
-    | [sinc](https://docs.pytorch.org/docs/2.7/generated/torch.sinc.html) | special_sinc | ❌ | - | ❌ |
-    | size |  | ❌ | - | ✅ |
+    | [sgn](https://docs.pytorch.org/docs/2.8/generated/torch.sgn.html) |  | ❌ | - | ❌ |
+    | [signbit](https://docs.pytorch.org/docs/2.8/generated/torch.signbit.html) |  | ❌ | - | ❌ |
+    | [silu](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.silu.html) |  | ✅ | - | ✅ |
+    | [sinc](https://docs.pytorch.org/docs/2.8/generated/torch.sinc.html) | special_sinc | ❌ | - | ❌ |
+    | [size](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.size.html) |  | ❌ | - | ✅ |
     | slice_copy |  | ❌ | - | ❌ |
     | slice_inverse |  | ❌ | - | ❌ |
     | slow_conv3d |  | ❌ | - | ❌ |
@@ -1617,18 +1614,18 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | slow_conv_dilated3d |  | ❌ | - | ❌ |
     | slow_conv_transpose2d |  | ❌ | - | ❌ |
     | slow_conv_transpose3d |  | ❌ | - | ❌ |
-    | [smm](https://docs.pytorch.org/docs/2.7/generated/torch.smm.html) |  | ❌ | - | ❌ |
-    | [smooth_l1_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.smooth_l1_loss.html) |  | ❌ | - | ❌ |
-    | [soft_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.soft_margin_loss.html) |  | ❌ | - | ❌ |
-    | [softmax](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softmax.html) | special_softmax | ❌ | - | ✅ |
-    | [softplus](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softplus.html) |  | ❌ | - | ✅ |
-    | [softshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.softshrink.html) |  | ❌ | - | ✅ |
-    | solve |  | ❌ | - | ❌ |
+    | [smm](https://docs.pytorch.org/docs/2.8/generated/torch.smm.html) |  | ❌ | - | ❌ |
+    | [smooth_l1_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.smooth_l1_loss.html) |  | ❌ | - | ❌ |
+    | [soft_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.soft_margin_loss.html) |  | ❌ | - | ❌ |
+    | [softmax](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softmax.html) | special_softmax | ❌ | - | ✅ |
+    | [softplus](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softplus.html) |  | ❌ | - | ✅ |
+    | [softshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.softshrink.html) |  | ❌ | - | ✅ |
+    | [solve](https://docs.pytorch.org/docs/2.8/generated/torch.linalg.solve.html) |  | ❌ | - | ❌ |
     | sorted |  | ❌ | - | ❌ |
-    | [sparse_compressed_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.sparse_compressed_tensor.html) |  | ❌ | - | ❌ |
-    | [sparse_coo_tensor](https://docs.pytorch.org/docs/2.7/generated/torch.sparse_coo_tensor.html) |  | ❌ | - | ❌ |
-    | sparse_dim |  | ❌ | - | ❌ |
-    | sparse_mask |  | ❌ | - | ❌ |
+    | [sparse_compressed_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.sparse_compressed_tensor.html) |  | ❌ | - | ❌ |
+    | [sparse_coo_tensor](https://docs.pytorch.org/docs/2.8/generated/torch.sparse_coo_tensor.html) |  | ❌ | - | ❌ |
+    | [sparse_dim](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.sparse_dim.html) |  | ❌ | - | ❌ |
+    | [sparse_mask](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.sparse_mask.html) |  | ❌ | - | ❌ |
     | sparse_resize |  | ✅ | - | ❌ |
     | sparse_resize_and_clear |  | ✅ | - | ❌ |
     | sparse_sampled_addmm |  | ❌ | - | ❌ |
@@ -1666,105 +1663,102 @@ We filter-out from from observed operators 'backward' and 'sym' one's which are 
     | special_spherical_bessel_j0 |  | ❌ | - | ❌ |
     | special_xlog1py |  | ❌ | - | ❌ |
     | special_zeta |  | ❌ | - | ❌ |
-    | [split](https://docs.pytorch.org/docs/2.7/generated/torch.split.html) |  | ❌ | - | ✅ |
+    | [split](https://docs.pytorch.org/docs/2.8/generated/torch.split.html) |  | ❌ | - | ✅ |
     | split_copy |  | ❌ | - | ❌ |
-    | split_with_sizes_copy |  | ❌ | - | ❌ |
     | splitlines |  | ❌ | - | ❌ |
-    | [square](https://docs.pytorch.org/docs/2.7/generated/torch.square.html) |  | ✅ | - | ✅ |
-    | [sspaddmm](https://docs.pytorch.org/docs/2.7/generated/torch.sspaddmm.html) |  | ❌ | - | ❌ |
-    | [stack](https://docs.pytorch.org/docs/2.7/generated/torch.stack.html) |  | ❌ | - | ✅ |
+    | [square](https://docs.pytorch.org/docs/2.8/generated/torch.square.html) |  | ✅ | - | ✅ |
+    | [sspaddmm](https://docs.pytorch.org/docs/2.8/generated/torch.sspaddmm.html) |  | ❌ | - | ❌ |
+    | [stack](https://docs.pytorch.org/docs/2.8/generated/torch.stack.html) |  | ❌ | - | ✅ |
     | startswith |  | ❌ | - | ❌ |
-    | [std](https://docs.pytorch.org/docs/2.7/generated/torch.std.html) |  | ❌ | - | ✅ |
-    | [std_mean](https://docs.pytorch.org/docs/2.7/generated/torch.std_mean.html) |  | ❌ | - | ✅ |
-    | [stft](https://docs.pytorch.org/docs/2.7/generated/torch.stft.html) |  | ❌ | - | ✅ |
-    | storage_offset |  | ❌ | - | ❌ |
+    | [std](https://docs.pytorch.org/docs/2.8/generated/torch.std.html) |  | ❌ | - | ✅ |
+    | [std_mean](https://docs.pytorch.org/docs/2.8/generated/torch.std_mean.html) |  | ❌ | - | ✅ |
+    | [stft](https://docs.pytorch.org/docs/2.8/generated/torch.stft.html) |  | ❌ | - | ✅ |
+    | [storage_offset](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.storage_offset.html) |  | ❌ | - | ❌ |
     | str |  | ❌ | - | ❌ |
-    | stride |  | ❌ | - | ❌ |
+    | [stride](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.stride.html) |  | ❌ | - | ❌ |
     | strip |  | ❌ | - | ❌ |
     | sum_to |  | ❌ | - | ❌ |
-    | [svd](https://docs.pytorch.org/docs/2.7/generated/torch.svd.html) |  | ❌ | - | ❌ |
+    | [svd](https://docs.pytorch.org/docs/2.8/generated/torch.svd.html) |  | ❌ | - | ❌ |
     | swapcase |  | ❌ | - | ❌ |
     | symbolic_b |  | ❌ | - | ❌ |
     | symeig |  | ❌ | - | ❌ |
-    | [t](https://docs.pytorch.org/docs/2.7/generated/torch.t.html) |  | ✅ | - | ✅ |
-    | [take](https://docs.pytorch.org/docs/2.7/generated/torch.take.html) |  | ❌ | - | ✅ |
-    | [take_along_dim](https://docs.pytorch.org/docs/2.7/generated/torch.take_along_dim.html) |  | ❌ | - | ❌ |
-    | [tanhshrink](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.tanhshrink.html) |  | ❌ | - | ❌ |
-    | [tensor](https://docs.pytorch.org/docs/2.7/generated/torch.tensor.html) |  | ❌ | - | ✅ |
-    | [tensor_split](https://docs.pytorch.org/docs/2.7/generated/torch.tensor_split.html) |  | ❌ | - | ✅ |
-    | [tensordot](https://docs.pytorch.org/docs/2.7/generated/torch.tensordot.html) |  | ❌ | - | ✅ |
+    | [t](https://docs.pytorch.org/docs/2.8/generated/torch.t.html) |  | ✅ | - | ✅ |
+    | [take](https://docs.pytorch.org/docs/2.8/generated/torch.take.html) |  | ❌ | - | ✅ |
+    | [take_along_dim](https://docs.pytorch.org/docs/2.8/generated/torch.take_along_dim.html) |  | ❌ | - | ❌ |
+    | [tanhshrink](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.tanhshrink.html) |  | ❌ | - | ❌ |
+    | [tensor](https://docs.pytorch.org/docs/2.8/generated/torch.tensor.html) |  | ❌ | - | ✅ |
+    | [tensor_split](https://docs.pytorch.org/docs/2.8/generated/torch.tensor_split.html) |  | ❌ | - | ✅ |
+    | [tensordot](https://docs.pytorch.org/docs/2.8/generated/torch.tensordot.html) |  | ❌ | - | ✅ |
     | test |  | ❌ | - | ❌ |
     | test_symbol |  | ❌ | - | ❌ |
     | test_vartype |  | ❌ | - | ❌ |
     | test_vartype2 |  | ❌ | - | ❌ |
     | thnn_conv2d |  | ❌ | - | ❌ |
     | thnn_conv2d_forward |  | ❌ | - | ❌ |
-    | [threshold](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.threshold.html) |  | ❌ | - | ✅ |
-    | [tile](https://docs.pytorch.org/docs/2.7/generated/torch.tile.html) |  | ❌ | - | ✅ |
+    | [threshold](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.threshold.html) |  | ❌ | - | ✅ |
+    | [tile](https://docs.pytorch.org/docs/2.8/generated/torch.tile.html) |  | ❌ | - | ✅ |
     | title |  | ❌ | - | ❌ |
-    | to |  | ❌ | - | ✅ |
-    | to_dense |  | ❌ | - | ❌ |
+    | [to](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to.html) |  | ❌ | - | ✅ |
+    | [to_dense](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to_dense.html) |  | ❌ | - | ❌ |
     | to_here |  | ❌ | - | ❌ |
-    | to_mkldnn |  | ❌ | - | ❌ |
+    | [to_mkldnn](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.to_mkldnn.html) |  | ❌ | - | ❌ |
     | to_padded_tensor |  | ❌ | - | ❌ |
-    | [trace](https://docs.pytorch.org/docs/2.7/generated/torch.trace.html) |  | ❌ | - | ❌ |
-    | [transpose](https://docs.pytorch.org/docs/2.7/generated/torch.transpose.html) | swapaxes, swapdims | ✅ | - | ✅ |
-    | transpose_copy |  | ❌ | - | ❌ |
-    | [trapezoid](https://docs.pytorch.org/docs/2.7/generated/torch.trapezoid.html) |  | ❌ | - | ❌ |
-    | [trapz](https://docs.pytorch.org/docs/2.7/generated/torch.trapz.html) |  | ❌ | - | ❌ |
-    | [triangular_solve](https://docs.pytorch.org/docs/2.7/generated/torch.triangular_solve.html) |  | ❌ | - | ❌ |
-    | [tril](https://docs.pytorch.org/docs/2.7/generated/torch.tril.html) |  | ❌ | - | ✅ |
-    | [tril_indices](https://docs.pytorch.org/docs/2.7/generated/torch.tril_indices.html) |  | ❌ | - | ❌ |
-    | [triplet_margin_loss](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.triplet_margin_loss.html) |  | ❌ | - | ❌ |
-    | [triu](https://docs.pytorch.org/docs/2.7/generated/torch.triu.html) |  | ❌ | - | ✅ |
-    | [triu_indices](https://docs.pytorch.org/docs/2.7/generated/torch.triu_indices.html) |  | ❌ | - | ❌ |
-    | type_as |  | ❌ | - | ✅ |
-    | [unbind](https://docs.pytorch.org/docs/2.7/generated/torch.unbind.html) |  | ❌ | - | ✅ |
+    | [trace](https://docs.pytorch.org/docs/2.8/generated/torch.trace.html) |  | ❌ | - | ❌ |
+    | [transpose](https://docs.pytorch.org/docs/2.8/generated/torch.transpose.html) | swapaxes, swapdims | ✅ | - | ✅ |
+    | [trapezoid](https://docs.pytorch.org/docs/2.8/generated/torch.trapezoid.html) |  | ❌ | - | ❌ |
+    | [trapz](https://docs.pytorch.org/docs/2.8/generated/torch.trapz.html) |  | ❌ | - | ❌ |
+    | [triangular_solve](https://docs.pytorch.org/docs/2.8/generated/torch.triangular_solve.html) |  | ❌ | - | ❌ |
+    | [tril](https://docs.pytorch.org/docs/2.8/generated/torch.tril.html) |  | ❌ | - | ✅ |
+    | [tril_indices](https://docs.pytorch.org/docs/2.8/generated/torch.tril_indices.html) |  | ❌ | - | ❌ |
+    | [triplet_margin_loss](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.triplet_margin_loss.html) |  | ❌ | - | ❌ |
+    | [triu](https://docs.pytorch.org/docs/2.8/generated/torch.triu.html) |  | ❌ | - | ✅ |
+    | [triu_indices](https://docs.pytorch.org/docs/2.8/generated/torch.triu_indices.html) |  | ❌ | - | ❌ |
+    | [type_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.type_as.html) |  | ❌ | - | ✅ |
+    | [unbind](https://docs.pytorch.org/docs/2.8/generated/torch.unbind.html) |  | ❌ | - | ✅ |
     | unbind_copy |  | ❌ | - | ❌ |
-    | [unflatten](https://docs.pytorch.org/docs/2.7/generated/torch.unflatten.html) |  | ❌ | - | ✅ |
+    | [unflatten](https://docs.pytorch.org/docs/2.8/generated/torch.unflatten.html) |  | ❌ | - | ✅ |
     | unflatten_dense_tensors |  | ❌ | - | ❌ |
-    | [unfold](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.unfold.html) |  | ❌ | - | ✅ |
+    | [unfold](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.unfold.html) |  | ❌ | - | ✅ |
     | unfold_copy |  | ❌ | - | ❌ |
     | uniform |  | ✅ | - | ❌ |
-    | [unique_consecutive](https://docs.pytorch.org/docs/2.7/generated/torch.unique_consecutive.html) |  | ❌ | - | ❌ |
+    | [unique_consecutive](https://docs.pytorch.org/docs/2.8/generated/torch.unique_consecutive.html) |  | ❌ | - | ❌ |
     | unique_dim |  | ❌ | - | ✅ |
     | unique_dim_consecutive |  | ❌ | - | ❌ |
     | unknown |  | ❌ | - | ❌ |
     | unsafe_chunk |  | ❌ | - | ✅ |
     | unsafe_split |  | ❌ | - | ✅ |
     | unsafe_split_with_sizes |  | ❌ | - | ✅ |
-    | unsqueeze_copy |  | ❌ | - | ❌ |
     | update |  | ❌ | - | ❌ |
     | upper |  | ❌ | - | ❌ |
-    | [upsample](https://docs.pytorch.org/docs/2.7/generated/torch.nn.functional.upsample.html) |  | ❌ | - | ❌ |
+    | [upsample](https://docs.pytorch.org/docs/2.8/generated/torch.nn.functional.upsample.html) |  | ❌ | - | ❌ |
     | upsample_bicubic2d |  | ❌ | - | ✅ |
     | upsample_linear1d |  | ❌ | - | ✅ |
     | upsample_nearest1d |  | ❌ | - | ✅ |
     | upsample_nearest3d |  | ❌ | - | ✅ |
     | upsample_trilinear3d |  | ❌ | - | ✅ |
-    | values |  | ❌ | - | ❌ |
+    | [values](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.values.html) |  | ❌ | - | ❌ |
     | values_copy |  | ❌ | - | ❌ |
-    | [vander](https://docs.pytorch.org/docs/2.7/generated/torch.vander.html) |  | ❌ | - | ❌ |
-    | [var_mean](https://docs.pytorch.org/docs/2.7/generated/torch.var_mean.html) |  | ❌ | - | ✅ |
-    | [vdot](https://docs.pytorch.org/docs/2.7/generated/torch.vdot.html) |  | ❌ | - | ❌ |
-    | view_as |  | ❌ | - | ✅ |
-    | [view_as_complex](https://docs.pytorch.org/docs/2.7/generated/torch.view_as_complex.html) |  | ❌ | - | ❌ |
+    | [vander](https://docs.pytorch.org/docs/2.8/generated/torch.vander.html) |  | ❌ | - | ❌ |
+    | [var_mean](https://docs.pytorch.org/docs/2.8/generated/torch.var_mean.html) |  | ❌ | - | ✅ |
+    | [vdot](https://docs.pytorch.org/docs/2.8/generated/torch.vdot.html) |  | ❌ | - | ❌ |
+    | [view_as](https://docs.pytorch.org/docs/2.8/generated/torch.Tensor.view_as.html) |  | ❌ | - | ✅ |
+    | [view_as_complex](https://docs.pytorch.org/docs/2.8/generated/torch.view_as_complex.html) |  | ❌ | - | ❌ |
     | view_as_complex_copy |  | ❌ | - | ❌ |
-    | [view_as_real](https://docs.pytorch.org/docs/2.7/generated/torch.view_as_real.html) |  | ❌ | - | ❌ |
+    | [view_as_real](https://docs.pytorch.org/docs/2.8/generated/torch.view_as_real.html) |  | ❌ | - | ❌ |
     | view_as_real_copy |  | ❌ | - | ❌ |
     | view_copy |  | ❌ | - | ❌ |
     | view_expand_placeholder |  | ❌ | - | ❌ |
-    | [vsplit](https://docs.pytorch.org/docs/2.7/generated/torch.vsplit.html) |  | ❌ | - | ❌ |
-    | [vstack](https://docs.pytorch.org/docs/2.7/generated/torch.vstack.html) | row_stack | ❌ | - | ✅ |
+    | [vsplit](https://docs.pytorch.org/docs/2.8/generated/torch.vsplit.html) |  | ❌ | - | ❌ |
+    | [vstack](https://docs.pytorch.org/docs/2.8/generated/torch.vstack.html) | row_stack | ❌ | - | ✅ |
     | wait |  | ❌ | - | ❌ |
     | wait_tensor |  | ❌ | - | ❌ |
     | warn |  | ❌ | - | ❌ |
     | warns |  | ❌ | - | ❌ |
     | wrapped_linear_prepack |  | ❌ | - | ❌ |
     | wrapped_quantized_linear_prepacked |  | ❌ | - | ❌ |
-    | [xlogy](https://docs.pytorch.org/docs/2.7/generated/torch.xlogy.html) | special_xlogy | ❌ | - | ❌ |
+    | [xlogy](https://docs.pytorch.org/docs/2.8/generated/torch.xlogy.html) | special_xlogy | ❌ | - | ❌ |
     | zero |  | ✅ | - | ✅ |
-    | [zeros](https://docs.pytorch.org/docs/2.7/generated/torch.zeros.html) |  | ❌ | - | ✅ |
-    | [zeros_like](https://docs.pytorch.org/docs/2.7/generated/torch.zeros_like.html) |  | ❌ | - | ✅ |
+    | [zeros](https://docs.pytorch.org/docs/2.8/generated/torch.zeros.html) |  | ❌ | - | ✅ |
+    | [zeros_like](https://docs.pytorch.org/docs/2.8/generated/torch.zeros_like.html) |  | ❌ | - | ✅ |
     | zfill |  | ❌ | - | ❌ |
 
