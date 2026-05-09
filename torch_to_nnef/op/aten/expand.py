@@ -492,15 +492,12 @@ def tile(g, node, name_to_tensor, op_helper, **kwargs):
       matches ``x.dim()`` (this is the only case `repeat` rejects).
     """
     (input_node, dims_node) = node.inputs
-    dims = list(dims_node.data)
-    if not all(isinstance(d, int) for d in dims):
-        raise T2NErrorNotImplemented(
-            f"tile with non-int dims not yet supported (got {dims})"
-        )
+    raw_dims = list(dims_node.data)
+
     inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     rank = input_node.rank
-    if len(dims) > rank:
-        n_unsqueeze = len(dims) - rank
+    if len(raw_dims) > rank:
+        n_unsqueeze = len(raw_dims) - rank
         inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             "unsqueeze",
@@ -508,11 +505,30 @@ def tile(g, node, name_to_tensor, op_helper, **kwargs):
             attrs={"axes": list(range(n_unsqueeze))},
             output_tensor_name_suffix="_tile_unsqueeze",
         )
-        repeats = dims
-    elif len(dims) < rank:
-        repeats = [1] * (rank - len(dims)) + dims
+        aligned_dims = raw_dims
+    elif len(raw_dims) < rank:
+        aligned_dims = [1] * (rank - len(raw_dims)) + raw_dims
     else:
-        repeats = dims
+        aligned_dims = raw_dims
+
+    # Each entry can be a literal int (the common case) or a runtime
+    # `TensorVariable` (e.g. `x.tile((batch, 1))` where `batch` came
+    # from `aten::size`). Runtime entries are forwarded to NNEF as an
+    # `Identifier` so tract resolves them at eval time.
+    repeats = []
+    for d in aligned_dims:
+        if isinstance(d, int):
+            repeats.append(d)
+        elif isinstance(d, PythonConstant) and isinstance(d.data, int):
+            repeats.append(d.data)
+        elif isinstance(d, TensorVariable):
+            op_helper.get_or_add_tensor_variable_in_nnef(d)
+            repeats.append(nnef.Identifier(d.export_name))
+        else:
+            raise T2NErrorNotImplemented(
+                f"tile dim of unsupported type {type(d).__name__}: {d}"
+            )
+
     add_single_output_op(
         g,
         node,
