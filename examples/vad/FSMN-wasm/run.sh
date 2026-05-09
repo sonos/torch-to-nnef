@@ -57,7 +57,7 @@ print('Synthesized', path)
 PY
 fi
 
-RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../../html -- --features "log-vad"
+RUST_BACKTRACE=full wasm-pack build --target web --out-dir ../../../docs/html -- --features "log-vad"
 
-rm -f ../../../html/.gitignore ../../../html/*.ts 2>/dev/null || true
-find ../../../html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete 2>/dev/null || true
+rm -f ../../../docs/html/.gitignore ../../../docs/html/*.ts 2>/dev/null || true
+find ../../../docs/html/*.json -maxdepth 1 -type f -name '*.json' ! -name '1kclass.json' -delete 2>/dev/null || true
