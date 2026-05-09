@@ -99,6 +99,12 @@ class AliasManager:
 #: back to this one to keep the "is core" column populated.
 LAST_TORCH_VERSION_WITH_IR_DOC = "2.9"
 
+#: Last torch version that ships
+#: ``onnx_torchscript_supported_aten_ops.html``. Starting at 2.9 the
+#: TorchScript ONNX exporter was retired and that page 404s; fall back
+#: to this one so the ONNX comparison column doesn't simply disappear.
+LAST_TORCH_VERSION_WITH_ONNX_DOC = "2.8"
+
 
 class FetchFromTorchVersion:
     def __init__(self, torch_version: str):
@@ -107,6 +113,10 @@ class FetchFromTorchVersion:
         # IR list (fallback or not). Used by the markdown header so the
         # `is core` link points at the page that was scraped.
         self.resolved_ir_url: Optional[str] = None
+        # Set by `get_onnx_support`: the URL that yielded the ONNX
+        # support listing. `None` if no ONNX data could be fetched at
+        # all (the section is then omitted).
+        self.resolved_onnx_url: Optional[str] = None
 
     @property
     def url_ir(self) -> str:
@@ -123,6 +133,14 @@ class FetchFromTorchVersion:
     def onnx_support_url(self) -> str:
         return (
             f"https://docs.pytorch.org/docs/{self.torch_version}/"
+            "onnx_torchscript_supported_aten_ops.html"
+        )
+
+    @property
+    def onnx_support_url_fallback(self) -> str:
+        return (
+            "https://docs.pytorch.org/docs/"
+            f"{LAST_TORCH_VERSION_WITH_ONNX_DOC}/"
             "onnx_torchscript_supported_aten_ops.html"
         )
 
@@ -163,25 +181,9 @@ class FetchFromTorchVersion:
             self.resolved_ir_url = self.url_ir_fallback
         return official_aten_names, official_prim_names
 
-    def get_onnx_support(self) -> tuple[Set[str], Set[str]]:
-        """Fetch the TorchScript-ONNX per-op support page.
-
-        PyTorch removed this page after torch 2.8 (TorchScript ONNX
-        export was deprecated in favour of `torch.onnx.export(dynamo=
-        True)`), and the new dynamo path doesn't ship a tabular
-        per-op page. Return empty sets when the URL 404s so callers
-        can drop the ONNX section gracefully.
-        """
-        resp = rq.get(self.onnx_support_url, timeout=20)
-        if resp.status_code == 404:
-            warnings.warn(
-                f"ONNX support page not found at {self.onnx_support_url} "
-                "(removed in torch 2.9+). Skipping ONNX comparison.",
-                stacklevel=2,
-            )
-            return set(), set()
-        assert resp.status_code == 200
-        soup = bs4.BeautifulSoup(resp.content, "html.parser")
+    @staticmethod
+    def _parse_onnx_page(html: bytes) -> tuple[Set[str], Set[str]]:
+        soup = bs4.BeautifulSoup(html, "html.parser")
         supported_ops = {
             _.text.replace("aten::", "")
             for _ in soup.find(id="id1").find_all("span", {"class": "pre"})
@@ -193,6 +195,37 @@ class FetchFromTorchVersion:
             if "aten::" in _.text
         }
         return supported_ops, unsupported_ops
+
+    def get_onnx_support(self) -> tuple[Set[str], Set[str]]:
+        """Fetch the TorchScript-ONNX per-op support page.
+
+        PyTorch removed this page after torch 2.8 (TorchScript ONNX
+        export was deprecated in favour of `torch.onnx.export(dynamo=
+        True)`), and the new dynamo path doesn't ship a tabular
+        per-op page. Fall back to the last torch version that still
+        ships the page so the ONNX comparison column survives; the
+        link in the section header points at whichever URL actually
+        served the data.
+        """
+        resp = rq.get(self.onnx_support_url, timeout=20)
+        if resp.status_code == 200:
+            self.resolved_onnx_url = self.onnx_support_url
+            return self._parse_onnx_page(resp.content)
+        if resp.status_code == 404:
+            warnings.warn(
+                f"ONNX support page not found at {self.onnx_support_url} "
+                "(removed in torch 2.9+); falling back to "
+                f"{self.onnx_support_url_fallback} for the ONNX column.",
+                stacklevel=2,
+            )
+            fallback = rq.get(self.onnx_support_url_fallback, timeout=20)
+            if fallback.status_code == 200:
+                self.resolved_onnx_url = self.onnx_support_url_fallback
+                return self._parse_onnx_page(fallback.content)
+        # Both the requested version and the fallback failed; let the
+        # caller drop the ONNX section.
+        self.resolved_onnx_url = None
+        return set(), set()
 
     def get_aten_torch_from_code(self) -> List[str]:
         aten_torch_from_code = sorted(
@@ -533,10 +566,22 @@ def build_markdown_page(torch_version: str):
             support_n_ops_label="`torch_to_nnef`",
         )
         if onnx_supported or onnx_unsupported:
+            onnx_url = fetcher.resolved_onnx_url or fetcher.onnx_support_url
+            onnx_section_msg = (
+                f"builtin PyTorch `ONNX` support based on "
+                f"[this page]({onnx_url})"
+            )
+            if onnx_url != fetcher.onnx_support_url:
+                onnx_section_msg += (
+                    f" (the page for torch {fetcher.torch_version} was "
+                    f"removed upstream in torch 2.9+; falling back to "
+                    f"torch {LAST_TORCH_VERSION_WITH_ONNX_DOC} which is "
+                    "the last version that still ships the TorchScript "
+                    "ONNX support listing)"
+                )
             write_operator_support(
                 "ONNX",
-                "builtin PyTorch `ONNX` support based on "
-                f"[this page]({fetcher.onnx_support_url})",
+                onnx_section_msg,
                 aten_torch_from_code,
                 onnx_supported,
                 official_aten_names=official_aten_names,
