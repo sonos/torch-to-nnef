@@ -44,6 +44,31 @@ def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
     )
 
 
+def _resolve_slice_bound(
+    bound_node, input_node, dim, default, has_dynamic_axes
+):
+    """Resolve a slice begin/end node to (value, has_concrete).
+
+    `bound_node.data` is `None` when the trace stored a Python ``None``
+    bound (e.g. ``x[:n]`` / ``x[k:]`` / ``x[:]``). In static-axes mode
+    that means "use the default" (``0`` for begin, ``dim_size`` for
+    end). In dynamic-axes mode it can refer to a runtime-computed
+    value, so we keep the upstream identifier.
+    """
+    if bound_node.data is not None:
+        if bound_node.data >= 0:
+            return (
+                pick_index_in_axis(
+                    input_node, dim, bound_node.data, check_is_positive=False
+                ),
+                True,
+            )
+        return bound_node.data, False
+    if has_dynamic_axes:
+        return nnef.Identifier(bound_node.export_name), False
+    return default, True
+
+
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
     node,
@@ -68,32 +93,23 @@ def slice_(
     input_node, axis_node, begin_node, end_node, stride_node = node.inputs
     # we assert for now all node except first are all constant
     dim = axis_node.data
+    has_dynamic_axes = inference_target.has_dynamic_axes
 
-    has_concrete_values = True
-    # we use this since by default pytorch generate max int64 value for end
-    if begin_node.data is not None:
-        if begin_node.data >= 0:
-            begin = pick_index_in_axis(
-                input_node, dim, begin_node.data, check_is_positive=False
-            )
-        else:
-            begin = begin_node.data
-            has_concrete_values = False
-    else:
-        has_concrete_values = False
-        begin = nnef.Identifier(begin_node.export_name)
-
-    if end_node.data is not None:
-        if end_node.data >= 0:
-            end = pick_index_in_axis(
-                input_node, dim, end_node.data, check_is_positive=False
-            )
-        else:
-            has_concrete_values = False
-            end = end_node.data
-    else:
-        has_concrete_values = False
-        end = nnef.Identifier(end_node.export_name)
+    begin, begin_concrete = _resolve_slice_bound(
+        begin_node,
+        input_node,
+        dim,
+        default=0,
+        has_dynamic_axes=has_dynamic_axes,
+    )
+    end, end_concrete = _resolve_slice_bound(
+        end_node,
+        input_node,
+        dim,
+        default=input_node.shape[dim],
+        has_dynamic_axes=has_dynamic_axes,
+    )
+    has_concrete_values = begin_concrete and end_concrete
 
     fixed_dims_and_higher_end_slice = (
         isinstance(end, int)
@@ -136,13 +152,15 @@ def slice_(
         )
         return [fragment_name, "within_bound_index"]
 
+    # In static-axes mode `_resolve_slice_bound` always returns ints
+    # (Identifiers only appear under dynamic axes, which returned above).
     dim_size = input_node.shape[dim]
-    end = min(
-        end + dim_size if isinstance(end, int) and end < 0 else end, dim_size
-    )
-    begin = max(
-        begin + dim_size if isinstance(begin, int) and begin < 0 else begin, 0
-    )
+    if end < 0:
+        end += dim_size
+    end = min(end, dim_size)
+    if begin < 0:
+        begin += dim_size
+    begin = max(begin, 0)
 
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
