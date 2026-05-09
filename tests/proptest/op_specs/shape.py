@@ -1337,6 +1337,206 @@ def _slice_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _scatter_add_sample_st() -> st.SearchStrategy[OpSample]:
+    """`Tensor.scatter_add(dim, index, src)`: in-place add via scatter."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        idx_dim_size = draw(st.integers(min_value=1, max_value=shape[dim]))
+        idx_shape = list(shape)
+        idx_shape[dim] = idx_dim_size
+        idx = draw(
+            tensor_st(
+                tuple(idx_shape),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, shape[dim] - 1),
+            )
+        )
+        src = draw(
+            tensor_st(
+                tuple(idx_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda d: lambda t, i, s: t.scatter_add(d, i, s))(dim)
+        return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _scatter_reduce_sample_st(
+    reduce_mode: str,
+) -> st.SearchStrategy[OpSample]:
+    """`Tensor.scatter_reduce(dim, index, src, reduce, include_self=True)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        idx_dim_size = draw(st.integers(min_value=1, max_value=shape[dim]))
+        idx_shape = list(shape)
+        idx_shape[dim] = idx_dim_size
+        idx = draw(
+            tensor_st(
+                tuple(idx_shape),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, shape[dim] - 1),
+            )
+        )
+        src = draw(
+            tensor_st(
+                tuple(idx_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (
+            lambda d, r: lambda t, i, s: t.scatter_reduce(
+                d, i, s, reduce=r, include_self=True
+            )
+        )(dim, reduce_mode)
+        return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _select_scatter_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.select_scatter(input, src, dim, index)`: write src at index.
+
+    Restricted to rank >= 2 because `tensor_st(())` produces shape `[1]`
+    (1-D), not 0-D, so a rank-1 input + rank-0 src case can't be drawn
+    cleanly. The op itself supports rank 1, but the strategy doesn't.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        index = draw(st.integers(min_value=0, max_value=shape[dim] - 1))
+        # `src` has rank = input.rank - 1 (drops `dim`).
+        src_shape = shape[:dim] + shape[dim + 1 :]
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        src = draw(
+            tensor_st(
+                src_shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda d, i: lambda t, s: torch.select_scatter(t, s, d, i))(
+            dim, index
+        )
+        return OpSample(inputs=(x, src), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _slice_scatter_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.slice_scatter(input, src, dim, start, end, step=1)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        dim_size = shape[dim]
+        start = draw(st.integers(min_value=0, max_value=dim_size - 1))
+        end = draw(st.integers(min_value=start + 1, max_value=dim_size))
+        # `src` matches input shape except at `dim` where it's (end-start).
+        src_shape = list(shape)
+        src_shape[dim] = end - start
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        src = draw(
+            tensor_st(
+                tuple(src_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (
+            lambda d, st_, en: lambda t, s: torch.slice_scatter(
+                t, s, dim=d, start=st_, end=en, step=1
+            )
+        )(dim, start, end)
+        return OpSample(inputs=(x, src), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
 def _sort_scatter_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
@@ -1352,6 +1552,66 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
         OpSpec(
             name="scatter",
             sample_st=_scatter_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        # scatter reduction landed in tract 0.23.0-dev.4 (#2109). The
+        # CI runtime is the published 0.22.1, which silently ignores the
+        # NNEF `reduction` attribute and runs overwrite (the t2n
+        # emitter raises T2NErrorNotImplemented under that version).
+        # Flip these to non-xfail once tract 0.23 ships stable.
+        OpSpec(
+            name="scatter_add-xfail",
+            sample_st=_scatter_add_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="scatter_reduce-sum-xfail",
+            sample_st=_scatter_reduce_sample_st("sum"),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="scatter_reduce-prod-xfail",
+            sample_st=_scatter_reduce_sample_st("prod"),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="scatter_reduce-amax-xfail",
+            sample_st=_scatter_reduce_sample_st("amax"),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="scatter_reduce-amin-xfail",
+            sample_st=_scatter_reduce_sample_st("amin"),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="select_scatter",
+            sample_st=_select_scatter_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="slice_scatter",
+            sample_st=_slice_scatter_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
         ),
         OpSpec(
