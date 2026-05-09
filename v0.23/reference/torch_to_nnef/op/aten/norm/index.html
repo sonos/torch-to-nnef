@@ -3308,12 +3308,19 @@
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">layer_norm</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">layer_norm</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF.</p>
+<p>When the input is fp16 and <code>inference_target.force_norm_in_f32</code> is
+set, sandwich the fragment between an upcast to f32 and a downcast
+back to the traced output dtype: keeps the variance/rsqrt and the
+affine <code>(x - mean) * weight + bias</code> in f32 for stability, and
+aligns dtypes when an f32-attention residual flows in (which would
+otherwise hit tract's RmsNorm-folded layer_norm op with mismatched
+operand dtypes -- the "tensor is F32, accessed as F16" crash).</p>
 
     </div>
 
