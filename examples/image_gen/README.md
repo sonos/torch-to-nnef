@@ -21,9 +21,4 @@ tensors are not all loaded at once:
 
 ## Status
 
-Early exploration. First targets are the SD 1.5 VAE decoder and UNet, both
-validated end-to-end against tract via `check_io`.
-
-Expected gotchas: attention (flash / sdpa variants), grouped norm fusing,
-timestep embedding, cross-attention text conditioning, FP16 weights, large
-safetensors loading.
+Exploratory: each subdir's README documents its own validation status.

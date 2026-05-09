@@ -52,11 +52,11 @@ ignore-paths:
   # ``ignore-paths`` matches as a path prefix (not a glob) so each nested copy
   # has to be listed explicitly.
   - examples/image_gen/.venv
-  - examples/vad/.venv
-  - examples/vad/py/.venv
-  - examples/vad/py/hf_cache
-  - examples/vad/hf_cache
-  - examples/vad/target
+  - examples/vad/FSMN-wasm/.venv
+  - examples/vad/FSMN-wasm/py/.venv
+  - examples/vad/FSMN-wasm/py/hf_cache
+  - examples/vad/FSMN-wasm/hf_cache
+  - examples/vad/FSMN-wasm/target
   - examples/yolo/target
   - examples/imageclass-wasm/target
   - examples/llm_wasm/target
