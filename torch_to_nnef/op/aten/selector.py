@@ -866,20 +866,25 @@ def diagonal(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:diagonal' to NNEF (tract path).
 
     Strategy: bring (dim1, dim2) to the last two axes via `transpose`,
-    slice both to the diagonal length when shapes differ, then evaluate
-    `<leading>ii-><leading>i` with `tract_core_einsum`. Currently
-    supports `offset == 0` only; non-zero offsets need an extra slice
-    step on one of the axes and are left as `T2NErrorNotImplemented`.
+    slice each axis to the diagonal window, then evaluate
+    `<leading>ii-><leading>i` with `tract_core_einsum`. The slice begin
+    on each axis encodes the offset:
+
+        begin_a1 = max(0, -offset)
+        begin_a2 = max(0,  offset)
+        L        = min(s1 - begin_a1, s2 - begin_a2)
+
+    `offset` is interpreted in the user's `(dim1, dim2)` order; when we
+    sort axes to `a1 < a2` the sign flips. Empty diagonals (`L <= 0`)
+    are left as `T2NErrorNotImplemented` since static zero-extent axes
+    are awkward to represent.
     """
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(
             "diagonal requires `tract_core_einsum` (TractNNEF target)"
         )
     input_node, offset_node, dim1_node, dim2_node = node.inputs
-    if offset_node.data != 0:
-        raise T2NErrorNotImplemented(
-            f"diagonal with offset={offset_node.data} not yet supported"
-        )
+    offset = offset_node.data
     rank = input_node.rank
     a1 = pick_axis(input_node, dim1_node.data)
     a2 = pick_axis(input_node, dim2_node.data)
@@ -887,6 +892,7 @@ def diagonal(node, op_helper, inference_target, **kwargs):
         raise T2NErrorNotImplemented(f"diagonal dim1==dim2=={a1}")
     if a1 > a2:
         a1, a2 = a2, a1
+        offset = -offset
 
     s1 = input_node.shape[a1]
     s2 = input_node.shape[a2]
@@ -894,24 +900,39 @@ def diagonal(node, op_helper, inference_target, **kwargs):
         raise T2NErrorNotImplemented(
             f"diagonal on dynamic axes ({s1}, {s2}) not yet supported"
         )
-    n_diag = min(s1, s2)
+
+    begin1 = max(0, -offset)
+    begin2 = max(0, offset)
+    n_diag = min(s1 - begin1, s2 - begin2)
+    if n_diag <= 0:
+        raise T2NErrorNotImplemented(
+            f"diagonal with empty output: shapes ({s1}, {s2}), offset {offset}"
+        )
 
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
 
-    if s1 != n_diag:
+    if begin1 != 0 or s1 != n_diag:
         inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             "slice",
             inputs=inp_ref,
-            attrs={"axes": [a1], "begin": [0], "end": [n_diag]},
+            attrs={
+                "axes": [a1],
+                "begin": [begin1],
+                "end": [begin1 + n_diag],
+            },
             output_tensor_name_suffix="_diag_slice_a1",
         )
-    if s2 != n_diag:
+    if begin2 != 0 or s2 != n_diag:
         inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
             node,
             "slice",
             inputs=inp_ref,
-            attrs={"axes": [a2], "begin": [0], "end": [n_diag]},
+            attrs={
+                "axes": [a2],
+                "begin": [begin2],
+                "end": [begin2 + n_diag],
+            },
             output_tensor_name_suffix="_diag_slice_a2",
         )
 

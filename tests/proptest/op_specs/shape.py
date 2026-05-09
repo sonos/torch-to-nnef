@@ -993,11 +993,12 @@ def _flip_sample_st() -> st.SearchStrategy[OpSample]:
 
 
 def _diagonal_sample_st() -> st.SearchStrategy[OpSample]:
-    """`torch.diagonal(input, offset=0, dim1, dim2)` on the main diagonal.
+    """`torch.diagonal(input, offset, dim1, dim2)`.
 
-    The t2n emitter currently supports `offset == 0` only, so the
-    strategy is restricted accordingly. Shapes on `dim1` / `dim2` are
-    drawn independently to exercise the non-square slice path.
+    Shapes on `dim1` / `dim2` are drawn independently to exercise the
+    non-square slice path. `offset` is drawn in
+    `[-(shape[dim1] - 1), shape[dim2] - 1]` so the resulting diagonal
+    has length >= 1 (the t2n emitter rejects empty-diagonal cases).
     """
 
     @st.composite
@@ -1015,6 +1016,9 @@ def _diagonal_sample_st() -> st.SearchStrategy[OpSample]:
         dim1 = draw(st.integers(min_value=0, max_value=rank - 1))
         candidates = [d for d in range(rank) if d != dim1]
         dim2 = draw(st.sampled_from(candidates))
+        s1 = shape[dim1]
+        s2 = shape[dim2]
+        offset = draw(st.integers(min_value=-(s1 - 1), max_value=s2 - 1))
         x = draw(
             tensor_st(
                 tuple(shape),
@@ -1026,7 +1030,12 @@ def _diagonal_sample_st() -> st.SearchStrategy[OpSample]:
         return OpSample(
             inputs=(x,),
             module=UnaryPrimitive(
-                partial(torch.diagonal, offset=0, dim1=dim1, dim2=dim2)
+                partial(
+                    torch.diagonal,
+                    offset=offset,
+                    dim1=dim1,
+                    dim2=dim2,
+                )
             ),
         )
 
