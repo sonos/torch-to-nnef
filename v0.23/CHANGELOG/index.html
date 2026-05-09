@@ -10288,7 +10288,7 @@
 <li>Individual passes exposed at <code>torch_to_nnef.torch_graph</code> for fine-grained control: <code>inline_unresolvable_submodules</code>, <code>replace_size_calls_with_constants</code>, <code>fold_constant_scalar_arithmetic</code>, <code>fold_constant_ifs</code>, <code>fold_tuple_index_through_tuple_construct</code>, <code>fold_tuple_unpack_through_tuple_construct</code>, <code>strip_prim_data</code>, <code>strip_assertion_ifs</code>, <code>fold_data_dependent_ifs</code>.</li>
 <li><strong>Aten RNN op handlers</strong>: <code>aten::lstm</code>, <code>aten::lstm_cell</code>, <code>aten::gru</code>, <code>aten::rnn_tanh</code>, <code>aten::rnn_relu</code> now have direct handlers, sharing the same fragment-emission code as the module-level extractors.</li>
 <li><strong><code>lstm_cell</code> NNEF fragment</strong> (single-call, grouped-matmul) replaces the per-gate sigmoid/tanh/mul decomposition.</li>
-<li><strong><code>examples/silero_vad/</code></strong>: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the <code>silero_vad_demo</code> tox env.</li>
+<li><strong><code>examples/vad/silero-jit/</code></strong>: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the <code>silero_vad_demo</code> tox env.</li>
 <li><strong>Tutorial</strong>: <code>docs/tutos/12_jit_only_models.md</code> covers both the auto-detection path and the manual chain.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
