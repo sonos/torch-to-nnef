@@ -21,7 +21,7 @@ from torch_to_nnef.torch_graph.ir_data import Data
 OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["expand", "broadcast_to"])
 def expand(node, inference_target, op_helper, **kwargs):
     """Translate operator `aten::expand` to NNEF.
 
@@ -477,3 +477,63 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={"shape": new_shape},
     )
     return nnef_modules
+
+
+@OP_REGISTRY.register()
+def tile(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map PyTorch: 'aten:tile' to NNEF.
+
+    `torch.tile(x, dims)` differs from `torch.repeat` only in how rank
+    mismatch between `dims` and `x.dim()` is handled:
+
+    - ``len(dims) > x.dim()``: treat ``x`` as if it had leading size-1
+      dims (same as `repeat`); we unsqueeze upstream.
+    - ``len(dims) < x.dim()``: prepend 1s to ``dims`` so its length
+      matches ``x.dim()`` (this is the only case `repeat` rejects).
+    """
+    (input_node, dims_node) = node.inputs
+    raw_dims = list(dims_node.data)
+
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    rank = input_node.rank
+    if len(raw_dims) > rank:
+        n_unsqueeze = len(raw_dims) - rank
+        inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=inp_ref,
+            attrs={"axes": list(range(n_unsqueeze))},
+            output_tensor_name_suffix="_tile_unsqueeze",
+        )
+        aligned_dims = raw_dims
+    elif len(raw_dims) < rank:
+        aligned_dims = [1] * (rank - len(raw_dims)) + raw_dims
+    else:
+        aligned_dims = raw_dims
+
+    # Each entry can be a literal int (the common case) or a runtime
+    # `TensorVariable` (e.g. `x.tile((batch, 1))` where `batch` came
+    # from `aten::size`). Runtime entries are forwarded to NNEF as an
+    # `Identifier` so tract resolves them at eval time.
+    repeats = []
+    for d in aligned_dims:
+        if isinstance(d, int):
+            repeats.append(d)
+        elif isinstance(d, PythonConstant) and isinstance(d.data, int):
+            repeats.append(d.data)
+        elif isinstance(d, TensorVariable):
+            op_helper.get_or_add_tensor_variable_in_nnef(d)
+            repeats.append(nnef.Identifier(d.export_name))
+        else:
+            raise T2NErrorNotImplemented(
+                f"tile dim of unsupported type {type(d).__name__}: {d}"
+            )
+
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=inp_ref,
+        attrs={"repeats": repeats},
+    )

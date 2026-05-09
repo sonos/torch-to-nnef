@@ -1,6 +1,7 @@
 import typing as T
 
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import NUMPY_TO_TORCH_DTYPE, TORCH_DTYPE_TO_TRACT_STR
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
@@ -420,3 +421,126 @@ def baddbmm(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={"beta": beta_node.data, "alpha": alpha_node.data},
     )
     return ["addmm"]
+
+
+def _make_ntensor(g, name_to_tensor, name: str, shape, np_dtype):
+    """Create an `NTensor` with an explicit shape and register it.
+
+    The shared `add_single_output_op` helper inherits the final node's
+    shape for every intermediate it emits, which is wrong for
+    rank-changing chains (matmul wrapped in unsqueeze + squeeze).
+    """
+    tensor = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
+    name_to_tensor[name] = tensor
+    return tensor
+
+
+@OP_REGISTRY.register()
+def dot(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:dot' to NNEF.
+
+    `torch.dot(a, b)` is the 1-D x 1-D inner product, returning a
+    scalar. NNEF's `matmul` requires rank >= 2, so we unsqueeze the
+    inputs to (1, K) and (K, 1), matmul, then squeeze the (1, 1) back
+    to a scalar.
+    """
+    a_node, b_node = node.inputs
+    onode = node.outputs[0]
+    np_dtype = onode.np_dtype
+    base = onode.export_name
+    k = a_node.shape[0]
+
+    a_ref = get_or_add_tensor_variable_in_nnef(g, a_node, name_to_tensor)
+    b_ref = get_or_add_tensor_variable_in_nnef(g, b_node, name_to_tensor)
+
+    a_unsq = _make_ntensor(g, name_to_tensor, f"{base}_dot_a", (1, k), np_dtype)
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="unsqueeze",
+        name=f"{a_unsq.name}_op",
+        inputs=(a_ref,),
+        outputs=(a_unsq,),
+        attribs={"axes": [0]},
+    )
+    b_unsq = _make_ntensor(g, name_to_tensor, f"{base}_dot_b", (k, 1), np_dtype)
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="unsqueeze",
+        name=f"{b_unsq.name}_op",
+        inputs=(b_ref,),
+        outputs=(b_unsq,),
+        attribs={"axes": [1]},
+    )
+    mm_out = _make_ntensor(
+        g, name_to_tensor, f"{base}_dot_mm", (1, 1), np_dtype
+    )
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="matmul",
+        name=f"{mm_out.name}_op",
+        inputs=(a_unsq, b_unsq),
+        outputs=(mm_out,),
+        attribs={"transposeA": False, "transposeB": False},
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "squeeze",
+        inputs=mm_out,
+        attrs={"axes": [0, 1]},
+    )
+
+
+@OP_REGISTRY.register()
+def mv(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:mv' to NNEF.
+
+    `torch.mv(M, v)` is matrix-vector with `M` rank-2 and `v` rank-1,
+    returning a rank-1 result. NNEF `matmul` needs rank-2 on both
+    sides, so unsqueeze `v` to (K, 1), matmul to (M, 1), squeeze back.
+    """
+    m_node, v_node = node.inputs
+    onode = node.outputs[0]
+    np_dtype = onode.np_dtype
+    base = onode.export_name
+    m_dim, k_dim = m_node.shape
+
+    m_ref = get_or_add_tensor_variable_in_nnef(g, m_node, name_to_tensor)
+    v_ref = get_or_add_tensor_variable_in_nnef(g, v_node, name_to_tensor)
+
+    v_unsq = _make_ntensor(
+        g, name_to_tensor, f"{base}_mv_v", (k_dim, 1), np_dtype
+    )
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="unsqueeze",
+        name=f"{v_unsq.name}_op",
+        inputs=(v_ref,),
+        outputs=(v_unsq,),
+        attribs={"axes": [1]},
+    )
+    mm_out = _make_ntensor(
+        g, name_to_tensor, f"{base}_mv_mm", (m_dim, 1), np_dtype
+    )
+    cast_and_add_nnef_operation(
+        graph=g,
+        name_to_tensor=name_to_tensor,
+        type="matmul",
+        name=f"{mm_out.name}_op",
+        inputs=(m_ref, v_unsq),
+        outputs=(mm_out,),
+        attribs={"transposeA": False, "transposeB": False},
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "squeeze",
+        inputs=mm_out,
+        attrs={"axes": [1]},
+    )

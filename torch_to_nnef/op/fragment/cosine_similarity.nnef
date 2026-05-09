@@ -1,0 +1,21 @@
+# Cosine similarity along `axis`, matching torch.cosine_similarity:
+#   sum(a * b, axis) / max(eps, sqrt(sum(a*a, axis) * sum(b*b, axis)))
+#
+# NNEF sum_reduce keeps the reduced axis as size-1, so each reduction
+# is paired with `squeeze` to drop it (matches torch which removes the
+# reduced dim).
+#
+# Pure NNEF stdlib (mul, sum_reduce, squeeze, sqrt, max, div); the
+# NNEF reader inlines this fragment to those primitives, so tract
+# sees no new op.
+fragment cosine_similarity( a: tensor<scalar>, b: tensor<scalar>, axis: integer, eps: scalar = 1e-8 ) -> ( y: tensor<scalar> )
+{
+    ab       = mul(a, b);
+    aa       = mul(a, a);
+    bb       = mul(b, b);
+    dot      = squeeze(sum_reduce(ab, axes = [axis]), axes = [axis]);
+    norma_sq = squeeze(sum_reduce(aa, axes = [axis]), axes = [axis]);
+    normb_sq = squeeze(sum_reduce(bb, axes = [axis]), axes = [axis]);
+    denom    = sqrt(norma_sq * normb_sq);
+    y        = dot / max(denom, eps);
+}

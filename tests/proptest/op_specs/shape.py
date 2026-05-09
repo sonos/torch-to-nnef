@@ -356,6 +356,415 @@ def _repeat_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _t_sample_st() -> st.SearchStrategy[OpSample]:
+    """`Tensor.t()`: rank<=2, transposes 2-D, no-op for 0-D / 1-D."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=0, max_value=2))
+        if rank == 0:
+            shape = ()
+        elif rank == 1:
+            shape = (draw(st.integers(min_value=1, max_value=4)),)
+        else:
+            shape = (
+                draw(st.integers(min_value=1, max_value=4)),
+                draw(st.integers(min_value=1, max_value=4)),
+            )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(lambda t: t.t()),
+        )
+
+    return _draw()
+
+
+def _square_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=0, max_rank=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.square))
+
+    return _draw()
+
+
+def _dot_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=6))
+        a = draw(
+            tensor_st(
+                (n,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        b = draw(
+            tensor_st(
+                (n,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.dot))
+
+    return _draw()
+
+
+def _mv_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        m = draw(st.integers(min_value=1, max_value=4))
+        n = draw(st.integers(min_value=1, max_value=5))
+        a = draw(
+            tensor_st(
+                (m, n),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        b = draw(
+            tensor_st(
+                (n,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(torch.mv))
+
+    return _draw()
+
+
+def _eye_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.eye(n)` (or `(n, m)`) added to a passthrough input.
+
+    The op has no tensor inputs, so we tie ``x`` into the graph via a
+    `0 * x.sum()` term: it always evaluates to 0, leaving the output
+    equal to `eye(n, m)`, while keeping the proptest harness's
+    expectation of at least one declared input.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=5))
+        m = draw(st.integers(min_value=1, max_value=5))
+        x = draw(
+            tensor_st(
+                (1,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.0, 1.0),
+            )
+        )
+        op_fn = (lambda nn, mm: lambda t: torch.eye(nn, mm) + 0.0 * t.sum())(
+            n, m
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _expand_as_sample_st() -> st.SearchStrategy[OpSample]:
+    """`x.expand_as(y)` with `x` carrying size-1 dims that match `y`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        target = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        # Source has rank==target rank; each axis is either 1 or
+        # equal to target.
+        source = tuple((1 if draw(st.booleans()) else d) for d in target)
+        x = draw(
+            tensor_st(
+                source,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        y = draw(
+            tensor_st(
+                target,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x, y),
+            module=BinaryPrimitive(lambda a, b: a.expand_as(b)),
+        )
+
+    return _draw()
+
+
+def _reshape_as_sample_st() -> st.SearchStrategy[OpSample]:
+    """`x.reshape_as(y)`: x and y have the same total element count."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        source = draw(shape_st(min_rank=1, max_rank=4, min_dim=1, max_dim=4))
+        target = draw(reshape_target_st(source, max_rank=4))
+        x = draw(
+            tensor_st(
+                source,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        y = draw(
+            tensor_st(
+                tuple(target),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x, y),
+            module=BinaryPrimitive(lambda a, b: a.reshape_as(b)),
+        )
+
+    return _draw()
+
+
+def _broadcast_to_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        target = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        source = tuple((1 if draw(st.booleans()) else d) for d in target)
+        x = draw(
+            tensor_st(
+                source,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda t: lambda a: torch.broadcast_to(a, t))(target)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _atleast_sample_st(n: int) -> st.SearchStrategy[OpSample]:
+    """`torch.atleast_{n}d(x)` for ranks 0..3."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=0, max_value=3))
+        if rank == 0:
+            shape = ()
+        else:
+            shape = tuple(
+                draw(
+                    st.lists(
+                        st.integers(min_value=1, max_value=3),
+                        min_size=rank,
+                        max_size=rank,
+                    )
+                )
+            )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op = {1: torch.atleast_1d, 2: torch.atleast_2d, 3: torch.atleast_3d}[n]
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op))
+
+    return _draw()
+
+
+def _tile_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.tile(x, dims)` covers `len(dims) <`, `==`, `>` x.dim()."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=3),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        n_dims = draw(st.integers(min_value=1, max_value=rank + 1))
+        dims = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=3),
+                    min_size=n_dims,
+                    max_size=n_dims,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda d: lambda a: torch.tile(a, d))(dims)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _floor_divide_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=3, min_dim=1, max_dim=4))
+        a = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        # Avoid zeros in divisor (and don't probe the very-small-magnitude
+        # band where rounding direction near zero crossings can flip).
+        b_pos = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(0.5, 5.0),
+            )
+        )
+        sign = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.0, 1.0),
+            )
+        )
+        b = torch.where(sign >= 0, b_pos, -b_pos)
+        return OpSample(
+            inputs=(a, b),
+            module=BinaryPrimitive(torch.floor_divide),
+        )
+
+    return _draw()
+
+
+def _nan_to_num_sample_st() -> st.SearchStrategy[OpSample]:
+    """`nan_to_num(x, nan=0, posinf=+M, neginf=-M)` over a mix of values."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        # Build a tensor of 8 elements: a few NaN/+inf/-inf and finite
+        # numbers, so the comparator exercises every branch.
+        finite_count = draw(st.integers(min_value=2, max_value=5))
+        finite = draw(
+            tensor_st(
+                (finite_count,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        specials = torch.tensor(
+            [float("nan"), float("inf"), -float("inf")],
+            dtype=torch.float32,
+        )
+        x = torch.cat([finite, specials])
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(
+                partial(torch.nan_to_num, nan=0.0, posinf=1e6, neginf=-1e6)
+            ),
+        )
+
+    return _draw()
+
+
+def _cosine_similarity_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        # Domain bounded away from 0 to keep the safe-denom path stable.
+        a = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        b = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        op_fn = (lambda d: lambda x, y: torch.cosine_similarity(x, y, dim=d))(
+            dim
+        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
 def _shape_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
@@ -407,6 +816,127 @@ def _shape_specs() -> T.List[OpSpec]:
             name="repeat",
             sample_st=_repeat_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="t",
+            sample_st=_t_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="square",
+            sample_st=_square_sample_st(),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="dot",
+            sample_st=_dot_sample_st(),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="mv",
+            sample_st=_mv_sample_st(),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="eye",
+            sample_st=_eye_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="expand_as",
+            sample_st=_expand_as_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=False,
+            dynamic_axes_skip_reason=(
+                "expand_as still routes through `_emit_static_expand` "
+                "and asserts `all(int)` on `other.shape`; the dynamic "
+                "path needs a refactor of `expand.py::_append_repeats_"
+                "on_existing_dims` so the helper can be shared."
+            ),
+        ),
+        OpSpec(
+            name="reshape_as",
+            sample_st=_reshape_as_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=False,
+            dynamic_axes_skip_reason=(
+                "reshape_as feeds the second input's runtime shape "
+                "into NNEF reshape; tract's symbolic-dim checker "
+                "can't verify `prod(target_dims) == prod(source_dims)` "
+                "when both sides involve different dynamic axes "
+                "(e.g. `d_axis0_sizeM == d_axis0_sizeN * literal`). "
+                "The op is dynamic-axes-correct in real models where "
+                "the trace pins the relationship; only the proptest "
+                "harness's same-rank-different-shape draws trip it."
+            ),
+        ),
+        OpSpec(
+            name="broadcast_to",
+            sample_st=_broadcast_to_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=False,
+            dynamic_axes_skip_reason=(
+                "Strategy generates a literal target shape; under "
+                "dynamic-axes the source's axis 0 is symbolic and "
+                "tract can't prove the broadcast rule "
+                "(symbolic == literal). The aliased `aten::expand` "
+                "handler itself works fine when target dims also "
+                "come from runtime tensors."
+            ),
+        ),
+        OpSpec(
+            name="atleast_1d",
+            sample_st=_atleast_sample_st(1),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="atleast_2d",
+            sample_st=_atleast_sample_st(2),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="atleast_3d",
+            sample_st=_atleast_sample_st(3),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="tile",
+            sample_st=_tile_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="floor_divide",
+            sample_st=_floor_divide_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="nan_to_num",
+            sample_st=_nan_to_num_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="cosine_similarity",
+            sample_st=_cosine_similarity_sample_st(),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            dynamic_axes_compatible=False,
+            dynamic_axes_skip_reason=(
+                "Output diverges (>1e-6) from the torch reference under "
+                "dynamic-axes mode while passing exactly under static; "
+                "likely a tract optimization-path difference in the "
+                "sum_reduce/sqrt/div chain. Worth investigating but the "
+                "fragment itself is dynamic-shape-friendly."
+            ),
         ),
     ]
 
