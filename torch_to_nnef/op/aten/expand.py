@@ -21,7 +21,7 @@ from torch_to_nnef.torch_graph.ir_data import Data
 OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["expand", "broadcast_to"])
 def expand(node, inference_target, op_helper, **kwargs):
     """Translate operator `aten::expand` to NNEF.
 

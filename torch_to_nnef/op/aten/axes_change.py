@@ -352,28 +352,26 @@ def flip(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def t(g, node, name_to_tensor, **kwargs):
+def t(g, node, name_to_tensor, torch_graph, **kwargs):
     """Map PyTorch: 'aten:t' to NNEF.
 
     `Tensor.t()` is a 2D-only transpose: rank 0 / 1 inputs pass through,
     rank 2 swaps axes (0, 1). Higher ranks are a torch error and we
     don't try to be friendlier than the source.
+
+    The rank<2 passthrough uses `remap_node` instead of emitting a
+    no-op `reshape` so the input flows through untouched -- correct
+    for dynamic-axes graphs (a literal `shape=` attr would lose
+    symbolic dims).
     """
     (input_node,) = node.inputs
     rank = input_node.rank
-    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     if rank < 2:
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "reshape",
-            inputs=inp_ref,
-            attrs={"shape": list(input_node.shape)},
-        )
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return []
     if rank > 2:
         raise T2NErrorNotImplemented(f"aten::t expects rank<=2, got {rank}")
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     add_single_output_op(
         g,
         node,
@@ -454,19 +452,43 @@ def _emit_static_expand(
         )
 
 
-def _emit_shape_borrow_reshape(g, node, name_to_tensor, op_label: str):
-    """Reshape `self` to match `other`'s static shape.
+def _emit_shape_borrow_reshape(
+    g, node, name_to_tensor, op_helper, inference_target, op_label: str
+):
+    """Reshape `self` to match `other`'s shape.
 
-    Used by ``reshape_as`` / ``view_as``. The second input's shape
-    must be an int tuple at parse time.
+    Used by ``reshape_as`` / ``view_as``. Handles both static and
+    dynamic-axes targets:
+
+    - Static-axes: pass `other`'s shape as a literal int list.
+    - Dynamic-axes: emit `tract_core_shape_of(other)` (cached) and
+      pull each axis size out via slice + squeeze + cast-to-tdim,
+      forwarding it to `reshape`'s `shape` attr as an `Identifier`
+      so tract resolves the per-axis size at runtime.
     """
     input_node, other_node = node.inputs
-    target_shape = list(other_node.shape)
-    if not all(isinstance(d, int) for d in target_shape):
-        raise T2NErrorNotImplemented(
-            f"{op_label}: dynamic shape from second input not yet "
-            f"supported (got {target_shape})"
-        )
+    if (
+        isinstance(inference_target, TractNNEF)
+        and inference_target.has_dynamic_axes
+    ):
+        target_shape = []
+        for i in range(other_node.rank):
+            # Side effect: emits the chain that produces the
+            # `<other>_dim{i}` runtime tensor (reused across axes).
+            get_tract_dyn_axis_size_soc(op_helper, other_node, i)
+            target_shape.append(
+                nnef.Identifier(f"{other_node.export_name}_dim{i}")
+            )
+        custom_fragments = ["tract_core"]
+    else:
+        target_shape = list(other_node.shape)
+        if not all(isinstance(d, int) for d in target_shape):
+            raise T2NErrorNotImplemented(
+                f"{op_label}: target shape has non-int entries "
+                f"({target_shape}); enable dynamic_axes if `other` is "
+                "produced by a runtime-shape op."
+            )
+        custom_fragments = []
     add_single_output_op(
         g,
         node,
@@ -477,6 +499,7 @@ def _emit_shape_borrow_reshape(g, node, name_to_tensor, op_label: str):
         ),
         attrs={"shape": target_shape},
     )
+    return custom_fragments
 
 
 @OP_REGISTRY.register()
@@ -484,14 +507,23 @@ def expand_as(g, node, name_to_tensor, op_helper, **kwargs):
     """Map PyTorch: 'aten:expand_as' to NNEF.
 
     `x.expand_as(y)` is `x.expand(y.size())`: broadcast (tile) along
-    size-1 axes to match `y`'s static shape.
+    size-1 axes to match `y`'s shape.
+
+    Static-shape only for now: when `y` carries non-int (TDim) shape
+    entries, raises with a hint to use `aten::expand` directly. The
+    dynamic path would need the runtime per-axis repeat machinery
+    that already lives in `aten::expand` (see
+    `op/aten/expand.py::_append_repeats_on_existing_dims`); a
+    follow-up should refactor that helper so this op can share it.
     """
     input_node, other_node = node.inputs
     target_shape = list(other_node.shape)
     if not all(isinstance(d, int) for d in target_shape):
         raise T2NErrorNotImplemented(
-            f"expand_as: dynamic shape from second input not yet "
-            f"supported (got {target_shape})"
+            f"expand_as: target shape has non-int entries "
+            f"({target_shape}); for dynamic-axes models call "
+            "`aten::expand(x, runtime_sizes)` directly until the "
+            "runtime path lands in this handler."
         )
     _emit_static_expand(
         g,
@@ -505,69 +537,56 @@ def expand_as(g, node, name_to_tensor, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
-def reshape_as(g, node, name_to_tensor, **kwargs):
+def reshape_as(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:reshape_as' to NNEF.
 
     Equivalent to `reshape` with shape borrowed from the second input.
+    Supports dynamic-axes via runtime `tract_core_shape_of(other)`.
     """
-    _emit_shape_borrow_reshape(g, node, name_to_tensor, "reshape_as")
+    return _emit_shape_borrow_reshape(
+        g, node, name_to_tensor, op_helper, inference_target, "reshape_as"
+    )
 
 
 @OP_REGISTRY.register()
-def view_as(g, node, name_to_tensor, **kwargs):
+def view_as(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:view_as' to NNEF.
 
     Equivalent to `reshape` with shape borrowed from the second input;
     NNEF reshape covers torch's view semantics for contiguous inputs.
+    Supports dynamic-axes via runtime `tract_core_shape_of(other)`.
     """
-    _emit_shape_borrow_reshape(g, node, name_to_tensor, "view_as")
-
-
-@OP_REGISTRY.register()
-def broadcast_to(g, node, name_to_tensor, op_helper, **kwargs):
-    """Map PyTorch: 'aten:broadcast_to' to NNEF.
-
-    Equivalent to `expand` with explicit `sizes`. Static-shape only.
-    """
-    input_node, sizes_node = node.inputs
-    sizes = list(sizes_node.data)
-    if not all(isinstance(d, int) for d in sizes):
-        raise T2NErrorNotImplemented(
-            f"broadcast_to: dynamic sizes not yet supported (got {sizes})"
-        )
-    _emit_static_expand(
-        g,
-        node,
-        name_to_tensor,
-        op_helper,
-        input_node,
-        sizes,
-        op_label="broadcast_to",
+    return _emit_shape_borrow_reshape(
+        g, node, name_to_tensor, op_helper, inference_target, "view_as"
     )
 
 
-def _emit_atleast_nd(g, node, name_to_tensor, n: int):
+# `aten::broadcast_to(x, sizes)` is the same operation as
+# `aten::expand(x, sizes)` for inference purposes -- both do
+# broadcasting from size-1 source dims to the target sizes. It is
+# registered alongside `aten::expand` in `op/aten/expand.py` so the
+# full dynamic-axes machinery (runtime shape extraction, per-axis
+# repeats) is reused without duplication.
+
+
+def _emit_atleast_nd(g, node, name_to_tensor, torch_graph, n: int):
     """Map `aten::atleast_{n}d` to NNEF.
 
     Torch promotes 0/.../n-1 rank inputs to n-d by prepending size-1
     leading dims; rank >= n inputs pass through unchanged. The NNEF
     `unsqueeze` axes list says where the new axes go in the *output*
-    shape, so we use `[0, 1, ..., missing-1]`.
+    shape, so we use `[0, 1, ..., missing-1]`. The rank-already-met
+    branch aliases input -> output via ``remap_node`` rather than
+    emitting a no-op reshape, so dynamic-axes graphs preserve their
+    symbolic dims.
     """
     (input_node,) = node.inputs
     rank = input_node.rank
-    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     if rank >= n:
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "reshape",
-            inputs=inp_ref,
-            attrs={"shape": list(input_node.shape)},
-        )
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
     missing = n - rank
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     add_single_output_op(
         g,
         node,
@@ -580,37 +599,30 @@ def _emit_atleast_nd(g, node, name_to_tensor, n: int):
 
 
 @OP_REGISTRY.register()
-def atleast_1d(g, node, name_to_tensor, **kwargs):
+def atleast_1d(g, node, name_to_tensor, torch_graph, **kwargs):
     """Map PyTorch: 'aten:atleast_1d' to NNEF."""
-    _emit_atleast_nd(g, node, name_to_tensor, 1)
+    _emit_atleast_nd(g, node, name_to_tensor, torch_graph, 1)
 
 
 @OP_REGISTRY.register()
-def atleast_2d(g, node, name_to_tensor, **kwargs):
+def atleast_2d(g, node, name_to_tensor, torch_graph, **kwargs):
     """Map PyTorch: 'aten:atleast_2d' to NNEF."""
-    _emit_atleast_nd(g, node, name_to_tensor, 2)
+    _emit_atleast_nd(g, node, name_to_tensor, torch_graph, 2)
 
 
 @OP_REGISTRY.register()
-def atleast_3d(g, node, name_to_tensor, **kwargs):
+def atleast_3d(g, node, name_to_tensor, torch_graph, **kwargs):
     """Map PyTorch: 'aten:atleast_3d' to NNEF.
 
     Note: torch's atleast_3d differs from atleast_1d/2d for rank 1
     inputs: `[N]` is reshaped to `[1, N, 1]` (not `[1, 1, N]`). Match
-    that explicitly.
+    that explicitly. The rank>=3 passthrough aliases via
+    ``remap_node`` so symbolic dims under dynamic-axes survive.
     """
     (input_node,) = node.inputs
     rank = input_node.rank
-    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     if rank >= 3:
-        add_single_output_op(
-            g,
-            node,
-            name_to_tensor,
-            "reshape",
-            inputs=inp_ref,
-            attrs={"shape": list(input_node.shape)},
-        )
+        torch_graph.remap_node(from_node=node.outputs[0], to_node=input_node)
         return
     if rank == 0:
         axes = [0, 1, 2]
@@ -619,6 +631,7 @@ def atleast_3d(g, node, name_to_tensor, **kwargs):
         axes = [0, 2]
     else:  # rank == 2: `[H, W]` -> `[H, W, 1]`
         axes = [2]
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
     add_single_output_op(
         g,
         node,
