@@ -952,6 +952,87 @@ def _triangular_sample_st(
     return _draw()
 
 
+def _flip_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.flip(input, dims)`: reverse along a unique subset of dims."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        n_dims = draw(st.integers(min_value=1, max_value=rank))
+        dims = draw(
+            st.lists(
+                st.integers(min_value=0, max_value=rank - 1),
+                min_size=n_dims,
+                max_size=n_dims,
+                unique=True,
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(torch.flip, dims=tuple(dims))),
+        )
+
+    return _draw()
+
+
+def _diagonal_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.diagonal(input, offset=0, dim1, dim2)` on the main diagonal.
+
+    The t2n emitter currently supports `offset == 0` only, so the
+    strategy is restricted accordingly. Shapes on `dim1` / `dim2` are
+    drawn independently to exercise the non-square slice path.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=4))
+        shape = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim1 = draw(st.integers(min_value=0, max_value=rank - 1))
+        candidates = [d for d in range(rank) if d != dim1]
+        dim2 = draw(st.sampled_from(candidates))
+        x = draw(
+            tensor_st(
+                tuple(shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(
+                partial(torch.diagonal, offset=0, dim1=dim1, dim2=dim2)
+            ),
+        )
+
+    return _draw()
+
+
 def _concat_split_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
     return [
@@ -993,6 +1074,16 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="triu",
             sample_st=_triangular_sample_st(torch.triu),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="flip",
+            sample_st=_flip_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="diagonal",
+            sample_st=_diagonal_sample_st(),
             tolerance=EXACT,
         ),
     ]

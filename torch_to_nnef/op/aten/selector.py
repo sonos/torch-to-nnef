@@ -44,30 +44,6 @@ def _nnef_cast(op_helper, node, tensor, to_tract_dtype: str, suffix: str = ""):
     )
 
 
-def _resolve_slice_bound(bound_node, input_node, dim: int, default):
-    """Resolve a slice begin/end into either a concrete int or an Identifier.
-
-    Returns `(value, has_concrete_value)`. `has_concrete_value` is False
-    when the bound is a runtime Identifier or a negative concrete value
-    (the latter requires deferred resolution against `dim_size`).
-
-    A `prim::Constant[NoneType]` bound (`t[:n]` or `t[m:]`) maps to the
-    `default` argument: 0 for begin, INT64_MAX for end.
-    """
-    if isinstance(bound_node, PythonConstant) and bound_node.data is None:
-        return default, True
-    if bound_node.data is None:
-        return nnef.Identifier(bound_node.export_name), False
-    if bound_node.data >= 0:
-        return (
-            pick_index_in_axis(
-                input_node, dim, bound_node.data, check_is_positive=False
-            ),
-            True,
-        )
-    return bound_node.data, False
-
-
 @OP_REGISTRY.register(torch_op_ids=["slice"])
 def slice_(
     node,
@@ -93,14 +69,31 @@ def slice_(
     # we assert for now all node except first are all constant
     dim = axis_node.data
 
+    has_concrete_values = True
     # we use this since by default pytorch generate max int64 value for end
-    begin, begin_concrete = _resolve_slice_bound(
-        begin_node, input_node, dim, default=0
-    )
-    end, end_concrete = _resolve_slice_bound(
-        end_node, input_node, dim, default=np.iinfo(np.int64).max
-    )
-    has_concrete_values = begin_concrete and end_concrete
+    if begin_node.data is not None:
+        if begin_node.data >= 0:
+            begin = pick_index_in_axis(
+                input_node, dim, begin_node.data, check_is_positive=False
+            )
+        else:
+            begin = begin_node.data
+            has_concrete_values = False
+    else:
+        has_concrete_values = False
+        begin = nnef.Identifier(begin_node.export_name)
+
+    if end_node.data is not None:
+        if end_node.data >= 0:
+            end = pick_index_in_axis(
+                input_node, dim, end_node.data, check_is_positive=False
+            )
+        else:
+            has_concrete_values = False
+            end = end_node.data
+    else:
+        has_concrete_values = False
+        end = nnef.Identifier(end_node.export_name)
 
     fixed_dims_and_higher_end_slice = (
         isinstance(end, int)
@@ -849,3 +842,99 @@ def _pack_padded_sequence(node, op_helper, inference_target, **kwargs):
     # input_node, lengths_node, batch_first_node = node.inputs[:3]
     # opacked_node, obatch_node = node.outputs
     # return ["pack_padded_sequence"]
+
+
+def _diagonal_einsum_expr(rank: int) -> str:
+    """Build the einsum expression `<leading>ii-><leading>i` for given rank.
+
+    `tract_core_einsum` does not accept ellipsis in the version range we
+    target, so we materialize concrete labels per rank. Up to rank 10
+    is supported (8 leading labels + the two diagonal axes).
+    """
+    if rank < 2:
+        raise T2NErrorNotImplemented(f"diagonal needs rank>=2, got {rank}")
+    leading = "abcdefgh"[: rank - 2]
+    if len(leading) < rank - 2:
+        raise T2NErrorNotImplemented(
+            f"diagonal rank {rank} exceeds einsum label budget"
+        )
+    return f"{leading}ii->{leading}i"
+
+
+@OP_REGISTRY.register()
+def diagonal(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:diagonal' to NNEF (tract path).
+
+    Strategy: bring (dim1, dim2) to the last two axes via `transpose`,
+    slice both to the diagonal length when shapes differ, then evaluate
+    `<leading>ii-><leading>i` with `tract_core_einsum`. Currently
+    supports `offset == 0` only; non-zero offsets need an extra slice
+    step on one of the axes and are left as `T2NErrorNotImplemented`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "diagonal requires `tract_core_einsum` (TractNNEF target)"
+        )
+    input_node, offset_node, dim1_node, dim2_node = node.inputs
+    if offset_node.data != 0:
+        raise T2NErrorNotImplemented(
+            f"diagonal with offset={offset_node.data} not yet supported"
+        )
+    rank = input_node.rank
+    a1 = pick_axis(input_node, dim1_node.data)
+    a2 = pick_axis(input_node, dim2_node.data)
+    if a1 == a2:
+        raise T2NErrorNotImplemented(f"diagonal dim1==dim2=={a1}")
+    if a1 > a2:
+        a1, a2 = a2, a1
+
+    s1 = input_node.shape[a1]
+    s2 = input_node.shape[a2]
+    if not isinstance(s1, int) or not isinstance(s2, int):
+        raise T2NErrorNotImplemented(
+            f"diagonal on dynamic axes ({s1}, {s2}) not yet supported"
+        )
+    n_diag = min(s1, s2)
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    if s1 != n_diag:
+        inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "slice",
+            inputs=inp_ref,
+            attrs={"axes": [a1], "begin": [0], "end": [n_diag]},
+            output_tensor_name_suffix="_diag_slice_a1",
+        )
+    if s2 != n_diag:
+        inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "slice",
+            inputs=inp_ref,
+            attrs={"axes": [a2], "begin": [0], "end": [n_diag]},
+            output_tensor_name_suffix="_diag_slice_a2",
+        )
+
+    if not (a1 == rank - 2 and a2 == rank - 1):
+        perm = [i for i in range(rank) if i not in (a1, a2)] + [a1, a2]
+        inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "transpose",
+            inputs=inp_ref,
+            attrs={"axes": perm},
+            output_tensor_name_suffix="_diag_perm",
+        )
+
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_einsum",
+        inputs=[inp_ref],
+        ensure_tuple=False,
+        force_consistent_inputs_shapes=False,
+        attrs={
+            "expr": _diagonal_einsum_expr(rank),
+            "acc": "f32",
+            "output": "",
+        },
+    )
+    return ["tract_core"]
