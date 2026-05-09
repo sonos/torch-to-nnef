@@ -553,3 +553,38 @@ def tril(
 ):
     """Map PyTorch: 'aten:tril' to NNEF."""
     return _trilu(g, name_to_tensor, node, inference_target, is_upper=False)
+
+
+@OP_REGISTRY.register()
+def eye(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:eye' to NNEF as a constant identity matrix.
+
+    Both ``eye(n)`` and ``eye(n, m)`` overloads are supported; the
+    result is fully determined at trace time so we materialise it as
+    a NNEF constant tensor.
+    """
+    n_inputs = len(node.inputs)
+    if n_inputs == 5:
+        # eye(n, dtype, layout, device, pin_memory)
+        n = node.inputs[0].data
+        m = n
+    elif n_inputs == 6:
+        # eye(n, m, dtype, layout, device, pin_memory)
+        n = node.inputs[0].data
+        m = node.inputs[1].data
+    else:
+        raise T2NErrorNotImplemented(
+            f"aten::eye with {n_inputs} inputs (expected 5 or 6)"
+        )
+    if not isinstance(n, int) or not isinstance(m, int):
+        raise T2NErrorNotImplemented(
+            f"aten::eye with non-int dims (n={n}, m={m})"
+        )
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.eye(n, m, dtype=out_dtype),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)

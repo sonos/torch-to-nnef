@@ -658,6 +658,137 @@ def expm1(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def square(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:square' to NNEF.
+
+    `x.square()` is `x * x`; the dedicated NNEF `sqr` op exists in some
+    runtimes but the simplest portable form is a `mul` with the same
+    tensor on both sides.
+    """
+    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "mul",
+        inputs=[input_tensor, input_tensor],
+        force_consistent_inputs_shapes=False,
+    )
+    return []
+
+
+@OP_REGISTRY.register()
+def nan_to_num(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:nan_to_num' to NNEF.
+
+    Decomposed to pure NNEF stdlib (`ne` for NaN via the IEEE-754
+    ``NaN != NaN`` invariant, `gt`/`lt` against the dtype's finite
+    range for +/-inf, plus `select`). No tract extension needed.
+
+    Defaults match torch: NaN -> 0; +inf -> finfo.max; -inf -> finfo.min.
+    """
+    input_node, nan_node, posinf_node, neginf_node = node.inputs
+    out_dtype = input_node.dtype or torch.float32
+    finfo = torch.finfo(out_dtype)
+    nan_val = float(nan_node.data) if nan_node.data is not None else 0.0
+    posinf_val = (
+        float(posinf_node.data) if posinf_node.data is not None else finfo.max
+    )
+    neginf_val = (
+        float(neginf_node.data) if neginf_node.data is not None else finfo.min
+    )
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    def _scalar(value: float, suffix: str):
+        const = PythonConstant(
+            name=f"{node.outputs[0].name}_n2n_{suffix}",
+            data=torch.tensor(value, dtype=out_dtype),
+        )
+        return op_helper.get_or_add_tensor_variable_in_nnef(const)
+
+    nan_t = _scalar(nan_val, "nan")
+    posinf_t = _scalar(posinf_val, "posinf")
+    neginf_t = _scalar(neginf_val, "neginf")
+    finfo_max_t = _scalar(finfo.max, "finfo_max")
+    finfo_min_t = _scalar(finfo.min, "finfo_min")
+
+    # NaN check via the IEEE-754 ``NaN != NaN`` invariant: pure NNEF
+    # stdlib so this works on every TractNNEF version (vs the dev-only
+    # ``tract_core_is_nan`` extension).
+    is_nan_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "ne",
+        inputs=[inp_ref, inp_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_n2n_isnan",
+    )
+    no_nan_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "select",
+        inputs=[is_nan_ref, nan_t, inp_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_n2n_no_nan",
+    )
+
+    # +inf is the only post-NaN-replace value strictly greater than the
+    # dtype's max finite, so `gt(no_nan, finfo.max)` flags +inf alone.
+    is_posinf_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "gt",
+        inputs=[no_nan_ref, finfo_max_t],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_n2n_is_posinf",
+    )
+    no_posinf_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "select",
+        inputs=[is_posinf_ref, posinf_t, no_nan_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_n2n_no_posinf",
+    )
+
+    is_neginf_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "lt",
+        inputs=[no_posinf_ref, finfo_min_t],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_n2n_is_neginf",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "select",
+        inputs=[is_neginf_ref, neginf_t, no_posinf_ref],
+        force_consistent_inputs_shapes=False,
+    )
+    return []
+
+
+@OP_REGISTRY.register()
+def cosine_similarity(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:cosine_similarity' to NNEF via a fragment.
+
+    The fragment lives in `op/fragment/cosine_similarity.nnef` and is
+    composed only of NNEF stdlib ops, so no tract-side change is needed.
+    """
+    input_a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    input_b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    dim_node = node.inputs[2]
+    eps_node = node.inputs[3] if len(node.inputs) > 3 else None
+    eps_val = (
+        float(eps_node.data)
+        if eps_node is not None and eps_node.data is not None
+        else 1e-8
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "cosine_similarity",
+        inputs=[input_a, input_b],
+        attrs={"axis": dim_node.data, "eps": eps_val},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["cosine_similarity"]
+
+
+@OP_REGISTRY.register()
 def cumsum(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:cumsum' to NNEF using a scan fragment (Tract).
 

@@ -477,3 +477,47 @@ def repeat_interleave(g, node, name_to_tensor, inference_target, **kwargs):
         attrs={"shape": new_shape},
     )
     return nnef_modules
+
+
+@OP_REGISTRY.register()
+def tile(g, node, name_to_tensor, op_helper, **kwargs):
+    """Map PyTorch: 'aten:tile' to NNEF.
+
+    `torch.tile(x, dims)` differs from `torch.repeat` only in how rank
+    mismatch between `dims` and `x.dim()` is handled:
+
+    - ``len(dims) > x.dim()``: treat ``x`` as if it had leading size-1
+      dims (same as `repeat`); we unsqueeze upstream.
+    - ``len(dims) < x.dim()``: prepend 1s to ``dims`` so its length
+      matches ``x.dim()`` (this is the only case `repeat` rejects).
+    """
+    (input_node, dims_node) = node.inputs
+    dims = list(dims_node.data)
+    if not all(isinstance(d, int) for d in dims):
+        raise T2NErrorNotImplemented(
+            f"tile with non-int dims not yet supported (got {dims})"
+        )
+    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    rank = input_node.rank
+    if len(dims) > rank:
+        n_unsqueeze = len(dims) - rank
+        inp_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=inp_ref,
+            attrs={"axes": list(range(n_unsqueeze))},
+            output_tensor_name_suffix="_tile_unsqueeze",
+        )
+        repeats = dims
+    elif len(dims) < rank:
+        repeats = [1] * (rank - len(dims)) + dims
+    else:
+        repeats = dims
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tile",
+        inputs=inp_ref,
+        attrs={"repeats": repeats},
+    )
