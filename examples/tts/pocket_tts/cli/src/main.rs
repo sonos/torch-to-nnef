@@ -1,0 +1,770 @@
+//! End-to-end Pocket-TTS demo via tract.
+//!
+//! Loads the NNEF graphs exported from `examples/tts/pocket_tts/`
+//! (`flow_lm_init`, `flow_lm_step`, `flow_net`, plus an audio-decode graph
+//! -- either ``mimi_decode.nnef.tgz`` for the full Mimi chain or
+//! ``decoder.nnef.tgz`` for the SEANet-only mini config), threads them
+//! together with a SentencePiece tokenizer + a voice prompt `.dat`, and
+//! writes a 24 kHz WAV.
+//!
+//! No Python or external decoder process is used at runtime: the binary
+//! plus its asset directory (``models/``, ``voices/``, ``tokenizer.model``)
+//! is everything needed to synthesise speech.
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
+
+#[cfg(any(not(target_os = "macos"), feature = "transformers-detect"))]
+use anyhow::bail;
+use anyhow::{Context, Result, anyhow};
+use clap::Parser;
+use hound::{SampleFormat, WavSpec, WavWriter};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand_distr::{Distribution, Normal};
+use sentencepiece::SentencePieceProcessor;
+use tract_core::transform::ModelTransform;
+use tract_extra::WithTractExtra;
+use tract_nnef::framework::Nnef;
+use tract_nnef::prelude::*;
+use tract_pulse::WithPulse;
+use tract_transformers::WithTractTransformers;
+
+#[cfg(target_os = "macos")]
+use tract_metal::MetalTransform;
+
+#[derive(Parser, Debug)]
+#[command(about = "Pocket-TTS demo through tract", long_about = None)]
+struct Args {
+    /// Directory holding the exported NNEF graphs (flow_lm_init.nnef.tgz,
+    /// flow_lm_step.nnef.tgz, flow_net.nnef.tgz, plus either
+    /// mimi_decode.nnef.tgz for the full Mimi chain or decoder.nnef.tgz for
+    /// the SEANet-only mini config).
+    #[arg(long, default_value = "models")]
+    models: PathBuf,
+    /// Voice prompt tensor (output of `bake_voice.py`). Takes precedence
+    /// over ``--voice-name`` if both are passed.
+    #[arg(long, default_value = "voices/alba.dat")]
+    voice: PathBuf,
+    /// Pick a bundled voice by name; resolves to ``<voices-dir>/<name>.dat``.
+    /// Bundled voices: alba, marius, cosette, jean, mary, charles
+    /// (3F/3M; all share ``T_voice`` so the same ``flow_lm_init`` graph
+    /// works for any of them).
+    #[arg(long)]
+    voice_name: Option<String>,
+    /// Directory holding bundled voice ``.dat`` files (used only when
+    /// ``--voice-name`` is set).
+    #[arg(long, default_value = "voices")]
+    voices_dir: PathBuf,
+    /// SentencePiece tokenizer model (the same one Pocket-TTS ships with
+    /// each checkpoint). When omitted, ``--tokens`` is required instead.
+    #[arg(long)]
+    tokenizer: Option<PathBuf>,
+    /// Text to synthesise. Requires ``--tokenizer``.
+    #[arg(long, conflicts_with = "tokens")]
+    text: Option<String>,
+    /// Comma-separated raw token IDs (use when no tokenizer is available, or
+    /// for the mini demo).
+    #[arg(long, value_delimiter = ',')]
+    tokens: Option<Vec<i64>>,
+    /// Output WAV path.
+    #[arg(long, default_value = "out.wav")]
+    out: PathBuf,
+    /// Maximum number of audio frames to generate (the autoregressive loop
+    /// also stops early on EOS).
+    #[arg(long, default_value = "32")]
+    max_frames: usize,
+    /// LSD decode steps per audio frame (call flow_net this many times).
+    /// Pocket-TTS' own default is ``1``.
+    #[arg(long, default_value = "1")]
+    lsd_steps: usize,
+    /// EOS logit threshold above which the loop terminates. Pocket-TTS'
+    /// own CLI default is ``-4.0`` (raw logit; ``out_eos`` is a Linear
+    /// layer, not a sigmoid). With ``mimi_decode.nnef.tgz`` traced at
+    /// dynamic ``T_LATENT`` the loop can stop on real EOS.
+    #[arg(long, default_value = "-4.0")]
+    eos_threshold: f32,
+    /// Initial noise temperature for the LSD loop. Pocket-TTS draws the
+    /// starting latent from ``Normal(0, sqrt(temp))`` -- the default 0.7
+    /// matches its own CLI.
+    #[arg(long, default_value = "0.7")]
+    temp: f32,
+    /// Optional symmetric truncation bound for the initial noise. ``None``
+    /// matches Pocket-TTS' default; pass a value to use a truncated normal
+    /// in ``[-clamp, +clamp]``.
+    #[arg(long)]
+    noise_clamp: Option<f32>,
+    /// Sample rate to write into the WAV header. Real Pocket-TTS Mimi runs
+    /// at 24 kHz; mini exports are unitless.
+    #[arg(long, default_value = "24000")]
+    sample_rate: u32,
+    /// Seed for the noise sampled at each LSD step.
+    #[arg(long, default_value = "0")]
+    seed: u64,
+    /// Latent dim ``ldim`` of the audio latents (= ``in_channels`` /
+    /// ``out_channels`` of flow_net = first axis of decoder input). Mini
+    /// configs use 8; real Pocket-TTS uses 32.
+    #[arg(long, default_value = "8")]
+    ldim: usize,
+    /// Run the four NNEF graphs through tract's Metal GPU runtime (macOS
+    /// only). On any other platform the flag is rejected.
+    #[arg(long)]
+    gpu: bool,
+    /// Pulse size for streaming Mimi decode. When set, the audio decoder
+    /// runs in pulse mode with this many latents per call (so audio is
+    /// emitted in chunks of `pulse * 1920` samples = `pulse * 80` ms),
+    /// concurrent with the FlowLM autoregressive loop. Closes the gap
+    /// versus Kyutai's reference streaming. Requires
+    /// ``mimi_decode.nnef.tgz`` exported with ``dynamic_axes`` (the
+    /// default since the dynamic-T export landed). 0 means bulk-mode.
+    #[arg(long, default_value = "0")]
+    pulse: usize,
+}
+
+type Runnable =
+    Arc<tract_core::internal::SimplePlan<TypedFact, Box<dyn TypedOp>>>;
+
+fn to_f32(t: Tensor) -> Result<Tensor> {
+    if t.datum_type() == DatumType::F32 {
+        Ok(t)
+    } else {
+        Ok(t.cast_to_dt(DatumType::F32)?.into_owned())
+    }
+}
+
+fn match_dt(t: Tensor, target: DatumType) -> Result<Tensor> {
+    if t.datum_type() == target {
+        Ok(t)
+    } else {
+        Ok(t.cast_to_dt(target)?.into_owned())
+    }
+}
+
+fn input_dt(plan: &Runnable, ix: usize) -> DatumType {
+    plan.model().input_fact(ix).unwrap().datum_type
+}
+
+#[derive(Default, Debug)]
+struct GenerationTimings {
+    init: std::time::Duration,
+    flow_lm_step: std::time::Duration,
+    flow_net: std::time::Duration,
+    mimi_decode: std::time::Duration,
+    n_steps: usize,
+}
+
+fn load_graph(nnef: &Nnef, path: &Path, gpu: bool) -> Result<Runnable> {
+    let mut model = nnef
+        .model_for_path(path)
+        .with_context(|| format!("loading NNEF graph from {}", path.display()))?;
+    // ``with_tract_transformers()`` on the NNEF loader only registers op
+    // *decoders*; the SDPA / RoPE / KV-cache detection rewrites in
+    // ``tract-transformers`` are a separate ``ModelTransform`` that has
+    // to be invoked explicitly (``into_optimized()`` doesn't run it).
+    //
+    // On tract 0.23.0-dev.5 / M4 Pro:
+    //   CPU  off: RTFx ~2.73, on: RTFx ~2.58  (Sdpa::eval rebuilds a
+    //                                          sub-graph and re-plans
+    //                                          per call rather than
+    //                                          dispatching a fast
+    //                                          precomputed kernel)
+    //   GPU  off: RTFx ~4.33, on: RTFx ~4.43  (Metal has fused
+    //                                          scaled_masked_softmax,
+    //                                          apply_rope, and Sdpa is
+    //                                          rewired to those by
+    //                                          ``MetalTransform``)
+    // Default is off; flip via ``--features transformers-detect`` once
+    // tract ships a fast Sdpa CPU kernel.
+    #[cfg(feature = "transformers-detect")]
+    {
+        if let Some(t) = tract_core::transform::get_transform("transformers_detect_all")? {
+            t.transform(&mut model).with_context(|| {
+                format!("applying transformers_detect_all to {}", path.display())
+            })?;
+        } else {
+            bail!("transformers_detect_all transform not registered (link tract-transformers)");
+        }
+    }
+    if std::env::var("PTTS_DEBUG_OPS").is_ok() {
+        let mut counts: std::collections::HashMap<String, usize> = Default::default();
+        for n in model.nodes() {
+            *counts.entry(n.op.name().to_string()).or_default() += 1;
+        }
+        let mut sorted: Vec<_> = counts.into_iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        eprintln!("[op-count pre-optimize] {}:", path.display());
+        for (k, v) in sorted.iter().take(25) {
+            eprintln!("  {v:5} {k}");
+        }
+    }
+    if gpu {
+        #[cfg(target_os = "macos")]
+        {
+            MetalTransform::default()
+                .transform(&mut model)
+                .with_context(|| format!("applying MetalTransform to {}", path.display()))?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = &mut model;
+            bail!("--gpu only supported on macOS (tract Metal runtime)");
+        }
+    }
+    Ok(model.into_optimized()?.into_runnable()?)
+}
+
+/// Load mimi_decode in pulse mode: pulsify the dynamic-T graph at load
+/// time so each runtime call processes ``pulse`` latents and emits
+/// ``pulse * 1920`` audio samples (= ``pulse * 80 ms``), with tract
+/// maintaining the streaming conv state across calls. Requires the
+/// ``T_LATENT`` symbol to be present in the source graph.
+fn load_pulsed_mimi(nnef: &Nnef, path: &Path, pulse: usize, gpu: bool) -> Result<Runnable> {
+    use tract_pulse::model::{PulsedModel, PulsedModelExt};
+    let typed = nnef
+        .model_for_path(path)
+        .with_context(|| format!("loading NNEF graph from {}", path.display()))?;
+    // Declutter before pulsification: the tract CLI does this before
+    // ``--pulse`` (see cli/src/params.rs). Without it, pulsification
+    // hits Reshape ops carrying their trace-time static shapes and
+    // bails because the decluttered symbolic shape isn't available.
+    let typed = typed.into_decluttered()?;
+    let sym = typed.symbols.sym("T_LATENT");
+    let pulse_dim: tract_core::internal::TDim = (pulse as i64).into();
+    let pulsed = PulsedModel::new(&typed, sym, &pulse_dim)
+        .with_context(|| format!("pulsifying {}", path.display()))?;
+    let mut typed_pulsed = pulsed.into_typed()?.into_decluttered()?;
+    if gpu {
+        #[cfg(target_os = "macos")]
+        {
+            MetalTransform::default()
+                .transform(&mut typed_pulsed)
+                .with_context(|| format!("applying MetalTransform to pulsed {}", path.display()))?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = &mut typed_pulsed;
+            bail!("--gpu only supported on macOS (tract Metal runtime)");
+        }
+    }
+    Ok(typed_pulsed.into_optimized()?.into_runnable()?)
+}
+
+fn load_voice(path: &Path) -> Result<Tensor> {
+    let mut reader = std::fs::File::open(path)
+        .with_context(|| format!("opening voice tensor {}", path.display()))?;
+    tract_nnef::tensors::read_tensor(&mut reader)
+        .with_context(|| format!("reading voice tensor {}", path.display()))
+}
+
+fn tokenize(args: &Args) -> Result<Vec<i64>> {
+    if let Some(toks) = &args.tokens {
+        return Ok(toks.clone());
+    }
+    let text = args
+        .text
+        .as_deref()
+        .ok_or_else(|| anyhow!("need --text + --tokenizer or --tokens"))?;
+    let tokenizer_path = args
+        .tokenizer
+        .as_deref()
+        .ok_or_else(|| anyhow!("--text requires --tokenizer"))?;
+    let sp = SentencePieceProcessor::open(tokenizer_path)
+        .with_context(|| format!("opening tokenizer {}", tokenizer_path.display()))?;
+    Ok(sp
+        .encode(text)?
+        .into_iter()
+        .map(|p| p.id as i64)
+        .collect())
+}
+
+fn make_position_vec(start: i64, len: usize) -> Tensor {
+    let positions: Vec<i64> = (0..len as i64).map(|i| start + i).collect();
+    tract_ndarray::Array1::from(positions).into_tensor()
+}
+
+fn sample_initial_noise(
+    ldim: usize,
+    std: f32,
+    clamp: Option<f32>,
+    rng: &mut StdRng,
+) -> Vec<f32> {
+    // ``current`` starts as ``Normal(0, std)``, optionally truncated to
+    // ``[-clamp, +clamp]`` via rejection (matches PyTorch's
+    // ``nn.init.trunc_normal_`` semantics).
+    let normal = Normal::new(0.0_f32, std).unwrap();
+    (0..ldim)
+        .map(|_| match clamp {
+            None => normal.sample(rng),
+            Some(c) => loop {
+                let v = normal.sample(rng);
+                if v >= -c && v <= c {
+                    break v;
+                }
+            },
+        })
+        .collect()
+}
+
+fn lsd_decode(
+    flow_net: &Runnable,
+    cond: &Tensor,
+    ldim: usize,
+    lsd_steps: usize,
+    std: f32,
+    clamp: Option<f32>,
+    rng: &mut StdRng,
+) -> Result<Tensor> {
+    let mut current_vec = sample_initial_noise(ldim, std, clamp, rng);
+    for i in 0..lsd_steps {
+        let s = i as f32 / lsd_steps as f32;
+        let t = (i + 1) as f32 / lsd_steps as f32;
+        let s_t = tract_ndarray::Array2::from_elem((1, 1), s).into_tensor();
+        let t_t = tract_ndarray::Array2::from_elem((1, 1), t).into_tensor();
+        let x_t = tract_ndarray::Array2::from_shape_vec((1, ldim), current_vec.clone())
+            .map_err(|e| anyhow!("LSD x reshape: {e}"))?
+            .into_tensor();
+        let out = flow_net.run(tvec!(
+            cond.clone().into(),
+            s_t.into(),
+            t_t.into(),
+            x_t.into()
+        ))?;
+        let flow_dir = out
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("flow_net produced no output"))?;
+        let flow_view = flow_dir.to_plain_array_view::<f32>()?;
+        for (c, f) in current_vec.iter_mut().zip(flow_view.iter()) {
+            *c += *f / lsd_steps as f32;
+        }
+    }
+    Ok(
+        tract_ndarray::Array2::from_shape_vec((1, ldim), current_vec)
+            .map_err(|e| anyhow!("LSD final reshape: {e}"))?
+            .into_tensor(),
+    )
+}
+
+/// Generation phase: autoregressive loop + LSD per-frame decode + Mimi
+/// audio decode. Split out so we can wrap it in ``with_metal_stream``
+/// when running on the Metal GPU runtime.
+///
+/// Returns the audio samples and a per-phase timing breakdown so the
+/// caller can report RTFx and see where wall time went.
+fn run_generation(
+    args: &Args,
+    flow_lm_init: &Runnable,
+    flow_lm_step: &Runnable,
+    flow_net: &Runnable,
+    audio_decoder: &Runnable,
+    audio_decoder_pulsed: Option<&Runnable>,
+    voice: Tensor,
+    token_tensor: Tensor,
+    t_voice: usize,
+    token_count: usize,
+) -> Result<(Vec<f32>, GenerationTimings)> {
+    let mut timings = GenerationTimings::default();
+    let init_t = Instant::now();
+    let init_q_pos = make_position_vec(t_voice as i64, token_count + 1);
+    let init_k_pos = make_position_vec(0, t_voice + token_count + 1);
+    let voice = match_dt(voice, input_dt(flow_lm_init, 1))?;
+    let init_outs = flow_lm_init.run(tvec!(
+        token_tensor.into(),
+        voice.into(),
+        init_q_pos.into(),
+        init_k_pos.into()
+    ))?;
+    let mut transformer_out =
+        to_f32(init_outs[0].clone().into_tensor())?.into_tvalue();
+    let mut eos_logit =
+        to_f32(init_outs[1].clone().into_tensor())?.into_tvalue();
+    let mut past_kv = init_outs[2].clone();
+    let mut next_pos = (t_voice + token_count + 1) as i64;
+    timings.init = init_t.elapsed();
+
+    let ldim = args.ldim;
+    let mut rng = StdRng::seed_from_u64(args.seed);
+    let std = args.temp.sqrt();
+    let mut latents: Vec<Tensor> = Vec::with_capacity(args.max_frames);
+    let pulse = args.pulse;
+    // Pulse-mode threading: spawn a worker that consumes latents from a
+    // channel and runs pulse-Mimi concurrently with the AR loop. Without
+    // it, AR and Mimi serialise: total wall = sum(AR, Mimi). With it,
+    // total wall = max(AR, Mimi) once steady state hits.
+    let (latent_tx, audio_handle) = if let Some(pulsed) = audio_decoder_pulsed {
+        let (tx, h) = spawn_audio_worker(pulsed.clone(), pulse, ldim, args.gpu);
+        (Some(tx), Some(h))
+    } else {
+        (None, None)
+    };
+
+    let lsd_t = Instant::now();
+    let first_latent = lsd_decode(
+        flow_net,
+        &transformer_out,
+        ldim,
+        args.lsd_steps,
+        std,
+        args.noise_clamp,
+        &mut rng,
+    )?;
+    timings.flow_net += lsd_t.elapsed();
+    latents.push(first_latent.clone());
+    if let Some(tx) = &latent_tx {
+        tx.send(LatentMsg::Latent(first_latent))?;
+    }
+
+    for frame in 1..args.max_frames {
+        let eos_view = eos_logit.to_plain_array_view::<f32>()?;
+        let eos_val = *eos_view.iter().next().unwrap_or(&0.0);
+        if eos_val > args.eos_threshold {
+            println!("EOS at frame {frame} (logit {eos_val:.3} > {})", args.eos_threshold);
+            break;
+        }
+        let prev_latent = latents.last().unwrap().clone();
+        let prev_latent = match_dt(prev_latent, input_dt(flow_lm_step, 0))?;
+        let q_pos = make_position_vec(next_pos, 1);
+        let k_pos = make_position_vec(0, (next_pos as usize) + 1);
+        let step_t = Instant::now();
+        let outs = flow_lm_step.run(tvec!(
+            prev_latent.into(),
+            past_kv.clone().into(),
+            q_pos.into(),
+            k_pos.into()
+        ))?;
+        timings.flow_lm_step += step_t.elapsed();
+        timings.n_steps += 1;
+        transformer_out = to_f32(outs[0].clone().into_tensor())?.into_tvalue();
+        eos_logit = to_f32(outs[1].clone().into_tensor())?.into_tvalue();
+        past_kv = outs[2].clone();
+        next_pos += 1;
+        let lsd_t = Instant::now();
+        let latent = lsd_decode(
+            flow_net,
+            &transformer_out,
+            ldim,
+            args.lsd_steps,
+            std,
+            args.noise_clamp,
+            &mut rng,
+        )?;
+        timings.flow_net += lsd_t.elapsed();
+        latents.push(latent.clone());
+        if let Some(tx) = &latent_tx {
+            tx.send(LatentMsg::Latent(latent))?;
+        }
+    }
+    println!("generated {} audio latents", latents.len());
+
+    if let (Some(tx), Some(handle)) = (latent_tx, audio_handle) {
+        tx.send(LatentMsg::EndOfStream)?;
+        drop(tx);
+        let join_t = Instant::now();
+        let (streamed_audio, mimi_compute) = handle
+            .join()
+            .map_err(|e| anyhow!("audio worker panicked: {e:?}"))?
+            ?;
+        // Wall time the AR-loop spent waiting on the worker after EOS.
+        let _wait = join_t.elapsed();
+        timings.mimi_decode = mimi_compute;
+        return Ok((streamed_audio, timings));
+    }
+
+    // Bulk path: stack and decode in one call.
+    let t_lat = latents.len();
+    let mut latent_buf: Vec<f32> = Vec::with_capacity(t_lat * ldim);
+    for l in 0..ldim {
+        for lat in &latents {
+            let v = lat.to_plain_array_view::<f32>()?;
+            latent_buf.push(v[[0, l]]);
+        }
+    }
+    let latent_stack =
+        tract_ndarray::Array3::from_shape_vec((1, ldim, t_lat), latent_buf)
+            .map_err(|e| anyhow!("latent stack reshape: {e}"))?;
+
+    let mimi_t = Instant::now();
+    let audio_out = audio_decoder.run(tvec!(latent_stack.into_tensor().into()))?;
+    let audio = audio_out
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("decoder produced no output"))?;
+    let audio_view = audio.to_plain_array_view::<f32>()?;
+    let samples: Vec<f32> = audio_view.iter().copied().collect();
+    timings.mimi_decode = mimi_t.elapsed();
+    Ok((samples, timings))
+}
+
+/// Stack ``pulse`` per-step latents (each shape ``(1, ldim)``) into a
+/// single ``(1, ldim, pulse)`` chunk tensor channel-first. Same layout as
+/// the bulk decoder expects.
+fn stack_chunk(
+    chunk: &[Tensor],
+    ldim: usize,
+    pulse: usize,
+) -> Result<tract_ndarray::Array3<f32>> {
+    let mut buf: Vec<f32> = Vec::with_capacity(pulse * ldim);
+    for l in 0..ldim {
+        for lat in chunk {
+            let v = lat.to_plain_array_view::<f32>()?;
+            buf.push(v[[0, l]]);
+        }
+    }
+    tract_ndarray::Array3::from_shape_vec((1, ldim, pulse), buf)
+        .map_err(|e| anyhow!("chunk reshape: {e}"))
+}
+
+/// Message from the AR-loop main thread to the pulse-Mimi worker.
+enum LatentMsg {
+    /// One per-step latent shape ``(1, ldim)``.
+    Latent(Tensor),
+    /// EOS or max-frames reached; flush remainder (zero-padded to a full
+    /// pulse), then exit.
+    EndOfStream,
+}
+
+/// Spawn the pulse-Mimi worker thread. Returns the sender half of the
+/// latent channel and a join handle that yields the accumulated audio
+/// samples plus the worker's total compute time.
+///
+/// The worker owns the ``Runnable`` (Arc-cloned in the caller) and a
+/// fresh ``SimpleState`` so tract-pulse state buffers persist across
+/// pulse calls. Audio samples are concatenated in arrival order; the
+/// final partial chunk (if any) is zero-padded for a full pulse and the
+/// padded silence is trimmed before returning.
+fn spawn_audio_worker(
+    pulsed: Runnable,
+    pulse: usize,
+    ldim: usize,
+    gpu: bool,
+) -> (
+    std::sync::mpsc::Sender<LatentMsg>,
+    std::thread::JoinHandle<Result<(Vec<f32>, std::time::Duration)>>,
+) {
+    let (tx, rx) = std::sync::mpsc::channel::<LatentMsg>();
+    let handle = std::thread::spawn(move || -> Result<(Vec<f32>, std::time::Duration)> {
+        let body = move || -> Result<(Vec<f32>, std::time::Duration)> {
+            let mut state = tract_core::plan::SimpleState::new(&pulsed)?;
+            let mut all_audio: Vec<f32> = Vec::new();
+            let mut buffer: Vec<Tensor> = Vec::with_capacity(pulse);
+            let mut total_compute = std::time::Duration::ZERO;
+            let mut run_chunk = |state: &mut tract_core::plan::SimpleState<_, _>,
+                                 buf: &mut Vec<Tensor>,
+                                 out: &mut Vec<f32>|
+             -> Result<()> {
+                let chunk = stack_chunk(buf, ldim, pulse)?;
+                let t = Instant::now();
+                let audio_out = state.run(tvec!(chunk.into_tensor().into()))?;
+                total_compute += t.elapsed();
+                let av = audio_out
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| anyhow!("pulsed decoder produced no output"))?;
+                let view = av.to_plain_array_view::<f32>()?;
+                out.extend(view.iter().copied());
+                buf.clear();
+                Ok(())
+            };
+            while let Ok(msg) = rx.recv() {
+                match msg {
+                    LatentMsg::Latent(latent) => {
+                        buffer.push(latent);
+                        if buffer.len() >= pulse {
+                            run_chunk(&mut state, &mut buffer, &mut all_audio)?;
+                        }
+                    }
+                    LatentMsg::EndOfStream => {
+                        let remainder = buffer.len();
+                        if remainder > 0 {
+                            while buffer.len() < pulse {
+                                buffer.push(
+                                    tract_ndarray::Array2::<f32>::zeros((1, ldim)).into_tensor(),
+                                );
+                            }
+                            run_chunk(&mut state, &mut buffer, &mut all_audio)?;
+                            // Trim padded silence: each padded latent
+                            // contributed ``1920`` audio samples we
+                            // don't want.
+                            let trim = (pulse - remainder) * 1920;
+                            if trim > 0 && trim <= all_audio.len() {
+                                all_audio.truncate(all_audio.len() - trim);
+                            }
+                        }
+                        return Ok((all_audio, total_compute));
+                    }
+                }
+            }
+            Ok((all_audio, total_compute))
+        };
+        if gpu {
+            #[cfg(target_os = "macos")]
+            {
+                tract_metal::with_metal_stream(|_| body())
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                bail!("--gpu only supported on macOS")
+            }
+        } else {
+            body()
+        }
+    });
+    (tx, handle)
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    println!("loading tract NNEF runtime");
+    let nnef = tract_nnef::nnef()
+        .with_pulse()
+        .with_tract_extra()
+        .with_tract_transformers();
+
+    let init_path = args.models.join("flow_lm_init.nnef.tgz");
+    let step_path = args.models.join("flow_lm_step.nnef.tgz");
+    let flow_net_path = args.models.join("flow_net.nnef.tgz");
+    // Prefer the full Mimi chain (latent -> 24 kHz audio) when present;
+    // fall back to the SEANet-only ``decoder.nnef.tgz`` for the mini config.
+    let mimi_decode_path = args.models.join("mimi_decode.nnef.tgz");
+    let decoder_path = args.models.join("decoder.nnef.tgz");
+    let audio_decode_path = if mimi_decode_path.exists() {
+        mimi_decode_path
+    } else {
+        decoder_path
+    };
+    if args.gpu {
+        #[cfg(target_os = "macos")]
+        println!("running through tract Metal GPU runtime");
+        #[cfg(not(target_os = "macos"))]
+        bail!("--gpu only supported on macOS (tract Metal runtime)");
+    }
+    println!("loading flow_lm_init from {}", init_path.display());
+    let flow_lm_init = load_graph(&nnef, &init_path, args.gpu)?;
+    println!("loading flow_lm_step from {}", step_path.display());
+    let flow_lm_step = load_graph(&nnef, &step_path, args.gpu)?;
+    println!("loading flow_net from {}", flow_net_path.display());
+    let flow_net = load_graph(&nnef, &flow_net_path, args.gpu)?;
+    println!("loading audio decoder from {}", audio_decode_path.display());
+    let audio_decoder = load_graph(&nnef, &audio_decode_path, args.gpu)?;
+    let audio_decoder_pulsed = if args.pulse > 0 {
+        println!(
+            "pulsifying audio decoder at pulse={} ({} ms audio per call)",
+            args.pulse,
+            args.pulse * 80
+        );
+        Some(load_pulsed_mimi(&nnef, &audio_decode_path, args.pulse, args.gpu)?)
+    } else {
+        None
+    };
+
+    // ``--voice`` (path) wins; ``--voice-name`` is a convenience that
+    // resolves to ``<voices-dir>/<name>.dat`` when ``--voice`` is left at
+    // its default.
+    let default_voice = PathBuf::from("voices/alba.dat");
+    let voice_path = if args.voice != default_voice {
+        args.voice.clone()
+    } else if let Some(name) = &args.voice_name {
+        args.voices_dir.join(format!("{name}.dat"))
+    } else {
+        args.voice.clone()
+    };
+    println!("loading voice prompt from {}", voice_path.display());
+    let voice = load_voice(&voice_path)?;
+    let voice_shape = voice.shape().to_vec();
+    let t_voice = voice_shape
+        .get(3)
+        .copied()
+        .ok_or_else(|| anyhow!("voice tensor must have rank 6 (n_layers,2,B,T,H,D); got {voice_shape:?}"))?;
+    println!("voice prefix length: {t_voice}");
+
+    let token_ids: Vec<i64> = tokenize(&args)?;
+    println!("token ids: {token_ids:?} ({} tokens)", token_ids.len());
+    let token_count = token_ids.len();
+    let token_tensor = tract_ndarray::Array2::from_shape_vec((1, token_count), token_ids)
+        .map_err(|e| anyhow!("token tensor reshape: {e}"))?
+        .into_tensor();
+
+    // -- generation phase (timed for RTFx; wrapped for Metal stream) --------
+    let gen_start = Instant::now();
+    let (samples, timings) = if args.gpu {
+        #[cfg(target_os = "macos")]
+        {
+            tract_metal::with_metal_stream(|_| {
+                run_generation(
+                    &args,
+                    &flow_lm_init,
+                    &flow_lm_step,
+                    &flow_net,
+                    &audio_decoder,
+                    audio_decoder_pulsed.as_ref(),
+                    voice,
+                    token_tensor,
+                    t_voice,
+                    token_count,
+                )
+            })?
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            unreachable!("--gpu rejected earlier on non-macOS targets")
+        }
+    } else {
+        run_generation(
+            &args,
+            &flow_lm_init,
+            &flow_lm_step,
+            &flow_net,
+            &audio_decoder,
+            audio_decoder_pulsed.as_ref(),
+            voice,
+            token_tensor,
+            t_voice,
+            token_count,
+        )?
+    };
+    let gen_wall = gen_start.elapsed();
+    let audio_secs = samples.len() as f64 / args.sample_rate as f64;
+    let wall_secs = gen_wall.as_secs_f64();
+    let rtfx = audio_secs / wall_secs;
+    let avg_step_ms = if timings.n_steps > 0 {
+        timings.flow_lm_step.as_secs_f64() * 1000.0 / timings.n_steps as f64
+    } else {
+        0.0
+    };
+    println!(
+        "decoded {} samples ({:.2} s @ {} Hz) in {:.2} s wall time -- RTFx {:.2}{}",
+        samples.len(),
+        audio_secs,
+        args.sample_rate,
+        wall_secs,
+        rtfx,
+        if args.gpu { " [Metal GPU]" } else { "" },
+    );
+    println!(
+        "  breakdown: init {:.0} ms / flow_lm_step {:.0} ms ({} steps, {:.1} ms/step) / flow_net {:.0} ms / mimi_decode {:.0} ms",
+        timings.init.as_secs_f64() * 1000.0,
+        timings.flow_lm_step.as_secs_f64() * 1000.0,
+        timings.n_steps,
+        avg_step_ms,
+        timings.flow_net.as_secs_f64() * 1000.0,
+        timings.mimi_decode.as_secs_f64() * 1000.0,
+    );
+
+    // -- write WAV ----------------------------------------------------------
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: args.sample_rate,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+    let mut writer = WavWriter::create(&args.out, spec)
+        .with_context(|| format!("creating WAV at {}", args.out.display()))?;
+    for s in &samples {
+        writer.write_sample(*s)?;
+    }
+    writer.finalize()?;
+    println!("wrote {}", args.out.display());
+    Ok(())
+}

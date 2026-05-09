@@ -319,7 +319,12 @@ def maybe_align_inputs_ranks(
                 ):
                     new_shape = list(nnef_tensor.shape)
                     new_shape = ([1] * missing_dims) + new_shape
-                    unsqueeze_axes = [0] * missing_dims
+                    # NNEF ``unsqueeze`` expects each entry of ``axes`` to be a
+                    # distinct *output* axis position; ``[0] * missing_dims``
+                    # collides under tract's optimised pipeline, leaving a
+                    # 1D shape masquerading as a 2D one and tripping the
+                    # downstream "Clashing resolution" check.
+                    unsqueeze_axes = list(range(missing_dims))
 
                     # print(nnef_tensor.name, nnef_tensor.dtype)
                     output_nnef_tensor = NTensor(

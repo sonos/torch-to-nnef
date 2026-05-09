@@ -1,0 +1,51 @@
+[package]
+name = "pocket-tts-tract"
+version = "0.1.0"
+edition = "2024"
+description = "End-to-end Pocket-TTS demo via tract: text + voice prompt -> 24 kHz WAV."
+
+[[bin]]
+name = "pocket-tts-tract"
+path = "src/main.rs"
+
+[features]
+default = []
+# Apply ``tract-transformers``' SDPA / RoPE / KV-cache detection rewrites
+# before optimization. On tract 0.23.0-dev.5 this is a slight CPU
+# pessimisation for our shapes (Sdpa::eval rebuilds + replans per call)
+# and a marginal GPU speedup (~1-2%). Kept gated so the codepath is
+# ready to flip once tract ships a fast precomputed Sdpa kernel.
+# Build with:  cargo build --release --features transformers-detect
+transformers-detect = []
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4", features = ["derive"] }
+hound = "3.5"
+rand = "0.9"
+rand_distr = "0.5"
+sentencepiece = "0.11"
+tract-core = "0.23.0-dev.5"
+tract-extra = "0.23.0-dev.5"
+tract-nnef = "0.23.0-dev.5"
+tract-pulse = "0.23.0-dev.5"
+tract-transformers = "0.23.0-dev.5"
+
+# Metal GPU runtime is macOS-only.
+[target.'cfg(target_os = "macos")'.dependencies]
+tract-metal = "0.23.0-dev.5"
+
+# Pin to fixes ahead of tract 0.23.0-dev.5: pulse LCM-merge (#2202) and
+# pulse-mode Deconv bias overlap-add (#2204). Drop this [patch] block
+# once both land in a published tract release.
+[patch.crates-io]
+tract-core         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-data         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-extra        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-linalg       = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-nnef         = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-pulse        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-gpu          = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-pulse-opl    = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-transformers = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }
+tract-metal        = { git = "https://github.com/sonos/tract.git", rev = "767f4572dd35181427cf219ac194d3cb47d71d6d" }

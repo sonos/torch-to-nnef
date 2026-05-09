@@ -236,8 +236,17 @@ def norm(g, node, name_to_tensor, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register(["layer_norm", "native_layer_norm"])
-def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
-    """Map PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF."""
+def layer_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
+    """Map PyTorch: 'aten:layer_norm', 'aten:native_layer_norm' to NNEF.
+
+    When the input is fp16 and ``inference_target.force_norm_in_f32`` is
+    set, sandwich the fragment between an upcast to f32 and a downcast
+    back to the traced output dtype: keeps the variance/rsqrt and the
+    affine ``(x - mean) * weight + bias`` in f32 for stability, and
+    aligns dtypes when an f32-attention residual flows in (which would
+    otherwise hit tract's RmsNorm-folded layer_norm op with mismatched
+    operand dtypes -- the "tensor is F32, accessed as F16" crash).
+    """
     (
         input_tensor_node,
         normalized_shape_node,
@@ -266,26 +275,72 @@ def layer_norm(g, node, name_to_tensor, null_ref, **kwargs):
             and (weight_node.data == 1).all().tolist()
         )
     )
-    inputs = [input_tensor_node]
+
+    upcast_f32 = (
+        isinstance(inference_target, TractNNEF)
+        and input_tensor_node.dtype == torch.float16
+        and inference_target.force_norm_in_f32
+    )
+
+    custom_fragments = []
+
+    if upcast_f32 and has_affine:
+        # Emit weight/bias as f32 so the fragment's affine multiply/add
+        # stays in the same dtype as the upcast input.
+        weight_node.set_data(weight_node.data.float(), force_dtype=True)
+        bias_node.set_data(bias_node.data.float(), force_dtype=True)
+
+    base_inp_ref = get_or_add_tensor_variable_in_nnef(
+        g, input_tensor_node, name_to_tensor
+    )
+    if upcast_f32:
+        inp_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="tract_core_cast",
+            inputs=base_inp_ref,
+            attrs={"to": "f32"},
+            output_tensor_name_suffix="ucast_f32",
+        )
+        custom_fragments.append("tract_core")
+    else:
+        inp_ref = base_inp_ref
+
     op_name = "layer_norm"
+    extra_inputs = []
     if has_affine:
         op_name = "layer_norm_with_affine"
-        inputs += [weight_node, bias_node]
-    add_single_output_op(
+        extra_inputs = [weight_node, bias_node]
+
+    norm_ref = add_single_output_op(
         g,
         node,
         name_to_tensor,
         nnef_op_type=op_name,
-        inputs=[
+        inputs=[inp_ref]
+        + [
             get_or_add_tensor_variable_in_nnef(g, _, name_to_tensor)
             if _
             else null_ref
-            for _ in inputs
+            for _ in extra_inputs
         ],
         attrs={"mean_axes": mean_axes, "eps": eps_node.data},
+        output_tensor_name_suffix="norm_f32" if upcast_f32 else "",
     )
 
-    return [op_name]
+    if upcast_f32:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            nnef_op_type="tract_core_cast",
+            inputs=norm_ref,
+            attrs={"to": TORCH_DTYPE_TO_TRACT_STR[node.outputs[0].dtype]},
+        )
+
+    custom_fragments.append(op_name)
+    return custom_fragments
 
 
 def prefer_native_tract_rms_norm(inference_target, mean_axes) -> bool:

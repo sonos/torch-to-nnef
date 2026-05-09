@@ -21,6 +21,7 @@ README.
 | [`silero_vad/`](silero_vad/) | Silero-VAD JIT artifact straight to NNEF (`harden_jit_for_export`) | [12. JIT-only models](https://sonos.github.io/torch-to-nnef/latest/tutos/12_jit_only_models/) | -- |
 | [`nemo_asr/`](nemo_asr/) | NeMo ASR (Rust runtime + Python bindings) | [10. NeMo ASR export & eval](https://sonos.github.io/torch-to-nnef/latest/tutos/10_nemo/) | -- |
 | [`image_gen/`](image_gen/) | SD 1.5 + Flux-Schnell + Sana (DiT, mini configs); SDXL / SD3 placeholders | (exploration, no tutorial yet) | -- |
+| [`tts/pocket_tts/`](tts/pocket_tts/) | Kyutai Pocket-TTS end-to-end (FlowLM + Mimi) via tract; pulse-mode streaming + fp16 export, RTFx 9.88× on M4 Pro | see PR #76 | -- |
 
 ## Bootstrap helpers
 

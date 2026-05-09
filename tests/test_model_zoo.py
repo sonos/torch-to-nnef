@@ -517,6 +517,82 @@ try:
 except ImportError:
     print("missing diffusers to test Sana mini transformer")
 
+# Mini Pocket-TTS Mimi decoder: SEANet decoder stack from Kyutai's Pocket-TTS,
+# wrapped to bypass the streaming KV-cache buffers (see
+# examples/tts/pocket_tts/decoder.py for the adapter rationale). Exercises
+# Conv1d + ConvTranspose1d shape inference end-to-end against tract.
+try:
+    from tests._pocket_tts_zoo import MiniPocketTTSDecoder
+
+    test_suite.add(
+        (torch.randn(1, 8, 8),),
+        MiniPocketTTSDecoder(),
+        test_name="mini_pocket_tts_decoder",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS mini decoder")
+
+
+# Mini Pocket-TTS flow_net: the AdaLN-modulated MLP that runs once per LSD
+# decode step inside the FlowLM autoregressive loop. Pure feedforward, no
+# streaming state -- exercises RMSNorm with default ``var(correction=1)``,
+# AdaLN modulation, sinusoidal time embedding, and the cond+time merge.
+try:
+    from pocket_tts.modules.mlp import SimpleMLPAdaLN
+
+    class MiniPocketTTSFlowNet(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.flow_net = SimpleMLPAdaLN(
+                in_channels=8,
+                model_channels=16,
+                out_channels=8,
+                cond_channels=16,
+                num_res_blocks=2,
+                num_time_conds=2,
+            ).eval()
+
+        def forward(self, cond, t_start, t_end, x):
+            return self.flow_net(cond, t_start, t_end, x)
+
+    test_suite.add(
+        (
+            torch.randn(1, 16),
+            torch.zeros(1, 1),
+            torch.full((1, 1), 0.25),
+            torch.randn(1, 8),
+        ),
+        MiniPocketTTSFlowNet(),
+        test_name="mini_pocket_tts_flow_net",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS flow_net")
+
+
+# Mini Pocket-TTS FlowLM init + step: KV-cache-as-IO wrappers around the
+# autoregressive transformer. ``flow_lm_init`` runs once per utterance
+# (tokens + voice KV prefix); ``flow_lm_step`` runs once per audio frame.
+try:
+    from tests._pocket_tts_zoo import (
+        MiniPocketTTSFlowLMInit,
+        MiniPocketTTSFlowLMStep,
+        mini_flow_lm_init_inputs,
+        mini_flow_lm_step_inputs,
+    )
+
+    test_suite.add(
+        mini_flow_lm_init_inputs(),
+        MiniPocketTTSFlowLMInit(),
+        test_name="mini_pocket_tts_flow_lm_init",
+    )
+    test_suite.add(
+        mini_flow_lm_step_inputs(),
+        MiniPocketTTSFlowLMStep(),
+        test_name="mini_pocket_tts_flow_lm_step",
+    )
+except ImportError:
+    print("missing pocket_tts to test Pocket-TTS flow_lm")
+
 
 @pytest.mark.parametrize(
     "id,test_input,model,inference_target",
