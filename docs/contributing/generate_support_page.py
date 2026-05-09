@@ -51,7 +51,12 @@ class LinkToTorchDocCache:
 
     def add(self, pattern: str, op_name: str, exclusive_pattern: bool = True):
         for k, v in self.cache_dic.items():
-            if k is self.UNK:
+            # `==` not `is`: the UNK key survives a JSON round-trip as
+            # an equal-but-not-identical string, so `is self.UNK` lets
+            # the UNK bucket short-circuit the early return on every
+            # op (everything ends up in UNK on first probe), defeating
+            # the purpose of additional URL-pattern fallbacks.
+            if k == self.UNK:
                 continue
             if op_name in v and exclusive_pattern:
                 return
@@ -184,21 +189,28 @@ class FetchFromTorchVersion:
             Path(__file__).parent / f"torch_{self.torch_version}_doc_urls.json"
         )
         cache_url = LinkToTorchDocCache(cache_path)
+        # Probed namespaces, in priority order. `LinkToTorchDocCache.add`
+        # stops at the first hit, so put the most specific / canonical
+        # ones first; `torch.Tensor.{}` catches tensor-method ops that
+        # don't have a free-function form (e.g. `to_dense`, `index_put`,
+        # `masked_scatter`).
+        url_tails = (
+            "torch.nn.functional.{}.html",
+            "torch.{}.html",
+            "torch.Tensor.{}.html",
+            "torch.linalg.{}.html",
+        )
         for a_from_code in rich.progress.track(
             aten_torch_from_code,
             total=len(aten_torch_from_code),
             description=f"Caching torch doc links in '{cache_path.name}'",
         ):
-            cache_url.add(
-                f"https://docs.pytorch.org/docs/{self.torch_version}"
-                "/generated/torch.nn.functional.{}.html",
-                a_from_code,
-            )
-            cache_url.add(
-                f"https://docs.pytorch.org/docs/{self.torch_version}"
-                "/generated/torch.{}.html",
-                a_from_code,
-            )
+            for tail in url_tails:
+                cache_url.add(
+                    f"https://docs.pytorch.org/docs/{self.torch_version}"
+                    f"/generated/{tail}",
+                    a_from_code,
+                )
         return cache_url
 
 
