@@ -10,7 +10,7 @@
   - Individual passes exposed at `torch_to_nnef.torch_graph` for fine-grained control: `inline_unresolvable_submodules`, `replace_size_calls_with_constants`, `fold_constant_scalar_arithmetic`, `fold_constant_ifs`, `fold_tuple_index_through_tuple_construct`, `fold_tuple_unpack_through_tuple_construct`, `strip_prim_data`, `strip_assertion_ifs`, `fold_data_dependent_ifs`.
 - **Aten RNN op handlers**: `aten::lstm`, `aten::lstm_cell`, `aten::gru`, `aten::rnn_tanh`, `aten::rnn_relu` now have direct handlers, sharing the same fragment-emission code as the module-level extractors.
 - **`lstm_cell` NNEF fragment** (single-call, grouped-matmul) replaces the per-gate sigmoid/tanh/mul decomposition.
-- **`examples/silero_vad/`**: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the `silero_vad_demo` tox env.
+- **`examples/vad/silero-jit/`**: end-to-end demo of the JIT-only export path on a real artifact, gated in CI via the `silero_vad_demo` tox env.
 - **Tutorial**: `docs/tutos/12_jit_only_models.md` covers both the auto-detection path and the manual chain.
 
 ### Fixed

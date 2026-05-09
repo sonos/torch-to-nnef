@@ -26,7 +26,7 @@ Commands
 1) From the VAD example crate, build the wasm package (release):
 
    ```bash
-   cd ../../../examples/vad
+   cd ../../../examples/vad/FSMN-wasm
    wasm-pack build --release --target web
    ```
 
@@ -46,5 +46,5 @@ python3 -m http.server 8080
 
 Notes
 
-- Release builds are configured for small size in `examples/vad/Cargo.toml` (`opt-level=z`, thin LTO, `wasm-opt=true`).
+- Release builds are configured for small size in `examples/vad/FSMN-wasm/Cargo.toml` (`opt-level=z`, thin LTO, `wasm-opt=true`).
 - If you change the Rust code, re-run the wasm-pack build step and refresh the page.

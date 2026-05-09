@@ -8,13 +8,13 @@ End-to-end demo of the JIT-only export path on a real-world artifact. Documented
 
 `export_model_to_nnef` auto-detects `torch.jit.ScriptModule` inputs and applies `harden_jit_for_export` internally. The example is therefore the trivial four-line export call you'd expect from any `nn.Module`.
 
-This example is *not* the same as [`examples/vad/`](../vad/), which is a wasm runtime demo of the existing dynamic-axes export path. Use this directory if you have a `.jit` artifact whose Python source is unavailable; use `examples/vad/` if you want to see VAD running in the browser.
+This example is *not* the same as [`examples/vad/FSMN-wasm/`](../FSMN-wasm/), which is a wasm runtime demo of the existing dynamic-axes export path. Use this directory if you have a `.jit` artifact whose Python source is unavailable; use `examples/vad/FSMN-wasm/` if you want to see VAD running in the browser.
 
 ## Run
 
 ```bash
 # from the repo root
-cd examples/silero_vad
+cd examples/vad/silero-jit
 
 # install the example's dependencies (uses the in-repo torch-to-nnef)
 pip install -r requirements.txt

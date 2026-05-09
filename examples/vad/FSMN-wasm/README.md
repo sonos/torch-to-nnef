@@ -6,12 +6,12 @@ Exports a [FunASR FSMN-VAD](https://huggingface.co/funasr/fsmn-vad) voice-activi
 
 `py/fsmn_encoder.py` is a copy of FunASR's encoder stripped of the `funasr.register` dependency so the model can be imported standalone. This example also demonstrates dynamic axes at the time dimension (streaming).
 
-For the JIT-only export path (passing a `.jit` artifact directly with no Python source), see the sibling [`silero_vad/`](../silero_vad/) example.
+For the JIT-only export path (passing a `.jit` artifact directly with no Python source), see the sibling [`silero-jit/`](../silero-jit/) example.
 
 ## Run
 
 ```bash
-cd examples/vad
+cd examples/vad/FSMN-wasm
 ./run.sh
 ```
 
