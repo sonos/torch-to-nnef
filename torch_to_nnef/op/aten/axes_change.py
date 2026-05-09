@@ -1,6 +1,8 @@
 import nnef
+import torch
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.aten.complex import (
     is_complex_dtype_and_complex_only_supported_as_lastdim,
 )
@@ -278,3 +280,70 @@ def reshape(
         ),
         attrs={"shape": dim_data},
     )
+
+
+@OP_REGISTRY.register()
+def flip(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch: 'aten:flip' to NNEF.
+
+    Decomposes to a chain of `tract_core_gather` calls, one per axis,
+    with a constant reversed-index tensor `[N-1, ..., 0]`. Static-shape
+    only: a dynamic axis size raises `T2NErrorNotImplemented` (would
+    require building the index at runtime via `tract_core_range` over
+    `tract_core_shape_of(input)[axis]`).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "flip requires `tract_core_gather` (TractNNEF target)"
+        )
+    input_node, dims_node = node.inputs
+    raw_dims = list(dims_node.data) if dims_node.data is not None else []
+
+    seen = set()
+    axes = []
+    for d in raw_dims:
+        a = pick_axis(input_node, d)
+        if a not in seen:
+            seen.add(a)
+            axes.append(a)
+
+    cur_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+
+    if not axes:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "reshape",
+            inputs=cur_ref,
+            attrs={"shape": list(input_node.shape)},
+        )
+        return []
+
+    for axis in axes:
+        if not isinstance(input_node.shape[axis], int):
+            raise T2NErrorNotImplemented(
+                f"flip on dynamic axis {axis} not yet supported"
+            )
+
+    for i, axis in enumerate(axes):
+        n = input_node.shape[axis]
+        idx_const = PythonConstant(
+            name=f"{node.outputs[0].export_name}_flip_idx_{axis}",
+            data=torch.arange(n - 1, -1, -1, dtype=torch.int64),
+        )
+        idx_ref = get_or_add_tensor_variable_in_nnef(
+            g, idx_const, name_to_tensor
+        )
+        is_last = i == len(axes) - 1
+        cur_ref = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_gather",
+            inputs=[cur_ref, idx_ref],
+            attrs={"axis": axis},
+            force_consistent_inputs_shapes=False,
+            output_tensor_name_suffix=("" if is_last else f"_flip_axis{axis}"),
+        )
+    return ["tract_core"]
