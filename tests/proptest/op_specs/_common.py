@@ -39,6 +39,17 @@ class OpSpec:
     # When the underlying fix lands, removing this field flips the spec
     # back to a normal pass and surfaces any regression.
     xfail_reason: T.Optional[str] = None
+    # When True, the spec is also exercised under the dynamic-axes
+    # variant of the proptest driver: every rank>=1 input has axis 0
+    # marked as a runtime dim. Default False so that adding this knob
+    # does not retroactively gate the existing 200+ specs through a
+    # path they were not designed for; specs that are confident in the
+    # dynamic codegen path opt in explicitly.
+    dynamic_axes_compatible: bool = False
+    # Optional human-readable note about why a spec opted out, shown
+    # by pytest's skip reason. Only meaningful when
+    # `dynamic_axes_compatible=False`.
+    dynamic_axes_skip_reason: T.Optional[str] = None
 
 
 def _unary_sample_st(

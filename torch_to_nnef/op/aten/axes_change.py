@@ -381,6 +381,7 @@ def t(g, node, name_to_tensor, torch_graph, **kwargs):
         attrs={"axes": [1, 0]},
         pass_quantization_params=True,
     )
+    return []
 
 
 def _emit_static_expand(
@@ -412,14 +413,14 @@ def _emit_static_expand(
         )
     padded_src_shape = [1] * rank_diff + src_shape
     repeats = []
-    for s, t in zip(padded_src_shape, target_shape, strict=True):
-        if s == t or t == -1:
+    for src, tgt in zip(padded_src_shape, target_shape, strict=True):
+        if tgt in (src, -1):
             repeats.append(1)
-        elif s == 1:
-            repeats.append(t)
+        elif src == 1:
+            repeats.append(tgt)
         else:
             raise T2NErrorNotImplemented(
-                f"{op_label}: dim {s} cannot be expanded to {t} "
+                f"{op_label}: dim {src} cannot be expanded to {tgt} "
                 "(source dim must be 1 or equal to target)"
             )
 
