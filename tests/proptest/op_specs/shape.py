@@ -1432,8 +1432,10 @@ def _scatter_reduce_sample_st(
             )
         )
         op_fn = (
-            lambda d, r: lambda t, i, s: t.scatter_reduce(
-                d, i, s, reduce=r, include_self=True
+            lambda d, r: (
+                lambda t, i, s: t.scatter_reduce(
+                    d, i, s, reduce=r, include_self=True
+                )
             )
         )(dim, reduce_mode)
         return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
@@ -1528,8 +1530,10 @@ def _slice_scatter_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         op_fn = (
-            lambda d, st_, en: lambda t, s: torch.slice_scatter(
-                t, s, dim=d, start=st_, end=en, step=1
+            lambda d, st_, en: (
+                lambda t, s: torch.slice_scatter(
+                    t, s, dim=d, start=st_, end=en, step=1
+                )
             )
         )(dim, start, end)
         return OpSample(inputs=(x, src), module=BinaryPrimitive(op_fn))
