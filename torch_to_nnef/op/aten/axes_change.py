@@ -16,6 +16,7 @@ from torch_to_nnef.op.helper import (
     get_tract_dyn_axis_size_soc,
     pick_axis,
 )
+from torch_to_nnef.torch_graph import FixedTensorList
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
 
 OP_REGISTRY = AtenOpRegistry()
@@ -806,3 +807,158 @@ def pixel_shuffle(node, op_helper, **kwargs):
 def pixel_unshuffle(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:pixel_unshuffle' (inverse of `pixel_shuffle`)."""
     _pixel_reshuffle(node, op_helper, downscale=True)
+
+
+def _emit_broadcast_to(op_helper, node, src_ref, target_shape, output_idx):
+    """Emit `tract_core_broadcast` to `node.outputs[output_idx]`.
+
+    `tract_core_broadcast` maps to tract's `MultiBroadcastTo`, which is
+    exactly torch's `broadcast_tensors` semantics: take an input that's
+    already broadcast-compatible with `target_shape` and replicate the
+    size-1 axes up to the target size.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.op.helper import cast_and_add_nnef_operation
+
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    onode = node.outputs[output_idx]
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+    if not all(isinstance(d, int) for d in target_shape):
+        raise T2NErrorNotImplemented(
+            "broadcast with dynamic target shape not yet supported"
+        )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_broadcast",
+        name=f"{onode.export_name}_op",
+        inputs=(src_ref,),
+        outputs=out_ref,
+        attribs={"shape": list(target_shape)},
+    )
+
+
+def _make_ntensor_with_shape(g, name_to_tensor, name, shape, np_dtype):
+    """Register an `NTensor` with an explicit shape.
+
+    Rank-changing intermediates can't go through
+    `add_single_output_op_from_nnef_tensors`, which inherits
+    `node.outputs[0].shape` and asserts single-output.
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from nnef_tools.model import Tensor as NTensor
+
+    tensor = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
+    name_to_tensor[name] = tensor
+    return tensor
+
+
+@OP_REGISTRY.register()
+def broadcast_tensors(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:broadcast_tensors' to NNEF.
+
+    `broadcast_tensors([t0, t1, ...])` returns each input expanded to
+    the common broadcast shape. Each output is a separate
+    `tract_core_broadcast(t_i, shape=common)` call -- the common
+    shape is whatever torch traced into `node.outputs[i].shape` (all
+    outputs share it).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    (input_list_node,) = node.inputs
+    assert isinstance(input_list_node, FixedTensorList)
+    assert len(input_list_node.data) == len(node.outputs)
+    target_shape = list(node.outputs[0].shape)
+    for idx, (in_data, _out_node) in enumerate(
+        zip(input_list_node.data, node.outputs, strict=True)
+    ):
+        src_ref = op_helper.get_or_add_tensor_variable_in_nnef(in_data)
+        _emit_broadcast_to(op_helper, node, src_ref, target_shape, idx)
+    return ["tract_core"]
+
+
+def _emit_meshgrid_one_axis(
+    op_helper, node, src_ref, target_shape, axis, output_idx
+):
+    """Emit one meshgrid output: reshape + broadcast to target shape.
+
+    Reshape `src_ref` (rank 1) to `(1, .., size, .., 1)` at `axis`,
+    then broadcast to `target_shape` and write to
+    `node.outputs[output_idx]`. The reshape step is rank-changing, so
+    we build the intermediate NTensor explicitly (the shared
+    `add_single_output_op...` helpers inherit `node.outputs[0].shape`
+    and assert single-output, both wrong for a multi-output meshgrid).
+    """
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.op.helper import cast_and_add_nnef_operation
+
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    rank = len(target_shape)
+    reshape_shape = [1] * rank
+    reshape_shape[axis] = int(target_shape[axis])
+    onode = node.outputs[output_idx]
+    intermediate = _make_ntensor_with_shape(
+        g,
+        name_to_tensor,
+        f"{onode.export_name}_mg_reshape",
+        reshape_shape,
+        onode.np_dtype,
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="reshape",
+        name=f"{intermediate.name}_op",
+        inputs=(src_ref,),
+        outputs=intermediate,
+        attribs={"shape": reshape_shape},
+    )
+    _emit_broadcast_to(op_helper, node, intermediate, target_shape, output_idx)
+
+
+@OP_REGISTRY.register()
+def meshgrid(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:meshgrid' to NNEF.
+
+    `meshgrid([t0, .., tN-1], indexing)` returns N rank-N tensors. Each
+    output is the corresponding input reshaped to put its size on the
+    proper axis (then broadcast to the full N-dim shape). With
+    `indexing='ij'` axis i is input i; with `indexing='xy'` the first
+    two axes are swapped (xy is matrix-style, ij is index-style).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    if len(node.inputs) == 2:
+        input_list_node, indexing_node = node.inputs
+        indexing = indexing_node.data
+    else:
+        (input_list_node,) = node.inputs
+        indexing = "ij"
+    assert isinstance(input_list_node, FixedTensorList)
+    assert len(input_list_node.data) == len(node.outputs)
+    n = len(input_list_node.data)
+    target_shape = list(node.outputs[0].shape)
+
+    def axis_for_input(i: int) -> int:
+        if indexing == "xy" and n >= 2:
+            if i == 0:
+                return 1
+            if i == 1:
+                return 0
+        return i
+
+    for i, in_data in enumerate(input_list_node.data):
+        src_ref = op_helper.get_or_add_tensor_variable_in_nnef(in_data)
+        _emit_meshgrid_one_axis(
+            op_helper,
+            node,
+            src_ref,
+            target_shape,
+            axis=axis_for_input(i),
+            output_idx=i,
+        )
+    return ["tract_core"]

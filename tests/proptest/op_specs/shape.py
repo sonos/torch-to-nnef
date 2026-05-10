@@ -23,6 +23,7 @@ from ..joint import (
 )
 from ..shapes import (
     shape_st,
+    ternary_broadcast_shapes_st,
 )
 from ._common import (
     OpSample,
@@ -2378,6 +2379,168 @@ def _index_pixel_specs() -> T.List[OpSpec]:
     ]
 
 
+def _broadcast_tensors_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.broadcast_tensors(t0, t1, t2)` over 3 broadcastable inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb, sc = draw(ternary_broadcast_shapes_st(max_rank=3, max_dim=4))
+        a = draw(
+            tensor_st(
+                sa, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
+            )
+        )
+        b = draw(
+            tensor_st(
+                sb, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
+            )
+        )
+        c = draw(
+            tensor_st(
+                sc, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
+            )
+        )
+
+        def op_fn(x, y, z):
+            return torch.broadcast_tensors(x, y, z)
+
+        return OpSample(inputs=(a, b, c), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _meshgrid_sample_st(indexing: str) -> st.SearchStrategy[OpSample]:
+    """`torch.meshgrid(a, b, indexing=...)` over rank-1 inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa = draw(st.integers(min_value=1, max_value=4))
+        sb = draw(st.integers(min_value=1, max_value=4))
+        a = draw(
+            tensor_st(
+                (sa,), torch.float32, finite=True, domain=Interval(-5.0, 5.0)
+            )
+        )
+        b = draw(
+            tensor_st(
+                (sb,), torch.float32, finite=True, domain=Interval(-5.0, 5.0)
+            )
+        )
+        op_fn = (lambda idx: lambda x, y: torch.meshgrid(x, y, indexing=idx))(
+            indexing
+        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _tensor_split_sample_st(mode: str) -> st.SearchStrategy[OpSample]:
+    """`torch.tensor_split(x, sections_or_indices, dim)`.
+
+    `mode='int'` sweeps the integer-sections form; `mode='list'` sweeps
+    the boundary-indices form. Indices form is constrained so that
+    boundaries are strictly increasing and within `[1, dim_size - 1]`.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=8),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        x = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-10.0, 10.0)
+            )
+        )
+        if mode == "int":
+            sections = draw(st.integers(min_value=1, max_value=shape[dim]))
+            op_fn = (lambda s, d: lambda t: torch.tensor_split(t, s, dim=d))(
+                sections, dim
+            )
+        else:
+            n_indices = draw(
+                st.integers(min_value=1, max_value=max(1, shape[dim] - 1))
+            )
+            indices = sorted(
+                draw(
+                    st.lists(
+                        st.integers(min_value=1, max_value=shape[dim] - 1),
+                        min_size=n_indices,
+                        max_size=n_indices,
+                        unique=True,
+                    )
+                )
+            )
+            op_fn = (
+                lambda idxs, d: lambda t: torch.tensor_split(t, idxs, dim=d)
+            )(indices, dim)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _shape_utility_specs() -> T.List[OpSpec]:
+    return [
+        # `tract_core_broadcast` is shape-only and rank-preserving, so
+        # dyn-axes works out of the box.
+        OpSpec(
+            name="broadcast_tensors",
+            sample_st=_broadcast_tensors_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        # meshgrid emits a rank-changing reshape with a concrete numeric
+        # shape; under dyn-axes tract rejects the int-vs-symbolic mismatch
+        # ("A should be equal to N"). Threading dyn-axis symbols into
+        # `_make_ntensor_with_shape` is a follow-up.
+        OpSpec(
+            name="meshgrid_ij",
+            sample_st=_meshgrid_sample_st("ij"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_skip_reason=(
+                "meshgrid reshape declares concrete shape; "
+                "symbolic-dim threading needs follow-up."
+            ),
+        ),
+        OpSpec(
+            name="meshgrid_xy",
+            sample_st=_meshgrid_sample_st("xy"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_skip_reason=(
+                "meshgrid reshape declares concrete shape; "
+                "symbolic-dim threading needs follow-up."
+            ),
+        ),
+        # tensor_split bakes slice boundaries from the trace-time
+        # `dim_size`. Static-axes proptest passes; runtime correctness
+        # across different dyn-axis sizes is a known follow-up.
+        OpSpec(
+            name="tensor_split-int",
+            sample_st=_tensor_split_sample_st("int"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_skip_reason=(
+                "tensor_split bakes boundaries from trace-time dim_size."
+            ),
+        ),
+        OpSpec(
+            name="tensor_split-indices",
+            sample_st=_tensor_split_sample_st("list"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_skip_reason=(
+                "tensor_split bakes boundaries from trace-time dim_size."
+            ),
+        ),
+    ]
+
+
 # 3D conv/pool + numerical helpers + classifiers
 
 SPECS = (
@@ -2387,4 +2550,5 @@ SPECS = (
     *_sort_scatter_specs(),
     *_selector_specs(),
     *_index_pixel_specs(),
+    *_shape_utility_specs(),
 )
