@@ -1114,17 +1114,6 @@ def celu(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
-def zero(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:zero' (and ``zero_``) to the `zero` fragment."""
-    op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "zero",
-        inputs=op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0]),
-    )
-    return ["zero"]
-
-
-@OP_REGISTRY.register()
 def logsumexp(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:logsumexp' to the `logsumexp` fragment.
 

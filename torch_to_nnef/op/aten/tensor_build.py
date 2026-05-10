@@ -318,6 +318,25 @@ def zeros_like(**kwargs):
 
 
 @OP_REGISTRY.register()
+def zero(**kwargs):
+    """Map PyTorch: 'aten:zero' (and ``zero_``) to NNEF.
+
+    `Tensor.zero_()` writes 0 into every position regardless of the
+    original value (even NaN / +/-Inf). Reuse the `_x_like` machinery
+    that already powers `zeros_like` so we materialise a true constant
+    of zeros matching the input's shape and dtype: correct on every
+    input, and shares the same dynamic-axes path (`tract_core_shape_of`
+    + tile expansion) when shapes aren't known at trace time.
+
+    Earlier this was implemented as `sub(x, x)`; that produced 0 for
+    finite inputs but NaN for NaN inputs (since `NaN - NaN == NaN`),
+    which silently diverged from `zero_`'s set-everything-to-0
+    semantics.
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
 def empty_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
