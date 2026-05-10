@@ -9,6 +9,7 @@ from torch_to_nnef.inference_target.tract import TractCheckTolerance
 
 from ...wrapper import (
     TensorFnPrimitive,
+    UnaryPrimitive,
 )
 from ..inputs import Interval, tensor_st
 from ..joint import (
@@ -402,9 +403,53 @@ def _reduction_dtype_kwarg_specs() -> T.List[OpSpec]:
     ]
 
 
+def _aminmax_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.aminmax(x, dim, keepdim)` returns a `(min, max)` tuple."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(reduction_dim_st(rank))
+        keepdim = draw(st.booleans())
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1e2, 1e2),
+            )
+        )
+        op_fn = (lambda d, k: lambda t: torch.aminmax(t, dim=d, keepdim=k))(
+            dim, keepdim
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _aminmax_specs() -> T.List[OpSpec]:
+    return [
+        OpSpec(
+            name="aminmax",
+            sample_st=_aminmax_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+    ]
+
+
 # Registry assembly
 
 SPECS = (
     *_reduction_specs(),
     *_reduction_dtype_kwarg_specs(),
+    *_aminmax_specs(),
 )

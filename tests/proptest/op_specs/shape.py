@@ -2149,6 +2149,235 @@ def _sort_scatter_specs() -> T.List[OpSpec]:
     ]
 
 
+def _index_fill_sample_st() -> st.SearchStrategy[OpSample]:
+    """`Tensor.index_fill(dim, index, value)`: scalar-fill at indices."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        idx_len = draw(st.integers(min_value=1, max_value=shape[dim]))
+        idx = draw(
+            tensor_st(
+                (idx_len,),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, shape[dim] - 1),
+            )
+        )
+        value = draw(st.floats(min_value=-10.0, max_value=10.0))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (lambda d, v: lambda t, i: t.index_fill(d, i, v))(dim, value)
+        return OpSample(inputs=(x, idx), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _index_copy_sample_st(reduction: str) -> st.SearchStrategy[OpSample]:
+    """`Tensor.index_copy / index_add(dim, index, source)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        idx_len = draw(st.integers(min_value=1, max_value=shape[dim]))
+        idx = draw(
+            tensor_st(
+                (idx_len,),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, shape[dim] - 1),
+            )
+        )
+        # index_copy requires unique indices (otherwise undefined which
+        # write wins); regenerate until unique.
+        idx_unique = torch.unique(idx)
+        if reduction == "none" and idx_unique.numel() != idx.numel():
+            idx = idx_unique
+            idx_len = int(idx.numel())
+        src_shape = list(shape)
+        src_shape[dim] = idx_len
+        src = draw(
+            tensor_st(
+                tuple(src_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        if reduction == "none":
+            op_fn = (lambda d: lambda t, i, s: t.index_copy(d, i, s))(dim)
+        else:
+            op_fn = (lambda d: lambda t, i, s: t.index_add(d, i, s))(dim)
+        return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _take_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.take(self, index)`: gather from the flat view of `self`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        numel = 1
+        for d in shape:
+            numel *= d
+        idx_len = draw(st.integers(min_value=1, max_value=numel))
+        idx = draw(
+            tensor_st(
+                (idx_len,),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, numel - 1),
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x, idx), module=BinaryPrimitive(torch.take))
+
+    return _draw()
+
+
+def _pixel_shuffle_sample_st(*, downscale: bool) -> st.SearchStrategy[OpSample]:
+    """`torch.pixel_(un)shuffle(x, factor)` over rank-4 / rank-3 inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        leading_rank = draw(st.integers(min_value=0, max_value=1))
+        r = draw(st.integers(min_value=2, max_value=3))
+        if downscale:
+            h_units = draw(st.integers(min_value=1, max_value=3))
+            w_units = draw(st.integers(min_value=1, max_value=3))
+            c_in = draw(st.integers(min_value=1, max_value=3))
+            spatial = (c_in, h_units * r, w_units * r)
+        else:
+            c = draw(st.integers(min_value=1, max_value=3))
+            h = draw(st.integers(min_value=1, max_value=4))
+            w = draw(st.integers(min_value=1, max_value=4))
+            spatial = (c * r * r, h, w)
+        leading = tuple(
+            draw(st.integers(min_value=1, max_value=2))
+            for _ in range(leading_rank)
+        )
+        shape = leading + spatial
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op = torch.pixel_unshuffle if downscale else torch.pixel_shuffle
+        op_fn = (lambda f: lambda t: op(t, f))(r)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _index_pixel_specs() -> T.List[OpSpec]:
+    return [
+        # The index_* family lowers to `tract_core_scatter_elements` with
+        # a `reduction` attribute that landed in tract 0.23.0-dev.4
+        # (#2109). Same xfail story as scatter_add / scatter_reduce: the
+        # CI runtime is 0.22.1, the t2n emitter hard-errors below
+        # 0.23.0-dev.4. Flip these once tract 0.23 ships stable.
+        OpSpec(
+            name="index_fill-xfail",
+            sample_st=_index_fill_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="index_copy-xfail",
+            sample_st=_index_copy_sample_st("none"),
+            tolerance=TractCheckTolerance.EXACT,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        OpSpec(
+            name="index_add-xfail",
+            sample_st=_index_copy_sample_st("add"),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4."
+            ),
+        ),
+        # `take` uses `tract_core_gather`, no scatter reduction, so it
+        # passes on 0.22.1.
+        OpSpec(
+            name="take",
+            sample_st=_take_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="pixel_shuffle",
+            sample_st=_pixel_shuffle_sample_st(downscale=False),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="pixel_unshuffle",
+            sample_st=_pixel_shuffle_sample_st(downscale=True),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+    ]
+
+
 # 3D conv/pool + numerical helpers + classifiers
 
 SPECS = (
@@ -2157,4 +2386,5 @@ SPECS = (
     *_pad_specs(),
     *_sort_scatter_specs(),
     *_selector_specs(),
+    *_index_pixel_specs(),
 )

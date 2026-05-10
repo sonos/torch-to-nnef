@@ -690,3 +690,119 @@ def movedim(g, node, name_to_tensor, **kwargs):
         attrs={"axes": perm},
         pass_quantization_params=True,
     )
+
+
+def _pixel_reshuffle(node, op_helper, *, downscale: bool):
+    """Shared backbone for `pixel_shuffle` / `pixel_unshuffle`.
+
+    The two ops are inverses of each other:
+
+    * `pixel_shuffle(x, r)` (`downscale=False`):
+        (..., C*r^2, H, W) → reshape to (..., C, r, r, H, W)
+        → transpose so the spatial-multiplier axes come right after
+        their host axes → (..., C, H, r, W, r) → reshape to
+        (..., C, H*r, W*r).
+
+    * `pixel_unshuffle(x, r)` (`downscale=True`): the reverse fold.
+
+    Both require the relevant spatial axes (last 3 for shuffle, last 2
+    for unshuffle) to be statically known so we can compute the
+    intermediate reshape shapes; otherwise we'd need a `tract_core_shape_of`
+    chain to express them, which isn't worth the complexity for these
+    fixed-rank ops.
+    """
+    input_node, factor_node = node.inputs
+    r = int(factor_node.data)
+    shape = list(input_node.shape)
+    rank = len(shape)
+    if rank < 3:
+        raise T2NErrorNotImplemented(
+            f"pixel_(un)shuffle expects rank>=3, got {rank}"
+        )
+
+    if downscale:
+        h_dim, w_dim = shape[-2], shape[-1]
+        if not all(isinstance(d, int) for d in (shape[-3], h_dim, w_dim)):
+            raise T2NErrorNotImplemented(
+                "pixel_unshuffle requires static C/H/W"
+            )
+        if h_dim % r != 0 or w_dim % r != 0:
+            raise T2NErrorNotImplemented(
+                f"pixel_unshuffle: H/W ({h_dim}, {w_dim}) not divisible by {r}"
+            )
+        c, h, w = shape[-3], h_dim // r, w_dim // r
+        leading = shape[:-3]
+        # (..., C, H, r, W, r)
+        split_shape = list(leading) + [c, h, r, w, r]
+        # → (..., C, r, r, H, W)
+        perm = list(range(len(leading))) + [
+            len(leading),
+            len(leading) + 2,
+            len(leading) + 4,
+            len(leading) + 1,
+            len(leading) + 3,
+        ]
+        # → (..., C*r^2, H, W)
+        final_shape = list(leading) + [c * r * r, h, w]
+    else:
+        if not all(isinstance(d, int) for d in shape[-3:]):
+            raise T2NErrorNotImplemented("pixel_shuffle requires static C/H/W")
+        c_in, h, w = shape[-3], shape[-2], shape[-1]
+        if c_in % (r * r) != 0:
+            raise T2NErrorNotImplemented(
+                f"pixel_shuffle: C ({c_in}) not divisible by r*r ({r * r})"
+            )
+        c = c_in // (r * r)
+        leading = shape[:-3]
+        # (..., C, r, r, H, W)
+        split_shape = list(leading) + [c, r, r, h, w]
+        # → (..., C, H, r, W, r)
+        perm = list(range(len(leading))) + [
+            len(leading),
+            len(leading) + 3,
+            len(leading) + 1,
+            len(leading) + 4,
+            len(leading) + 2,
+        ]
+        # → (..., C, H*r, W*r)
+        final_shape = list(leading) + [c, h * r, w * r]
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    split = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=inp_ref,
+        attrs={"shape": split_shape},
+        output_tensor_name_suffix="_ps_split",
+    )
+    permuted = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=split,
+        attrs={"axes": perm},
+        output_tensor_name_suffix="_ps_perm",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=permuted,
+        attrs={"shape": final_shape},
+    )
+
+
+@OP_REGISTRY.register()
+def pixel_shuffle(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:pixel_shuffle' to NNEF.
+
+    Standard sub-pixel rearrangement: pulls every `r*r` channel block
+    out as an `r*r` spatial tile, multiplying H/W by `r` and dividing C
+    by `r*r`. Lowered to reshape + transpose + reshape (no fragment
+    needed: stdlib only).
+    """
+    _pixel_reshuffle(node, op_helper, downscale=False)
+
+
+@OP_REGISTRY.register()
+def pixel_unshuffle(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:pixel_unshuffle' (inverse of `pixel_shuffle`)."""
+    _pixel_reshuffle(node, op_helper, downscale=True)
