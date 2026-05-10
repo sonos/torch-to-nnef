@@ -19,9 +19,9 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
 
     -  and support from full `aten::`: 
 
-    [=251/862 "251/862"]
+    [=274/862 "274/862"]
 
-     (total operators listed as supported by `torch_to_nnef` being 283)
+     (total operators listed as supported by `torch_to_nnef` being 306)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -217,11 +217,11 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.binary_cross_entropy_with_logits.html">binary_cross_entropy_with_logits</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bincount.html">bincount</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>binomial</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bitwise_left_shift.html">bitwise_left_shift</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bitwise_right_shift.html">bitwise_right_shift</a></td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bitwise_left_shift.html">bitwise_left_shift</a></td><td></td><td>✅</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bitwise_right_shift.html">bitwise_right_shift</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.blackman_window.html">blackman_window</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.block_diag.html">block_diag</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_tensors.html">broadcast_tensors</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_tensors.html">broadcast_tensors</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_to.html">broadcast_to</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bucketize.html">bucketize</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.can_cast.html">can_cast</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -230,7 +230,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>cauchy</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.ccol_indices.html">ccol_indices</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>ccol_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cdist.html">cdist</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cdist.html">cdist</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.celu.html">celu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>center</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chain_matmul.html">chain_matmul</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -261,10 +261,10 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv3d.html">conv3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>conv_depthwise3d</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>conv_tbc</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose1d.html">conv_transpose1d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose2d.html">conv_transpose2d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose3d.html">conv_transpose3d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>convolution_overrideable</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose1d.html">conv_transpose1d</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose2d.html">conv_transpose2d</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose3d.html">conv_transpose3d</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>convolution_overrideable</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>convrelu</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>copy_sparse_to_sparse</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>copy_to</td><td></td><td>❌</td><td>-</td></tr>
@@ -273,9 +273,9 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_embedding_loss.html">cosine_embedding_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.cosine_similarity.html">cosine_similarity</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>count</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.count_nonzero.html">count_nonzero</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.count_nonzero.html">count_nonzero</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cpu.html">cpu</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.crow_indices.html">crow_indices</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>crow_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
@@ -314,8 +314,8 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>divmod</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dot.html">dot</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.dropout.html">dropout</a></td><td></td><td>✅</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dsplit.html">dsplit</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dsplit.html">dsplit</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>dtype</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.eig.html">eig</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.einsum.html">einsum</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -403,7 +403,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histc.html">histc</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogram.html">histogram</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogramdd.html">histogramdd</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hsplit.html">hsplit</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hsplit.html">hsplit</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hspmm.html">hspmm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hstack.html">hstack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.huber_loss.html">huber_loss</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -424,7 +424,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.initial_seed.html">initial_seed</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.inner.html">inner</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>insert</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.int_repr.html">int_repr</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>is_autocast_cpu_enabled</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>is_autocast_enabled</td><td></td><td>❌</td><td>-</td></tr>
@@ -549,13 +549,13 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.matrix_rank.html">matrix_rank</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool1d.html">max_pool1d</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>max_pool1d_with_indices</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>max_pool1d_with_indices</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool2d.html">max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_pool3d.html">max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_unpool2d.html">max_unpool2d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.median.html">median</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>miopen_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>miopen_convolution</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_add_relu</td><td></td><td>❌</td><td>-</td></tr>
@@ -632,7 +632,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>owner_name</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pad.html">pad</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>partition</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>percentFormat</td><td></td><td>❌</td><td>-</td></tr>
@@ -803,8 +803,8 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sspaddmm.html">sspaddmm</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stack.html">stack</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>startswith</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stft.html">stft</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.storage_offset.html">storage_offset</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>str</td><td></td><td>❌</td><td>-</td></tr>
@@ -820,8 +820,8 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.take_along_dim.html">take_along_dim</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.tanhshrink.html">tanhshrink</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor.html">tensor</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>test</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>test_symbol</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>test_vartype</td><td></td><td>❌</td><td>-</td></tr>
@@ -871,7 +871,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.values.html">values</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>values_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vander.html">vander</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vdot.html">vdot</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.view_as.html">view_as</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_complex.html">view_as_complex</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -880,7 +880,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>view_as_real_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>view_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>view_expand_placeholder</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vsplit.html">vsplit</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vsplit.html">vsplit</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vstack.html">vstack</a></td><td>row_stack</td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wait</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>wait_tensor</td><td></td><td>❌</td><td>-</td></tr>
