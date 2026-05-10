@@ -84,9 +84,14 @@ def stack(g, node, name_to_tensor, torch_graph, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
-def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Map PyTorch: 'aten:vstack' to NNEF."""
+def _emit_axis_stack(g, node, name_to_tensor, torch_graph, axis, op_label):
+    """Emit `concat(values, axis=N)` for the v/h/d-stack family.
+
+    Assumes the inputs already have the right rank (torch's
+    rank-promotion for 1-D / 2-D inputs happens upstream of the aten
+    op, so we only see fully-shaped tensors here). Iterates the
+    FixedTensorList and feeds each item to NNEF `concat`.
+    """
     input_node = node.inputs[0]
     assert isinstance(input_node, FixedTensorList)
     inputs = []
@@ -97,7 +102,7 @@ def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
         ):
             torch_graph.printall()
             raise T2NErrorNotImplemented(
-                f"vstack with input_item: {input_item}"
+                f"{op_label} with input_item: {input_item}"
             )
         tensor_ref = get_or_add_tensor_variable_in_nnef(
             g, input_item, name_to_tensor
@@ -109,39 +114,32 @@ def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
         name_to_tensor,
         "concat",
         inputs=inputs,
-        attrs={"axis": 0},
+        attrs={"axis": axis},
         ensure_tuple=False,
     )
+
+
+@OP_REGISTRY.register()
+def vstack(g, node, name_to_tensor, torch_graph, **kwargs):
+    """Map PyTorch: 'aten:vstack' to NNEF (`concat(axis=0)`)."""
+    _emit_axis_stack(g, node, name_to_tensor, torch_graph, 0, "vstack")
 
 
 @OP_REGISTRY.register()
 def hstack(g, node, name_to_tensor, torch_graph, **kwargs):
-    """Map PyTorch: 'aten:hstack' to NNEF."""
-    input_node = node.inputs[0]
-    assert isinstance(input_node, FixedTensorList)
-    inputs = []
-    for input_item in input_node.data:
-        if (
-            input_item.export_name not in name_to_tensor
-            and input_item.data is None
-        ):
-            torch_graph.printall()
-            raise T2NErrorNotImplemented(
-                f"vstack with input_item: {input_item}"
-            )
-        tensor_ref = get_or_add_tensor_variable_in_nnef(
-            g, input_item, name_to_tensor
-        )
-        inputs.append(tensor_ref)
-    add_single_output_op(
-        g,
-        node,
-        name_to_tensor,
-        "concat",
-        inputs=inputs,
-        attrs={"axis": 1},
-        ensure_tuple=False,
-    )
+    """Map PyTorch: 'aten:hstack' to NNEF (`concat(axis=1)`)."""
+    _emit_axis_stack(g, node, name_to_tensor, torch_graph, 1, "hstack")
+
+
+@OP_REGISTRY.register()
+def dstack(g, node, name_to_tensor, torch_graph, **kwargs):
+    """Map PyTorch: 'aten:dstack' to NNEF (`concat(axis=2)`).
+
+    `dstack` stacks tensors along the third axis (depth). Torch
+    promotes 1-D / 2-D inputs to 3-D before reaching the aten op, so
+    we only see rank>=3 inputs here.
+    """
+    _emit_axis_stack(g, node, name_to_tensor, torch_graph, 2, "dstack")
 
 
 @OP_REGISTRY.register()

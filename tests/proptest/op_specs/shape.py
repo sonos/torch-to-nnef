@@ -2541,6 +2541,168 @@ def _shape_utility_specs() -> T.List[OpSpec]:
     ]
 
 
+class _StackList(torch.nn.Module):
+    """Wrapper for `torch.{vstack,hstack,dstack}([a, b])`."""
+
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, a, b):
+        return self.fn([a, b])
+
+
+def _axis_stack_sample_st(fn, *, min_rank: int) -> st.SearchStrategy[OpSample]:
+    """Joint shape: two tensors of identical shape, rank>=min_rank.
+
+    `vstack` / `hstack` / `dstack` accept matching shapes (after torch's
+    upstream rank-promotion); we feed them with already-promoted ranks
+    to match what the t2n emitter sees.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=min_rank, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        a = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        b = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(a, b), module=_StackList(fn))
+
+    return _draw()
+
+
+def _axis_split_sample_st(
+    fn, *, dim: int, min_rank: int
+) -> st.SearchStrategy[OpSample]:
+    """`vsplit/hsplit/dsplit(x, sections)`: int sections only.
+
+    Torch's `*split` (unlike `tensor_split`) requires the dim to be
+    divisible by `sections`. The strategy enforces that by drawing
+    `sections` then `multiplier` and setting `shape[dim] = sections *
+    multiplier`.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=min_rank, max_value=4))
+        shape = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        sections = draw(st.integers(min_value=1, max_value=3))
+        mult = draw(st.integers(min_value=1, max_value=3))
+        shape[dim] = sections * mult
+        x = draw(
+            tensor_st(
+                tuple(shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(fn, sections=sections)),
+        )
+
+    return _draw()
+
+
+def _count_nonzero_sample_st(*, all_dims: bool) -> st.SearchStrategy[OpSample]:
+    """`torch.count_nonzero(x, dim?)`: half-density mask via {-1, 0, 1}."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        # Sparse-ish input with a real mix of zeros so the count
+        # actually exercises the reduce, not just `numel`.
+        x = draw(
+            tensor_st(shape, torch.int64, finite=True, domain=Interval(-1, 1))
+        )
+        if all_dims:
+            op_fn = lambda t: torch.count_nonzero(t)  # noqa: E731
+        else:
+            dim = draw(st.integers(min_value=0, max_value=rank - 1))
+            op_fn = (lambda d: lambda t: torch.count_nonzero(t, dim=d))(dim)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _alias_specs() -> T.List[OpSpec]:
+    return [
+        OpSpec(
+            name="dstack",
+            sample_st=_axis_stack_sample_st(torch.dstack, min_rank=3),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="vsplit",
+            sample_st=_axis_split_sample_st(torch.vsplit, dim=0, min_rank=2),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="hsplit",
+            sample_st=_axis_split_sample_st(torch.hsplit, dim=1, min_rank=2),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="dsplit",
+            sample_st=_axis_split_sample_st(torch.dsplit, dim=2, min_rank=3),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="count_nonzero-dim",
+            sample_st=_count_nonzero_sample_st(all_dims=False),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="count_nonzero-all",
+            sample_st=_count_nonzero_sample_st(all_dims=True),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+    ]
+
+
 # 3D conv/pool + numerical helpers + classifiers
 
 SPECS = (
@@ -2551,4 +2713,5 @@ SPECS = (
     *_selector_specs(),
     *_index_pixel_specs(),
     *_shape_utility_specs(),
+    *_alias_specs(),
 )
