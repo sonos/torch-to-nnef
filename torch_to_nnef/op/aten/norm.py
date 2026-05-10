@@ -144,6 +144,91 @@ def batch_norm(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     return custom_fragments
 
 
+@OP_REGISTRY.register()
+def instance_norm(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:instance_norm' to NNEF via a fragment.
+
+    `instance_norm(input, weight?, bias?, running_mean?, running_var?,
+    use_input_stats, momentum, eps, cudnn_enabled)` normalises each
+    `(n, c)` plane independently using `(x - mean) / sqrt(var + eps)`
+    over the spatial axes. The optional affine pair is reshaped to
+    `(1, C, 1, ..., 1)` and applied as a post-multiply / add. The
+    fragment lives in `op/fragment/instance_norm.nnef` and uses only
+    NNEF stdlib (`moments` / `sub` / `add` / `sqrt` / `div`).
+    """
+    input_node = node.inputs[0]
+    weight_node = node.inputs[1]
+    bias_node = node.inputs[2]
+    eps_node = node.inputs[7]
+    eps_val = float(eps_node.data) if eps_node.data is not None else 1e-5
+
+    rank = input_node.rank
+    if rank < 3:
+        raise T2NErrorNotImplemented(
+            f"instance_norm needs rank>=3 (N, C, *spatial); got rank {rank}"
+        )
+    spatial_axes = list(range(2, rank))
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    # `aten::instance_norm` passes `None` for absent weight/bias as
+    # `prim::Constant[NoneType]`, which becomes a t2n `PythonConstant`.
+    # When the user supplies real tensors (whether graph-inputs or
+    # baked weights) they show up as `TensorVariable`, so the
+    # presence test is "not a PythonConstant", not `data is not None`.
+    def _is_real_tensor(p_node):
+        return not (isinstance(p_node, PythonConstant) and p_node.data is None)
+
+    has_weight = _is_real_tensor(weight_node)
+    has_bias = _is_real_tensor(bias_node)
+    affine = has_weight or has_bias
+
+    norm_out = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "instance_norm",
+        inputs=inp_ref,
+        attrs={"axes": spatial_axes, "eps": eps_val},
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix=("in_normed" if affine else ""),
+    )
+
+    if not affine:
+        return ["instance_norm"]
+
+    # Reshape affine params from `(C,)` to `(1, C, 1, ..., 1)` so they
+    # multiply / add along the channel axis without further plumbing.
+    # Done with a NNEF `reshape` op (not in-place IR mutation) because
+    # weight/bias may be graph inputs with `.data is None`.
+    affine_shape = [1, -1] + [1] * (rank - 2)
+
+    def _reshape_affine_param(p_node, suffix):
+        p_ref = op_helper.get_or_add_tensor_variable_in_nnef(p_node)
+        return op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=p_ref,
+            attrs={"shape": affine_shape},
+            output_tensor_name_suffix=suffix,
+        )
+
+    cur = norm_out
+    if has_weight:
+        weight_ref = _reshape_affine_param(weight_node, "in_w_reshape")
+        cur = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "mul",
+            inputs=[cur, weight_ref],
+            output_tensor_name_suffix=("in_scaled" if has_bias else ""),
+        )
+    if has_bias:
+        bias_ref = _reshape_affine_param(bias_node, "in_b_reshape")
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "add",
+            inputs=[cur, bias_ref],
+        )
+    return ["instance_norm"]
+
+
 @OP_REGISTRY.register(
     ["norm", "linalg_vector_norm", "linalg_norm", "frobenius_norm"]
 )
