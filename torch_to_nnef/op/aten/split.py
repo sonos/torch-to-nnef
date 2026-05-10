@@ -12,7 +12,9 @@ from torch_to_nnef.torch_graph import PythonConstant
 OP_REGISTRY = AtenOpRegistry()
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(
+    torch_op_ids=["split_with_sizes", "unsafe_split_with_sizes"]
+)
 def split_with_sizes(g, node, name_to_tensor, **kwargs):
     """Translate `aten::split_with_sizes` to NNEF.
 
@@ -89,9 +91,14 @@ def unbind(g, node, name_to_tensor, **kwargs):
     )
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["chunk", "unsafe_chunk"])
 def chunk(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:chunk' to NNEF."""
+    """Map PyTorch: 'aten:chunk' (and `unsafe_chunk`) to NNEF.
+
+    `unsafe_chunk` has identical inference-time semantics to `chunk`;
+    the only difference is the autograd-graph promise around in-place
+    writes, which doesn't apply on the export path.
+    """
     (input_node, n_chunk_node, axis_node) = node.inputs
     assert n_chunk_node.data == len(node.outputs)
     assert len({tuple(o.shape) for o in node.outputs}) == 1, (
