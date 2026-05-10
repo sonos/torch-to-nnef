@@ -926,7 +926,7 @@ def cdist(node, op_helper, **kwargs):
     """
     a_node, b_node, p_node = node.inputs[:3]
     p_val = float(p_node.data) if p_node.data is not None else 2.0
-    if not (p_val > 0):
+    if p_val <= 0:
         raise T2NErrorNotImplemented(
             f"cdist with p={p_val} not supported (require p > 0; "
             "p=inf would need max_reduce, separate code path)"
