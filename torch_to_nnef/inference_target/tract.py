@@ -47,7 +47,11 @@ from torch_to_nnef.exceptions import (
     T2NErrorTractOnnxToNNEF,
 )
 from torch_to_nnef.inference_target.base import InferenceTarget
-from torch_to_nnef.model_wrapper import UnfoldModelInfo, unfold_model_io
+from torch_to_nnef.model_wrapper import (
+    UnfoldModelInfo,
+    WrapStructIO,
+    unfold_model_io,
+)
 from torch_to_nnef.utils import SemanticVersion, cd, dedup_list, torch_version
 
 T2N_CHECK_IO_RAISE_EXCEPTION = "T2N_CHECK_IO_RAISE_EXCEPTION"
@@ -264,9 +268,6 @@ class TractNNEF(InferenceTarget):
 
         items["py_version"] = python_version()
         items["export_date"] = str(datetime.now())
-
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.model_wrapper import WrapStructIO
 
         if isinstance(model, WrapStructIO):
             model = model.model

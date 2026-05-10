@@ -2,6 +2,7 @@ import typing as T
 
 import nnef
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
 from torch_to_nnef.inference_target import TractNNEF
@@ -11,6 +12,7 @@ from torch_to_nnef.op.aten.complex import (
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_single_output_op,
+    cast_and_add_nnef_operation,
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
@@ -817,9 +819,6 @@ def _emit_broadcast_to(op_helper, node, src_ref, target_shape, output_idx):
     already broadcast-compatible with `target_shape` and replicate the
     size-1 axes up to the target size.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op.helper import cast_and_add_nnef_operation
-
     g = op_helper.g
     name_to_tensor = op_helper.name_to_tensor
     onode = node.outputs[output_idx]
@@ -848,9 +847,6 @@ def _make_ntensor_with_shape(g, name_to_tensor, name, shape, np_dtype):
     `add_single_output_op_from_nnef_tensors`, which inherits
     `node.outputs[0].shape` and asserts single-output.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from nnef_tools.model import Tensor as NTensor
-
     tensor = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
     name_to_tensor[name] = tensor
     return tensor
@@ -892,9 +888,6 @@ def _emit_meshgrid_one_axis(
     `add_single_output_op...` helpers inherit `node.outputs[0].shape`
     and assert single-output, both wrong for a multi-output meshgrid).
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op.helper import cast_and_add_nnef_operation
-
     g = op_helper.g
     name_to_tensor = op_helper.name_to_tensor
     rank = len(target_shape)

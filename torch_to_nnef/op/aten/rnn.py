@@ -32,7 +32,9 @@ import torch
 from nnef_tools.model import Operation as NOperation
 from nnef_tools.model import Tensor as NTensor
 
+from torch_to_nnef import torch_graph as tg
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
+from torch_to_nnef.op import helper
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     add_tensor_variable_node_as_nnef_tensor,
@@ -283,9 +285,6 @@ def _apply_layer_and_unsqueeze_to_params(
 
 
 def _pre_batch_first(g, input_tensor, node, name_to_tensor) -> NTensor:
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     transposed = helper.add_tensor_variable_node_as_nnef_tensor(
         g, node.inputs[0], name_to_tensor, name_suffix="transposed"
     )
@@ -300,9 +299,6 @@ def _pre_batch_first(g, input_tensor, node, name_to_tensor) -> NTensor:
 
 
 def _post_batch_first(g, input_tensor, node, name_to_tensor) -> NTensor:
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     input_tensor.name += "_batch_first"
     out = helper.add_tensor_variable_node_as_nnef_tensor(
         g, node.outputs[0], name_to_tensor
@@ -321,9 +317,6 @@ def _multi_layers_concat(
     g, node, name_to_tensor, last_hc_at_each_layers
 ) -> None:
     """Concat last h_t (and c_t for LSTM) across layers."""
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     for idx, out_node in enumerate(node.outputs[1:]):
         real_output = helper.add_tensor_variable_node_as_nnef_tensor(
             g, out_node, name_to_tensor
@@ -353,9 +346,6 @@ def _translate_state_variable_load_and_prep(
     batch axis so the runtime gets a correctly-shaped state without the
     graph baking in a specific batch size.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     assert tensor_variable is None, tensor_variable
     base_var_name = next(node.op_ref.parameters()).nnef_name.rsplit(".", 1)[0]
     variable_storage_id = f"{var_name}_store"
@@ -482,12 +472,6 @@ def _translate_to_nnef_variable(
     get a {param_name: torch.Tensor or (tensor_variable, torch_tensor)}
     dict, then converts each entry into an NNEF tensor reference.
     """
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef import torch_graph as tg
-
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     name_to_nnef_variable: T.Dict[str, NTensor] = {}
     for var_name, item in tensor_params_fn(
         module,
@@ -566,9 +550,6 @@ def _translate_to_nnef_variable(
 def _translate_to_nnef_outputs(
     g, name_to_tensor, linfo: str, module, node
 ) -> T.List[NTensor]:
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     return [
         helper.add_tensor_variable_node_as_nnef_tensor(
             g,
@@ -591,9 +572,6 @@ def _apply_rnn_bidirectional_pack_at_layer(
     last_backward_h: NTensor,
     module,
 ) -> NTensor:
-    # pylint: disable-next=import-outside-toplevel
-    from torch_to_nnef.op import helper
-
     out_packed_bidi = helper.add_tensor_variable_node_as_nnef_tensor(
         g,
         node.outputs[0],
