@@ -1627,6 +1627,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.reducer.aminmax" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;aminmax
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.reducer.argmax" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;argmax
@@ -3181,6 +3190,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.reducer.aminmax" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;aminmax
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.reducer.argmax" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;argmax
@@ -3325,6 +3343,30 @@
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.reducer.aminmax" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">aminmax</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">aminmax</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:aminmax' to NNEF.</p>
+<p><code>aminmax(input, dim=None, keepdim=False)</code> returns a <code>(min, max)</code>
+tuple. Decomposed into two independent reductions: <code>min_reduce</code>
+into <code>outputs[0]</code> and <code>max_reduce</code> into <code>outputs[1]</code>. Squeeze
+handling is shared with the rest of the reducer family via
+<code>reducer_helper</code>.</p>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 

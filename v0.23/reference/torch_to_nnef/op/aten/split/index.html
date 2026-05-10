@@ -3195,7 +3195,10 @@
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:chunk' to NNEF.</p>
+        <p>Map PyTorch: 'aten:chunk' (and <code>unsafe_chunk</code>) to NNEF.</p>
+<p><code>unsafe_chunk</code> has identical inference-time semantics to <code>chunk</code>;
+the only difference is the autograd-graph promise around in-place
+writes, which doesn't apply on the export path.</p>
 
     </div>
 

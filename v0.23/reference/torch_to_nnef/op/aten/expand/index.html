@@ -1446,6 +1446,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.expand.tile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tile
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3135,6 +3144,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.expand.tile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;tile
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3263,6 +3281,33 @@ shapes = list(te.shape)
 shapes[dim] *= n_repeat
 new.repeat(new_repeats).reshape(shapes)</p>
 </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.expand.tile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">tile</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">tile</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:tile' to NNEF.</p>
+<p><code>torch.tile(x, dims)</code> differs from <code>torch.repeat</code> only in how rank
+mismatch between <code>dims</code> and <code>x.dim()</code> is handled:</p>
+<ul>
+<li><code>len(dims) &gt; x.dim()</code>: treat <code>x</code> as if it had leading size-1
+  dims (same as <code>repeat</code>); we unsqueeze upstream.</li>
+<li><code>len(dims) &lt; x.dim()</code>: prepend 1s to <code>dims</code> so its length
+  matches <code>x.dim()</code> (this is the only case <code>repeat</code> rejects).</li>
+</ul>
+
     </div>
 
 </div>
