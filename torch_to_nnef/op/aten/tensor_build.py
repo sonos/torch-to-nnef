@@ -413,58 +413,39 @@ def new_full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def one_hot(g, node, name_to_tensor, op_helper, **kwargs):
-    """Map PyTorch: 'aten:one_hot' to NNEF.
+def one_hot(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:one_hot' to NNEF via `tract_core_one_hot`.
 
-    `one_hot(input: int64, num_classes)` -> int64 tensor of shape
-    `input.shape + (num_classes,)`. Decomposed inline as
-    `eq(unsqueeze(input, last_axis), arange(num_classes))` cast back
-    to int64. Static `num_classes` (compile-time int) is required;
-    runtime-sized one-hot would need `tract_core_range` driven by a
-    runtime tensor (rare in practice).
+    Tract has the op natively (`core/src/ops/array/one_hot.rs`) with
+    NNEF binding `tract_core_one_hot(input, axis, dim, value_off=0,
+    value_on=1)`. Torch's `one_hot(input, num_classes)` appends the
+    one-hot axis as the trailing dim, so `axis = input.rank` (the new
+    last position in the output rank-(R+1) result) and `dim =
+    num_classes`.
+
+    Tract's op produces a `scalar` (float) tensor with the on/off
+    values; torch returns int64. Cast on top to match.
     """
     input_node, num_classes_node = node.inputs
     if not isinstance(num_classes_node.data, int):
         raise T2NErrorNotImplemented(
             "aten::one_hot with dynamic num_classes not yet supported"
         )
-    num_classes = int(num_classes_node.data)
-    input_rank = input_node.rank
-    inp_ref = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
-
-    # Bake [0, ..., num_classes-1] as a constant whose rank already
-    # matches `input.rank + 1` (with size 1 on every axis except the
-    # last) so NNEF `eq`'s exact-rank broadcast rule is satisfied
-    # without an extra unsqueeze chain on the classes side.
-    classes_shape = (1,) * input_rank + (num_classes,)
-    classes_const = PythonConstant(
-        name=f"{node.outputs[0].name}_oh_classes",
-        data=torch.arange(num_classes, dtype=input_node.dtype).reshape(
-            classes_shape
-        ),
-    )
-    classes_ref = get_or_add_tensor_variable_in_nnef(
-        g, classes_const, name_to_tensor
-    )
-
-    unsqueezed = op_helper.add_single_output_op_from_nnef_tensors(
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    onehot_out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "unsqueeze",
+        "tract_core_one_hot",
         inputs=inp_ref,
-        attrs={"axes": [input_rank]},
-        output_tensor_name_suffix="_oh_unsq",
-    )
-    mask = op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "eq",
-        inputs=[unsqueezed, classes_ref],
-        force_consistent_inputs_shapes=False,
-        output_tensor_name_suffix="_oh_mask",
+        attrs={
+            "axis": input_node.rank,
+            "dim": int(num_classes_node.data),
+        },
+        output_tensor_name_suffix="_oh",
     )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "tract_core_cast",
-        inputs=mask,
+        inputs=onehot_out,
         attrs={"to": "i64"},
     )
     return ["tract_core"]
