@@ -929,14 +929,7 @@ def _shape_specs() -> T.List[OpSpec]:
             name="cosine_similarity",
             sample_st=_cosine_similarity_sample_st(),
             tolerance=TractCheckTolerance.APPROXIMATE,
-            dynamic_axes_compatible=False,
-            dynamic_axes_skip_reason=(
-                "Output diverges (>1e-6) from the torch reference under "
-                "dynamic-axes mode while passing exactly under static; "
-                "likely a tract optimization-path difference in the "
-                "sum_reduce/sqrt/div chain. Worth investigating but the "
-                "fragment itself is dynamic-shape-friendly."
-            ),
+            dynamic_axes_compatible=True,
         ),
     ]
 

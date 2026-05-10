@@ -768,10 +768,18 @@ def cosine_similarity(node, op_helper, **kwargs):
 
     The fragment lives in `op/fragment/cosine_similarity.nnef` and is
     composed only of NNEF stdlib ops, so no tract-side change is needed.
+
+    Negative `dim` is normalized to a non-negative index via
+    `pick_axis` before reaching the fragment: under dynamic-axes
+    mode tract's reduce path crashes (index out of bounds at
+    core/src/ops/nn/reduce.rs) when handed a negative axis against a
+    symbolic-rank tensor.
     """
-    input_a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    input_a_node = node.inputs[0]
+    input_a = op_helper.get_or_add_tensor_variable_in_nnef(input_a_node)
     input_b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
     dim_node = node.inputs[2]
+    axis = pick_axis(input_a_node, dim_node.data)
     eps_node = node.inputs[3] if len(node.inputs) > 3 else None
     eps_val = (
         float(eps_node.data)
@@ -782,7 +790,7 @@ def cosine_similarity(node, op_helper, **kwargs):
         node,
         "cosine_similarity",
         inputs=[input_a, input_b],
-        attrs={"axis": dim_node.data, "eps": eps_val},
+        attrs={"axis": axis, "eps": eps_val},
         force_consistent_inputs_shapes=False,
     )
     return ["cosine_similarity"]
