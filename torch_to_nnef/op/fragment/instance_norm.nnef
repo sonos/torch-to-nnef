@@ -1,0 +1,22 @@
+# Per-sample, per-channel normalization (`instance_norm`).
+#
+# `axes` are the spatial axes (everything except batch and channel).
+# Mean and variance are computed independently per (n, c) plane via
+# the stdlib `moments` fragment, then we apply
+# `(x - mean) / sqrt(var + eps)`. Affine `* scale + bias` is handled
+# by the python emitter when those tensors are provided -- it's a
+# trivial post-multiply / add and keeps the fragment surface tight.
+#
+# Pure NNEF stdlib (moments / sub / add / sqrt / div).
+fragment instance_norm(
+    input: tensor<scalar>,
+    axes:  integer[],
+    eps:   scalar = 1.0e-5
+) -> ( output: tensor<scalar> )
+{
+    mean, variance = moments(input, axes = axes);
+    centered = sub(input, mean);
+    var_eps  = add(variance, eps);
+    std_dev  = sqrt(var_eps);
+    output   = div(centered, std_dev);
+}

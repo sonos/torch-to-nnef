@@ -123,6 +123,46 @@ def _layer_norm_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _instance_norm_sample_st(
+    *, ndim: int, affine: bool
+) -> st.SearchStrategy[OpSample]:
+    """`nn.InstanceNorm{1,2,3}d(C, affine=...)` over rank-(2+ndim) input.
+
+    Each `(n, c)` plane is normalized independently. Channel sizes
+    are kept small so per-instance statistics stay numerically stable
+    on the sampled domain.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        c = draw(st.integers(min_value=1, max_value=4))
+        n = draw(st.integers(min_value=1, max_value=3))
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=ndim,
+                    max_size=ndim,
+                )
+            )
+        )
+        shape = (n, c, *spatial)
+        x = draw(
+            tensor_st(
+                shape, torch.float32, finite=True, domain=Interval(-5.0, 5.0)
+            )
+        )
+        layer_cls = {
+            1: nn.InstanceNorm1d,
+            2: nn.InstanceNorm2d,
+            3: nn.InstanceNorm3d,
+        }[ndim]
+        layer = layer_cls(c, affine=affine).eval()
+        return OpSample(inputs=(x,), module=layer)
+
+    return _draw()
+
+
 def _batch_norm1d_sample_st() -> st.SearchStrategy[OpSample]:
     """`nn.BatchNorm1d(C)` over (N, C) or (N, C, L) input."""
 
@@ -269,6 +309,35 @@ def _norm_conv_matmul_specs() -> T.List[OpSpec]:
             name="batch_norm1d",
             sample_st=_batch_norm1d_sample_st(),
             tolerance=VERY,
+        ),
+        # instance_norm: same multi-step f32 reduction as group_norm
+        # (mean/var over spatial dims plus normalization), so the same
+        # SUPER tolerance is needed. The fragment uses `moments` +
+        # `sub`/`add`/`sqrt`/`div` -- all rank-preserving, no concrete
+        # shape declarations, so dyn-axes works straight through.
+        OpSpec(
+            name="instance_norm1d",
+            sample_st=_instance_norm_sample_st(ndim=1, affine=False),
+            tolerance=TractCheckTolerance.SUPER,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="instance_norm2d",
+            sample_st=_instance_norm_sample_st(ndim=2, affine=False),
+            tolerance=TractCheckTolerance.SUPER,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="instance_norm2d_affine",
+            sample_st=_instance_norm_sample_st(ndim=2, affine=True),
+            tolerance=TractCheckTolerance.SUPER,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="instance_norm3d",
+            sample_st=_instance_norm_sample_st(ndim=3, affine=False),
+            tolerance=TractCheckTolerance.SUPER,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             # Previously xfailed because the `group_norm.nnef`

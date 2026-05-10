@@ -73,8 +73,13 @@ def _pool2d_sample_st(
 def _pool1d_sample_st(
     op: T.Callable[..., torch.Tensor],
     allow_padding: bool = True,
+    op_kwargs: T.Optional[T.Dict[str, T.Any]] = None,
 ) -> st.SearchStrategy[OpSample]:
-    """1D pool. See `_pool2d_sample_st` for `allow_padding` rationale."""
+    """1D pool. See `_pool2d_sample_st` for `allow_padding` rationale.
+
+    `op_kwargs` are passed through to the wrapped op (e.g.
+    `return_indices=True` for `max_pool1d`).
+    """
 
     @st.composite
     def _draw(draw) -> OpSample:
@@ -97,7 +102,11 @@ def _pool1d_sample_st(
             )
         )
         wrapped = partial(
-            op, kernel_size=kernel, stride=stride, padding=padding
+            op,
+            kernel_size=kernel,
+            stride=stride,
+            padding=padding,
+            **(op_kwargs or {}),
         )
         return OpSample(inputs=(x,), module=UnaryPrimitive(wrapped))
 
@@ -152,6 +161,14 @@ def _pool_specs() -> T.List[OpSpec]:
             name="max_pool1d",
             sample_st=_pool1d_sample_st(F.max_pool1d),
             tolerance=EXACT,
+        ),
+        OpSpec(
+            name="max_pool1d_with_indices",
+            sample_st=_pool1d_sample_st(
+                F.max_pool1d, op_kwargs={"return_indices": True}
+            ),
+            tolerance=EXACT,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="max_pool2d",

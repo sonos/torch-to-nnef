@@ -52,6 +52,11 @@ def _pooling_op(
     padding = padding_node.data or []
     kernel_size = kernel_size_node.data or []
     stride = stride_node.data or []
+    # PyTorch defaults `stride` to `kernel_size` when empty / unspecified;
+    # tract's pool ops require stride length matching the input rank, so
+    # propagate that default here.
+    if not stride:
+        stride = list(kernel_size)
     if dilation_node:
         dilation = dilation_node.data or []
     else:
@@ -132,17 +137,25 @@ def max_pool_nd(node, op_helper, **kwargs):
     _pooling_op("max_pool", node.inputs, node, op_helper)
 
 
-@OP_REGISTRY.register(["max_pool2d_with_indices", "max_pool3d_with_indices"])
+@OP_REGISTRY.register(
+    [
+        "max_pool1d_with_indices",
+        "max_pool2d_with_indices",
+        "max_pool3d_with_indices",
+    ]
+)
 def max_pool_nd_with_indices(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:max_pool{2,3}d_with_indices' to NNEF.
+    """Map PyTorch: 'aten:max_pool{1,2,3}d_with_indices' to NNEF.
 
-    Indices are not representable in NNEF/Tract max_pool, so drop them.
+    Lowers to NNEF stdlib's `max_pool_with_index` fragment which
+    returns both the pooled values and the (per-window argmax)
+    indices. Tract only -- the fragment requires the
+    `argmax_pool` + `sample` primitives behind it.
     """
     if not isinstance(op_helper.inference_target, TractNNEF):
         raise T2NErrorNotImplemented(
             "max_pool_with_index is not supported in TractNNEF yet"
         )
-    # Only keep the pooled values output
     _pooling_op("max_pool_with_index", node.inputs, node, op_helper)
     return ["tract_core"]
 
