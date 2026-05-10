@@ -413,42 +413,71 @@ def new_full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
-def one_hot(node, op_helper, **kwargs):
-    """Map PyTorch: 'aten:one_hot' to NNEF via `tract_core_one_hot`.
+def one_hot(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:one_hot' to NNEF.
 
-    Tract has the op natively (`core/src/ops/array/one_hot.rs`) with
-    NNEF binding `tract_core_one_hot(input, axis, dim, value_off=0,
-    value_on=1)`. Torch's `one_hot(input, num_classes)` appends the
-    one-hot axis as the trailing dim, so `axis = input.rank` (the new
-    last position in the output rank-(R+1) result) and `dim =
-    num_classes`.
+    Two paths:
 
-    Tract's op produces a `scalar` (float) tensor with the on/off
-    values; torch returns int64. Cast on top to match.
+    - **TractNNEF**: emit `tract_core_one_hot(input, axis, dim)` and
+      cast to int64. Tract has the op natively
+      (`core/src/ops/array/one_hot.rs`) so this is the fastest path
+      and produces the smallest graph.
+    - **Pure NNEF**: emit the `one_hot` fragment which decomposes to
+      `eq(unsqueeze(input, axis), classes) -> select` using stdlib
+      ops. The classes constant is baked at trace time, pre-reshaped
+      to `(1,) * input.rank + (num_classes,)` so NNEF `eq`'s
+      exact-rank broadcast rule is satisfied.
+
+    Torch's `one_hot(input, num_classes)` appends the one-hot dim as
+    the trailing axis, so `axis = input.rank` (the new last position
+    in the rank-(R+1) output) regardless of which path we take.
     """
     input_node, num_classes_node = node.inputs
     if not isinstance(num_classes_node.data, int):
         raise T2NErrorNotImplemented(
             "aten::one_hot with dynamic num_classes not yet supported"
         )
+    num_classes = int(num_classes_node.data)
+    axis = input_node.rank
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
-    onehot_out = op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "tract_core_one_hot",
-        inputs=inp_ref,
-        attrs={
-            "axis": input_node.rank,
-            "dim": int(num_classes_node.data),
-        },
-        output_tensor_name_suffix="_oh",
+
+    if isinstance(inference_target, TractNNEF):
+        onehot_out = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_one_hot",
+            inputs=inp_ref,
+            attrs={"axis": axis, "dim": num_classes},
+            output_tensor_name_suffix="_oh",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=onehot_out,
+            attrs={"to": "i64"},
+        )
+        return ["tract_core"]
+
+    # Pure-NNEF path: bake the classes constant pre-shaped to match
+    # input.rank + 1 so the fragment's broadcast `eq` works without
+    # extra unsqueezes on the classes side.
+    classes_shape = (1,) * input_node.rank + (num_classes,)
+    classes_const = PythonConstant(
+        name=f"{node.outputs[0].name}_oh_classes",
+        data=torch.arange(num_classes, dtype=input_node.dtype).reshape(
+            classes_shape
+        ),
+    )
+    classes_ref = get_or_add_tensor_variable_in_nnef(
+        g, classes_const, name_to_tensor
     )
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
-        "tract_core_cast",
-        inputs=onehot_out,
-        attrs={"to": "i64"},
+        "one_hot",
+        inputs=[inp_ref, classes_ref],
+        attrs={"axis": axis},
+        force_consistent_inputs_shapes=False,
     )
-    return ["tract_core"]
+    return ["one_hot"]
 
 
 @OP_REGISTRY.register()
