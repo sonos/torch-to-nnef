@@ -1530,6 +1530,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.instance_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;instance_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.norm.layer_norm" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;layer_norm
@@ -3154,6 +3163,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.norm.instance_norm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;instance_norm
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.norm.layer_norm" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;layer_norm
@@ -3295,6 +3313,32 @@
    cleanly to the full input rank (this is the same pattern other
    norms use).</li>
 </ol>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.norm.instance_norm" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">instance_norm</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">instance_norm</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:instance_norm' to NNEF via a fragment.</p>
+<p><code>instance_norm(input, weight?, bias?, running_mean?, running_var?,
+use_input_stats, momentum, eps, cudnn_enabled)</code> normalises each
+<code>(n, c)</code> plane independently using <code>(x - mean) / sqrt(var + eps)</code>
+over the spatial axes. The optional affine pair is reshaped to
+<code>(1, C, 1, ..., 1)</code> and applied as a post-multiply / add. The
+fragment lives in <code>op/fragment/instance_norm.nnef</code> and uses only
+NNEF stdlib (<code>moments</code> / <code>sub</code> / <code>add</code> / <code>sqrt</code> / <code>div</code>).</p>
 
     </div>
 

@@ -1654,6 +1654,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.reducer.count_nonzero" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;count_nonzero
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.reducer.max_" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;max_
@@ -3217,6 +3226,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.reducer.count_nonzero" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;count_nonzero
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.reducer.max_" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;max_
@@ -3401,6 +3419,36 @@ handling is shared with the rest of the reducer family via
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:argmin' to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.reducer.count_nonzero" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">count_nonzero</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">count_nonzero</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:count_nonzero' to NNEF.</p>
+<p><code>count_nonzero(input, dim=None)</code> returns the number of non-zero
+elements in <code>input</code> along <code>dim</code> (or globally when <code>dim=None</code>) as
+an int64 scalar / reduced tensor. Decomposed as
+<code>ne(x, 0) -&gt; tract_core_cast(i64) -&gt; sum_reduce(axes) -&gt; squeeze</code>.</p>
+<p>Intermediate NTensors are built explicitly with their kept-dim
+shapes (rather than going through <code>add_single_output_op_from_nnef_tensors</code>
+which inherits <code>node.outputs[0].shape</code>). The shared helper
+declares the rank-0 final shape on every intermediate, which then
+trips the rank-align pass: <code>ne(input, scalar_zero)</code> sees both
+operands as "scalar-like" and squeezes the rank-1 input to scalar
+before evaluating, panicking the downstream <code>sum_reduce</code>.</p>
 
     </div>
 

@@ -1378,6 +1378,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.broadcast_tensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;broadcast_tensors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.expand_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;expand_as
@@ -1399,6 +1408,15 @@
   <a href="#torch_to_nnef.op.aten.axes_change.flip" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.meshgrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;meshgrid
     </span>
   </a>
   
@@ -3280,6 +3298,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.broadcast_tensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;broadcast_tensors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.expand_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;expand_as
@@ -3301,6 +3328,15 @@
   <a href="#torch_to_nnef.op.aten.axes_change.flip" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.meshgrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;meshgrid
     </span>
   </a>
   
@@ -3534,6 +3570,30 @@ that explicitly. The rank&gt;=3 passthrough aliases via
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.axes_change.broadcast_tensors" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">broadcast_tensors</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">broadcast_tensors</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:broadcast_tensors' to NNEF.</p>
+<p><code>broadcast_tensors([t0, t1, ...])</code> returns each input expanded to
+the common broadcast shape. Each output is a separate
+<code>tract_core_broadcast(t_i, shape=common)</code> call -- the common
+shape is whatever torch traced into <code>node.outputs[i].shape</code> (all
+outputs share it).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.axes_change.expand_as" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">expand_as</span>
 
@@ -3607,6 +3667,30 @@ with a constant reversed-index tensor <code>[N-1, ..., 0]</code>. Static-shape
 only: a dynamic axis size raises <code>T2NErrorNotImplemented</code> (would
 require building the index at runtime via <code>tract_core_range</code> over
 <code>tract_core_shape_of(input)[axis]</code>).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.meshgrid" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">meshgrid</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">meshgrid</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:meshgrid' to NNEF.</p>
+<p><code>meshgrid([t0, .., tN-1], indexing)</code> returns N rank-N tensors. Each
+output is the corresponding input reshaped to put its size on the
+proper axis (then broadcast to the full N-dim shape). With
+<code>indexing='ij'</code> axis i is input i; with <code>indexing='xy'</code> the first
+two axes are swapped (xy is matrix-style, ij is index-style).</p>
 
     </div>
 

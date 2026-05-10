@@ -1498,6 +1498,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.matmul.conv_transpose_nd" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;conv_transpose_nd
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.matmul.dot" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dot
@@ -3145,6 +3154,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.matmul.conv_transpose_nd" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;conv_transpose_nd
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.matmul.dot" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dot
@@ -3250,6 +3268,32 @@
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:baddbmm', 'aten:addmm' to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.matmul.conv_transpose_nd" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">conv_transpose_nd</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">conv_transpose_nd</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">null_ref</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:conv_transpose{1,2,3}d' to NNEF.</p>
+<p>Marked <code>CompositeImplicitAutograd</code> upstream, so PyTorch usually
+decomposes these to <code>aten::_convolution(transposed=True)</code> before
+the trace reaches t2n. Registering them anyway keeps the support
+page accurate and gives a working path if PyTorch ever stops
+decomposing for some platform.</p>
+<p>Signature: <code>(input, weight, bias?, stride, padding, output_padding,
+groups, dilation)</code> -- 8 positional args.</p>
 
     </div>
 

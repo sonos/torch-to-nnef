@@ -1406,6 +1406,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.concat.dstack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dstack
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.concat.hstack" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hstack
@@ -3136,6 +3145,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.concat.dstack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dstack
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.concat.hstack" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hstack
@@ -3240,6 +3258,28 @@
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.concat.dstack" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">dstack</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dstack</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:dstack' to NNEF (<code>concat(axis=2)</code>).</p>
+<p><code>dstack</code> stacks tensors along the third axis (depth). Torch
+promotes 1-D / 2-D inputs to 3-D before reaching the aten op, so
+we only see rank&gt;=3 inputs here.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.concat.hstack" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">hstack</span>
 
@@ -3250,7 +3290,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:hstack' to NNEF.</p>
+        <p>Map PyTorch: 'aten:hstack' to NNEF (<code>concat(axis=1)</code>).</p>
 
     </div>
 
@@ -3318,7 +3358,7 @@ we remap the output node to the input.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:vstack' to NNEF.</p>
+        <p>Map PyTorch: 'aten:vstack' to NNEF (<code>concat(axis=0)</code>).</p>
 
     </div>
 
