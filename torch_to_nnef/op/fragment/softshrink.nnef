@@ -1,0 +1,12 @@
+# Soft shrinkage:
+#   x > lambda    -> x - lambda
+#   x < -lambda   -> x + lambda
+#   otherwise     -> 0
+fragment softshrink(
+    x:     tensor<scalar>,
+    lambd: scalar = 0.5
+) -> ( y: tensor<scalar> )
+{
+    pos = select(gt(x, lambd),         x - lambd, 0.0);
+    y   = select(lt(x, 0.0 - lambd),   x + lambd, pos);
+}

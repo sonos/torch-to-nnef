@@ -1,0 +1,17 @@
+# logsumexp along `axis` with the max-shift trick for numerical
+# stability:
+#   y = max(x, axis) + log(sum(exp(x - max(x, axis)), axis))
+# The max keeps the exp arguments in [-inf, 0], avoiding overflow.
+# `keepdim` is handled outside this fragment (the emitter optionally
+# unsqueezes the result back along `axis`).
+fragment logsumexp(
+    x:    tensor<scalar>,
+    axis: integer
+) -> ( y: tensor<scalar> )
+{
+    m_keep   = max_reduce(x, axes = [axis]);
+    m        = squeeze(m_keep, axes = [axis]);
+    shifted  = x - m_keep;
+    summed   = squeeze(sum_reduce(exp(shifted), axes = [axis]), axes = [axis]);
+    y        = m + log(summed);
+}

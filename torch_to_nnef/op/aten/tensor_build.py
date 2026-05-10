@@ -318,6 +318,25 @@ def zeros_like(**kwargs):
 
 
 @OP_REGISTRY.register()
+def zero(**kwargs):
+    """Map PyTorch: 'aten:zero' (and ``zero_``) to NNEF.
+
+    `Tensor.zero_()` writes 0 into every position regardless of the
+    original value (even NaN / +/-Inf). Reuse the `_x_like` machinery
+    that already powers `zeros_like` so we materialise a true constant
+    of zeros matching the input's shape and dtype: correct on every
+    input, and shares the same dynamic-axes path (`tract_core_shape_of`
+    + tile expansion) when shapes aren't known at trace time.
+
+    Earlier this was implemented as `sub(x, x)`; that produced 0 for
+    finite inputs but NaN for NaN inputs (since `NaN - NaN == NaN`),
+    which silently diverged from `zero_`'s set-everything-to-0
+    semantics.
+    """
+    return _x_like(tensor_build_fn=torch.zeros, **kwargs)
+
+
+@OP_REGISTRY.register()
 def empty_like(**kwargs):
     """Operator can not be exactly exported to NNEF if dynamic.
 
@@ -616,3 +635,71 @@ def eye(g, node, name_to_tensor, op_helper, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return ["eye"]
+
+
+@OP_REGISTRY.register()
+def linspace(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:linspace' to a NNEF constant tensor.
+
+    `aten::linspace(start, end, steps, dtype, layout, device,
+    pin_memory)` is fully determined at trace time when `start`, `end`,
+    `steps` are static, which is the common case. Bake the result via
+    `torch.linspace` and register as a constant.
+    """
+    start_node, end_node, steps_node = node.inputs[:3]
+    if not all(
+        isinstance(n, PythonConstant) and isinstance(n.data, (int, float))
+        for n in (start_node, end_node, steps_node)
+    ):
+        raise T2NErrorNotImplemented(
+            "aten::linspace with dynamic start/end/steps not yet supported"
+        )
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.linspace(
+            start_node.data,
+            end_node.data,
+            int(steps_node.data),
+            dtype=out_dtype,
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def hann_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:hann_window' to a NNEF constant tensor.
+
+    Trace-time constant: `aten::hann_window(window_length, periodic,
+    dtype, layout, device, pin_memory)`. `periodic` is read when
+    present (default True per torch).
+    """
+    inputs = node.inputs
+    length_node = inputs[0]
+    if not (
+        isinstance(length_node, PythonConstant)
+        and isinstance(length_node.data, int)
+    ):
+        raise T2NErrorNotImplemented(
+            "aten::hann_window with dynamic length not yet supported"
+        )
+    periodic = True
+    if (
+        len(inputs) >= 2
+        and isinstance(inputs[1], PythonConstant)
+        and isinstance(inputs[1].data, bool)
+    ):
+        periodic = inputs[1].data
+    onode = node.outputs[0]
+    out_dtype = onode.dtype or torch.float32
+    onode.set_data(
+        torch.hann_window(
+            int(length_node.data), periodic=periodic, dtype=out_dtype
+        ),
+        force_dtype=True,
+        force_shape=True,
+    )
+    add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)

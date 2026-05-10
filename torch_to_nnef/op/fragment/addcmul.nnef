@@ -1,0 +1,10 @@
+# addcmul(out, x, y, value=1) = out + value * x * y
+fragment addcmul(
+    out:   tensor<scalar>,
+    x:     tensor<scalar>,
+    y:     tensor<scalar>,
+    value: scalar = 1.0
+) -> ( z: tensor<scalar> )
+{
+    z = out + value * x * y;
+}

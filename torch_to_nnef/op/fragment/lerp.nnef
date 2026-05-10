@@ -1,0 +1,9 @@
+# Linear interpolation: lerp(start, end, weight) = start + weight * (end - start)
+fragment lerp(
+    start:  tensor<scalar>,
+    end:    tensor<scalar>,
+    weight: tensor<scalar>
+) -> ( y: tensor<scalar> )
+{
+    y = start + weight * (end - start);
+}
