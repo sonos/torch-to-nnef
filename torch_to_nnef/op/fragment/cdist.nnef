@@ -1,0 +1,32 @@
+# Pairwise distance matrix `cdist(a, b, p)` along the trailing
+# feature axis. `a` has shape (..., M, D), `b` has shape (..., N, D);
+# the output has shape (..., M, N).
+#
+# `a_axis` is the axis we insert before the M dim of `a` to get
+# the broadcast shape (..., M, 1, D); `b_axis` is the axis we
+# insert before the M dim of `b` (...). `reduce_axis` is the
+# trailing-D position in the broadcast tensor.
+#
+# `abs(diff)` is required even for p=2 because tract's `pow` is
+# undefined on negative bases for fractional exponents.
+#
+# Pure NNEF stdlib (unsqueeze / sub / abs / pow / sum_reduce / squeeze).
+fragment cdist(
+    a: tensor<scalar>,
+    b: tensor<scalar>,
+    a_axis: integer,
+    b_axis: integer,
+    reduce_axis: integer,
+    p: scalar = 2.0
+) -> ( y: tensor<scalar> )
+{
+    a_exp  = unsqueeze(a, axes = [a_axis]);
+    b_exp  = unsqueeze(b, axes = [b_axis]);
+    diff   = sub(a_exp, b_exp);
+    abs_d  = abs(diff);
+    pwr    = pow(abs_d, p);
+    sum_p  = sum_reduce(pwr, axes = [reduce_axis]);
+    inv_p  = div(1.0, p);
+    norm   = pow(sum_p, inv_p);
+    y      = squeeze(norm, axes = [reduce_axis]);
+}

@@ -1,0 +1,25 @@
+# Pairwise distance along `axis`, matching torch.pairwise_distance:
+#   y = (sum(|a - b + eps|^p, axis))^(1/p)
+#
+# `eps` is added INSIDE the abs (torch convention) -- it shifts the
+# difference rather than clamping the final norm. NNEF sum_reduce
+# keeps the reduced axis as size-1 so we squeeze it out.
+#
+# Pure NNEF stdlib (sub, abs, pow, sum_reduce, squeeze).
+fragment pairwise_distance(
+    a: tensor<scalar>,
+    b: tensor<scalar>,
+    axis: integer,
+    p: scalar = 2.0,
+    eps: scalar = 1.0e-6
+) -> ( y: tensor<scalar> )
+{
+    diff      = sub(a, b);
+    shifted   = add(diff, eps);
+    abs_d     = abs(shifted);
+    pwr       = pow(abs_d, p);
+    sum_p     = sum_reduce(pwr, axes = [axis]);
+    inv_p     = div(1.0, p);
+    norm      = pow(sum_p, inv_p);
+    y         = squeeze(norm, axes = [axis]);
+}

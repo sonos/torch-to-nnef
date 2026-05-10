@@ -797,6 +797,193 @@ def cosine_similarity(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register()
+def pairwise_distance(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:pairwise_distance' to NNEF via a fragment.
+
+    `pairwise_distance(a, b, p, eps, keepdim)` computes
+    `(sum(|a - b + eps|^p, axis=-1))^(1/p)`. Torch keeps the reduced
+    last axis only when `keepdim=True`; the fragment squeezes it
+    unconditionally and we re-`unsqueeze` after the call when needed.
+
+    Pure NNEF stdlib (sub / abs / pow / sum_reduce / squeeze).
+    """
+    a_node, b_node, p_node, eps_node, keepdim_node = node.inputs
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    axis = a_node.rank - 1
+    p_val = float(p_node.data)
+    eps_val = float(eps_node.data)
+    keepdim = bool(keepdim_node.data)
+    if keepdim:
+        squeezed = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "pairwise_distance",
+            inputs=[a_ref, b_ref],
+            attrs={"axis": axis, "p": p_val, "eps": eps_val},
+            force_consistent_inputs_shapes=False,
+            output_tensor_name_suffix="pwd_squeezed",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "unsqueeze",
+            inputs=squeezed,
+            attrs={"axes": [axis]},
+        )
+    else:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "pairwise_distance",
+            inputs=[a_ref, b_ref],
+            attrs={"axis": axis, "p": p_val, "eps": eps_val},
+            force_consistent_inputs_shapes=False,
+        )
+    return ["pairwise_distance"]
+
+
+def _tensordot_einsum_expr(ra, rb, dims_a, dims_b):
+    """Build the einsum expression for `tensordot(a, b, dims_a, dims_b)`.
+
+    Each axis of `a` gets a unique label; each contracted axis of `b`
+    reuses its paired `a` label (forcing the contraction); each
+    non-contracted axis of `b` gets a fresh label. Output spec is
+    `non-contracted a labels` followed by `non-contracted b labels`,
+    matching torch's tensordot ordering.
+    """
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    if ra + rb - len(dims_a) > len(letters):
+        raise T2NErrorNotImplemented(
+            f"tensordot rank budget exceeded (ra={ra}, rb={rb}, "
+            f"contracted={len(dims_a)}, max={len(letters)})"
+        )
+    a_labels = list(letters[:ra])
+    pos = ra
+    a_to_b = {dims_a[k]: a_labels[dims_a[k]] for k in range(len(dims_a))}
+    b_labels = []
+    for j in range(rb):
+        if j in dims_b:
+            idx = dims_b.index(j)
+            b_labels.append(a_to_b[dims_a[idx]])
+        else:
+            b_labels.append(letters[pos])
+            pos += 1
+    a_out = [a_labels[i] for i in range(ra) if i not in dims_a]
+    b_out = [b_labels[j] for j in range(rb) if j not in dims_b]
+    return f"{''.join(a_labels)},{''.join(b_labels)}->{''.join(a_out + b_out)}"
+
+
+@OP_REGISTRY.register()
+def tensordot(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:tensordot' to NNEF via `tract_core_einsum`.
+
+    `tensordot(a, b, dims_a, dims_b)` contracts the paired axes (same
+    size on each side) and produces an output of rank
+    `a.rank + b.rank - 2 * len(dims_a)`. The einsum expression is
+    built so each contracted axis-pair shares a label.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(
+            "tensordot requires `tract_core_einsum` (TractNNEF target)"
+        )
+    a_node, b_node, dims_a_node, dims_b_node = node.inputs
+    ra = a_node.rank
+    rb = b_node.rank
+    dims_a_raw = dims_a_node.data
+    dims_b_raw = dims_b_node.data
+    if hasattr(dims_a_raw, "tolist"):
+        dims_a_raw = dims_a_raw.tolist()
+    if hasattr(dims_b_raw, "tolist"):
+        dims_b_raw = dims_b_raw.tolist()
+    dims_a = [pick_axis(a_node, int(d)) for d in dims_a_raw]
+    dims_b = [pick_axis(b_node, int(d)) for d in dims_b_raw]
+    expr = _tensordot_einsum_expr(ra, rb, dims_a, dims_b)
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_einsum",
+        inputs=[a_ref, b_ref],
+        ensure_tuple=False,
+        force_consistent_inputs_shapes=False,
+        attrs={
+            "expr": expr,
+            "acc": "f32",
+            "output": "",
+        },
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def cdist(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:cdist' to NNEF via a fragment.
+
+    `cdist(a, b, p)` computes the pairwise distance matrix between
+    rows of `a` (shape `(..., M, D)`) and `b` (shape `(..., N, D)`):
+    `out[..., i, j] = (sum(|a[..., i, :] - b[..., j, :]|^p))^(1/p)`.
+
+    The fragment broadcasts via `unsqueeze` (one new axis on each
+    input) and reduces along the trailing feature axis. Pure stdlib.
+    """
+    a_node, b_node, p_node = node.inputs[:3]
+    p_val = float(p_node.data) if p_node.data is not None else 2.0
+    if p_val <= 0:
+        raise T2NErrorNotImplemented(
+            f"cdist with p={p_val} not supported (require p > 0; "
+            "p=inf would need max_reduce, separate code path)"
+        )
+    if a_node.rank < 2 or b_node.rank < 2 or a_node.rank != b_node.rank:
+        raise T2NErrorNotImplemented(
+            f"cdist needs equal-rank rank>=2 inputs; "
+            f"got a.rank={a_node.rank}, b.rank={b_node.rank}"
+        )
+    rank = a_node.rank
+    # a (..., M, D) -> a_exp (..., M, 1, D)  via unsqueeze at index rank-1
+    a_axis = rank - 1
+    # b (..., N, D) -> b_exp (..., 1, N, D)  via unsqueeze at index rank-2
+    b_axis = rank - 2
+    # reduce the trailing D axis on the rank-(rank+1) broadcast tensor
+    reduce_axis = rank
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "cdist",
+        inputs=[a_ref, b_ref],
+        attrs={
+            "a_axis": a_axis,
+            "b_axis": b_axis,
+            "reduce_axis": reduce_axis,
+            "p": p_val,
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    return ["cdist"]
+
+
+@OP_REGISTRY.register()
+def cross(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:cross' to NNEF via a fragment.
+
+    `cross(a, b, dim)` is the 3-D vector cross product along `dim`.
+    The fragment slices each input along `dim` into its three
+    components and computes the standard `(a1*b2 - a2*b1, a2*b0 -
+    a0*b2, a0*b1 - a1*b0)` triplet. Pure stdlib.
+    """
+    a_node, b_node, dim_node = node.inputs
+    axis = pick_axis(a_node, dim_node.data)
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "cross",
+        inputs=[a_ref, b_ref],
+        attrs={"axis": axis},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["cross"]
+
+
+@OP_REGISTRY.register()
 def cumsum(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:cumsum' to NNEF using a scan fragment (Tract).
 
