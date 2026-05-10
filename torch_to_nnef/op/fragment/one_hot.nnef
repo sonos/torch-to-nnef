@@ -1,0 +1,22 @@
+# One-hot encoding via broadcast-eq + select.
+#
+# `classes` is a pre-baked rank-(input.rank + 1) constant of the form
+# `(1,) * input.rank + (num_classes,)` so NNEF `eq`'s exact-rank
+# broadcast rule is satisfied without an extra unsqueeze chain on the
+# classes side. `axis` is the position in the output where the
+# one-hot dim goes (`input.rank` for torch's "append at end"
+# semantic).
+#
+# Pure NNEF stdlib (unsqueeze + eq + select); used by the
+# non-TractNNEF code path. The TractNNEF path emits
+# `tract_core_one_hot` directly since tract has the op natively.
+fragment one_hot(
+    input:   tensor<scalar>,
+    classes: tensor<scalar>,
+    axis:    integer
+) -> ( output: tensor<scalar> )
+{
+    expanded = unsqueeze(input, axes = [axis]);
+    mask     = eq(expanded, classes);
+    output   = select(mask, 1.0, 0.0);
+}

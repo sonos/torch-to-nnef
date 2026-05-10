@@ -317,6 +317,169 @@ def zeros_like(**kwargs):
     return _x_like(tensor_build_fn=torch.zeros, **kwargs)
 
 
+def _new_x(
+    node,
+    g,
+    torch_graph,
+    name_to_tensor,
+    inference_target,
+    tensor_build_fn,
+    dtype_idx=2,
+):
+    """Shared body for ``aten::new_{empty,full,ones}``.
+
+    All share the layout
+    ``(input, size, [value,] dtype, layout, device, pin_memory)``;
+    only `tensor_build_fn` (and the dtype slot for ``new_full``)
+    differs. Re-uses `_generic_auto_tensor_expansion` so dynamic-axes
+    sizes flow through the same `tract_core_shape_of` + tile path
+    as `ones`/`zeros`.
+    """
+    inputs = node.inputs
+    input_node = inputs[0]
+    shape_node = inputs[1]
+    dtype_node = inputs[dtype_idx]
+    if dtype_node.data is not None:
+        dtype = SCALAR_TYPE_TO_PYTORCH_TYPE[dtype_node.data]
+    else:
+        dtype = input_node.dtype
+    return _generic_auto_tensor_expansion(
+        shape_node,
+        node,
+        g,
+        torch_graph,
+        name_to_tensor,
+        has_dynamic_axes=inference_target.has_dynamic_axes,
+        dtype=dtype,
+        tensor_build_fn=tensor_build_fn,
+    )
+
+
+@OP_REGISTRY.register()
+def new_empty(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
+    """Map PyTorch: 'aten:new_empty' to NNEF.
+
+    Materialises as zeros (NNEF has no "uninitialized" tensor and
+    real callers immediately fill the buffer); shape comes from
+    `size`, dtype defaults to the source tensor's dtype.
+    """
+    return _new_x(
+        node,
+        g,
+        torch_graph,
+        name_to_tensor,
+        inference_target,
+        tensor_build_fn=torch.zeros,
+    )
+
+
+@OP_REGISTRY.register()
+def new_ones(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
+    """Map PyTorch: 'aten:new_ones' to NNEF."""
+    return _new_x(
+        node,
+        g,
+        torch_graph,
+        name_to_tensor,
+        inference_target,
+        tensor_build_fn=torch.ones,
+    )
+
+
+@OP_REGISTRY.register()
+def new_full(g, node, name_to_tensor, torch_graph, inference_target, **kwargs):
+    """Map PyTorch: 'aten:new_full' to NNEF.
+
+    Layout: `(input, size, fill_value, dtype, layout, device,
+    pin_memory)`. The fill value is folded at trace time into a
+    custom build fn so the constant materialises with the right
+    value.
+    """
+    fill_value = node.inputs[2].data
+
+    def full_fn(*args, **fn_kwargs):
+        return torch.ones(*args, **fn_kwargs) * fill_value
+
+    return _new_x(
+        node,
+        g,
+        torch_graph,
+        name_to_tensor,
+        inference_target,
+        tensor_build_fn=full_fn,
+        # dtype is at index 3 (one slot later than empty/ones).
+        dtype_idx=3,
+    )
+
+
+@OP_REGISTRY.register()
+def one_hot(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:one_hot' to NNEF.
+
+    Two paths:
+
+    - **TractNNEF**: emit `tract_core_one_hot(input, axis, dim)` and
+      cast to int64. Tract has the op natively
+      (`core/src/ops/array/one_hot.rs`) so this is the fastest path
+      and produces the smallest graph.
+    - **Pure NNEF**: emit the `one_hot` fragment which decomposes to
+      `eq(unsqueeze(input, axis), classes) -> select` using stdlib
+      ops. The classes constant is baked at trace time, pre-reshaped
+      to `(1,) * input.rank + (num_classes,)` so NNEF `eq`'s
+      exact-rank broadcast rule is satisfied.
+
+    Torch's `one_hot(input, num_classes)` appends the one-hot dim as
+    the trailing axis, so `axis = input.rank` (the new last position
+    in the rank-(R+1) output) regardless of which path we take.
+    """
+    input_node, num_classes_node = node.inputs
+    if not isinstance(num_classes_node.data, int):
+        raise T2NErrorNotImplemented(
+            "aten::one_hot with dynamic num_classes not yet supported"
+        )
+    num_classes = int(num_classes_node.data)
+    axis = input_node.rank
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    if isinstance(inference_target, TractNNEF):
+        onehot_out = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_one_hot",
+            inputs=inp_ref,
+            attrs={"axis": axis, "dim": num_classes},
+            output_tensor_name_suffix="_oh",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=onehot_out,
+            attrs={"to": "i64"},
+        )
+        return ["tract_core"]
+
+    # Pure-NNEF path: bake the classes constant pre-shaped to match
+    # input.rank + 1 so the fragment's broadcast `eq` works without
+    # extra unsqueezes on the classes side.
+    classes_shape = (1,) * input_node.rank + (num_classes,)
+    classes_const = PythonConstant(
+        name=f"{node.outputs[0].name}_oh_classes",
+        data=torch.arange(num_classes, dtype=input_node.dtype).reshape(
+            classes_shape
+        ),
+    )
+    classes_ref = get_or_add_tensor_variable_in_nnef(
+        g, classes_const, name_to_tensor
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "one_hot",
+        inputs=[inp_ref, classes_ref],
+        attrs={"axis": axis},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["one_hot"]
+
+
 @OP_REGISTRY.register()
 def zero(**kwargs):
     """Map PyTorch: 'aten:zero' (and ``zero_``) to NNEF.
