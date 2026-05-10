@@ -194,6 +194,119 @@ def prod(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def count_nonzero(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:count_nonzero' to NNEF.
+
+    `count_nonzero(input, dim=None)` returns the number of non-zero
+    elements in `input` along `dim` (or globally when `dim=None`) as
+    an int64 scalar / reduced tensor. Decomposed as
+    `ne(x, 0) -> tract_core_cast(i64) -> sum_reduce(axes) -> squeeze`.
+
+    Intermediate NTensors are built explicitly with their kept-dim
+    shapes (rather than going through `add_single_output_op_from_nnef_tensors`
+    which inherits `node.outputs[0].shape`). The shared helper
+    declares the rank-0 final shape on every intermediate, which then
+    trips the rank-align pass: `ne(input, scalar_zero)` sees both
+    operands as "scalar-like" and squeezes the rank-1 input to scalar
+    before evaluating, panicking the downstream `sum_reduce`.
+    """
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    input_node = node.inputs[0]
+    dim_node = node.inputs[1] if len(node.inputs) > 1 else None
+    rank = input_node.rank
+    if dim_node is None or dim_node.data is None:
+        axes = list(range(rank))
+    elif isinstance(dim_node.data, int):
+        axes = [pick_axis(input_node, dim_node.data)]
+    else:
+        axes = [pick_axis(input_node, d) for d in dim_node.data]
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    onode = node.outputs[0]
+    base = onode.export_name
+    # The dtype on intermediate NTensors is informational; tract reads
+    # the actual datum type from the op output. Stamping the input's
+    # dtype is fine -- the cast op below switches it to i64.
+    np_dtype = input_node.np_dtype
+
+    def _intermediate(name, shape):
+        t = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
+        name_to_tensor[name] = t
+        return t
+
+    zero_const = PythonConstant(
+        name=f"{base}_cnz_zero",
+        data=torch.zeros((), dtype=input_node.dtype),
+    )
+    zero_ref = op_helper.get_or_add_tensor_variable_in_nnef(zero_const)
+    full_shape = list(input_node.shape)
+    mask = _intermediate(f"{base}_cnz_mask", full_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="ne",
+        name=f"{mask.name}_op",
+        inputs=(inp_ref, zero_ref),
+        outputs=(mask,),
+        attribs={},
+    )
+    int_t = _intermediate(f"{base}_cnz_int", full_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_cast",
+        name=f"{int_t.name}_op",
+        inputs=(mask,),
+        outputs=(int_t,),
+        attribs={"to": TORCH_DTYPE_TO_TRACT_STR[torch.int64]},
+    )
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+    if rank == 0:
+        # Edge case: rank-0 input. `sum_reduce` with empty axes is a
+        # no-op identity; emit a reshape to materialize the final
+        # NTensor with the right name.
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="reshape",
+            name=f"{base}_cnz_reshape",
+            inputs=(int_t,),
+            outputs=(out_ref,),
+            attribs={"shape": []},
+        )
+        return ["tract_core"]
+    kd_shape = list(full_shape)
+    for ax in axes:
+        kd_shape[ax] = 1
+    kd = _intermediate(f"{base}_cnz_kd", kd_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="sum_reduce",
+        name=f"{kd.name}_op",
+        inputs=(int_t,),
+        outputs=(kd,),
+        attribs={"axes": axes},
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="squeeze",
+        name=f"{base}_cnz_squeeze",
+        inputs=(kd,),
+        outputs=(out_ref,),
+        attribs={"axes": axes},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
 def aminmax(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:aminmax' to NNEF.
 

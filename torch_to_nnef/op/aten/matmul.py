@@ -34,9 +34,21 @@ def _get_padding_same_symetric(
 
 
 @OP_REGISTRY.register(
-    # most registred exist in aten but should not be necessary since
-    # _convolution_mode should be rewired to those
-    ["_convolution_mode", "convolution", "conv1d", "conv2d", "conv3d"]
+    # Most of these aten symbols never reach the trace -- pytorch
+    # decomposes them through `aten::_convolution_mode` or
+    # `aten::_convolution` upstream. `convolution_overrideable` is an
+    # autograd hook for backend-specific dispatch; same story. The
+    # registrations are kept so the docs/contributing/supported_operators
+    # page reflects reality (every torch.nn `Conv*d` and
+    # `F.conv*d` form does work in practice via the canonical lowering).
+    [
+        "_convolution_mode",
+        "convolution",
+        "convolution_overrideable",
+        "conv1d",
+        "conv2d",
+        "conv3d",
+    ]
 )
 def _convolution_mode(
     g, node, name_to_tensor, null_ref, inference_target, **kwargs
@@ -123,31 +135,31 @@ def _convolution_mode(
     )
 
 
-@OP_REGISTRY.register()
-def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
-    """Map PyTorch: 'aten:_convolution' to NNEF."""
-    (
-        input_node,
-        weight_node,
-        bias_node,
-        stride_node,
-        padding_node,
-        dilation_node,
-        transposed_node,
-        _,  # output_padding_name
-        groups_node,
-        _,  # benchmark_name
-        _,  # deterministic_name
-        _,  # cuda_enabled
-        _,  # allow_tf32
-    ) = node.inputs
+def _emit_conv(
+    g,
+    node,
+    name_to_tensor,
+    null_ref,
+    inference_target,
+    *,
+    input_node,
+    weight_node,
+    bias_node,
+    stride,
+    padding,
+    dilation,
+    groups,
+    transposed,
+):
+    """Emit NNEF `conv` / `deconv` for the convolution family.
 
-    stride = stride_node.data
-    dilation = dilation_node.data
-    padding = padding_node.data
-    groups = groups_node.data
-    transposed = transposed_node.data
-
+    Shared body of `aten::_convolution` and `aten::conv_transpose{1,2,3}d`.
+    Emits `deconv` for `transposed=True`, else `conv`. Transposed convs
+    need a weight repack: torch stores
+    `(in_channels, out_channels // groups, *spatial)`; NNEF's `deconv`
+    expects `(in_channels // groups, out_channels, *spatial)`. The
+    grouped-then-transposed reshape is in-place on `weight_node.data`.
+    """
     # TODO: problem with conv on qtensor for weight or bias
     # since these params can now be dynamic
     # >> all following code need to happen in the graph
@@ -203,6 +215,85 @@ def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
             "border": "constant",
         },
         force_consistent_inputs_shapes=False,
+    )
+
+
+@OP_REGISTRY.register()
+def _convolution(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
+    """Map PyTorch: 'aten:_convolution' to NNEF."""
+    (
+        input_node,
+        weight_node,
+        bias_node,
+        stride_node,
+        padding_node,
+        dilation_node,
+        transposed_node,
+        _,  # output_padding_name
+        groups_node,
+        _,  # benchmark_name
+        _,  # deterministic_name
+        _,  # cuda_enabled
+        _,  # allow_tf32
+    ) = node.inputs
+    _emit_conv(
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        inference_target,
+        input_node=input_node,
+        weight_node=weight_node,
+        bias_node=bias_node,
+        stride=stride_node.data,
+        padding=padding_node.data,
+        dilation=dilation_node.data,
+        groups=groups_node.data,
+        transposed=transposed_node.data,
+    )
+
+
+@OP_REGISTRY.register(
+    ["conv_transpose1d", "conv_transpose2d", "conv_transpose3d"]
+)
+def conv_transpose_nd(
+    g, node, name_to_tensor, null_ref, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:conv_transpose{1,2,3}d' to NNEF.
+
+    Marked `CompositeImplicitAutograd` upstream, so PyTorch usually
+    decomposes these to `aten::_convolution(transposed=True)` before
+    the trace reaches t2n. Registering them anyway keeps the support
+    page accurate and gives a working path if PyTorch ever stops
+    decomposing for some platform.
+
+    Signature: `(input, weight, bias?, stride, padding, output_padding,
+    groups, dilation)` -- 8 positional args.
+    """
+    (
+        input_node,
+        weight_node,
+        bias_node,
+        stride_node,
+        padding_node,
+        _,  # output_padding -- not propagated to NNEF deconv
+        groups_node,
+        dilation_node,
+    ) = node.inputs
+    _emit_conv(
+        g,
+        node,
+        name_to_tensor,
+        null_ref,
+        inference_target,
+        input_node=input_node,
+        weight_node=weight_node,
+        bias_node=bias_node,
+        stride=stride_node.data,
+        padding=padding_node.data,
+        dilation=dilation_node.data,
+        groups=groups_node.data,
+        transposed=True,
     )
 
 

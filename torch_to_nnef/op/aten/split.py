@@ -158,29 +158,20 @@ def _tensor_split_compute_boundaries(dim_size, sections_or_indices):
     return [int(i) for i in sections_or_indices]
 
 
-@OP_REGISTRY.register()
-def tensor_split(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:tensor_split' to NNEF.
+def _emit_axis_tensor_split(
+    g, node, name_to_tensor, *, input_node, sections_node, axis, op_label
+):
+    """Emit one `slice` per output chunk along `axis`.
 
-    Generalised split that allows uneven sections (unlike `split` /
-    `chunk`). Two overloads are supported:
-
-    * `tensor_split(self, sections: int, dim)` -- divide into N
-      approximately-equal chunks; the first `dim_size % N` chunks
-      take one extra element.
-    * `tensor_split(self, indices: int[], dim)` -- split at the
-      given boundary indices; produces `len(indices) + 1` chunks.
-
-    Each output is a `slice` of the input along `dim`. Static-axis
-    only: the boundaries depend on `dim_size`, which we resolve at
-    trace time.
+    Shared between `tensor_split` and the fixed-axis aliases
+    `vsplit` / `hsplit` / `dsplit`. Boundaries are pre-computed from
+    the static `dim_size`. `axis` is already resolved to a
+    non-negative index by the caller.
     """
-    input_node, sections_node, axis_node = node.inputs
-    axis = pick_axis(input_node, axis_node.data)
     dim_size = input_node.shape[axis]
     if not isinstance(dim_size, int):
         raise T2NErrorNotImplemented(
-            f"tensor_split on dynamic axis {axis} not supported"
+            f"{op_label} on dynamic axis {axis} not supported"
         )
 
     raw = sections_node.data
@@ -196,7 +187,7 @@ def tensor_split(g, node, name_to_tensor, **kwargs):
     boundaries = _tensor_split_compute_boundaries(dim_size, sections_or_indices)
     bounds = [0, *boundaries, dim_size]
     assert len(bounds) - 1 == len(node.outputs), (
-        f"tensor_split: expected {len(bounds) - 1} outputs, "
+        f"{op_label}: expected {len(bounds) - 1} outputs, "
         f"got {len(node.outputs)}"
     )
 
@@ -223,3 +214,65 @@ def tensor_split(g, node, name_to_tensor, **kwargs):
                 "stride": [1],
             },
         )
+
+
+@OP_REGISTRY.register()
+def tensor_split(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:tensor_split' to NNEF.
+
+    Generalised split that allows uneven sections (unlike `split` /
+    `chunk`). Two overloads are supported:
+
+    * `tensor_split(self, sections: int, dim)` -- divide into N
+      approximately-equal chunks; the first `dim_size % N` chunks
+      take one extra element.
+    * `tensor_split(self, indices: int[], dim)` -- split at the
+      given boundary indices; produces `len(indices) + 1` chunks.
+
+    Each output is a `slice` of the input along `dim`. Static-axis
+    only: the boundaries depend on `dim_size`, which we resolve at
+    trace time.
+    """
+    input_node, sections_node, axis_node = node.inputs
+    axis = pick_axis(input_node, axis_node.data)
+    _emit_axis_tensor_split(
+        g,
+        node,
+        name_to_tensor,
+        input_node=input_node,
+        sections_node=sections_node,
+        axis=axis,
+        op_label="tensor_split",
+    )
+
+
+def _emit_fixed_axis_split(g, node, name_to_tensor, axis, op_label):
+    """Shared body for `vsplit` / `hsplit` / `dsplit` (fixed axis 0/1/2)."""
+    input_node, sections_node = node.inputs
+    _emit_axis_tensor_split(
+        g,
+        node,
+        name_to_tensor,
+        input_node=input_node,
+        sections_node=sections_node,
+        axis=axis,
+        op_label=op_label,
+    )
+
+
+@OP_REGISTRY.register()
+def vsplit(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:vsplit' (`tensor_split` along axis 0) to NNEF."""
+    _emit_fixed_axis_split(g, node, name_to_tensor, 0, "vsplit")
+
+
+@OP_REGISTRY.register()
+def hsplit(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:hsplit' (`tensor_split` along axis 1) to NNEF."""
+    _emit_fixed_axis_split(g, node, name_to_tensor, 1, "hsplit")
+
+
+@OP_REGISTRY.register()
+def dsplit(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:dsplit' (`tensor_split` along axis 2) to NNEF."""
+    _emit_fixed_axis_split(g, node, name_to_tensor, 2, "dsplit")
