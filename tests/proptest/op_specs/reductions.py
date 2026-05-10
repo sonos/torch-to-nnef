@@ -190,21 +190,14 @@ def _prod_dim_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
-def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
-    """Var reduction over a single dim, biased estimator only.
+def _var_std_sample_st(method_name: str) -> st.SearchStrategy[OpSample]:
+    """`var` / `std` reduction sweeping `correction` and `keepdim`.
 
-    Two t2n limitations narrow this spec:
-
-    1. The var emitter at `torch_to_nnef/op/aten/math.py` raises
-       NotImplementedError when `correction != 0` (PyTorch defaults to
-       1: unbiased estimator); we sweep correction=0 only.
-    2. The same emitter does not honor `keepdim`: it always emits a
-       squeezed-axes `var` and never reshapes back. `keepdim=True`
-       would surface as a shape mismatch (ref `(..., 1, ...)` vs tract
-       `(...)`); we sweep keepdim=False only.
-
-    Both are tracked t2n improvements that this spec will widen against
-    once they land.
+    The refactored t2n emitter (math.py: `_emit_var_or_std_with_optional_mean`)
+    handles arbitrary `correction` values and both keepdim modes via an
+    explicit `mean_reduce + sub + sqr + reduce` pipeline, so this spec
+    sweeps the full surface (correction in {0, 1, 2}, keepdim in {F, T},
+    rank 1..4, single dim).
     """
 
     @st.composite
@@ -220,6 +213,18 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
             )
         )
         dim = draw(reduction_dim_st(rank))
+        keepdim = draw(st.booleans())
+        # Bound correction by the smallest reduced-axis size minus 1
+        # (denom > 0 is required by torch and the t2n emitter).
+        if isinstance(dim, int):
+            min_axis = shape[dim]
+        elif dim is None:
+            min_axis = 1
+            for d in shape:
+                min_axis *= d
+        else:
+            min_axis = min(shape[d] for d in dim)
+        correction = draw(st.integers(min_value=0, max_value=min_axis - 1))
         x = draw(
             tensor_st(
                 shape,
@@ -231,11 +236,11 @@ def _var_dim_sample_st() -> st.SearchStrategy[OpSample]:
         return OpSample(
             inputs=(x,),
             module=TensorFnPrimitive(
-                "var",
+                method_name,
                 kwargs={
                     "dim": dim,
-                    "keepdim": False,
-                    "correction": 0,
+                    "keepdim": keepdim,
+                    "correction": correction,
                 },
             ),
         )
@@ -320,12 +325,30 @@ def _reduction_specs() -> T.List[OpSpec]:
             sample_st=_prod_dim_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
         ),
-        # var has unbiased/biased variants via the `correction` kwarg.
-        # We sweep both.
+        # var / std sweep the full (dim, correction, keepdim) surface
+        # against the refactored t2n emitter. Not opted into the
+        # dyn-axes variant: the kept-dim intermediates created by
+        # `_make_intermediate_ntensor` declare concrete numeric shapes,
+        # which clash with tract's symbolic-dim resolution
+        # ("d_axis0_sizeN should be equal to N"). Lifting that needs
+        # the intermediate-shape builder to track dyn-axis symbols.
         OpSpec(
             name="var-dim",
-            sample_st=_var_dim_sample_st(),
+            sample_st=_var_std_sample_st("var"),
             tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
+        ),
+        OpSpec(
+            name="std-dim",
+            sample_st=_var_std_sample_st("std"),
+            tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
         ),
     ]
 
@@ -450,10 +473,87 @@ def _aminmax_specs() -> T.List[OpSpec]:
     ]
 
 
+def _var_std_mean_sample_st(
+    method_name: str,
+) -> st.SearchStrategy[OpSample]:
+    """`var_mean` / `std_mean` -- multi-output forms.
+
+    Same surface as `_var_std_sample_st`; the wrapped op returns a
+    `(var_or_std, mean)` tuple which the comparator handles
+    transparently via the multi-output NPZ path.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(reduction_dim_st(rank))
+        keepdim = draw(st.booleans())
+        if isinstance(dim, int):
+            min_axis = shape[dim]
+        elif dim is None:
+            min_axis = 1
+            for d in shape:
+                min_axis *= d
+        else:
+            min_axis = min(shape[d] for d in dim)
+        correction = draw(st.integers(min_value=0, max_value=min_axis - 1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1e2, 1e2),
+            )
+        )
+        op_fn = (
+            lambda d, c, k: (
+                lambda t: getattr(torch, method_name)(
+                    t, dim=d, correction=c, keepdim=k
+                )
+            )
+        )(dim, correction, keepdim)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _var_std_mean_specs() -> T.List[OpSpec]:
+    return [
+        OpSpec(
+            name="var_mean",
+            sample_st=_var_std_mean_sample_st("var_mean"),
+            tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
+        ),
+        OpSpec(
+            name="std_mean",
+            sample_st=_var_std_mean_sample_st("std_mean"),
+            tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
+        ),
+    ]
+
+
 # Registry assembly
 
 SPECS = (
     *_reduction_specs(),
     *_reduction_dtype_kwarg_specs(),
     *_aminmax_specs(),
+    *_var_std_mean_specs(),
 )

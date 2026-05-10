@@ -865,69 +865,285 @@ def fmod(node, op_helper, **kwargs):
     return ["fmod", "trunc"]
 
 
-@OP_REGISTRY.register()
-def var(node, op_helper, **kwargs):
-    """aten::var."""
-    if len(node.inputs) >= 3:
-        inode, dnode, cornode = node.inputs[:3]
+def _parse_var_inputs(node, input_tensor_rank):
+    """Parse `(input, dims, correction, keepdim)` for the var family.
+
+    Covers the `aten::var` / `std` / `var_mean` / `std_mean` overloads.
+    Returns `(input_node, axes, correction, keepdim)` with axes
+    normalized to non-negative ints. Falls back to legacy `unbiased`
+    booleans on the 2-arg overload (pre-correction torch).
+    """
+    if len(node.inputs) >= 4:
+        input_node, dnode, cornode, kdnode = node.inputs[:4]
+        keepdim = bool(kdnode.data)
+    elif len(node.inputs) == 3:
+        input_node, dnode, cornode = node.inputs[:3]
+        keepdim = False
     elif len(node.inputs) == 2:  # legacy pytorch
-        inode, unbiased_node = node.inputs
+        input_node, unbiased_node = node.inputs
         cor_val = 1 if unbiased_node.data else 0
         cornode = PythonConstant(
             name=f"{node.outputs[0].name}_corr", data=cor_val
         )
         dnode = PythonConstant(name=f"{node.outputs[0].name}_dims", data=None)
+        keepdim = False
     else:
         raise T2NErrorNotImplemented(len(node.inputs))
-    input_tensor = op_helper.get_or_add_tensor_variable_in_nnef(inode)
-    raw_axes = dnode.data or list(range(input_tensor.rank))
-    axes = [a if a >= 0 else input_tensor.rank + a for a in raw_axes]
-    correction = cornode.data
-    if correction not in (0, 1):
-        raise T2NErrorNotImplemented(
-            f"variance correction={correction} not supported"
-        )
-    if correction == 0:
-        op_helper.add_single_output_op_from_nnef_tensors(
-            node,
-            "var",
-            inputs=input_tensor,
-            attrs={"axes": axes},
-        )
-        return ["var"]
-    # NNEF ``var`` is population variance (denominator N); PyTorch's default
-    # ``var(correction=1)`` is sample variance (denominator N - 1). Compute
-    # population variance, then rescale by N / (N - 1). Static axes only.
+    raw_axes = dnode.data
+    if raw_axes is None or raw_axes == []:
+        axes = list(range(input_tensor_rank))
+    else:
+        axes = [a if a >= 0 else input_tensor_rank + a for a in raw_axes]
+    correction = int(cornode.data)
+    return input_node, axes, correction, keepdim
+
+
+def _static_n_along_axes(input_node, axes):
+    """Static product of shape sizes along the given axes."""
     n = 1
     for axis in axes:
-        dim = input_tensor.shape[axis]
+        dim = input_node.shape[axis]
         if not isinstance(dim, int):
             raise T2NErrorNotImplemented(
-                f"variance correction=1 needs static axes; got {dim}"
+                f"var/std needs static shape on reduced axis {axis}; got {dim}"
             )
         n *= dim
-    if n <= 1:
-        raise T2NErrorNotImplemented(
-            f"variance correction=1 ill-defined for N={n}"
+    return n
+
+
+def _make_intermediate_ntensor(g, name_to_tensor, name, shape, np_dtype):
+    """NTensor with an explicit shape, registered in `name_to_tensor`.
+
+    The shared `add_single_output_op_from_nnef_tensors` helper inherits
+    `node.outputs[0].shape` for every intermediate it emits, which is
+    the *post*-squeeze shape for the var/std family. The kept-dim
+    intermediates have a different rank, and tract's auto rank-align
+    relies on declared shapes -- if we declare a (2, 4) shape on a
+    tensor that's actually (2, 1, 4), align inserts unsqueeze on the
+    wrong axis and broadcast then misaligns the reduced axis.
+    Building NTensors explicitly with the kept-dim shape avoids that
+    trap.
+    """
+    tensor = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
+    name_to_tensor[name] = tensor
+    return tensor
+
+
+def _emit_op_with_explicit_output(
+    op_helper, *, op_type, inputs, output, attribs=None
+):
+    cast_and_add_nnef_operation(
+        name_to_tensor=op_helper.name_to_tensor,
+        graph=op_helper.g,
+        type=op_type,
+        name=f"{output.name}_op",
+        inputs=tuple(inputs) if isinstance(inputs, list) else (inputs,),
+        outputs=(output,),
+        attribs=attribs or {},
+    )
+    return output
+
+
+def _kept_dim_shape(input_node, axes):
+    """Input shape with each reduced axis collapsed to size 1."""
+    shape = list(input_node.shape)
+    for ax in axes:
+        shape[ax] = 1
+    return shape
+
+
+def _emit_var_or_std_with_optional_mean(
+    node, op_helper, *, take_sqrt, also_emit_mean
+):
+    """Shared backbone for `var`, `std`, `var_mean`, `std_mean`.
+
+    Pipeline (all kept-dim shapes, finalised by an explicit squeeze
+    when `keepdim=False`):
+
+        mean_kd = mean_reduce(x, axes)
+        sq      = sqr(x - mean_kd)
+        var_kd  = mean_reduce(sq, axes)                    # correction=0
+                  | sum_reduce(sq, axes) * 1/(N-correction) # correction>0
+        std_kd  = sqrt(var_kd)                              # for std/std_mean
+
+    `var_mean` / `std_mean` reuse the single `mean_kd` for both outputs.
+    """
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    input_node = node.inputs[0]
+    rank = input_node.rank
+    _, axes, correction, keepdim = _parse_var_inputs(node, rank)
+    n = _static_n_along_axes(input_node, axes)
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+
+    np_dtype = node.outputs[0].np_dtype
+    base = node.outputs[0].export_name
+    kd_shape = _kept_dim_shape(input_node, axes)
+
+    mean_kd = _make_intermediate_ntensor(
+        g, name_to_tensor, f"{base}_vs_mean_kd", kd_shape, np_dtype
+    )
+    _emit_op_with_explicit_output(
+        op_helper,
+        op_type="mean_reduce",
+        inputs=[inp_ref],
+        output=mean_kd,
+        attribs={"axes": axes},
+    )
+    centered = _make_intermediate_ntensor(
+        g,
+        name_to_tensor,
+        f"{base}_vs_centered",
+        list(input_node.shape),
+        np_dtype,
+    )
+    _emit_op_with_explicit_output(
+        op_helper,
+        op_type="sub",
+        inputs=[inp_ref, mean_kd],
+        output=centered,
+    )
+    sq = _make_intermediate_ntensor(
+        g,
+        name_to_tensor,
+        f"{base}_vs_sq",
+        list(input_node.shape),
+        np_dtype,
+    )
+    _emit_op_with_explicit_output(
+        op_helper, op_type="sqr", inputs=[centered], output=sq
+    )
+
+    if correction == 0:
+        var_kd = _make_intermediate_ntensor(
+            g, name_to_tensor, f"{base}_vs_var_kd", kd_shape, np_dtype
         )
-    pop_var = op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "var",
-        inputs=input_tensor,
-        attrs={"axes": axes},
-        output_tensor_name_suffix="population",
+        _emit_op_with_explicit_output(
+            op_helper,
+            op_type="mean_reduce",
+            inputs=[sq],
+            output=var_kd,
+            attribs={"axes": axes},
+        )
+    else:
+        denom = n - correction
+        if denom <= 0:
+            raise T2NErrorNotImplemented(
+                f"var/std with correction={correction} ill-defined for N={n}"
+            )
+        ssq = _make_intermediate_ntensor(
+            g, name_to_tensor, f"{base}_vs_ssq", kd_shape, np_dtype
+        )
+        _emit_op_with_explicit_output(
+            op_helper,
+            op_type="sum_reduce",
+            inputs=[sq],
+            output=ssq,
+            attribs={"axes": axes},
+        )
+        inv_denom = PythonConstant(
+            name=f"{base}_vs_inv_denom",
+            data=torch.tensor(1.0 / float(denom), dtype=torch.float32),
+        )
+        inv_ref = op_helper.get_or_add_tensor_variable_in_nnef(inv_denom)
+        var_kd = _make_intermediate_ntensor(
+            g, name_to_tensor, f"{base}_vs_var_kd", kd_shape, np_dtype
+        )
+        _emit_op_with_explicit_output(
+            op_helper,
+            op_type="mul",
+            inputs=[ssq, inv_ref],
+            output=var_kd,
+        )
+
+    if take_sqrt:
+        std_kd = _make_intermediate_ntensor(
+            g, name_to_tensor, f"{base}_vs_std_kd", kd_shape, np_dtype
+        )
+        _emit_op_with_explicit_output(
+            op_helper, op_type="sqrt", inputs=[var_kd], output=std_kd
+        )
+        primary_kd = std_kd
+    else:
+        primary_kd = var_kd
+
+    _finalize_reduce_to_output(
+        op_helper, node, primary_kd, axes, keepdim, output_idx=0
     )
-    scale_const = PythonConstant(
-        name=f"{node.outputs[0].name}_var_correction",
-        data=torch.tensor(float(n) / float(n - 1), dtype=torch.float32),
+    if also_emit_mean:
+        _finalize_reduce_to_output(
+            op_helper, node, mean_kd, axes, keepdim, output_idx=1
+        )
+
+
+def _finalize_reduce_to_output(
+    op_helper, node, kept_dim_ref, axes, keepdim, output_idx
+):
+    """Squeeze (or reshape) `kept_dim_ref` into `node.outputs[output_idx]`.
+
+    NNEF reductions keep the reduced axis as size-1; torch's keepdim=False
+    drops it, so we emit an explicit squeeze. For keepdim=True the kept-dim
+    shape already matches the torch output, so a no-op reshape suffices to
+    materialize the final-named NTensor.
+    """
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    onode = node.outputs[output_idx]
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
     )
-    scale_tensor = op_helper.get_or_add_tensor_variable_in_nnef(scale_const)
-    op_helper.add_single_output_op_from_nnef_tensors(
-        node,
-        "mul",
-        inputs=[pop_var, scale_tensor],
+    op_type = "squeeze" if not keepdim else "reshape"
+    attribs = {"axes": axes} if not keepdim else {"shape": list(onode.shape)}
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type=op_type,
+        name=f"{onode.export_name}_finalize",
+        inputs=kept_dim_ref,
+        outputs=out_ref,
+        attribs=attribs,
     )
-    return ["var"]
+
+
+@OP_REGISTRY.register()
+def var(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:var' to NNEF.
+
+    Centered second moment along `dim` with arbitrary `correction`
+    (denominator = N - correction). Lowered to mean_reduce + sub + sqr
+    + (sum_reduce / mean_reduce) so any correction value works without
+    relying on NNEF's `var` fragment (which always squeezes and so
+    can't honor `keepdim=True`).
+    """
+    _emit_var_or_std_with_optional_mean(
+        node, op_helper, take_sqrt=False, also_emit_mean=False
+    )
+
+
+@OP_REGISTRY.register()
+def std(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:std' (sqrt of var) to NNEF."""
+    _emit_var_or_std_with_optional_mean(
+        node, op_helper, take_sqrt=True, also_emit_mean=False
+    )
+
+
+@OP_REGISTRY.register()
+def var_mean(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:var_mean' (returns `(var, mean)`) to NNEF."""
+    assert len(node.outputs) == 2
+    _emit_var_or_std_with_optional_mean(
+        node, op_helper, take_sqrt=False, also_emit_mean=True
+    )
+
+
+@OP_REGISTRY.register()
+def std_mean(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:std_mean' (returns `(std, mean)`) to NNEF."""
+    assert len(node.outputs) == 2
+    _emit_var_or_std_with_optional_mean(
+        node, op_helper, take_sqrt=True, also_emit_mean=True
+    )
 
 
 @OP_REGISTRY.register(["logical_xor"])
