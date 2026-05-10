@@ -795,6 +795,32 @@ def _bitwise_not_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _bitwise_shift_sample_st(
+    op: T.Callable[..., torch.Tensor],
+) -> st.SearchStrategy[OpSample]:
+    """Bitwise shift over int32: non-negative data, shift counts in [0, 30].
+
+    The data interval excludes negatives because right-shift on signed
+    integers is implementation-defined in C++ and tract follows the
+    arithmetic-shift convention; sticking to non-negative inputs keeps
+    the comparison crisp. Shift counts above 30 are UB on 32-bit ints,
+    so we cap them at 30.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        sa, sb = draw(binary_broadcast_shapes_st(max_rank=4, max_dim=6))
+        a = draw(
+            tensor_st(sa, torch.int32, finite=True, domain=Interval(0, 1024))
+        )
+        b = draw(
+            tensor_st(sb, torch.int32, finite=True, domain=Interval(0, 30))
+        )
+        return OpSample(inputs=(a, b), module=BinaryPrimitive(op))
+
+    return _draw()
+
+
 def _zeros_like_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.zeros_like(input)`: output matches input shape/dtype.
 
@@ -883,6 +909,18 @@ def _bitwise_builder_specs() -> T.List[OpSpec]:
             name="bitwise_not",
             sample_st=_bitwise_not_sample_st(),
             tolerance=EXACT,
+        ),
+        OpSpec(
+            name="bitwise_left_shift",
+            sample_st=_bitwise_shift_sample_st(torch.bitwise_left_shift),
+            tolerance=EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="bitwise_right_shift",
+            sample_st=_bitwise_shift_sample_st(torch.bitwise_right_shift),
+            tolerance=EXACT,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="zeros_like",

@@ -1217,6 +1217,61 @@ def bitwise_or(node, op_helper, inference_target, **kwargs):
     return ["tract_core"]
 
 
+def _emit_bitwise_shift(node, op_helper, inference_target, *, nnef_op_type):
+    """Emit one of tract's shift ops (`tract_shl` / `tract_shr`).
+
+    PythonConstant shift counts (the `<< 2` form) traced as
+    `prim::Constant[int]` lower to NNEF integer literals. tract's
+    NNEF reader binds bare integer literals as TDim (its shape-arith
+    type), and `ShiftLeft` / `ShiftRight` reject TDim at evaluation.
+    Force the constant through a `tract_core_cast` to the data
+    input's dtype so the shift sees a concrete int tensor.
+    """
+    assert len(node.outputs) == 1
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    a_node, b_node = node.inputs
+    a_ref = op_helper.get_or_add_tensor_variable_in_nnef(a_node)
+    if isinstance(b_node, PythonConstant):
+        b_node = b_node.into_tensor_variable()
+        b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+        b_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_cast",
+            inputs=b_ref,
+            attrs={"to": TORCH_DTYPE_TO_TRACT_STR[a_node.dtype]},
+            output_tensor_name_suffix="shift_count",
+        )
+    else:
+        b_ref = op_helper.get_or_add_tensor_variable_in_nnef(b_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        nnef_op_type,
+        inputs=[a_ref, b_ref],
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register(torch_op_ids=["bitwise_left_shift", "__lshift__"])
+def bitwise_left_shift(node, op_helper, inference_target, **kwargs):
+    """Map `aten:bitwise_left_shift` / `<<` op to NNEF -> `tract_shl`.
+
+    Tract's shift ops live under the `tract_core` extension despite
+    the bare `tract_shl` / `tract_shr` names in the registry.
+    """
+    return _emit_bitwise_shift(
+        node, op_helper, inference_target, nnef_op_type="tract_shl"
+    )
+
+
+@OP_REGISTRY.register(torch_op_ids=["bitwise_right_shift", "__rshift__"])
+def bitwise_right_shift(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:bitwise_right_shift' / `>>` op -> `tract_shr`."""
+    return _emit_bitwise_shift(
+        node, op_helper, inference_target, nnef_op_type="tract_shr"
+    )
+
+
 @OP_REGISTRY.register()
 def addcmul(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:addcmul' to the `addcmul` fragment."""
