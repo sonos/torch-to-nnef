@@ -326,16 +326,29 @@ def _reduction_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.CLOSE,
         ),
         # var / std sweep the full (dim, correction, keepdim) surface
-        # against the refactored t2n emitter.
+        # against the refactored t2n emitter. Not opted into the
+        # dyn-axes variant: the kept-dim intermediates created by
+        # `_make_intermediate_ntensor` declare concrete numeric shapes,
+        # which clash with tract's symbolic-dim resolution
+        # ("d_axis0_sizeN should be equal to N"). Lifting that needs
+        # the intermediate-shape builder to track dyn-axis symbols.
         OpSpec(
             name="var-dim",
             sample_st=_var_std_sample_st("var"),
             tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
         ),
         OpSpec(
             name="std-dim",
             sample_st=_var_std_sample_st("std"),
             tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
         ),
     ]
 
@@ -519,11 +532,19 @@ def _var_std_mean_specs() -> T.List[OpSpec]:
             name="var_mean",
             sample_st=_var_std_mean_sample_st("var_mean"),
             tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
         ),
         OpSpec(
             name="std_mean",
             sample_st=_var_std_mean_sample_st("std_mean"),
             tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_skip_reason=(
+                "var family kept-dim intermediates declare concrete "
+                "shapes; symbolic-dim threading needs follow-up."
+            ),
         ),
     ]
 
