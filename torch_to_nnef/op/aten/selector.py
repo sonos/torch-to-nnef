@@ -11,6 +11,7 @@ from torch_to_nnef.inference_target import TractNNEF
 from torch_to_nnef.op.helper import (
     AtenOpRegistry,
     cast_and_add_nnef_operation,
+    get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
     pick_axis,
     pick_index_in_axis,
@@ -1238,5 +1239,241 @@ def diagonal(node, op_helper, inference_target, **kwargs):
             "acc": "f32",
             "output": "",
         },
+    )
+    return ["tract_core"]
+
+
+def _broadcast_index_to_input_shape(
+    op_helper, node, input_node, index_node, dim
+):
+    """Broadcast a 1-D `index` to `input_node.shape` with `dim` sized `k`.
+
+    `tract_core_scatter_elements` requires `indices` and `updates` to
+    have the same shape as the iteration domain. Torch's index_* family
+    ships a rank-1 `index`, so we unsqueeze it to the input rank and
+    tile it across every non-`dim` axis.
+    """
+    rank = input_node.rank
+    if not isinstance(index_node.shape[0], int):
+        raise T2NErrorNotImplemented(
+            "index_* with dynamic-length index not supported"
+        )
+    k = int(index_node.shape[0])
+    idx_ref = op_helper.get_or_add_tensor_variable_in_nnef(index_node)
+    if rank == 1:
+        return idx_ref, [k]
+
+    repeats = list(input_node.shape)
+    if not all(isinstance(d, int) for d in repeats):
+        raise T2NErrorNotImplemented(
+            "index_* with dynamic non-`dim` axes not supported"
+        )
+    repeats[dim] = 1
+
+    axes_to_add = [i for i in range(rank) if i != dim]
+    idx_unsq = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "unsqueeze",
+        inputs=idx_ref,
+        attrs={"axes": axes_to_add},
+        output_tensor_name_suffix="_idx_unsq",
+    )
+    idx_bcast = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tile",
+        inputs=idx_unsq,
+        attrs={"repeats": repeats},
+        output_tensor_name_suffix="_idx_bcast",
+    )
+    bcast_shape = list(input_node.shape)
+    bcast_shape[dim] = k
+    return idx_bcast, bcast_shape
+
+
+def _emit_index_family_scatter(
+    g,
+    name_to_tensor,
+    op_helper,
+    node,
+    input_node,
+    dim,
+    index_node,
+    src_ref,
+    reduction,
+):
+    """Common backbone for `index_fill` / `index_copy` / `index_add`.
+
+    They differ only in `reduction` ('none' / 'add') and how `src_ref`
+    is built (constant-fill vs. user-provided tensor); the indices
+    broadcast and the scatter call are the same.
+    """
+    idx_ref, _ = _broadcast_index_to_input_shape(
+        op_helper, node, input_node, index_node, dim
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_scatter_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            idx_ref,
+            src_ref,
+        ],
+        attrs={"axis": dim, "reduction": reduction},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def index_fill(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:index_fill' to NNEF.
+
+    `index_fill(self, dim, index, value)` writes the scalar `value` at
+    every `(..., index[k], ...)` position along `dim`. Lowered to
+    `tract_core_scatter_elements` with `reduction='none'` against an
+    all-`value` constant of the broadcast shape.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    _check_scatter_reduction_supported(inference_target)
+    input_node, dim_node, index_node, value_node = node.inputs
+    dim = pick_axis(input_node, dim_node.data)
+    if not isinstance(value_node, PythonConstant):
+        raise T2NErrorNotImplemented("index_fill needs a constant value")
+
+    bcast_shape = list(input_node.shape)
+    if not isinstance(index_node.shape[0], int) or not all(
+        isinstance(d, int) for d in bcast_shape
+    ):
+        raise T2NErrorNotImplemented(
+            "index_fill requires static index length and input shape"
+        )
+    bcast_shape[dim] = int(index_node.shape[0])
+
+    fill = torch.full(
+        bcast_shape, float(value_node.data), dtype=input_node.dtype
+    )
+    src_const = PythonConstant(name=f"{node.outputs[0].name}_if_src", data=fill)
+    src_ref = get_or_add_tensor_variable_in_nnef(g, src_const, name_to_tensor)
+    return _emit_index_family_scatter(
+        g,
+        name_to_tensor,
+        op_helper,
+        node,
+        input_node,
+        dim,
+        index_node,
+        src_ref,
+        reduction="none",
+    )
+
+
+@OP_REGISTRY.register()
+def index_copy(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:index_copy' to NNEF.
+
+    `index_copy(self, dim, index, source)` overwrites slabs along `dim`:
+    `out[..., index[k], ...] = source[..., k, ...]`. Same scatter
+    backbone as `index_fill`, just with the user's `source` directly.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    _check_scatter_reduction_supported(inference_target)
+    input_node, dim_node, index_node, src_node = node.inputs
+    dim = pick_axis(input_node, dim_node.data)
+    src_ref = op_helper.get_or_add_tensor_variable_in_nnef(src_node)
+    return _emit_index_family_scatter(
+        g,
+        name_to_tensor,
+        op_helper,
+        node,
+        input_node,
+        dim,
+        index_node,
+        src_ref,
+        reduction="none",
+    )
+
+
+@OP_REGISTRY.register()
+def index_add(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:index_add' to NNEF.
+
+    `index_add(self, dim, index, source, alpha)` adds `alpha * source`
+    into the input at the index slabs. We pre-multiply `source` by
+    `alpha` (when not 1) and reuse the scatter backbone with
+    `reduction='add'`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    _check_scatter_reduction_supported(inference_target)
+    input_node, dim_node, index_node, src_node, alpha_node = node.inputs
+    dim = pick_axis(input_node, dim_node.data)
+    alpha = alpha_node.data if isinstance(alpha_node, PythonConstant) else 1
+    src_ref = op_helper.get_or_add_tensor_variable_in_nnef(src_node)
+    if alpha != 1:
+        alpha_const = PythonConstant(
+            name=f"{node.outputs[0].name}_ia_alpha",
+            data=torch.tensor(float(alpha), dtype=src_node.dtype),
+        )
+        alpha_ref = get_or_add_tensor_variable_in_nnef(
+            g, alpha_const, name_to_tensor
+        )
+        src_ref = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "mul",
+            inputs=[src_ref, alpha_ref],
+            output_tensor_name_suffix="_ia_scaled",
+            force_consistent_inputs_shapes=False,
+        )
+    return _emit_index_family_scatter(
+        g,
+        name_to_tensor,
+        op_helper,
+        node,
+        input_node,
+        dim,
+        index_node,
+        src_ref,
+        reduction="add",
+    )
+
+
+@OP_REGISTRY.register()
+def take(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:take' to NNEF.
+
+    `take(self, index)` flattens `self` to 1-D and gathers along axis
+    0. Lowered to a static `reshape` (to `(numel,)`) followed by
+    `tract_core_gather` on axis 0.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    input_node, index_node = node.inputs
+    if not all(isinstance(d, int) for d in input_node.shape):
+        raise T2NErrorNotImplemented(
+            "take with dynamic input shape not supported"
+        )
+    flat_size = 1
+    for d in input_node.shape:
+        flat_size *= int(d)
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    flat = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=inp_ref,
+        attrs={"shape": [flat_size]},
+        output_tensor_name_suffix="_take_flat",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[
+            flat,
+            op_helper.get_or_add_tensor_variable_in_nnef(index_node),
+        ],
+        attrs={"axis": 0},
+        force_consistent_inputs_shapes=False,
     )
     return ["tract_core"]

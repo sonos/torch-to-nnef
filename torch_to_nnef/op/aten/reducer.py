@@ -191,3 +191,18 @@ def prod(node, op_helper, inference_target, **kwargs):
         raise T2NErrorNotImplemented(inference_target)
     reducer_helper("tract_core_product_reduce", node, op_helper)
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def aminmax(node, op_helper, **kwargs):
+    """Map PyTorch: 'aten:aminmax' to NNEF.
+
+    `aminmax(input, dim=None, keepdim=False)` returns a `(min, max)`
+    tuple. Decomposed into two independent reductions: `min_reduce`
+    into `outputs[0]` and `max_reduce` into `outputs[1]`. Squeeze
+    handling is shared with the rest of the reducer family via
+    `reducer_helper`.
+    """
+    assert len(node.outputs) == 2
+    reducer_helper("min_reduce", node, op_helper, output_idx=0)
+    reducer_helper("max_reduce", node, op_helper, output_idx=1)

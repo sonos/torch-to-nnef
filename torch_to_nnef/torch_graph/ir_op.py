@@ -425,6 +425,14 @@ INFER_RULES = {
     NUMTOTENSOR_KIND: InferRule(None, 1, identity=True),
     ATEN_CLONE: InferRule(None, 1, identity=True),
     ATEN_ALIAS: InferRule(None, 1, identity=True),
+    # `aten::index_add` has both `int dim` and `str dim` (dimname)
+    # overloads. PyTorch's overload resolver flips to dimname when the
+    # tracer hands us an int it can't otherwise disambiguate, raising
+    # a cast error. The output shape always equals the input shape so
+    # we short-circuit shape inference instead of calling op_ref.
+    "aten::index_add": InferRule(None, 1, identity=True),
+    "aten::index_copy": InferRule(None, 1, identity=True),
+    "aten::index_fill": InferRule(None, 1, identity=True),
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),
