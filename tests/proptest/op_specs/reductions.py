@@ -442,6 +442,10 @@ def _aminmax_specs() -> T.List[OpSpec]:
             name="aminmax",
             sample_st=_aminmax_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
+            # Routes through `reducer_helper` like amax/amin -- the
+            # static-axes path and the tract_core_shape_of dynamic-axes
+            # path are shared, so dynamic axis 0 works out of the box.
+            dynamic_axes_compatible=True,
         ),
     ]
 
