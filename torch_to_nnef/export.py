@@ -34,6 +34,7 @@ from torch_to_nnef.tensor import (
     set_opaque_tensor_in_params_as_ref,
 )
 from torch_to_nnef.tensor.updater import ModTensorUpdater
+from torch_to_nnef.torch_graph import harden_jit_for_export
 from torch_to_nnef.torch_graph.ir_naming import (
     DEFAULT_VARNAME_SCHEME,
     VariableNamingScheme,
@@ -234,9 +235,6 @@ def export_model_to_nnef(
     # successful export and a `ModuleNotFoundError`. Opt out via
     # `auto_harden_jit=False` to drive the chain manually.
     if auto_harden_jit and isinstance(model, torch.jit.ScriptModule):
-        # pylint: disable-next=import-outside-toplevel
-        from torch_to_nnef.torch_graph import harden_jit_for_export
-
         LOGGER.info(
             "Detected torch.jit.ScriptModule; auto-applying "
             "harden_jit_for_export. Pass auto_harden_jit=False to "

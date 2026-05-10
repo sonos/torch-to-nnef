@@ -128,3 +128,98 @@ def chunk(g, node, name_to_tensor, **kwargs):
             },
         )
         current_dim_elm_idx += n_elements
+
+
+def _tensor_split_compute_boundaries(dim_size, sections_or_indices):
+    """Resolve `indices_or_sections` into a list of split-axis boundaries.
+
+    - int N: split into N chunks. The first `dim_size % N` chunks have
+      `ceil(dim_size / N)` elements; the rest have `floor(dim_size / N)`.
+      Boundaries are `[k1, k1+k2, ..., k1+...+kN-1]` (length N-1).
+    - int list: the values are direct boundary indices (length k);
+      torch produces k+1 chunks separated by these.
+    """
+    if isinstance(sections_or_indices, int):
+        n = sections_or_indices
+        if n <= 0:
+            raise T2NErrorNotImplemented(
+                f"tensor_split requires positive sections, got {n}"
+            )
+        big = dim_size % n
+        big_size = (dim_size + n - 1) // n
+        small_size = dim_size // n
+        sizes = [big_size] * big + [small_size] * (n - big)
+        boundaries = []
+        cur = 0
+        for s in sizes[:-1]:
+            cur += s
+            boundaries.append(cur)
+        return boundaries
+    return [int(i) for i in sections_or_indices]
+
+
+@OP_REGISTRY.register()
+def tensor_split(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:tensor_split' to NNEF.
+
+    Generalised split that allows uneven sections (unlike `split` /
+    `chunk`). Two overloads are supported:
+
+    * `tensor_split(self, sections: int, dim)` -- divide into N
+      approximately-equal chunks; the first `dim_size % N` chunks
+      take one extra element.
+    * `tensor_split(self, indices: int[], dim)` -- split at the
+      given boundary indices; produces `len(indices) + 1` chunks.
+
+    Each output is a `slice` of the input along `dim`. Static-axis
+    only: the boundaries depend on `dim_size`, which we resolve at
+    trace time.
+    """
+    input_node, sections_node, axis_node = node.inputs
+    axis = pick_axis(input_node, axis_node.data)
+    dim_size = input_node.shape[axis]
+    if not isinstance(dim_size, int):
+        raise T2NErrorNotImplemented(
+            f"tensor_split on dynamic axis {axis} not supported"
+        )
+
+    raw = sections_node.data
+    if hasattr(raw, "tolist"):
+        raw = raw.tolist()
+    if isinstance(raw, list):
+        sections_or_indices = [
+            int(x.data) if isinstance(x, PythonConstant) else int(x)
+            for x in raw
+        ]
+    else:
+        sections_or_indices = int(raw)
+    boundaries = _tensor_split_compute_boundaries(dim_size, sections_or_indices)
+    bounds = [0, *boundaries, dim_size]
+    assert len(bounds) - 1 == len(node.outputs), (
+        f"tensor_split: expected {len(bounds) - 1} outputs, "
+        f"got {len(node.outputs)}"
+    )
+
+    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    for out_node, begin, end in zip(
+        node.outputs, bounds[:-1], bounds[1:], strict=True
+    ):
+        out = add_tensor_variable_node_as_nnef_tensor(
+            g,
+            out_node,
+            name_to_tensor,
+            prevent_variable=True,
+        )
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="slice",
+            inputs=inputs,
+            outputs=tuple([out]),
+            attribs={
+                "axes": [axis],
+                "begin": [begin],
+                "end": [end],
+                "stride": [1],
+            },
+        )
