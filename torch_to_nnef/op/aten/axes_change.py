@@ -1098,7 +1098,7 @@ def _as_pair(node_value, name: str):
         node_value = node_value.tolist()
     if not isinstance(node_value, (list, tuple)) or len(node_value) != 2:
         raise T2NErrorNotImplemented(
-            f"im2col: {name} must be a 2-element list; got {node_value!r}"
+            f"{name} must be a 2-element list; got {node_value!r}"
         )
     return int(node_value[0]), int(node_value[1])
 
@@ -1202,5 +1202,213 @@ def im2col(node, op_helper, **kwargs):
         "reshape",
         inputs=stacked,
         attrs={"shape": [n, c * kh * kw, o_h * o_w]},
+    )
+    return []
+
+
+@OP_REGISTRY.register()
+def col2im(node, op_helper, **kwargs):
+    """Map PyTorch `aten::col2im` (a.k.a. `F.fold`) to NNEF.
+
+    Signature: `col2im(self, output_size, kernel_size, dilation, padding,
+    stride)` for a rank-3 input `(N, C * kH * kW, L)`. Inverse of
+    `im2col`: places each of the `kH * kW` "kernel offsets" of the input
+    at strided positions inside a `(N, C, output_H + 2*pH, output_W +
+    2*pW)` canvas, summing overlaps, then crops the canvas to
+    `(N, C, output_H, output_W)`.
+
+    Tract has no NNEF-level `col2im` / `scatter_add-with-reduction` on
+    the version we target, so we decompose per kernel offset:
+
+    1. reshape input `(N, C*kH*kW, n_h*n_w)` -> `(N, C, kH, kW, n_h, n_w)`;
+    2. for every `(di, dj)`:
+       a. slice the per-offset feature map `(N, C, n_h, n_w)`;
+       b. spread it to `(N, C, n_h*sH, n_w*sW)` -- reshape with two
+          size-1 axes then `pad` axis 3 by `(0, sH-1)` and axis 5 by
+          `(0, sW-1)` to insert zeros between elements -- then reshape
+          to flatten the spread axes; trim trailing zeros by slicing to
+          `((n_h-1)*sH + 1, (n_w-1)*sW + 1)`;
+       c. pad to the canvas size `(padded_H, padded_W)` with left/top
+          offsets `(di*dH, dj*dW)`;
+    3. sum the `kH * kW` placed contributions (`add` chain);
+    4. crop the leading / trailing `(pH, pW)` rows / cols of the
+       canvas to land on `(N, C, output_H, output_W)`.
+
+    A future tract release that exposes a native col2im (or scatter-add
+    with sum reduction) lets us replace this chain with a single op
+    behind a version gate.
+    """
+    (
+        input_node,
+        output_size_node,
+        kernel_node,
+        dilation_node,
+        padding_node,
+        stride_node,
+    ) = node.inputs
+    if input_node.rank != 3:
+        raise T2NErrorNotImplemented(
+            f"col2im expects rank-3 input (N, C*kH*kW, L); got rank "
+            f"{input_node.rank}"
+        )
+    out_h, out_w = _as_pair(output_size_node, "output_size")
+    kh, kw = _as_pair(kernel_node, "kernel_size")
+    dh, dw = _as_pair(dilation_node, "dilation")
+    ph, pw = _as_pair(padding_node, "padding")
+    sh, sw = _as_pair(stride_node, "stride")
+    n = int(input_node.shape[0])
+    channels_packed = int(input_node.shape[1])
+    if channels_packed % (kh * kw) != 0:
+        raise T2NErrorNotImplemented(
+            f"col2im: input channel dim {channels_packed} not divisible "
+            f"by kH*kW={kh * kw}"
+        )
+    c = channels_packed // (kh * kw)
+    padded_h = out_h + 2 * ph
+    padded_w = out_w + 2 * pw
+    rcpt_h = dh * (kh - 1) + 1
+    rcpt_w = dw * (kw - 1) + 1
+    if padded_h < rcpt_h or padded_w < rcpt_w:
+        raise T2NErrorNotImplemented(
+            f"col2im: padded output ({padded_h}, {padded_w}) too small "
+            f"for receptive field ({rcpt_h}, {rcpt_w})"
+        )
+    n_h = (padded_h - rcpt_h) // sh + 1
+    n_w = (padded_w - rcpt_w) // sw + 1
+    if int(input_node.shape[2]) != n_h * n_w:
+        raise T2NErrorNotImplemented(
+            f"col2im: input L={input_node.shape[2]} != n_h*n_w={n_h * n_w}"
+        )
+
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    # Step 1: (N, C*kH*kW, L) -> (N, C, kH, kW, n_h, n_w).
+    reshaped = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=inp,
+        attrs={"shape": [n, c, kh, kw, n_h, n_w]},
+        output_tensor_name_suffix="_col2im_reshape",
+    )
+
+    # Compactly-named helper for the trim length of the spread block.
+    spread_h_trim = (n_h - 1) * sh + 1
+    spread_w_trim = (n_w - 1) * sw + 1
+
+    contribution_refs = []
+    for di in range(kh):
+        for dj in range(kw):
+            slc = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=reshaped,
+                attrs={
+                    "axes": [2, 3],
+                    "begin": [di, dj],
+                    "end": [di + 1, dj + 1],
+                    "stride": [1, 1],
+                },
+                output_tensor_name_suffix=f"_c2i_sl{di}_{dj}",
+            )
+            # Drop the now-singleton (kH, kW) axes -> (N, C, n_h, n_w).
+            slc = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "squeeze",
+                inputs=slc,
+                attrs={"axes": [2, 3]},
+                output_tensor_name_suffix=f"_c2i_sq{di}_{dj}",
+            )
+            # Spread with stride: (n_h, n_w) -> (n_h*sH, n_w*sW) with
+            # zeros between elements. Only needed when stride > 1.
+            if sh > 1 or sw > 1:
+                slc = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "reshape",
+                    inputs=slc,
+                    attrs={"shape": [n, c, n_h, 1, n_w, 1]},
+                    output_tensor_name_suffix=f"_c2i_rs{di}_{dj}",
+                )
+                slc = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "pad",
+                    inputs=slc,
+                    attrs={
+                        "padding": [
+                            (0, 0),
+                            (0, 0),
+                            (0, 0),
+                            (0, sh - 1),
+                            (0, 0),
+                            (0, sw - 1),
+                        ],
+                        "value": 0.0,
+                    },
+                    output_tensor_name_suffix=f"_c2i_pd{di}_{dj}",
+                )
+                slc = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "reshape",
+                    inputs=slc,
+                    attrs={"shape": [n, c, n_h * sh, n_w * sw]},
+                    output_tensor_name_suffix=f"_c2i_fl{di}_{dj}",
+                )
+                # Trim trailing zero rows / cols.
+                slc = op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "slice",
+                    inputs=slc,
+                    attrs={
+                        "axes": [2, 3],
+                        "begin": [0, 0],
+                        "end": [spread_h_trim, spread_w_trim],
+                        "stride": [1, 1],
+                    },
+                    output_tensor_name_suffix=f"_c2i_tr{di}_{dj}",
+                )
+            # Pad into the canvas at offset (di*dH, dj*dW).
+            pad_top = di * dh
+            pad_bottom = padded_h - pad_top - spread_h_trim
+            pad_left = dj * dw
+            pad_right = padded_w - pad_left - spread_w_trim
+            slc = op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "pad",
+                inputs=slc,
+                attrs={
+                    "padding": [
+                        (0, 0),
+                        (0, 0),
+                        (pad_top, pad_bottom),
+                        (pad_left, pad_right),
+                    ],
+                    "value": 0.0,
+                },
+                output_tensor_name_suffix=f"_c2i_cv{di}_{dj}",
+            )
+            contribution_refs.append(slc)
+
+    # Step 3: sum kH*kW contributions via a chain of binary `add` ops.
+    accumulated = contribution_refs[0]
+    n_contribs = len(contribution_refs)
+    for idx in range(1, n_contribs):
+        accumulated = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "add",
+            inputs=(accumulated, contribution_refs[idx]),
+            output_tensor_name_suffix=f"_c2i_acc{idx}",
+        )
+    # Step 4: crop the (pH, pW) padding. We always emit the final
+    # `slice` (even when `pH == pW == 0` it just runs as a whole-tensor
+    # slice) so the canvas accumulator never needs to double as the
+    # named final output.
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "slice",
+        inputs=accumulated,
+        attrs={
+            "axes": [2, 3],
+            "begin": [ph, pw],
+            "end": [ph + out_h, pw + out_w],
+            "stride": [1, 1],
+        },
     )
     return []

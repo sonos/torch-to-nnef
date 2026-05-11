@@ -1495,6 +1495,62 @@ def _im2col_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _col2im_sample_st() -> st.SearchStrategy[OpSample]:
+    """`F.fold(input, output_size, kernel_size, dilation, padding, stride)`.
+
+    Lowers to `aten::col2im`. Samples a rank-4 image `(N, C, H, W)`,
+    runs `F.unfold` to get the col representation, then `F.fold`
+    inverts it; the proptest checks that the t2n emitter reproduces
+    torch's output (which is the per-position sum of overlapping
+    kernel contributions, scaled by overlap count).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        kh = draw(st.integers(min_value=1, max_value=3))
+        kw = draw(st.integers(min_value=1, max_value=3))
+        dh = draw(st.integers(min_value=1, max_value=2))
+        dw = draw(st.integers(min_value=1, max_value=2))
+        ph = draw(st.integers(min_value=0, max_value=1))
+        pw = draw(st.integers(min_value=0, max_value=1))
+        sh = draw(st.integers(min_value=1, max_value=2))
+        sw = draw(st.integers(min_value=1, max_value=2))
+        rcpt_h = dh * (kh - 1) + 1
+        rcpt_w = dw * (kw - 1) + 1
+        out_h = draw(st.integers(min_value=rcpt_h, max_value=rcpt_h + 4))
+        out_w = draw(st.integers(min_value=rcpt_w, max_value=rcpt_w + 4))
+        padded_h = out_h + 2 * ph
+        padded_w = out_w + 2 * pw
+        n_h = (padded_h - rcpt_h) // sh + 1
+        n_w = (padded_w - rcpt_w) // sw + 1
+        # F.fold input is (N, C*kH*kW, L).
+        x = draw(
+            tensor_st(
+                (n, c * kh * kw, n_h * n_w),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        class _Col2Im(torch.nn.Module):
+            def forward(self, t):
+                return torch.nn.functional.fold(
+                    t,
+                    output_size=(out_h, out_w),
+                    kernel_size=(kh, kw),
+                    dilation=(dh, dw),
+                    padding=(ph, pw),
+                    stride=(sh, sw),
+                )
+
+        return OpSample(inputs=(x,), module=_Col2Im())
+
+    return _draw()
+
+
 def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.unbind(input, dim)`: splits into a tuple of slices."""
 
@@ -1758,6 +1814,11 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="im2col",
             sample_st=_im2col_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="col2im",
+            sample_st=_col2im_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
