@@ -3061,17 +3061,7 @@
 </div>
 <p>'is core' column refers to this <a href="https://docs.pytorch.org/docs/2.9/torch.compiler_ir.html">PyTorch IR documentation page</a> (the page for torch 2.11 was emptied upstream; falling back to torch 2.9 which is the last version that still enumerates the core ATen IR).</p>
 <p>We filter out 'backward' and 'sym' operators from the listing since they are unwanted in an inference engine. In-place operations are merged with their non-inplace counterparts since that distinction is an inference implementation detail.</p>
-<p>We also exclude a long tail of identifiers that the <code>aten::*</code> source-grep picks up but that can never surface in an inference JIT trace, grouped by reason:</p>
-<ul>
-<li><strong>Python builtin / scripting false positives</strong> (52 names): <code>capitalize, center, chr, clear, dict, endswith, expandtabs, extend, find, format, get, getelem, hash, hex, isalnum, isalpha, isdecimal, isdigit, isidentifier, islower, isnumeric, isprintable, isspace, istitle, isupper, items, join, keys, ljust, lower, lstrip, oct, ord, partition, popitem, rfind, rindex, rjust, rpartition, rsplit, rstrip, setdefault, sorted, splitlines, startswith, strip, swapcase, title, update, upper, values, zfill</code></li>
-<li><strong>Test harness / placeholder identifiers</strong> (13 names): <code>confirmed_by_owner, foo, mathremainder, percentFormat, pointwise_placeholder, symbolic_b, test, test_symbol, test_vartype, test_vartype2, unknown, view_expand_placeholder, your_op</code></li>
-<li><strong>Distributed / RPC primitives</strong> (14 names): <code>all_gather_into_tensor, all_reduce, fork, get_gradients, is_owner, local_value, owner, owner_name, reduce_scatter_tensor, to_here, wait, wait_tensor, warn, warns</code></li>
-<li><strong>Backend-specific dispatch shims (cudnn / miopen / mkldnn / mps)</strong> (26 names): <code>cudnn_affine_grid_generator, cudnn_batch_norm, cudnn_convolution, cudnn_convolution_add_relu, cudnn_convolution_relu, cudnn_convolution_transpose, cudnn_grid_sampler, cudnn_is_acceptable, miopen_batch_norm, miopen_convolution, miopen_convolution_add_relu, miopen_convolution_relu, miopen_convolution_transpose, miopen_ctc_loss, miopen_depthwise_convolution, miopen_rnn, mkldnn_adaptive_avg_pool2d, mkldnn_convolution, mkldnn_linear, mkldnn_max_pool2d, mkldnn_max_pool3d, mkldnn_reorder_conv2d_weight, mkldnn_reorder_conv3d_weight, mkldnn_rnn_layer, mps_linear, to_mkldnn</code></li>
-<li><strong>Tensor metadata accessors (return a Python value, not a tensor)</strong> (60 names): <code>can_cast, data, dense_dim, device, dtype, element_size, enable_grad, get_autocast_dtype, get_device, get_pool_ceil_padding, grad, has_torch_function, iinfo, initial_seed, int_repr, is_autocast_cpu_enabled, is_autocast_enabled, is_coalesced, is_complex, is_conj, is_contiguous, is_cuda, is_grad_enabled, is_leaf, is_non_overlapping_and_dense, is_nonzero, is_pinned, is_same_size, is_scripting, is_set_to, is_signed, is_strides_like_format, manual_seed, node, op, op_name, output_nr, pin_memory, promote_types, q_per_channel_axis, q_per_channel_scales, q_per_channel_zero_points, q_scale, q_zero_point, qscheme, record_stream, refine_names, rename, requires_grad_, result_type, retain_grad, retains_grad, save, seed, set_data, set_grad_enabled, set_source_Tensor_storage_offset, sparse_dim, storage_offset, stride</code></li>
-<li><strong>Named-tensor API (names stripped before JIT trace)</strong> (3 names): <code>align_as, align_tensors, align_to</code></li>
-<li><strong>Sparse-tensor machinery (NNEF / tract are dense-only)</strong> (25 names): <code>ccol_indices, ccol_indices_copy, coalesce, col_indices, col_indices_copy, copy_sparse_to_sparse, crow_indices, crow_indices_copy, hspmm, indices, indices_copy, nested_to_padded_tensor, row_indices, row_indices_copy, smm, sparse_compressed_tensor, sparse_coo_tensor, sparse_mask, sparse_resize, sparse_resize_and_clear, sparse_sampled_addmm, sspaddmm, to_dense, to_padded_tensor, values_copy</code></li>
-</ul>
-<p>This trims the unsupported column to the names where a <code>torch_to_nnef</code> emitter (or a deliberate no-op map) would actually be meaningful.</p>
+<p>We also exclude a long tail of identifiers that the <code>aten::*</code> source-grep picks up but that can never surface in an inference JIT trace (<a href="#excluded-aten-names">see the full list at the bottom of this page</a>). This trims the unsupported column to the names where a <code>torch_to_nnef</code> emitter (or a deliberate no-op map) would actually be meaningful.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">TractNNEF</label><label for="__tabbed_1_2">ONNX</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -4514,6 +4504,40 @@
 })();
 </script>
 
+<h2 id="excluded-aten-names" style="margin-top:2rem;">
+Appendix: identifiers excluded from this page
+</h2>
+
+<p>These names are filtered out of the support tables above because they cannot surface in an inference JIT trace. Each group has a documented rationale; click any to expand the full member list.</p>
+<details class="note">
+<summary>Python builtin / scripting false positives (52 names)</summary>
+<p><code>capitalize</code>, <code>center</code>, <code>chr</code>, <code>clear</code>, <code>dict</code>, <code>endswith</code>, <code>expandtabs</code>, <code>extend</code>, <code>find</code>, <code>format</code>, <code>get</code>, <code>getelem</code>, <code>hash</code>, <code>hex</code>, <code>isalnum</code>, <code>isalpha</code>, <code>isdecimal</code>, <code>isdigit</code>, <code>isidentifier</code>, <code>islower</code>, <code>isnumeric</code>, <code>isprintable</code>, <code>isspace</code>, <code>istitle</code>, <code>isupper</code>, <code>items</code>, <code>join</code>, <code>keys</code>, <code>ljust</code>, <code>lower</code>, <code>lstrip</code>, <code>oct</code>, <code>ord</code>, <code>partition</code>, <code>popitem</code>, <code>rfind</code>, <code>rindex</code>, <code>rjust</code>, <code>rpartition</code>, <code>rsplit</code>, <code>rstrip</code>, <code>setdefault</code>, <code>sorted</code>, <code>splitlines</code>, <code>startswith</code>, <code>strip</code>, <code>swapcase</code>, <code>title</code>, <code>update</code>, <code>upper</code>, <code>values</code>, <code>zfill</code></p>
+</details>
+<details class="note">
+<summary>Test harness / placeholder identifiers (13 names)</summary>
+<p><code>confirmed_by_owner</code>, <code>foo</code>, <code>mathremainder</code>, <code>percentFormat</code>, <code>pointwise_placeholder</code>, <code>symbolic_b</code>, <code>test</code>, <code>test_symbol</code>, <code>test_vartype</code>, <code>test_vartype2</code>, <code>unknown</code>, <code>view_expand_placeholder</code>, <code>your_op</code></p>
+</details>
+<details class="note">
+<summary>Distributed / RPC primitives (14 names)</summary>
+<p><code>all_gather_into_tensor</code>, <code>all_reduce</code>, <code>fork</code>, <code>get_gradients</code>, <code>is_owner</code>, <code>local_value</code>, <code>owner</code>, <code>owner_name</code>, <code>reduce_scatter_tensor</code>, <code>to_here</code>, <code>wait</code>, <code>wait_tensor</code>, <code>warn</code>, <code>warns</code></p>
+</details>
+<details class="note">
+<summary>Backend-specific dispatch shims (cudnn / miopen / mkldnn / mps) (26 names)</summary>
+<p><code>cudnn_affine_grid_generator</code>, <code>cudnn_batch_norm</code>, <code>cudnn_convolution</code>, <code>cudnn_convolution_add_relu</code>, <code>cudnn_convolution_relu</code>, <code>cudnn_convolution_transpose</code>, <code>cudnn_grid_sampler</code>, <code>cudnn_is_acceptable</code>, <code>miopen_batch_norm</code>, <code>miopen_convolution</code>, <code>miopen_convolution_add_relu</code>, <code>miopen_convolution_relu</code>, <code>miopen_convolution_transpose</code>, <code>miopen_ctc_loss</code>, <code>miopen_depthwise_convolution</code>, <code>miopen_rnn</code>, <code>mkldnn_adaptive_avg_pool2d</code>, <code>mkldnn_convolution</code>, <code>mkldnn_linear</code>, <code>mkldnn_max_pool2d</code>, <code>mkldnn_max_pool3d</code>, <code>mkldnn_reorder_conv2d_weight</code>, <code>mkldnn_reorder_conv3d_weight</code>, <code>mkldnn_rnn_layer</code>, <code>mps_linear</code>, <code>to_mkldnn</code></p>
+</details>
+<details class="note">
+<summary>Tensor metadata accessors (return a Python value, not a tensor) (60 names)</summary>
+<p><code>can_cast</code>, <code>data</code>, <code>dense_dim</code>, <code>device</code>, <code>dtype</code>, <code>element_size</code>, <code>enable_grad</code>, <code>get_autocast_dtype</code>, <code>get_device</code>, <code>get_pool_ceil_padding</code>, <code>grad</code>, <code>has_torch_function</code>, <code>iinfo</code>, <code>initial_seed</code>, <code>int_repr</code>, <code>is_autocast_cpu_enabled</code>, <code>is_autocast_enabled</code>, <code>is_coalesced</code>, <code>is_complex</code>, <code>is_conj</code>, <code>is_contiguous</code>, <code>is_cuda</code>, <code>is_grad_enabled</code>, <code>is_leaf</code>, <code>is_non_overlapping_and_dense</code>, <code>is_nonzero</code>, <code>is_pinned</code>, <code>is_same_size</code>, <code>is_scripting</code>, <code>is_set_to</code>, <code>is_signed</code>, <code>is_strides_like_format</code>, <code>manual_seed</code>, <code>node</code>, <code>op</code>, <code>op_name</code>, <code>output_nr</code>, <code>pin_memory</code>, <code>promote_types</code>, <code>q_per_channel_axis</code>, <code>q_per_channel_scales</code>, <code>q_per_channel_zero_points</code>, <code>q_scale</code>, <code>q_zero_point</code>, <code>qscheme</code>, <code>record_stream</code>, <code>refine_names</code>, <code>rename</code>, <code>requires_grad_</code>, <code>result_type</code>, <code>retain_grad</code>, <code>retains_grad</code>, <code>save</code>, <code>seed</code>, <code>set_data</code>, <code>set_grad_enabled</code>, <code>set_source_Tensor_storage_offset</code>, <code>sparse_dim</code>, <code>storage_offset</code>, <code>stride</code></p>
+</details>
+<details class="note">
+<summary>Named-tensor API (names stripped before JIT trace) (3 names)</summary>
+<p><code>align_as</code>, <code>align_tensors</code>, <code>align_to</code></p>
+</details>
+<details class="note">
+<summary>Sparse-tensor machinery (NNEF / tract are dense-only) (25 names)</summary>
+<p><code>ccol_indices</code>, <code>ccol_indices_copy</code>, <code>coalesce</code>, <code>col_indices</code>, <code>col_indices_copy</code>, <code>copy_sparse_to_sparse</code>, <code>crow_indices</code>, <code>crow_indices_copy</code>, <code>hspmm</code>, <code>indices</code>, <code>indices_copy</code>, <code>nested_to_padded_tensor</code>, <code>row_indices</code>, <code>row_indices_copy</code>, <code>smm</code>, <code>sparse_compressed_tensor</code>, <code>sparse_coo_tensor</code>, <code>sparse_mask</code>, <code>sparse_resize</code>, <code>sparse_resize_and_clear</code>, <code>sparse_sampled_addmm</code>, <code>sspaddmm</code>, <code>to_dense</code>, <code>to_padded_tensor</code>, <code>values_copy</code></p>
+</details>
+
 
 
 
@@ -4535,7 +4559,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 11, 2026 20:59:54 UTC">May 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 11, 2026 21:08:44 UTC">May 11, 2026</span>
   </span>
 
     

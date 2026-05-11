@@ -815,16 +815,36 @@ def build_markdown_header(fetcher) -> str:
         "\n\n"
         "We also exclude a long tail of identifiers that the `aten::*` "
         "source-grep picks up but that can never surface in an inference "
-        "JIT trace, grouped by reason:\n"
-        + "".join(
-            f"\n - **{label}** ({len(group)} names): "
-            f"`{', '.join(sorted(group))}`"
-            for label, group in NEVER_IN_INFERENCE_TRACE.items()
-        )
-        + "\n\nThis trims the unsupported column to the names where a "
-        "`torch_to_nnef` emitter (or a deliberate no-op map) would "
-        "actually be meaningful."
+        "JIT trace ([see the full list at the bottom of this "
+        "page](#excluded-aten-names)). This trims the unsupported column "
+        "to the names where a `torch_to_nnef` emitter (or a deliberate "
+        "no-op map) would actually be meaningful."
     )
+
+
+def build_excluded_appendix() -> str:
+    """Trailing collapsible appendix listing every excluded aten name.
+
+    Renders as a mkdocs-material collapsible admonition (`???`) so the
+    100+ identifiers don't drown the page; readers who want to audit
+    the exclusion sets can click to expand.
+    """
+    lines = [
+        '<h2 id="excluded-aten-names" style="margin-top:2rem;">',
+        "Appendix: identifiers excluded from this page",
+        "</h2>",
+        "",
+        "These names are filtered out of the support tables above because "
+        "they cannot surface in an inference JIT trace. Each group has a "
+        "documented rationale; click any to expand the full member list.",
+        "",
+    ]
+    for label, group in NEVER_IN_INFERENCE_TRACE.items():
+        lines.append(f'??? note "{label} ({len(group)} names)"')
+        members = ", ".join(f"`{n}`" for n in sorted(group))
+        lines.append(f"    {members}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 def build_markdown_page(torch_version: str):
@@ -901,6 +921,7 @@ def build_markdown_page(torch_version: str):
                 support_n_ops_label="PyTorch's TorchScript ONNX exporter",
             )
         print(FILTER_SCRIPT, file=fh)
+        print(build_excluded_appendix(), file=fh)
     cache_url.save()
 
 
