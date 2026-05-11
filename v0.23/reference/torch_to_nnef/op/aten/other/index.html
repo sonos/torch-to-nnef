@@ -1535,24 +1535,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.other.contiguous" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;contiguous
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.other.detach" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;detach
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.other.dropout" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dropout
@@ -1565,6 +1547,15 @@
   <a href="#torch_to_nnef.op.aten.other.external" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;external
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.other.identity_remap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;identity_remap
     </span>
   </a>
   
@@ -3199,24 +3190,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.other.contiguous" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;contiguous
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.other.detach" class="md-nav__link">
-    <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;detach
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.other.dropout" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;dropout
@@ -3229,6 +3202,15 @@
   <a href="#torch_to_nnef.op.aten.other.external" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;external
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.other.identity_remap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;identity_remap
     </span>
   </a>
   
@@ -3365,44 +3347,6 @@
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.op.aten.other.contiguous" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">contiguous</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">contiguous</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>This does not translate to any operation.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h4 id="torch_to_nnef.op.aten.other.detach" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">detach</span>
-
-
-</h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">detach</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>This does not translate to any operation.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h4 id="torch_to_nnef.op.aten.other.dropout" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">dropout</span>
 
@@ -3413,7 +3357,10 @@
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:dropout' to NNEF.</p>
+        <p>Map PyTorch dropout-family ops (inactive at inference) to NNEF.</p>
+<p>All variants share the <code>(input, p, train)</code> signature; at inference
+<code>train</code> is <code>False</code> and the op is the identity, so we just remap
+the output to the input.</p>
 
     </div>
 
@@ -3433,6 +3380,30 @@
     <div class="doc doc-contents ">
 
         <p>Add External NNEF Operation in graph.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.other.identity_remap" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">identity_remap</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">identity_remap</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">torch_graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>No-op ATen ops -- just remap output to input.</p>
+<p><code>resolve_conj</code> / <code>resolve_neg</code> flip an internal "is conjugated"
+/ "is negated" view bit and are the identity once those bits are
+cleared; for real-valued tensors they are unconditionally identity.
+<code>conj_physical</code> actually conjugates, but for real tensors it is
+also the identity.</p>
 
     </div>
 

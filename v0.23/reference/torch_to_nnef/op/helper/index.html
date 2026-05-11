@@ -2019,6 +2019,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.helper.resolve_attr_axis_size" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;resolve_attr_axis_size
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3301,6 +3310,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.helper.resolve_attr_axis_size" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;resolve_attr_axis_size
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3600,6 +3618,33 @@ instead of PyTorch expansion which happen in opposite direction.</p>
 
         <p>Enforce that index in axis does contains only values within bounds.</p>
 <p>Because in case of tract out of bound is not supported !</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.helper.resolve_attr_axis_size" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">resolve_attr_axis_size</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_attr_axis_size</span><span class="p">(</span><span class="n">op_helper</span><span class="p">,</span> <span class="n">input_node</span><span class="p">,</span> <span class="n">axis</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve <code>input_node.shape[axis]</code> for use in a NNEF op attribute.</p>
+<p>When <code>inference_target.has_dynamic_axes</code>, emit (and cache) a
+<code>tract_core_shape_of -&gt; slice -&gt; squeeze</code> chain to extract the
+runtime size of <code>axis</code> and return an <code>nnef.Identifier</code> referencing
+that scalar. Otherwise, return the static <code>int(input_node.shape[axis])</code>.</p>
+<p>Use this anywhere a shape-derived value lands in an op attribute
+(e.g. <code>reshape(shape=[...])</code>, <code>tile(repeats=[...])</code>, <code>slice(end=...)</code>)
+so the same emitter works in both static and dyn-axes modes
+without baking the trace-time size into the exported graph.</p>
 
     </div>
 

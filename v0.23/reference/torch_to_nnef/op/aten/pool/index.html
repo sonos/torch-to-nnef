@@ -1644,9 +1644,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.pool.upsample_nearest2d" class="md-nav__link">
+  <a href="#torch_to_nnef.op.aten.pool.upsample_nearest_nd" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest2d
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest_nd
     </span>
   </a>
   
@@ -3217,9 +3217,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#torch_to_nnef.op.aten.pool.upsample_nearest2d" class="md-nav__link">
+  <a href="#torch_to_nnef.op.aten.pool.upsample_nearest_nd" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest2d
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;upsample_nearest_nd
     </span>
   </a>
   
@@ -3427,17 +3427,24 @@ indices. Tract only -- the fragment requires the
 <div class="doc doc-object doc-function">
 
 
-<h4 id="torch_to_nnef.op.aten.pool.upsample_nearest2d" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">upsample_nearest2d</span>
+<h4 id="torch_to_nnef.op.aten.pool.upsample_nearest_nd" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">upsample_nearest_nd</span>
 
 
 </h4>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">upsample_nearest2d</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">upsample_nearest_nd</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF.</p>
+        <p>Map PyTorch <code>aten::upsample_nearest{1,2,3}d</code> to NNEF.</p>
+<p>All three variants share <code>(input, output_size, scales)</code> (with the
+1-D / 3-D versions packing scales into a single <code>List[float]</code>).
+The implementation is rank-agnostic for the <code>debox</code> path (tract</p>
+<blockquote>
+<p>= 0.22 with <code>upsample_with_debox=True</code>); the legacy <code>deconv</code>
+fallback only handles the original 2-D case.</p>
+</blockquote>
 
     </div>
 

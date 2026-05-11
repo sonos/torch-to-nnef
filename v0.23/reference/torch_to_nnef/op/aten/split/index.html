@@ -1723,6 +1723,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.split.split" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;split
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.split.split_with_sizes" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;split_with_sizes
@@ -3172,6 +3181,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.split.split" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;split
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.split.split_with_sizes" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;split_with_sizes
@@ -3309,6 +3327,33 @@ writes, which doesn't apply on the export path.</p>
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:hsplit' (<code>tensor_split</code> along axis 1) to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.split.split" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">split</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">split</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: <code>aten::split.Tensor</code> (and <code>unsafe_split</code>) to NNEF.</p>
+<p><code>split(self, split_size: int, dim)</code> produces <code>ceil(dim_size /
+split_size)</code> chunks, where every chunk has <code>split_size</code> elements
+along <code>dim</code> except possibly the last (which holds the remainder).</p>
+<p><code>unsafe_split</code> differs only in autograd semantics around in-place
+writes; inference behaviour is identical so it shares this path.</p>
+<p>The chunk count is fixed by <code>len(node.outputs)</code>; each output's
+per-axis size comes from its traced shape, so we walk them and
+emit a <code>slice</code> per output (same pattern as <code>chunk</code> / <code>tensor_split</code>).</p>
 
     </div>
 
