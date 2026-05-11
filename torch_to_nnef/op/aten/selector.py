@@ -682,9 +682,7 @@ def _embedding_bag_uniform_path(
         outputs=(reshaped,),
         attribs={"shape": [n_bags, bag_size, d_dim]},
     )
-    kd = NTensor(
-        g, f"{base}_eb_kd", dtype=np_dtype, shape=(n_bags, 1, d_dim)
-    )
+    kd = NTensor(g, f"{base}_eb_kd", dtype=np_dtype, shape=(n_bags, 1, d_dim))
     name_to_tensor[kd.name] = kd
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
