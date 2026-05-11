@@ -54,15 +54,17 @@
 }
 
 .progress-40plus .progress-bar {
-  background-color: #ff5252;
+  /* Pastel coral; the saturated #ff5252 felt visually loud against the
+     pastel-green progress states above. */
+  background-color: #f5b5b5;
 }
 
 .progress-20plus .progress-bar {
-  background-color: #ffa7aa;
+  background-color: #f0a0a3;
 }
 
 .progress-0plus .progress-bar {
-  background-color: #f50057;
+  background-color: #e8838c;
 }
 
 
