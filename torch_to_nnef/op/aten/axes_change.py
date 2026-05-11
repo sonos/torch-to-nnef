@@ -976,3 +976,93 @@ def meshgrid(node, op_helper, inference_target, **kwargs):
             output_idx=i,
         )
     return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def unfold(node, op_helper, **kwargs):
+    """Map PyTorch `aten::unfold` (Tensor.unfold) to NNEF.
+
+    Signature: `unfold(self, dimension, size, step)`. Extracts overlapping
+    windows of length `size` along `dimension`, advancing by `step`.
+    The result has rank `R + 1`: the `dimension` axis becomes
+    `n_windows = (D - size) // step + 1`, and a new trailing axis of
+    length `size` is appended.
+
+    Decomposed as `n_windows` `slice` ops along `dimension` followed by
+    a `stack` along that same axis; if `dimension` is not the last
+    axis of the input, an extra `transpose` moves the size axis to the
+    end (matching torch's "appended-at-back" layout).
+    """
+    input_node, dim_node, size_node, step_node = node.inputs
+    if not isinstance(dim_node, PythonConstant):
+        raise T2NErrorNotImplemented("unfold requires a static dimension")
+    if not isinstance(size_node, PythonConstant) or not isinstance(
+        step_node, PythonConstant
+    ):
+        raise T2NErrorNotImplemented("unfold requires static size and step")
+    axis = pick_axis(input_node, dim_node.data)
+    size = int(size_node.data)
+    step = int(step_node.data)
+    if size <= 0 or step <= 0:
+        raise T2NErrorNotImplemented(
+            f"unfold needs positive size/step; got size={size}, step={step}"
+        )
+    dim_size = int(input_node.shape[axis])
+    if dim_size < size:
+        raise T2NErrorNotImplemented(
+            f"unfold: dim size {dim_size} smaller than window {size}"
+        )
+    n_windows = (dim_size - size) // step + 1
+    input_rank = input_node.rank
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    # Emit one slice per window and stack along `axis`.
+    window_refs = []
+    for j in range(n_windows):
+        begin = j * step
+        window_refs.append(
+            op_helper.add_single_output_op_from_nnef_tensors(
+                node,
+                "slice",
+                inputs=inp,
+                attrs={
+                    "axes": [axis],
+                    "begin": [begin],
+                    "end": [begin + size],
+                    "stride": [1],
+                },
+                output_tensor_name_suffix=f"_unfold_w{j}",
+            )
+        )
+    # After stack, shape is (..., n_windows, size, *rest_after_axis).
+    # Torch wants size at the back; if `axis` is already the last input
+    # axis then the size axis lands at the end naturally and we emit the
+    # final tensor directly from `stack`. Otherwise emit `stack` to an
+    # intermediate and `transpose` it to move the size axis to the end.
+    if axis + 1 == input_rank:
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "stack",
+            inputs=window_refs,
+            attrs={"axis": axis},
+            ensure_tuple=False,
+        )
+        return []
+    stacked = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "stack",
+        inputs=window_refs,
+        attrs={"axis": axis},
+        ensure_tuple=False,
+        output_tensor_name_suffix="_unfold_stack",
+    )
+    stacked_rank = input_rank + 1
+    perm = (
+        list(range(axis + 1)) + list(range(axis + 2, stacked_rank)) + [axis + 1]
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=stacked,
+        attrs={"axes": perm},
+    )
+    return []

@@ -19,9 +19,9 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
 
     -  and support from full `aten::`: 
 
-    [=292/862 "292/862"]
+    [=293/862 "293/862"]
 
-     (total operators listed as supported by `torch_to_nnef` being 324)
+     (total operators listed as supported by `torch_to_nnef` being 325)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -850,7 +850,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td>unbind_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unflatten.html">unflatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>unflatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.unfold.html">unfold</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.unfold.html">unfold</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>unfold_copy</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>uniform</td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>❌</td><td>-</td></tr>
