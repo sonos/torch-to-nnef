@@ -433,6 +433,18 @@ INFER_RULES = {
     "aten::index_add": InferRule(None, 1, identity=True),
     "aten::index_copy": InferRule(None, 1, identity=True),
     "aten::index_fill": InferRule(None, 1, identity=True),
+    # `aten::bucketize` / `aten::searchsorted`: torch's overload
+    # resolver fails on the shape-inference re-execution when the
+    # tracer hands all-zero placeholder tensors (the dispatcher
+    # picks an overload it can't satisfy). Output shape matches the
+    # input argument (`input` for bucketize, `values` for
+    # searchsorted) -- short-circuit instead of calling op_ref.
+    "aten::bucketize": InferRule(
+        lambda inp, *_: inp.shape, 1, require_dtype=False
+    ),
+    "aten::searchsorted": InferRule(
+        lambda _seq, vals, *_: vals.shape, 2, require_dtype=False
+    ),
     ATEN_EMBEDDING: InferRule(_infer_shape_embedding_output, 2),
     ATEN_MATMUL: InferRule(_infer_trace_result_matmul, 2),
     ATEN_LINEAR: InferRule(_infer_shape_linear_output, 2),

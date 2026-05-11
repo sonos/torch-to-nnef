@@ -230,13 +230,32 @@ def instance_norm(node, op_helper, **kwargs):
 
 
 @OP_REGISTRY.register(
-    ["norm", "linalg_vector_norm", "linalg_norm", "frobenius_norm"]
+    [
+        "norm",
+        "linalg_vector_norm",
+        "linalg_norm",
+        "linalg_matrix_norm",
+        "frobenius_norm",
+    ]
 )
 def norm(g, node, name_to_tensor, inference_target, **kwargs):
     """NOTE this is only the normed vector."""
     if node.kind in ["aten::linalg_vector_norm", "aten::linalg_norm"]:
         # new in PyTorch 2.0
         input_node, p_node, axes_node, keep_dim_node, _ = node.inputs
+    elif node.kind == "aten::linalg_matrix_norm":
+        # signature: (input, ord_str, dims, keepdim, dtype)
+        # Only the Frobenius norm is supported here; nuclear / spectral
+        # need SVD which tract doesn't expose.
+        input_node, ord_node, axes_node, keep_dim_node, _dtype_node = (
+            node.inputs
+        )
+        if ord_node.data != "fro":
+            raise T2NErrorNotImplemented(
+                f"linalg_matrix_norm with ord={ord_node.data!r} not "
+                "supported (only 'fro' currently)"
+            )
+        p_node = PythonConstant(name=f"{node.outputs[0].name}_p_node", data=2)
     elif node.kind == "aten::frobenius_norm":
         input_node, axes_node, keep_dim_node = node.inputs
         p_node = PythonConstant(name=f"{node.outputs[0].name}_p_node", data=2)

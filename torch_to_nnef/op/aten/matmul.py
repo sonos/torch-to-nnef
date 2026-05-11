@@ -298,6 +298,81 @@ def conv_transpose_nd(
 
 
 @OP_REGISTRY.register()
+def conv_tbc(
+    g, node, name_to_tensor, null_ref, op_helper, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:conv_tbc' to NNEF.
+
+    `conv_tbc(input, weight, bias, pad)` is a 1-D convolution over a
+    `(T, B, C)` input -- time-batch-channel layout -- with weight
+    `(kernel, C_in, C_out)`. Equivalent semantically to
+    `conv1d(input.permute(1, 2, 0), weight.permute(2, 1, 0), bias,
+    padding=pad).permute(2, 0, 1)`, which is exactly the
+    `permute -> conv -> permute` chain we emit.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    input_node, weight_node, bias_node, pad_node = node.inputs
+    pad = int(pad_node.data)
+    # Repack weight from (kernel, C_in, C_out) to (C_out, C_in, kernel).
+    if weight_node.data is None:
+        raise T2NErrorNotImplemented(
+            "conv_tbc needs static weight (got graph-input weight)"
+        )
+    weight_node.set_data(
+        weight_node.data.permute(2, 1, 0).contiguous(), force_shape=True
+    )
+    # Permute input from (T, B, C) to (B, C, T).
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    inp_bct = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=inp_ref,
+        attrs={"axes": [1, 2, 0]},
+        output_tensor_name_suffix="ctbc_pre",
+    )
+    weight_ref = op_helper.get_or_add_tensor_variable_in_nnef(weight_node)
+    bias_ref = (
+        op_helper.get_or_add_tensor_variable_in_nnef(bias_node)
+        if bias_node.data is not None
+        else null_ref
+    )
+    # 1-D conv: output (B, C_out, T_out).
+    onode = node.outputs[0]
+    t_out, b_out, c_out = onode.shape
+    conv_out = NTensor(
+        g,
+        f"{onode.export_name}_ctbc_conv",
+        dtype=onode.np_dtype,
+        shape=(b_out, c_out, t_out),
+    )
+    name_to_tensor[conv_out.name] = conv_out
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="conv",
+        name=f"{conv_out.name}_op",
+        inputs=(inp_bct, weight_ref, bias_ref),
+        outputs=(conv_out,),
+        attribs={
+            "dilation": [1],
+            "padding": [(pad, pad)],
+            "stride": [1],
+            "groups": 1,
+            "border": "constant",
+        },
+        force_consistent_inputs_shapes=False,
+    )
+    # Permute back to (T, B, C_out).
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=conv_out,
+        attrs={"axes": [2, 0, 1]},
+    )
+
+
+@OP_REGISTRY.register()
 def linear(g, node, name_to_tensor, null_ref, inference_target, **kwargs):
     """Map PyTorch: 'aten:linear' to NNEF."""
     (

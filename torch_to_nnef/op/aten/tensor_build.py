@@ -866,3 +866,84 @@ def hann_window(g, node, name_to_tensor, **kwargs):
         force_shape=True,
     )
     add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def affine_grid_generator(
+    g, node, name_to_tensor, op_helper, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:affine_grid_generator' to NNEF.
+
+    `affine_grid_generator(theta, size, align_corners)` builds a
+    sampling grid for `F.grid_sample`. The base grid -- a fixed set
+    of normalized coordinates in `[-1, 1]` (or pixel-centered for
+    `align_corners=False`) -- depends only on the output spatial
+    shape, so we bake it as a constant tensor at trace time. The
+    only runtime cost is a single matmul against `theta`.
+
+    Currently 2-D only (theta shape `(N, 2, 3)`, output `(N, H, W,
+    2)`). 3-D affine_grid would need a `(D*H*W, 4)` base grid +
+    reshape to `(N, D, H, W, 3)`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    theta_node, size_node, align_corners_node = node.inputs
+    size_data = size_node.data
+    if hasattr(size_data, "tolist"):
+        size_data = size_data.tolist()
+    size = [int(x) for x in size_data]
+    align_corners = bool(align_corners_node.data)
+    if len(size) != 4:
+        raise T2NErrorNotImplemented(
+            f"affine_grid_generator: only 2-D (rank-4 size) supported; "
+            f"got size={size}"
+        )
+    n, _c, h, w = size
+    if tuple(theta_node.shape) != (n, 2, 3):
+        raise T2NErrorNotImplemented(
+            f"affine_grid_generator: theta shape must be (N, 2, 3); "
+            f"got {theta_node.shape}"
+        )
+
+    if align_corners:
+        ys = torch.linspace(-1.0, 1.0, h)
+        xs = torch.linspace(-1.0, 1.0, w)
+    else:
+        ys = torch.linspace(-1.0 + 1.0 / h, 1.0 - 1.0 / h, h)
+        xs = torch.linspace(-1.0 + 1.0 / w, 1.0 - 1.0 / w, w)
+    grid_y, grid_x = torch.meshgrid(ys, xs, indexing="ij")
+    base = torch.stack(
+        [grid_x.reshape(-1), grid_y.reshape(-1), torch.ones(h * w)],
+        dim=1,
+    )
+    # Bake base as (1, 3, H*W) so it matches theta's rank-3 shape for
+    # NNEF matmul (same-rank requirement).
+    base_t = base.t().contiguous().unsqueeze(0).to(theta_node.dtype)
+    onode = node.outputs[0]
+    base_const = PythonConstant(
+        name=f"{onode.name}_ag_base",
+        data=base_t,
+    )
+    base_ref = op_helper.get_or_add_tensor_variable_in_nnef(base_const)
+    theta_ref = op_helper.get_or_add_tensor_variable_in_nnef(theta_node)
+    mm_out = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "matmul",
+        inputs=[theta_ref, base_ref],
+        attrs={"transposeA": False, "transposeB": False},
+        output_tensor_name_suffix="ag_mm",
+        force_consistent_inputs_shapes=False,
+    )
+    transposed = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=mm_out,
+        attrs={"axes": [0, 2, 1]},
+        output_tensor_name_suffix="ag_t",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=transposed,
+        attrs={"shape": [n, h, w, 2]},
+    )

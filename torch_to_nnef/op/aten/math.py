@@ -960,7 +960,7 @@ def cdist(node, op_helper, **kwargs):
     return ["cdist"]
 
 
-@OP_REGISTRY.register()
+@OP_REGISTRY.register(torch_op_ids=["cross", "linalg_cross"])
 def cross(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:cross' to NNEF via a fragment.
 
