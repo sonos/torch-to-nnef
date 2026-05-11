@@ -1,0 +1,10 @@
+# Pointwise squared error: (input - target)^2.
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment mse_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    diff   = sub(input, target);
+    output = mul(diff, diff);
+}

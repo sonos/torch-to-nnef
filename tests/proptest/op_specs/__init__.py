@@ -14,6 +14,7 @@ from . import (
     conv_pool,
     elementwise,
     factory,
+    loss,
     norm,
     reductions,
     shape,
@@ -34,6 +35,7 @@ _MODULES = (
     conv_pool,
     specialty,
     factory,
+    loss,
 )
 
 REGISTRY: T.Tuple[OpSpec, ...] = tuple(

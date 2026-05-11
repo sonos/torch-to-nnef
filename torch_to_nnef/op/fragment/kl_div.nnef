@@ -1,0 +1,13 @@
+# Pointwise KL divergence in torch's `log_target=False` mode:
+#   kl(input, target) = target * (log(target) - input)
+# `input` is expected to be log-probabilities (caller usually passes
+# `log_softmax(...)` upstream). Reduction is applied by the emitter.
+fragment kl_div(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    log_t   = log(target);
+    delta   = sub(log_t, input);
+    output  = mul(target, delta);
+}
