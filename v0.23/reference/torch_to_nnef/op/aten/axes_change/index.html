@@ -1387,6 +1387,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.col2im" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;col2im
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.expand_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;expand_as
@@ -3357,6 +3366,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.col2im" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;col2im
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.expand_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;expand_as
@@ -3663,6 +3681,51 @@ the common broadcast shape. Each output is a separate
 <code>tract_core_broadcast(t_i, shape=common)</code> call -- the common
 shape is whatever torch traced into <code>node.outputs[i].shape</code> (all
 outputs share it).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.col2im" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">col2im</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">col2im</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch <code>aten::col2im</code> (a.k.a. <code>F.fold</code>) to NNEF.</p>
+<p>Signature: <code>col2im(self, output_size, kernel_size, dilation, padding,
+stride)</code> for a rank-3 input <code>(N, C * kH * kW, L)</code>. Inverse of
+<code>im2col</code>: places each of the <code>kH * kW</code> "kernel offsets" of the input
+at strided positions inside a <code>(N, C, output_H + 2*pH, output_W +
+2*pW)</code> canvas, summing overlaps, then crops the canvas to
+<code>(N, C, output_H, output_W)</code>.</p>
+<p>Tract has no NNEF-level <code>col2im</code> / <code>scatter_add-with-reduction</code> on
+the version we target, so we decompose per kernel offset:</p>
+<ol>
+<li>reshape input <code>(N, C*kH*kW, n_h*n_w)</code> -&gt; <code>(N, C, kH, kW, n_h, n_w)</code>;</li>
+<li>for every <code>(di, dj)</code>:
+   a. slice the per-offset feature map <code>(N, C, n_h, n_w)</code>;
+   b. spread it to <code>(N, C, n_h*sH, n_w*sW)</code> -- reshape with two
+      size-1 axes then <code>pad</code> axis 3 by <code>(0, sH-1)</code> and axis 5 by
+      <code>(0, sW-1)</code> to insert zeros between elements -- then reshape
+      to flatten the spread axes; trim trailing zeros by slicing to
+      <code>((n_h-1)*sH + 1, (n_w-1)*sW + 1)</code>;
+   c. pad to the canvas size <code>(padded_H, padded_W)</code> with left/top
+      offsets <code>(di*dH, dj*dW)</code>;</li>
+<li>sum the <code>kH * kW</code> placed contributions (<code>add</code> chain);</li>
+<li>crop the leading / trailing <code>(pH, pW)</code> rows / cols of the
+   canvas to land on <code>(N, C, output_H, output_W)</code>.</li>
+</ol>
+<p>A future tract release that exposes a native col2im (or scatter-add
+with sum reduction) lets us replace this chain with a single op
+behind a version gate.</p>
 
     </div>
 
