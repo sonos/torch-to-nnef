@@ -107,6 +107,45 @@ def _upsample_nearest2d_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _upsample_nearest_nd_sample_st(
+    spatial_rank: int,
+) -> st.SearchStrategy[OpSample]:
+    """`F.interpolate(mode='nearest')` for 1-D / 3-D inputs."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        spatial = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=spatial_rank,
+                    max_size=spatial_rank,
+                )
+            )
+        )
+        scale = draw(st.integers(min_value=2, max_value=3))
+        x = draw(
+            tensor_st(
+                (n, c) + spatial,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        class _Up(nn.Module):
+            def forward(self, t):
+                return torch.nn.functional.interpolate(
+                    t, scale_factor=float(scale), mode="nearest"
+                )
+
+        return OpSample(inputs=(x,), module=_Up().eval())
+
+    return _draw()
+
+
 def _specialty_specs() -> T.List[OpSpec]:
     EXACT = TractCheckTolerance.EXACT
     return [
@@ -123,6 +162,16 @@ def _specialty_specs() -> T.List[OpSpec]:
         OpSpec(
             name="upsample_nearest2d",
             sample_st=_upsample_nearest2d_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="upsample_nearest1d",
+            sample_st=_upsample_nearest_nd_sample_st(spatial_rank=1),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="upsample_nearest3d",
+            sample_st=_upsample_nearest_nd_sample_st(spatial_rank=3),
             tolerance=EXACT,
         ),
     ]
@@ -351,17 +400,25 @@ def _max_pool2d_with_indices_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
-def _dropout_eval_sample_st() -> st.SearchStrategy[OpSample]:
-    """`nn.Dropout(p)` in eval mode: a no-op identity.
+def _dropout_eval_sample_st(layer_cls) -> st.SearchStrategy[OpSample]:
+    """Dropout-family `layer_cls` in eval mode: a no-op identity.
 
-    The export pipeline should skip dropout in eval mode (it has no
-    effect at inference). Proptest sweeps shapes to confirm the no-op
-    invariant holds across the export.
+    The export pipeline should skip these in eval mode (no effect at
+    inference). Proptest sweeps shapes to confirm the no-op invariant
+    holds across the export.
     """
+    # Dropout2d zeroes whole 2D channels and wants the canonical
+    # (N, C, H, W) layout (rank 4); FeatureAlphaDropout wants rank>=3.
+    if layer_cls is nn.Dropout2d:
+        min_rank = 4
+    elif layer_cls is nn.FeatureAlphaDropout:
+        min_rank = 3
+    else:
+        min_rank = 1
 
     @st.composite
     def _draw(draw) -> OpSample:
-        shape = draw(shape_st(min_rank=1, max_rank=4, min_dim=2))
+        shape = draw(shape_st(min_rank=min_rank, max_rank=4, min_dim=2))
         x = draw(
             tensor_st(
                 shape,
@@ -370,9 +427,28 @@ def _dropout_eval_sample_st() -> st.SearchStrategy[OpSample]:
                 domain=Interval(-10.0, 10.0),
             )
         )
-        # eval() mode: dropout should be identity.
-        layer = nn.Dropout(p=0.5).eval()
+        layer = layer_cls(p=0.5).eval()
         return OpSample(inputs=(x,), module=layer)
+
+    return _draw()
+
+
+def _resolve_identity_sample_st(op_name: str) -> st.SearchStrategy[OpSample]:
+    """`torch.resolve_conj` / `resolve_neg` / `conj_physical` on real input."""
+    fn = getattr(torch, op_name)
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        shape = draw(shape_st(min_rank=1, max_rank=4, min_dim=1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(fn))
 
     return _draw()
 
@@ -386,8 +462,45 @@ def _max_pool_dropout_specs() -> T.List[OpSpec]:
         ),
         OpSpec(
             name="dropout",
-            sample_st=_dropout_eval_sample_st(),
+            sample_st=_dropout_eval_sample_st(nn.Dropout),
             tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="alpha_dropout",
+            sample_st=_dropout_eval_sample_st(nn.AlphaDropout),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="feature_dropout",
+            sample_st=_dropout_eval_sample_st(nn.Dropout2d),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="feature_alpha_dropout",
+            sample_st=_dropout_eval_sample_st(nn.FeatureAlphaDropout),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="resolve_conj",
+            sample_st=_resolve_identity_sample_st("resolve_conj"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="resolve_neg",
+            sample_st=_resolve_identity_sample_st("resolve_neg"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="conj_physical",
+            sample_st=_resolve_identity_sample_st("conj_physical"),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
         ),
     ]
 

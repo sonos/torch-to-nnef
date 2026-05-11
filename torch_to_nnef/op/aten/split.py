@@ -91,6 +91,53 @@ def unbind(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register(torch_op_ids=["split", "unsafe_split"])
+def split(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: `aten::split.Tensor` (and `unsafe_split`) to NNEF.
+
+    `split(self, split_size: int, dim)` produces `ceil(dim_size /
+    split_size)` chunks, where every chunk has `split_size` elements
+    along `dim` except possibly the last (which holds the remainder).
+
+    `unsafe_split` differs only in autograd semantics around in-place
+    writes; inference behaviour is identical so it shares this path.
+
+    The chunk count is fixed by `len(node.outputs)`; each output's
+    per-axis size comes from its traced shape, so we walk them and
+    emit a `slice` per output (same pattern as `chunk` / `tensor_split`).
+    """
+    (input_node, split_size_node, axis_node) = node.inputs
+    if not isinstance(split_size_node, PythonConstant):
+        raise T2NErrorNotImplemented(
+            "split requires a statically-known split_size"
+        )
+    axis = pick_axis(input_node, axis_node.data)
+    inputs = get_or_add_tensor_variable_in_nnef(g, input_node, name_to_tensor)
+    current_dim_elm_idx = 0
+    for out_node in node.outputs:
+        out = add_tensor_variable_node_as_nnef_tensor(
+            g,
+            out_node,
+            name_to_tensor,
+            prevent_variable=True,
+        )
+        n_elements = int(out_node.shape[axis])
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="slice",
+            inputs=inputs,
+            outputs=tuple([out]),
+            attribs={
+                "axes": [axis],
+                "begin": [current_dim_elm_idx],
+                "end": [current_dim_elm_idx + n_elements],
+                "stride": [1],
+            },
+        )
+        current_dim_elm_idx += n_elements
+
+
 @OP_REGISTRY.register(torch_op_ids=["chunk", "unsafe_chunk"])
 def chunk(g, node, name_to_tensor, **kwargs):
     """Map PyTorch: 'aten:chunk' (and `unsafe_chunk`) to NNEF.

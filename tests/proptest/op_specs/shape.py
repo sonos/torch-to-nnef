@@ -1334,6 +1334,44 @@ def _chunk_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _split_int_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.split(t, split_size, dim)` -- int form: chunks + remainder."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape_list = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        split_size = draw(
+            st.integers(min_value=1, max_value=max(1, shape_list[dim]))
+        )
+        shape = tuple(shape_list)
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=TensorFnPrimitive(
+                "split", kwargs={"split_size": split_size, "dim": dim}
+            ),
+        )
+
+    return _draw()
+
+
 def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.unbind(input, dim)`: splits into a tuple of slices."""
 
@@ -1582,6 +1620,11 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="chunk",
             sample_st=_chunk_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="split-int",
+            sample_st=_split_int_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(

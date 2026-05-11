@@ -318,9 +318,18 @@ def adaptive_max_poolnd(node, op_helper, **kwargs):
     _adaptive_pool("max_pool", op_helper, node)
 
 
-@OP_REGISTRY.register(["upsample_nearest2d"])
-def upsample_nearest2d(node, op_helper, **kwargs):
-    """Operator mapping PyTorch: 'aten:upsample_nearest2d' to NNEF."""
+@OP_REGISTRY.register(
+    ["upsample_nearest1d", "upsample_nearest2d", "upsample_nearest3d"]
+)
+def upsample_nearest_nd(node, op_helper, **kwargs):
+    """Map PyTorch `aten::upsample_nearest{1,2,3}d` to NNEF.
+
+    All three variants share `(input, output_size, scales)` (with the
+    1-D / 3-D versions packing scales into a single `List[float]`).
+    The implementation is rank-agnostic for the `debox` path (tract
+    >= 0.22 with `upsample_with_debox=True`); the legacy `deconv`
+    fallback only handles the original 2-D case.
+    """
     (input_node, size_node, scale_factor_node) = node.inputs
     if size_node.data:
         raise T2NErrorNotImplemented("size in upsampling not defined in NNEF")
@@ -330,25 +339,13 @@ def upsample_nearest2d(node, op_helper, **kwargs):
         raise T2NErrorNotImplemented(
             f"unable to export scale_factor {scale_factor_node.data}"
         )
-    # NOTE: this implmentation is very suboptimal compared to
-    # onnx:resize operator:
-    # it should be reified in tract as a proper 'debox' operator.
-    # Also current implementation anoyingly need to pass
-    # the channel dim c (by default it's the 2nd dim)
-    # with classical notation: N,Cin,Hin, Win -> N,Cout,Hout,Wout
 
     scales = [int(sf) for sf in scale_factor_node.data]
-    kernel_data = torch.ones([1, 1, 1, 1] + scales)
-    kernel = TensorVariable(
-        name=f"{node.outputs[0].export_name}_kernel",
-        data=kernel_data,
-        shape=kernel_data.shape,
-        dtype=input_node.dtype,
-    )
-    bias = PythonConstant(
-        name=f"{node.outputs[0].export_name}_bias",
-        data=0,
-    )
+    spatial_rank = len(scales)
+    input_rank = input_node.rank
+    # NNEF convention here mirrors torch's `(N, C, *spatial)` layout
+    # so the leading non-spatial axes are upsampled with stride 1.
+    leading = input_rank - spatial_rank
     inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     if (
         isinstance(op_helper.inference_target, TractNNEF)
@@ -360,12 +357,63 @@ def upsample_nearest2d(node, op_helper, **kwargs):
             "debox",
             inputs=inp,
             attrs={
-                "size": [1, 1] + scales,
-                "stride": [1, 1] + scales,
-                "padding": [(0, 0), (0, 0), (0, 0), (0, 0)],
+                "size": [1] * leading + scales,
+                "stride": [1] * leading + scales,
+                "padding": [(0, 0)] * input_rank,
             },
         )
         return []
+    if spatial_rank != 2:
+        # Rank-generic nearest upsample: insert a size-1 axis after
+        # each spatial axis, tile it by the scale, then collapse back.
+        # `(..., d, 1) -> tile by s -> (..., d, s) -> reshape (..., d*s)`
+        # is the standard reshape/tile trick for nearest-neighbour
+        # replication; works on any rank and bypasses the rank-4
+        # restriction of the deconv path.
+        in_shape = [int(d) for d in input_node.shape]
+        expanded = list(in_shape[:leading])
+        for axis_i in range(spatial_rank):
+            expanded.extend([in_shape[leading + axis_i], 1])
+        out_intermediate = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=inp,
+            attrs={"shape": expanded},
+            output_tensor_name_suffix="_up_reshape",
+        )
+        tile_repeats = [1] * leading
+        for axis_i in range(spatial_rank):
+            tile_repeats.extend([1, scales[axis_i]])
+        out_intermediate = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tile",
+            inputs=out_intermediate,
+            attrs={"repeats": tile_repeats},
+            output_tensor_name_suffix="_up_tile",
+        )
+        final_shape = list(in_shape[:leading])
+        for axis_i in range(spatial_rank):
+            final_shape.append(in_shape[leading + axis_i] * scales[axis_i])
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "reshape",
+            inputs=out_intermediate,
+            attrs={"shape": final_shape},
+        )
+        return []
+    # NOTE: legacy 2-D path. Suboptimal compared to ONNX `resize`;
+    # ideally tract grows a proper `debox` for older versions too.
+    kernel_data = torch.ones([1, 1, 1, 1] + scales)
+    kernel = TensorVariable(
+        name=f"{node.outputs[0].export_name}_kernel",
+        data=kernel_data,
+        shape=kernel_data.shape,
+        dtype=input_node.dtype,
+    )
+    bias = PythonConstant(
+        name=f"{node.outputs[0].export_name}_bias",
+        data=0,
+    )
     out = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "deconv",
