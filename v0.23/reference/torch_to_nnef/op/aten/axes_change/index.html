@@ -1414,6 +1414,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.im2col" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;im2col
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.meshgrid" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;meshgrid
@@ -3343,6 +3352,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.im2col" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;im2col
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.meshgrid" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;meshgrid
@@ -3685,6 +3703,44 @@ with a constant reversed-index tensor <code>[N-1, ..., 0]</code>. Static-shape
 only: a dynamic axis size raises <code>T2NErrorNotImplemented</code> (would
 require building the index at runtime via <code>tract_core_range</code> over
 <code>tract_core_shape_of(input)[axis]</code>).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.im2col" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">im2col</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">im2col</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch <code>aten::im2col</code> (a.k.a. <code>F.unfold</code>) to NNEF.</p>
+<p>Signature: <code>im2col(self, kernel_size, dilation, padding, stride)</code> for
+a rank-4 input <code>(N, C, H, W)</code>. Output is <code>(N, C * kH * kW, L)</code> where
+<code>L = oH * oW</code> and:</p>
+<ul>
+<li><code>oH = (H + 2*pH - dH*(kH - 1) - 1) // sH + 1</code></li>
+<li><code>oW = (W + 2*pW - dW*(kW - 1) - 1) // sW + 1</code></li>
+</ul>
+<p>No tract / NNEF op exposes this directly (we probed
+<code>tract_core_im2col</code> / <code>im2col</code> -- both unknown), so we decompose:</p>
+<ol>
+<li>zero-pad the input along H and W if <code>padding &gt; 0</code>;</li>
+<li>for every kernel position <code>(di, dj)</code>, take a strided
+   2-axis <code>slice</code> -- begin=<code>[di*dH, dj*dW]</code>, stride=<code>[sH, sW]</code>,
+   length <code>oH x oW</code>;</li>
+<li><code>stack</code> the <code>kH * kW</code> slices along a new axis at position 2,
+   then <code>reshape</code> <code>(N, C, kH*kW, oH, oW)</code> -&gt; <code>(N, C*kH*kW, oH*oW)</code>.</li>
+</ol>
+<p>Iteration order is <code>di</code> outer, <code>dj</code> inner, matching torch's flat
+output-channel index <code>c*kH*kW + di*kW + dj</code>.</p>
 
     </div>
 
