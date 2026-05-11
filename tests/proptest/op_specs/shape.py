@@ -1372,6 +1372,43 @@ def _split_int_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _unfold_sample_st() -> st.SearchStrategy[OpSample]:
+    """`Tensor.unfold(dim, size, step)`: sliding-window view."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape_list = list(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        size = draw(st.integers(min_value=1, max_value=shape_list[dim]))
+        step = draw(st.integers(min_value=1, max_value=max(1, shape_list[dim])))
+        shape = tuple(shape_list)
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        class _Unfold(torch.nn.Module):
+            def forward(self, t):
+                return t.unfold(dim, size, step)
+
+        return OpSample(inputs=(x,), module=_Unfold())
+
+    return _draw()
+
+
 def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.unbind(input, dim)`: splits into a tuple of slices."""
 
@@ -1625,6 +1662,11 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="split-int",
             sample_st=_split_int_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="unfold",
+            sample_st=_unfold_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
