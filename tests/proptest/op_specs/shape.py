@@ -1409,6 +1409,55 @@ def _unfold_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _im2col_sample_st() -> st.SearchStrategy[OpSample]:
+    """`F.unfold(input, kernel_size, dilation, padding, stride)`.
+
+    Lowers to `aten::im2col`; rank-4 inputs `(N, C, H, W)` only.
+    Sample sizes / kernels / strides / dilations / paddings are kept
+    small but exercise both square and asymmetric configurations, and
+    cover the padding > 0 / dilation > 1 branches.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        kh = draw(st.integers(min_value=1, max_value=3))
+        kw = draw(st.integers(min_value=1, max_value=3))
+        dh = draw(st.integers(min_value=1, max_value=2))
+        dw = draw(st.integers(min_value=1, max_value=2))
+        ph = draw(st.integers(min_value=0, max_value=1))
+        pw = draw(st.integers(min_value=0, max_value=1))
+        sh = draw(st.integers(min_value=1, max_value=2))
+        sw = draw(st.integers(min_value=1, max_value=2))
+        rcpt_h = dh * (kh - 1) + 1
+        rcpt_w = dw * (kw - 1) + 1
+        h = draw(st.integers(min_value=rcpt_h, max_value=rcpt_h + 4))
+        w = draw(st.integers(min_value=rcpt_w, max_value=rcpt_w + 4))
+        x = draw(
+            tensor_st(
+                (n, c, h, w),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+
+        class _Im2Col(torch.nn.Module):
+            def forward(self, t):
+                return torch.nn.functional.unfold(
+                    t,
+                    kernel_size=(kh, kw),
+                    dilation=(dh, dw),
+                    padding=(ph, pw),
+                    stride=(sh, sw),
+                )
+
+        return OpSample(inputs=(x,), module=_Im2Col())
+
+    return _draw()
+
+
 def _unbind_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.unbind(input, dim)`: splits into a tuple of slices."""
 
@@ -1667,6 +1716,11 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="unfold",
             sample_st=_unfold_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="im2col",
+            sample_st=_im2col_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(

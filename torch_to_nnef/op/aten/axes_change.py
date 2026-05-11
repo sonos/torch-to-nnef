@@ -1066,3 +1066,119 @@ def unfold(node, op_helper, **kwargs):
         attrs={"axes": perm},
     )
     return []
+
+
+def _as_pair(node_value, name: str):
+    """Unwrap PyTorch's `[h, w]` list inputs into a (h, w) int tuple."""
+    if hasattr(node_value, "data"):
+        node_value = node_value.data
+    if hasattr(node_value, "tolist"):
+        node_value = node_value.tolist()
+    if not isinstance(node_value, (list, tuple)) or len(node_value) != 2:
+        raise T2NErrorNotImplemented(
+            f"im2col: {name} must be a 2-element list; got {node_value!r}"
+        )
+    return int(node_value[0]), int(node_value[1])
+
+
+@OP_REGISTRY.register()
+def im2col(node, op_helper, **kwargs):
+    """Map PyTorch `aten::im2col` (a.k.a. `F.unfold`) to NNEF.
+
+    Signature: `im2col(self, kernel_size, dilation, padding, stride)` for
+    a rank-4 input `(N, C, H, W)`. Output is `(N, C * kH * kW, L)` where
+    `L = oH * oW` and:
+
+    * `oH = (H + 2*pH - dH*(kH - 1) - 1) // sH + 1`
+    * `oW = (W + 2*pW - dW*(kW - 1) - 1) // sW + 1`
+
+    No tract / NNEF op exposes this directly (we probed
+    `tract_core_im2col` / `im2col` -- both unknown), so we decompose:
+
+    1. zero-pad the input along H and W if `padding > 0`;
+    2. for every kernel position `(di, dj)`, take a strided
+       2-axis `slice` -- begin=`[di*dH, dj*dW]`, stride=`[sH, sW]`,
+       length `oH x oW`;
+    3. `stack` the `kH * kW` slices along a new axis at position 2,
+       then `reshape` `(N, C, kH*kW, oH, oW)` -> `(N, C*kH*kW, oH*oW)`.
+
+    Iteration order is `di` outer, `dj` inner, matching torch's flat
+    output-channel index `c*kH*kW + di*kW + dj`.
+    """
+    (
+        input_node,
+        kernel_node,
+        dilation_node,
+        padding_node,
+        stride_node,
+    ) = node.inputs
+    if input_node.rank != 4:
+        raise T2NErrorNotImplemented(
+            f"im2col expects a rank-4 input (N, C, H, W); got rank "
+            f"{input_node.rank}"
+        )
+    kh, kw = _as_pair(kernel_node, "kernel_size")
+    dh, dw = _as_pair(dilation_node, "dilation")
+    ph, pw = _as_pair(padding_node, "padding")
+    sh, sw = _as_pair(stride_node, "stride")
+    n, c, h, w = (int(d) for d in input_node.shape)
+    padded_h = h + 2 * ph
+    padded_w = w + 2 * pw
+    rcpt_h = dh * (kh - 1) + 1
+    rcpt_w = dw * (kw - 1) + 1
+    if padded_h < rcpt_h or padded_w < rcpt_w:
+        raise T2NErrorNotImplemented(
+            f"im2col: padded input ({padded_h}, {padded_w}) too small "
+            f"for receptive field ({rcpt_h}, {rcpt_w})"
+        )
+    o_h = (padded_h - rcpt_h) // sh + 1
+    o_w = (padded_w - rcpt_w) // sw + 1
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    if ph > 0 or pw > 0:
+        inp = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "pad",
+            inputs=inp,
+            attrs={
+                "padding": [(0, 0), (0, 0), (ph, ph), (pw, pw)],
+                "value": 0.0,
+            },
+            output_tensor_name_suffix="_im2col_pad",
+        )
+    slice_refs = []
+    for di in range(kh):
+        for dj in range(kw):
+            begin_h = di * dh
+            begin_w = dj * dw
+            slice_refs.append(
+                op_helper.add_single_output_op_from_nnef_tensors(
+                    node,
+                    "slice",
+                    inputs=inp,
+                    attrs={
+                        "axes": [2, 3],
+                        "begin": [begin_h, begin_w],
+                        "end": [
+                            begin_h + (o_h - 1) * sh + 1,
+                            begin_w + (o_w - 1) * sw + 1,
+                        ],
+                        "stride": [sh, sw],
+                    },
+                    output_tensor_name_suffix=f"_im2col_s{di}_{dj}",
+                )
+            )
+    stacked = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "stack",
+        inputs=slice_refs,
+        attrs={"axis": 2},
+        ensure_tuple=False,
+        output_tensor_name_suffix="_im2col_stack",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=stacked,
+        attrs={"shape": [n, c * kh * kw, o_h * o_w]},
+    )
+    return []

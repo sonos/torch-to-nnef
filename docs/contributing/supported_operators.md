@@ -19,9 +19,9 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
 
     -  and support from full `aten::`: 
 
-    [=293/862 "293/862"]
+    [=294/862 "294/862"]
 
-     (total operators listed as supported by `torch_to_nnef` being 325)
+     (total operators listed as supported by `torch_to_nnef` being 326)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -412,7 +412,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igamma.html">igamma</a></td><td>special_gammainc</td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igammac.html">igammac</a></td><td>special_gammaincc</td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>iinfo</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>im2col</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>im2col</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.imag.html">imag</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_add.html">index_add</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_copy.html">index_copy</a></td><td></td><td>❌</td><td>-</td></tr>
