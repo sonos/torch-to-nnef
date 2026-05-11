@@ -31,9 +31,9 @@ This trims the unsupported column to the names where a `torch_to_nnef` emitter (
 
     -  and support from full `aten::`: 
 
-    [=303/673 "303/673"]
+    [=308/673 "308/673"]
 
-     (total operators listed as supported by `torch_to_nnef` being 335)
+     (total operators listed as supported by `torch_to_nnef` being 340)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -329,8 +329,8 @@ This trims the unsupported column to the names where a `torch_to_nnef` emitter (
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.fill_diagonal_.html">fill_diagonal_</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fliplr.html">fliplr</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flipud.html">flipud</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fliplr.html">fliplr</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flipud.html">flipud</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.float_power.html">float_power</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.floor_divide.html">floor_divide</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
@@ -458,8 +458,8 @@ This trims the unsupported column to the names where a `torch_to_nnef` emitter (
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.lstsq.html">lstsq</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>mT</td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>mT</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.margin_ranking_loss.html">margin_ranking_loss</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.masked_fill.html">masked_fill</a></td><td></td><td>✅</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -581,7 +581,7 @@ This trims the unsupported column to the names where a `torch_to_nnef` emitter (
     <tr class="op-row supported"><td>✅</td><td>rnn_tanh</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rnn_tanh_cell</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
+    <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rowwise_prune</td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
     <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>

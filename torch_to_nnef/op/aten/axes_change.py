@@ -135,6 +135,35 @@ def numpy_t(g, node, name_to_tensor, **kwargs):
     )
 
 
+@OP_REGISTRY.register(torch_op_ids=["mT", "mH"])
+def matrix_transpose(g, node, name_to_tensor, **kwargs):
+    """Map `aten::mT` and `aten::mH` (`Tensor.mT` / `Tensor.mH`) to NNEF.
+
+    Both ops swap the last two axes of a rank-`>=` 2 tensor. `mH` is the
+    conjugate-transpose; for real-valued tensors (the only ones NNEF /
+    tract carry without the complex feature flag) it is identical to
+    `mT`, so a single emitter handles both.
+    """
+    (input_node,) = node.inputs
+    if input_node.rank < 2:
+        raise T2NErrorNotImplemented(
+            f"mT / mH require rank >= 2; got {input_node.rank}"
+        )
+    perm = list(range(input_node.rank))
+    perm[-2], perm[-1] = perm[-1], perm[-2]
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": perm},
+        pass_quantization_params=True,
+    )
+
+
 @OP_REGISTRY.register()
 def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:transpose' to NNEF."""
@@ -310,23 +339,30 @@ def reshape(
     )
 
 
-@OP_REGISTRY.register()
-def flip(g, node, name_to_tensor, inference_target, **kwargs):
-    """Map PyTorch: 'aten:flip' to NNEF.
+def _emit_flip_chain(
+    g,
+    node,
+    name_to_tensor,
+    inference_target,
+    input_node,
+    raw_dims,
+    op_label: str,
+):
+    """Emit a per-axis `tract_core_gather` chain.
 
-    Decomposes to a chain of `tract_core_gather` calls, one per axis,
-    with a constant reversed-index tensor `[N-1, ..., 0]`. Static-shape
-    only: a dynamic axis size raises `T2NErrorNotImplemented` (would
-    require building the index at runtime via `tract_core_range` over
-    `tract_core_shape_of(input)[axis]`).
+    Shared by `flip` / `fliplr` / `flipud` / `rot90`. Each axis becomes
+    one `tract_core_gather` with a constant reversed-index tensor
+    `[N-1, ..., 0]`. Static-shape only: a dynamic axis size raises
+    `T2NErrorNotImplemented` (would require building the index at
+    runtime via `tract_core_range` over
+    `tract_core_shape_of(input)[axis]`). The last gather lands in
+    `node.outputs[0]` so the caller doesn't need to thread an output
+    name through.
     """
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(
-            "flip requires `tract_core_gather` (TractNNEF target)"
+            f"{op_label} requires `tract_core_gather` (TractNNEF target)"
         )
-    input_node, dims_node = node.inputs
-    raw_dims = list(dims_node.data) if dims_node.data is not None else []
-
     seen = set()
     axes = []
     for d in raw_dims:
@@ -346,18 +382,18 @@ def flip(g, node, name_to_tensor, inference_target, **kwargs):
             inputs=cur_ref,
             attrs={"shape": list(input_node.shape)},
         )
-        return []
+        return ["tract_core"]
 
     for axis in axes:
         if not isinstance(input_node.shape[axis], int):
             raise T2NErrorNotImplemented(
-                f"flip on dynamic axis {axis} not yet supported"
+                f"{op_label} on dynamic axis {axis} not yet supported"
             )
 
     for i, axis in enumerate(axes):
         n = input_node.shape[axis]
         idx_const = PythonConstant(
-            name=f"{node.outputs[0].export_name}_flip_idx_{axis}",
+            name=f"{node.outputs[0].export_name}_{op_label}_idx_{axis}",
             data=torch.arange(n - 1, -1, -1, dtype=torch.int64),
         )
         idx_ref = get_or_add_tensor_variable_in_nnef(
@@ -372,8 +408,189 @@ def flip(g, node, name_to_tensor, inference_target, **kwargs):
             inputs=[cur_ref, idx_ref],
             attrs={"axis": axis},
             force_consistent_inputs_shapes=False,
-            output_tensor_name_suffix=("" if is_last else f"_flip_axis{axis}"),
+            output_tensor_name_suffix=(
+                "" if is_last else f"_{op_label}_axis{axis}"
+            ),
         )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def flip(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch `aten::flip(input, dims)` to NNEF."""
+    input_node, dims_node = node.inputs
+    raw_dims = list(dims_node.data) if dims_node.data is not None else []
+    return _emit_flip_chain(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        input_node,
+        raw_dims,
+        op_label="flip",
+    )
+
+
+@OP_REGISTRY.register()
+def fliplr(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map `aten::fliplr` (`torch.fliplr`) to NNEF.
+
+    Reverses elements along axis 1 (per torch's rank>=2 convention).
+    """
+    (input_node,) = node.inputs
+    if input_node.rank < 2:
+        raise T2NErrorNotImplemented(
+            f"fliplr requires rank >= 2; got {input_node.rank}"
+        )
+    return _emit_flip_chain(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        input_node,
+        raw_dims=[1],
+        op_label="fliplr",
+    )
+
+
+@OP_REGISTRY.register()
+def flipud(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map `aten::flipud` (`torch.flipud`) to NNEF.
+
+    Reverses elements along axis 0 (per torch's rank>=1 convention).
+    """
+    (input_node,) = node.inputs
+    if input_node.rank < 1:
+        raise T2NErrorNotImplemented(
+            f"flipud requires rank >= 1; got {input_node.rank}"
+        )
+    return _emit_flip_chain(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        input_node,
+        raw_dims=[0],
+        op_label="flipud",
+    )
+
+
+@OP_REGISTRY.register()
+def rot90(g, node, name_to_tensor, inference_target, op_helper, **kwargs):
+    """Map `aten::rot90(input, k, dims)` to NNEF.
+
+    Rotates by `90 * k` degrees in the plane `(dims[0], dims[1])`.
+    The rotation direction is from `dims[0]` toward `dims[1]`, matching
+    torch's convention. Decomposed per the standard `flip + transpose`
+    identity:
+
+    * `k % 4 == 0`: identity (single `reshape` with the same shape so
+      the named output tensor is materialised).
+    * `k % 4 == 1`: `flip(dims[1]) -> transpose(dims[0], dims[1])`.
+    * `k % 4 == 2`: `flip([dims[0], dims[1]])`.
+    * `k % 4 == 3`: `transpose(dims[0], dims[1]) -> flip(dims[1])`.
+    """
+    input_node, k_node, dims_node = node.inputs
+    if not isinstance(k_node, PythonConstant):
+        raise T2NErrorNotImplemented("rot90: k must be statically known")
+    raw_dims = list(dims_node.data) if dims_node.data is not None else [0, 1]
+    if len(raw_dims) != 2:
+        raise T2NErrorNotImplemented(
+            f"rot90: dims must be 2-element list; got {raw_dims!r}"
+        )
+    d0 = pick_axis(input_node, raw_dims[0])
+    d1 = pick_axis(input_node, raw_dims[1])
+    if d0 == d1:
+        raise T2NErrorNotImplemented(
+            f"rot90: dims must be distinct; got [{d0}, {d1}]"
+        )
+    k = int(k_node.data) % 4
+    if k == 0:
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "reshape",
+            inputs=get_or_add_tensor_variable_in_nnef(
+                g, input_node, name_to_tensor
+            ),
+            attrs={"shape": list(input_node.shape)},
+        )
+        return []
+    if k == 2:
+        return _emit_flip_chain(
+            g,
+            node,
+            name_to_tensor,
+            inference_target,
+            input_node,
+            raw_dims=[d0, d1],
+            op_label="rot90",
+        )
+
+    # k in {1, 3}: one flip + one transpose, ordering swaps with k.
+    if not isinstance(input_node.shape[d1], int):
+        raise T2NErrorNotImplemented(
+            f"rot90 on dynamic axis {d1} not yet supported"
+        )
+    perm = list(range(input_node.rank))
+    perm[d0], perm[d1] = perm[d1], perm[d0]
+
+    if k == 1:
+        # flip(d1) first, then transpose.
+        flip_axis_n = input_node.shape[d1]
+        idx_const = PythonConstant(
+            name=f"{node.outputs[0].export_name}_rot90_idx_{d1}",
+            data=torch.arange(flip_axis_n - 1, -1, -1, dtype=torch.int64),
+        )
+        idx_ref = get_or_add_tensor_variable_in_nnef(
+            g, idx_const, name_to_tensor
+        )
+        flipped = op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "tract_core_gather",
+            inputs=[
+                get_or_add_tensor_variable_in_nnef(
+                    g, input_node, name_to_tensor
+                ),
+                idx_ref,
+            ],
+            attrs={"axis": d1},
+            force_consistent_inputs_shapes=False,
+            output_tensor_name_suffix="_rot90_flip",
+        )
+        op_helper.add_single_output_op_from_nnef_tensors(
+            node,
+            "transpose",
+            inputs=flipped,
+            attrs={"axes": perm},
+        )
+        return ["tract_core"]
+
+    # k == 3: transpose first, then flip.
+    transposed = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": perm},
+        output_tensor_name_suffix="_rot90_t",
+    )
+    # After transpose, dim d1 still holds the previous d0's size.
+    flip_axis_n = input_node.shape[d0]
+    idx_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_rot90_idx_{d1}",
+        data=torch.arange(flip_axis_n - 1, -1, -1, dtype=torch.int64),
+    )
+    idx_ref = get_or_add_tensor_variable_in_nnef(g, idx_const, name_to_tensor)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather",
+        inputs=[transposed, idx_ref],
+        attrs={"axis": d1},
+        force_consistent_inputs_shapes=False,
+    )
     return ["tract_core"]
 
 
