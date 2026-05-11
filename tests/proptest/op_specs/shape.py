@@ -1693,6 +1693,126 @@ def _triangular_sample_st(
     return _draw()
 
 
+def _matrix_transpose_sample_st(
+    op_fn,
+) -> st.SearchStrategy[OpSample]:
+    """`Tensor.mT` / `Tensor.mH` -- swap the last two axes (rank >= 2)."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _fliplr_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.fliplr))
+
+    return _draw()
+
+
+def _flipud_sample_st() -> st.SearchStrategy[OpSample]:
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(inputs=(x,), module=UnaryPrimitive(torch.flipud))
+
+    return _draw()
+
+
+def _rot90_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.rot90(input, k, dims)`: rotate by 90 * k degrees."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        k = draw(st.integers(min_value=0, max_value=3))
+        d0 = draw(st.integers(min_value=0, max_value=rank - 1))
+        d1 = draw(
+            st.integers(min_value=0, max_value=rank - 1).filter(
+                lambda v: v != d0
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(torch.rot90, k=k, dims=(d0, d1))),
+        )
+
+    return _draw()
+
+
 def _flip_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.flip(input, dims)`: reverse along a unique subset of dims."""
 
@@ -1849,6 +1969,33 @@ def _concat_split_specs() -> T.List[OpSpec]:
         OpSpec(
             name="flip",
             sample_st=_flip_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="mT",
+            sample_st=_matrix_transpose_sample_st(lambda x: x.mT),
+            tolerance=EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="mH",
+            sample_st=_matrix_transpose_sample_st(lambda x: x.mH),
+            tolerance=EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="fliplr",
+            sample_st=_fliplr_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="flipud",
+            sample_st=_flipud_sample_st(),
+            tolerance=EXACT,
+        ),
+        OpSpec(
+            name="rot90",
+            sample_st=_rot90_sample_st(),
             tolerance=EXACT,
         ),
         OpSpec(
