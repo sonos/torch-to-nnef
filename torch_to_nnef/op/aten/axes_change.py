@@ -17,6 +17,7 @@ from torch_to_nnef.op.helper import (
     get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
     pick_axis,
+    resolve_attr_axis_size,
 )
 from torch_to_nnef.torch_graph import FixedTensorList
 from torch_to_nnef.torch_graph.ir_data import PythonConstant
@@ -818,6 +819,10 @@ def _emit_broadcast_to(op_helper, node, src_ref, target_shape, output_idx):
     exactly torch's `broadcast_tensors` semantics: take an input that's
     already broadcast-compatible with `target_shape` and replicate the
     size-1 axes up to the target size.
+
+    `target_shape` entries may be plain `int` (static) or
+    `nnef.Identifier` (resolved at runtime from a `tract_core_shape_of`
+    chain emitted upstream).
     """
     g = op_helper.g
     name_to_tensor = op_helper.name_to_tensor
@@ -825,10 +830,6 @@ def _emit_broadcast_to(op_helper, node, src_ref, target_shape, output_idx):
     out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
         onode, prevent_variable=True
     )
-    if not all(isinstance(d, int) for d in target_shape):
-        raise T2NErrorNotImplemented(
-            "broadcast with dynamic target shape not yet supported"
-        )
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
@@ -877,28 +878,39 @@ def broadcast_tensors(node, op_helper, inference_target, **kwargs):
 
 
 def _emit_meshgrid_one_axis(
-    op_helper, node, src_ref, target_shape, axis, output_idx
+    op_helper, node, in_data, target_shape_attr, axis, output_idx
 ):
     """Emit one meshgrid output: reshape + broadcast to target shape.
 
-    Reshape `src_ref` (rank 1) to `(1, .., size, .., 1)` at `axis`,
-    then broadcast to `target_shape` and write to
-    `node.outputs[output_idx]`. The reshape step is rank-changing, so
-    we build the intermediate NTensor explicitly (the shared
-    `add_single_output_op...` helpers inherit `node.outputs[0].shape`
-    and assert single-output, both wrong for a multi-output meshgrid).
+    Reshape `in_data` (rank 1) to `(1, .., size, .., 1)` at `axis`,
+    then broadcast to `target_shape_attr` and write to
+    `node.outputs[output_idx]`. `target_shape_attr` is a list of
+    op-attr values (`int` or `nnef.Identifier`), allowing the
+    runtime-extracted symbolic size for dynamic axes.
     """
     g = op_helper.g
     name_to_tensor = op_helper.name_to_tensor
-    rank = len(target_shape)
+    rank = len(target_shape_attr)
+    # Use the 1-D input's axis-0 size for the inserted axis (resolved
+    # symbolically when that axis is dynamic).
+    axis_size = resolve_attr_axis_size(op_helper, in_data, axis=0)
     reshape_shape = [1] * rank
-    reshape_shape[axis] = int(target_shape[axis])
+    reshape_shape[axis] = axis_size
+    # The intermediate NTensor's `.shape` is metadata used by t2n's
+    # rank-align pass; tract reads the actual size from the reshape
+    # op attribute. For dynamic axes we just write 1 there -- the
+    # reshape result is rank-correct and tract will derive the actual
+    # size from the symbolic attribute at runtime.
     onode = node.outputs[output_idx]
+    declared_shape = [1] * rank
+    if isinstance(axis_size, int):
+        declared_shape[axis] = axis_size
+    src_ref = op_helper.get_or_add_tensor_variable_in_nnef(in_data)
     intermediate = _make_ntensor_with_shape(
         g,
         name_to_tensor,
         f"{onode.export_name}_mg_reshape",
-        reshape_shape,
+        declared_shape,
         onode.np_dtype,
     )
     cast_and_add_nnef_operation(
@@ -910,7 +922,9 @@ def _emit_meshgrid_one_axis(
         outputs=intermediate,
         attribs={"shape": reshape_shape},
     )
-    _emit_broadcast_to(op_helper, node, intermediate, target_shape, output_idx)
+    _emit_broadcast_to(
+        op_helper, node, intermediate, target_shape_attr, output_idx
+    )
 
 
 @OP_REGISTRY.register()
@@ -934,7 +948,6 @@ def meshgrid(node, op_helper, inference_target, **kwargs):
     assert isinstance(input_list_node, FixedTensorList)
     assert len(input_list_node.data) == len(node.outputs)
     n = len(input_list_node.data)
-    target_shape = list(node.outputs[0].shape)
 
     def axis_for_input(i: int) -> int:
         if indexing == "xy" and n >= 2:
@@ -944,13 +957,21 @@ def meshgrid(node, op_helper, inference_target, **kwargs):
                 return 0
         return i
 
+    # Build the broadcast target shape from each input's axis-0 size.
+    # The size resolver emits a `tract_core_shape_of` chain and returns
+    # an `nnef.Identifier` for dynamic inputs; otherwise it's a plain int.
+    target_shape_attr = [None] * n
     for i, in_data in enumerate(input_list_node.data):
-        src_ref = op_helper.get_or_add_tensor_variable_in_nnef(in_data)
+        target_shape_attr[axis_for_input(i)] = resolve_attr_axis_size(
+            op_helper, in_data, axis=0
+        )
+
+    for i, in_data in enumerate(input_list_node.data):
         _emit_meshgrid_one_axis(
             op_helper,
             node,
-            src_ref,
-            target_shape,
+            in_data,
+            target_shape_attr,
             axis=axis_for_input(i),
             output_idx=i,
         )

@@ -1121,6 +1121,25 @@ class SimpleOpChainer:
         return SimpleOpChainer(self.op_helper, new_data)
 
 
+def resolve_attr_axis_size(op_helper, input_node, axis: int):
+    """Resolve `input_node.shape[axis]` for use in a NNEF op attribute.
+
+    When `inference_target.has_dynamic_axes`, emit (and cache) a
+    `tract_core_shape_of -> slice -> squeeze` chain to extract the
+    runtime size of `axis` and return an `nnef.Identifier` referencing
+    that scalar. Otherwise, return the static `int(input_node.shape[axis])`.
+
+    Use this anywhere a shape-derived value lands in an op attribute
+    (e.g. `reshape(shape=[...])`, `tile(repeats=[...])`, `slice(end=...)`)
+    so the same emitter works in both static and dyn-axes modes
+    without baking the trace-time size into the exported graph.
+    """
+    if not op_helper.inference_target.has_dynamic_axes:
+        return int(input_node.shape[axis])
+    get_tract_dyn_axis_size_soc(op_helper, input_node, axis)
+    return nnef.Identifier(f"{input_node.export_name}_dim{axis}")
+
+
 def get_tract_dyn_axis_size_soc(
     op_helper, input_node, axis: int
 ) -> SimpleOpChainer:

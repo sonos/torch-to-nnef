@@ -2360,11 +2360,13 @@ def _index_pixel_specs() -> T.List[OpSpec]:
             ),
         ),
         # `take` uses `tract_core_gather`, no scatter reduction, so it
-        # passes on 0.22.1.
+        # passes on 0.22.1. The flatten reshape uses `[-1]` (deferred
+        # to tract / NNEF), so dyn-axes works without special-casing.
         OpSpec(
             name="take",
             sample_st=_take_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="pixel_shuffle",
@@ -2497,27 +2499,20 @@ def _shape_utility_specs() -> T.List[OpSpec]:
             tolerance=TractCheckTolerance.EXACT,
             dynamic_axes_compatible=True,
         ),
-        # meshgrid emits a rank-changing reshape with a concrete numeric
-        # shape; under dyn-axes tract rejects the int-vs-symbolic mismatch
-        # ("A should be equal to N"). Threading dyn-axis symbols into
-        # `_make_ntensor_with_shape` is a follow-up.
+        # `resolve_attr_axis_size` threads each input's axis-0 dim
+        # through the reshape + broadcast attrs as a runtime
+        # identifier, so dyn-axes works.
         OpSpec(
             name="meshgrid_ij",
             sample_st=_meshgrid_sample_st("ij"),
             tolerance=TractCheckTolerance.EXACT,
-            dynamic_axes_skip_reason=(
-                "meshgrid reshape declares concrete shape; "
-                "symbolic-dim threading needs follow-up."
-            ),
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="meshgrid_xy",
             sample_st=_meshgrid_sample_st("xy"),
             tolerance=TractCheckTolerance.EXACT,
-            dynamic_axes_skip_reason=(
-                "meshgrid reshape declares concrete shape; "
-                "symbolic-dim threading needs follow-up."
-            ),
+            dynamic_axes_compatible=True,
         ),
         # tensor_split bakes slice boundaries from the trace-time
         # `dim_size`. Static-axes proptest passes; runtime correctness

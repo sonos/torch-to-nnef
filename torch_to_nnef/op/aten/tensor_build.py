@@ -18,6 +18,7 @@ from torch_to_nnef.op.helper import (
     get_list_of_int,
     get_or_add_tensor_variable_in_nnef,
     get_tract_dyn_axis_size_soc,
+    resolve_attr_axis_size,
     unary_output_op_without_attr,
 )
 from torch_to_nnef.torch_graph import (
@@ -891,15 +892,28 @@ def affine_grid_generator(
     size_data = size_node.data
     if hasattr(size_data, "tolist"):
         size_data = size_data.tolist()
-    size = [int(x) for x in size_data]
-    align_corners = bool(align_corners_node.data)
-    if len(size) != 4:
+    if len(size_data) != 4:
         raise T2NErrorNotImplemented(
             f"affine_grid_generator: only 2-D (rank-4 size) supported; "
-            f"got size={size}"
+            f"got size={size_data}"
         )
-    n, _c, h, w = size
-    if tuple(theta_node.shape) != (n, 2, 3):
+    # H / W must be static (we bake the base grid as a constant); the
+    # batch dim N can be dynamic (resolved via `resolve_attr_axis_size`
+    # below).
+
+    def _as_static_int(v, name):
+        if isinstance(v, int):
+            return v
+        if hasattr(v, "data") and isinstance(v.data, int):
+            return v.data
+        raise T2NErrorNotImplemented(
+            f"affine_grid_generator: {name} must be statically known; got {v!r}"
+        )
+
+    h = _as_static_int(size_data[2], "H")
+    w = _as_static_int(size_data[3], "W")
+    align_corners = bool(align_corners_node.data)
+    if theta_node.rank != 3 or tuple(theta_node.shape[1:]) != (2, 3):
         raise T2NErrorNotImplemented(
             f"affine_grid_generator: theta shape must be (N, 2, 3); "
             f"got {theta_node.shape}"
@@ -941,9 +955,13 @@ def affine_grid_generator(
         attrs={"axes": [0, 2, 1]},
         output_tensor_name_suffix="ag_t",
     )
+    # Resolve N from theta's runtime shape so the reshape works with a
+    # dynamic batch axis (otherwise tract refuses to unify a concrete
+    # N against the symbolic axis-0 dim).
+    n_attr = resolve_attr_axis_size(op_helper, theta_node, axis=0)
     op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "reshape",
         inputs=transposed,
-        attrs={"shape": [n, h, w, 2]},
+        attrs={"shape": [n_attr, h, w, 2]},
     )

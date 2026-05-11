@@ -771,13 +771,10 @@ def _no_tract_change_specs() -> T.List[OpSpec]:
             name="affine_grid",
             sample_st=_affine_grid_sample_st(),
             tolerance=TractCheckTolerance.CLOSE,
-            # Final reshape declares `(N, H, W, 2)` with a concrete
-            # `N` that clashes with the dyn-axis symbol -- same
-            # pattern as meshgrid / tensor_split.
-            dynamic_axes_skip_reason=(
-                "affine_grid_generator's final reshape declares "
-                "concrete N; symbolic-dim threading needs follow-up."
-            ),
+            # `resolve_attr_axis_size` threads theta's dynamic batch
+            # dim through the final reshape; H/W still need to be
+            # statically known (we bake the base grid as a constant).
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="conv_tbc",

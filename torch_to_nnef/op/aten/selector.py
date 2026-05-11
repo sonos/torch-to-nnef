@@ -16,6 +16,7 @@ from torch_to_nnef.op.helper import (
     get_tract_dyn_axis_size_soc,
     pick_axis,
     pick_index_in_axis,
+    resolve_attr_axis_size,
 )
 from torch_to_nnef.tensor import OpaqueTensorRef
 from torch_to_nnef.torch_graph.ir_data import PythonConstant, TensorVariable
@@ -1527,6 +1528,10 @@ def _broadcast_index_to_input_shape(
     have the same shape as the iteration domain. Torch's index_* family
     ships a rank-1 `index`, so we unsqueeze it to the input rank and
     tile it across every non-`dim` axis.
+
+    Tile repeats for dynamic non-`dim` axes are resolved at runtime via
+    `resolve_attr_axis_size`; the broadcast shape returned to the
+    caller mixes ints and `nnef.Identifier` for the same reason.
     """
     rank = input_node.rank
     if not isinstance(index_node.shape[0], int):
@@ -1538,12 +1543,12 @@ def _broadcast_index_to_input_shape(
     if rank == 1:
         return idx_ref, [k]
 
-    repeats = list(input_node.shape)
-    if not all(isinstance(d, int) for d in repeats):
-        raise T2NErrorNotImplemented(
-            "index_* with dynamic non-`dim` axes not supported"
-        )
-    repeats[dim] = 1
+    repeats = []
+    for axis in range(rank):
+        if axis == dim:
+            repeats.append(1)
+        else:
+            repeats.append(resolve_attr_axis_size(op_helper, input_node, axis))
 
     axes_to_add = [i for i in range(rank) if i != dim]
     idx_unsq = op_helper.add_single_output_op_from_nnef_tensors(
@@ -1779,26 +1784,21 @@ def take(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:take' to NNEF.
 
     `take(self, index)` flattens `self` to 1-D and gathers along axis
-    0. Lowered to a static `reshape` (to `(numel,)`) followed by
-    `tract_core_gather` on axis 0.
+    0. Lowered to a `reshape(input, shape=[-1])` followed by
+    `tract_core_gather` on axis 0. The `-1` lets NNEF / tract derive
+    the flat size at runtime from the input shape, so dynamic input
+    axes work without any special-casing.
     """
     if not isinstance(inference_target, TractNNEF):
         raise T2NErrorNotImplemented(inference_target)
     input_node, index_node = node.inputs
-    if not all(isinstance(d, int) for d in input_node.shape):
-        raise T2NErrorNotImplemented(
-            "take with dynamic input shape not supported"
-        )
-    flat_size = 1
-    for d in input_node.shape:
-        flat_size *= int(d)
 
     inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
     flat = op_helper.add_single_output_op_from_nnef_tensors(
         node,
         "reshape",
         inputs=inp_ref,
-        attrs={"shape": [flat_size]},
+        attrs={"shape": [-1]},
         output_tensor_name_suffix="_take_flat",
     )
     op_helper.add_single_output_op_from_nnef_tensors(
