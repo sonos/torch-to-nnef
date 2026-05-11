@@ -9,17 +9,7 @@
 
 We filter out 'backward' and 'sym' operators from the listing since they are unwanted in an inference engine. In-place operations are merged with their non-inplace counterparts since that distinction is an inference implementation detail.
 
-We also exclude a long tail of identifiers that the `aten::*` source-grep picks up but that can never surface in an inference JIT trace, grouped by reason:
-
- - **Python builtin / scripting false positives** (52 names): `capitalize, center, chr, clear, dict, endswith, expandtabs, extend, find, format, get, getelem, hash, hex, isalnum, isalpha, isdecimal, isdigit, isidentifier, islower, isnumeric, isprintable, isspace, istitle, isupper, items, join, keys, ljust, lower, lstrip, oct, ord, partition, popitem, rfind, rindex, rjust, rpartition, rsplit, rstrip, setdefault, sorted, splitlines, startswith, strip, swapcase, title, update, upper, values, zfill`
- - **Test harness / placeholder identifiers** (13 names): `confirmed_by_owner, foo, mathremainder, percentFormat, pointwise_placeholder, symbolic_b, test, test_symbol, test_vartype, test_vartype2, unknown, view_expand_placeholder, your_op`
- - **Distributed / RPC primitives** (14 names): `all_gather_into_tensor, all_reduce, fork, get_gradients, is_owner, local_value, owner, owner_name, reduce_scatter_tensor, to_here, wait, wait_tensor, warn, warns`
- - **Backend-specific dispatch shims (cudnn / miopen / mkldnn / mps)** (26 names): `cudnn_affine_grid_generator, cudnn_batch_norm, cudnn_convolution, cudnn_convolution_add_relu, cudnn_convolution_relu, cudnn_convolution_transpose, cudnn_grid_sampler, cudnn_is_acceptable, miopen_batch_norm, miopen_convolution, miopen_convolution_add_relu, miopen_convolution_relu, miopen_convolution_transpose, miopen_ctc_loss, miopen_depthwise_convolution, miopen_rnn, mkldnn_adaptive_avg_pool2d, mkldnn_convolution, mkldnn_linear, mkldnn_max_pool2d, mkldnn_max_pool3d, mkldnn_reorder_conv2d_weight, mkldnn_reorder_conv3d_weight, mkldnn_rnn_layer, mps_linear, to_mkldnn`
- - **Tensor metadata accessors (return a Python value, not a tensor)** (60 names): `can_cast, data, dense_dim, device, dtype, element_size, enable_grad, get_autocast_dtype, get_device, get_pool_ceil_padding, grad, has_torch_function, iinfo, initial_seed, int_repr, is_autocast_cpu_enabled, is_autocast_enabled, is_coalesced, is_complex, is_conj, is_contiguous, is_cuda, is_grad_enabled, is_leaf, is_non_overlapping_and_dense, is_nonzero, is_pinned, is_same_size, is_scripting, is_set_to, is_signed, is_strides_like_format, manual_seed, node, op, op_name, output_nr, pin_memory, promote_types, q_per_channel_axis, q_per_channel_scales, q_per_channel_zero_points, q_scale, q_zero_point, qscheme, record_stream, refine_names, rename, requires_grad_, result_type, retain_grad, retains_grad, save, seed, set_data, set_grad_enabled, set_source_Tensor_storage_offset, sparse_dim, storage_offset, stride`
- - **Named-tensor API (names stripped before JIT trace)** (3 names): `align_as, align_tensors, align_to`
- - **Sparse-tensor machinery (NNEF / tract are dense-only)** (25 names): `ccol_indices, ccol_indices_copy, coalesce, col_indices, col_indices_copy, copy_sparse_to_sparse, crow_indices, crow_indices_copy, hspmm, indices, indices_copy, nested_to_padded_tensor, row_indices, row_indices_copy, smm, sparse_compressed_tensor, sparse_coo_tensor, sparse_mask, sparse_resize, sparse_resize_and_clear, sparse_sampled_addmm, sspaddmm, to_dense, to_padded_tensor, values_copy`
-
-This trims the unsupported column to the names where a `torch_to_nnef` emitter (or a deliberate no-op map) would actually be meaningful.
+We also exclude a long tail of identifiers that the `aten::*` source-grep picks up but that can never surface in an inference JIT trace ([see the full list at the bottom of this page](#excluded-aten-names)). This trims the unsupported column to the names where a `torch_to_nnef` emitter (or a deliberate no-op map) would actually be meaningful.
 === "TractNNEF"
 
 
@@ -1441,4 +1431,31 @@ This trims the unsupported column to the names where a `torch_to_nnef` emitter (
   });
 })();
 </script>
+
+<h2 id="excluded-aten-names" style="margin-top:2rem;">
+Appendix: identifiers excluded from this page
+</h2>
+
+These names are filtered out of the support tables above because they cannot surface in an inference JIT trace. Each group has a documented rationale; click any to expand the full member list.
+
+??? note "Python builtin / scripting false positives (52 names)"
+    `capitalize`, `center`, `chr`, `clear`, `dict`, `endswith`, `expandtabs`, `extend`, `find`, `format`, `get`, `getelem`, `hash`, `hex`, `isalnum`, `isalpha`, `isdecimal`, `isdigit`, `isidentifier`, `islower`, `isnumeric`, `isprintable`, `isspace`, `istitle`, `isupper`, `items`, `join`, `keys`, `ljust`, `lower`, `lstrip`, `oct`, `ord`, `partition`, `popitem`, `rfind`, `rindex`, `rjust`, `rpartition`, `rsplit`, `rstrip`, `setdefault`, `sorted`, `splitlines`, `startswith`, `strip`, `swapcase`, `title`, `update`, `upper`, `values`, `zfill`
+
+??? note "Test harness / placeholder identifiers (13 names)"
+    `confirmed_by_owner`, `foo`, `mathremainder`, `percentFormat`, `pointwise_placeholder`, `symbolic_b`, `test`, `test_symbol`, `test_vartype`, `test_vartype2`, `unknown`, `view_expand_placeholder`, `your_op`
+
+??? note "Distributed / RPC primitives (14 names)"
+    `all_gather_into_tensor`, `all_reduce`, `fork`, `get_gradients`, `is_owner`, `local_value`, `owner`, `owner_name`, `reduce_scatter_tensor`, `to_here`, `wait`, `wait_tensor`, `warn`, `warns`
+
+??? note "Backend-specific dispatch shims (cudnn / miopen / mkldnn / mps) (26 names)"
+    `cudnn_affine_grid_generator`, `cudnn_batch_norm`, `cudnn_convolution`, `cudnn_convolution_add_relu`, `cudnn_convolution_relu`, `cudnn_convolution_transpose`, `cudnn_grid_sampler`, `cudnn_is_acceptable`, `miopen_batch_norm`, `miopen_convolution`, `miopen_convolution_add_relu`, `miopen_convolution_relu`, `miopen_convolution_transpose`, `miopen_ctc_loss`, `miopen_depthwise_convolution`, `miopen_rnn`, `mkldnn_adaptive_avg_pool2d`, `mkldnn_convolution`, `mkldnn_linear`, `mkldnn_max_pool2d`, `mkldnn_max_pool3d`, `mkldnn_reorder_conv2d_weight`, `mkldnn_reorder_conv3d_weight`, `mkldnn_rnn_layer`, `mps_linear`, `to_mkldnn`
+
+??? note "Tensor metadata accessors (return a Python value, not a tensor) (60 names)"
+    `can_cast`, `data`, `dense_dim`, `device`, `dtype`, `element_size`, `enable_grad`, `get_autocast_dtype`, `get_device`, `get_pool_ceil_padding`, `grad`, `has_torch_function`, `iinfo`, `initial_seed`, `int_repr`, `is_autocast_cpu_enabled`, `is_autocast_enabled`, `is_coalesced`, `is_complex`, `is_conj`, `is_contiguous`, `is_cuda`, `is_grad_enabled`, `is_leaf`, `is_non_overlapping_and_dense`, `is_nonzero`, `is_pinned`, `is_same_size`, `is_scripting`, `is_set_to`, `is_signed`, `is_strides_like_format`, `manual_seed`, `node`, `op`, `op_name`, `output_nr`, `pin_memory`, `promote_types`, `q_per_channel_axis`, `q_per_channel_scales`, `q_per_channel_zero_points`, `q_scale`, `q_zero_point`, `qscheme`, `record_stream`, `refine_names`, `rename`, `requires_grad_`, `result_type`, `retain_grad`, `retains_grad`, `save`, `seed`, `set_data`, `set_grad_enabled`, `set_source_Tensor_storage_offset`, `sparse_dim`, `storage_offset`, `stride`
+
+??? note "Named-tensor API (names stripped before JIT trace) (3 names)"
+    `align_as`, `align_tensors`, `align_to`
+
+??? note "Sparse-tensor machinery (NNEF / tract are dense-only) (25 names)"
+    `ccol_indices`, `ccol_indices_copy`, `coalesce`, `col_indices`, `col_indices_copy`, `copy_sparse_to_sparse`, `crow_indices`, `crow_indices_copy`, `hspmm`, `indices`, `indices_copy`, `nested_to_padded_tensor`, `row_indices`, `row_indices_copy`, `smm`, `sparse_compressed_tensor`, `sparse_coo_tensor`, `sparse_mask`, `sparse_resize`, `sparse_resize_and_clear`, `sparse_sampled_addmm`, `sspaddmm`, `to_dense`, `to_padded_tensor`, `values_copy`
 
