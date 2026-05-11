@@ -597,34 +597,14 @@ _EMBEDDING_BAG_MODE_TO_REDUCE = {
 }
 
 
-@OP_REGISTRY.register()
-def embedding_bag(
-    g, node, name_to_tensor, op_helper, inference_target, **kwargs
-):
-    """Map PyTorch: 'aten:embedding_bag' to NNEF.
+def _embedding_bag_validate(node):
+    """Validate `aten::embedding_bag` inputs and pull out the args.
 
-    `embedding_bag(weight, indices, offsets, scale_grad, mode, sparse,
-    per_sample_weights, include_last_offset, padding_idx)` returns a
-    4-tuple in torch (`output, offset2bag, bag_size, max_indices`); we
-    only emit the first output (the bag-reduced embeddings). The
-    other three are gradient bookkeeping and typically aren't
-    consumed in inference traces.
-
-    Decomposition (statically-known offsets):
-
-      emb = tract_core_gather(weight, indices, axis=0)  # (K, D)
-      for each bag b: bag_out_b = reduce(emb[offsets[b]:end_b], axis=0)
-      output = concat(bag_outs, axis=0)  # (B, D)
-
-    When all bag sizes are equal (e.g. from a 2-D input flattened
-    upstream), the slow per-bag slice path collapses to a single
-    `reshape + reduce + squeeze` shortcut.
-
-    Limitations: mode in {sum, mean, max}; `per_sample_weights`,
-    `padding_idx`, and `include_last_offset=True` not yet supported.
+    Raises `T2NErrorNotImplemented` for the cases the current emitter
+    can't handle (mode out of {sum, mean, max}, `per_sample_weights`,
+    `include_last_offset`, explicit `padding_idx`, dynamic offsets).
+    Returns `(weight_node, indices_node, offsets_list, mode)`.
     """
-    if not isinstance(inference_target, TractNNEF):
-        raise T2NErrorNotImplemented(inference_target)
     if len(node.inputs) < 5:
         raise T2NErrorNotImplemented(
             f"embedding_bag with {len(node.inputs)} inputs"
@@ -670,92 +650,75 @@ def embedding_bag(
         )
     if hasattr(offsets_data, "tolist"):
         offsets_data = offsets_data.tolist()
-    offsets_list = [int(x) for x in offsets_data]
-    k = int(indices_node.shape[0])
-    boundaries = [*offsets_list, k]
-    bag_sizes = [
-        boundaries[i + 1] - boundaries[i] for i in range(len(offsets_list))
-    ]
-    n_bags = len(bag_sizes)
-    d_dim = int(weight_node.shape[1])
+    return weight_node, indices_node, [int(x) for x in offsets_data], mode
 
-    onode = node.outputs[0]
-    base = onode.export_name
-    np_dtype = onode.np_dtype
-    reduce_op = _EMBEDDING_BAG_MODE_TO_REDUCE[mode]
 
-    # Gather emb = weight[indices]  -- shape (k, D)
-    emb = NTensor(g, f"{base}_eb_emb", dtype=np_dtype, shape=(k, d_dim))
-    name_to_tensor[f"{base}_eb_emb"] = emb
-    weight_ref = get_or_add_tensor_variable_in_nnef(
-        g, weight_node, name_to_tensor
+def _embedding_bag_uniform_path(
+    g,
+    name_to_tensor,
+    base,
+    np_dtype,
+    emb,
+    out_ref,
+    n_bags,
+    bag_size,
+    d_dim,
+    reduce_op,
+):
+    """Equal-bag-size shortcut: reshape + reduce on axis 1 + squeeze."""
+    reshaped = NTensor(
+        g,
+        f"{base}_eb_reshape",
+        dtype=np_dtype,
+        shape=(n_bags, bag_size, d_dim),
     )
-    indices_ref = get_or_add_tensor_variable_in_nnef(
-        g, indices_node, name_to_tensor
+    name_to_tensor[reshaped.name] = reshaped
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="reshape",
+        name=f"{reshaped.name}_op",
+        inputs=(emb,),
+        outputs=(reshaped,),
+        attribs={"shape": [n_bags, bag_size, d_dim]},
+    )
+    kd = NTensor(
+        g, f"{base}_eb_kd", dtype=np_dtype, shape=(n_bags, 1, d_dim)
+    )
+    name_to_tensor[kd.name] = kd
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type=reduce_op,
+        name=f"{kd.name}_op",
+        inputs=(reshaped,),
+        outputs=(kd,),
+        attribs={"axes": [1]},
     )
     cast_and_add_nnef_operation(
         name_to_tensor=name_to_tensor,
         graph=g,
-        type="tract_core_gather",
-        name=f"{emb.name}_op",
-        inputs=(weight_ref, indices_ref),
-        outputs=(emb,),
-        attribs={"axis": 0},
-        force_consistent_inputs_shapes=False,
+        type="squeeze",
+        name=f"{base}_eb_squeeze",
+        inputs=(kd,),
+        outputs=(out_ref,),
+        attribs={"axes": [1]},
     )
 
-    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
-        onode, prevent_variable=True
-    )
 
-    # Fast path: all bag sizes equal -> reshape + reduce + squeeze.
-    if len(set(bag_sizes)) == 1 and bag_sizes[0] > 0:
-        bag_size = bag_sizes[0]
-        reshaped = NTensor(
-            g,
-            f"{base}_eb_reshape",
-            dtype=np_dtype,
-            shape=(n_bags, bag_size, d_dim),
-        )
-        name_to_tensor[reshaped.name] = reshaped
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type="reshape",
-            name=f"{reshaped.name}_op",
-            inputs=(emb,),
-            outputs=(reshaped,),
-            attribs={"shape": [n_bags, bag_size, d_dim]},
-        )
-        kd = NTensor(
-            g,
-            f"{base}_eb_kd",
-            dtype=np_dtype,
-            shape=(n_bags, 1, d_dim),
-        )
-        name_to_tensor[kd.name] = kd
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type=reduce_op,
-            name=f"{kd.name}_op",
-            inputs=(reshaped,),
-            outputs=(kd,),
-            attribs={"axes": [1]},
-        )
-        cast_and_add_nnef_operation(
-            name_to_tensor=name_to_tensor,
-            graph=g,
-            type="squeeze",
-            name=f"{base}_eb_squeeze",
-            inputs=(kd,),
-            outputs=(out_ref,),
-            attribs={"axes": [1]},
-        )
-        return ["tract_core"]
-
-    # General path: per-bag slice + reduce, then concat. Variable bag
-    # sizes are supported as long as no bag is empty.
+def _embedding_bag_variable_path(
+    g,
+    name_to_tensor,
+    base,
+    np_dtype,
+    emb,
+    out_ref,
+    boundaries,
+    bag_sizes,
+    d_dim,
+    reduce_op,
+):
+    """Variable-bag-size path: per-bag slice + reduce + concat."""
     if any(s <= 0 for s in bag_sizes):
         raise T2NErrorNotImplemented(
             f"embedding_bag with empty bag (sizes={bag_sizes}); torch "
@@ -767,10 +730,7 @@ def embedding_bag(
         zip(boundaries[:-1], bag_sizes, strict=True)
     ):
         slc = NTensor(
-            g,
-            f"{base}_eb_b{b}_slice",
-            dtype=np_dtype,
-            shape=(size, d_dim),
+            g, f"{base}_eb_b{b}_slice", dtype=np_dtype, shape=(size, d_dim)
         )
         name_to_tensor[slc.name] = slc
         cast_and_add_nnef_operation(
@@ -788,10 +748,7 @@ def embedding_bag(
             },
         )
         reduced = NTensor(
-            g,
-            f"{base}_eb_b{b}_kd",
-            dtype=np_dtype,
-            shape=(1, d_dim),
+            g, f"{base}_eb_b{b}_kd", dtype=np_dtype, shape=(1, d_dim)
         )
         name_to_tensor[reduced.name] = reduced
         cast_and_add_nnef_operation(
@@ -816,6 +773,96 @@ def embedding_bag(
         attribs={"axis": 0},
         force_consistent_inputs_shapes=False,
     )
+
+
+@OP_REGISTRY.register()
+def embedding_bag(
+    g, node, name_to_tensor, op_helper, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:embedding_bag' to NNEF.
+
+    `embedding_bag(weight, indices, offsets, scale_grad, mode, sparse,
+    per_sample_weights, include_last_offset, padding_idx)` returns a
+    4-tuple in torch (`output, offset2bag, bag_size, max_indices`); we
+    only emit the first output (the bag-reduced embeddings). The
+    other three are gradient bookkeeping and typically aren't
+    consumed in inference traces.
+
+    Decomposition (statically-known offsets):
+
+      emb = tract_core_gather(weight, indices, axis=0)  # (K, D)
+      for each bag b: bag_out_b = reduce(emb[offsets[b]:end_b], axis=0)
+      output = concat(bag_outs, axis=0)  # (B, D)
+
+    Equal bag sizes collapse to a single `reshape + reduce + squeeze`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    weight_node, indices_node, offsets_list, mode = _embedding_bag_validate(
+        node
+    )
+    k = int(indices_node.shape[0])
+    boundaries = [*offsets_list, k]
+    bag_sizes = [
+        boundaries[i + 1] - boundaries[i] for i in range(len(offsets_list))
+    ]
+    n_bags = len(bag_sizes)
+    d_dim = int(weight_node.shape[1])
+
+    onode = node.outputs[0]
+    base = onode.export_name
+    np_dtype = onode.np_dtype
+    reduce_op = _EMBEDDING_BAG_MODE_TO_REDUCE[mode]
+
+    emb = NTensor(g, f"{base}_eb_emb", dtype=np_dtype, shape=(k, d_dim))
+    name_to_tensor[f"{base}_eb_emb"] = emb
+    weight_ref = get_or_add_tensor_variable_in_nnef(
+        g, weight_node, name_to_tensor
+    )
+    indices_ref = get_or_add_tensor_variable_in_nnef(
+        g, indices_node, name_to_tensor
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_gather",
+        name=f"{emb.name}_op",
+        inputs=(weight_ref, indices_ref),
+        outputs=(emb,),
+        attribs={"axis": 0},
+        force_consistent_inputs_shapes=False,
+    )
+
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+
+    if len(set(bag_sizes)) == 1 and bag_sizes[0] > 0:
+        _embedding_bag_uniform_path(
+            g,
+            name_to_tensor,
+            base,
+            np_dtype,
+            emb,
+            out_ref,
+            n_bags,
+            bag_sizes[0],
+            d_dim,
+            reduce_op,
+        )
+    else:
+        _embedding_bag_variable_path(
+            g,
+            name_to_tensor,
+            base,
+            np_dtype,
+            emb,
+            out_ref,
+            boundaries,
+            bag_sizes,
+            d_dim,
+            reduce_op,
+        )
     return ["tract_core"]
 
 
