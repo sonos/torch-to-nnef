@@ -113,8 +113,8 @@ def unflatten(
     )
 
 
-@OP_REGISTRY.register()
-def numpy_T(g, node, name_to_tensor, **kwargs):
+@OP_REGISTRY.register(torch_op_ids=["numpy_T"])
+def numpy_t(g, node, name_to_tensor, **kwargs):
     """Map PyTorch `aten::numpy_T` (`Tensor.T`) to NNEF.
 
     `Tensor.T` reverses every axis -- it is the rank-N generalisation of
