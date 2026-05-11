@@ -1423,9 +1423,36 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.fliplr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fliplr
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.flipud" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flipud
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.im2col" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;im2col
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.matrix_transpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;matrix_transpose
     </span>
   </a>
   
@@ -1498,6 +1525,15 @@
   <a href="#torch_to_nnef.op.aten.axes_change.reshape_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;reshape_as
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.rot90" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rot90
     </span>
   </a>
   
@@ -3402,9 +3438,36 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.fliplr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fliplr
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.flipud" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;flipud
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.im2col" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;im2col
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.matrix_transpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;matrix_transpose
     </span>
   </a>
   
@@ -3477,6 +3540,15 @@
   <a href="#torch_to_nnef.op.aten.axes_change.reshape_as" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;reshape_as
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.rot90" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rot90
     </span>
   </a>
   
@@ -3801,12 +3873,47 @@ indices via :func:<code>pick_axis</code>.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:flip' to NNEF.</p>
-<p>Decomposes to a chain of <code>tract_core_gather</code> calls, one per axis,
-with a constant reversed-index tensor <code>[N-1, ..., 0]</code>. Static-shape
-only: a dynamic axis size raises <code>T2NErrorNotImplemented</code> (would
-require building the index at runtime via <code>tract_core_range</code> over
-<code>tract_core_shape_of(input)[axis]</code>).</p>
+        <p>Map PyTorch <code>aten::flip(input, dims)</code> to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.fliplr" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fliplr</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fliplr</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::fliplr</code> (<code>torch.fliplr</code>) to NNEF.</p>
+<p>Reverses elements along axis 1 (per torch's rank&gt;=2 convention).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.flipud" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">flipud</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">flipud</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::flipud</code> (<code>torch.flipud</code>) to NNEF.</p>
+<p>Reverses elements along axis 0 (per torch's rank&gt;=1 convention).</p>
 
     </div>
 
@@ -3845,6 +3952,29 @@ a rank-4 input <code>(N, C, H, W)</code>. Output is <code>(N, C * kH * kW, L)</c
 </ol>
 <p>Iteration order is <code>di</code> outer, <code>dj</code> inner, matching torch's flat
 output-channel index <code>c*kH*kW + di*kW + dj</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.matrix_transpose" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">matrix_transpose</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">matrix_transpose</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::mT</code> and <code>aten::mH</code> (<code>Tensor.mT</code> / <code>Tensor.mH</code>) to NNEF.</p>
+<p>Both ops swap the last two axes of a rank-<code>&gt;=</code> 2 tensor. <code>mH</code> is the
+conjugate-transpose; for real-valued tensors (the only ones NNEF /
+tract carry without the complex feature flag) it is identical to
+<code>mT</code>, so a single emitter handles both.</p>
 
     </div>
 
@@ -4014,6 +4144,36 @@ needed: stdlib only).</p>
         <p>Map PyTorch: 'aten:reshape_as' to NNEF.</p>
 <p>Equivalent to <code>reshape</code> with shape borrowed from the second input.
 Supports dynamic-axes via runtime <code>tract_core_shape_of(other)</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.rot90" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">rot90</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">rot90</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::rot90(input, k, dims)</code> to NNEF.</p>
+<p>Rotates by <code>90 * k</code> degrees in the plane <code>(dims[0], dims[1])</code>.
+The rotation direction is from <code>dims[0]</code> toward <code>dims[1]</code>, matching
+torch's convention. Decomposed per the standard <code>flip + transpose</code>
+identity:</p>
+<ul>
+<li><code>k % 4 == 0</code>: identity (single <code>reshape</code> with the same shape so
+  the named output tensor is materialised).</li>
+<li><code>k % 4 == 1</code>: <code>flip(dims[1]) -&gt; transpose(dims[0], dims[1])</code>.</li>
+<li><code>k % 4 == 2</code>: <code>flip([dims[0], dims[1]])</code>.</li>
+<li><code>k % 4 == 3</code>: <code>transpose(dims[0], dims[1]) -&gt; flip(dims[1])</code>.</li>
+</ul>
 
     </div>
 
