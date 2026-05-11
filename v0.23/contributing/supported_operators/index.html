@@ -3061,6 +3061,17 @@
 </div>
 <p>'is core' column refers to this <a href="https://docs.pytorch.org/docs/2.9/torch.compiler_ir.html">PyTorch IR documentation page</a> (the page for torch 2.11 was emptied upstream; falling back to torch 2.9 which is the last version that still enumerates the core ATen IR).</p>
 <p>We filter out 'backward' and 'sym' operators from the listing since they are unwanted in an inference engine. In-place operations are merged with their non-inplace counterparts since that distinction is an inference implementation detail.</p>
+<p>We also exclude a long tail of identifiers that the <code>aten::*</code> source-grep picks up but that can never surface in an inference JIT trace, grouped by reason:</p>
+<ul>
+<li><strong>Python builtin / scripting false positives</strong> (52 names): <code>capitalize, center, chr, clear, dict, endswith, expandtabs, extend, find, format, get, getelem, hash, hex, isalnum, isalpha, isdecimal, isdigit, isidentifier, islower, isnumeric, isprintable, isspace, istitle, isupper, items, join, keys, ljust, lower, lstrip, oct, ord, partition, popitem, rfind, rindex, rjust, rpartition, rsplit, rstrip, setdefault, sorted, splitlines, startswith, strip, swapcase, title, update, upper, values, zfill</code></li>
+<li><strong>Test harness / placeholder identifiers</strong> (13 names): <code>confirmed_by_owner, foo, mathremainder, percentFormat, pointwise_placeholder, symbolic_b, test, test_symbol, test_vartype, test_vartype2, unknown, view_expand_placeholder, your_op</code></li>
+<li><strong>Distributed / RPC primitives</strong> (14 names): <code>all_gather_into_tensor, all_reduce, fork, get_gradients, is_owner, local_value, owner, owner_name, reduce_scatter_tensor, to_here, wait, wait_tensor, warn, warns</code></li>
+<li><strong>Backend-specific dispatch shims (cudnn / miopen / mkldnn / mps)</strong> (26 names): <code>cudnn_affine_grid_generator, cudnn_batch_norm, cudnn_convolution, cudnn_convolution_add_relu, cudnn_convolution_relu, cudnn_convolution_transpose, cudnn_grid_sampler, cudnn_is_acceptable, miopen_batch_norm, miopen_convolution, miopen_convolution_add_relu, miopen_convolution_relu, miopen_convolution_transpose, miopen_ctc_loss, miopen_depthwise_convolution, miopen_rnn, mkldnn_adaptive_avg_pool2d, mkldnn_convolution, mkldnn_linear, mkldnn_max_pool2d, mkldnn_max_pool3d, mkldnn_reorder_conv2d_weight, mkldnn_reorder_conv3d_weight, mkldnn_rnn_layer, mps_linear, to_mkldnn</code></li>
+<li><strong>Tensor metadata accessors (return a Python value, not a tensor)</strong> (60 names): <code>can_cast, data, dense_dim, device, dtype, element_size, enable_grad, get_autocast_dtype, get_device, get_pool_ceil_padding, grad, has_torch_function, iinfo, initial_seed, int_repr, is_autocast_cpu_enabled, is_autocast_enabled, is_coalesced, is_complex, is_conj, is_contiguous, is_cuda, is_grad_enabled, is_leaf, is_non_overlapping_and_dense, is_nonzero, is_pinned, is_same_size, is_scripting, is_set_to, is_signed, is_strides_like_format, manual_seed, node, op, op_name, output_nr, pin_memory, promote_types, q_per_channel_axis, q_per_channel_scales, q_per_channel_zero_points, q_scale, q_zero_point, qscheme, record_stream, refine_names, rename, requires_grad_, result_type, retain_grad, retains_grad, save, seed, set_data, set_grad_enabled, set_source_Tensor_storage_offset, sparse_dim, storage_offset, stride</code></li>
+<li><strong>Named-tensor API (names stripped before JIT trace)</strong> (3 names): <code>align_as, align_tensors, align_to</code></li>
+<li><strong>Sparse-tensor machinery (NNEF / tract are dense-only)</strong> (25 names): <code>ccol_indices, ccol_indices_copy, coalesce, col_indices, col_indices_copy, copy_sparse_to_sparse, crow_indices, crow_indices_copy, hspmm, indices, indices_copy, nested_to_padded_tensor, row_indices, row_indices_copy, smm, sparse_compressed_tensor, sparse_coo_tensor, sparse_mask, sparse_resize, sparse_resize_and_clear, sparse_sampled_addmm, sspaddmm, to_dense, to_padded_tensor, values_copy</code></li>
+</ul>
+<p>This trims the unsupported column to the names where a <code>torch_to_nnef</code> emitter (or a deliberate no-op map) would actually be meaningful.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">TractNNEF</label><label for="__tabbed_1_2">ONNX</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -3079,9 +3090,9 @@
 <li>and support from full <code>aten::</code>: </li>
 </ul>
 <p>
-<div class="progress progress-20plus">
-<div class="progress-bar" style="width:35.15%">
-<p class="progress-label">303/862</p>
+<div class="progress progress-40plus">
+<div class="progress-bar" style="width:45.02%">
+<p class="progress-label">303/673</p>
 </div>
 </div>
 </p>
@@ -3245,12 +3256,7 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addr.html">addr</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>alias_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_as</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_tensors</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.all.html">all</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>all_gather_into_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>all_reduce</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.allclose.html">allclose</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.alpha_dropout.html">alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.aminmax.html">aminmax</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3287,15 +3293,10 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_tensors.html">broadcast_tensors</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_to.html">broadcast_to</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bucketize.html">bucketize</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.can_cast.html">can_cast</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>capitalize</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cartesian_prod.html">cartesian_prod</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>cauchy</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.ccol_indices.html">ccol_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ccol_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cdist.html">cdist</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.celu.html">celu</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>center</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chain_matmul.html">chain_matmul</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.chalf.html">chalf</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>channel_shuffle</td><td></td><td>❌</td><td>-</td></tr>
@@ -3303,18 +3304,12 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>choose_qparams_optimized</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>chr</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chunk.html">chunk</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>clamp_max</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>clamp_min</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>clear</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.coalesce.html">coalesce</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.col_indices.html">col_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>col_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.column_stack.html">column_stack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.combinations.html">combinations</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.complex.html">complex</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>confirmed_by_owner</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.conj.html">conj</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.conj_physical.html">conj_physical</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.contiguous.html">contiguous</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3329,7 +3324,7 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose3d.html">conv_transpose3d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>convolution_overrideable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>convrelu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>copy_sparse_to_sparse</td><td></td><td>✅</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td>copy_sparse_to_sparse_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>copy_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.copysign.html">copysign</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.corrcoef.html">corrcoef</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3340,36 +3335,22 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cpu.html">cpu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.crow_indices.html">crow_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>crow_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cuda.html">cuda</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_add_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_transpose</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_is_acceptable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>data</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.deg2rad.html">deg2rad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>degrees</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dense_dim.html">dense_dim</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.detach.html">detach</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>detach_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.device.html">device</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag.html">diag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag_embed.html">diag_embed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagflat.html">diagflat</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>diagonal_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagonal_scatter.html">diagonal_scatter</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>dict</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diff.html">diff</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.digamma.html">digamma</a></td><td>special_digamma, special_psi</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dim.html">dim</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3379,25 +3360,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.dropout.html">dropout</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dsplit.html">dsplit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>dtype</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.eig.html">eig</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.einsum.html">einsum</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.element_size.html">element_size</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.embedding_bag.html">embedding_bag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>embedding_renorm</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.empty_like.html">empty_like</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>empty_permuted</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>empty_quantized</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.enable_grad.html">enable_grad</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>endswith</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.equal.html">equal</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfc.html">erfc</a></td><td>special_erfc</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>expandtabs</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>extend</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.eye.html">eye</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>fabs</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>factorial</td><td></td><td>❌</td><td>-</td></tr>
@@ -3414,7 +3389,6 @@
 <tr class="op-row unsupported"><td>❌</td><td>fft_rfftfreq</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>fft_rfftn</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.fill_diagonal_.html">fill_diagonal_</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>find</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fliplr.html">fliplr</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3424,9 +3398,6 @@
 <tr class="op-row unsupported"><td>❌</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmax.html">fmax</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmin.html">fmin</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>foo</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>fork</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>format</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.frac.html">frac</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool2d.html">fractional_max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3438,15 +3409,8 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.gcd.html">gcd</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.geqrf.html">geqrf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_autocast_dtype</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.get_device.html">get_device</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_gradients</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_pool_ceil_padding</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>getelem</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>glu_jvp</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.grad.html">grad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>grid_sampler_3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.group_norm.html">group_norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3457,24 +3421,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardshrink.html">hardshrink</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardsigmoid.html">hardsigmoid</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardswish.html">hardswish</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>has_torch_function</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>hash</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hash_tensor.html">hash_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.heaviside.html">heaviside</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>hex</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hinge_embedding_loss.html">hinge_embedding_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histc.html">histc</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogram.html">histogram</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogramdd.html">histogramdd</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hsplit.html">hsplit</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hspmm.html">hspmm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hstack.html">hstack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.huber_loss.html">huber_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hypot.html">hypot</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.i0.html">i0</a></td><td>special_i0</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igamma.html">igamma</a></td><td>special_gammainc</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igammac.html">igammac</a></td><td>special_gammaincc</td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>iinfo</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>im2col</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.imag.html">imag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_add.html">index_add</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3482,55 +3441,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.index_fill.html">index_fill</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>index_put_impl_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.indices.html">indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>indices_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.initial_seed.html">initial_seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.inner.html">inner</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>insert</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.int_repr.html">int_repr</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_autocast_cpu_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_autocast_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_coalesced.html">is_coalesced</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_complex.html">is_complex</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_conj.html">is_conj</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_contiguous.html">is_contiguous</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_cuda.html">is_cuda</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_floating_point.html">is_floating_point</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_grad_enabled.html">is_grad_enabled</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_leaf.html">is_leaf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_non_overlapping_and_dense</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_nonzero.html">is_nonzero</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_owner</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_pinned.html">is_pinned</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_same_size</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_scripting</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_set_to.html">is_set_to</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_signed.html">is_signed</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_strides_like_format</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isalnum</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isalpha</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isclose.html">isclose</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isdecimal</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isdigit</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isfinite.html">isfinite</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isidentifier</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isin.html">isin</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>islower</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isneginf.html">isneginf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isnumeric</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isposinf.html">isposinf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isprintable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isreal.html">isreal</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isspace</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.istft.html">istft</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>istitle</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isupper</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>items</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>join</td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>keys</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kron.html">kron</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3581,8 +3504,6 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linspace.html">linspace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>list</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>list_with_default</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ljust</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>local_value</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>log_sigmoid</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>log_sigmoid_forward</td><td></td><td>❌</td><td>-</td></tr>
@@ -3594,20 +3515,16 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logit.html">logit</a></td><td>special_logit</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logspace.html">logspace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logsumexp.html">logsumexp</a></td><td>special_logsumexp</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>lower</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>lstm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>lstm_cell</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>lstrip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.lstsq.html">lstsq</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>mT</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.manual_seed.html">manual_seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.margin_ranking_loss.html">margin_ranking_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.masked_fill.html">masked_fill</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mathremainder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.matrix_rank.html">matrix_rank</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3619,27 +3536,10 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.median.html">median</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_add_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_transpose</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_ctc_loss</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_depthwise_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_rnn</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mish.html">mish</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_adaptive_avg_pool2d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_linear</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_max_pool2d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_max_pool3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_reorder_conv2d_weight</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_reorder_conv3d_weight</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_rnn_layer</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mode.html">mode</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>modf</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.movedim.html">movedim</a></td><td>moveaxis</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mps_linear</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.msort.html">msort</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3660,7 +3560,6 @@
 <tr class="op-row unsupported"><td>❌</td><td>native_multi_head_self_attention</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>native_norm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>neq</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>nested_to_padded_tensor</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3671,7 +3570,6 @@
 <tr class="op-row supported"><td>✅</td><td>nll_loss2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>nll_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>nll_loss_nd</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>node</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>nonzero_numpy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>nonzero_static</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.norm.html">norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3681,48 +3579,29 @@
 <tr class="op-row unsupported"><td>❌</td><td>nuclear_norm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.numel.html">numel</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>numpy_T</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>oct</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.one_hot.html">one_hot</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ones.html">ones</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ones_like.html">ones_like</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>op</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>op_name</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ord</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ormqr.html">ormqr</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.outer.html">outer</a></td><td>ger</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>output_nr</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>owner</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>owner_name</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pad.html">pad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>partition</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>percentFormat</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>permute_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.pin_memory.html">pin_memory</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.pinv.html">pinv</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.pinverse.html">pinverse</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>pointwise_placeholder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.poisson.html">poisson</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polar.html">polar</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>pop</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>popitem</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.positive.html">positive</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.promote_types.html">promote_types</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>put</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_axis.html">q_per_channel_axis</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_scales.html">q_per_channel_scales</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_zero_points.html">q_per_channel_zero_points</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_scale.html">q_scale</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_zero_point.html">q_zero_point</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.qr.html">qr</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.qscheme.html">qscheme</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantile.html">quantile</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>quantize</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantize_per_channel.html">quantize_per_channel</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3744,17 +3623,13 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.range.html">range</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ravel.html">ravel</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.real.html">real</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.record_stream.html">record_stream</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>reduce_scatter_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>refine_names</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.relu6.html">relu6</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>remove</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rename</td><td></td><td>✅</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td>rename_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.renorm.html">renorm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.repeat_interleave.html">repeat_interleave</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>replace</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>replication_pad1d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.requires_grad_.html">requires_grad_</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.reshape.html">reshape</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.reshape_as.html">reshape_as</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>resize</td><td></td><td>✅</td><td>-</td></tr>
@@ -3762,41 +3637,24 @@
 <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_conj.html">resolve_conj</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_neg.html">resolve_neg</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.result_type.html">result_type</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.retain_grad.html">retain_grad</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.retains_grad.html">retains_grad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>reverse</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rfind</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rindex</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rjust</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rnn_relu</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rnn_relu_cell</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rnn_tanh</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rnn_tanh_cell</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.row_indices.html">row_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>row_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rowwise_prune</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rpartition</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise_functional</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rsplit</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rstrip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rsub</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.save.html">save</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.searchsorted.html">searchsorted</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.seed.html">seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>select_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.selu.html">selu</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>set</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_data</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_grad_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_source_Tensor_storage_offset</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>setdefault</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sgn.html">sgn</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.signbit.html">signbit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.silu.html">silu</a></td><td></td><td>✅</td><td>-</td></tr>
@@ -3810,21 +3668,14 @@
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.smm.html">smm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.smooth_l1_loss.html">smooth_l1_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.soft_margin_loss.html">soft_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softmax.html">softmax</a></td><td>special_softmax</td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softplus.html">softplus</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softshrink.html">softshrink</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.solve.html">solve</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sorted</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sparse_compressed_tensor.html">sparse_compressed_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sparse_coo_tensor.html">sparse_coo_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_dim.html">sparse_dim</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_mask.html">sparse_mask</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_resize</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_resize_and_clear</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_sampled_addmm</td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_.html">sparse_resize_</a></td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_and_clear_.html">sparse_resize_and_clear_</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_airy_ai</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j1</td><td></td><td>❌</td><td>-</td></tr>
@@ -3861,22 +3712,14 @@
 <tr class="op-row unsupported"><td>❌</td><td>special_zeta</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.split.html">split</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>split_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>splitlines</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.square.html">square</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sspaddmm.html">sspaddmm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stack.html">stack</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>startswith</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stft.html">stft</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.storage_offset.html">storage_offset</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>str</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.stride.html">stride</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>strip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>sum_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.svd.html">svd</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>swapcase</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>symbolic_b</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>symeig</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.t.html">t</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.take.html">take</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3885,19 +3728,10 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor.html">tensor</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_symbol</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_vartype</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_vartype2</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>thnn_conv2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tile.html">tile</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>title</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to.html">to</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to_dense.html">to_dense</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>to_here</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to_mkldnn.html">to_mkldnn</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>to_padded_tensor</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.trace.html">trace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.transpose.html">transpose</a></td><td>swapaxes, swapdims</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.trapezoid.html">trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3919,20 +3753,15 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>unique_dim</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>unique_dim_consecutive</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>unknown</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_chunk</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_split</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_split_with_sizes</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>update</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>upper</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.upsample.html">upsample</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>upsample_bicubic2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>upsample_linear1d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_nearest1d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_nearest3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>upsample_trilinear3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.values.html">values</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>values_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vander.html">vander</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vdot.html">vdot</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -3942,21 +3771,14 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_real.html">view_as_real</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>view_as_real_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>view_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>view_expand_placeholder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vsplit.html">vsplit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vstack.html">vstack</a></td><td>row_stack</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>wait</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>wait_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>warn</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>warns</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>wrapped_linear_prepack</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>wrapped_quantized_linear_prepacked</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.xlogy.html">xlogy</a></td><td>special_xlogy</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>your_op</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>zero</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.zeros.html">zeros</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.zeros_like.html">zeros_like</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>zfill</td><td></td><td>❌</td><td>-</td></tr>
 </tbody>
 </table>
 </div></p>
@@ -3977,9 +3799,9 @@
 <li>and support from full <code>aten::</code>: </li>
 </ul>
 <p>
-<div class="progress progress-20plus">
-<div class="progress-bar" style="width:37.12%">
-<p class="progress-label">320/862</p>
+<div class="progress progress-40plus">
+<div class="progress-bar" style="width:47.40%">
+<p class="progress-label">319/673</p>
 </div>
 </div>
 </p>
@@ -4143,12 +3965,7 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.addr.html">addr</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>alias_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_as</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_tensors</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>align_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.all.html">all</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>all_gather_into_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>all_reduce</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.allclose.html">allclose</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.alpha_dropout.html">alpha_dropout</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.aminmax.html">aminmax</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4185,15 +4002,10 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_tensors.html">broadcast_tensors</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.broadcast_to.html">broadcast_to</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.bucketize.html">bucketize</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.can_cast.html">can_cast</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>capitalize</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cartesian_prod.html">cartesian_prod</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>cauchy</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.ccol_indices.html">ccol_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ccol_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cdist.html">cdist</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.celu.html">celu</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>center</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chain_matmul.html">chain_matmul</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.chalf.html">chalf</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>channel_shuffle</td><td></td><td>❌</td><td>-</td></tr>
@@ -4201,18 +4013,12 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_inverse.html">cholesky_inverse</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cholesky_solve.html">cholesky_solve</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>choose_qparams_optimized</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>chr</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.chunk.html">chunk</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>clamp_max</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>clamp_min</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>clear</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.coalesce.html">coalesce</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.col_indices.html">col_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>col_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.column_stack.html">column_stack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.combinations.html">combinations</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.complex.html">complex</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>confirmed_by_owner</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.conj.html">conj</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.conj_physical.html">conj_physical</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.contiguous.html">contiguous</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4227,7 +4033,7 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.conv_transpose3d.html">conv_transpose3d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>convolution_overrideable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>convrelu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>copy_sparse_to_sparse</td><td></td><td>✅</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td>copy_sparse_to_sparse_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>copy_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.copysign.html">copysign</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.corrcoef.html">corrcoef</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4238,36 +4044,22 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cpu.html">cpu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cross.html">cross</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>cross_entropy_loss</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.crow_indices.html">crow_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>crow_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.ctc_loss.html">ctc_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.cuda.html">cuda</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_affine_grid_generator</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_add_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_convolution_transpose</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>cudnn_is_acceptable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummax.html">cummax</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cummin.html">cummin</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumprod.html">cumprod</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.cumulative_trapezoid.html">cumulative_trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>data</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.deg2rad.html">deg2rad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>degrees</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dense_dim.html">dense_dim</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dequantize.html">dequantize</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.detach.html">detach</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>detach_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.device.html">device</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag.html">diag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diag_embed.html">diag_embed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagflat.html">diagflat</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>diagonal_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diagonal_scatter.html">diagonal_scatter</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>dict</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.diff.html">diff</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.digamma.html">digamma</a></td><td>special_digamma, special_psi</td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.dim.html">dim</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4277,25 +4069,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.dropout.html">dropout</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dsplit.html">dsplit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.dstack.html">dstack</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>dtype</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.eig.html">eig</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.einsum.html">einsum</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.element_size.html">element_size</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.embedding_bag.html">embedding_bag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>embedding_renorm</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.empty_like.html">empty_like</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>empty_permuted</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>empty_quantized</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.enable_grad.html">enable_grad</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>endswith</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.equal.html">equal</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfc.html">erfc</a></td><td>special_erfc</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.erfinv.html">erfinv</a></td><td>special_erfinv</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.exp2.html">exp2</a></td><td>special_exp2</td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.expand_as.html">expand_as</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>expandtabs</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>exponential</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>extend</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.eye.html">eye</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>fabs</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>factorial</td><td></td><td>❌</td><td>-</td></tr>
@@ -4312,7 +4098,6 @@
 <tr class="op-row unsupported"><td>❌</td><td>fft_rfftfreq</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>fft_rfftn</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.fill_diagonal_.html">fill_diagonal_</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>find</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.flatten.html">flatten</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>flatten_dense_tensors</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fliplr.html">fliplr</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4322,9 +4107,6 @@
 <tr class="op-row supported"><td>✅</td><td>floordiv</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmax.html">fmax</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.fmin.html">fmin</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>foo</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>fork</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>format</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.frac.html">frac</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool2d.html">fractional_max_pool2d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.fractional_max_pool3d.html">fractional_max_pool3d</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4336,15 +4118,8 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.gcd.html">gcd</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>geometric</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.geqrf.html">geqrf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_autocast_dtype</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.get_device.html">get_device</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_gradients</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>get_pool_ceil_padding</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>getelem</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.glu.html">glu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>glu_jvp</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.grad.html">grad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>grid_sampler</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>grid_sampler_3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.group_norm.html">group_norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4355,24 +4130,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardshrink.html">hardshrink</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardsigmoid.html">hardsigmoid</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hardswish.html">hardswish</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>has_torch_function</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>hash</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hash_tensor.html">hash_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.heaviside.html">heaviside</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>hex</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.hinge_embedding_loss.html">hinge_embedding_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histc.html">histc</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogram.html">histogram</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.histogramdd.html">histogramdd</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hsplit.html">hsplit</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hspmm.html">hspmm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hstack.html">hstack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.huber_loss.html">huber_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.hypot.html">hypot</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.i0.html">i0</a></td><td>special_i0</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igamma.html">igamma</a></td><td>special_gammainc</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.igammac.html">igammac</a></td><td>special_gammaincc</td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>iinfo</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>im2col</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.imag.html">imag</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_add.html">index_add</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4380,55 +4150,19 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.index_fill.html">index_fill</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>index_put_impl_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.index_reduce.html">index_reduce</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.indices.html">indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>indices_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.initial_seed.html">initial_seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.inner.html">inner</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>insert</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.instance_norm.html">instance_norm</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.int_repr.html">int_repr</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_autocast_cpu_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_autocast_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_coalesced.html">is_coalesced</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_complex.html">is_complex</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_conj.html">is_conj</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_contiguous.html">is_contiguous</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_cuda.html">is_cuda</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_floating_point.html">is_floating_point</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_grad_enabled.html">is_grad_enabled</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_leaf.html">is_leaf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_non_overlapping_and_dense</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.is_nonzero.html">is_nonzero</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_owner</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_pinned.html">is_pinned</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_same_size</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_scripting</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_set_to.html">is_set_to</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.is_signed.html">is_signed</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>is_strides_like_format</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isalnum</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isalpha</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isclose.html">isclose</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isdecimal</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isdigit</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isfinite.html">isfinite</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isidentifier</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isin.html">isin</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>islower</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isneginf.html">isneginf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isnumeric</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isposinf.html">isposinf</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isprintable</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.isreal.html">isreal</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isspace</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.istft.html">istft</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>istitle</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>isupper</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>items</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>join</td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.item.html">item</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kaiser_window.html">kaiser_window</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>keys</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.kl_div.html">kl_div</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kron.html">kron</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.kthvalue.html">kthvalue</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4479,8 +4213,6 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linspace.html">linspace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>list</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>list_with_default</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ljust</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>local_value</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>log_normal</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>log_sigmoid</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>log_sigmoid_forward</td><td></td><td>❌</td><td>-</td></tr>
@@ -4492,20 +4224,16 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logit.html">logit</a></td><td>special_logit</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logspace.html">logspace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.logsumexp.html">logsumexp</a></td><td>special_logsumexp</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>lower</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>lstm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>lstm_cell</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>lstrip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.lstsq.html">lstsq</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_solve.html">lu_solve</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.lu_unpack.html">lu_unpack</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>mH</td><td>adjoint</td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>mT</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.manual_seed.html">manual_seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.margin_ranking_loss.html">margin_ranking_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.masked_fill.html">masked_fill</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.masked_select.html">masked_select</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mathremainder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.matmul.html">matmul</a></td><td>linalg_matmul</td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>matrix_H</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.matrix_rank.html">matrix_rank</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4517,27 +4245,10 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.max_unpool3d.html">max_unpool3d</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.median.html">median</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.meshgrid.html">meshgrid</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_batch_norm</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_add_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_relu</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_convolution_transpose</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_ctc_loss</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_depthwise_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>miopen_rnn</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mish.html">mish</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_adaptive_avg_pool2d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_convolution</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_linear</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_max_pool2d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_max_pool3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_reorder_conv2d_weight</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_reorder_conv3d_weight</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mkldnn_rnn_layer</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.mode.html">mode</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>modf</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.movedim.html">movedim</a></td><td>moveaxis</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>mps_linear</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.mse_loss.html">mse_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.msort.html">msort</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.multi_margin_loss.html">multi_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4558,7 +4269,6 @@
 <tr class="op-row unsupported"><td>❌</td><td>native_multi_head_self_attention</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>native_norm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>neq</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>nested_to_padded_tensor</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_empty.html">new_empty</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>new_empty_strided</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.new_full.html">new_full</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4569,7 +4279,6 @@
 <tr class="op-row supported"><td>✅</td><td>nll_loss2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>nll_loss_forward</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>nll_loss_nd</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>node</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>nonzero_numpy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>nonzero_static</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.norm.html">norm</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4579,48 +4288,29 @@
 <tr class="op-row unsupported"><td>❌</td><td>nuclear_norm</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.numel.html">numel</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>numpy_T</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>oct</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.one_hot.html">one_hot</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ones.html">ones</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ones_like.html">ones_like</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>op</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>op_name</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>ord</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ormqr.html">ormqr</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.outer.html">outer</a></td><td>ger</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>output_nr</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>owner</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>owner_name</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pad.html">pad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>pad_sequence</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pairwise_distance.html">pairwise_distance</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>partition</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pdist.html">pdist</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>percentFormat</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>permute_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.pin_memory.html">pin_memory</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.pinv.html">pinv</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.pinverse.html">pinverse</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_shuffle.html">pixel_shuffle</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.pixel_unshuffle.html">pixel_unshuffle</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>pointwise_placeholder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.poisson.html">poisson</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.poisson_nll_loss.html">poisson_nll_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polar.html">polar</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.polygamma.html">polygamma</a></td><td>special_polygamma</td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>pop</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>popitem</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.positive.html">positive</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.prelu.html">prelu</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.promote_types.html">promote_types</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>put</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_axis.html">q_per_channel_axis</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_scales.html">q_per_channel_scales</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_per_channel_zero_points.html">q_per_channel_zero_points</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_scale.html">q_scale</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.q_zero_point.html">q_zero_point</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.qr.html">qr</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.qscheme.html">qscheme</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantile.html">quantile</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>quantize</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.quantize_per_channel.html">quantize_per_channel</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4642,17 +4332,13 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.range.html">range</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ravel.html">ravel</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.real.html">real</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.record_stream.html">record_stream</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>reduce_scatter_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>refine_names</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.relu6.html">relu6</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>remove</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rename</td><td></td><td>✅</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td>rename_</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.renorm.html">renorm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.repeat_interleave.html">repeat_interleave</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>replace</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>replication_pad1d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.requires_grad_.html">requires_grad_</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.reshape.html">reshape</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.reshape_as.html">reshape_as</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>resize</td><td></td><td>✅</td><td>-</td></tr>
@@ -4660,41 +4346,24 @@
 <tr class="op-row unsupported"><td>❌</td><td>resize_as_sparse</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_conj.html">resolve_conj</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.resolve_neg.html">resolve_neg</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.result_type.html">result_type</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.retain_grad.html">retain_grad</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.retains_grad.html">retains_grad</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>reverse</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rfind</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rindex</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rjust</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rnn_relu</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rnn_relu_cell</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rnn_tanh</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rnn_tanh_cell</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.roll.html">roll</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.rot90.html">rot90</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.row_indices.html">row_indices</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>row_indices_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rowwise_prune</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rpartition</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.rrelu.html">rrelu</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>rrelu_with_noise_functional</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rsplit</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>rstrip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>rsub</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.save.html">save</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.searchsorted.html">searchsorted</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.seed.html">seed</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.segment_reduce.html">segment_reduce</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>select_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.selu.html">selu</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>set</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_data</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_grad_enabled</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>set_source_Tensor_storage_offset</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>setdefault</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sgn.html">sgn</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.signbit.html">signbit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.silu.html">silu</a></td><td></td><td>✅</td><td>-</td></tr>
@@ -4708,21 +4377,14 @@
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_dilated3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>slow_conv_transpose3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.smm.html">smm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.smooth_l1_loss.html">smooth_l1_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.soft_margin_loss.html">soft_margin_loss</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softmax.html">softmax</a></td><td>special_softmax</td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softplus.html">softplus</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.softshrink.html">softshrink</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.linalg.solve.html">solve</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sorted</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sparse_compressed_tensor.html">sparse_compressed_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sparse_coo_tensor.html">sparse_coo_tensor</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_dim.html">sparse_dim</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_mask.html">sparse_mask</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_resize</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_resize_and_clear</td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>sparse_sampled_addmm</td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_.html">sparse_resize_</a></td><td></td><td>❌</td><td>-</td></tr>
+<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.sparse_resize_and_clear_.html">sparse_resize_and_clear_</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_airy_ai</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j0</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>special_bessel_j1</td><td></td><td>❌</td><td>-</td></tr>
@@ -4759,22 +4421,14 @@
 <tr class="op-row unsupported"><td>❌</td><td>special_zeta</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.split.html">split</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>split_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>splitlines</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.square.html">square</a></td><td></td><td>✅</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.sspaddmm.html">sspaddmm</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stack.html">stack</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>startswith</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std.html">std</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.std_mean.html">std_mean</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.stft.html">stft</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.storage_offset.html">storage_offset</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>str</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.stride.html">stride</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>strip</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>sum_to</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.svd.html">svd</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>swapcase</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>symbolic_b</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>symeig</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.t.html">t</a></td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.take.html">take</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4783,19 +4437,10 @@
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor.html">tensor</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensor_split.html">tensor_split</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tensordot.html">tensordot</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_symbol</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_vartype</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>test_vartype2</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>thnn_conv2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.threshold.html">threshold</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.tile.html">tile</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>title</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to.html">to</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to_dense.html">to_dense</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>to_here</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.to_mkldnn.html">to_mkldnn</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>to_padded_tensor</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.trace.html">trace</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.transpose.html">transpose</a></td><td>swapaxes, swapdims</td><td>✅</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.trapezoid.html">trapezoid</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4817,20 +4462,15 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.unique_consecutive.html">unique_consecutive</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unique_dim</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>unique_dim_consecutive</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>unknown</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_chunk</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_split</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>unsafe_split_with_sizes</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>update</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>upper</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.nn.functional.upsample.html">upsample</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_bicubic2d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_linear1d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_nearest1d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_nearest3d</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>upsample_trilinear3d</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.Tensor.values.html">values</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>values_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vander.html">vander</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.var_mean.html">var_mean</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vdot.html">vdot</a></td><td></td><td>❌</td><td>-</td></tr>
@@ -4840,21 +4480,14 @@
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.view_as_real.html">view_as_real</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>view_as_real_copy</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>view_copy</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>view_expand_placeholder</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vsplit.html">vsplit</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.vstack.html">vstack</a></td><td>row_stack</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>wait</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>wait_tensor</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>warn</td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>warns</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>wrapped_linear_prepack</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td>wrapped_quantized_linear_prepacked</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row unsupported"><td>❌</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.xlogy.html">xlogy</a></td><td>special_xlogy</td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>your_op</td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td>zero</td><td></td><td>✅</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.zeros.html">zeros</a></td><td></td><td>❌</td><td>-</td></tr>
 <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.zeros_like.html">zeros_like</a></td><td></td><td>❌</td><td>-</td></tr>
-<tr class="op-row unsupported"><td>❌</td><td>zfill</td><td></td><td>❌</td><td>-</td></tr>
 </tbody>
 </table>
 </div></p>
@@ -4902,7 +4535,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 11, 2026 18:11:53 UTC">May 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 11, 2026 19:50:54 UTC">May 11, 2026</span>
   </span>
 
     
