@@ -114,6 +114,28 @@ def unflatten(
 
 
 @OP_REGISTRY.register()
+def numpy_T(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch `aten::numpy_T` (`Tensor.T`) to NNEF.
+
+    `Tensor.T` reverses every axis -- it is the rank-N generalisation of
+    matrix transpose. Equivalent to `permute([N-1, N-2, ..., 0])`.
+    """
+    (input_node,) = node.inputs
+    perm = list(range(input_node.rank - 1, -1, -1))
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "transpose",
+        inputs=get_or_add_tensor_variable_in_nnef(
+            g, input_node, name_to_tensor
+        ),
+        attrs={"axes": perm},
+        pass_quantization_params=True,
+    )
+
+
+@OP_REGISTRY.register()
 def transpose(g, node, name_to_tensor, inference_target, **kwargs):
     """Map PyTorch: 'aten:transpose' to NNEF."""
     (input_node, dim0_node, dim1_node) = node.inputs

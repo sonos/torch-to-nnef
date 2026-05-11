@@ -1,0 +1,19 @@
+# Numerically-stable pointwise BCE-with-logits:
+#   bce = (1 - target) * input + softplus(-input)
+#       = (1 - target) * input + log(1 + exp(-|input|)) + max(-input, 0)
+# Avoids overflow in `exp(-input)` for large `|input|` via the standard
+# softplus reformulation (see log_sigmoid.nnef for the same trick).
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment binary_cross_entropy_with_logits(
+    input: tensor<scalar>,
+    target: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    one_minus_t = sub(1.0, target);
+    a           = mul(one_minus_t, input);
+    neg_x       = sub(0.0, input);
+    abs_x       = abs(input);
+    softplus_x  = log(add(1.0, exp(sub(0.0, abs_x))));
+    bias        = max(neg_x, 0.0);
+    output      = add(a, add(softplus_x, bias));
+}

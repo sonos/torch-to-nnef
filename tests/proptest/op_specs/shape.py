@@ -114,6 +114,37 @@ def _permute_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _numpy_T_sample_st() -> st.SearchStrategy[OpSample]:
+    """`Tensor.T` -- reverse-all-axes transpose."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=0, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(lambda t: t.T),
+        )
+
+    return _draw()
+
+
 def _unsqueeze_sample_st() -> st.SearchStrategy[OpSample]:
     @st.composite
     def _draw(draw) -> OpSample:
@@ -782,6 +813,12 @@ def _shape_specs() -> T.List[OpSpec]:
             name="permute",
             sample_st=_permute_sample_st(),
             tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="numpy_T",
+            sample_st=_numpy_T_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
         ),
         OpSpec(
             name="unsqueeze",
