@@ -15,13 +15,13 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
 
     - core PyTorch opset:
 
-    [=127/138 "127/138"]
+    [=128/138 "128/138"]
 
     -  and support from full `aten::`: 
 
-    [=302/862 "302/862"]
+    [=303/862 "303/862"]
 
-     (total operators listed as supported by `torch_to_nnef` being 334)
+     (total operators listed as supported by `torch_to_nnef` being 335)
 
     <div class="op-filter-container" markdown="0">
     <form class="op-filter-form">
@@ -63,7 +63,7 @@ We filter out 'backward' and 'sym' operators from the listing since they are unw
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.ceil.html">ceil</a></td><td></td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.clamp.html">clamp</a></td><td>clip</td><td>✅</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td><a href="https://docs.pytorch.org/docs/2.11/generated/torch.clone.html">clone</a></td><td></td><td>❌</td><td>✅</td></tr>
-    <tr class="op-row unsupported"><td>❌</td><td>col2im</td><td></td><td>❌</td><td>✅</td></tr>
+    <tr class="op-row supported"><td>✅</td><td>col2im</td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>constant_pad_nd</td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>convolution</td><td></td><td>❌</td><td>✅</td></tr>
     <tr class="op-row supported"><td>✅</td><td>copy</td><td></td><td>✅</td><td>✅</td></tr>
