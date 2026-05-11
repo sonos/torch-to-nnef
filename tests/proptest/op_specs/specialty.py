@@ -590,6 +590,209 @@ def _distance_specs() -> T.List[OpSpec]:
     ]
 
 
+def _embedding_bag_static_offsets_sample_st(
+    mode: str,
+) -> st.SearchStrategy[OpSample]:
+    """`F.embedding_bag(idx, weight, offsets, mode=...)`: static offsets.
+
+    Offsets are baked into the traced module via a `torch.tensor`
+    constant, so they appear as a constant in the t2n IR (the
+    typical case in real models is either this or the 2-D-input
+    flattening, which produces the same effect upstream).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        num_emb = draw(st.integers(min_value=2, max_value=6))
+        emb_dim = draw(st.integers(min_value=2, max_value=4))
+        n_bags = draw(st.integers(min_value=1, max_value=3))
+        # Each bag size in [1, 3]; total `k` is sum of sizes.
+        sizes = [
+            draw(st.integers(min_value=1, max_value=3)) for _ in range(n_bags)
+        ]
+        k = sum(sizes)
+        idx = draw(
+            tensor_st(
+                (k,),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, num_emb - 1),
+            )
+        )
+        weights = draw(
+            tensor_st(
+                (num_emb, emb_dim),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        offsets_list = [0]
+        for s in sizes[:-1]:
+            offsets_list.append(offsets_list[-1] + s)
+        offsets_t = torch.tensor(offsets_list, dtype=torch.int64)
+
+        class _EB(nn.Module):
+            def __init__(self, off, m):
+                super().__init__()
+                self.register_buffer("off", off)
+                self.m = m
+
+            def forward(self, w, ix):
+                return F.embedding_bag(ix, w, self.off, mode=self.m)
+
+        return OpSample(inputs=(weights, idx), module=_EB(offsets_t, mode))
+
+    return _draw()
+
+
+def _affine_grid_sample_st() -> st.SearchStrategy[OpSample]:
+    """`F.affine_grid(theta, (N, C, H, W), align_corners)` -- 2-D only."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n = draw(st.integers(min_value=1, max_value=2))
+        c = draw(st.integers(min_value=1, max_value=3))
+        h = draw(st.integers(min_value=2, max_value=5))
+        w = draw(st.integers(min_value=2, max_value=5))
+        align_corners = draw(st.booleans())
+        theta = draw(
+            tensor_st(
+                (n, 2, 3),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+
+        class _AG(nn.Module):
+            def __init__(self, nn_, cc, hh, ww, ac):
+                super().__init__()
+                self.size = (nn_, cc, hh, ww)
+                self.ac = ac
+
+            def forward(self, th):
+                return F.affine_grid(th, self.size, align_corners=self.ac)
+
+        return OpSample(inputs=(theta,), module=_AG(n, c, h, w, align_corners))
+
+    return _draw()
+
+
+def _conv_tbc_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.conv_tbc(x, w, b, pad)` with baked weight/bias."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        kernel = draw(st.integers(min_value=1, max_value=3))
+        c_in = draw(st.integers(min_value=1, max_value=3))
+        c_out = draw(st.integers(min_value=1, max_value=3))
+        b = draw(st.integers(min_value=1, max_value=2))
+        t = draw(st.integers(min_value=kernel + 1, max_value=8))
+        pad = draw(st.integers(min_value=0, max_value=kernel // 2))
+        x = draw(
+            tensor_st(
+                (t, b, c_in),
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+
+        class _CTBC(nn.Module):
+            def __init__(self, kk, ci, co, pp):
+                super().__init__()
+                self.w = nn.Parameter(torch.randn(kk, ci, co))
+                self.bias = nn.Parameter(torch.randn(co))
+                self.pad = pp
+
+            def forward(self, xx):
+                return torch.conv_tbc(xx, self.w, self.bias, pad=self.pad)
+
+        return OpSample(
+            inputs=(x,), module=_CTBC(kernel, c_in, c_out, pad).eval()
+        )
+
+    return _draw()
+
+
+def _linalg_matrix_norm_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.linalg.matrix_norm(x, 'fro', dim, keepdim)`."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        keepdim = draw(st.booleans())
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        op_fn = (
+            lambda kd: (
+                lambda t: torch.linalg.matrix_norm(t, ord="fro", keepdim=kd)
+            )
+        )(keepdim)
+        return OpSample(inputs=(x,), module=UnaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _no_tract_change_specs() -> T.List[OpSpec]:
+    return [
+        OpSpec(
+            name="embedding_bag-sum",
+            sample_st=_embedding_bag_static_offsets_sample_st("sum"),
+            tolerance=TractCheckTolerance.CLOSE,
+        ),
+        OpSpec(
+            name="embedding_bag-mean",
+            sample_st=_embedding_bag_static_offsets_sample_st("mean"),
+            tolerance=TractCheckTolerance.CLOSE,
+        ),
+        OpSpec(
+            name="embedding_bag-max",
+            sample_st=_embedding_bag_static_offsets_sample_st("max"),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        OpSpec(
+            name="affine_grid",
+            sample_st=_affine_grid_sample_st(),
+            tolerance=TractCheckTolerance.CLOSE,
+            # Final reshape declares `(N, H, W, 2)` with a concrete
+            # `N` that clashes with the dyn-axis symbol -- same
+            # pattern as meshgrid / tensor_split.
+            dynamic_axes_skip_reason=(
+                "affine_grid_generator's final reshape declares "
+                "concrete N; symbolic-dim threading needs follow-up."
+            ),
+        ),
+        OpSpec(
+            name="conv_tbc",
+            sample_st=_conv_tbc_sample_st(),
+            tolerance=TractCheckTolerance.CLOSE,
+        ),
+        OpSpec(
+            name="linalg_matrix_norm_fro",
+            sample_st=_linalg_matrix_norm_sample_st(),
+            tolerance=TractCheckTolerance.CLOSE,
+            dynamic_axes_compatible=True,
+        ),
+    ]
+
+
 # Constructors (input-less in PyTorch, wrapped with a shape-coupled input)
 # + advanced index + SDPA
 
@@ -598,4 +801,5 @@ SPECS = (
     *_prelu_glu_einsum_specs(),
     *_max_pool_dropout_specs(),
     *_distance_specs(),
+    *_no_tract_change_specs(),
 )

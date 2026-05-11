@@ -4,6 +4,7 @@ from copy import copy
 import nnef
 import numpy as np
 import torch
+from nnef_tools.model import Tensor as NTensor
 
 from torch_to_nnef.dtypes import TORCH_DTYPE_TO_TRACT_STR, TORCH_TO_NUMPY_DTYPE
 from torch_to_nnef.exceptions import T2NErrorNotImplemented
@@ -587,6 +588,280 @@ def embedding(node, op_helper, inference_target, **kwargs):
             attrs={"axes": [0]},
         )
     return custom_fragments
+
+
+_EMBEDDING_BAG_MODE_TO_REDUCE = {
+    0: "sum_reduce",
+    1: "mean_reduce",
+    2: "max_reduce",
+}
+
+
+def _embedding_bag_validate(node):
+    """Validate `aten::embedding_bag` inputs and pull out the args.
+
+    Raises `T2NErrorNotImplemented` for the cases the current emitter
+    can't handle (mode out of {sum, mean, max}, `per_sample_weights`,
+    `include_last_offset`, explicit `padding_idx`, dynamic offsets).
+    Returns `(weight_node, indices_node, offsets_list, mode)`.
+    """
+    if len(node.inputs) < 5:
+        raise T2NErrorNotImplemented(
+            f"embedding_bag with {len(node.inputs)} inputs"
+        )
+    weight_node = node.inputs[0]
+    indices_node = node.inputs[1]
+    offsets_node = node.inputs[2]
+    mode_node = node.inputs[4]
+    per_sample_weights_node = node.inputs[6] if len(node.inputs) > 6 else None
+    include_last_offset_node = node.inputs[7] if len(node.inputs) > 7 else None
+    padding_idx_node = node.inputs[8] if len(node.inputs) > 8 else None
+
+    mode = int(mode_node.data)
+    if mode not in _EMBEDDING_BAG_MODE_TO_REDUCE:
+        raise T2NErrorNotImplemented(f"embedding_bag mode={mode}")
+    if per_sample_weights_node is not None and not (
+        isinstance(per_sample_weights_node, PythonConstant)
+        and per_sample_weights_node.data is None
+    ):
+        raise T2NErrorNotImplemented(
+            "embedding_bag with per_sample_weights not supported"
+        )
+    if (
+        include_last_offset_node is not None
+        and isinstance(include_last_offset_node, PythonConstant)
+        and bool(include_last_offset_node.data)
+    ):
+        raise T2NErrorNotImplemented(
+            "embedding_bag with include_last_offset=True not supported"
+        )
+    if padding_idx_node is not None and not (
+        isinstance(padding_idx_node, PythonConstant)
+        and padding_idx_node.data in (None, -1)
+    ):
+        raise T2NErrorNotImplemented(
+            "embedding_bag with explicit padding_idx not supported"
+        )
+
+    offsets_data = offsets_node.data
+    if offsets_data is None:
+        raise T2NErrorNotImplemented(
+            "embedding_bag requires statically-known offsets"
+        )
+    if hasattr(offsets_data, "tolist"):
+        offsets_data = offsets_data.tolist()
+    return weight_node, indices_node, [int(x) for x in offsets_data], mode
+
+
+def _embedding_bag_uniform_path(
+    g,
+    name_to_tensor,
+    base,
+    np_dtype,
+    emb,
+    out_ref,
+    n_bags,
+    bag_size,
+    d_dim,
+    reduce_op,
+):
+    """Equal-bag-size shortcut: reshape + reduce on axis 1 + squeeze."""
+    reshaped = NTensor(
+        g,
+        f"{base}_eb_reshape",
+        dtype=np_dtype,
+        shape=(n_bags, bag_size, d_dim),
+    )
+    name_to_tensor[reshaped.name] = reshaped
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="reshape",
+        name=f"{reshaped.name}_op",
+        inputs=(emb,),
+        outputs=(reshaped,),
+        attribs={"shape": [n_bags, bag_size, d_dim]},
+    )
+    kd = NTensor(g, f"{base}_eb_kd", dtype=np_dtype, shape=(n_bags, 1, d_dim))
+    name_to_tensor[kd.name] = kd
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type=reduce_op,
+        name=f"{kd.name}_op",
+        inputs=(reshaped,),
+        outputs=(kd,),
+        attribs={"axes": [1]},
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="squeeze",
+        name=f"{base}_eb_squeeze",
+        inputs=(kd,),
+        outputs=(out_ref,),
+        attribs={"axes": [1]},
+    )
+
+
+def _embedding_bag_variable_path(
+    g,
+    name_to_tensor,
+    base,
+    np_dtype,
+    emb,
+    out_ref,
+    boundaries,
+    bag_sizes,
+    d_dim,
+    reduce_op,
+):
+    """Variable-bag-size path: per-bag slice + reduce + concat."""
+    if any(s <= 0 for s in bag_sizes):
+        raise T2NErrorNotImplemented(
+            f"embedding_bag with empty bag (sizes={bag_sizes}); torch "
+            "fills empty bags with zeros which would need a different "
+            "emit path"
+        )
+    per_bag = []
+    for b, (start, size) in enumerate(
+        zip(boundaries[:-1], bag_sizes, strict=True)
+    ):
+        slc = NTensor(
+            g, f"{base}_eb_b{b}_slice", dtype=np_dtype, shape=(size, d_dim)
+        )
+        name_to_tensor[slc.name] = slc
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="slice",
+            name=f"{slc.name}_op",
+            inputs=(emb,),
+            outputs=(slc,),
+            attribs={
+                "axes": [0],
+                "begin": [start],
+                "end": [start + size],
+                "stride": [1],
+            },
+        )
+        reduced = NTensor(
+            g, f"{base}_eb_b{b}_kd", dtype=np_dtype, shape=(1, d_dim)
+        )
+        name_to_tensor[reduced.name] = reduced
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type=reduce_op,
+            name=f"{reduced.name}_op",
+            inputs=(slc,),
+            outputs=(reduced,),
+            attribs={"axes": [0]},
+        )
+        per_bag.append(reduced)
+    # `concat` takes a list-typed `values` arg in NNEF -- pass as a
+    # Python list (not tuple) so the serializer writes `[...]`.
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="concat",
+        name=f"{base}_eb_concat",
+        inputs=list(per_bag),
+        outputs=(out_ref,),
+        attribs={"axis": 0},
+        force_consistent_inputs_shapes=False,
+    )
+
+
+@OP_REGISTRY.register()
+def embedding_bag(
+    g, node, name_to_tensor, op_helper, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:embedding_bag' to NNEF.
+
+    `embedding_bag(weight, indices, offsets, scale_grad, mode, sparse,
+    per_sample_weights, include_last_offset, padding_idx)` returns a
+    4-tuple in torch (`output, offset2bag, bag_size, max_indices`); we
+    only emit the first output (the bag-reduced embeddings). The
+    other three are gradient bookkeeping and typically aren't
+    consumed in inference traces.
+
+    Decomposition (statically-known offsets):
+
+      emb = tract_core_gather(weight, indices, axis=0)  # (K, D)
+      for each bag b: bag_out_b = reduce(emb[offsets[b]:end_b], axis=0)
+      output = concat(bag_outs, axis=0)  # (B, D)
+
+    Equal bag sizes collapse to a single `reshape + reduce + squeeze`.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    weight_node, indices_node, offsets_list, mode = _embedding_bag_validate(
+        node
+    )
+    k = int(indices_node.shape[0])
+    boundaries = [*offsets_list, k]
+    bag_sizes = [
+        boundaries[i + 1] - boundaries[i] for i in range(len(offsets_list))
+    ]
+    n_bags = len(bag_sizes)
+    d_dim = int(weight_node.shape[1])
+
+    onode = node.outputs[0]
+    base = onode.export_name
+    np_dtype = onode.np_dtype
+    reduce_op = _EMBEDDING_BAG_MODE_TO_REDUCE[mode]
+
+    emb = NTensor(g, f"{base}_eb_emb", dtype=np_dtype, shape=(k, d_dim))
+    name_to_tensor[f"{base}_eb_emb"] = emb
+    weight_ref = get_or_add_tensor_variable_in_nnef(
+        g, weight_node, name_to_tensor
+    )
+    indices_ref = get_or_add_tensor_variable_in_nnef(
+        g, indices_node, name_to_tensor
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_gather",
+        name=f"{emb.name}_op",
+        inputs=(weight_ref, indices_ref),
+        outputs=(emb,),
+        attribs={"axis": 0},
+        force_consistent_inputs_shapes=False,
+    )
+
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+
+    if len(set(bag_sizes)) == 1 and bag_sizes[0] > 0:
+        _embedding_bag_uniform_path(
+            g,
+            name_to_tensor,
+            base,
+            np_dtype,
+            emb,
+            out_ref,
+            n_bags,
+            bag_sizes[0],
+            d_dim,
+            reduce_op,
+        )
+    else:
+        _embedding_bag_variable_path(
+            g,
+            name_to_tensor,
+            base,
+            np_dtype,
+            emb,
+            out_ref,
+            boundaries,
+            bag_sizes,
+            d_dim,
+            reduce_op,
+        )
+    return ["tract_core"]
 
 
 @OP_REGISTRY.register()
@@ -1440,6 +1715,66 @@ def index_add(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def index_put(g, node, name_to_tensor, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:index_put' (and `_`) to NNEF.
+
+    `index_put(self, indices: Tensor?[], values, accumulate)` writes
+    `values` into `self` at the positions indexed by `indices`. Only
+    the `len(indices) == 1` case with a single 1-D int index along
+    axis 0 is supported -- that's the `out[idx] = values` pattern that
+    covers most realistic usage. Lowered to
+    `tract_core_scatter_elements` with reduction `'add'` (when
+    `accumulate=True`) or `'none'` (overwrite).
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    # pylint: disable-next=import-outside-toplevel
+    from torch_to_nnef.torch_graph import FixedTensorList
+
+    input_node, indices_node, values_node, accumulate_node = node.inputs
+    if bool(accumulate_node.data):
+        # Only the accumulate=True path needs the `reduction` NNEF attr
+        # (which landed in tract 0.23.0-dev.4). Overwrite (=False) is the
+        # default scatter_elements behaviour, available since at least
+        # 0.21.x.
+        _check_scatter_reduction_supported(inference_target)
+    if not isinstance(indices_node, FixedTensorList):
+        raise T2NErrorNotImplemented(
+            f"index_put indices must be a FixedTensorList, got {indices_node!r}"
+        )
+    real_indices = [
+        idx
+        for idx in indices_node.data
+        if not (isinstance(idx, PythonConstant) and idx.data is None)
+    ]
+    if len(real_indices) != 1:
+        raise T2NErrorNotImplemented(
+            f"index_put with {len(real_indices)} non-None indices "
+            "not supported (only single-axis form covered)"
+        )
+    (index_node,) = real_indices
+    if index_node.dtype not in (torch.int32, torch.int64):
+        raise T2NErrorNotImplemented(
+            f"index_put with bool / mask index not supported "
+            f"(got dtype {index_node.dtype}); use scatter or "
+            "masked_fill for the mask form"
+        )
+    accumulate = bool(accumulate_node.data)
+    src_ref = op_helper.get_or_add_tensor_variable_in_nnef(values_node)
+    return _emit_index_family_scatter(
+        g,
+        name_to_tensor,
+        op_helper,
+        node,
+        input_node,
+        dim=0,
+        index_node=index_node,
+        src_ref=src_ref,
+        reduction="add" if accumulate else "none",
+    )
+
+
+@OP_REGISTRY.register()
 def take(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:take' to NNEF.
 
@@ -1477,3 +1812,173 @@ def take(node, op_helper, inference_target, **kwargs):
         force_consistent_inputs_shapes=False,
     )
     return ["tract_core"]
+
+
+def _emit_bucketize(node, op_helper, *, input_node, boundaries_node, right):
+    """Shared body for `bucketize` / `searchsorted`.
+
+    For each value `v` in `input_node`, count the number of
+    `boundaries` that satisfy the comparison: `<` for `right=False`
+    (default; lower-bound search) or `<=` for `right=True`
+    (upper-bound search). The count is the inserted-position index.
+
+    Decomposition (1-D `boundaries` -- the typical case):
+
+        x_exp     = unsqueeze(input, axes=[input.rank])  # (..., 1)
+        cmp_mask  = (lt | le)(boundaries, x_exp)         # (..., N) bool
+        cmp_int   = tract_core_cast(cmp_mask, to='i64')
+        kept_dim  = sum_reduce(cmp_int, axes=[input.rank])
+        output    = squeeze(kept_dim, axes=[input.rank])
+    """
+    if boundaries_node.rank != 1:
+        raise T2NErrorNotImplemented(
+            "bucketize/searchsorted with N-D boundaries (per-row) "
+            "not supported; only 1-D boundaries shared across input"
+        )
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+    onode = node.outputs[0]
+    base = onode.export_name
+    rank = input_node.rank
+    last_axis = rank  # axis we add for broadcast and reduce over
+
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    bnd_ref = op_helper.get_or_add_tensor_variable_in_nnef(boundaries_node)
+
+    inp_shape = list(input_node.shape)
+    n_b = boundaries_node.shape[0]
+    bcast_shape = inp_shape + [int(n_b) if isinstance(n_b, int) else n_b]
+    np_dtype = onode.np_dtype
+
+    def _intermediate(name, shape):
+        t = NTensor(g, name, dtype=np_dtype, shape=tuple(shape))
+        name_to_tensor[name] = t
+        return t
+
+    # Unsqueeze input on the trailing axis.
+    x_exp = _intermediate(f"{base}_bk_x_exp", inp_shape + [1])
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="unsqueeze",
+        name=f"{x_exp.name}_op",
+        inputs=(inp_ref,),
+        outputs=(x_exp,),
+        attribs={"axes": [last_axis]},
+    )
+    cmp_op = "le" if right else "lt"
+    mask = _intermediate(f"{base}_bk_mask", bcast_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type=cmp_op,
+        name=f"{mask.name}_op",
+        inputs=(bnd_ref, x_exp),
+        outputs=(mask,),
+        attribs={},
+    )
+    int_t = _intermediate(f"{base}_bk_int", bcast_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="tract_core_cast",
+        name=f"{int_t.name}_op",
+        inputs=(mask,),
+        outputs=(int_t,),
+        attribs={"to": TORCH_DTYPE_TO_TRACT_STR[torch.int64]},
+    )
+    kd_shape = inp_shape + [1]
+    kd = _intermediate(f"{base}_bk_kd", kd_shape)
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="sum_reduce",
+        name=f"{kd.name}_op",
+        inputs=(int_t,),
+        outputs=(kd,),
+        attribs={"axes": [last_axis]},
+    )
+    out_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="squeeze",
+        name=f"{base}_bk_squeeze",
+        inputs=(kd,),
+        outputs=(out_ref,),
+        attribs={"axes": [last_axis]},
+    )
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def bucketize(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:bucketize' to NNEF.
+
+    `bucketize(input, boundaries, out_int32, right)` returns the index
+    in `boundaries` (1-D, sorted) for each value in `input`. Decomposed
+    via broadcast-compare + sum_reduce of the comparison mask.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    input_node, boundaries_node, _out_int32_node, right_node = node.inputs
+    return _emit_bucketize(
+        node,
+        op_helper,
+        input_node=input_node,
+        boundaries_node=boundaries_node,
+        right=bool(right_node.data),
+    )
+
+
+@OP_REGISTRY.register()
+def searchsorted(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:searchsorted' to NNEF.
+
+    `searchsorted(sorted_seq, values, out_int32, right, side, sorter)`
+    is `bucketize` with the args swapped (`sorted_seq` plays the role
+    of `boundaries`, `values` plays the role of `input`). The `side`
+    string overload supersedes `right` when present.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented(inference_target)
+    sorted_seq_node = node.inputs[0]
+    values_node = node.inputs[1]
+    right_node = node.inputs[3] if len(node.inputs) > 3 else None
+    side_node = node.inputs[4] if len(node.inputs) > 4 else None
+    if (
+        side_node is not None
+        and not isinstance(side_node, PythonConstant)
+        and side_node.data not in (None, "left", "right")
+    ):
+        raise T2NErrorNotImplemented(
+            f"searchsorted side={side_node.data!r} not supported"
+        )
+    if (
+        side_node is not None
+        and isinstance(side_node, PythonConstant)
+        and side_node.data == "right"
+    ):
+        right = True
+    elif right_node is not None:
+        right = bool(right_node.data) if right_node.data is not None else False
+    else:
+        right = False
+    sorter_node = node.inputs[5] if len(node.inputs) > 5 else None
+    if (
+        sorter_node is not None
+        and not isinstance(sorter_node, PythonConstant)
+        and sorter_node.data is not None
+    ):
+        raise T2NErrorNotImplemented(
+            "searchsorted with explicit `sorter` not supported"
+        )
+    return _emit_bucketize(
+        node,
+        op_helper,
+        input_node=values_node,
+        boundaries_node=sorted_seq_node,
+        right=right,
+    )

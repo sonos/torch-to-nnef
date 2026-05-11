@@ -2703,6 +2703,190 @@ def _alias_specs() -> T.List[OpSpec]:
     ]
 
 
+def _index_put_sample_st(accumulate: bool) -> st.SearchStrategy[OpSample]:
+    """`out[idx] = src` (or `+=` when `accumulate=True`) along axis 0.
+
+    Only the single-axis form is exercised -- the t2n emitter rejects
+    multi-axis / mask indices with `NotImplementedError`. Indices are
+    drawn unique for the overwrite case (torch's `index_put_(...,
+    accumulate=False)` with duplicate indices has undefined ordering).
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        idx_len = draw(st.integers(min_value=1, max_value=shape[0]))
+        idx = draw(
+            tensor_st(
+                (idx_len,),
+                torch.int64,
+                finite=True,
+                domain=Interval(0, shape[0] - 1),
+            )
+        )
+        idx_unique = torch.unique(idx)
+        if not accumulate and idx_unique.numel() != idx.numel():
+            idx = idx_unique
+            idx_len = int(idx.numel())
+        src_shape = list(shape)
+        src_shape[0] = idx_len
+        src = draw(
+            tensor_st(
+                tuple(src_shape),
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-10.0, 10.0),
+            )
+        )
+        op_fn = (
+            lambda acc: (
+                lambda t, i, s: t.clone().index_put_((i,), s, accumulate=acc)
+            )
+        )(accumulate)
+        return OpSample(inputs=(x, idx, src), module=TernaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _bucketize_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.bucketize(input, boundaries)` over a 1-D sorted boundary."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        n_b = draw(st.integers(min_value=1, max_value=4))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        # boundaries must be sorted
+        raw_b = draw(
+            tensor_st(
+                (n_b,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        b, _ = torch.sort(raw_b)
+        right = draw(st.booleans())
+        op_fn = (lambda r: lambda xx, bb: torch.bucketize(xx, bb, right=r))(
+            right
+        )
+        return OpSample(inputs=(x, b), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _searchsorted_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.searchsorted(sorted_seq, values)`: args swapped vs bucketize."""
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        n_seq = draw(st.integers(min_value=1, max_value=4))
+        raw_seq = draw(
+            tensor_st(
+                (n_seq,),
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        seq, _ = torch.sort(raw_seq)
+        rank = draw(st.integers(min_value=1, max_value=3))
+        vals_shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=4),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        vals = draw(
+            tensor_st(
+                vals_shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-5.0, 5.0),
+            )
+        )
+        right = draw(st.booleans())
+        op_fn = (lambda r: lambda s, v: torch.searchsorted(s, v, right=r))(
+            right
+        )
+        return OpSample(inputs=(seq, vals), module=BinaryPrimitive(op_fn))
+
+    return _draw()
+
+
+def _bucketize_searchsorted_specs() -> T.List[OpSpec]:
+    return [
+        OpSpec(
+            name="bucketize",
+            sample_st=_bucketize_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        OpSpec(
+            name="searchsorted",
+            sample_st=_searchsorted_sample_st(),
+            tolerance=TractCheckTolerance.EXACT,
+            dynamic_axes_compatible=True,
+        ),
+        # index_put(accumulate=False) just overwrites -- the
+        # `reduction` NNEF attr is ignored on tract 0.22.1 (default
+        # path is overwrite), so it works on stable.
+        OpSpec(
+            name="index_put",
+            sample_st=_index_put_sample_st(accumulate=False),
+            tolerance=TractCheckTolerance.EXACT,
+        ),
+        # accumulate=True needs the ScatterReduction support which
+        # landed in tract 0.23.0-dev.4; same xfail as the rest of the
+        # scatter family.
+        OpSpec(
+            name="index_put-accum-xfail",
+            sample_st=_index_put_sample_st(accumulate=True),
+            tolerance=TractCheckTolerance.APPROXIMATE,
+            xfail_reason=(
+                "tract 0.22.1 lacks ScatterReduction; t2n hard-errors "
+                "below 0.23.0-dev.4 when accumulate=True."
+            ),
+        ),
+    ]
+
+
 # 3D conv/pool + numerical helpers + classifiers
 
 SPECS = (
@@ -2714,4 +2898,5 @@ SPECS = (
     *_index_pixel_specs(),
     *_shape_utility_specs(),
     *_alias_specs(),
+    *_bucketize_searchsorted_specs(),
 )
