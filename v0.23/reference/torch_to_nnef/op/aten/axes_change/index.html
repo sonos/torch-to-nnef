@@ -1513,6 +1513,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.unfold" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unfold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.unsqueeze" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unsqueeze
@@ -3433,6 +3442,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.axes_change.unfold" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unfold
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.axes_change.unsqueeze" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;unsqueeze
@@ -3898,6 +3916,34 @@ symbolic dims).</p>
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:unflatten' to NNEF.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.axes_change.unfold" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">unfold</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unfold</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch <code>aten::unfold</code> (Tensor.unfold) to NNEF.</p>
+<p>Signature: <code>unfold(self, dimension, size, step)</code>. Extracts overlapping
+windows of length <code>size</code> along <code>dimension</code>, advancing by <code>step</code>.
+The result has rank <code>R + 1</code>: the <code>dimension</code> axis becomes
+<code>n_windows = (D - size) // step + 1</code>, and a new trailing axis of
+length <code>size</code> is appended.</p>
+<p>Decomposed as <code>n_windows</code> <code>slice</code> ops along <code>dimension</code> followed by
+a <code>stack</code> along that same axis; if <code>dimension</code> is not the last
+axis of the input, an extra <code>transpose</code> moves the size axis to the
+end (matching torch's "appended-at-back" layout).</p>
 
     </div>
 
