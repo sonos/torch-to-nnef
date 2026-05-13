@@ -1,7 +1,6 @@
 """Spec builders for the factory op group."""
 
 import typing as T
-from functools import partial
 
 import torch
 import torch.nn.functional as F
@@ -318,6 +317,27 @@ def _constructors_index_sdpa_specs() -> T.List[OpSpec]:
 # FFT (real-input forward and inverse)
 
 
+def _fft_op_real_output(
+    op: T.Callable[..., torch.Tensor], **kwargs
+) -> T.Callable[[torch.Tensor], torch.Tensor]:
+    """Wrap a complex-output FFT op so the model output is real.
+
+    PyTorch's `fft.*` ops return complex64; t2n simulates complex as a
+    real tensor with an extra trailing axis of size 2 (`[real, imag]`).
+    The proptest comparator only handles real tensors, so we apply
+    `view_as_real` on the output: the layout then matches t2n's
+    internal representation and the two sides are directly comparable.
+    """
+
+    def wrapped(x: torch.Tensor) -> torch.Tensor:
+        # `.resolve_conj()` is a no-op when the conjugate bit isn't
+        # set; `fft.ifft` does set it (lazy conjugation), so
+        # `view_as_real` would otherwise raise.
+        return torch.view_as_real(op(x, **kwargs).resolve_conj())
+
+    return wrapped
+
+
 def _fft_sample_st(
     op: T.Callable[..., torch.Tensor],
 ) -> st.SearchStrategy[OpSample]:
@@ -352,16 +372,10 @@ def _fft_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            module=UnaryPrimitive(partial(op, dim=dim)),
+            module=UnaryPrimitive(_fft_op_real_output(op, dim=dim)),
         )
 
     return _draw()
-
-
-_FFT_COMPLEX_XFAIL_REASON = (
-    "FFT returns complex; comparator doesn't bridge PyTorch's complex64 "
-    "output vs tract's (real, imag) unfolded layout."
-)
 
 
 def _fftn_sample_st(
@@ -398,62 +412,43 @@ def _fftn_sample_st(
         )
         return OpSample(
             inputs=(x,),
-            module=UnaryPrimitive(partial(op, dim=dim)),
+            module=UnaryPrimitive(_fft_op_real_output(op, dim=dim)),
         )
 
     return _draw()
 
 
 def _fft_specs() -> T.List[OpSpec]:
+    # Each strategy wraps the FFT op with `view_as_real` so the model
+    # output is a real `(..., 2)` tensor -- the proptest comparator can
+    # then diff PyTorch vs tract directly without needing a complex-
+    # aware bridge. The wrap also sidesteps the conjugate-bit / numpy()
+    # error that the bare ifft output hit in t2n's NPZ writer.
     return [
         OpSpec(
-            # PyTorch's complex output (shape `(...,)` complex64) and
-            # tract's unfolded output (shape `(..., 2)` real, with the
-            # last axis being `[real, imag]`) don't compare apples-to-
-            # apples in the current comparator. FFT proptest support
-            # needs a complex-aware comparator that either folds tract's
-            # output back to complex or unfolds PyTorch's output to
-            # match tract.
-            name="fft_fft-xfail",
+            name="fft_fft",
             sample_st=_fft_sample_st(torch.fft.fft),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
         ),
         OpSpec(
-            # Additionally, t2n's NPZ writer at
-            # `model_wrapper.py` raises `RuntimeError: Can't call
-            # numpy() on Tensor that has conjugate bit set` for IFFT
-            # output: needs a `.resolve_conj()` before serialization.
-            name="fft_ifft-xfail",
+            name="fft_ifft",
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=(
-                _FFT_COMPLEX_XFAIL_REASON
-                + " Plus t2n model_wrapper.py missing .resolve_conj() "
-                "before .numpy() for ifft output."
-            ),
         ),
         OpSpec(
-            # Real-input one-sided FFT. Same comparator gap as fft_fft.
-            name="fft_rfft-xfail",
+            name="fft_rfft",
             sample_st=_fft_sample_st(torch.fft.rfft),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
         ),
         OpSpec(
-            name="fft_fftn-xfail",
+            name="fft_fftn",
             sample_st=_fftn_sample_st(torch.fft.fftn),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
         ),
         OpSpec(
-            name="fft_ifftn-xfail",
+            name="fft_ifftn",
             sample_st=_fftn_sample_st(torch.fft.ifftn),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=(
-                _FFT_COMPLEX_XFAIL_REASON
-                + " Plus the .resolve_conj() gap from fft_ifft."
-            ),
         ),
     ]
 
