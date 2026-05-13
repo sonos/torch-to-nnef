@@ -1484,6 +1484,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.huber_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;huber_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.loss.kl_div" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;kl_div
@@ -1505,6 +1514,15 @@
   <a href="#torch_to_nnef.op.aten.loss.nll_loss" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;nll_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.smooth_l1_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;smooth_l1_loss
     </span>
   </a>
   
@@ -3168,6 +3186,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.huber_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;huber_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.loss.kl_div" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;kl_div
@@ -3189,6 +3216,15 @@
   <a href="#torch_to_nnef.op.aten.loss.nll_loss" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;nll_loss
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.loss.smooth_l1_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;smooth_l1_loss
     </span>
   </a>
   
@@ -3295,6 +3331,27 @@ supported (raise on non-default values).</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="torch_to_nnef.op.aten.loss.huber_loss" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">huber_loss</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">huber_loss</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch <code>aten::huber_loss(input, target, reduction, delta)</code>.</p>
+<p>Pointwise piecewise: quadratic when <code>|input - target| &lt; delta</code>,
+linear otherwise. Reduction applied by the emitter.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="torch_to_nnef.op.aten.loss.kl_div" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">kl_div</span>
 
@@ -3362,6 +3419,28 @@ matching shapes.</p>
 axis (=1). Class-weighting and ignore-index masking are common
 training-side knobs; we raise <code>T2NErrorNotImplemented</code> for both
 until a real need shows up.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.loss.smooth_l1_loss" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">smooth_l1_loss</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">smooth_l1_loss</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">op_helper</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map <code>aten::smooth_l1_loss(input, target, reduction, beta)</code>.</p>
+<p>Same piecewise shape as <code>huber_loss</code> with a different scaling: the
+quadratic branch is <code>0.5 * diff^2 / beta</code> and the linear branch is
+<code>|diff| - 0.5 * beta</code> (vs huber's <code>delta * (|diff| - 0.5 * delta)</code>).</p>
 
     </div>
 
