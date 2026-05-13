@@ -332,3 +332,218 @@ def fft_ifft(
         inverse=True,
         inference_target=inference_target,
     )
+
+
+def _real_to_complex_pad(
+    g, node, name_to_tensor, input_node, nnef_tensor, suffix_base
+):
+    """Stack a zero imaginary part onto a real tensor.
+
+    Mirrors the t2n convention used by `_fft` / `stft`: complex is
+    simulated as a real tensor with an extra trailing axis of size 2
+    (`[real, imag]`).
+    """
+    out = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "unsqueeze",
+        inputs=nnef_tensor,
+        attrs={"axes": [pick_axis(input_node, -1) + 1]},
+        pass_quantization_params=True,
+        output_tensor_name_suffix=f"{suffix_base}_unsqueeze",
+    )
+    out = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "pad",
+        inputs=out,
+        attrs={
+            "padding": [(0, 0)] * input_node.rank + [(0, 1)],
+            "value": 0.0,
+        },
+        output_tensor_name_suffix=f"{suffix_base}_pad",
+    )
+    return out
+
+
+def _check_fft_target(inference_target):
+    if (
+        not isinstance(inference_target, TractNNEF)
+        or inference_target.version < "0.20.7"
+    ):
+        raise T2NErrorNotImplemented(inference_target)
+
+
+@OP_REGISTRY.register()
+def fft_rfft(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch: 'aten:fft_rfft' to NNEF.
+
+    Real input -> one-sided complex spectrum on `dim`. Mirrors
+    `fft_fft` (pad to complex, run `tract_core_fft`) then slices the
+    FFT axis to the first `N // 2 + 1` bins.
+    """
+    _check_fft_target(inference_target)
+    input_node, n_node, dim_node, norm_node = node.inputs
+    if n_node.data is not None or norm_node.data is not None:
+        raise T2NErrorNotImplemented("n or norm unexpected")
+    if input_node.dtype not in [torch.float32, torch.float64]:
+        raise T2NErrorNotImplemented(
+            f"fft_rfft expects real input; got dtype={input_node.dtype}"
+        )
+    dim = pick_axis(input_node, dim_node.data)
+    n_fft = input_node.shape[dim]
+    onesided_max_idx = (n_fft >> 1) + 1
+
+    nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    cmplx = _real_to_complex_pad(
+        g, node, name_to_tensor, input_node, nnef_tensor, "rfft_complex_cast"
+    )
+    full = add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "tract_core_fft",
+        inputs=cmplx,
+        attrs={"axis": dim, "inverse": False},
+        output_tensor_name_suffix="rfft_full_spectrum",
+    )
+    add_single_output_op(
+        g,
+        node,
+        name_to_tensor,
+        "slice",
+        inputs=full,
+        attrs={
+            "axes": [dim],
+            "begin": [0],
+            "end": [onesided_max_idx],
+            "stride": [1],
+        },
+    )
+    return ["tract_core"]
+
+
+def _fftn_loop(
+    g, node, name_to_tensor, inference_target, inverse, suffix_prefix
+):
+    """N-dimensional (i)FFT decomposed as a chain of `tract_core_fft`.
+
+    The aten signature is `(input, s?, dim?, norm?)`. We only support
+    `s=None` (no resizing) and `norm=None` (default backward
+    semantics: forward applies no scaling, inverse divides by the
+    product of FFT lengths).
+    """
+    input_node, s_node, dim_node, norm_node = node.inputs
+    if s_node.data is not None:
+        raise T2NErrorNotImplemented("s (per-axis sizing) not supported")
+    if norm_node.data is not None:
+        raise T2NErrorNotImplemented("norm unexpected")
+
+    # Default `dim`: all real-tensor axes (the trailing complex axis is
+    # added below and never gets transformed).
+    raw_dims = dim_node.data
+    if raw_dims is None:
+        if input_node.dtype in [torch.complex64, torch.complex128]:
+            # complex stored as [..., 2]; real-tensor rank is one less.
+            real_rank = input_node.rank - 1
+        else:
+            real_rank = input_node.rank
+        raw_dims = list(range(real_rank))
+    dims = [pick_axis(input_node, d) for d in raw_dims]
+
+    nnef_tensor = get_or_add_tensor_variable_in_nnef(
+        g, input_node, name_to_tensor
+    )
+    if input_node.dtype in [torch.float32, torch.float64]:
+        current = _real_to_complex_pad(
+            g,
+            node,
+            name_to_tensor,
+            input_node,
+            nnef_tensor,
+            f"{suffix_prefix}_complex_cast",
+        )
+    elif input_node.dtype in [torch.complex64, torch.complex128]:
+        current = nnef_tensor
+    else:
+        raise T2NErrorNotImplemented(
+            f"fftn expects real or complex input; got {input_node.dtype}"
+        )
+
+    # Chain one tract_core_fft per requested axis. For forward, the
+    # last call writes `node.outputs[0]`. For inverse with backward
+    # norm we route every FFT to an intermediate suffix and let the
+    # division op produce the final output.
+    last_idx = len(dims) - 1
+    for i, dim in enumerate(dims):
+        is_last = i == last_idx
+        suffix = f"_axis{dim}" if inverse or not is_last else ""
+        current = add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "tract_core_fft",
+            inputs=current,
+            attrs={"axis": dim, "inverse": inverse},
+            output_tensor_name_suffix=suffix,
+        )
+
+    if inverse:
+        # Backward norm: divide by the product of FFT lengths.
+        if inference_target.has_dynamic_axes:
+            raise T2NErrorNotImplemented(
+                "fft_ifftn under dynamic axes needs runtime shape-of"
+            )
+        divisor_value = 1
+        for d in dims:
+            divisor_value *= input_node.shape[d]
+        divisor_tensor = get_or_add_tensor_variable_in_nnef(
+            g,
+            PythonConstant(
+                name=f"{node.outputs[0].export_name}_fftn_divisor",
+                data=float(divisor_value),
+            ),
+            name_to_tensor,
+        )
+        node.outputs[0].dtype = torch.complex64
+        add_single_output_op(
+            g,
+            node,
+            name_to_tensor,
+            "div",
+            inputs=(current, divisor_tensor),
+        )
+
+    return ["tract_core"]
+
+
+@OP_REGISTRY.register()
+def fft_fftn(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch: 'aten:fft_fftn' to NNEF (forward N-dim FFT)."""
+    _check_fft_target(inference_target)
+    return _fftn_loop(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        inverse=False,
+        suffix_prefix="fftn",
+    )
+
+
+@OP_REGISTRY.register()
+def fft_ifftn(g, node, name_to_tensor, inference_target, **kwargs):
+    """Map PyTorch: 'aten:fft_ifftn' to NNEF (inverse N-dim FFT)."""
+    _check_fft_target(inference_target)
+    return _fftn_loop(
+        g,
+        node,
+        name_to_tensor,
+        inference_target,
+        inverse=True,
+        suffix_prefix="ifftn",
+    )

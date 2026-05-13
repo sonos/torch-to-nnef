@@ -109,6 +109,202 @@ def mean(node, op_helper, **kwargs):
     reducer_helper("mean_reduce", node, op_helper)
 
 
+def _emit_nan_replace(input_node, op_helper, node, replacement, suffix):
+    """Emit `select(isnan(x), replacement, x)`.
+
+    Uses the IEEE-754 invariant `NaN != NaN` for the NaN test so the
+    decomposition stays in NNEF stdlib (no `tract_core_is_nan`
+    dependency).
+    """
+    out_dtype = input_node.dtype or torch.float32
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    replacement_const = PythonConstant(
+        name=f"{node.outputs[0].export_name}_{suffix}_const",
+        data=torch.tensor(float(replacement), dtype=out_dtype),
+    )
+    replacement_ref = op_helper.get_or_add_tensor_variable_in_nnef(
+        replacement_const
+    )
+    is_nan = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "ne",
+        inputs=[inp_ref, inp_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix=f"_{suffix}_isnan",
+    )
+    return op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "select",
+        inputs=[is_nan, replacement_ref, inp_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix=f"_{suffix}_clean",
+    ), is_nan
+
+
+def _resolve_reduce_axes(input_node, axis_node):
+    """Mirror `reducer_helper`'s axis resolution -- int / list / None."""
+    if isinstance(axis_node.data, int):
+        return [pick_axis(input_node, axis_node.data)]
+    if axis_node.data is None:
+        return [pick_axis(input_node, i) for i in range(input_node.rank)]
+    return [pick_axis(input_node, i) for i in axis_node.data]
+
+
+def _nan_reduce(node, op_helper, mode: str):
+    """Shared core for `nansum` / `nanmean`.
+
+    aten signature: `(self, dim?, keepdim=False, *, dtype=None)`.
+    Decomposes to `sum_reduce` on a NaN-replaced copy of the input,
+    plus (for `nanmean`) a `sum_reduce` of the non-NaN mask and a
+    division.
+    """
+    n_inputs = len(node.inputs)
+    if n_inputs not in (2, 3, 4):
+        raise T2NErrorNotImplemented(
+            f"nan{mode} with {n_inputs} inputs (expected 2-4)"
+        )
+    input_node, axis_node = node.inputs[:2]
+    keep_dim = (
+        node.inputs[2].data
+        if n_inputs >= 3 and isinstance(node.inputs[2].data, bool)
+        else False
+    )
+    axes = _resolve_reduce_axes(input_node, axis_node)
+
+    clean_ref, is_nan_ref = _emit_nan_replace(
+        input_node, op_helper, node, replacement=0.0, suffix=f"nan{mode}"
+    )
+
+    onode = node.outputs[0]
+    g = op_helper.g
+    name_to_tensor = op_helper.name_to_tensor
+
+    # The sum stage writes the final output for `nansum`; for
+    # `nanmean` it lands on an intermediate that gets divided next.
+    needs_div = mode == "mean"
+    sum_out_suffix = "_nanmean_sum" if needs_div else ""
+    sum_target = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode,
+        prevent_variable=True,
+        name_suffix=sum_out_suffix,
+    )
+    sum_pre_squeeze = sum_target
+    if not keep_dim:
+        sum_pre_name = f"{onode.export_name}_nan{mode}_reduce_unsqueezed"
+        sum_pre_squeeze = NTensor(
+            g,
+            sum_pre_name,
+            dtype=onode.np_dtype,
+            shape=onode.shape,
+        )
+        name_to_tensor[sum_pre_name] = sum_pre_squeeze
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="sum_reduce",
+        name=f"{onode.export_name}_nan{mode}_reduce",
+        inputs=clean_ref,
+        outputs=sum_pre_squeeze if not keep_dim else sum_target,
+        attribs={"axes": axes},
+    )
+    if not keep_dim:
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="squeeze",
+            name=f"{onode.export_name}_nan{mode}_squeeze",
+            inputs=sum_pre_squeeze,
+            outputs=sum_target,
+            attribs={"axes": axes},
+        )
+    if not needs_div:
+        return
+
+    # nanmean: divide the sum by the per-axis count of non-NaN inputs.
+    # The mask is `1 - is_nan` cast to float; sum-reduce gives the
+    # count.
+    one_const = PythonConstant(
+        name=f"{onode.export_name}_nanmean_one",
+        data=torch.tensor(1.0, dtype=input_node.dtype or torch.float32),
+    )
+    zero_const = PythonConstant(
+        name=f"{onode.export_name}_nanmean_zero",
+        data=torch.tensor(0.0, dtype=input_node.dtype or torch.float32),
+    )
+    one_ref = op_helper.get_or_add_tensor_variable_in_nnef(one_const)
+    zero_ref = op_helper.get_or_add_tensor_variable_in_nnef(zero_const)
+    mask_ref = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "select",
+        inputs=[is_nan_ref, zero_ref, one_ref],
+        force_consistent_inputs_shapes=False,
+        output_tensor_name_suffix="_nanmean_mask",
+    )
+    count_target_name = f"{onode.export_name}_nanmean_count"
+    count_pre = NTensor(
+        g, count_target_name, dtype=onode.np_dtype, shape=onode.shape
+    )
+    name_to_tensor[count_target_name] = count_pre
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="sum_reduce",
+        name=f"{onode.export_name}_nanmean_count_reduce",
+        inputs=mask_ref,
+        outputs=count_pre,
+        attribs={"axes": axes},
+    )
+    if not keep_dim:
+        count_squeezed_name = f"{onode.export_name}_nanmean_count_squeezed"
+        count_squeezed = NTensor(
+            g, count_squeezed_name, dtype=onode.np_dtype, shape=onode.shape
+        )
+        name_to_tensor[count_squeezed_name] = count_squeezed
+        cast_and_add_nnef_operation(
+            name_to_tensor=name_to_tensor,
+            graph=g,
+            type="squeeze",
+            name=f"{onode.export_name}_nanmean_count_squeeze",
+            inputs=count_pre,
+            outputs=count_squeezed,
+            attribs={"axes": axes},
+        )
+        count_pre = count_squeezed
+    final_target = op_helper.get_or_add_tensor_variable_in_nnef(
+        onode, prevent_variable=True
+    )
+    cast_and_add_nnef_operation(
+        name_to_tensor=name_to_tensor,
+        graph=g,
+        type="div",
+        name=f"{onode.export_name}_nanmean_div",
+        inputs=(sum_target, count_pre),
+        outputs=final_target,
+        attribs={},
+    )
+
+
+@OP_REGISTRY.register()
+def nansum(node, op_helper, **kwargs):
+    """Map PyTorch: `aten::nansum` -> NaN-skipping sum.
+
+    Decomposed as `sum_reduce(select(isnan(x), 0, x))`. NaN detection
+    via `ne(x, x)` (IEEE-754 invariant) so the decomposition only
+    touches NNEF stdlib ops.
+    """
+    _nan_reduce(node, op_helper, mode="sum")
+
+
+@OP_REGISTRY.register()
+def nanmean(node, op_helper, **kwargs):
+    """Map PyTorch: `aten::nanmean` -> NaN-skipping mean.
+
+    Sum of NaN-replaced input divided by the count of non-NaN inputs
+    along the reduce axes.
+    """
+    _nan_reduce(node, op_helper, mode="mean")
+
+
 @OP_REGISTRY.register(torch_op_ids=["reduce_sum", "sum"])
 def reduce_sum(node, op_helper, **kwargs):
     """Map PyTorch: 'aten:reduce_sum', 'aten:sum' to NNEF."""

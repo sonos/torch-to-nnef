@@ -171,7 +171,7 @@ ignored-classes = ["torch", "numpy"]
 generated-members = ["torch.*", "peft.*"]
 
 [tool.pylint.format]
-max-module-lines = 2000
+max-module-lines = 2100
 
 
 [tool.pylint."MESSAGE CONTROL"]

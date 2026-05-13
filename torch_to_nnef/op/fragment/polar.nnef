@@ -1,0 +1,18 @@
+# Build a complex tensor in t2n's `(..., 2)` real layout from polar
+# coordinates: `output[..., 0] = abs * cos(angle)`,
+# `output[..., 1] = abs * sin(angle)`.
+# `axis` is the position the trailing-2 axis sits at in the output --
+# always `rank(abs)` for the standard PyTorch `torch.polar` call; the
+# emitter wires this from the trace.
+fragment polar(
+    abs:   tensor<scalar>,
+    angle: tensor<scalar>,
+    axis:  integer
+) -> ( output: tensor<scalar> )
+{
+    re   = mul(abs, cos(angle));
+    im   = mul(abs, sin(angle));
+    re_u = unsqueeze(re, axes = [axis]);
+    im_u = unsqueeze(im, axes = [axis]);
+    output = concat([re_u, im_u], axis = axis);
+}

@@ -77,18 +77,23 @@ def _emit_pointwise_loss(
     inputs,
     reduction: int,
     rank: int,
+    attrs: T.Optional[T.Dict[str, T.Any]] = None,
 ) -> T.List[str]:
     """Common path: call `fragment_name` then optionally reduce.
 
     When `reduction == none` the fragment writes directly into the node
     output. When reduced, the fragment writes to an intermediate and
     `_apply_reduction` wires the squeeze into the final tensor.
+    Scalar fragment parameters (e.g. `delta` for huber, `beta` for
+    smooth-l1) ride through `attrs`.
     """
+    attrs = attrs or {}
     if reduction == _REDUCTION_NONE:
         op_helper.add_single_output_op_from_nnef_tensors(
             node,
             fragment_name,
             inputs=inputs,
+            attrs=attrs,
             force_consistent_inputs_shapes=False,
         )
         return [fragment_name]
@@ -96,6 +101,7 @@ def _emit_pointwise_loss(
         node,
         fragment_name,
         inputs=inputs,
+        attrs=attrs,
         force_consistent_inputs_shapes=False,
         output_tensor_name_suffix=f"_{fragment_name}_pw",
     )
@@ -119,6 +125,53 @@ def mse_loss(node, op_helper, **kwargs):
     tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
     return _emit_pointwise_loss(
         op_helper, node, "mse_loss", [inp, tgt], reduction, input_node.rank
+    )
+
+
+@OP_REGISTRY.register()
+def huber_loss(node, op_helper, **kwargs):
+    """Map PyTorch `aten::huber_loss(input, target, reduction, delta)`.
+
+    Pointwise piecewise: quadratic when `|input - target| < delta`,
+    linear otherwise. Reduction applied by the emitter.
+    """
+    input_node, target_node, reduction_node, delta_node = node.inputs
+    reduction = _reduction_value(reduction_node, "huber_loss")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    delta = float(delta_node.data) if delta_node.data is not None else 1.0
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "huber_loss",
+        [inp, tgt],
+        reduction,
+        input_node.rank,
+        attrs={"delta": delta},
+    )
+
+
+@OP_REGISTRY.register()
+def smooth_l1_loss(node, op_helper, **kwargs):
+    """Map `aten::smooth_l1_loss(input, target, reduction, beta)`.
+
+    Same piecewise shape as `huber_loss` with a different scaling: the
+    quadratic branch is `0.5 * diff^2 / beta` and the linear branch is
+    `|diff| - 0.5 * beta` (vs huber's `delta * (|diff| - 0.5 * delta)`).
+    """
+    input_node, target_node, reduction_node, beta_node = node.inputs
+    reduction = _reduction_value(reduction_node, "smooth_l1_loss")
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    tgt = op_helper.get_or_add_tensor_variable_in_nnef(target_node)
+    beta = float(beta_node.data) if beta_node.data is not None else 1.0
+    return _emit_pointwise_loss(
+        op_helper,
+        node,
+        "smooth_l1_loss",
+        [inp, tgt],
+        reduction,
+        input_node.rank,
+        attrs={"beta": beta},
     )
 
 

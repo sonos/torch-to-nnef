@@ -1,0 +1,17 @@
+# Pointwise Huber loss:
+#   loss = 0.5 * (input - target)^2          if |input - target| < delta
+#        = delta * (|input - target| - 0.5 * delta)  otherwise
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment huber_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>,
+    delta: scalar = 1.0
+) -> ( output: tensor<scalar> )
+{
+    diff       = sub(input, target);
+    abs_diff   = abs(diff);
+    is_small   = lt(abs_diff, delta);
+    quadratic  = mul(0.5, mul(diff, diff));
+    linear     = mul(delta, sub(abs_diff, mul(0.5, delta)));
+    output     = select(is_small, quadratic, linear);
+}

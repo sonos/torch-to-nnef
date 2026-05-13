@@ -25,6 +25,66 @@ class MyFFT(nn.Module):
         return x
 
 
+class MyRFFT(nn.Module):
+    """`rfft` returns a one-sided complex spectrum (last bin = N//2+1)."""
+
+    def __init__(self, dim=-1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        return torch.view_as_real(torch.fft.rfft(x, dim=self.dim))
+
+
+class MyFFTN(nn.Module):
+    """N-dim forward FFT followed by view_as_real for IO comparability."""
+
+    def __init__(self, dims=None):
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        return torch.view_as_real(torch.fft.fftn(x, dim=self.dims))
+
+
+class MyIFFTN(nn.Module):
+    """N-dim inverse FFT.
+
+    Input is a real tensor cast to complex with zero imaginary part so
+    the trace sees a complex-domain ifftn.
+    """
+
+    def __init__(self, dims=None):
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        cmplx = torch.view_as_complex(
+            torch.stack((x, torch.zeros_like(x)), dim=-1)
+        )
+        return torch.view_as_real(torch.fft.ifftn(cmplx, dim=self.dims))
+
+
+class MyHammingWindowScaled(nn.Module):
+    """Use a window inside `forward` so the trace materializes the op."""
+
+    def __init__(self, length, win_name):
+        super().__init__()
+        self.length = length
+        self.win_name = win_name
+
+    def forward(self, x):
+        if self.win_name == "hamming":
+            w = torch.hamming_window(self.length, dtype=x.dtype)
+        elif self.win_name == "blackman":
+            w = torch.blackman_window(self.length, dtype=x.dtype)
+        elif self.win_name == "kaiser":
+            w = torch.kaiser_window(self.length, dtype=x.dtype)
+        else:
+            raise ValueError(self.win_name)
+        return x * w
+
+
 class MySTFT(nn.Module):
     def __init__(
         self,
@@ -89,6 +149,13 @@ def add_test(*args, stft=False):
 
 
 add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
+add_test(torch.arange(8.0).reshape(2, 4), MyRFFT())
+add_test(torch.arange(12.0).reshape(3, 4), MyRFFT(dim=0))
+add_test(torch.arange(24.0).reshape(2, 3, 4), MyFFTN(dims=[1, 2]))
+add_test(torch.arange(24.0).reshape(2, 3, 4), MyIFFTN(dims=[1, 2]))
+add_test(torch.arange(8.0), MyHammingWindowScaled(8, "hamming"))
+add_test(torch.arange(8.0), MyHammingWindowScaled(8, "blackman"))
+add_test(torch.arange(8.0), MyHammingWindowScaled(8, "kaiser"))
 add_test(
     torch.arange(12).float(),
     MySTFT(window=torch.tensor([0.1, 0.5, 0.5, 0.1, 0.1, 0.1])),

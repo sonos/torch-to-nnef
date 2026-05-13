@@ -1,0 +1,19 @@
+# Pointwise smooth L1 loss:
+#   loss = 0.5 * (input - target)^2 / beta       if |input - target| < beta
+#        = |input - target| - 0.5 * beta         otherwise
+# (Equivalent to `huber_loss(..., delta=beta) / beta`; PyTorch keeps the
+# two ops separate so we mirror that here.)
+# Reduction (mean / sum / none) is applied by the emitter.
+fragment smooth_l1_loss(
+    input: tensor<scalar>,
+    target: tensor<scalar>,
+    beta: scalar = 1.0
+) -> ( output: tensor<scalar> )
+{
+    diff       = sub(input, target);
+    abs_diff   = abs(diff);
+    is_small   = lt(abs_diff, beta);
+    quadratic  = mul(0.5, div(mul(diff, diff), beta));
+    linear     = sub(abs_diff, mul(0.5, beta));
+    output     = select(is_small, quadratic, linear);
+}

@@ -1,0 +1,20 @@
+# Phase of a complex tensor stored in t2n's `(..., 2)` real layout:
+# `angle = atan2(imag, real)` where real / imag are slices on `axis`
+# (always `rank(input) - 1` for the standard `torch.angle` call; the
+# emitter passes it explicitly so this fragment stays rank-agnostic).
+#
+# Note: this calls the existing `atan2` fragment which is currently
+# `atan(x / y)` (no quadrant correction). Outputs are only matching
+# `torch.angle` when the real part stays non-negative; once `atan2.nnef`
+# grows a proper quadrant-aware impl this caveat goes away.
+fragment angle(
+    input: tensor<scalar>,
+    axis:  integer
+) -> ( output: tensor<scalar> )
+{
+    re_full = slice(input, axes = [axis], begin = [0], end = [1], stride = [1]);
+    im_full = slice(input, axes = [axis], begin = [1], end = [2], stride = [1]);
+    re      = squeeze(re_full, axes = [axis]);
+    im      = squeeze(im_full, axes = [axis]);
+    output  = atan2(im, re);
+}

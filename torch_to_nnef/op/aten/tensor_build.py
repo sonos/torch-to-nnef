@@ -833,13 +833,15 @@ def linspace(g, node, name_to_tensor, **kwargs):
     add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
 
 
-@OP_REGISTRY.register()
-def hann_window(g, node, name_to_tensor, **kwargs):
-    """Map PyTorch: 'aten:hann_window' to a NNEF constant tensor.
+def _emit_window_constant(g, node, name_to_tensor, torch_fn, op_name, **extra):
+    """Shared helper for the `*_window` family.
 
-    Trace-time constant: `aten::hann_window(window_length, periodic,
-    dtype, layout, device, pin_memory)`. `periodic` is read when
-    present (default True per torch).
+    aten signature is `(window_length, periodic?, [op-specific args], dtype,
+    layout, device, pin_memory)`. `window_length` and `periodic` are
+    always positional 0 / 1; any op-specific args (e.g. `beta` for
+    kaiser) are passed via `extra`. The result is computed at export
+    time via the corresponding `torch` function and emitted as a
+    constant tensor.
     """
     inputs = node.inputs
     length_node = inputs[0]
@@ -848,7 +850,7 @@ def hann_window(g, node, name_to_tensor, **kwargs):
         and isinstance(length_node.data, int)
     ):
         raise T2NErrorNotImplemented(
-            "aten::hann_window with dynamic length not yet supported"
+            f"aten::{op_name} with dynamic length not yet supported"
         )
     periodic = True
     if (
@@ -860,13 +862,57 @@ def hann_window(g, node, name_to_tensor, **kwargs):
     onode = node.outputs[0]
     out_dtype = onode.dtype or torch.float32
     onode.set_data(
-        torch.hann_window(
-            int(length_node.data), periodic=periodic, dtype=out_dtype
+        torch_fn(
+            int(length_node.data), periodic=periodic, dtype=out_dtype, **extra
         ),
         force_dtype=True,
         force_shape=True,
     )
     add_tensor_variable_node_as_nnef_tensor(g, onode, name_to_tensor)
+
+
+@OP_REGISTRY.register()
+def hann_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:hann_window' to a NNEF constant tensor."""
+    _emit_window_constant(
+        g, node, name_to_tensor, torch.hann_window, "hann_window"
+    )
+
+
+@OP_REGISTRY.register()
+def hamming_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:hamming_window' to a NNEF constant tensor."""
+    _emit_window_constant(
+        g, node, name_to_tensor, torch.hamming_window, "hamming_window"
+    )
+
+
+@OP_REGISTRY.register()
+def blackman_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:blackman_window' to a NNEF constant tensor."""
+    _emit_window_constant(
+        g, node, name_to_tensor, torch.blackman_window, "blackman_window"
+    )
+
+
+@OP_REGISTRY.register()
+def kaiser_window(g, node, name_to_tensor, **kwargs):
+    """Map PyTorch: 'aten:kaiser_window' to a NNEF constant tensor.
+
+    Reads an optional `beta` (default `12.0`) at input index 2 when the
+    full positional form is used.
+    """
+    beta = 12.0
+    inputs = node.inputs
+    if (
+        len(inputs) >= 3
+        and isinstance(inputs[2], PythonConstant)
+        and isinstance(inputs[2].data, (int, float))
+    ):
+        beta = float(inputs[2].data)
+    _emit_window_constant(
+        g, node, name_to_tensor, torch.kaiser_window, "kaiser_window", beta=beta
+    )
 
 
 @OP_REGISTRY.register()
