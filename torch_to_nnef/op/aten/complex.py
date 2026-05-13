@@ -61,3 +61,53 @@ def view_as_real(
     # decision.
     torch_graph.remap_node(node.outputs[0], node.inputs[0])
     return []
+
+
+@OP_REGISTRY.register()
+def angle(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:angle' to NNEF.
+
+    Calls the `angle` fragment (`atan2(imag, real)` on a `(..., 2)`
+    complex layout). The fragment delegates to `atan2`, which is
+    currently `atan(x/y)` -- outputs only match `torch.angle` when the
+    real part stays non-negative.
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    (input_node,) = node.inputs
+    inp_ref = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "angle",
+        inputs=[inp_ref],
+        attrs={"axis": input_node.rank - 1},
+    )
+    return ["atan2", "angle"]
+
+
+@OP_REGISTRY.register()
+def polar(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: 'aten:polar(abs, angle)' to NNEF.
+
+    Calls the `polar` fragment which builds `(abs*cos, abs*sin)` on a
+    new trailing axis (matching t2n's `(..., 2)` complex layout).
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    abs_node, angle_node = node.inputs
+    # The fragment writes a real `(..., 2)` tensor; clear the trace's
+    # `complex64` marker on the output node so downstream implicit-cast
+    # logic doesn't try to coerce the real inputs to `complexf64`
+    # (tract has no such dtype). Same for the shape: the trace carries
+    # the bare complex shape, we actually emit `(..., 2)`.
+    node.outputs[0].dtype = torch.float32
+    node.outputs[0].shape = list(abs_node.shape) + [2]
+    abs_ref = op_helper.get_or_add_tensor_variable_in_nnef(abs_node)
+    angle_ref = op_helper.get_or_add_tensor_variable_in_nnef(angle_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "polar",
+        inputs=[abs_ref, angle_ref],
+        attrs={"axis": abs_node.rank},
+    )
+    return ["polar"]

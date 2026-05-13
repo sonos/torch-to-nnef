@@ -435,6 +435,35 @@ def gather(node, op_helper, inference_target, **kwargs):
     return custom_fragments
 
 
+@OP_REGISTRY.register()
+def take_along_dim(node, op_helper, inference_target, **kwargs):
+    """Map PyTorch: `aten::take_along_dim(self, indices, dim?)` to NNEF.
+
+    With an explicit `dim`, the op is `gather` along that axis. The
+    `dim=None` form (flatten both tensors and do a 1-D take) needs an
+    extra reshape pair; left for follow-up.
+    """
+    if not isinstance(inference_target, TractNNEF):
+        raise T2NErrorNotImplemented()
+    input_node, indices_node, dim_node = node.inputs
+    if dim_node.data is None:
+        raise T2NErrorNotImplemented(
+            "take_along_dim with dim=None (flattened) not yet supported"
+        )
+    dim = pick_axis(input_node, dim_node.data)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "tract_core_gather_elements",
+        inputs=[
+            op_helper.get_or_add_tensor_variable_in_nnef(input_node),
+            op_helper.get_or_add_tensor_variable_in_nnef(indices_node),
+        ],
+        attrs={"axis": dim},
+        force_consistent_inputs_shapes=False,
+    )
+    return ["tract_core"]
+
+
 @OP_REGISTRY.register(torch_op_ids=["index"])
 def index_(node, op_helper, inference_target, **kwargs):
     """Translate `aten::index` to NNEF.

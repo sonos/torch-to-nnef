@@ -819,6 +819,171 @@ test_suite.add(
 )
 
 
+class TakeAlongDimMod(nn.Module):
+    def __init__(self, dim: int) -> None:
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x, idx):
+        return torch.take_along_dim(x, idx, dim=self.dim)
+
+
+test_suite.add(
+    (
+        torch.arange(15).reshape(3, 5).float(),
+        torch.tensor([[0, 2, 4, 1, 3], [4, 3, 2, 1, 0], [1, 1, 1, 1, 1]]),
+    ),
+    TakeAlongDimMod(dim=1),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.arange(15).reshape(3, 5).float(),
+        torch.tensor([[0, 1, 2, 0, 1], [2, 1, 0, 1, 2]]),
+    ),
+    TakeAlongDimMod(dim=0),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class NanSumMod(nn.Module):
+    def __init__(self, dim, keepdim=False) -> None:
+        super().__init__()
+        self.dim = dim
+        self.keepdim = keepdim
+
+    def forward(self, x):
+        return torch.nansum(x, dim=self.dim, keepdim=self.keepdim)
+
+
+class NanMeanMod(nn.Module):
+    def __init__(self, dim, keepdim=False) -> None:
+        super().__init__()
+        self.dim = dim
+        self.keepdim = keepdim
+
+    def forward(self, x):
+        return torch.nanmean(x, dim=self.dim, keepdim=self.keepdim)
+
+
+_nan_input = torch.tensor([[1.0, float("nan"), 3.0], [4.0, 5.0, float("nan")]])
+test_suite.add(
+    (_nan_input.clone(),),
+    NanSumMod(dim=1),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_nan_input.clone(),),
+    NanSumMod(dim=0),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_nan_input.clone(),),
+    NanMeanMod(dim=1),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_nan_input.clone(),),
+    NanMeanMod(dim=0, keepdim=True),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class HuberLossMod(nn.Module):
+    def __init__(self, reduction="mean", delta=1.0) -> None:
+        super().__init__()
+        self.reduction = reduction
+        self.delta = delta
+
+    def forward(self, x, y):
+        return torch.nn.functional.huber_loss(
+            x, y, reduction=self.reduction, delta=self.delta
+        )
+
+
+class SmoothL1LossMod(nn.Module):
+    def __init__(self, reduction="mean", beta=1.0) -> None:
+        super().__init__()
+        self.reduction = reduction
+        self.beta = beta
+
+    def forward(self, x, y):
+        return torch.nn.functional.smooth_l1_loss(
+            x, y, reduction=self.reduction, beta=self.beta
+        )
+
+
+# Mix small (|diff| < delta) and large residuals so both branches of
+# the piecewise loss run.
+_huber_in = torch.tensor([[0.1, 0.5, -2.0], [3.0, -0.2, 1.0]])
+_huber_tgt = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    HuberLossMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    HuberLossMod(reduction="sum", delta=0.5),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    HuberLossMod(reduction="none"),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    SmoothL1LossMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    SmoothL1LossMod(reduction="sum", beta=0.5),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (_huber_in, _huber_tgt),
+    SmoothL1LossMod(reduction="none"),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
+class AngleMod(nn.Module):
+    """torch.angle(complex_tensor) -> phase (real)."""
+
+    def forward(self, x):
+        # x is real (..., 2); fold into complex then take angle.
+        return torch.angle(torch.view_as_complex(x))
+
+
+class PolarMod(nn.Module):
+    """torch.polar(abs, angle) -> complex; view_as_real for compare."""
+
+    def forward(self, abs_t, ang_t):
+        return torch.view_as_real(torch.polar(abs_t, ang_t))
+
+
+# Keep `real >= 0` so the naive atan2 fragment (atan(x/y), no quadrant
+# correction) matches PyTorch's atan2.
+_complex_real_input = torch.tensor(
+    [[[1.0, 0.5], [2.0, -1.5]], [[3.0, 2.0], [0.5, 0.0]]]
+)
+test_suite.add(
+    (_complex_real_input,),
+    AngleMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([[1.0, 2.0], [3.0, 0.5]]),
+        torch.tensor([[0.0, 0.5], [-0.3, 1.0]]),
+    ),
+    PolarMod(),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 class UInt16Casty(nn.Module):
     def forward(self, x):
         return x.to(torch.uint16)
