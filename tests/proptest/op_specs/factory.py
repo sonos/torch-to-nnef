@@ -358,6 +358,52 @@ def _fft_sample_st(
     return _draw()
 
 
+_FFT_COMPLEX_XFAIL_REASON = (
+    "FFT returns complex; comparator doesn't bridge PyTorch's complex64 "
+    "output vs tract's (real, imag) unfolded layout."
+)
+
+
+def _fftn_sample_st(
+    op: T.Callable[..., torch.Tensor],
+) -> st.SearchStrategy[OpSample]:
+    """`torch.fft.fftn(input, s=None, dim=None, norm=None)` strategy.
+
+    Draws a rank-2-or-3 real tensor and picks a contiguous prefix of
+    axes to transform. The t2n emitter requires `s` and `norm` None.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=2, max_value=3))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=2, max_value=6),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        # Use last k axes (the most common pattern).
+        k = draw(st.integers(min_value=1, max_value=rank))
+        dim = tuple(range(rank - k, rank))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-2.0, 2.0),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(op, dim=dim)),
+        )
+
+    return _draw()
+
+
 def _fft_specs() -> T.List[OpSpec]:
     return [
         OpSpec(
@@ -371,11 +417,7 @@ def _fft_specs() -> T.List[OpSpec]:
             name="fft_fft-xfail",
             sample_st=_fft_sample_st(torch.fft.fft),
             tolerance=TractCheckTolerance.SUPER,
-            xfail_reason=(
-                "FFT returns complex; comparator doesn't bridge "
-                "PyTorch's complex64 output vs tract's (real, imag) "
-                "unfolded layout."
-            ),
+            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
         ),
         OpSpec(
             # Additionally, t2n's NPZ writer at
@@ -386,9 +428,31 @@ def _fft_specs() -> T.List[OpSpec]:
             sample_st=_fft_sample_st(torch.fft.ifft),
             tolerance=TractCheckTolerance.SUPER,
             xfail_reason=(
-                "Same complex-output comparator gap as fft_fft, plus "
-                "t2n model_wrapper.py missing .resolve_conj() before "
-                ".numpy() for ifft output (conjugate bit set)."
+                _FFT_COMPLEX_XFAIL_REASON
+                + " Plus t2n model_wrapper.py missing .resolve_conj() "
+                "before .numpy() for ifft output."
+            ),
+        ),
+        OpSpec(
+            # Real-input one-sided FFT. Same comparator gap as fft_fft.
+            name="fft_rfft-xfail",
+            sample_st=_fft_sample_st(torch.fft.rfft),
+            tolerance=TractCheckTolerance.SUPER,
+            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
+        ),
+        OpSpec(
+            name="fft_fftn-xfail",
+            sample_st=_fftn_sample_st(torch.fft.fftn),
+            tolerance=TractCheckTolerance.SUPER,
+            xfail_reason=_FFT_COMPLEX_XFAIL_REASON,
+        ),
+        OpSpec(
+            name="fft_ifftn-xfail",
+            sample_st=_fftn_sample_st(torch.fft.ifftn),
+            tolerance=TractCheckTolerance.SUPER,
+            xfail_reason=(
+                _FFT_COMPLEX_XFAIL_REASON
+                + " Plus the .resolve_conj() gap from fft_ifft."
             ),
         ),
     ]
