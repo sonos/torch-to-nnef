@@ -2,11 +2,7 @@
 # `angle = atan2(imag, real)` where real / imag are slices on `axis`
 # (always `rank(input) - 1` for the standard `torch.angle` call; the
 # emitter passes it explicitly so this fragment stays rank-agnostic).
-#
-# Note: this calls the existing `atan2` fragment which is currently
-# `atan(x / y)` (no quadrant correction). Outputs are only matching
-# `torch.angle` when the real part stays non-negative; once `atan2.nnef`
-# grows a proper quadrant-aware impl this caveat goes away.
+# Delegates the four-quadrant arithmetic to the `atan2` fragment.
 fragment angle(
     input: tensor<scalar>,
     axis:  integer

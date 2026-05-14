@@ -153,7 +153,6 @@ def _adaptive_pool2d_sample_st(
 
 
 def _pool_specs() -> T.List[OpSpec]:
-
     EXACT = TractCheckTolerance.EXACT
     APPROX = TractCheckTolerance.APPROXIMATE
     return [
@@ -308,6 +307,42 @@ def _cumsum_sample_st() -> st.SearchStrategy[OpSample]:
     return _draw()
 
 
+def _cumprod_sample_st() -> st.SearchStrategy[OpSample]:
+    """`torch.cumprod(input, dim)`.
+
+    Bound elements close to 1 so the running product stays in range
+    over up-to-5 steps along the chosen axis.
+    """
+
+    @st.composite
+    def _draw(draw) -> OpSample:
+        rank = draw(st.integers(min_value=1, max_value=4))
+        shape = tuple(
+            draw(
+                st.lists(
+                    st.integers(min_value=1, max_value=5),
+                    min_size=rank,
+                    max_size=rank,
+                )
+            )
+        )
+        dim = draw(st.integers(min_value=0, max_value=rank - 1))
+        x = draw(
+            tensor_st(
+                shape,
+                torch.float32,
+                finite=True,
+                domain=Interval(-1.5, 1.5),
+            )
+        )
+        return OpSample(
+            inputs=(x,),
+            module=UnaryPrimitive(partial(torch.cumprod, dim=dim)),
+        )
+
+    return _draw()
+
+
 def _atan2_sample_st() -> st.SearchStrategy[OpSample]:
     """`torch.atan2(y, x)`: broadcasted, no special domain."""
 
@@ -345,7 +380,6 @@ def _classifier_sample_st(
 
 
 def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
-
     EXACT = TractCheckTolerance.EXACT
     APPROX = TractCheckTolerance.APPROXIMATE
     CLOSE = TractCheckTolerance.CLOSE
@@ -399,13 +433,26 @@ def _conv3d_pool3d_helpers_specs() -> T.List[OpSpec]:
             tolerance=APPROX,
         ),
         OpSpec(
+            name="cumprod",
+            sample_st=_cumprod_sample_st(),
+            tolerance=APPROX,
+        ),
+        OpSpec(
+            # Quadrants are now handled (the `atan2.nnef` fragment got
+            # a quadrant-aware lowering). What remains diverging are two
+            # IEEE-754 corners the NNEF stdlib `lt` can't see:
+            # `atan2(y, -0.0)` flips sign (`lt(-0, 0)` is False so we
+            # don't add the `pi`-adjust), and `atan2(0, 0)` returns NaN
+            # vs torch's 0. Hypothesis hits both reliably under the
+            # `(-10, 10)` interval, so the spec stays xfail until the
+            # sample generator filters them out.
             name="atan2-xfail",
             sample_st=_atan2_sample_st(),
             tolerance=VERY,
             xfail_reason=(
-                "tract atan2 disagrees with PyTorch on quadrant boundaries "
-                "(e.g. atan2(0, -1) returns 0 in tract vs pi in PyTorch). "
-                "Likely a tract upstream bug in atan2 quadrant handling."
+                "Edge cases at signed zero -- `atan2(y, -0.0)` and "
+                "`atan2(0, 0)` -- diverge from PyTorch by pi or NaN. "
+                "The rest of the quadrant plane now matches."
             ),
         ),
         OpSpec(

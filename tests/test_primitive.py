@@ -964,10 +964,11 @@ class PolarMod(nn.Module):
         return torch.view_as_real(torch.polar(abs_t, ang_t))
 
 
-# Keep `real >= 0` so the naive atan2 fragment (atan(x/y), no quadrant
-# correction) matches PyTorch's atan2.
+# Mix of quadrants exercises the full atan2 path. Avoid `(0, 0)` and
+# `(_, -0.0)` since atan2 still diverges from torch at the signed-zero
+# corners (see `atan2.nnef` doc).
 _complex_real_input = torch.tensor(
-    [[[1.0, 0.5], [2.0, -1.5]], [[3.0, 2.0], [0.5, 0.0]]]
+    [[[1.0, 0.5], [-2.0, -1.5]], [[-3.0, 2.0], [0.5, -0.8]]]
 )
 test_suite.add(
     (_complex_real_input,),
@@ -1182,6 +1183,18 @@ test_suite.add(
     (torch.rand(6, 2), torch.rand(6, 2)),
     BinaryPrimitive(torch.atan2),
     inference_conditions=skip_khronos_interpreter,  # unssuported
+)
+# Exercise the four quadrants: signs of `y` (numerator) and `x`
+# (denominator) sweep `{+, -}` independently, so PyTorch's atan2 hits
+# both `(den > 0)` and `(den < 0, num >= 0)` and `(den < 0, num < 0)`
+# branches. Pre-quadrant-aware-atan2.nnef this case diverged by pi.
+test_suite.add(
+    (
+        torch.tensor([[0.5, -0.5, -1.5], [1.5, 0.5, -0.5]]),
+        torch.tensor([[1.0, -1.0, -1.0], [-1.0, 1.0, -1.0]]),
+    ),
+    BinaryPrimitive(torch.atan2),
+    inference_conditions=skip_khronos_interpreter,
 )
 
 test_suite.add(

@@ -47,6 +47,23 @@ class MyFFTN(nn.Module):
         return torch.view_as_real(torch.fft.fftn(x, dim=self.dims))
 
 
+class MyIRFFT(nn.Module):
+    """Reconstruct a real signal from a one-sided complex spectrum."""
+
+    def __init__(self, dim=-1, n=None):
+        super().__init__()
+        self.dim = dim
+        self.n = n
+
+    def forward(self, x):
+        # Build a one-sided complex spectrum from the real input by
+        # taking its rfft; then irfft to recover the original real
+        # signal (within floating-point error). This pattern exercises
+        # the irfft handler end-to-end.
+        spec = torch.fft.rfft(x, dim=self.dim)
+        return torch.fft.irfft(spec, n=self.n, dim=self.dim)
+
+
 class MyIFFTN(nn.Module):
     """N-dim inverse FFT.
 
@@ -151,6 +168,8 @@ def add_test(*args, stft=False):
 add_test(torch.FloatTensor([[0, 1], [2, 3]]), MyFFT())
 add_test(torch.arange(8.0).reshape(2, 4), MyRFFT())
 add_test(torch.arange(12.0).reshape(3, 4), MyRFFT(dim=0))
+add_test(torch.arange(8.0).reshape(2, 4), MyIRFFT())
+add_test(torch.arange(12.0).reshape(3, 4), MyIRFFT(dim=0))
 add_test(torch.arange(24.0).reshape(2, 3, 4), MyFFTN(dims=[1, 2]))
 add_test(torch.arange(24.0).reshape(2, 3, 4), MyIFFTN(dims=[1, 2]))
 add_test(torch.arange(8.0), MyHammingWindowScaled(8, "hamming"))

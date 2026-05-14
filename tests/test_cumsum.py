@@ -41,6 +41,26 @@ for axis in [0, 1, 2, -1]:
     )
 
 
+# cumprod across typical axes. Use a small-magnitude float input so the
+# running product doesn't blow up.
+_inp_p = torch.tensor(
+    [
+        [[0.5, 1.5, -0.5, 2.0], [0.8, 1.2, 0.9, -1.1], [1.0, 0.7, 1.3, 0.95]],
+        [
+            [1.1, 0.9, 1.05, 0.85],
+            [-1.2, 0.95, 1.15, 1.0],
+            [0.6, 1.4, 0.7, 1.25],
+        ],
+    ],
+)
+for axis in [0, 1, 2, -1]:
+    test_suite.add(
+        (_inp_p,),
+        UnaryPrimitive(lambda x, a=axis: torch.cumprod(x, dim=a)),
+        inference_conditions=_skip_if_not_tract,
+    )
+
+
 @pytest.mark.parametrize(
     "_id,test_input,model,inference_target",
     test_suite.test_samples,
