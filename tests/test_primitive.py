@@ -1184,6 +1184,64 @@ test_suite.add(
     BinaryPrimitive(torch.atan2),
     inference_conditions=skip_khronos_interpreter,  # unssuported
 )
+test_suite.add(
+    (torch.tensor([-2.5, -1.0, 0.0, 1.0, 2.5]),),
+    UnaryPrimitive(torch.sgn),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([1.0, -2.0, 3.0]),
+        torch.tensor([2.0, -3.0, -1.0]),
+    ),
+    BinaryPrimitive(torch.logaddexp),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([1.0, -2.0, 3.0]),
+        torch.tensor([2.0, -3.0, -1.0]),
+    ),
+    BinaryPrimitive(torch.logaddexp2),
+    inference_conditions=skip_khronos_interpreter,
+)
+# copysign: |a| with sign(b). Mix signs incl. `b == 0` (PyTorch maps
+# +0 to a positive sign, result is `+|a|`). Avoid `-0.0` here: NNEF
+# `lt` can't see the IEEE-754 sign bit, so `copysign(a, -0.0)`
+# diverges from torch (same caveat as the `atan2` signed-zero
+# corner). Real-world inputs that come through copysign rarely hit
+# this corner.
+test_suite.add(
+    (
+        torch.tensor([-1.5, 2.5, -3.0, 4.0]),
+        torch.tensor([2.0, -1.0, 0.0, -3.5]),
+    ),
+    BinaryPrimitive(torch.copysign),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (torch.tensor([-2.0, -0.5, 0.0, 0.5, 1.5, 3.0]),),
+    UnaryPrimitive(torch.sinc),
+    inference_conditions=skip_khronos_interpreter,
+)
+# channel_shuffle: (N, C, H, W) with C divisible by groups.
+test_suite.add(
+    (torch.arange(48.0).reshape(1, 8, 2, 3),),
+    UnaryPrimitive(partial(nn.functional.channel_shuffle, groups=4)),
+    inference_conditions=skip_khronos_interpreter,
+)
+# isclose: default atol=1e-8, rtol=1e-5; include exact match + small
+# perturbation under tolerance.
+test_suite.add(
+    (
+        torch.tensor([1.0, 2.0, 3.0, 1.00001]),
+        torch.tensor([1.0, 2.001, 3.5, 1.0]),
+    ),
+    BinaryPrimitive(torch.isclose),
+    inference_conditions=skip_khronos_interpreter,
+)
+
+
 # Exercise the four quadrants: signs of `y` (numerator) and `x`
 # (denominator) sweep `{+, -}` independently, so PyTorch's atan2 hits
 # both `(den > 0)` and `(den < 0, num >= 0)` and `(den < 0, num < 0)`

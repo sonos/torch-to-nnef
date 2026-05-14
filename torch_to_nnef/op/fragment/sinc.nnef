@@ -1,0 +1,12 @@
+# Normalised sinc: `sin(pi * x) / (pi * x)` with `x == 0` -> `1`.
+# Use `select` on `x == 0` to dodge the 0/0; the `pi*x` divisor uses
+# `x + select(x==0, 1, 0)` to ensure no division by zero even though
+# the result of that branch is overwritten by the `1.0` of the select.
+fragment sinc( input: tensor<scalar> ) -> ( output: tensor<scalar> )
+{
+    pi_x      = input * 3.14159265358979323846;
+    is_zero   = eq(input, mul(input, 0.0));
+    safe_div  = select(is_zero, mul(input, 0.0) + 1.0, pi_x);
+    raw       = sin(pi_x) / safe_div;
+    output    = select(is_zero, mul(input, 0.0) + 1.0, raw);
+}

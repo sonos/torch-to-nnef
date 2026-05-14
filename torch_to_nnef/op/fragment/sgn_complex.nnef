@@ -1,0 +1,24 @@
+# Complex-aware sign for t2n's `(..., 2)` layout:
+#   sgn(z) = z / |z|   if |z| > 0
+#          = 0         if z == 0
+# where `|z| = sqrt(re^2 + im^2)`. `axis` is the trailing-2 axis
+# (always `rank(input) - 1` for the standard call).
+fragment sgn_complex(
+    input: tensor<scalar>,
+    axis:  integer
+) -> ( output: tensor<scalar> )
+{
+    re_full = slice(input, axes = [axis], begin = [0], end = [1], stride = [1]);
+    im_full = slice(input, axes = [axis], begin = [1], end = [2], stride = [1]);
+    mag2    = sqr(re_full) + sqr(im_full);
+    mag     = sqrt(mag2);
+    is_zero = eq(mag, mul(mag, 0.0));
+    # Avoid 0/0: replace `mag` with 1 where it's 0, then mask the
+    # `0/1 = 0` result back via `select`.
+    safe_mag = select(is_zero, mul(mag, 0.0) + 1.0, mag);
+    re_n     = re_full / safe_mag;
+    im_n     = im_full / safe_mag;
+    re_out   = select(is_zero, mul(re_full, 0.0), re_n);
+    im_out   = select(is_zero, mul(im_full, 0.0), im_n);
+    output   = concat([re_out, im_out], axis = axis);
+}

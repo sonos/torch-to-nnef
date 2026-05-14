@@ -1,0 +1,12 @@
+# Numerically-stable `log(exp(a) + exp(b))`:
+#   m = max(a, b); m + log(exp(a - m) + exp(b - m))
+# Subtracting the max before `exp` keeps both terms in `[0, 1]` so
+# the sum never overflows for plausible inputs.
+fragment logaddexp(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    m      = max(a, b);
+    output = m + log(exp(a - m) + exp(b - m));
+}

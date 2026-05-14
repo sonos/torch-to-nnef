@@ -1,0 +1,12 @@
+# Base-2 variant: `log2(2**a + 2**b)`. Numerically stable in the same
+# way as `logaddexp` -- factor the max, scale into base-2 via ln(2).
+fragment logaddexp2(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    m       = max(a, b);
+    a_shift = (a - m) * 0.6931471805599453;
+    b_shift = (b - m) * 0.6931471805599453;
+    output  = m + log(exp(a_shift) + exp(b_shift)) * 1.4426950408889634;
+}

@@ -1,0 +1,15 @@
+# `|a - b| <= atol + rtol * |b|`. Default torch values are
+# `atol=1e-8`, `rtol=1e-5`; the emitter wires them as scalar
+# attributes. `equal_nan=True` (the trace's NaN-aware path) is left
+# to the caller -- see the handler doc for the `equal_nan` fallback.
+fragment isclose(
+    a: tensor<scalar>,
+    b: tensor<scalar>,
+    atol: scalar = 1.0e-8,
+    rtol: scalar = 1.0e-5
+) -> ( output: tensor<logical> )
+{
+    diff       = abs(sub(a, b));
+    threshold  = atol + rtol * abs(b);
+    output     = le(diff, threshold);
+}

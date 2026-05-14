@@ -1051,6 +1051,60 @@ def pixel_unshuffle(node, op_helper, **kwargs):
     _pixel_reshuffle(node, op_helper, downscale=True)
 
 
+@OP_REGISTRY.register(["channel_shuffle", "native_channel_shuffle"])
+def channel_shuffle(node, op_helper, **kwargs):
+    """Map PyTorch: `aten::channel_shuffle(self, groups)`.
+
+    Reshape `(N, C, *spatial)` -> `(N, g, C/g, *spatial)`, transpose
+    axes 1 and 2, then reshape back to `(N, C, *spatial)`. Used by
+    ShuffleNet-family architectures.
+    """
+    input_node, groups_node = node.inputs
+    groups = int(groups_node.data)
+    shape = list(input_node.shape)
+    if len(shape) < 2:
+        raise T2NErrorNotImplemented(
+            f"channel_shuffle expects rank>=2, got {len(shape)}"
+        )
+    c = shape[1]
+    if not isinstance(c, int):
+        raise T2NErrorNotImplemented(
+            "channel_shuffle on dynamic channel axis not yet supported"
+        )
+    if c % groups != 0:
+        raise T2NErrorNotImplemented(
+            f"channel_shuffle: C ({c}) not divisible by groups ({groups})"
+        )
+    n = shape[0]
+    spatial = shape[2:]
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    # (N, C, *spatial) -> (N, g, C/g, *spatial)
+    reshaped = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=[inp],
+        attrs={"shape": [n, groups, c // groups, *spatial]},
+        output_tensor_name_suffix="_chs_split",
+    )
+    # Swap axes 1 and 2.
+    perm = list(range(2 + len(spatial) + 1))
+    perm[1], perm[2] = 2, 1
+    transposed = op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "transpose",
+        inputs=[reshaped],
+        attrs={"axes": perm},
+        output_tensor_name_suffix="_chs_perm",
+    )
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "reshape",
+        inputs=[transposed],
+        attrs={"shape": [n, c, *spatial]},
+    )
+    return []
+
+
 def _emit_broadcast_to(op_helper, node, src_ref, target_shape, output_idx):
     """Emit `tract_core_broadcast` to `node.outputs[output_idx]`.
 

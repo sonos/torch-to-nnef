@@ -1,0 +1,15 @@
+# `|a|` with the sign of `b`. PyTorch treats `b == +0` and `b == -0`
+# distinctly via the sign bit; our `ge(b, 0.0)` returns true for both
+# zeros (positive-zero path), which matches `copysign(a, 0.0)` =
+# `+|a|` but diverges on `copysign(a, -0.0)`: torch returns `-|a|`,
+# we still return `+|a|`. Documented edge case; the bulk of the
+# domain matches.
+fragment copysign(
+    a: tensor<scalar>,
+    b: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    abs_a       = abs(a);
+    b_nonneg    = ge(b, mul(b, 0.0));
+    output      = select(b_nonneg, abs_a, sub(mul(abs_a, 0.0), abs_a));
+}
