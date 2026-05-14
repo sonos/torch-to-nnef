@@ -12,17 +12,27 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 import warnings
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
 
-import bs4
-import requests as rq
-import rich.progress
+# When invoked as ``python docs/contributing/generate_support_page.py``
+# Python seeds ``sys.path[0]`` with this script's directory, which means
+# ``import torch_to_nnef`` resolves against ``site-packages`` (any stale
+# install in ``.tox/<env>/lib/.../site-packages/`` wins) instead of the
+# in-tree source. Prepend the repo root so the live source always wins.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-from torch_to_nnef.op.aten import aten_ops_registry
+import bs4  # noqa: E402
+import requests as rq  # noqa: E402
+import rich.progress  # noqa: E402
+
+from torch_to_nnef.op.aten import aten_ops_registry  # noqa: E402
 
 
 class LinkToTorchDocCache:

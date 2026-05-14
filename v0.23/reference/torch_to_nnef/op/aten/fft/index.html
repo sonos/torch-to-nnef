@@ -1479,6 +1479,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.fft.fft_irfft" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fft_irfft
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.fft.fft_rfft" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fft_rfft
@@ -3195,6 +3204,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#torch_to_nnef.op.aten.fft.fft_irfft" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fft_irfft
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#torch_to_nnef.op.aten.fft.fft_rfft" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;fft_rfft
@@ -3330,6 +3348,31 @@
     <div class="doc doc-contents ">
 
         <p>Map PyTorch: 'aten:fft_ifftn' to NNEF (inverse N-dim FFT).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="torch_to_nnef.op.aten.fft.fft_irfft" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">fft_irfft</span>
+
+
+</h4>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fft_irfft</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">name_to_tensor</span><span class="p">,</span> <span class="n">inference_target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Map PyTorch: 'aten:fft_irfft' to NNEF.</p>
+<p>One-sided complex spectrum -&gt; real signal of length <code>n</code> (defaults
+to <code>2 * (K - 1)</code> where <code>K = input.shape[dim]</code>). Reconstruct the
+Hermitian-symmetric full spectrum: take the slice <code>[1, K-1)</code>,
+reverse it on <code>dim</code>, conjugate (negate imag), concat after the
+input -&gt; <code>(..., n, 2)</code>; run an inverse FFT; divide by <code>n</code>; drop
+the imaginary part.</p>
 
     </div>
 

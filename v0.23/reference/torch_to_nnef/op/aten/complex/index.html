@@ -3238,9 +3238,9 @@
 
         <p>Map PyTorch: 'aten:angle' to NNEF.</p>
 <p>Calls the <code>angle</code> fragment (<code>atan2(imag, real)</code> on a <code>(..., 2)</code>
-complex layout). The fragment delegates to <code>atan2</code>, which is
-currently <code>atan(x/y)</code> -- outputs only match <code>torch.angle</code> when the
-real part stays non-negative.</p>
+complex layout). The <code>atan2</code> fragment is quadrant-aware, so the
+result matches <code>torch.angle</code> across the full plane (signed-zero
+edge cases excepted).</p>
 
     </div>
 

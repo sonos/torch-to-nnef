@@ -818,6 +818,7 @@
         "expand",
         "expand_as",
         "fill_diagonal_",
+        "float_power_",
         "get_device",
         "grad",
         "index_fill",
