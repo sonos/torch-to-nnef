@@ -4637,7 +4637,10 @@ pointwise via <code>mul(first, 0) + 1</code> to keep init shape-matching).</p>
 
     <div class="doc doc-contents ">
 
-        <p>Map PyTorch: 'aten:floor_divide' to NNEF.</p>
+        <p>Map PyTorch: 'aten::floor_divide' / 'aten::floordiv' to NNEF.</p>
+<p>JIT records <code>aten::floordiv</code> for Python <code>//</code>; upstream
+<code>normalize_ops.cpp</code> does not bridge it to <code>floor_divide</code>, so we
+alias it on our side.</p>
 
     </div>
 

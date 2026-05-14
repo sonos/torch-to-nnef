@@ -4010,7 +4010,11 @@ output-channel index <code>c*kH*kW + di*kW + dj</code>.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Map <code>aten::mT</code> and <code>aten::mH</code> (<code>Tensor.mT</code> / <code>Tensor.mH</code>) to NNEF.</p>
+        <p>Map <code>aten::mT</code> / <code>aten::mH</code> / <code>aten::matrix_H</code> to NNEF.</p>
+<p><code>matrix_H</code> is the native-functions schema name for the Hermitian
+transpose property (<code>Tensor.H</code>); aliased here since for real
+dtypes it has the same semantics as <code>mT</code> / <code>mH</code> (axis swap on the
+last two dims).</p>
 <p>Both ops swap the last two axes of a rank-<code>&gt;=</code> 2 tensor. <code>mH</code> is the
 conjugate-transpose; for real-valued tensors (the only ones NNEF /
 tract carry without the complex feature flag) it is identical to
