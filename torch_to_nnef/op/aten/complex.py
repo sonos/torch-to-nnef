@@ -86,6 +86,89 @@ def angle(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def complex(  # pylint: disable=redefined-builtin
+    node, op_helper, inference_target, **kwargs
+):
+    """Map PyTorch: 'aten:complex(real, imag)' to NNEF.
+
+    Stacks `real` / `imag` on a new trailing axis via the `complex`
+    fragment so the result matches t2n's `(..., 2)` layout (mirror of
+    `polar` without the `cos` / `sin`).
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    real_node, imag_node = node.inputs
+    # Clear the trace's complex64 marker on the IR output: we actually
+    # emit a real `(..., 2)` tensor, and downstream implicit-cast logic
+    # otherwise tries to coerce the real inputs to `complexf64`.
+    node.outputs[0].dtype = torch.float32
+    node.outputs[0].shape = list(real_node.shape) + [2]
+    real_ref = op_helper.get_or_add_tensor_variable_in_nnef(real_node)
+    imag_ref = op_helper.get_or_add_tensor_variable_in_nnef(imag_node)
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "complex",
+        inputs=[real_ref, imag_ref],
+        attrs={"axis": real_node.rank},
+    )
+    return ["complex"]
+
+
+def _emit_conjugate(node, op_helper, inference_target, torch_graph, op_label):
+    """Shared body for `aten::conj` / `aten::conj_physical`.
+
+    On a real input we leave the trace untouched (the conjugate of a
+    real is itself). On a complex input we route through the
+    `conjugate` NNEF fragment which flips the sign of the imag slice
+    on the trailing-2 axis.
+    """
+    if tract_complex_support(inference_target):
+        raise T2NErrorNotImplemented("Complex not supported in vanilla spec")
+    (input_node,) = node.inputs
+    if input_node.dtype not in (torch.complex64, torch.complex128):
+        torch_graph.remap_node(node.outputs[0], input_node)
+        return []
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(input_node)
+    # On a complex input the trailing-2 axis is already part of the
+    # t2n IR rank (`view_as_complex` re-tagged the input's dtype to
+    # `complex64` without changing its shape), so the complex axis
+    # sits at `rank - 1`, not `rank`.
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node,
+        "conjugate",
+        inputs=[inp],
+        attrs={"axis": input_node.rank - 1},
+    )
+    return ["conjugate"]
+
+
+@OP_REGISTRY.register(["conj", "_conj"])
+def conj(node, op_helper, inference_target, torch_graph, **kwargs):
+    """Map PyTorch: 'aten:conj' / 'aten::_conj' to NNEF.
+
+    The trace usually pairs `conj` with `resolve_conj` (which stays in
+    `identity_remap` as a no-op); we put the actual sign flip here.
+    """
+    return _emit_conjugate(
+        node, op_helper, inference_target, torch_graph, "conj"
+    )
+
+
+@OP_REGISTRY.register()
+def conj_physical(node, op_helper, inference_target, torch_graph, **kwargs):
+    """Map PyTorch: 'aten:conj_physical' to NNEF.
+
+    Standalone version of `conj`; same code path. Previously routed to
+    `identity_remap`, which silently produced the wrong answer for
+    complex inputs (returned the input unchanged instead of
+    conjugating it).
+    """
+    return _emit_conjugate(
+        node, op_helper, inference_target, torch_graph, "conj_physical"
+    )
+
+
+@OP_REGISTRY.register()
 def polar(node, op_helper, inference_target, **kwargs):
     """Map PyTorch: 'aten:polar(abs, angle)' to NNEF.
 

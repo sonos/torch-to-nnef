@@ -1248,6 +1248,69 @@ def cummin(node, op_helper, inference_target, **kwargs):
 
 
 @OP_REGISTRY.register()
+def exp2(node, op_helper, **kwargs):
+    """aten::exp2 -> `exp2` fragment (`exp(x * ln 2)`)."""
+    inp = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    op_helper.add_single_output_op_from_nnef_tensors(node, "exp2", inputs=inp)
+    return ["exp2"]
+
+
+@OP_REGISTRY.register()
+def hypot(node, op_helper, **kwargs):
+    """aten::hypot -> `hypot` fragment (`sqrt(a^2 + b^2)`)."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "hypot", inputs=[a, b]
+    )
+    return ["hypot"]
+
+
+@OP_REGISTRY.register()
+def xlogy(node, op_helper, **kwargs):
+    """aten::xlogy -> `xlogy` fragment (`x * log(y)` with x==0 -> 0)."""
+    x = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    y = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "xlogy", inputs=[x, y]
+    )
+    return ["xlogy"]
+
+
+@OP_REGISTRY.register()
+def heaviside(node, op_helper, **kwargs):
+    """aten::heaviside -> `heaviside` fragment (step with tie-breaker)."""
+    x = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    v = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "heaviside", inputs=[x, v]
+    )
+    return ["heaviside"]
+
+
+@OP_REGISTRY.register()
+def fmax(node, op_helper, **kwargs):
+    """aten::fmax -> NaN-skipping max."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "fmax", inputs=[a, b]
+    )
+    return ["fmax"]
+
+
+@OP_REGISTRY.register()
+def fmin(node, op_helper, **kwargs):
+    """aten::fmin -> NaN-skipping min."""
+    a = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[0])
+    b = op_helper.get_or_add_tensor_variable_in_nnef(node.inputs[1])
+    op_helper.add_single_output_op_from_nnef_tensors(
+        node, "fmin", inputs=[a, b]
+    )
+    return ["fmin"]
+
+
+@OP_REGISTRY.register()
 def fmod(node, op_helper, **kwargs):
     """aten::fmod.
 

@@ -1197,6 +1197,59 @@ test_suite.add(
     inference_conditions=skip_khronos_interpreter,
 )
 
+
+# Elementwise math: exp2, hypot, xlogy, heaviside, fmax, fmin.
+test_suite.add(
+    (torch.tensor([-2.0, -1.0, 0.0, 0.5, 1.0, 2.5]),),
+    UnaryPrimitive(torch.exp2),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([[3.0, -4.0, 5.0], [0.0, 1.5, -2.5]]),
+        torch.tensor([[4.0, 3.0, 12.0], [0.0, -2.0, 6.0]]),
+    ),
+    BinaryPrimitive(torch.hypot),
+    inference_conditions=skip_khronos_interpreter,
+)
+# xlogy: include `x==0` so the special-case branch fires (PyTorch
+# returns 0 there even when `log(y)` is nan/-inf).
+test_suite.add(
+    (
+        torch.tensor([0.0, 1.0, 2.0, 0.5, 0.0]),
+        torch.tensor([0.0, 2.0, 1.0, 4.0, 5.0]),
+    ),
+    BinaryPrimitive(torch.xlogy),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([-1.0, 0.0, 2.0, -3.0, 0.0]),
+        torch.tensor([0.5, 0.5, 0.5, 0.5, 0.5]),
+    ),
+    BinaryPrimitive(torch.heaviside),
+    inference_conditions=skip_khronos_interpreter,
+)
+# fmax / fmin propagate NaN from the *non*-NaN operand: torch.fmax(NaN, x)
+# returns x, unlike torch.max which returns NaN. Test with both finite
+# and NaN inputs.
+test_suite.add(
+    (
+        torch.tensor([1.0, float("nan"), 3.0, float("nan")]),
+        torch.tensor([2.0, 5.0, float("nan"), float("nan")]),
+    ),
+    BinaryPrimitive(torch.fmax),
+    inference_conditions=skip_khronos_interpreter,
+)
+test_suite.add(
+    (
+        torch.tensor([1.0, float("nan"), 3.0, float("nan")]),
+        torch.tensor([2.0, 5.0, float("nan"), float("nan")]),
+    ),
+    BinaryPrimitive(torch.fmin),
+    inference_conditions=skip_khronos_interpreter,
+)
+
 test_suite.add(
     (torch.rand(6, 2)),
     UnaryPrimitive(torch.expm1),

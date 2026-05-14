@@ -1,0 +1,7 @@
+# `2 ** x` via `exp(x * ln(2))`. NNEF stdlib `pow` requires a tensor
+# base, so going through `exp` avoids materialising a 2-tensor of the
+# input's shape.
+fragment exp2( input: tensor<scalar> ) -> ( output: tensor<scalar> )
+{
+    output = exp(input * 0.6931471805599453);
+}

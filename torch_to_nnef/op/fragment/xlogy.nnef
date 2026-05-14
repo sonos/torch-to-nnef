@@ -1,0 +1,12 @@
+# `x * log(y)` with the PyTorch special case `x == 0 -> 0` (even when
+# `log(y)` is `-inf` or `NaN`). The `0 * 0` from `mul(x, 0)` only works
+# to lift the literal `0` into `x`-shape -- `select` then picks the
+# zero branch.
+fragment xlogy(
+    x: tensor<scalar>,
+    y: tensor<scalar>
+) -> ( output: tensor<scalar> )
+{
+    is_zero = eq(x, mul(x, 0.0));
+    output = select(is_zero, mul(x, 0.0), x * log(y));
+}

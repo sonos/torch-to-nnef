@@ -1,0 +1,13 @@
+# Construct a complex tensor in t2n's `(..., 2)` real layout from a
+# pair of real tensors. `axis` is the position the new trailing-2 axis
+# sits at (always `rank(real)` for the standard `torch.complex` call).
+fragment complex(
+    real:  tensor<scalar>,
+    imag:  tensor<scalar>,
+    axis:  integer
+) -> ( output: tensor<scalar> )
+{
+    re_u = unsqueeze(real, axes = [axis]);
+    im_u = unsqueeze(imag, axes = [axis]);
+    output = concat([re_u, im_u], axis = axis);
+}
